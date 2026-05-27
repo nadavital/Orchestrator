@@ -11143,6 +11143,7 @@ function runAutomatedFocusedSurfaceSmoke(
               const documentColumnLayoutChecks = {};
               const documentShapeChecks = {};
               const documentFootnoteChecks = {};
+              const documentListChecks = {};
               const spreadsheetRendererChecks = {};
               const spreadsheetControlChecks = {};
               const spreadsheetSheetTabChecks = {};
@@ -11607,10 +11608,18 @@ function runAutomatedFocusedSurfaceSmoke(
                     const advancedNextPage = document.querySelector('[data-testid="workspace-document-preview-page-next"]');
                     const advancedPageBody = document.querySelector('[data-testid="workspace-document-preview-page"]');
                     const documentShapes = [...document.querySelectorAll('[data-testid="workspace-document-preview-shape"]')];
+                    const documentListItems = [...document.querySelectorAll('[data-testid="workspace-document-preview-list-item"]')];
                     documentFootnoteChecks[testId] =
                       Boolean(documentFootnoteChecks[testId]) &&
                       advancedPageBody instanceof HTMLElement &&
                       advancedPageBody.textContent?.includes('Document smoke footnote reference[2]') === true;
+                    documentListChecks[testId] =
+                      advancedPageBody instanceof HTMLElement &&
+                      documentListItems.length === 1 &&
+                      documentListItems[0] instanceof HTMLElement &&
+                      documentListItems[0].getAttribute('data-document-list-kind') === 'bullet' &&
+                      documentListItems[0].getAttribute('data-document-list-level') === '0' &&
+                      documentListItems[0].textContent?.includes('Document smoke bullet list item') === true;
                     const pageNavigationWorks =
                       advancedPreview instanceof HTMLElement &&
                       advancedPreview.getAttribute('data-document-preview-page-count') === '2' &&
@@ -13386,6 +13395,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 filesDocumentColumnLayoutWorks: Boolean(documentColumnLayoutChecks['workspace-document-preview']),
                 filesDocumentShapeRenderingWorks: Boolean(documentShapeChecks['workspace-document-preview']),
                 filesDocumentFootnotesWorks: Boolean(documentFootnoteChecks['workspace-document-preview']),
+                filesDocumentListRenderingWorks: Boolean(documentListChecks['workspace-document-preview']),
                 filesSpreadsheetRendererWorks: Boolean(spreadsheetRendererChecks['workspace-spreadsheet-preview']),
                 filesSlidesRendererWorks: Boolean(slidesRendererChecks['workspace-slides-preview']),
                 filesSlidesShapeLayoutWorks: Boolean(slidesShapeLayoutChecks['workspace-slides-preview']),

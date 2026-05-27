@@ -156,6 +156,9 @@ interface SlidePreviewShape {
 interface DocumentPreviewParagraphBlock {
   type: 'paragraph'
   text: string
+  listKind?: 'bullet' | 'ordered'
+  listLevel?: number
+  listMarker?: string
 }
 
 interface DocumentPreviewTableBlock {
@@ -463,6 +466,7 @@ function extractDocxPreview(xml: string, archive: Buffer): DocumentPreviewPayloa
   let imageCount = 0
   let shapeCount = 0
   const relationships = extractZipRelationships(archive, 'word/document.xml')
+  const numbering = extractDocxNumbering(archive)
   const sections = extractDocxSections(body, archive, relationships)
   const shapeBlocks = extractDocxShapeBlocks(body)
   const footnotes = extractDocxFootnotes(body, archive)
@@ -479,7 +483,7 @@ function extractDocxPreview(xml: string, archive: Buffer): DocumentPreviewPayloa
     }
     if (blockXml.includes('<wps:wsp')) continue
     const text = extractDocxParagraphText(blockXml)
-    if (text) blocks.push({ type: 'paragraph', text })
+    if (text) blocks.push({ type: 'paragraph', text, ...extractDocxParagraphList(blockXml, numbering) })
     const imageBlocks = extractDocxImageBlocks(blockXml, archive, relationships)
     if (imageBlocks.length > 0) {
       blocks.push(...imageBlocks)
@@ -543,6 +547,63 @@ function extractDocxTableRows(xml: string): string[][] {
       .slice(0, 10)
       .map((cellMatch) => extractDocxParagraphText(cellMatch[0] ?? '')))
     .filter((row) => row.some((cell) => cell.trim()))
+}
+
+interface DocxNumberingLevel {
+  kind: 'bullet' | 'ordered'
+  marker: string
+}
+
+function extractDocxNumbering(archive: Buffer): Map<string, DocxNumberingLevel> {
+  const xml = readZipEntry(archive, 'word/numbering.xml')?.toString('utf8') ?? ''
+  const levelsByAbstract = new Map<string, Map<string, DocxNumberingLevel>>()
+  const levelsByNum = new Map<string, Map<string, DocxNumberingLevel>>()
+  if (!xml) return new Map()
+  for (const abstractMatch of xml.matchAll(/<w:abstractNum\b[^>]*\bw:abstractNumId="([^"]+)"[\s\S]*?<\/w:abstractNum>/g)) {
+    const abstractId = abstractMatch[1] ?? ''
+    const abstractXml = abstractMatch[0] ?? ''
+    const levels = new Map<string, DocxNumberingLevel>()
+    for (const levelMatch of abstractXml.matchAll(/<w:lvl\b[^>]*\bw:ilvl="([^"]+)"[\s\S]*?<\/w:lvl>/g)) {
+      const level = levelMatch[1] ?? '0'
+      const levelXml = levelMatch[0] ?? ''
+      const format = /<w:numFmt\b[^>]*\bw:val="([^"]+)"/.exec(levelXml)?.[1] ?? ''
+      const levelText = /<w:lvlText\b[^>]*\bw:val="([^"]*)"/.exec(levelXml)?.[1] ?? ''
+      const kind = format === 'bullet' ? 'bullet' : 'ordered'
+      levels.set(level, {
+        kind,
+        marker: decodeXmlText(levelText || (kind === 'bullet' ? '\u2022' : '%1.')).replace(/%[0-9]+/g, '1')
+      })
+    }
+    if (abstractId && levels.size > 0) levelsByAbstract.set(abstractId, levels)
+  }
+  for (const numMatch of xml.matchAll(/<w:num\b[^>]*\bw:numId="([^"]+)"[\s\S]*?<\/w:num>/g)) {
+    const numId = numMatch[1] ?? ''
+    const abstractId = /<w:abstractNumId\b[^>]*\bw:val="([^"]+)"/.exec(numMatch[0] ?? '')?.[1] ?? ''
+    const levels = abstractId ? levelsByAbstract.get(abstractId) : undefined
+    if (numId && levels) levelsByNum.set(numId, levels)
+  }
+  const numbering = new Map<string, DocxNumberingLevel>()
+  for (const [numId, levels] of levelsByNum) {
+    for (const [level, definition] of levels) {
+      numbering.set(`${numId}:${level}`, definition)
+    }
+  }
+  return numbering
+}
+
+function extractDocxParagraphList(xml: string, numbering: Map<string, DocxNumberingLevel>): Pick<DocumentPreviewParagraphBlock, 'listKind' | 'listLevel' | 'listMarker'> {
+  const numPr = /<w:numPr\b[\s\S]*?<\/w:numPr>/.exec(xml)?.[0] ?? ''
+  if (!numPr) return {}
+  const levelText = /<w:ilvl\b[^>]*\bw:val="([^"]+)"/.exec(numPr)?.[1] ?? '0'
+  const numId = /<w:numId\b[^>]*\bw:val="([^"]+)"/.exec(numPr)?.[1] ?? ''
+  const level = Math.max(0, Math.min(8, Math.floor(Number(levelText) || 0)))
+  const definition = numbering.get(`${numId}:${levelText}`) ?? numbering.get(`${numId}:0`)
+  const kind = definition?.kind ?? 'ordered'
+  return {
+    listKind: kind,
+    listLevel: level,
+    listMarker: definition?.marker || (kind === 'bullet' ? '\u2022' : '1.')
+  }
 }
 
 function extractDocxParagraphText(xml: string): string {

@@ -41,7 +41,7 @@ interface NotebookCell {
 }
 
 type DocumentPreviewBlock =
-  | { type: 'paragraph'; text: string }
+  | { type: 'paragraph'; text: string; listKind?: 'bullet' | 'ordered'; listLevel?: number; listMarker?: string }
   | { type: 'table'; rows: string[][] }
   | { type: 'image'; dataUrl: string; mimeType: string; alt?: string; width?: number; height?: number }
   | { type: 'shape'; text: string; geometry?: string; fillColor?: string; lineColor?: string }
@@ -314,7 +314,22 @@ function DocumentPreview({
                             <span>{block.text}</span>
                           </aside>
                         )
-                      : <p key={`paragraph-${index}`}>{block.text}</p>
+                      : block.listKind
+                        ? (
+                            <p
+                              key={`paragraph-${index}`}
+                              className="document-preview-list-item"
+                              data-testid={`${testId}-list-item`}
+                              data-document-list-kind={block.listKind}
+                              data-document-list-level={block.listLevel ?? 0}
+                              data-document-list-marker={block.listMarker ?? ''}
+                              style={{ '--document-list-indent-level': block.listLevel ?? 0 } as CSSProperties}
+                            >
+                              <span className="document-preview-list-marker" aria-hidden="true">{block.listMarker ?? (block.listKind === 'bullet' ? '\u2022' : '1.')}</span>
+                              <span>{block.text}</span>
+                            </p>
+                          )
+                        : <p key={`paragraph-${index}`}>{block.text}</p>
               ))}
             </div>
             {footnotes.length > 0 && (
@@ -384,7 +399,14 @@ function normalizeDocumentBlocks(blocks: DocumentPreviewBlock[] | undefined, par
             lineColor: normalizeDocumentColor(block.lineColor)
           }
         }
-        return { type: 'paragraph' as const, text: String(block.text ?? '').trim() }
+        const listKind = block.listKind === 'bullet' || block.listKind === 'ordered' ? block.listKind : undefined
+        const listLevel = Math.max(0, Math.min(8, Math.floor(Number(block.listLevel ?? 0) || 0)))
+        const listMarker = String(block.listMarker ?? '').trim().slice(0, 8)
+        return {
+          type: 'paragraph' as const,
+          text: String(block.text ?? '').trim(),
+          ...(listKind ? { listKind, listLevel, listMarker: listMarker || (listKind === 'bullet' ? '\u2022' : '1.') } : {})
+        }
       })
       .filter((block) => {
         if (block.type === 'table') return block.rows.length > 0

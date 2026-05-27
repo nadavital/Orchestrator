@@ -57,7 +57,7 @@ interface FilePreviewResult {
   text?: string
   document?: {
     blocks: Array<
-      | { type: 'paragraph'; text: string }
+      | { type: 'paragraph'; text: string; listKind?: 'bullet' | 'ordered'; listLevel?: number; listMarker?: string }
       | { type: 'table'; rows: string[][] }
       | { type: 'image'; dataUrl: string; mimeType: string; alt?: string; width?: number; height?: number }
       | { type: 'shape'; text: string; geometry?: string; fillColor?: string; lineColor?: string }

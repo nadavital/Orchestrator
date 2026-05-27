@@ -356,6 +356,8 @@ function createDocxFixture(blocks, options = {}) {
   const footnoteBlocks = blocks
     .filter((block) => block && typeof block === 'object' && block.footnoteText)
     .map((block, index) => ({ block, id: String(index + 2) }))
+  const listBlocks = blocks
+    .filter((block) => block && typeof block === 'object' && block.listKind)
   const blockXml = blocks.map((block) => {
     if (block && typeof block === 'object' && Array.isArray(block.rows)) {
       return `<w:tbl>
@@ -400,6 +402,12 @@ function createDocxFixture(blocks, options = {}) {
       const id = footnote?.id ?? '2'
       return `<w:p><w:r><w:t>${escapeXml(String(block.text ?? 'Document footnote reference'))}</w:t></w:r><w:r><w:footnoteReference w:id="${id}"/></w:r></w:p>`
     }
+    if (block && typeof block === 'object' && block.listKind) {
+      const listKind = block.listKind === 'bullet' ? 'bullet' : 'ordered'
+      const numId = listKind === 'bullet' ? '7' : '8'
+      const level = Math.max(0, Math.min(8, Math.floor(Number(block.listLevel ?? 0) || 0)))
+      return `<w:p><w:pPr><w:numPr><w:ilvl w:val="${level}"/><w:numId w:val="${numId}"/></w:numPr></w:pPr><w:r><w:t>${escapeXml(String(block.text ?? 'Document list item'))}</w:t></w:r></w:p>`
+    }
     return `<w:p><w:r><w:t>${escapeXml(String(block))}</w:t></w:r></w:p>`
   }).join('\n    ')
   const headerText = String(options.headerText ?? '').trim()
@@ -433,6 +441,17 @@ function createDocxFixture(blocks, options = {}) {
 </w:footnotes>`
       }]
     : []
+  const numberingEntry = listBlocks.length > 0
+    ? [{
+        name: 'word/numbering.xml',
+        data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:abstractNum w:abstractNumId="7"><w:lvl w:ilvl="0"><w:numFmt w:val="bullet"/><w:lvlText w:val="\u2022"/></w:lvl></w:abstractNum>
+  <w:abstractNum w:abstractNumId="8"><w:lvl w:ilvl="0"><w:numFmt w:val="decimal"/><w:lvlText w:val="%1."/></w:lvl></w:abstractNum>
+  <w:num w:numId="7"><w:abstractNumId w:val="7"/></w:num>
+  <w:num w:numId="8"><w:abstractNumId w:val="8"/></w:num>
+</w:numbering>`
+      }]
+    : []
   return createStoredZip([
     {
       name: '[Content_Types].xml',
@@ -444,6 +463,7 @@ function createDocxFixture(blocks, options = {}) {
   <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
   ${headerText ? '<Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>' : ''}
   ${footerText ? '<Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>' : ''}
+  ${listBlocks.length > 0 ? '<Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>' : ''}
 </Types>`
     },
     {
@@ -465,6 +485,7 @@ function createDocxFixture(blocks, options = {}) {
     { name: 'word/document.xml', data: documentXml },
     ...headerFooterEntries,
     ...footnotesEntry,
+    ...numberingEntry,
     ...imageBlocks.map((image) => ({
       name: `word/media/document-image-${image.index}.png`,
       data: Buffer.from(String(image.block.imageBase64), 'base64')
@@ -1057,7 +1078,7 @@ if (fixtureWorkspaceViews.has(captureView)) {
     'Document smoke baseline',
     'This verifies DOCX text preview in the inspector.',
     { rows: [['Metric', 'Value'], ['Rows', '2'], ['Status', 'Baseline table']] },
-    'Document smoke baseline section alpha',
+    { text: 'Document smoke baseline list item', listKind: 'bullet' },
     { text: 'Document smoke baseline footnote reference', footnoteText: 'Document smoke baseline footnote text' },
     { shapeText: 'Document smoke shape baseline', geometry: 'roundRect', fillColor: '#E0F2FE', lineColor: '#38BDF8' },
     'Document smoke baseline section delta',
@@ -1184,7 +1205,7 @@ if (fixtureWorkspaceViews.has(captureView)) {
     'This verifies DOCX text preview in the inspector.',
     { rows: [['Metric', 'Value'], ['Rows', '2'], ['Status', 'Updated table']] },
     { imageBase64: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADUlEQVR42mNkYPj/HwADAgH/akqSVAAAAABJRU5ErkJggg==', alt: 'Document smoke embedded image', cx: 914400, cy: 914400 },
-    'Document smoke section alpha',
+    { text: 'Document smoke bullet list item', listKind: 'bullet' },
     { text: 'Document smoke footnote reference', footnoteText: 'Document smoke footnote text' },
     { shapeText: 'Document smoke shape callout', geometry: 'roundRect', fillColor: '#E0F2FE', lineColor: '#38BDF8' },
       'Document smoke section delta',
@@ -1963,6 +1984,7 @@ child.on('exit', async (code) => {
           filesDocumentColumnLayout: result.filesDocumentColumnLayoutWorks === true,
           filesDocumentShapeRendering: result.filesDocumentShapeRenderingWorks === true,
           filesDocumentFootnotes: result.filesDocumentFootnotesWorks === true,
+          filesDocumentListRendering: result.filesDocumentListRenderingWorks === true,
           filesSpreadsheetPreview: result.filesSpreadsheetPreviewWorks === true,
           filesSlidesPreview: result.filesSlidesPreviewWorks === true,
           filesSpreadsheetRenderer: result.filesSpreadsheetRendererWorks === true,
@@ -2184,6 +2206,7 @@ child.on('exit', async (code) => {
         filesDocumentColumnLayout: captureView !== 'inspector' || result.filesDocumentColumnLayoutWorks === true,
         filesDocumentShapeRendering: captureView !== 'inspector' || result.filesDocumentShapeRenderingWorks === true,
         filesDocumentFootnotes: captureView !== 'inspector' || result.filesDocumentFootnotesWorks === true,
+        filesDocumentListRendering: captureView !== 'inspector' || result.filesDocumentListRenderingWorks === true,
         filesSpreadsheetPreview: captureView !== 'inspector' || result.filesSpreadsheetPreviewWorks === true,
         filesSlidesPreview: captureView !== 'inspector' || result.filesSlidesPreviewWorks === true,
         filesSpreadsheetRenderer: captureView !== 'inspector' || result.filesSpreadsheetRendererWorks === true,

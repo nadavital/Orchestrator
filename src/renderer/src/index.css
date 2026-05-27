@@ -5913,6 +5913,20 @@
     max-width: 100%;
   }
 
+  .document-preview-list-item {
+    display: grid;
+    grid-template-columns: 22px minmax(0, 1fr);
+    gap: 8px;
+    margin-left: calc(var(--document-list-indent-level, 0) * 18px);
+  }
+
+  .document-preview-list-marker {
+    color: var(--text-tertiary);
+    font-variant-numeric: tabular-nums;
+    text-align: end;
+    user-select: none;
+  }
+
   .document-preview-footnotes {
     margin-top: 18px;
     border-top: 1px solid var(--border-subtle);
