@@ -398,8 +398,8 @@ function buildContracts() {
       ],
       smokeChecks: ['browserWebviewManagerBoundary', 'browserHiddenWebviewContainment', 'browserForkDomTransfer', 'browserUseNoMutation', 'browserManagerStateBridge', 'browserClientToolBridge', 'browserClientToolActions', 'browserClientToolScreenshot', 'browserClientToolAdvancedActions', 'browserPersistedPolicyDefaults'],
       statusWhenCovered: 'fixture-covered',
-      caveat: 'Synthetic manager events, UI boundaries, smoke-only Browser renderer loopback, persisted Browser Use policy defaults in the right Browser panel, and live Codex app-server real browser_open/browser_read/browser_click/browser_type/browser_screenshot/browser_fill/browser_key/browser_select/browser_check/browser_scroll tool requests pass; native browser-use event streaming is still separate.',
-      next: 'Expand richer interaction coverage only from real browser-use requests or a full installed-app end-to-end run; keep unavailable runtime boundaries explicit.'
+      caveat: 'Synthetic manager events, UI boundaries, Browser renderer loopback, persisted Browser Use policy defaults in the right Browser panel, installed-app smoke proof, and live Codex app-server real browser_open/browser_read/browser_click/browser_type/browser_screenshot/browser_fill/browser_key/browser_select/browser_check/browser_scroll tool requests pass; native browser-use event streaming is still separate.',
+      next: 'Keep unavailable runtime boundaries explicit; expand only when native browser-use events, image-content screenshot semantics, provider design-change application, or live pixel/timing evidence becomes available.'
     },
     {
       id: 'browser-device-presets',
