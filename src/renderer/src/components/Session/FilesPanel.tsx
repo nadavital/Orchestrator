@@ -929,6 +929,8 @@ interface SlidesPreviewPayload {
   truncated?: boolean
 }
 
+const OFFICE_ZOOM_OPTIONS = [50, 75, 100, 125, 150, 200] as const
+
 function spreadsheetColumnLabel(index: number): string {
   let value = index + 1
   let label = ''
@@ -938,6 +940,132 @@ function spreadsheetColumnLabel(index: number): string {
     value = Math.floor((value - 1) / 26)
   }
   return label
+}
+
+function OfficeArtifactZoomControls({
+  fitToWidth,
+  kind,
+  maxZoom = 200,
+  minZoom = 50,
+  onFitToWidthChange,
+  onZoomPercentChange,
+  testId,
+  zoomPercent
+}: {
+  fitToWidth: boolean
+  kind: 'spreadsheet' | 'slides'
+  maxZoom?: number
+  minZoom?: number
+  onFitToWidthChange: (fit: boolean) => void
+  onZoomPercentChange: (zoom: number) => void
+  testId: string
+  zoomPercent: number
+}): JSX.Element {
+  const [menuStyle, setMenuStyle] = useState<CSSProperties | null>(null)
+  const closeMenu = (): void => setMenuStyle(null)
+  const selectZoom = (zoom: number): void => {
+    onFitToWidthChange(false)
+    onZoomPercentChange(zoom)
+    closeMenu()
+  }
+  const selectFit = (): void => {
+    onFitToWidthChange(true)
+    closeMenu()
+  }
+  const zoomOut = (): void => {
+    onFitToWidthChange(false)
+    onZoomPercentChange(Math.max(minZoom, zoomPercent - 25))
+  }
+  const zoomIn = (): void => {
+    onFitToWidthChange(false)
+    onZoomPercentChange(Math.min(maxZoom, zoomPercent + 25))
+  }
+  const specificDataAttributes = kind === 'spreadsheet'
+    ? {
+        'data-spreadsheet-zoom-percent': zoomPercent,
+        'data-spreadsheet-zoom-fit': fitToWidth ? 'true' : 'false'
+      }
+    : {
+        'data-slides-zoom-percent': zoomPercent,
+        'data-slides-zoom-fit': fitToWidth ? 'true' : 'false'
+      }
+  return (
+    <span
+      className="file-preview-zoom-controls"
+      data-testid={`${testId}-zoom-controls`}
+      data-office-zoom-menu="true"
+      data-office-zoom-percent={zoomPercent}
+      data-office-zoom-fit={fitToWidth ? 'true' : 'false'}
+      {...specificDataAttributes}
+    >
+      <IconButton
+        icon="zoomOut"
+        label="Zoom out"
+        size="sm"
+        variant="toolbar"
+        disabled={zoomPercent <= minZoom}
+        dataTestId={`${testId}-zoom-out`}
+        onClick={zoomOut}
+      />
+      <button
+        type="button"
+        className="file-preview-zoom-menu-trigger"
+        data-testid={`${testId}-zoom-indicator`}
+        data-office-zoom-trigger="true"
+        aria-haspopup="menu"
+        aria-expanded={menuStyle ? 'true' : 'false'}
+        aria-label="Zoom options"
+        onClick={(event) => {
+          const rect = event.currentTarget.getBoundingClientRect()
+          setMenuStyle({
+            position: 'fixed',
+            left: Math.max(8, Math.min(rect.left, window.innerWidth - 180)),
+            top: Math.min(rect.bottom + 6, window.innerHeight - 260),
+            width: 160,
+            zIndex: 110
+          })
+        }}
+      >
+        <span>{fitToWidth ? 'Fit' : `${zoomPercent}%`}</span>
+        <Icon name="chevronDown" size={11} />
+      </button>
+      <IconButton
+        icon="zoomIn"
+        label="Zoom in"
+        size="sm"
+        variant="toolbar"
+        disabled={zoomPercent >= maxZoom}
+        dataTestId={`${testId}-zoom-in`}
+        onClick={zoomIn}
+      />
+      {menuStyle && (
+        <MenuSurface
+          data-testid={`${testId}-zoom-menu`}
+          onClose={closeMenu}
+          style={menuStyle}
+        >
+          <MenuSection dataTestId={`${testId}-zoom-menu-section`}>
+            <MenuSectionLabel>Zoom</MenuSectionLabel>
+            {OFFICE_ZOOM_OPTIONS.map((option) => (
+              <MenuItem
+                key={option}
+                icon={!fitToWidth && zoomPercent === option ? 'check' : undefined}
+                label={`${option}%`}
+                dataTestId={`${testId}-zoom-option-${option}`}
+                onClick={() => selectZoom(option)}
+              />
+            ))}
+            <MenuItem
+              icon={fitToWidth ? 'check' : undefined}
+              label="Zoom to fit"
+              dataTestId={`${testId}-zoom-fit`}
+              onClick={selectFit}
+            />
+          </MenuSection>
+        </MenuSurface>
+      )}
+    </span>
+  )
 }
 
 function SpreadsheetArtifactPreview({
@@ -955,9 +1083,11 @@ function SpreadsheetArtifactPreview({
   const sheets = payload?.sheets ?? []
   const [activeSheetIndex, setActiveSheetIndex] = useState(0)
   const [zoomPercent, setZoomPercent] = useState(100)
+  const [fitToWidth, setFitToWidth] = useState(false)
   const [activeCell, setActiveCell] = useState({ row: 0, column: 0 })
   const activeSheet = sheets[activeSheetIndex] ?? null
   const sheetCount = sheets.length
+  const effectiveZoomPercent = fitToWidth ? 100 : zoomPercent
   const maxColumnCount = activeSheet
     ? Math.max(1, ...activeSheet.rows.map((row) => row.length))
     : 1
@@ -972,12 +1102,6 @@ function SpreadsheetArtifactPreview({
     setActiveSheetIndex(Math.min(Math.max(index, 0), Math.max(0, sheetCount - 1)))
     setActiveCell({ row: 0, column: 0 })
   }
-  const zoomOut = (): void => {
-    setZoomPercent((zoom) => Math.max(50, zoom - 25))
-  }
-  const zoomIn = (): void => {
-    setZoomPercent((zoom) => Math.min(200, zoom + 25))
-  }
   return (
     <div
       className="file-structured-preview workspace-office-artifact-preview flex h-full min-h-0 flex-col overflow-hidden"
@@ -989,6 +1113,7 @@ function SpreadsheetArtifactPreview({
       data-spreadsheet-active-sheet-index={activeSheetIndex + 1}
       data-spreadsheet-active-sheet-name={activeSheet?.name ?? ''}
       data-spreadsheet-preview-zoom-percent={zoomPercent}
+      data-spreadsheet-preview-zoom-fit={fitToWidth ? 'true' : 'false'}
       data-spreadsheet-active-cell-address={activeSheet ? activeCellAddress : ''}
       data-spreadsheet-active-cell-value={activeSheet ? activeCellValue : ''}
     >
@@ -1030,37 +1155,18 @@ function SpreadsheetArtifactPreview({
           <span
             className="file-preview-header-actions"
             data-testid="workspace-spreadsheet-preview-actions"
-            data-preview-controls="copy-path spreadsheet-sheet-navigation spreadsheet-zoom open-options"
+            data-preview-controls="copy-path spreadsheet-sheet-navigation spreadsheet-zoom spreadsheet-zoom-fit open-options"
             data-artifact-open-options="true"
           >
             {payload && (
-              <span
-                className="file-preview-zoom-controls"
-                data-testid="workspace-spreadsheet-preview-zoom-controls"
-                data-spreadsheet-zoom-percent={zoomPercent}
-              >
-                <IconButton
-                  icon="zoomOut"
-                  label="Zoom out"
-                  size="sm"
-                  variant="toolbar"
-                  disabled={zoomPercent <= 50}
-                  dataTestId="workspace-spreadsheet-preview-zoom-out"
-                  onClick={zoomOut}
-                />
-                <span className="file-preview-zoom-indicator" data-testid="workspace-spreadsheet-preview-zoom-indicator">
-                  {zoomPercent}%
-                </span>
-                <IconButton
-                  icon="zoomIn"
-                  label="Zoom in"
-                  size="sm"
-                  variant="toolbar"
-                  disabled={zoomPercent >= 200}
-                  dataTestId="workspace-spreadsheet-preview-zoom-in"
-                  onClick={zoomIn}
-                />
-              </span>
+              <OfficeArtifactZoomControls
+                fitToWidth={fitToWidth}
+                kind="spreadsheet"
+                onFitToWidthChange={setFitToWidth}
+                onZoomPercentChange={setZoomPercent}
+                testId="workspace-spreadsheet-preview"
+                zoomPercent={zoomPercent}
+              />
             )}
             <ArtifactHeaderActionButtons actions={actions} testId="workspace-spreadsheet-preview" />
           </span>
@@ -1105,7 +1211,7 @@ function SpreadsheetArtifactPreview({
                 <table
                   className="workspace-spreadsheet-table"
                   data-testid="workspace-spreadsheet-preview-table"
-                  style={{ fontSize: `${Math.max(10, Math.min(18, 12 * (zoomPercent / 100)))}px` }}
+                  style={{ fontSize: `${Math.max(10, Math.min(18, 12 * (effectiveZoomPercent / 100)))}px` }}
                 >
                   <thead>
                     <tr>
@@ -1225,19 +1331,15 @@ function SlidesArtifactPreview({
   const slides = payload?.slides ?? []
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0)
   const [zoomPercent, setZoomPercent] = useState(100)
+  const [fitToWidth, setFitToWidth] = useState(false)
   const slideCount = slides.length
   const currentSlide = slides[currentSlideIndex] ?? null
   const notesCount = slides.filter((slide) => slide.notes?.trim()).length
   const currentSlideNotes = currentSlide?.notes?.trim() ?? ''
+  const effectiveZoomPercent = fitToWidth ? 100 : zoomPercent
   useEffect(() => {
     setCurrentSlideIndex((index) => Math.min(Math.max(index, 0), Math.max(0, slideCount - 1)))
   }, [slideCount])
-  const zoomOut = (): void => {
-    setZoomPercent((zoom) => Math.max(50, zoom - 25))
-  }
-  const zoomIn = (): void => {
-    setZoomPercent((zoom) => Math.min(200, zoom + 25))
-  }
   return (
     <div
       className="file-structured-preview workspace-office-artifact-preview flex h-full min-h-0 flex-col overflow-hidden"
@@ -1248,6 +1350,7 @@ function SlidesArtifactPreview({
       data-slides-preview-slide-count={slideCount}
       data-slides-preview-current-slide={currentSlideIndex + 1}
       data-slides-preview-zoom-percent={zoomPercent}
+      data-slides-preview-zoom-fit={fitToWidth ? 'true' : 'false'}
       data-slides-preview-notes-count={notesCount}
       data-slides-preview-current-notes={currentSlideNotes}
     >
@@ -1289,37 +1392,18 @@ function SlidesArtifactPreview({
           <span
             className="file-preview-header-actions"
             data-testid="workspace-slides-preview-actions"
-            data-preview-controls="copy-path slides-slide-navigation slides-zoom open-options"
+            data-preview-controls="copy-path slides-slide-navigation slides-zoom slides-zoom-fit open-options"
             data-artifact-open-options="true"
           >
             {payload && (
-              <span
-                className="file-preview-zoom-controls"
-                data-testid="workspace-slides-preview-zoom-controls"
-                data-slides-zoom-percent={zoomPercent}
-              >
-                <IconButton
-                  icon="zoomOut"
-                  label="Zoom out"
-                  size="sm"
-                  variant="toolbar"
-                  disabled={zoomPercent <= 50}
-                  dataTestId="workspace-slides-preview-zoom-out"
-                  onClick={zoomOut}
-                />
-                <span className="file-preview-zoom-indicator" data-testid="workspace-slides-preview-zoom-indicator">
-                  {zoomPercent}%
-                </span>
-                <IconButton
-                  icon="zoomIn"
-                  label="Zoom in"
-                  size="sm"
-                  variant="toolbar"
-                  disabled={zoomPercent >= 200}
-                  dataTestId="workspace-slides-preview-zoom-in"
-                  onClick={zoomIn}
-                />
-              </span>
+              <OfficeArtifactZoomControls
+                fitToWidth={fitToWidth}
+                kind="slides"
+                onFitToWidthChange={setFitToWidth}
+                onZoomPercentChange={setZoomPercent}
+                testId="workspace-slides-preview"
+                zoomPercent={zoomPercent}
+              />
             )}
             <ArtifactHeaderActionButtons actions={actions} testId="workspace-slides-preview" />
           </span>
@@ -1334,7 +1418,7 @@ function SlidesArtifactPreview({
               className="workspace-slide-stage"
               data-testid="workspace-slides-preview-current-slide"
               data-slide-index={currentSlide.index}
-              style={{ fontSize: `${Math.max(10, Math.min(18, 13 * (zoomPercent / 100)))}px` }}
+              style={{ fontSize: `${Math.max(10, Math.min(18, 13 * (effectiveZoomPercent / 100)))}px` }}
             >
               <div className="workspace-slide-preview-number">{currentSlide.index}</div>
               <div className="workspace-slide-preview-content">

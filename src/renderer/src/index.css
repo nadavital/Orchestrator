@@ -4578,6 +4578,33 @@
     min-width: 42px;
   }
 
+  .file-preview-zoom-menu-trigger {
+    display: inline-flex;
+    min-width: 48px;
+    height: 24px;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-primary);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    line-height: 20px;
+    cursor: var(--cursor-pointer);
+  }
+
+  .file-preview-zoom-menu-trigger:hover,
+  .file-preview-zoom-menu-trigger[aria-expanded='true'] {
+    background: var(--surface-hover);
+  }
+
+  .file-preview-zoom-menu-trigger:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 1px;
+  }
+
   .workspace-pdf-preview-frame-inverted {
     filter: invert(1) hue-rotate(180deg);
   }

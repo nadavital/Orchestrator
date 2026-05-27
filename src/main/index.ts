@@ -11140,6 +11140,7 @@ function runAutomatedFocusedSurfaceSmoke(
               const spreadsheetControlChecks = {};
               const spreadsheetSheetTabChecks = {};
               const spreadsheetActiveCellChecks = {};
+              const officeZoomMenuChecks = {};
               const slidesRendererChecks = {};
               const slidesControlChecks = {};
               const slidesNotesChecks = {};
@@ -11733,12 +11734,41 @@ function runAutomatedFocusedSurfaceSmoke(
                       zoomedSpreadsheetPreview instanceof HTMLElement &&
                       zoomedSpreadsheetPreview.getAttribute('data-spreadsheet-active-sheet-index') === '2' &&
                       zoomedSpreadsheetPreview.getAttribute('data-spreadsheet-preview-zoom-percent') === '125' &&
+                      zoomedSpreadsheetPreview.getAttribute('data-spreadsheet-preview-zoom-fit') === 'false' &&
                       zoomedSpreadsheetControls instanceof HTMLElement &&
                       zoomedSpreadsheetControls.getAttribute('data-spreadsheet-zoom-percent') === '125' &&
+                      zoomedSpreadsheetControls.getAttribute('data-office-zoom-menu') === 'true' &&
                       zoomedSpreadsheetIndicator instanceof HTMLElement &&
                       zoomedSpreadsheetIndicator.textContent?.trim() === '125%' &&
                       zoomedTable instanceof HTMLTableElement &&
                       window.getComputedStyle(zoomedTable).fontSize === '15px';
+                    if (zoomedSpreadsheetIndicator instanceof HTMLButtonElement) {
+                      zoomedSpreadsheetIndicator.click();
+                      await sleep(120);
+                    }
+                    const spreadsheetZoomMenu = document.querySelector('[data-testid="workspace-spreadsheet-preview-zoom-menu"]');
+                    const spreadsheetZoomFit = document.querySelector('[data-testid="workspace-spreadsheet-preview-zoom-fit"]');
+                    const spreadsheetZoomOptions = [...document.querySelectorAll('[data-testid^="workspace-spreadsheet-preview-zoom-option-"]')];
+                    if (spreadsheetZoomFit instanceof HTMLButtonElement) {
+                      spreadsheetZoomFit.click();
+                      await sleep(120);
+                    }
+                    const fittedSpreadsheetPreview = document.querySelector('[data-testid="workspace-spreadsheet-preview"]');
+                    const fittedSpreadsheetControls = document.querySelector('[data-testid="workspace-spreadsheet-preview-zoom-controls"]');
+                    const fittedSpreadsheetIndicator = document.querySelector('[data-testid="workspace-spreadsheet-preview-zoom-indicator"]');
+                    officeZoomMenuChecks['workspace-spreadsheet-preview'] =
+                      spreadsheetZoomMenu instanceof HTMLElement &&
+                      spreadsheetZoomOptions.length >= 6 &&
+                      spreadsheetZoomOptions.some((option) => option.textContent?.trim() === '50%') &&
+                      spreadsheetZoomOptions.some((option) => option.textContent?.trim() === '200%') &&
+                      spreadsheetZoomFit instanceof HTMLButtonElement &&
+                      spreadsheetZoomFit.textContent?.includes('Zoom to fit') === true &&
+                      fittedSpreadsheetPreview instanceof HTMLElement &&
+                      fittedSpreadsheetPreview.getAttribute('data-spreadsheet-preview-zoom-fit') === 'true' &&
+                      fittedSpreadsheetControls instanceof HTMLElement &&
+                      fittedSpreadsheetControls.getAttribute('data-spreadsheet-zoom-fit') === 'true' &&
+                      fittedSpreadsheetIndicator instanceof HTMLButtonElement &&
+                      fittedSpreadsheetIndicator.textContent?.trim() === 'Fit';
                     const firstSheetTab = document.querySelector('[data-testid="workspace-spreadsheet-preview-sheet-tab"][data-spreadsheet-sheet-tab-index="1"]');
                     if (firstSheetTab instanceof HTMLButtonElement) {
                       firstSheetTab.click();
@@ -11876,12 +11906,41 @@ function runAutomatedFocusedSurfaceSmoke(
                       zoomedSlidesPreview instanceof HTMLElement &&
                       zoomedSlidesPreview.getAttribute('data-slides-preview-current-slide') === '2' &&
                       zoomedSlidesPreview.getAttribute('data-slides-preview-zoom-percent') === '125' &&
+                      zoomedSlidesPreview.getAttribute('data-slides-preview-zoom-fit') === 'false' &&
                       zoomedSlidesControls instanceof HTMLElement &&
                       zoomedSlidesControls.getAttribute('data-slides-zoom-percent') === '125' &&
+                      zoomedSlidesControls.getAttribute('data-office-zoom-menu') === 'true' &&
                       zoomedSlidesIndicator instanceof HTMLElement &&
                       zoomedSlidesIndicator.textContent?.trim() === '125%' &&
                       zoomedCurrentSlide instanceof HTMLElement &&
                       window.getComputedStyle(zoomedCurrentSlide).fontSize === '16.25px';
+                    if (zoomedSlidesIndicator instanceof HTMLButtonElement) {
+                      zoomedSlidesIndicator.click();
+                      await sleep(120);
+                    }
+                    const slidesZoomMenu = document.querySelector('[data-testid="workspace-slides-preview-zoom-menu"]');
+                    const slidesZoomFit = document.querySelector('[data-testid="workspace-slides-preview-zoom-fit"]');
+                    const slidesZoomOptions = [...document.querySelectorAll('[data-testid^="workspace-slides-preview-zoom-option-"]')];
+                    if (slidesZoomFit instanceof HTMLButtonElement) {
+                      slidesZoomFit.click();
+                      await sleep(120);
+                    }
+                    const fittedSlidesPreview = document.querySelector('[data-testid="workspace-slides-preview"]');
+                    const fittedSlidesControls = document.querySelector('[data-testid="workspace-slides-preview-zoom-controls"]');
+                    const fittedSlidesIndicator = document.querySelector('[data-testid="workspace-slides-preview-zoom-indicator"]');
+                    officeZoomMenuChecks['workspace-slides-preview'] =
+                      slidesZoomMenu instanceof HTMLElement &&
+                      slidesZoomOptions.length >= 6 &&
+                      slidesZoomOptions.some((option) => option.textContent?.trim() === '50%') &&
+                      slidesZoomOptions.some((option) => option.textContent?.trim() === '200%') &&
+                      slidesZoomFit instanceof HTMLButtonElement &&
+                      slidesZoomFit.textContent?.includes('Zoom to fit') === true &&
+                      fittedSlidesPreview instanceof HTMLElement &&
+                      fittedSlidesPreview.getAttribute('data-slides-preview-zoom-fit') === 'true' &&
+                      fittedSlidesControls instanceof HTMLElement &&
+                      fittedSlidesControls.getAttribute('data-slides-zoom-fit') === 'true' &&
+                      fittedSlidesIndicator instanceof HTMLButtonElement &&
+                      fittedSlidesIndicator.textContent?.trim() === 'Fit';
                     slidesControlChecks[testId] =
                       initialSlidesControls &&
                       slideNavigationWorks &&
@@ -12831,6 +12890,9 @@ function runAutomatedFocusedSurfaceSmoke(
                 filesSpreadsheetActiveCellWorks: Boolean(spreadsheetActiveCellChecks['workspace-spreadsheet-preview']),
                 filesSlidesControlsWorks: Boolean(slidesControlChecks['workspace-slides-preview']),
                 filesSlidesSpeakerNotesWorks: Boolean(slidesNotesChecks['workspace-slides-preview']),
+                filesOfficeZoomMenuWorks:
+                  Boolean(officeZoomMenuChecks['workspace-spreadsheet-preview']) &&
+                  Boolean(officeZoomMenuChecks['workspace-slides-preview']),
                 filesSpreadsheetSlidesArtifactBoundaryWorks:
                   Boolean(previewChecks.filesSpreadsheetPreviewWorks) &&
                   Boolean(previewChecks.filesSlidesPreviewWorks) &&
