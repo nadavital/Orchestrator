@@ -4790,6 +4790,7 @@
   }
 
   .workspace-spreadsheet-table-wrap {
+    position: relative;
     min-width: 0;
     overflow: auto;
     border: 1px solid var(--border-subtle);
@@ -4906,6 +4907,65 @@
   .workspace-spreadsheet-table tr:last-child td,
   .workspace-spreadsheet-table tr:last-child th {
     border-bottom: 0;
+  }
+
+  .workspace-spreadsheet-freeze-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 8;
+    pointer-events: none;
+  }
+
+  .workspace-spreadsheet-freeze-line {
+    position: absolute;
+    background: color-mix(in srgb, var(--accent) 72%, var(--text-primary));
+    pointer-events: none;
+  }
+
+  .workspace-spreadsheet-freeze-column-line {
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    transform: translateX(-0.5px);
+  }
+
+  .workspace-spreadsheet-freeze-row-line {
+    right: 0;
+    left: 0;
+    height: 1px;
+    transform: translateY(-0.5px);
+  }
+
+  .workspace-spreadsheet-freeze-handle {
+    position: absolute;
+    z-index: 9;
+    border: 0;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--accent) 78%, var(--surface-bg));
+    box-shadow: 0 0 0 2px var(--surface-bg), 0 1px 3px rgba(0, 0, 0, 0.16);
+    pointer-events: auto;
+  }
+
+  .workspace-spreadsheet-freeze-handle:hover,
+  .workspace-spreadsheet-freeze-handle:focus-visible {
+    background: var(--accent);
+    outline: none;
+  }
+
+  .workspace-spreadsheet-freeze-column-handle {
+    top: 4px;
+    width: 8px;
+    height: 18px;
+    cursor: ew-resize;
+    transform: translateX(-4px);
+  }
+
+  .workspace-spreadsheet-freeze-row-handle {
+    left: 4px;
+    width: 28px;
+    height: 8px;
+    cursor: ns-resize;
+    transform: translateY(-4px);
   }
 
   .workspace-spreadsheet-charts {

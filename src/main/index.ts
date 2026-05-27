@@ -11147,6 +11147,7 @@ function runAutomatedFocusedSurfaceSmoke(
               const spreadsheetMergeChecks = {};
               const spreadsheetSizingChecks = {};
               const spreadsheetFreezePaneChecks = {};
+              const spreadsheetFreezeHandleChecks = {};
               const spreadsheetAlignmentChecks = {};
               const spreadsheetTableChecks = {};
               const spreadsheetConditionalFormattingChecks = {};
@@ -11668,6 +11669,12 @@ function runAutomatedFocusedSurfaceSmoke(
                     const tallRowHeader = document.querySelector('[data-testid="workspace-spreadsheet-row-header"][data-spreadsheet-row-label="4"]');
                     const frozenColumnHeader = document.querySelector('[data-testid="workspace-spreadsheet-column-header"][data-spreadsheet-column-label="A"]');
                     const frozenRowHeader = document.querySelector('[data-testid="workspace-spreadsheet-row-header"][data-spreadsheet-row-label="1"]');
+                    const tableWrap = document.querySelector('[data-testid="workspace-spreadsheet-table-wrap"]');
+                    const freezeOverlay = document.querySelector('[data-testid="workspace-spreadsheet-freeze-overlay"]');
+                    const freezeColumnLine = document.querySelector('[data-testid="workspace-spreadsheet-freeze-column-line"]');
+                    const freezeColumnHandle = document.querySelector('[data-testid="workspace-spreadsheet-freeze-column-handle"]');
+                    const freezeRowLine = document.querySelector('[data-testid="workspace-spreadsheet-freeze-row-line"]');
+                    const freezeRowHandle = document.querySelector('[data-testid="workspace-spreadsheet-freeze-row-handle"]');
                     const chartPreview = document.querySelector('[data-testid="workspace-spreadsheet-chart-preview"]');
                     spreadsheetRendererChecks[testId] =
                       spreadsheetPreview instanceof HTMLElement &&
@@ -11786,6 +11793,27 @@ function runAutomatedFocusedSurfaceSmoke(
                       getComputedStyle(headerNameTableCell).position === 'sticky' &&
                       alphaCell instanceof HTMLButtonElement &&
                       alphaCell.getAttribute('data-spreadsheet-cell-frozen-column') === 'true';
+                    spreadsheetFreezeHandleChecks[testId] =
+                      spreadsheetPreview instanceof HTMLElement &&
+                      spreadsheetPreview.getAttribute('data-spreadsheet-freeze-handles') === 'true' &&
+                      tableWrap instanceof HTMLElement &&
+                      tableWrap.getAttribute('data-spreadsheet-freeze-column-line') === 'true' &&
+                      tableWrap.getAttribute('data-spreadsheet-freeze-row-line') === 'true' &&
+                      freezeOverlay instanceof HTMLElement &&
+                      freezeOverlay.getAttribute('data-spreadsheet-freeze-column-count') === '1' &&
+                      freezeOverlay.getAttribute('data-spreadsheet-freeze-row-count') === '1' &&
+                      freezeColumnLine instanceof HTMLElement &&
+                      freezeColumnLine.getAttribute('data-spreadsheet-freeze-column-count') === '1' &&
+                      getComputedStyle(freezeColumnLine).position === 'absolute' &&
+                      freezeColumnHandle instanceof HTMLButtonElement &&
+                      freezeColumnHandle.getAttribute('data-spreadsheet-freeze-column-count') === '1' &&
+                      getComputedStyle(freezeColumnHandle).cursor === 'ew-resize' &&
+                      freezeRowLine instanceof HTMLElement &&
+                      freezeRowLine.getAttribute('data-spreadsheet-freeze-row-count') === '1' &&
+                      getComputedStyle(freezeRowLine).position === 'absolute' &&
+                      freezeRowHandle instanceof HTMLButtonElement &&
+                      freezeRowHandle.getAttribute('data-spreadsheet-freeze-row-count') === '1' &&
+                      getComputedStyle(freezeRowHandle).cursor === 'ns-resize';
                     spreadsheetAlignmentChecks[testId] =
                       spreadsheetPreview instanceof HTMLElement &&
                       Number(spreadsheetPreview.getAttribute('data-spreadsheet-aligned-cell-count') ?? '0') >= 1 &&
@@ -13305,6 +13333,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 filesSpreadsheetMergedCellsWorks: Boolean(spreadsheetMergeChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetSizingWorks: Boolean(spreadsheetSizingChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetFreezePanesWorks: Boolean(spreadsheetFreezePaneChecks['workspace-spreadsheet-preview']),
+                filesSpreadsheetFreezeHandlesWorks: Boolean(spreadsheetFreezeHandleChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetAlignmentWorks: Boolean(spreadsheetAlignmentChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetTablesWorks: Boolean(spreadsheetTableChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetConditionalFormattingWorks: Boolean(spreadsheetConditionalFormattingChecks['workspace-spreadsheet-preview']),

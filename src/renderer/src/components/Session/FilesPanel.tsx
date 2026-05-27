@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
-import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent } from 'react'
+import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { FilePreviewResult } from '../../env'
@@ -1059,6 +1059,21 @@ function updateSpreadsheetCell(
   return recalculateSpreadsheetSheets(nextSheets)
 }
 
+function updateSpreadsheetFreezePanes(
+  sheets: SpreadsheetPreviewPayload['sheets'],
+  sheetIndex: number,
+  axis: 'row' | 'column',
+  count: number
+): SpreadsheetPreviewPayload['sheets'] {
+  const nextSheets = cloneSpreadsheetSheets(sheets)
+  const sheet = nextSheets[sheetIndex]
+  if (!sheet) return nextSheets
+  const rows = axis === 'row' ? Math.max(0, Math.min(6, Math.floor(count))) : (sheet.freezePanes?.rows ?? 0)
+  const columns = axis === 'column' ? Math.max(0, Math.min(6, Math.floor(count))) : (sheet.freezePanes?.columns ?? 0)
+  sheet.freezePanes = rows > 0 || columns > 0 ? { rows, columns } : undefined
+  return nextSheets
+}
+
 function recalculateSpreadsheetSheets(sheets: SpreadsheetPreviewPayload['sheets']): SpreadsheetPreviewPayload['sheets'] {
   return sheets.map((sheet) => {
     const cellsByAddress = new Map<string, SpreadsheetPreviewCell>()
@@ -1229,6 +1244,28 @@ function spreadsheetDimensionOffset(values: Array<number | undefined> | undefine
   return offset
 }
 
+function spreadsheetFreezeCountFromOffset(
+  offset: number,
+  values: Array<number | undefined> | undefined,
+  fallback: number,
+  maxCount: number
+): number {
+  const cappedMax = Math.max(0, Math.min(6, maxCount))
+  if (offset <= 0 || cappedMax === 0) return 0
+  let edge = 0
+  let nearest = 0
+  let nearestDistance = Math.abs(offset)
+  for (let index = 0; index < cappedMax; index += 1) {
+    edge += values?.[index] ?? fallback
+    const distance = Math.abs(offset - edge)
+    if (distance < nearestDistance) {
+      nearest = index + 1
+      nearestDistance = distance
+    }
+  }
+  return nearest
+}
+
 function spreadsheetAlignItems(alignment: 'top' | 'middle' | 'bottom'): CSSProperties['alignItems'] {
   if (alignment === 'middle') return 'center'
   if (alignment === 'bottom') return 'flex-end'
@@ -1261,6 +1298,7 @@ function SpreadsheetArtifactPreview({
   const [activeCell, setActiveCell] = useState({ row: 0, column: 0 })
   const [formulaDraft, setFormulaDraft] = useState('')
   const [editCount, setEditCount] = useState(0)
+  const tableWrapRef = useRef<HTMLDivElement>(null)
   const activeSheet = sheets[activeSheetIndex] ?? null
   const sheetCount = sheets.length
   const effectiveZoomPercent = fitToWidth ? 100 : zoomPercent
@@ -1298,6 +1336,8 @@ function SpreadsheetArtifactPreview({
   const sizedRowCount = activeSheet?.rowHeights?.filter((height) => height !== undefined).length ?? 0
   const frozenRowCount = activeSheet?.freezePanes?.rows ?? 0
   const frozenColumnCount = activeSheet?.freezePanes?.columns ?? 0
+  const freezeColumnLineLeft = 38 + spreadsheetDimensionOffset(activeSheet?.columnWidths, frozenColumnCount, 88)
+  const freezeRowLineTop = 26 + spreadsheetDimensionOffset(activeSheet?.rowHeights, frozenRowCount, 29)
   useEffect(() => {
     setActiveSheetIndex((index) => Math.min(Math.max(index, 0), Math.max(0, sheetCount - 1)))
   }, [sheetCount])
@@ -1319,6 +1359,33 @@ function SpreadsheetArtifactPreview({
     if (nextInput === (activeCellFormula || activeCellValue)) return
     setSheets((items) => updateSpreadsheetCell(items, activeSheetIndex, activeCellRow, activeCellColumn, nextInput))
     setEditCount((count) => count + 1)
+  }
+  const freezeCountFromPointer = (axis: 'row' | 'column', clientX: number, clientY: number): number => {
+    const rect = tableWrapRef.current?.getBoundingClientRect()
+    if (!rect || !activeSheet) return axis === 'row' ? frozenRowCount : frozenColumnCount
+    if (axis === 'column') {
+      return spreadsheetFreezeCountFromOffset(clientX - rect.left - 38, activeSheet.columnWidths, 88, maxColumnCount)
+    }
+    return spreadsheetFreezeCountFromOffset(clientY - rect.top - 26, activeSheet.rowHeights, 29, activeSheet.rows.length)
+  }
+  const beginFreezePaneDrag = (axis: 'row' | 'column', event: ReactPointerEvent<HTMLButtonElement>): void => {
+    event.preventDefault()
+    event.stopPropagation()
+    const update = (clientX: number, clientY: number): void => {
+      const count = freezeCountFromPointer(axis, clientX, clientY)
+      setSheets((items) => updateSpreadsheetFreezePanes(items, activeSheetIndex, axis, count))
+    }
+    update(event.clientX, event.clientY)
+    const handleMove = (pointerEvent: PointerEvent): void => {
+      update(pointerEvent.clientX, pointerEvent.clientY)
+    }
+    const handleUp = (pointerEvent: PointerEvent): void => {
+      update(pointerEvent.clientX, pointerEvent.clientY)
+      window.removeEventListener('pointermove', handleMove)
+      window.removeEventListener('pointerup', handleUp)
+    }
+    window.addEventListener('pointermove', handleMove)
+    window.addEventListener('pointerup', handleUp)
   }
   return (
     <div
@@ -1347,6 +1414,7 @@ function SpreadsheetArtifactPreview({
       data-spreadsheet-sized-row-count={sizedRowCount}
       data-spreadsheet-frozen-row-count={frozenRowCount}
       data-spreadsheet-frozen-column-count={frozenColumnCount}
+      data-spreadsheet-freeze-handles="true"
       data-spreadsheet-editable="local-preview"
       data-spreadsheet-edit-count={editCount}
     >
@@ -1459,7 +1527,13 @@ function SpreadsheetArtifactPreview({
                   Apply
                 </Button>
               </div>
-              <div className="workspace-spreadsheet-table-wrap">
+              <div
+                ref={tableWrapRef}
+                className="workspace-spreadsheet-table-wrap"
+                data-testid="workspace-spreadsheet-table-wrap"
+                data-spreadsheet-freeze-column-line={frozenColumnCount > 0 ? 'true' : 'false'}
+                data-spreadsheet-freeze-row-line={frozenRowCount > 0 ? 'true' : 'false'}
+              >
                 <table
                   className="workspace-spreadsheet-table"
                   data-testid="workspace-spreadsheet-preview-table"
@@ -1658,6 +1732,49 @@ function SpreadsheetArtifactPreview({
                     })}
                   </tbody>
                 </table>
+                <div
+                  className="workspace-spreadsheet-freeze-overlay"
+                  data-testid="workspace-spreadsheet-freeze-overlay"
+                  data-spreadsheet-freeze-column-count={frozenColumnCount}
+                  data-spreadsheet-freeze-row-count={frozenRowCount}
+                >
+                  {frozenColumnCount > 0 && (
+                    <span
+                      className="workspace-spreadsheet-freeze-line workspace-spreadsheet-freeze-column-line"
+                      data-testid="workspace-spreadsheet-freeze-column-line"
+                      data-spreadsheet-freeze-column-count={frozenColumnCount}
+                      aria-hidden="true"
+                      style={{ left: freezeColumnLineLeft }}
+                    />
+                  )}
+                  <button
+                    type="button"
+                    className="workspace-spreadsheet-freeze-handle workspace-spreadsheet-freeze-column-handle"
+                    data-testid="workspace-spreadsheet-freeze-column-handle"
+                    data-spreadsheet-freeze-column-count={frozenColumnCount}
+                    aria-label="Drag frozen column boundary"
+                    style={{ left: frozenColumnCount > 0 ? freezeColumnLineLeft : 38 }}
+                    onPointerDown={(event) => { beginFreezePaneDrag('column', event) }}
+                  />
+                  {frozenRowCount > 0 && (
+                    <span
+                      className="workspace-spreadsheet-freeze-line workspace-spreadsheet-freeze-row-line"
+                      data-testid="workspace-spreadsheet-freeze-row-line"
+                      data-spreadsheet-freeze-row-count={frozenRowCount}
+                      aria-hidden="true"
+                      style={{ top: freezeRowLineTop }}
+                    />
+                  )}
+                  <button
+                    type="button"
+                    className="workspace-spreadsheet-freeze-handle workspace-spreadsheet-freeze-row-handle"
+                    data-testid="workspace-spreadsheet-freeze-row-handle"
+                    data-spreadsheet-freeze-row-count={frozenRowCount}
+                    aria-label="Drag frozen row boundary"
+                    style={{ top: frozenRowCount > 0 ? freezeRowLineTop : 26 }}
+                    onPointerDown={(event) => { beginFreezePaneDrag('row', event) }}
+                  />
+                </div>
               </div>
               {(activeSheet.charts?.length ?? 0) > 0 && (
                 <div className="workspace-spreadsheet-charts" data-testid="workspace-spreadsheet-chart-preview-list">
