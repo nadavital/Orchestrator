@@ -11138,6 +11138,7 @@ function runAutomatedFocusedSurfaceSmoke(
               const pdfPresentationModeChecks = {};
               const documentPageControlChecks = {};
               const documentTableChecks = {};
+              const documentImageChecks = {};
               const spreadsheetRendererChecks = {};
               const spreadsheetControlChecks = {};
               const spreadsheetSheetTabChecks = {};
@@ -11495,6 +11496,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     const zoomIn = document.querySelector('[data-testid="workspace-document-preview-zoom-in"]');
                     const pageBody = document.querySelector('[data-testid="workspace-document-preview-page"]');
                     const documentTables = [...document.querySelectorAll('[data-testid="workspace-document-preview-table"]')];
+                    const documentImages = [...document.querySelectorAll('[data-testid="workspace-document-preview-image"]')];
                     const initialDocumentControls =
                       documentPreview instanceof HTMLElement &&
                       documentPreview.getAttribute('data-document-preview-page-count') === '2' &&
@@ -11524,12 +11526,22 @@ function runAutomatedFocusedSurfaceSmoke(
                       documentPreview instanceof HTMLElement &&
                       documentPreview.getAttribute('data-document-preview-renderer') === 'codex-page-surface' &&
                       documentPreview.getAttribute('data-document-preview-table-count') === '1' &&
-                      documentPreview.getAttribute('data-document-preview-block-count') === '9' &&
+                      documentPreview.getAttribute('data-document-preview-block-count') === '10' &&
                       pageBody instanceof HTMLElement &&
                       pageBody.classList.contains('codex-docx-preview') &&
                       pageBody.textContent?.includes('Updated table') === true &&
                       documentTables.length === 1 &&
                       documentTables[0]?.textContent?.includes('Metric') === true;
+                    documentImageChecks[testId] =
+                      documentPreview instanceof HTMLElement &&
+                      documentPreview.getAttribute('data-document-preview-image-count') === '1' &&
+                      pageBody instanceof HTMLElement &&
+                      pageBody.classList.contains('codex-docx-preview') &&
+                      documentImages.length === 1 &&
+                      documentImages[0] instanceof HTMLElement &&
+                      documentImages[0].getAttribute('data-document-image-mime-type') === 'image/png' &&
+                      documentImages[0].getAttribute('data-document-image-alt') === 'Document smoke embedded image' &&
+                      documentImages[0].querySelector('img') instanceof HTMLImageElement;
                     if (nextPage instanceof HTMLButtonElement) {
                       nextPage.click();
                       await sleep(160);
@@ -13136,6 +13148,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 filesPdfAnnotationsWorks: Boolean(pdfAnnotationChecks['workspace-pdf-preview']),
                 filesDocumentPageControlsWorks: Boolean(documentPageControlChecks['workspace-document-preview']),
                 filesDocumentTableRenderingWorks: Boolean(documentTableChecks['workspace-document-preview']),
+                filesDocumentImageRenderingWorks: Boolean(documentImageChecks['workspace-document-preview']),
                 filesSpreadsheetRendererWorks: Boolean(spreadsheetRendererChecks['workspace-spreadsheet-preview']),
                 filesSlidesRendererWorks: Boolean(slidesRendererChecks['workspace-slides-preview']),
                 filesSlidesShapeLayoutWorks: Boolean(slidesShapeLayoutChecks['workspace-slides-preview']),

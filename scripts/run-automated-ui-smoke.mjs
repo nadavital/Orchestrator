@@ -350,16 +350,32 @@ if (captureView === 'capabilities') {
 }
 
 function createDocxFixture(blocks) {
+  const imageBlocks = blocks
+    .filter((block) => block && typeof block === 'object' && block.imageBase64)
+    .map((block, index) => ({ block, index: index + 1 }))
   const blockXml = blocks.map((block) => {
     if (block && typeof block === 'object' && Array.isArray(block.rows)) {
       return `<w:tbl>
         ${block.rows.map((row) => `<w:tr>${row.map((cell) => `<w:tc><w:p><w:r><w:t>${escapeXml(String(cell))}</w:t></w:r></w:p></w:tc>`).join('')}</w:tr>`).join('\n        ')}
       </w:tbl>`
     }
+    if (block && typeof block === 'object' && block.imageBase64) {
+      const imageIndex = imageBlocks.find((image) => image.block === block)?.index ?? 1
+      const alt = escapeXml(String(block.alt ?? `Document image ${imageIndex}`))
+      const cx = Number(block.cx ?? 914400)
+      const cy = Number(block.cy ?? 914400)
+      return `<w:p><w:r><w:drawing><wp:inline>
+        <wp:extent cx="${Number.isFinite(cx) ? cx : 914400}" cy="${Number.isFinite(cy) ? cy : 914400}"/>
+        <wp:docPr id="${imageIndex}" name="Picture ${imageIndex}" descr="${alt}"/>
+        <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">
+          <pic:pic><pic:blipFill><a:blip r:embed="rImage${imageIndex}"/></pic:blipFill></pic:pic>
+        </a:graphicData></a:graphic>
+      </wp:inline></w:drawing></w:r></w:p>`
+    }
     return `<w:p><w:r><w:t>${escapeXml(String(block))}</w:t></w:r></w:p>`
   }).join('\n    ')
   const documentXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
   <w:body>
     ${blockXml}
   </w:body>
@@ -371,6 +387,7 @@ function createDocxFixture(blocks) {
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
   <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
   <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
 </Types>`
     },
@@ -381,7 +398,18 @@ function createDocxFixture(blocks) {
   <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
 </Relationships>`
     },
-    { name: 'word/document.xml', data: documentXml }
+    {
+      name: 'word/_rels/document.xml.rels',
+      data: `<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  ${imageBlocks.map((image) => `<Relationship Id="rImage${image.index}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/document-image-${image.index}.png"/>`).join('\n  ')}
+</Relationships>`
+    },
+    { name: 'word/document.xml', data: documentXml },
+    ...imageBlocks.map((image) => ({
+      name: `word/media/document-image-${image.index}.png`,
+      data: Buffer.from(String(image.block.imageBase64), 'base64')
+    }))
   ])
 }
 
@@ -833,6 +861,7 @@ if (fixtureWorkspaceViews.has(captureView)) {
     'Document smoke updated',
     'This verifies DOCX text preview in the inspector.',
     { rows: [['Metric', 'Value'], ['Rows', '2'], ['Status', 'Updated table']] },
+    { imageBase64: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADUlEQVR42mNkYPj/HwADAgH/akqSVAAAAABJRU5ErkJggg==', alt: 'Document smoke embedded image', cx: 914400, cy: 914400 },
     'Document smoke section alpha',
     'Document smoke section beta',
     'Document smoke section gamma',
@@ -1590,6 +1619,7 @@ child.on('exit', async (code) => {
           filesDocumentPreview: result.filesDocumentPreviewWorks === true,
           filesDocumentPageControls: result.filesDocumentPageControlsWorks === true,
           filesDocumentTableRendering: result.filesDocumentTableRenderingWorks === true,
+          filesDocumentImageRendering: result.filesDocumentImageRenderingWorks === true,
           filesSpreadsheetPreview: result.filesSpreadsheetPreviewWorks === true,
           filesSlidesPreview: result.filesSlidesPreviewWorks === true,
           filesSpreadsheetRenderer: result.filesSpreadsheetRendererWorks === true,
@@ -1795,6 +1825,7 @@ child.on('exit', async (code) => {
         filesDocumentPreview: captureView !== 'inspector' || result.filesDocumentPreviewWorks === true,
         filesDocumentPageControls: captureView !== 'inspector' || result.filesDocumentPageControlsWorks === true,
         filesDocumentTableRendering: captureView !== 'inspector' || result.filesDocumentTableRenderingWorks === true,
+        filesDocumentImageRendering: captureView !== 'inspector' || result.filesDocumentImageRenderingWorks === true,
         filesSpreadsheetPreview: captureView !== 'inspector' || result.filesSpreadsheetPreviewWorks === true,
         filesSlidesPreview: captureView !== 'inspector' || result.filesSlidesPreviewWorks === true,
         filesSpreadsheetRenderer: captureView !== 'inspector' || result.filesSpreadsheetRendererWorks === true,

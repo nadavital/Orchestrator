@@ -82,11 +82,21 @@ interface DocumentPreviewTableBlock {
   rows: string[][]
 }
 
-type DocumentPreviewBlock = DocumentPreviewParagraphBlock | DocumentPreviewTableBlock
+interface DocumentPreviewImageBlock {
+  type: 'image'
+  dataUrl: string
+  mimeType: string
+  alt?: string
+  width?: number
+  height?: number
+}
+
+type DocumentPreviewBlock = DocumentPreviewParagraphBlock | DocumentPreviewTableBlock | DocumentPreviewImageBlock
 
 interface DocumentPreviewPayload {
   blocks: DocumentPreviewBlock[]
   tableCount: number
+  imageCount: number
 }
 
 interface BrowserAssetRequest {
@@ -254,11 +264,13 @@ function previewDocxFile(filePath: string, size: number): FilePreviewResult {
   const documentXml = readZipEntry(archive, 'word/document.xml')
   if (!documentXml) return { kind: 'unreadable', size, truncated: false }
 
-  const document = extractDocxPreview(documentXml.toString('utf8'))
+  const document = extractDocxPreview(documentXml.toString('utf8'), archive)
   const text = document.blocks
     .flatMap((block) => block.type === 'paragraph'
       ? [block.text]
-      : block.rows.map((row) => row.join('\t')))
+      : block.type === 'table'
+        ? block.rows.map((row) => row.join('\t'))
+        : [`[Image${block.alt ? `: ${block.alt}` : ''}]`])
     .filter(Boolean)
     .join('\n\n')
   if (!text.trim()) return { kind: 'document', size, text: '', truncated: false }
@@ -343,10 +355,12 @@ function findEndOfCentralDirectory(archive: Buffer): number {
   return -1
 }
 
-function extractDocxPreview(xml: string): DocumentPreviewPayload {
+function extractDocxPreview(xml: string, archive: Buffer): DocumentPreviewPayload {
   const body = /<w:body[\s\S]*?>([\s\S]*?)<\/w:body>/.exec(xml)?.[1] ?? xml
   const blocks: DocumentPreviewBlock[] = []
   let tableCount = 0
+  let imageCount = 0
+  const relationships = extractZipRelationships(archive, 'word/document.xml')
   for (const match of body.matchAll(/<w:(p|tbl)\b[\s\S]*?<\/w:\1>/g)) {
     const tag = match[1]
     const blockXml = match[0] ?? ''
@@ -360,12 +374,17 @@ function extractDocxPreview(xml: string): DocumentPreviewPayload {
     }
     const text = extractDocxParagraphText(blockXml)
     if (text) blocks.push({ type: 'paragraph', text })
+    const imageBlocks = extractDocxImageBlocks(blockXml, archive, relationships)
+    if (imageBlocks.length > 0) {
+      blocks.push(...imageBlocks)
+      imageCount += imageBlocks.length
+    }
   }
   if (blocks.length === 0) {
     const text = extractDocxParagraphText(xml)
     if (text) blocks.push({ type: 'paragraph', text })
   }
-  return { blocks: blocks.slice(0, 80), tableCount }
+  return { blocks: blocks.slice(0, 80), tableCount, imageCount }
 }
 
 function extractDocxTableRows(xml: string): string[][] {
@@ -383,6 +402,39 @@ function extractDocxParagraphText(xml: string): string {
     .replace(/<w:br\s*\/>/g, '\n')
   const textRuns = [...normalized.matchAll(/<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/g)]
   return textRuns.map((match) => decodeXmlText(match[1] ?? '')).join('').trim()
+}
+
+function extractDocxImageBlocks(xml: string, archive: Buffer, relationships: Map<string, string>): DocumentPreviewImageBlock[] {
+  return [...xml.matchAll(/<(?:wp:inline|wp:anchor)\b[\s\S]*?<\/(?:wp:inline|wp:anchor)>/g)]
+    .slice(0, 12)
+    .flatMap((match) => {
+      const imageXml = match[0] ?? ''
+      const embedId = /\b(?:r:)?embed="([^"]+)"/.exec(imageXml)?.[1] ?? ''
+      const target = relationships.get(embedId)
+      if (!target) return []
+      const image = readZipEntry(archive, target)
+      const mimeType = imageMimeTypeForPath(target)
+      if (!image || !mimeType || image.byteLength > 250_000) return []
+      const extent = /<wp:extent\b([^>]*)\/>/.exec(imageXml)?.[1] ?? ''
+      const width = numberAttribute(extent, 'cx')
+      const height = numberAttribute(extent, 'cy')
+      const docProperties = /<wp:docPr\b([^>]*)\/>/.exec(imageXml)?.[1] ?? ''
+      return [{
+        type: 'image' as const,
+        dataUrl: `data:${mimeType};base64,${image.toString('base64')}`,
+        mimeType,
+        alt: docxImageAlt(docProperties),
+        width: width ? Math.max(24, Math.round(width / 9_525)) : undefined,
+        height: height ? Math.max(24, Math.round(height / 9_525)) : undefined
+      }]
+    })
+}
+
+function docxImageAlt(attributes: string): string | undefined {
+  const description = /\bdescr="([^"]*)"/.exec(attributes)?.[1]
+  const name = /\bname="([^"]*)"/.exec(attributes)?.[1]
+  const value = decodeXmlText((description || name || '').trim())
+  return value.length > 0 ? value : undefined
 }
 
 function extractSpreadsheetPreview(archive: Buffer): { sheets: SpreadsheetPreviewSheet[]; truncated: boolean } | null {

@@ -43,6 +43,7 @@ interface NotebookCell {
 type DocumentPreviewBlock =
   | { type: 'paragraph'; text: string }
   | { type: 'table'; rows: string[][] }
+  | { type: 'image'; dataUrl: string; mimeType: string; alt?: string; width?: number; height?: number }
 
 export default function StructuredDataPreview({ name, preview, testId, statusLabel, actions }: Props): JSX.Element {
   if (preview.kind === 'document') {
@@ -97,6 +98,7 @@ function DocumentPreview({
   const [fitToWidth, setFitToWidth] = useState(false)
   const effectiveZoomPercent = fitToWidth ? 100 : zoomPercent
   const tableCount = preview.document?.tableCount ?? documentBlocks.filter((block) => block.type === 'table').length
+  const imageCount = preview.document?.imageCount ?? documentBlocks.filter((block) => block.type === 'image').length
   useEffect(() => {
     setCurrentPage((page) => Math.min(Math.max(page, 1), pageCount))
   }, [pageCount])
@@ -124,6 +126,7 @@ function DocumentPreview({
       data-document-preview-renderer="codex-page-surface"
       data-document-preview-block-count={documentBlocks.length}
       data-document-preview-table-count={tableCount}
+      data-document-preview-image-count={imageCount}
     >
       <ArtifactPreviewHeader
         artifactType={statusLabel ? `DOC · ${statusLabel}` : 'DOC'}
@@ -203,6 +206,7 @@ function DocumentPreview({
       <div className="file-preview-meta-strip">
         <span>{paragraphs.length.toLocaleString()} paragraphs</span>
         {tableCount > 0 && <span>{tableCount.toLocaleString()} {tableCount === 1 ? 'table' : 'tables'}</span>}
+        {imageCount > 0 && <span>{imageCount.toLocaleString()} {imageCount === 1 ? 'image' : 'images'}</span>}
         <span>{pageCount.toLocaleString()} pages</span>
         <span>{formatBytes(preview.size ?? 0)}</span>
       </div>
@@ -239,7 +243,27 @@ function DocumentPreview({
                       </tbody>
                     </table>
                   )
-                : <p key={`paragraph-${index}`}>{block.text}</p>
+                : block.type === 'image'
+                  ? (
+                      <figure
+                        key={`image-${index}`}
+                        className="document-preview-image-block"
+                        data-testid={`${testId}-image`}
+                        data-document-image-mime-type={block.mimeType}
+                        data-document-image-alt={block.alt ?? ''}
+                      >
+                        <img
+                          src={block.dataUrl}
+                          alt={block.alt ?? 'Document image'}
+                          style={{
+                            width: block.width ? `${Math.min(block.width, 520)}px` : undefined,
+                            maxHeight: block.height ? `${Math.min(block.height, 360)}px` : undefined
+                          }}
+                        />
+                        {block.alt && <figcaption>{block.alt}</figcaption>}
+                      </figure>
+                    )
+                  : <p key={`paragraph-${index}`}>{block.text}</p>
             ))}
           </section>
         ) : (
@@ -262,9 +286,23 @@ function normalizeDocumentBlocks(blocks: DocumentPreviewBlock[] | undefined, par
               .filter((row) => row.some((cell) => cell.trim()))
           }
         }
+        if (block.type === 'image') {
+          return {
+            type: 'image' as const,
+            dataUrl: normalizeDocumentImageDataUrl(block.dataUrl),
+            mimeType: normalizeDocumentImageMimeType(block.mimeType),
+            alt: String(block.alt ?? '').trim() || undefined,
+            width: normalizeDocumentImageDimension(block.width),
+            height: normalizeDocumentImageDimension(block.height)
+          }
+        }
         return { type: 'paragraph' as const, text: String(block.text ?? '').trim() }
       })
-      .filter((block) => block.type === 'table' ? block.rows.length > 0 : block.text.length > 0)
+      .filter((block) => {
+        if (block.type === 'table') return block.rows.length > 0
+        if (block.type === 'image') return Boolean(block.dataUrl && block.mimeType)
+        return block.text.length > 0
+      })
   }
   return paragraphs.map((paragraph) => ({ type: 'paragraph', text: paragraph }))
 }
@@ -275,7 +313,7 @@ function chunkDocumentBlocks(blocks: DocumentPreviewBlock[]): DocumentPreviewBlo
   let current: DocumentPreviewBlock[] = []
   let units = 0
   for (const block of blocks) {
-    const blockUnits = block.type === 'table' ? Math.max(2, Math.ceil(block.rows.length / 3)) : 1
+    const blockUnits = block.type === 'table' ? Math.max(2, Math.ceil(block.rows.length / 3)) : block.type === 'image' ? 2 : 1
     if (current.length > 0 && units + blockUnits > 6) {
       chunks.push(current)
       current = []
@@ -288,6 +326,19 @@ function chunkDocumentBlocks(blocks: DocumentPreviewBlock[]): DocumentPreviewBlo
     chunks.push(current)
   }
   return chunks
+}
+
+function normalizeDocumentImageDataUrl(value: unknown): string {
+  return typeof value === 'string' && /^data:image\/(?:png|jpeg|gif|webp);base64,[A-Za-z0-9+/=]+$/.test(value) ? value : ''
+}
+
+function normalizeDocumentImageMimeType(value: unknown): string {
+  return typeof value === 'string' && ['image/png', 'image/jpeg', 'image/gif', 'image/webp'].includes(value) ? value : ''
+}
+
+function normalizeDocumentImageDimension(value: unknown): number | undefined {
+  const number = typeof value === 'number' ? value : Number(value)
+  return Number.isFinite(number) && number > 0 ? Math.max(24, Math.min(720, Math.round(number))) : undefined
 }
 
 function NotebookPreview({
