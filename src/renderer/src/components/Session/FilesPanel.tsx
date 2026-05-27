@@ -927,6 +927,7 @@ interface SpreadsheetPreviewPayload {
     merges?: SpreadsheetPreviewMerge[]
     tables?: SpreadsheetPreviewTable[]
     conditionalFormatCount?: number
+    dataValidationCount?: number
     columnWidths?: Array<number | undefined>
     rowHeights?: Array<number | undefined>
     freezePanes?: SpreadsheetFreezePanes
@@ -939,6 +940,7 @@ interface SpreadsheetPreviewCell {
   formula?: string
   fillColor?: string
   conditionalFillColor?: string
+  dataValidation?: SpreadsheetPreviewDataValidation
   textColor?: string
   bold?: boolean
   wrapText?: boolean
@@ -964,6 +966,12 @@ interface SpreadsheetPreviewTable {
   colSpan: number
   showFilterButton?: boolean
   showRowStripes?: boolean
+}
+
+interface SpreadsheetPreviewDataValidation {
+  type: 'list'
+  values?: string[]
+  allowBlank?: boolean
 }
 
 interface SpreadsheetFreezePanes {
@@ -1014,6 +1022,7 @@ function cloneSpreadsheetSheets(sheets: SpreadsheetPreviewPayload['sheets']): Sp
     ...(sheet.merges ? { merges: sheet.merges.map((merge) => ({ ...merge })) } : {}),
     ...(sheet.tables ? { tables: sheet.tables.map((table) => ({ ...table })) } : {}),
     ...(sheet.conditionalFormatCount ? { conditionalFormatCount: sheet.conditionalFormatCount } : {}),
+    ...(sheet.dataValidationCount ? { dataValidationCount: sheet.dataValidationCount } : {}),
     ...(sheet.columnWidths ? { columnWidths: [...sheet.columnWidths] } : {}),
     ...(sheet.rowHeights ? { rowHeights: [...sheet.rowHeights] } : {}),
     ...(sheet.freezePanes ? { freezePanes: { ...sheet.freezePanes } } : {})
@@ -1271,6 +1280,7 @@ function SpreadsheetArtifactPreview({
   const mergeCount = activeSheet?.merges?.length ?? 0
   const tableCount = activeSheet?.tables?.length ?? 0
   const conditionalFormatCount = activeSheet?.conditionalFormatCount ?? 0
+  const dataValidationCount = activeSheet?.dataValidationCount ?? 0
   const sizedColumnCount = activeSheet?.columnWidths?.filter((width) => width !== undefined).length ?? 0
   const sizedRowCount = activeSheet?.rowHeights?.filter((height) => height !== undefined).length ?? 0
   const frozenRowCount = activeSheet?.freezePanes?.rows ?? 0
@@ -1317,6 +1327,7 @@ function SpreadsheetArtifactPreview({
       data-spreadsheet-merge-count={mergeCount}
       data-spreadsheet-table-count={tableCount}
       data-spreadsheet-conditional-format-count={conditionalFormatCount}
+      data-spreadsheet-data-validation-count={dataValidationCount}
       data-spreadsheet-sized-column-count={sizedColumnCount}
       data-spreadsheet-sized-row-count={sizedRowCount}
       data-spreadsheet-frozen-row-count={frozenRowCount}
@@ -1527,6 +1538,7 @@ function SpreadsheetArtifactPreview({
                           const isTableHeaderCell = tableCell?.isHeader === true
                           const isTableBandedCell = tableCell?.isBandedRow === true
                           const hasTableFilterButton = isTableHeaderCell && tableCell?.table.showFilterButton === true
+                          const hasDataValidationButton = cell.dataValidation?.type === 'list'
                           const frozenColumnLeft = cellIndex < frozenColumnCount
                             ? 38 + spreadsheetDimensionOffset(activeSheet.columnWidths, cellIndex, 88)
                             : undefined
@@ -1541,10 +1553,10 @@ function SpreadsheetArtifactPreview({
                             whiteSpace: cell.wrapText ? 'normal' : 'nowrap',
                             textAlign: cellHorizontalAlignment
                           }
-                          if (cell.wrapText || cell.horizontalAlignment || cell.verticalAlignment || isTableHeaderCell) {
+                          if (cell.wrapText || cell.horizontalAlignment || cell.verticalAlignment || isTableHeaderCell || hasDataValidationButton) {
                             cellStyle.display = 'flex'
                             cellStyle.alignItems = spreadsheetAlignItems(cellVerticalAlignment)
-                            cellStyle.justifyContent = isTableHeaderCell ? 'space-between' : spreadsheetJustifyContent(cellHorizontalAlignment)
+                            cellStyle.justifyContent = isTableHeaderCell || hasDataValidationButton ? 'space-between' : spreadsheetJustifyContent(cellHorizontalAlignment)
                             cellStyle.gap = 6
                             cellStyle.height = '100%'
                           }
@@ -1598,6 +1610,9 @@ function SpreadsheetArtifactPreview({
                                 data-spreadsheet-cell-table-banded-row={isTableBandedCell ? 'true' : 'false'}
                                 data-spreadsheet-cell-table-style={tableStyleName}
                                 data-spreadsheet-cell-table-filter-button={hasTableFilterButton ? 'true' : 'false'}
+                                data-spreadsheet-cell-data-validation-type={cell.dataValidation?.type ?? ''}
+                                data-spreadsheet-cell-data-validation-values={cell.dataValidation?.values?.join('|') ?? ''}
+                                data-spreadsheet-cell-data-validation-allow-blank={cell.dataValidation?.allowBlank ? 'true' : 'false'}
                                 data-spreadsheet-cell-merge-rowspan={merge?.rowSpan ?? 1}
                                 data-spreadsheet-cell-merge-colspan={merge?.colSpan ?? 1}
                                 data-spreadsheet-cell-column-width={activeSheet.columnWidths?.[cellIndex] ?? ''}
@@ -1613,6 +1628,9 @@ function SpreadsheetArtifactPreview({
                                 <span className="workspace-spreadsheet-cell-content">{cell.value}</span>
                                 {hasTableFilterButton && (
                                   <span className="workspace-spreadsheet-filter-button" data-testid="workspace-spreadsheet-filter-button" aria-hidden="true">v</span>
+                                )}
+                                {hasDataValidationButton && (
+                                  <span className="workspace-spreadsheet-validation-button" data-testid="workspace-spreadsheet-validation-button" aria-hidden="true">v</span>
                                 )}
                               </button>
                             </td>
@@ -1965,6 +1983,9 @@ function parseSpreadsheetPreview(text: string | undefined): SpreadsheetPreviewPa
         conditionalFormatCount: typeof sheet.conditionalFormatCount === 'number' && sheet.conditionalFormatCount > 0
           ? Math.min(24, Math.floor(sheet.conditionalFormatCount))
           : undefined,
+        dataValidationCount: typeof sheet.dataValidationCount === 'number' && sheet.dataValidationCount > 0
+          ? Math.min(24, Math.floor(sheet.dataValidationCount))
+          : undefined,
         columnWidths: Array.isArray(sheet.columnWidths)
           ? normalizeSpreadsheetDimensionArray(sheet.columnWidths, 48, 320, 12)
           : undefined,
@@ -1991,6 +2012,7 @@ function normalizeSpreadsheetPreviewCell(cell: unknown): SpreadsheetPreviewCell 
       formula?: unknown
       fillColor?: unknown
       conditionalFillColor?: unknown
+      dataValidation?: unknown
       textColor?: unknown
       bold?: unknown
       wrapText?: unknown
@@ -2007,6 +2029,7 @@ function normalizeSpreadsheetPreviewCell(cell: unknown): SpreadsheetPreviewCell 
       ...(typeof candidate.formula === 'string' && candidate.formula ? { formula: candidate.formula } : {}),
       ...(fillColor ? { fillColor } : {}),
       ...(conditionalFillColor ? { conditionalFillColor } : {}),
+      ...(normalizeSpreadsheetDataValidation(candidate.dataValidation) ? { dataValidation: normalizeSpreadsheetDataValidation(candidate.dataValidation) } : {}),
       ...(textColor ? { textColor } : {}),
       ...(candidate.bold === true ? { bold: true } : {}),
       ...(candidate.wrapText === true ? { wrapText: true } : {}),
@@ -2015,6 +2038,20 @@ function normalizeSpreadsheetPreviewCell(cell: unknown): SpreadsheetPreviewCell 
     }
   }
   return { value: String(cell ?? '') }
+}
+
+function normalizeSpreadsheetDataValidation(value: unknown): SpreadsheetPreviewDataValidation | undefined {
+  if (!value || typeof value !== 'object') return undefined
+  const candidate = value as { type?: unknown; values?: unknown; allowBlank?: unknown }
+  if (candidate.type !== 'list') return undefined
+  const values = Array.isArray(candidate.values)
+    ? candidate.values.map((item) => String(item)).filter(Boolean).slice(0, 24)
+    : undefined
+  return {
+    type: 'list',
+    ...(values && values.length > 0 ? { values } : {}),
+    ...(candidate.allowBlank === true ? { allowBlank: true } : {})
+  }
 }
 
 function normalizeSpreadsheetHorizontalAlignment(value: unknown): SpreadsheetPreviewCell['horizontalAlignment'] {

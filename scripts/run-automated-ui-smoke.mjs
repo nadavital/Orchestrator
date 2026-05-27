@@ -461,6 +461,21 @@ function createXlsxFixture({ sheetName, rows, sheets }) {
       })
       .filter(Boolean)
       .join('\n  ')
+    const dataValidationItems = (sheet.dataValidations ?? [])
+      .map((validation) => {
+        const sqref = String(validation?.sqref ?? validation?.ref ?? '').toUpperCase()
+        if (!sqref.split(/\s+/).every((ref) => /^[A-Z]+\d+(?::[A-Z]+\d+)?$/i.test(ref))) return ''
+        const values = Array.isArray(validation?.values)
+          ? validation.values.map((value) => String(value ?? '').trim()).filter(Boolean).slice(0, 24)
+          : []
+        if (values.length === 0) return ''
+        const allowBlank = validation?.allowBlank === true ? ' allowBlank="1"' : ''
+        return `<dataValidation type="list"${allowBlank} showErrorMessage="1" sqref="${escapeXml(sqref)}"><formula1>"${values.map(escapeXml).join(',')}"</formula1></dataValidation>`
+      })
+      .filter(Boolean)
+    const dataValidationXml = dataValidationItems.length > 0
+      ? `<dataValidations count="${dataValidationItems.length}">${dataValidationItems.join('')}</dataValidations>`
+      : ''
     const tableEntries = (sheet.tables ?? [])
       .map((table, tableIndex) => {
         const ref = String(table?.ref ?? '').toUpperCase()
@@ -561,6 +576,7 @@ function createXlsxFixture({ sheetName, rows, sheets }) {
       ${cellXml}
   </sheetData>
   ${conditionalFormatXml}
+  ${dataValidationXml}
   ${mergeRefs.length > 0 ? `<mergeCells count="${mergeRefs.length}">${mergeRefs.map((merge) => `<mergeCell ref="${escapeXml(merge.toUpperCase())}"/>`).join('')}</mergeCells>` : ''}
   ${tableEntries.length > 0 ? `<tableParts count="${tableEntries.length}">${tableEntries.map((table) => `<tablePart r:id="${table.relId}"/>`).join('')}</tableParts>` : ''}
 </worksheet>`
@@ -951,6 +967,7 @@ if (fixtureWorkspaceViews.has(captureView)) {
         rowHeights: [20, 20, 38, 52],
         freezePanes: { rows: 1, columns: 1 },
         conditionalFormats: [{ sqref: 'B2:B2', colors: ['#FEE2E2', '#DCFCE7'] }],
+        dataValidations: [{ sqref: 'C2:C2', values: ['Baseline', 'Updated', 'Blocked'], allowBlank: true }],
         tables: [{ ref: 'A1:C2', name: 'SmokeTable', styleName: 'TableStyleMedium2', showFilterButton: true, showRowStripes: true }],
         merges: ['A3:B3']
       },
@@ -1077,6 +1094,7 @@ if (fixtureWorkspaceViews.has(captureView)) {
         rowHeights: [20, 20, 20, 42, 52],
         freezePanes: { rows: 1, columns: 1 },
         conditionalFormats: [{ sqref: 'B2:B3', colors: ['#FEE2E2', '#DCFCE7'] }],
+        dataValidations: [{ sqref: 'C2:C3', values: ['Updated', 'New', 'Blocked'], allowBlank: true }],
         tables: [{ ref: 'A1:C3', name: 'SmokeTable', styleName: 'TableStyleMedium2', showFilterButton: true, showRowStripes: true }],
         merges: ['A4:B4']
       },
@@ -1842,6 +1860,7 @@ child.on('exit', async (code) => {
           filesSpreadsheetAlignment: result.filesSpreadsheetAlignmentWorks === true,
           filesSpreadsheetTables: result.filesSpreadsheetTablesWorks === true,
           filesSpreadsheetConditionalFormatting: result.filesSpreadsheetConditionalFormattingWorks === true,
+          filesSpreadsheetDataValidation: result.filesSpreadsheetDataValidationWorks === true,
           filesSpreadsheetFormulaEditing: result.filesSpreadsheetFormulaEditingWorks === true,
           filesSlidesControls: result.filesSlidesControlsWorks === true,
           filesSlidesSpeakerNotes: result.filesSlidesSpeakerNotesWorks === true,
@@ -2055,6 +2074,7 @@ child.on('exit', async (code) => {
         filesSpreadsheetAlignment: captureView !== 'inspector' || result.filesSpreadsheetAlignmentWorks === true,
         filesSpreadsheetTables: captureView !== 'inspector' || result.filesSpreadsheetTablesWorks === true,
         filesSpreadsheetConditionalFormatting: captureView !== 'inspector' || result.filesSpreadsheetConditionalFormattingWorks === true,
+        filesSpreadsheetDataValidation: captureView !== 'inspector' || result.filesSpreadsheetDataValidationWorks === true,
         filesSpreadsheetFormulaEditing: captureView !== 'inspector' || result.filesSpreadsheetFormulaEditingWorks === true,
         filesSlidesControls: captureView !== 'inspector' || result.filesSlidesControlsWorks === true,
         filesSlidesSpeakerNotes: captureView !== 'inspector' || result.filesSlidesSpeakerNotesWorks === true,

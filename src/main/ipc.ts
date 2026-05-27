@@ -55,6 +55,7 @@ interface SpreadsheetPreviewCell {
   formula?: string
   fillColor?: string
   conditionalFillColor?: string
+  dataValidation?: SpreadsheetPreviewDataValidation
   textColor?: string
   bold?: boolean
   wrapText?: boolean
@@ -68,6 +69,7 @@ interface SpreadsheetPreviewSheet {
   merges?: SpreadsheetPreviewMerge[]
   tables?: SpreadsheetPreviewTable[]
   conditionalFormatCount?: number
+  dataValidationCount?: number
   columnWidths?: Array<number | undefined>
   rowHeights?: Array<number | undefined>
   freezePanes?: SpreadsheetFreezePanes
@@ -100,6 +102,20 @@ interface SpreadsheetPreviewConditionalFormat {
   rowSpan: number
   colSpan: number
   colors: string[]
+}
+
+interface SpreadsheetPreviewDataValidation {
+  type: 'list'
+  values?: string[]
+  allowBlank?: boolean
+}
+
+interface SpreadsheetPreviewDataValidationRange extends SpreadsheetPreviewDataValidation {
+  ref: string
+  startRow: number
+  startColumn: number
+  rowSpan: number
+  colSpan: number
 }
 
 interface SpreadsheetFreezePanes {
@@ -518,6 +534,8 @@ function extractSpreadsheetPreview(archive: Buffer): { sheets: SpreadsheetPrevie
     const tables = extractWorksheetTables(xml, archive, sheet.path)
     const conditionalFormats = extractWorksheetConditionalFormats(xml)
     applyWorksheetConditionalFormats(parsed.rows, conditionalFormats)
+    const dataValidations = extractWorksheetDataValidations(xml)
+    applyWorksheetDataValidations(parsed.rows, dataValidations)
     const columnWidths = extractWorksheetColumnWidths(xml)
     const rowHeights = extractWorksheetRowHeights(xml)
     const freezePanes = extractWorksheetFreezePanes(xml)
@@ -527,6 +545,7 @@ function extractSpreadsheetPreview(archive: Buffer): { sheets: SpreadsheetPrevie
       ...(merges.length > 0 ? { merges } : {}),
       ...(tables.length > 0 ? { tables } : {}),
       ...(conditionalFormats.length > 0 ? { conditionalFormatCount: conditionalFormats.length } : {}),
+      ...(dataValidations.length > 0 ? { dataValidationCount: dataValidations.length } : {}),
       ...(columnWidths.some((width) => width !== undefined) ? { columnWidths } : {}),
       ...(rowHeights.some((height) => height !== undefined) ? { rowHeights } : {}),
       ...(freezePanes ? { freezePanes } : {})
@@ -988,6 +1007,72 @@ function spreadsheetRangePosition(ref: string): { startRow: number; startColumn:
     startColumn: Math.min(start.column, end.column),
     endRow: Math.max(start.row, end.row),
     endColumn: Math.max(start.column, end.column)
+  }
+}
+
+function extractWorksheetDataValidations(xml: string): SpreadsheetPreviewDataValidationRange[] {
+  return [...xml.matchAll(/<dataValidation\b([^>]*)>([\s\S]*?)<\/dataValidation>/g)]
+    .slice(0, 12)
+    .flatMap((match) => {
+      const attributes = match[1] ?? ''
+      const body = match[2] ?? ''
+      if (!/\btype="list"/.test(attributes)) return []
+      const sqref = /\bsqref="([^"]+)"/.exec(attributes)?.[1] ?? ''
+      if (!sqref) return []
+      const values = spreadsheetDataValidationListValues(body)
+      const allowBlank = /\ballowBlank="(?:1|true)"/i.test(attributes)
+      return sqref
+        .split(/\s+/)
+        .filter(Boolean)
+        .flatMap((ref) => {
+          const range = spreadsheetRangePosition(ref.toUpperCase())
+          if (!range) return []
+          return [{
+            ref: ref.toUpperCase(),
+            startRow: range.startRow,
+            startColumn: range.startColumn,
+            rowSpan: range.endRow - range.startRow + 1,
+            colSpan: range.endColumn - range.startColumn + 1,
+            type: 'list' as const,
+            ...(values.length > 0 ? { values } : {}),
+            ...(allowBlank ? { allowBlank: true } : {})
+          }]
+        })
+    })
+    .filter((validation) => validation.startRow < 24 && validation.startColumn < 12)
+    .map((validation) => ({
+      ...validation,
+      rowSpan: Math.min(validation.rowSpan, 24 - validation.startRow),
+      colSpan: Math.min(validation.colSpan, 12 - validation.startColumn)
+    }))
+}
+
+function spreadsheetDataValidationListValues(xml: string): string[] {
+  const formula = decodeXmlText(/<formula1(?:\s[^>]*)?>([\s\S]*?)<\/formula1>/.exec(xml)?.[1] ?? '').trim()
+  const inlineList = /^"([\s\S]*)"$/.exec(formula)?.[1]
+  if (!inlineList) return []
+  return inlineList
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .slice(0, 24)
+}
+
+function applyWorksheetDataValidations(rows: SpreadsheetPreviewCell[][], validations: SpreadsheetPreviewDataValidationRange[]): void {
+  for (const validation of validations) {
+    for (let rowIndex = validation.startRow; rowIndex < validation.startRow + validation.rowSpan; rowIndex += 1) {
+      const row = rows[rowIndex]
+      if (!row) continue
+      for (let columnIndex = validation.startColumn; columnIndex < validation.startColumn + validation.colSpan; columnIndex += 1) {
+        const cell = row[columnIndex]
+        if (!cell) continue
+        cell.dataValidation = {
+          type: validation.type,
+          ...(validation.values ? { values: validation.values } : {}),
+          ...(validation.allowBlank ? { allowBlank: true } : {})
+        }
+      }
+    }
   }
 }
 

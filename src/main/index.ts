@@ -11150,6 +11150,7 @@ function runAutomatedFocusedSurfaceSmoke(
               const spreadsheetAlignmentChecks = {};
               const spreadsheetTableChecks = {};
               const spreadsheetConditionalFormattingChecks = {};
+              const spreadsheetDataValidationChecks = {};
               const spreadsheetFormulaChecks = {};
               const spreadsheetFormulaEditingChecks = {};
               const officeZoomMenuChecks = {};
@@ -11656,6 +11657,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     const betaCountCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="B3"]');
                     const tableFilterButton = headerNameCell?.querySelector('[data-testid="workspace-spreadsheet-filter-button"]');
                     const updatedStatusCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="C2"]');
+                    const statusValidationButton = updatedStatusCell?.querySelector('[data-testid="workspace-spreadsheet-validation-button"]');
                     const mergedNoteCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="A4"]');
                     const mergedNoteTableCell = mergedNoteCell?.closest('td');
                     const coveredMergedCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="B4"]');
@@ -11820,6 +11822,16 @@ function runAutomatedFocusedSurfaceSmoke(
                       betaCountCell.getAttribute('data-spreadsheet-cell-value') === '3' &&
                       betaCountCell.getAttribute('data-spreadsheet-cell-conditional-fill-color') === '#DCFCE7' &&
                       getComputedStyle(betaCountCell).backgroundColor === 'rgb(220, 252, 231)';
+                    spreadsheetDataValidationChecks[testId] =
+                      spreadsheetPreview instanceof HTMLElement &&
+                      spreadsheetPreview.getAttribute('data-spreadsheet-data-validation-count') === '1' &&
+                      updatedStatusCell instanceof HTMLButtonElement &&
+                      updatedStatusCell.getAttribute('data-spreadsheet-cell-value') === 'Updated' &&
+                      updatedStatusCell.getAttribute('data-spreadsheet-cell-data-validation-type') === 'list' &&
+                      updatedStatusCell.getAttribute('data-spreadsheet-cell-data-validation-values') === 'Updated|New|Blocked' &&
+                      updatedStatusCell.getAttribute('data-spreadsheet-cell-data-validation-allow-blank') === 'true' &&
+                      statusValidationButton instanceof HTMLElement &&
+                      statusValidationButton.textContent?.trim() === 'v';
                     if (alphaCell instanceof HTMLButtonElement) {
                       alphaCell.click();
                       await sleep(120);
@@ -13278,6 +13290,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 filesSpreadsheetAlignmentWorks: Boolean(spreadsheetAlignmentChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetTablesWorks: Boolean(spreadsheetTableChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetConditionalFormattingWorks: Boolean(spreadsheetConditionalFormattingChecks['workspace-spreadsheet-preview']),
+                filesSpreadsheetDataValidationWorks: Boolean(spreadsheetDataValidationChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetFormulaEditingWorks: Boolean(spreadsheetFormulaEditingChecks['workspace-spreadsheet-preview']),
                 filesSlidesControlsWorks: Boolean(slidesControlChecks['workspace-slides-preview']),
                 filesSlidesSpeakerNotesWorks: Boolean(slidesNotesChecks['workspace-slides-preview']),

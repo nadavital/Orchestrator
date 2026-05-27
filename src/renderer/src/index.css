@@ -4868,7 +4868,8 @@
     text-overflow: ellipsis;
   }
 
-  .workspace-spreadsheet-filter-button {
+  .workspace-spreadsheet-filter-button,
+  .workspace-spreadsheet-validation-button {
     display: inline-flex;
     flex: 0 0 auto;
     align-items: center;
