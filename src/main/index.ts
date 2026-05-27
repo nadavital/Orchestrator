@@ -16712,9 +16712,9 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
             const sidebarProviderPinBoundaryWorks =
               providerPinnedPin instanceof HTMLButtonElement &&
               localPinnedPin instanceof HTMLButtonElement &&
-              providerPinnedPin.disabled &&
-              providerPinnedPin.getAttribute('data-sidebar-pin-boundary') === 'provider-readonly' &&
-              (providerPinnedPin.getAttribute('aria-label') ?? '').includes('Provider pin') &&
+              !providerPinnedPin.disabled &&
+              providerPinnedPin.getAttribute('data-sidebar-pin-boundary') === 'codex-provider' &&
+              (providerPinnedPin.getAttribute('aria-label') ?? '').includes('Codex') &&
               !localPinnedPin.disabled &&
               localPinnedPin.getAttribute('data-sidebar-pin-boundary') === 'local' &&
               (localPinnedPin.getAttribute('aria-label') ?? '').includes('locally');

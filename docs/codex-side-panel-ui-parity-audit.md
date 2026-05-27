@@ -6522,6 +6522,16 @@ Verification: focused `npm run smoke:ui:auto -- --sidebar` passed after the expe
 
 Remaining: add real provider pin set/list adapters only when a provider exposes a safe mutation API. Also keep panel/header interaction in the same parity plan: sidebar, main titlebar, Workbench right panel, and Terminal bottom panel changes must preserve the dedicated header/panel comparison row before any future visual parity claim.
 
+### 2026-05-27 - Sidebar Codex Provider Pin Mutation Slice
+
+Codex evidence: extracted Codex app bundle chunks under `tmp/codex-app-assets` expose `list-pinned-threads`, `set-thread-pinned`, and `set-pinned-threads-order`. This changes the provider-pin boundary from "no safe set/list surface found" to "Codex pin/unpin exists, with live mutation proof still intentionally avoided unless the test uses a disposable thread."
+
+Implemented: added an `appserver-pinned-threads` command surface and `setCodexAppServerThreadPinnedRaw` bridge for Codex. Sidebar rows with a Codex `providerSessionId` now expose a mutable `data-sidebar-pin-boundary="codex-provider"` action labelled `Pin chat in Codex` / `Unpin chat in Codex`, call `set-thread-pinned`, refresh `list-pinned-threads`, and project provider pin state back into Orchestrator session metadata. Provider-pinned rows without a mutable Codex thread id remain read-only, and local pinned rows keep local pin order semantics.
+
+Verification: `pnpm exec tsc --noEmit`, `pnpm test src/main/__tests__/providerSidebarSync.test.ts`, `pnpm test src/main/__tests__/sessionOrdering.test.ts`, `npm run test:providers`, and `npm run build` passed. Focused `node scripts/run-automated-ui-smoke.mjs --sidebar` passed with `sidebarProviderPinBoundary=true` and the existing Sidebar gates; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779911927155.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779911927155.png`. `node scripts/run-codex-side-panel-comparison.mjs --full --no-fail` passed with `fixture-covered=8`, `aligned=2`, `mismatch=0`, `blocked=0`, and `remainingParityGaps=19`; report `/Users/nadav/Desktop/Orchestrator/tmp/codex-side-panel-comparison/comparison-report.json`, created at `2026-05-27T20:02:20.142Z`.
+
+Remaining: capture a safe reversible live Codex pin/unpin proof with a disposable thread, wire provider pinned ordering through `set-pinned-threads-order`, and keep non-Codex provider pin adapters tracked separately until those providers expose comparable list/set/order contracts.
+
 ### 2026-05-26 - Notebook Artifact Read-Only Controls
 
 Codex evidence: `tmp/codex-app-assets/notebook-preview-panel-CAO-aRhM.js` renders notebook artifact previews with a `Read only` badge plus disabled `Run all` and `Restart kernel` controls, making notebook execution boundaries visible even inside the preview.
@@ -6931,7 +6941,7 @@ Recommended order:
 5. Preserve the Review backlog as targeted slices, not a catch-all proving ground: true provider checkpoint Undo adapter, cloud/provider-native review sources, hosted provider source flows, real PR metadata beyond the local GitHub path, live commented-PR proof, provider blame, richer context thresholds, diff virtualization, hosted/deeper conflict workflows, and exact Review spacing screenshot comparison.
 6. File tabs and file viewer parity, now focused on full artifact rendering/provider search after the artifact identity/header and source-boundary slices.
 7. Browser lifecycle parity.
-8. Chat Sidebar provider-backed model gaps: safe provider pin set/list, deeper real provider worktree/projectless adapters, and any new screenshot-proven visual drift beyond the current compact density contract.
+8. Chat Sidebar provider-backed model gaps: reversible live Codex provider pin proof, provider pinned ordering, non-Codex provider pin adapters, deeper real provider worktree/projectless adapters, and any new screenshot-proven visual drift beyond the current compact density contract.
 9. Settings remote-adapter parity: real remote-host Settings adapters behind the current unavailable boundaries, native theme/font/chrome checks, platform shortcut live checks, and live Codex Settings screenshot comparison. The packaged custom-protocol route gap is now covered by the 2026-05-25 Settings packaged renderer-route slice.
 10. Thread actions, worktrees, automations, and multi-window parity.
 

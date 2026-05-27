@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { shouldRefreshCodexSidebarMetadataAfterRun, shouldRefreshCodexSidebarMetadataOnIdle, syncCodexSidebarThreadMetadata } from '../providerSidebarSync'
+import { codexPinnedThreadKeysFromList, shouldRefreshCodexSidebarMetadataAfterRun, shouldRefreshCodexSidebarMetadataOnIdle, syncCodexSidebarThreadMetadata } from '../providerSidebarSync'
 
 test('codex sidebar thread metadata sync skips when no Codex sessions exist', async () => {
   let fetched = false
@@ -104,4 +104,14 @@ test('codex sidebar thread metadata idle refresh is smoke-safe, throttled, and s
     minIntervalMs: 5_000,
     smokeOutput: '/tmp/orchestrator-smoke.json'
   }), false)
+})
+
+test('codex pinned thread list normalizes app-server ids into provider pin keys', () => {
+  assert.deepEqual(codexPinnedThreadKeysFromList({
+    threadIds: ['thread-a', 'remote:thread-b', 'thread-a', '', null]
+  }), ['remote:thread-a', 'remote:thread-b'])
+
+  assert.deepEqual(codexPinnedThreadKeysFromList({
+    data: [{ id: 'cloud-thread' }, { id: 'pending-worktree:pending-1' }]
+  }), ['remote:cloud-thread', 'pending-worktree:pending-1'])
 })

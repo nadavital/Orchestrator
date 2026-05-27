@@ -445,7 +445,9 @@ function previewDocxFile(filePath: string, size: number): FilePreviewResult {
       ? [block.text]
       : block.type === 'table'
         ? block.rows.map((row) => row.join('\t'))
-        : [`[Image${block.alt ? `: ${block.alt}` : ''}]`])
+        : block.type === 'image'
+          ? [`[Image${block.alt ? `: ${block.alt}` : ''}]`]
+          : [block.text])
     .filter(Boolean)
     .join('\n\n')
   if (!text.trim()) return { kind: 'document', size, text: '', truncated: false }
@@ -1347,7 +1349,7 @@ function extractWorksheetDrawings(xml: string, archive: Buffer, sheetPath: strin
 function extractSpreadsheetDrawingAnchors(xml: string, archive: Buffer, relationships: Map<string, string>): SpreadsheetPreviewDrawing[] {
   return [...xml.matchAll(/<xdr:(?:oneCellAnchor|twoCellAnchor)\b[\s\S]*?<\/xdr:(?:oneCellAnchor|twoCellAnchor)>/g)]
     .slice(0, 24)
-    .flatMap((match) => {
+    .flatMap((match): SpreadsheetPreviewDrawing[] => {
       const anchorXml = match[0] ?? ''
       const anchor = extractSpreadsheetDrawingAnchor(anchorXml)
       if (!anchor) return []

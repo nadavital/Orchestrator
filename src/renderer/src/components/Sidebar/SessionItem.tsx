@@ -85,12 +85,18 @@ function SessionItem({ session }: Props): JSX.Element {
   const threadKind = sidebarThreadKind(session)
   const labelColor = sidebarLabelColor(session)
   const isPinned = isSidebarPinnedSession(session)
-  const providerPinReadOnly = session.providerPinned === true && session.pinned !== true
+  const providerPinMutable = session.provider === 'codex' && Boolean(session.providerSessionId)
+  const providerPinReadOnly = session.providerPinned === true && session.pinned !== true && !providerPinMutable
+  const pinBoundary = providerPinMutable ? 'codex-provider' : providerPinReadOnly ? 'provider-readonly' : 'local'
   const pinActionLabel = providerPinReadOnly
     ? 'Provider pin is read-only in Orchestrator'
-    : isPinned
-      ? 'Unpin chat locally'
-      : 'Pin chat locally'
+    : providerPinMutable
+      ? isPinned
+        ? 'Unpin chat in Codex'
+        : 'Pin chat in Codex'
+      : isPinned
+        ? 'Unpin chat locally'
+        : 'Pin chat locally'
   const rowSelectedKey = sidebarSessionSelectedKey(session.id)
 
   useEffect(() => {
@@ -216,6 +222,14 @@ function SessionItem({ session }: Props): JSX.Element {
     event.stopPropagation()
     if (providerPinReadOnly) return
     const nextPinned = !isPinned
+    if (providerPinMutable) {
+      try {
+        await window.api.sessions.updatePinned(session.id, nextPinned)
+      } catch (error) {
+        console.error('Failed to update provider pinned chat', error)
+      }
+      return
+    }
     const previousPinOrder = session.pinOrder
     updatePinned(session.id, nextPinned)
     try {
@@ -412,7 +426,7 @@ function SessionItem({ session }: Props): JSX.Element {
                   aria-label={pinActionLabel}
                   data-native-title-free="true"
                   data-pinned={isPinned ? 'true' : 'false'}
-                  data-sidebar-pin-boundary={providerPinReadOnly ? 'provider-readonly' : 'local'}
+                  data-sidebar-pin-boundary={pinBoundary}
                   disabled={providerPinReadOnly}
                   onClick={(event) => void togglePinned(event)}
                 >
