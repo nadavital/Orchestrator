@@ -4862,6 +4862,26 @@
     text-align: left;
   }
 
+  .workspace-spreadsheet-cell-content {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .workspace-spreadsheet-filter-button {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--control-bg) 72%, transparent);
+    color: var(--text-tertiary);
+    font-size: 10px;
+    line-height: 1;
+  }
+
   .workspace-spreadsheet-cell-button:hover,
   .workspace-spreadsheet-cell-button:focus-visible {
     background: var(--control-bg);

@@ -65,6 +65,7 @@ interface SpreadsheetPreviewSheet {
   name: string
   rows: SpreadsheetPreviewCell[][]
   merges?: SpreadsheetPreviewMerge[]
+  tables?: SpreadsheetPreviewTable[]
   columnWidths?: Array<number | undefined>
   rowHeights?: Array<number | undefined>
   freezePanes?: SpreadsheetFreezePanes
@@ -76,6 +77,18 @@ interface SpreadsheetPreviewMerge {
   startColumn: number
   rowSpan: number
   colSpan: number
+}
+
+interface SpreadsheetPreviewTable {
+  ref: string
+  name: string
+  styleName?: string
+  startRow: number
+  startColumn: number
+  rowSpan: number
+  colSpan: number
+  showFilterButton?: boolean
+  showRowStripes?: boolean
 }
 
 interface SpreadsheetFreezePanes {
@@ -491,6 +504,7 @@ function extractSpreadsheetPreview(archive: Buffer): { sheets: SpreadsheetPrevie
     const parsed = extractWorksheetRows(xml, sharedStrings, styles)
     truncated ||= parsed.truncated
     const merges = extractWorksheetMerges(xml)
+    const tables = extractWorksheetTables(xml, archive, sheet.path)
     const columnWidths = extractWorksheetColumnWidths(xml)
     const rowHeights = extractWorksheetRowHeights(xml)
     const freezePanes = extractWorksheetFreezePanes(xml)
@@ -498,6 +512,7 @@ function extractSpreadsheetPreview(archive: Buffer): { sheets: SpreadsheetPrevie
       name: sheet.name,
       rows: parsed.rows,
       ...(merges.length > 0 ? { merges } : {}),
+      ...(tables.length > 0 ? { tables } : {}),
       ...(columnWidths.some((width) => width !== undefined) ? { columnWidths } : {}),
       ...(rowHeights.some((height) => height !== undefined) ? { rowHeights } : {}),
       ...(freezePanes ? { freezePanes } : {})
@@ -808,6 +823,56 @@ function extractWorksheetMerges(xml: string): SpreadsheetPreviewMerge[] {
         colSpan: Math.min(colSpan, 12 - startColumn)
       }]
     })
+}
+
+function extractWorksheetTables(xml: string, archive: Buffer, sheetPath: string): SpreadsheetPreviewTable[] {
+  const tableRelIds = [...xml.matchAll(/<tablePart\b[^>]*r:id="([^"]+)"[^>]*\/>/g)]
+    .map((match) => match[1] ?? '')
+    .filter(Boolean)
+    .slice(0, 8)
+  if (tableRelIds.length === 0) return []
+  const relsXml = readZipEntry(archive, zipRelationshipPathForPart(sheetPath))?.toString('utf8') ?? ''
+  const relationships = new Map<string, string>()
+  for (const match of relsXml.matchAll(/<Relationship\b[^>]*>/g)) {
+    const tag = match[0] ?? ''
+    const id = /\bId="([^"]+)"/.exec(tag)?.[1] ?? ''
+    const type = /\bType="([^"]+)"/.exec(tag)?.[1] ?? ''
+    const target = /\bTarget="([^"]+)"/.exec(tag)?.[1] ?? ''
+    if (id && target && type.endsWith('/table')) relationships.set(id, resolveZipRelationshipTarget(sheetPath, target))
+  }
+  return tableRelIds.flatMap((relId) => {
+    const tablePath = relationships.get(relId)
+    const tableXml = tablePath ? readZipEntry(archive, tablePath)?.toString('utf8') ?? '' : ''
+    if (!tableXml) return []
+    const tableTag = /<table\b([^>]*)>/.exec(tableXml)?.[1] ?? ''
+    const ref = /\bref="([^"]+)"/.exec(tableTag)?.[1]?.toUpperCase() ?? ''
+    const [startAddress, endAddress] = ref.split(':')
+    const start = spreadsheetCellPosition(startAddress)
+    const end = spreadsheetCellPosition(endAddress ?? startAddress)
+    if (!start || !end) return []
+    const startRow = Math.min(start.row, end.row)
+    const endRow = Math.max(start.row, end.row)
+    const startColumn = Math.min(start.column, end.column)
+    const endColumn = Math.max(start.column, end.column)
+    if (startRow >= 24 || startColumn >= 12) return []
+    const styleTag = /<tableStyleInfo\b([^>]*)\/>/.exec(tableXml)?.[1] ?? ''
+    const name = decodeXmlText(
+      /\bdisplayName="([^"]+)"/.exec(tableTag)?.[1] ??
+      /\bname="([^"]+)"/.exec(tableTag)?.[1] ??
+      'Table'
+    )
+    return [{
+      ref,
+      name,
+      startRow,
+      startColumn,
+      rowSpan: Math.min(endRow - startRow + 1, 24 - startRow),
+      colSpan: Math.min(endColumn - startColumn + 1, 12 - startColumn),
+      ...(/\bname="([^"]+)"/.exec(styleTag)?.[1] ? { styleName: /\bname="([^"]+)"/.exec(styleTag)?.[1] } : {}),
+      ...(/<autoFilter\b/.test(tableXml) ? { showFilterButton: true } : {}),
+      ...(/\bshowRowStripes="1"/.test(styleTag) ? { showRowStripes: true } : {})
+    }]
+  })
 }
 
 function extractWorksheetColumnWidths(xml: string): Array<number | undefined> {

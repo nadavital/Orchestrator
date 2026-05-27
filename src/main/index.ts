@@ -11148,6 +11148,7 @@ function runAutomatedFocusedSurfaceSmoke(
               const spreadsheetSizingChecks = {};
               const spreadsheetFreezePaneChecks = {};
               const spreadsheetAlignmentChecks = {};
+              const spreadsheetTableChecks = {};
               const spreadsheetFormulaChecks = {};
               const spreadsheetFormulaEditingChecks = {};
               const officeZoomMenuChecks = {};
@@ -11650,6 +11651,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     const headerNameCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="A1"]');
                     const headerNameTableCell = headerNameCell?.closest('td');
                     const alphaCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="A2"]');
+                    const tableFilterButton = headerNameCell?.querySelector('[data-testid="workspace-spreadsheet-filter-button"]');
                     const updatedStatusCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="C2"]');
                     const mergedNoteCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="A4"]');
                     const mergedNoteTableCell = mergedNoteCell?.closest('td');
@@ -11789,6 +11791,21 @@ function runAutomatedFocusedSurfaceSmoke(
                       getComputedStyle(alignedWrappedCell).textAlign === 'center' &&
                       getComputedStyle(alignedWrappedCell).alignItems === 'center' &&
                       getComputedStyle(alignedWrappedCell).justifyContent === 'center';
+                    spreadsheetTableChecks[testId] =
+                      spreadsheetPreview instanceof HTMLElement &&
+                      spreadsheetPreview.getAttribute('data-spreadsheet-table-count') === '1' &&
+                      headerNameCell instanceof HTMLButtonElement &&
+                      headerNameCell.getAttribute('data-spreadsheet-cell-table-name') === 'SmokeTable' &&
+                      headerNameCell.getAttribute('data-spreadsheet-cell-table-ref') === 'A1:C3' &&
+                      headerNameCell.getAttribute('data-spreadsheet-cell-table-header') === 'true' &&
+                      headerNameCell.getAttribute('data-spreadsheet-cell-table-style') === 'TableStyleMedium2' &&
+                      headerNameCell.getAttribute('data-spreadsheet-cell-table-filter-button') === 'true' &&
+                      tableFilterButton instanceof HTMLElement &&
+                      tableFilterButton.textContent?.trim() === 'v' &&
+                      alphaCell instanceof HTMLButtonElement &&
+                      alphaCell.getAttribute('data-spreadsheet-cell-table-name') === 'SmokeTable' &&
+                      alphaCell.getAttribute('data-spreadsheet-cell-table-banded-row') === 'true' &&
+                      getComputedStyle(alphaCell).backgroundColor === 'rgb(248, 250, 252)';
                     if (alphaCell instanceof HTMLButtonElement) {
                       alphaCell.click();
                       await sleep(120);
@@ -13245,6 +13262,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 filesSpreadsheetSizingWorks: Boolean(spreadsheetSizingChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetFreezePanesWorks: Boolean(spreadsheetFreezePaneChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetAlignmentWorks: Boolean(spreadsheetAlignmentChecks['workspace-spreadsheet-preview']),
+                filesSpreadsheetTablesWorks: Boolean(spreadsheetTableChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetFormulaEditingWorks: Boolean(spreadsheetFormulaEditingChecks['workspace-spreadsheet-preview']),
                 filesSlidesControlsWorks: Boolean(slidesControlChecks['workspace-slides-preview']),
                 filesSlidesSpeakerNotesWorks: Boolean(slidesNotesChecks['workspace-slides-preview']),

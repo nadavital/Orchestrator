@@ -419,6 +419,7 @@ function createXlsxFixture({ sheetName, rows, sheets }) {
   const sharedStringIndex = new Map()
   const cellStyles = [{}]
   const cellStyleIndex = new Map([['{}', 0]])
+  let nextTableId = 1
   const styleIndexFor = (rawValue) => {
     if (!rawValue || typeof rawValue !== 'object' || Array.isArray(rawValue)) return 0
     const style = {
@@ -443,6 +444,39 @@ function createXlsxFixture({ sheetName, rows, sheets }) {
     const mergeRefs = (sheet.merges ?? [])
       .map((merge) => typeof merge === 'string' ? merge : merge?.ref)
       .filter((merge) => typeof merge === 'string' && /^[A-Z]+\d+:[A-Z]+\d+$/i.test(merge))
+    const tableEntries = (sheet.tables ?? [])
+      .map((table, tableIndex) => {
+        const ref = String(table?.ref ?? '').toUpperCase()
+        const range = xlsxRangePosition(ref)
+        if (!range) return null
+        const id = nextTableId++
+        const name = String(table?.name ?? `SmokeTable${id}`).replace(/[^A-Za-z0-9_]/g, '_') || `SmokeTable${id}`
+        const relId = `rId${tableIndex + 1}`
+        const styleName = String(table?.styleName ?? 'TableStyleMedium2')
+        const headerCells = Array.from({ length: range.endColumn - range.startColumn + 1 }, (_, index) => {
+          const rawCell = sheet.rows?.[range.startRow]?.[range.startColumn + index]
+          const value = rawCell && typeof rawCell === 'object' && !Array.isArray(rawCell) ? rawCell.value : rawCell
+          return String(value ?? `Column ${index + 1}`) || `Column ${index + 1}`
+        })
+        return {
+          id,
+          relId,
+          name,
+          path: `xl/tables/table${id}.xml`,
+          target: `../tables/table${id}.xml`,
+          ref,
+          styleName,
+          showFilterButton: table.showFilterButton !== false,
+          showRowStripes: table.showRowStripes !== false,
+          data: `<?xml version="1.0" encoding="UTF-8"?>
+<table xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" id="${id}" name="${escapeXml(name)}" displayName="${escapeXml(name)}" ref="${escapeXml(ref)}" totalsRowShown="0">
+  ${table.showFilterButton === false ? '' : `<autoFilter ref="${escapeXml(ref)}"/>`}
+  <tableColumns count="${headerCells.length}">${headerCells.map((value, index) => `<tableColumn id="${index + 1}" name="${escapeXml(value)}"/>`).join('')}</tableColumns>
+  <tableStyleInfo name="${escapeXml(styleName)}" showFirstColumn="0" showLastColumn="0" showRowStripes="${table.showRowStripes === false ? '0' : '1'}" showColumnStripes="0"/>
+</table>`
+        }
+      })
+      .filter(Boolean)
     const columnXml = Array.isArray(sheet.columnWidths)
       ? sheet.columnWidths
           .map((width, columnIndex) => {
@@ -492,17 +526,34 @@ function createXlsxFixture({ sheetName, rows, sheets }) {
     }).join('\n      ')
     return {
       name: `xl/worksheets/sheet${sheetIndex + 1}.xml`,
+      relationship: tableEntries.length > 0
+        ? {
+            name: `xl/worksheets/_rels/sheet${sheetIndex + 1}.xml.rels`,
+            data: `<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  ${tableEntries.map((table) => `<Relationship Id="${table.relId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/table" Target="${table.target}"/>`).join('\n  ')}
+</Relationships>`
+          }
+        : null,
+      tableEntries: tableEntries.map((table) => ({ name: table.path, data: table.data })),
       data: `<?xml version="1.0" encoding="UTF-8"?>
-<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"${tableEntries.length > 0 ? ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"' : ''}>
   ${paneXml}
   ${columnXml ? `<cols>${columnXml}</cols>` : ''}
   <sheetData>
       ${cellXml}
   </sheetData>
   ${mergeRefs.length > 0 ? `<mergeCells count="${mergeRefs.length}">${mergeRefs.map((merge) => `<mergeCell ref="${escapeXml(merge.toUpperCase())}"/>`).join('')}</mergeCells>` : ''}
+  ${tableEntries.length > 0 ? `<tableParts count="${tableEntries.length}">${tableEntries.map((table) => `<tablePart r:id="${table.relId}"/>`).join('')}</tableParts>` : ''}
 </worksheet>`
     }
   })
+  const worksheetZipEntries = worksheetEntries.flatMap((entry) => [
+    { name: entry.name, data: entry.data },
+    ...(entry.relationship ? [entry.relationship] : []),
+    ...entry.tableEntries
+  ])
+  const tableContentTypeOverrides = worksheetEntries.flatMap((entry) => entry.tableEntries)
   return createStoredZip([
     {
       name: '[Content_Types].xml',
@@ -512,6 +563,7 @@ function createXlsxFixture({ sheetName, rows, sheets }) {
   <Default Extension="xml" ContentType="application/xml"/>
   <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
   ${workbookSheets.map((_, index) => `<Override PartName="/xl/worksheets/sheet${index + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('\n  ')}
+  ${tableContentTypeOverrides.map((entry) => `<Override PartName="/${entry.name}" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.table+xml"/>`).join('\n  ')}
   <Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/>
   <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
 </Types>`
@@ -550,7 +602,7 @@ function createXlsxFixture({ sheetName, rows, sheets }) {
       name: 'xl/styles.xml',
       data: createXlsxStylesXml(cellStyles)
     },
-    ...worksheetEntries
+    ...worksheetZipEntries
   ])
 }
 
@@ -699,6 +751,26 @@ function columnName(index) {
     value = Math.floor((value - 1) / 26)
   }
   return name
+}
+
+function columnIndexFromName(name) {
+  let value = 0
+  for (const letter of String(name).toUpperCase()) value = value * 26 + (letter.charCodeAt(0) - 64)
+  return Math.max(0, value - 1)
+}
+
+function xlsxRangePosition(ref) {
+  const match = /^([A-Z]+)(\d+):([A-Z]+)(\d+)$/i.exec(ref.trim())
+  if (!match) return null
+  const startRow = Number(match[2]) - 1
+  const endRow = Number(match[4]) - 1
+  if (!Number.isInteger(startRow) || !Number.isInteger(endRow)) return null
+  return {
+    startRow: Math.min(startRow, endRow),
+    endRow: Math.max(startRow, endRow),
+    startColumn: Math.min(columnIndexFromName(match[1]), columnIndexFromName(match[3])),
+    endColumn: Math.max(columnIndexFromName(match[1]), columnIndexFromName(match[3]))
+  }
 }
 
 function createPdfFixture(text) {
@@ -860,6 +932,7 @@ if (fixtureWorkspaceViews.has(captureView)) {
         columnWidths: [12, 24, 14],
         rowHeights: [20, 20, 38, 52],
         freezePanes: { rows: 1, columns: 1 },
+        tables: [{ ref: 'A1:C2', name: 'SmokeTable', styleName: 'TableStyleMedium2', showFilterButton: true, showRowStripes: true }],
         merges: ['A3:B3']
       },
       {
@@ -984,6 +1057,7 @@ if (fixtureWorkspaceViews.has(captureView)) {
         columnWidths: [12, 24, 14],
         rowHeights: [20, 20, 20, 42, 52],
         freezePanes: { rows: 1, columns: 1 },
+        tables: [{ ref: 'A1:C3', name: 'SmokeTable', styleName: 'TableStyleMedium2', showFilterButton: true, showRowStripes: true }],
         merges: ['A4:B4']
       },
         {
@@ -1746,6 +1820,7 @@ child.on('exit', async (code) => {
           filesSpreadsheetSizing: result.filesSpreadsheetSizingWorks === true,
           filesSpreadsheetFreezePanes: result.filesSpreadsheetFreezePanesWorks === true,
           filesSpreadsheetAlignment: result.filesSpreadsheetAlignmentWorks === true,
+          filesSpreadsheetTables: result.filesSpreadsheetTablesWorks === true,
           filesSpreadsheetFormulaEditing: result.filesSpreadsheetFormulaEditingWorks === true,
           filesSlidesControls: result.filesSlidesControlsWorks === true,
           filesSlidesSpeakerNotes: result.filesSlidesSpeakerNotesWorks === true,
@@ -1957,6 +2032,7 @@ child.on('exit', async (code) => {
         filesSpreadsheetSizing: captureView !== 'inspector' || result.filesSpreadsheetSizingWorks === true,
         filesSpreadsheetFreezePanes: captureView !== 'inspector' || result.filesSpreadsheetFreezePanesWorks === true,
         filesSpreadsheetAlignment: captureView !== 'inspector' || result.filesSpreadsheetAlignmentWorks === true,
+        filesSpreadsheetTables: captureView !== 'inspector' || result.filesSpreadsheetTablesWorks === true,
         filesSpreadsheetFormulaEditing: captureView !== 'inspector' || result.filesSpreadsheetFormulaEditingWorks === true,
         filesSlidesControls: captureView !== 'inspector' || result.filesSlidesControlsWorks === true,
         filesSlidesSpeakerNotes: captureView !== 'inspector' || result.filesSlidesSpeakerNotesWorks === true,

@@ -925,6 +925,7 @@ interface SpreadsheetPreviewPayload {
     name: string
     rows: SpreadsheetPreviewCell[][]
     merges?: SpreadsheetPreviewMerge[]
+    tables?: SpreadsheetPreviewTable[]
     columnWidths?: Array<number | undefined>
     rowHeights?: Array<number | undefined>
     freezePanes?: SpreadsheetFreezePanes
@@ -949,6 +950,18 @@ interface SpreadsheetPreviewMerge {
   startColumn: number
   rowSpan: number
   colSpan: number
+}
+
+interface SpreadsheetPreviewTable {
+  ref: string
+  name: string
+  styleName?: string
+  startRow: number
+  startColumn: number
+  rowSpan: number
+  colSpan: number
+  showFilterButton?: boolean
+  showRowStripes?: boolean
 }
 
 interface SpreadsheetFreezePanes {
@@ -997,6 +1010,7 @@ function cloneSpreadsheetSheets(sheets: SpreadsheetPreviewPayload['sheets']): Sp
     name: sheet.name,
     rows: sheet.rows.map((row) => row.map((cell) => ({ ...cell }))),
     ...(sheet.merges ? { merges: sheet.merges.map((merge) => ({ ...merge })) } : {}),
+    ...(sheet.tables ? { tables: sheet.tables.map((table) => ({ ...table })) } : {}),
     ...(sheet.columnWidths ? { columnWidths: [...sheet.columnWidths] } : {}),
     ...(sheet.rowHeights ? { rowHeights: [...sheet.rowHeights] } : {}),
     ...(sheet.freezePanes ? { freezePanes: { ...sheet.freezePanes } } : {})
@@ -1171,6 +1185,23 @@ function spreadsheetMergeLookup(merges: SpreadsheetPreviewMerge[]): {
   return { starts, covered }
 }
 
+function spreadsheetTableLookup(tables: SpreadsheetPreviewTable[]): Map<string, { table: SpreadsheetPreviewTable; isHeader: boolean; isBandedRow: boolean }> {
+  const cells = new Map<string, { table: SpreadsheetPreviewTable; isHeader: boolean; isBandedRow: boolean }>()
+  for (const table of tables) {
+    for (let row = table.startRow; row < table.startRow + table.rowSpan; row += 1) {
+      for (let column = table.startColumn; column < table.startColumn + table.colSpan; column += 1) {
+        const relativeRow = row - table.startRow
+        cells.set(`${row}:${column}`, {
+          table,
+          isHeader: relativeRow === 0,
+          isBandedRow: table.showRowStripes === true && relativeRow > 0 && relativeRow % 2 === 1
+        })
+      }
+    }
+  }
+  return cells
+}
+
 function spreadsheetDimensionOffset(values: Array<number | undefined> | undefined, index: number, fallback: number): number {
   let offset = 0
   for (let itemIndex = 0; itemIndex < index; itemIndex += 1) offset += values?.[itemIndex] ?? fallback
@@ -1213,8 +1244,14 @@ function SpreadsheetArtifactPreview({
   const sheetCount = sheets.length
   const effectiveZoomPercent = fitToWidth ? 100 : zoomPercent
   const activeSheetMergeLookup = useMemo(() => spreadsheetMergeLookup(activeSheet?.merges ?? []), [activeSheet?.merges])
+  const activeSheetTableLookup = useMemo(() => spreadsheetTableLookup(activeSheet?.tables ?? []), [activeSheet?.tables])
   const maxColumnCount = activeSheet
-    ? Math.max(1, ...activeSheet.rows.map((row) => row.length), ...(activeSheet.merges ?? []).map((merge) => merge.startColumn + merge.colSpan))
+    ? Math.max(
+        1,
+        ...activeSheet.rows.map((row) => row.length),
+        ...(activeSheet.merges ?? []).map((merge) => merge.startColumn + merge.colSpan),
+        ...(activeSheet.tables ?? []).map((table) => table.startColumn + table.colSpan)
+      )
     : 1
   const activeCellRow = activeSheet ? Math.min(activeCell.row, Math.max(0, activeSheet.rows.length - 1)) : 0
   const activeCellColumn = activeSheet ? Math.min(activeCell.column, Math.max(0, maxColumnCount - 1)) : 0
@@ -1229,6 +1266,7 @@ function SpreadsheetArtifactPreview({
     ? activeSheet.rows.reduce((count, row) => count + row.filter((cell) => Boolean(cell.wrapText || cell.horizontalAlignment || cell.verticalAlignment)).length, 0)
     : 0
   const mergeCount = activeSheet?.merges?.length ?? 0
+  const tableCount = activeSheet?.tables?.length ?? 0
   const sizedColumnCount = activeSheet?.columnWidths?.filter((width) => width !== undefined).length ?? 0
   const sizedRowCount = activeSheet?.rowHeights?.filter((height) => height !== undefined).length ?? 0
   const frozenRowCount = activeSheet?.freezePanes?.rows ?? 0
@@ -1273,6 +1311,7 @@ function SpreadsheetArtifactPreview({
       data-spreadsheet-style-cell-count={styledCellCount}
       data-spreadsheet-aligned-cell-count={alignedCellCount}
       data-spreadsheet-merge-count={mergeCount}
+      data-spreadsheet-table-count={tableCount}
       data-spreadsheet-sized-column-count={sizedColumnCount}
       data-spreadsheet-sized-row-count={sizedRowCount}
       data-spreadsheet-frozen-row-count={frozenRowCount}
@@ -1477,6 +1516,12 @@ function SpreadsheetArtifactPreview({
                           const cellAddress = `${spreadsheetColumnLabel(cellIndex)}${rowIndex + 1}`
                           const isActive = rowIndex === activeCellRow && cellIndex === activeCellColumn
                           const merge = activeSheetMergeLookup.starts.get(`${rowIndex}:${cellIndex}`)
+                          const tableCell = activeSheetTableLookup.get(`${rowIndex}:${cellIndex}`)
+                          const tableName = tableCell?.table.name ?? ''
+                          const tableStyleName = tableCell?.table.styleName ?? ''
+                          const isTableHeaderCell = tableCell?.isHeader === true
+                          const isTableBandedCell = tableCell?.isBandedRow === true
+                          const hasTableFilterButton = isTableHeaderCell && tableCell?.table.showFilterButton === true
                           const frozenColumnLeft = cellIndex < frozenColumnCount
                             ? 38 + spreadsheetDimensionOffset(activeSheet.columnWidths, cellIndex, 88)
                             : undefined
@@ -1484,17 +1529,18 @@ function SpreadsheetArtifactPreview({
                           const cellHorizontalAlignment = cell.horizontalAlignment ?? 'left'
                           const cellVerticalAlignment = cell.verticalAlignment ?? 'top'
                           const cellStyle: CSSProperties = {
-                            backgroundColor: cell.fillColor,
+                            backgroundColor: cell.fillColor ?? (isTableHeaderCell ? '#E5E7EB' : isTableBandedCell ? '#F8FAFC' : undefined),
                             color: cell.textColor,
-                            fontWeight: cell.bold ? 700 : undefined,
+                            fontWeight: cell.bold || isTableHeaderCell ? 700 : undefined,
                             minHeight: rowHeight,
                             whiteSpace: cell.wrapText ? 'normal' : 'nowrap',
                             textAlign: cellHorizontalAlignment
                           }
-                          if (cell.wrapText || cell.horizontalAlignment || cell.verticalAlignment) {
+                          if (cell.wrapText || cell.horizontalAlignment || cell.verticalAlignment || isTableHeaderCell) {
                             cellStyle.display = 'flex'
                             cellStyle.alignItems = spreadsheetAlignItems(cellVerticalAlignment)
-                            cellStyle.justifyContent = spreadsheetJustifyContent(cellHorizontalAlignment)
+                            cellStyle.justifyContent = isTableHeaderCell ? 'space-between' : spreadsheetJustifyContent(cellHorizontalAlignment)
+                            cellStyle.gap = 6
                             cellStyle.height = '100%'
                           }
                           return (
@@ -1503,6 +1549,11 @@ function SpreadsheetArtifactPreview({
                               data-active={isActive ? 'true' : 'false'}
                               data-spreadsheet-cell-address={cellAddress}
                               data-spreadsheet-cell-merge-ref={merge?.ref ?? ''}
+                              data-spreadsheet-cell-table-name={tableName}
+                              data-spreadsheet-cell-table-ref={tableCell?.table.ref ?? ''}
+                              data-spreadsheet-cell-table-header={isTableHeaderCell ? 'true' : 'false'}
+                              data-spreadsheet-cell-table-banded-row={isTableBandedCell ? 'true' : 'false'}
+                              data-spreadsheet-cell-table-style={tableStyleName}
                               data-spreadsheet-column-width={activeSheet.columnWidths?.[cellIndex] ?? ''}
                               data-spreadsheet-row-height={rowHeight ?? ''}
                               data-spreadsheet-cell-frozen-row={rowIndex < frozenRowCount ? 'true' : 'false'}
@@ -1535,6 +1586,12 @@ function SpreadsheetArtifactPreview({
                                 data-spreadsheet-cell-horizontal-alignment={cell.horizontalAlignment ?? ''}
                                 data-spreadsheet-cell-vertical-alignment={cell.verticalAlignment ?? ''}
                                 data-spreadsheet-cell-merge-ref={merge?.ref ?? ''}
+                                data-spreadsheet-cell-table-name={tableName}
+                                data-spreadsheet-cell-table-ref={tableCell?.table.ref ?? ''}
+                                data-spreadsheet-cell-table-header={isTableHeaderCell ? 'true' : 'false'}
+                                data-spreadsheet-cell-table-banded-row={isTableBandedCell ? 'true' : 'false'}
+                                data-spreadsheet-cell-table-style={tableStyleName}
+                                data-spreadsheet-cell-table-filter-button={hasTableFilterButton ? 'true' : 'false'}
                                 data-spreadsheet-cell-merge-rowspan={merge?.rowSpan ?? 1}
                                 data-spreadsheet-cell-merge-colspan={merge?.colSpan ?? 1}
                                 data-spreadsheet-cell-column-width={activeSheet.columnWidths?.[cellIndex] ?? ''}
@@ -1547,7 +1604,10 @@ function SpreadsheetArtifactPreview({
                                 onClick={() => { setActiveCell({ row: rowIndex, column: cellIndex }) }}
                                 onFocus={() => { setActiveCell({ row: rowIndex, column: cellIndex }) }}
                               >
-                                {cell.value}
+                                <span className="workspace-spreadsheet-cell-content">{cell.value}</span>
+                                {hasTableFilterButton && (
+                                  <span className="workspace-spreadsheet-filter-button" data-testid="workspace-spreadsheet-filter-button" aria-hidden="true">v</span>
+                                )}
                               </button>
                             </td>
                           )
@@ -1893,6 +1953,9 @@ function parseSpreadsheetPreview(text: string | undefined): SpreadsheetPreviewPa
         merges: Array.isArray(sheet.merges)
           ? sheet.merges.map((merge) => normalizeSpreadsheetMerge(merge)).filter((merge): merge is SpreadsheetPreviewMerge => Boolean(merge))
           : undefined,
+        tables: Array.isArray(sheet.tables)
+          ? sheet.tables.map((table) => normalizeSpreadsheetTable(table)).filter((table): table is SpreadsheetPreviewTable => Boolean(table))
+          : undefined,
         columnWidths: Array.isArray(sheet.columnWidths)
           ? normalizeSpreadsheetDimensionArray(sheet.columnWidths, 48, 320, 12)
           : undefined,
@@ -1967,6 +2030,37 @@ function normalizeSpreadsheetMerge(value: unknown): SpreadsheetPreviewMerge | nu
     startColumn,
     rowSpan,
     colSpan
+  }
+}
+
+function normalizeSpreadsheetTable(value: unknown): SpreadsheetPreviewTable | null {
+  if (!value || typeof value !== 'object') return null
+  const candidate = value as {
+    ref?: unknown
+    name?: unknown
+    styleName?: unknown
+    startRow?: unknown
+    startColumn?: unknown
+    rowSpan?: unknown
+    colSpan?: unknown
+    showFilterButton?: unknown
+    showRowStripes?: unknown
+  }
+  const startRow = normalizeSpreadsheetSpanNumber(candidate.startRow, 0, 23)
+  const startColumn = normalizeSpreadsheetSpanNumber(candidate.startColumn, 0, 11)
+  const rowSpan = normalizeSpreadsheetSpanNumber(candidate.rowSpan, 1, 24)
+  const colSpan = normalizeSpreadsheetSpanNumber(candidate.colSpan, 1, 12)
+  if (startRow === null || startColumn === null || rowSpan === null || colSpan === null) return null
+  return {
+    ref: typeof candidate.ref === 'string' && candidate.ref.trim() ? candidate.ref.trim().toUpperCase() : `${spreadsheetColumnLabel(startColumn)}${startRow + 1}:${spreadsheetColumnLabel(startColumn + colSpan - 1)}${startRow + rowSpan}`,
+    name: typeof candidate.name === 'string' && candidate.name.trim() ? candidate.name.trim() : 'Table',
+    ...(typeof candidate.styleName === 'string' && candidate.styleName.trim() ? { styleName: candidate.styleName.trim() } : {}),
+    startRow,
+    startColumn,
+    rowSpan,
+    colSpan,
+    ...(candidate.showFilterButton === true ? { showFilterButton: true } : {}),
+    ...(candidate.showRowStripes === true ? { showRowStripes: true } : {})
   }
 }
 
