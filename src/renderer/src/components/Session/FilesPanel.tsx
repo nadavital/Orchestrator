@@ -926,6 +926,7 @@ interface SpreadsheetPreviewPayload {
     rows: SpreadsheetPreviewCell[][]
     merges?: SpreadsheetPreviewMerge[]
     tables?: SpreadsheetPreviewTable[]
+    conditionalFormatCount?: number
     columnWidths?: Array<number | undefined>
     rowHeights?: Array<number | undefined>
     freezePanes?: SpreadsheetFreezePanes
@@ -937,6 +938,7 @@ interface SpreadsheetPreviewCell {
   value: string
   formula?: string
   fillColor?: string
+  conditionalFillColor?: string
   textColor?: string
   bold?: boolean
   wrapText?: boolean
@@ -1011,6 +1013,7 @@ function cloneSpreadsheetSheets(sheets: SpreadsheetPreviewPayload['sheets']): Sp
     rows: sheet.rows.map((row) => row.map((cell) => ({ ...cell }))),
     ...(sheet.merges ? { merges: sheet.merges.map((merge) => ({ ...merge })) } : {}),
     ...(sheet.tables ? { tables: sheet.tables.map((table) => ({ ...table })) } : {}),
+    ...(sheet.conditionalFormatCount ? { conditionalFormatCount: sheet.conditionalFormatCount } : {}),
     ...(sheet.columnWidths ? { columnWidths: [...sheet.columnWidths] } : {}),
     ...(sheet.rowHeights ? { rowHeights: [...sheet.rowHeights] } : {}),
     ...(sheet.freezePanes ? { freezePanes: { ...sheet.freezePanes } } : {})
@@ -1260,13 +1263,14 @@ function SpreadsheetArtifactPreview({
   const activeCellValue = activeCellData?.value ?? ''
   const activeCellFormula = activeCellData?.formula ?? ''
   const styledCellCount = activeSheet
-    ? activeSheet.rows.reduce((count, row) => count + row.filter((cell) => Boolean(cell.fillColor || cell.textColor || cell.bold || cell.wrapText || cell.horizontalAlignment || cell.verticalAlignment)).length, 0)
+    ? activeSheet.rows.reduce((count, row) => count + row.filter((cell) => Boolean(cell.fillColor || cell.conditionalFillColor || cell.textColor || cell.bold || cell.wrapText || cell.horizontalAlignment || cell.verticalAlignment)).length, 0)
     : 0
   const alignedCellCount = activeSheet
     ? activeSheet.rows.reduce((count, row) => count + row.filter((cell) => Boolean(cell.wrapText || cell.horizontalAlignment || cell.verticalAlignment)).length, 0)
     : 0
   const mergeCount = activeSheet?.merges?.length ?? 0
   const tableCount = activeSheet?.tables?.length ?? 0
+  const conditionalFormatCount = activeSheet?.conditionalFormatCount ?? 0
   const sizedColumnCount = activeSheet?.columnWidths?.filter((width) => width !== undefined).length ?? 0
   const sizedRowCount = activeSheet?.rowHeights?.filter((height) => height !== undefined).length ?? 0
   const frozenRowCount = activeSheet?.freezePanes?.rows ?? 0
@@ -1312,6 +1316,7 @@ function SpreadsheetArtifactPreview({
       data-spreadsheet-aligned-cell-count={alignedCellCount}
       data-spreadsheet-merge-count={mergeCount}
       data-spreadsheet-table-count={tableCount}
+      data-spreadsheet-conditional-format-count={conditionalFormatCount}
       data-spreadsheet-sized-column-count={sizedColumnCount}
       data-spreadsheet-sized-row-count={sizedRowCount}
       data-spreadsheet-frozen-row-count={frozenRowCount}
@@ -1529,7 +1534,7 @@ function SpreadsheetArtifactPreview({
                           const cellHorizontalAlignment = cell.horizontalAlignment ?? 'left'
                           const cellVerticalAlignment = cell.verticalAlignment ?? 'top'
                           const cellStyle: CSSProperties = {
-                            backgroundColor: cell.fillColor ?? (isTableHeaderCell ? '#E5E7EB' : isTableBandedCell ? '#F8FAFC' : undefined),
+                            backgroundColor: cell.fillColor ?? cell.conditionalFillColor ?? (isTableHeaderCell ? '#E5E7EB' : isTableBandedCell ? '#F8FAFC' : undefined),
                             color: cell.textColor,
                             fontWeight: cell.bold || isTableHeaderCell ? 700 : undefined,
                             minHeight: rowHeight,
@@ -1580,6 +1585,7 @@ function SpreadsheetArtifactPreview({
                                 data-spreadsheet-cell-formula={cell.formula ?? ''}
                                 data-spreadsheet-cell-kind={cell.formula ? 'formula' : 'value'}
                                 data-spreadsheet-cell-fill-color={cell.fillColor ?? ''}
+                                data-spreadsheet-cell-conditional-fill-color={cell.conditionalFillColor ?? ''}
                                 data-spreadsheet-cell-text-color={cell.textColor ?? ''}
                                 data-spreadsheet-cell-bold={cell.bold ? 'true' : 'false'}
                                 data-spreadsheet-cell-wrap-text={cell.wrapText ? 'true' : 'false'}
@@ -1956,6 +1962,9 @@ function parseSpreadsheetPreview(text: string | undefined): SpreadsheetPreviewPa
         tables: Array.isArray(sheet.tables)
           ? sheet.tables.map((table) => normalizeSpreadsheetTable(table)).filter((table): table is SpreadsheetPreviewTable => Boolean(table))
           : undefined,
+        conditionalFormatCount: typeof sheet.conditionalFormatCount === 'number' && sheet.conditionalFormatCount > 0
+          ? Math.min(24, Math.floor(sheet.conditionalFormatCount))
+          : undefined,
         columnWidths: Array.isArray(sheet.columnWidths)
           ? normalizeSpreadsheetDimensionArray(sheet.columnWidths, 48, 320, 12)
           : undefined,
@@ -1981,6 +1990,7 @@ function normalizeSpreadsheetPreviewCell(cell: unknown): SpreadsheetPreviewCell 
       value?: unknown
       formula?: unknown
       fillColor?: unknown
+      conditionalFillColor?: unknown
       textColor?: unknown
       bold?: unknown
       wrapText?: unknown
@@ -1988,6 +1998,7 @@ function normalizeSpreadsheetPreviewCell(cell: unknown): SpreadsheetPreviewCell 
       verticalAlignment?: unknown
     }
     const fillColor = normalizeSpreadsheetColor(candidate.fillColor)
+    const conditionalFillColor = normalizeSpreadsheetColor(candidate.conditionalFillColor)
     const textColor = normalizeSpreadsheetColor(candidate.textColor)
     const horizontalAlignment = normalizeSpreadsheetHorizontalAlignment(candidate.horizontalAlignment)
     const verticalAlignment = normalizeSpreadsheetVerticalAlignment(candidate.verticalAlignment)
@@ -1995,6 +2006,7 @@ function normalizeSpreadsheetPreviewCell(cell: unknown): SpreadsheetPreviewCell 
       value: String(candidate.value ?? ''),
       ...(typeof candidate.formula === 'string' && candidate.formula ? { formula: candidate.formula } : {}),
       ...(fillColor ? { fillColor } : {}),
+      ...(conditionalFillColor ? { conditionalFillColor } : {}),
       ...(textColor ? { textColor } : {}),
       ...(candidate.bold === true ? { bold: true } : {}),
       ...(candidate.wrapText === true ? { wrapText: true } : {}),

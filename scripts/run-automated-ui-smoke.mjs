@@ -444,6 +444,23 @@ function createXlsxFixture({ sheetName, rows, sheets }) {
     const mergeRefs = (sheet.merges ?? [])
       .map((merge) => typeof merge === 'string' ? merge : merge?.ref)
       .filter((merge) => typeof merge === 'string' && /^[A-Z]+\d+:[A-Z]+\d+$/i.test(merge))
+    const conditionalFormatXml = (sheet.conditionalFormats ?? [])
+      .map((format) => {
+        const sqref = String(format?.sqref ?? format?.ref ?? '').toUpperCase()
+        if (!sqref.split(/\s+/).every((ref) => /^[A-Z]+\d+(?::[A-Z]+\d+)?$/i.test(ref))) return ''
+        const colors = Array.isArray(format?.colors) ? format.colors : []
+        const normalizedColors = colors
+          .map((color) => String(color ?? '').replace(/^#/, '').toUpperCase())
+          .filter((color) => /^[A-F0-9]{6}$/.test(color))
+          .slice(0, 3)
+        if (normalizedColors.length < 2) return ''
+        const cfvo = normalizedColors.length === 3
+          ? '<cfvo type="min"/><cfvo type="percentile" val="50"/><cfvo type="max"/>'
+          : '<cfvo type="min"/><cfvo type="max"/>'
+        return `<conditionalFormatting sqref="${escapeXml(sqref)}"><cfRule type="colorScale" priority="1"><colorScale>${cfvo}${normalizedColors.map((color) => `<color rgb="FF${color}"/>`).join('')}</colorScale></cfRule></conditionalFormatting>`
+      })
+      .filter(Boolean)
+      .join('\n  ')
     const tableEntries = (sheet.tables ?? [])
       .map((table, tableIndex) => {
         const ref = String(table?.ref ?? '').toUpperCase()
@@ -543,6 +560,7 @@ function createXlsxFixture({ sheetName, rows, sheets }) {
   <sheetData>
       ${cellXml}
   </sheetData>
+  ${conditionalFormatXml}
   ${mergeRefs.length > 0 ? `<mergeCells count="${mergeRefs.length}">${mergeRefs.map((merge) => `<mergeCell ref="${escapeXml(merge.toUpperCase())}"/>`).join('')}</mergeCells>` : ''}
   ${tableEntries.length > 0 ? `<tableParts count="${tableEntries.length}">${tableEntries.map((table) => `<tablePart r:id="${table.relId}"/>`).join('')}</tableParts>` : ''}
 </worksheet>`
@@ -932,6 +950,7 @@ if (fixtureWorkspaceViews.has(captureView)) {
         columnWidths: [12, 24, 14],
         rowHeights: [20, 20, 38, 52],
         freezePanes: { rows: 1, columns: 1 },
+        conditionalFormats: [{ sqref: 'B2:B2', colors: ['#FEE2E2', '#DCFCE7'] }],
         tables: [{ ref: 'A1:C2', name: 'SmokeTable', styleName: 'TableStyleMedium2', showFilterButton: true, showRowStripes: true }],
         merges: ['A3:B3']
       },
@@ -1057,6 +1076,7 @@ if (fixtureWorkspaceViews.has(captureView)) {
         columnWidths: [12, 24, 14],
         rowHeights: [20, 20, 20, 42, 52],
         freezePanes: { rows: 1, columns: 1 },
+        conditionalFormats: [{ sqref: 'B2:B3', colors: ['#FEE2E2', '#DCFCE7'] }],
         tables: [{ ref: 'A1:C3', name: 'SmokeTable', styleName: 'TableStyleMedium2', showFilterButton: true, showRowStripes: true }],
         merges: ['A4:B4']
       },
@@ -1821,6 +1841,7 @@ child.on('exit', async (code) => {
           filesSpreadsheetFreezePanes: result.filesSpreadsheetFreezePanesWorks === true,
           filesSpreadsheetAlignment: result.filesSpreadsheetAlignmentWorks === true,
           filesSpreadsheetTables: result.filesSpreadsheetTablesWorks === true,
+          filesSpreadsheetConditionalFormatting: result.filesSpreadsheetConditionalFormattingWorks === true,
           filesSpreadsheetFormulaEditing: result.filesSpreadsheetFormulaEditingWorks === true,
           filesSlidesControls: result.filesSlidesControlsWorks === true,
           filesSlidesSpeakerNotes: result.filesSlidesSpeakerNotesWorks === true,
@@ -2033,6 +2054,7 @@ child.on('exit', async (code) => {
         filesSpreadsheetFreezePanes: captureView !== 'inspector' || result.filesSpreadsheetFreezePanesWorks === true,
         filesSpreadsheetAlignment: captureView !== 'inspector' || result.filesSpreadsheetAlignmentWorks === true,
         filesSpreadsheetTables: captureView !== 'inspector' || result.filesSpreadsheetTablesWorks === true,
+        filesSpreadsheetConditionalFormatting: captureView !== 'inspector' || result.filesSpreadsheetConditionalFormattingWorks === true,
         filesSpreadsheetFormulaEditing: captureView !== 'inspector' || result.filesSpreadsheetFormulaEditingWorks === true,
         filesSlidesControls: captureView !== 'inspector' || result.filesSlidesControlsWorks === true,
         filesSlidesSpeakerNotes: captureView !== 'inspector' || result.filesSlidesSpeakerNotesWorks === true,

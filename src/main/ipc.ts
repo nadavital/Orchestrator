@@ -54,6 +54,7 @@ interface SpreadsheetPreviewCell {
   value: string
   formula?: string
   fillColor?: string
+  conditionalFillColor?: string
   textColor?: string
   bold?: boolean
   wrapText?: boolean
@@ -66,6 +67,7 @@ interface SpreadsheetPreviewSheet {
   rows: SpreadsheetPreviewCell[][]
   merges?: SpreadsheetPreviewMerge[]
   tables?: SpreadsheetPreviewTable[]
+  conditionalFormatCount?: number
   columnWidths?: Array<number | undefined>
   rowHeights?: Array<number | undefined>
   freezePanes?: SpreadsheetFreezePanes
@@ -89,6 +91,15 @@ interface SpreadsheetPreviewTable {
   colSpan: number
   showFilterButton?: boolean
   showRowStripes?: boolean
+}
+
+interface SpreadsheetPreviewConditionalFormat {
+  ref: string
+  startRow: number
+  startColumn: number
+  rowSpan: number
+  colSpan: number
+  colors: string[]
 }
 
 interface SpreadsheetFreezePanes {
@@ -505,6 +516,8 @@ function extractSpreadsheetPreview(archive: Buffer): { sheets: SpreadsheetPrevie
     truncated ||= parsed.truncated
     const merges = extractWorksheetMerges(xml)
     const tables = extractWorksheetTables(xml, archive, sheet.path)
+    const conditionalFormats = extractWorksheetConditionalFormats(xml)
+    applyWorksheetConditionalFormats(parsed.rows, conditionalFormats)
     const columnWidths = extractWorksheetColumnWidths(xml)
     const rowHeights = extractWorksheetRowHeights(xml)
     const freezePanes = extractWorksheetFreezePanes(xml)
@@ -513,6 +526,7 @@ function extractSpreadsheetPreview(archive: Buffer): { sheets: SpreadsheetPrevie
       rows: parsed.rows,
       ...(merges.length > 0 ? { merges } : {}),
       ...(tables.length > 0 ? { tables } : {}),
+      ...(conditionalFormats.length > 0 ? { conditionalFormatCount: conditionalFormats.length } : {}),
       ...(columnWidths.some((width) => width !== undefined) ? { columnWidths } : {}),
       ...(rowHeights.some((height) => height !== undefined) ? { rowHeights } : {}),
       ...(freezePanes ? { freezePanes } : {})
@@ -873,6 +887,108 @@ function extractWorksheetTables(xml: string, archive: Buffer, sheetPath: string)
       ...(/\bshowRowStripes="1"/.test(styleTag) ? { showRowStripes: true } : {})
     }]
   })
+}
+
+function extractWorksheetConditionalFormats(xml: string): SpreadsheetPreviewConditionalFormat[] {
+  return [...xml.matchAll(/<conditionalFormatting\b([^>]*)>([\s\S]*?)<\/conditionalFormatting>/g)]
+    .slice(0, 12)
+    .flatMap((match) => {
+      const attributes = match[1] ?? ''
+      const body = match[2] ?? ''
+      const sqref = /\bsqref="([^"]+)"/.exec(attributes)?.[1] ?? ''
+      const colorScale = /<cfRule\b[^>]*\btype="colorScale"[^>]*>[\s\S]*?<colorScale\b[\s\S]*?<\/colorScale>[\s\S]*?<\/cfRule>/.exec(body)?.[0] ?? ''
+      if (!sqref || !colorScale) return []
+      const colors = [...colorScale.matchAll(/<color\b[^>]*\/>/g)]
+        .map((colorMatch) => extractSpreadsheetColor(colorMatch[0] ?? ''))
+        .filter((color): color is string => Boolean(color))
+        .slice(0, 3)
+      if (colors.length < 2) return []
+      return sqref
+        .split(/\s+/)
+        .filter(Boolean)
+        .flatMap((ref) => {
+          const range = spreadsheetRangePosition(ref.toUpperCase())
+          if (!range) return []
+          return [{
+            ref: ref.toUpperCase(),
+            startRow: range.startRow,
+            startColumn: range.startColumn,
+            rowSpan: range.endRow - range.startRow + 1,
+            colSpan: range.endColumn - range.startColumn + 1,
+            colors
+          }]
+        })
+    })
+    .filter((format) => format.startRow < 24 && format.startColumn < 12)
+    .map((format) => ({
+      ...format,
+      rowSpan: Math.min(format.rowSpan, 24 - format.startRow),
+      colSpan: Math.min(format.colSpan, 12 - format.startColumn)
+    }))
+}
+
+function applyWorksheetConditionalFormats(rows: SpreadsheetPreviewCell[][], formats: SpreadsheetPreviewConditionalFormat[]): void {
+  for (const format of formats) {
+    const cells: Array<{ cell: SpreadsheetPreviewCell; value: number }> = []
+    for (let rowIndex = format.startRow; rowIndex < format.startRow + format.rowSpan; rowIndex += 1) {
+      const row = rows[rowIndex]
+      if (!row) continue
+      for (let columnIndex = format.startColumn; columnIndex < format.startColumn + format.colSpan; columnIndex += 1) {
+        const cell = row[columnIndex]
+        if (!cell) continue
+        const value = Number(cell.value)
+        if (Number.isFinite(value)) cells.push({ cell, value })
+      }
+    }
+    if (cells.length === 0) continue
+    const values = cells.map((item) => item.value)
+    const min = Math.min(...values)
+    const max = Math.max(...values)
+    for (const item of cells) {
+      const position = max === min ? 0 : (item.value - min) / (max - min)
+      item.cell.conditionalFillColor = spreadsheetColorScaleValue(format.colors, position)
+    }
+  }
+}
+
+function spreadsheetColorScaleValue(colors: string[], position: number): string {
+  if (colors.length >= 3) {
+    if (position <= 0.5) return interpolateSpreadsheetColor(colors[0], colors[1], position * 2)
+    return interpolateSpreadsheetColor(colors[1], colors[2], (position - 0.5) * 2)
+  }
+  return interpolateSpreadsheetColor(colors[0], colors[1], position)
+}
+
+function interpolateSpreadsheetColor(startColor: string, endColor: string, position: number): string {
+  const start = spreadsheetColorChannels(startColor)
+  const end = spreadsheetColorChannels(endColor)
+  const clamped = Math.max(0, Math.min(1, position))
+  return `#${start.map((channel, index) => {
+    const value = Math.round(channel + (end[index] - channel) * clamped)
+    return value.toString(16).padStart(2, '0').toUpperCase()
+  }).join('')}`
+}
+
+function spreadsheetColorChannels(color: string): [number, number, number] {
+  const hex = color.replace(/^#/, '').slice(-6)
+  return [
+    Number.parseInt(hex.slice(0, 2), 16),
+    Number.parseInt(hex.slice(2, 4), 16),
+    Number.parseInt(hex.slice(4, 6), 16)
+  ]
+}
+
+function spreadsheetRangePosition(ref: string): { startRow: number; startColumn: number; endRow: number; endColumn: number } | null {
+  const [startAddress, endAddress] = ref.split(':')
+  const start = spreadsheetCellPosition(startAddress)
+  const end = spreadsheetCellPosition(endAddress ?? startAddress)
+  if (!start || !end) return null
+  return {
+    startRow: Math.min(start.row, end.row),
+    startColumn: Math.min(start.column, end.column),
+    endRow: Math.max(start.row, end.row),
+    endColumn: Math.max(start.column, end.column)
+  }
 }
 
 function extractWorksheetColumnWidths(xml: string): Array<number | undefined> {

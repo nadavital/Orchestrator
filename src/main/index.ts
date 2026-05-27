@@ -11149,6 +11149,7 @@ function runAutomatedFocusedSurfaceSmoke(
               const spreadsheetFreezePaneChecks = {};
               const spreadsheetAlignmentChecks = {};
               const spreadsheetTableChecks = {};
+              const spreadsheetConditionalFormattingChecks = {};
               const spreadsheetFormulaChecks = {};
               const spreadsheetFormulaEditingChecks = {};
               const officeZoomMenuChecks = {};
@@ -11651,6 +11652,8 @@ function runAutomatedFocusedSurfaceSmoke(
                     const headerNameCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="A1"]');
                     const headerNameTableCell = headerNameCell?.closest('td');
                     const alphaCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="A2"]');
+                    const alphaCountCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="B2"]');
+                    const betaCountCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="B3"]');
                     const tableFilterButton = headerNameCell?.querySelector('[data-testid="workspace-spreadsheet-filter-button"]');
                     const updatedStatusCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="C2"]');
                     const mergedNoteCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="A4"]');
@@ -11806,6 +11809,17 @@ function runAutomatedFocusedSurfaceSmoke(
                       alphaCell.getAttribute('data-spreadsheet-cell-table-name') === 'SmokeTable' &&
                       alphaCell.getAttribute('data-spreadsheet-cell-table-banded-row') === 'true' &&
                       getComputedStyle(alphaCell).backgroundColor === 'rgb(248, 250, 252)';
+                    spreadsheetConditionalFormattingChecks[testId] =
+                      spreadsheetPreview instanceof HTMLElement &&
+                      spreadsheetPreview.getAttribute('data-spreadsheet-conditional-format-count') === '1' &&
+                      alphaCountCell instanceof HTMLButtonElement &&
+                      alphaCountCell.getAttribute('data-spreadsheet-cell-value') === '2' &&
+                      alphaCountCell.getAttribute('data-spreadsheet-cell-conditional-fill-color') === '#FEE2E2' &&
+                      getComputedStyle(alphaCountCell).backgroundColor === 'rgb(254, 226, 226)' &&
+                      betaCountCell instanceof HTMLButtonElement &&
+                      betaCountCell.getAttribute('data-spreadsheet-cell-value') === '3' &&
+                      betaCountCell.getAttribute('data-spreadsheet-cell-conditional-fill-color') === '#DCFCE7' &&
+                      getComputedStyle(betaCountCell).backgroundColor === 'rgb(220, 252, 231)';
                     if (alphaCell instanceof HTMLButtonElement) {
                       alphaCell.click();
                       await sleep(120);
@@ -13263,6 +13277,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 filesSpreadsheetFreezePanesWorks: Boolean(spreadsheetFreezePaneChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetAlignmentWorks: Boolean(spreadsheetAlignmentChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetTablesWorks: Boolean(spreadsheetTableChecks['workspace-spreadsheet-preview']),
+                filesSpreadsheetConditionalFormattingWorks: Boolean(spreadsheetConditionalFormattingChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetFormulaEditingWorks: Boolean(spreadsheetFormulaEditingChecks['workspace-spreadsheet-preview']),
                 filesSlidesControlsWorks: Boolean(slidesControlChecks['workspace-slides-preview']),
                 filesSlidesSpeakerNotesWorks: Boolean(slidesNotesChecks['workspace-slides-preview']),
