@@ -10798,6 +10798,7 @@ function runAutomatedFocusedSurfaceSmoke(
               let workbenchFileTabPinWorks = false;
               let workbenchFileTabActionMenuSharedSectionsWorks = false;
               let workbenchFileTabCodexActionLabelsWorks = false;
+              let workbenchFileTabCodexActionClusterWorks = false;
               let filesContentSearchWorks = false;
               let fileSourceLineSelectionWorks = false;
               let fileSourceWrapToggleWorks = false;
@@ -11882,15 +11883,25 @@ function runAutomatedFocusedSurfaceSmoke(
                   await sleep(420);
                   const fileTab = document.querySelector('[data-testid="workbench-file-tab"]');
                   const fileTabToolbar = document.querySelector('[data-testid="workbench-file-tab-toolbar"]');
+                  const fileTabActionsCluster = document.querySelector('[data-testid="workbench-file-tab-actions"]');
                   const openTargetBadge = document.querySelector('[data-testid="workbench-file-tab-open-target"]');
                   const fileTabToolbarActions = fileTabToolbar instanceof HTMLElement
                     ? [...fileTabToolbar.querySelectorAll('.motion-icon-button')]
                       .filter((button) => button instanceof HTMLElement)
                     : [];
-                  const visibleFileTabToolbarActions = fileTabToolbarActions.filter((button) => {
+                  const fileTabClusterActions = fileTabActionsCluster instanceof HTMLElement
+                    ? [...fileTabActionsCluster.querySelectorAll('.motion-icon-button')]
+                      .filter((button) => button instanceof HTMLElement)
+                    : [];
+                  const visibleFileTabClusterActions = fileTabClusterActions.filter((button) => {
                     const rect = button.getBoundingClientRect();
                     return rect.width > 0 && rect.height > 0 && getComputedStyle(button).display !== 'none';
                   });
+                  const visibleFileTabClusterActionLabels = visibleFileTabClusterActions.map((button) =>
+                    button instanceof HTMLElement
+                      ? button.getAttribute('aria-label') ?? button.getAttribute('data-tooltip-label') ?? ''
+                      : ''
+                  );
                   const fileTabButton = document.querySelector('[data-tab-id^="file:"]')?.closest('[role="tab"]');
                   const pinFileTabButton = findButton('Pin file tab');
                   const fileTabActionMenuButton = document.querySelector('[data-testid="workbench-file-tab-actions-menu"]');
@@ -11906,8 +11917,8 @@ function runAutomatedFocusedSurfaceSmoke(
                     fileTabToolbar instanceof HTMLElement &&
                     fileTabToolbar.getAttribute('data-panel-toolbar') === 'true' &&
                     fileTabToolbarActions.length >= 8 &&
-                    visibleFileTabToolbarActions.length >= 3 &&
-                    visibleFileTabToolbarActions.every((button) =>
+                    visibleFileTabClusterActions.length >= 2 &&
+                    visibleFileTabClusterActions.every((button) =>
                       button instanceof HTMLElement &&
                       button.getAttribute('data-icon-button-variant') === 'toolbar' &&
                       button.getBoundingClientRect().width === 24 &&
@@ -11917,6 +11928,10 @@ function runAutomatedFocusedSurfaceSmoke(
                     /^file:[^:]+:.+/.test(fileTabButton.getAttribute('data-tab-id') ?? '') &&
                     fileTabButton.getAttribute('data-preview') === 'true' &&
                     pinFileTabButton instanceof HTMLButtonElement;
+                  workbenchFileTabCodexActionClusterWorks =
+                    visibleFileTabClusterActionLabels.length === 2 &&
+                    visibleFileTabClusterActionLabels[0] === 'File viewer options' &&
+                    visibleFileTabClusterActionLabels[1] === 'Open in editor';
                   if (fileTabActionMenuButton instanceof HTMLButtonElement) {
                     fileTabActionMenuButton.click();
                     await sleep(120);
@@ -12376,6 +12391,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 workbenchFileTabPinWorks,
                 workbenchFileTabActionMenuSharedSectionsWorks,
                 workbenchFileTabCodexActionLabelsWorks,
+                workbenchFileTabCodexActionClusterWorks,
                 fileOpenTargetDiagnosticWorks: workbenchFileTabWorks,
                 fileSourceLineSelectionWorks,
                 fileSourceLineUtilitiesWorks,

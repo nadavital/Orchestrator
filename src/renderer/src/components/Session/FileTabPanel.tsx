@@ -345,6 +345,7 @@ export default function FileTabPanel({
             <MenuItem
               icon={sourceMode ? 'book' : 'file'}
               label={sourceMode ? 'Show rich preview' : artifactSourceSupported ? 'View source' : 'Show source'}
+              dataTestId="workbench-file-tab-source-mode-menu-item"
               disabled={!canToggleSourceMode}
               onClick={() => {
                 updateFileTabState({ fileViewMode: sourceMode ? 'rich' : 'source' })
@@ -363,6 +364,7 @@ export default function FileTabPanel({
             <MenuItem
               icon="wrap"
               label={sourceWrap ? 'Disable word wrap' : 'Enable word wrap'}
+              dataTestId="workbench-file-tab-wrap-source-menu-item"
               onClick={() => {
                 updateFileTabState({ sourceWrap: !sourceWrap })
                 setFileActionsOpen(false)
@@ -523,6 +525,7 @@ export default function FileTabPanel({
             label={sourceMode ? 'Show rich preview' : artifactSourceSupported ? 'View source' : 'Show source'}
             size="sm"
             variant="toolbar"
+            className="file-tab-secondary-action"
             active={sourceMode && canToggleSourceMode}
             disabled={!canToggleSourceMode}
             dataTestId="workbench-file-tab-source-mode"
@@ -533,6 +536,7 @@ export default function FileTabPanel({
             label={sourceWrap ? 'Disable word wrap' : 'Enable word wrap'}
             size="sm"
             variant="toolbar"
+            className="file-tab-secondary-action"
             active={sourceWrap}
             dataTestId="workbench-file-tab-wrap-source"
             onClick={() => updateFileTabState({ sourceWrap: !sourceWrap })}
@@ -589,9 +593,9 @@ export default function FileTabPanel({
             onClick={() => addSourceAnnotation(selectedSourceLine)}
           />
           <IconButton icon="copy" label="Copy path" size="sm" variant="toolbar" className="file-tab-secondary-action" onClick={copyPath} />
-          <IconButton icon="external" label="Open in editor" size="sm" variant="toolbar" className="file-tab-secondary-action" onClick={() => { void window.api.fs.openPath(absolutePath) }} />
           <IconButton icon="folder" label="Reveal file" size="sm" variant="toolbar" className="file-tab-secondary-action" onClick={() => { void window.api.fs.showInFolder(absolutePath) }} />
           {fileActionsMenu}
+          <IconButton icon="external" label="Open in editor" size="sm" variant="toolbar" dataTestId="workbench-file-tab-open-editor" onClick={() => { void window.api.fs.openPath(absolutePath) }} />
         </span>
       </PanelToolbar>
       <div
