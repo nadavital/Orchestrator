@@ -162,6 +162,12 @@ interface DocumentPreviewParagraphBlock {
   reviewKind?: 'insertion' | 'deletion'
   reviewAuthor?: string
   reviewDate?: string
+  links?: DocumentPreviewLink[]
+}
+
+interface DocumentPreviewLink {
+  text: string
+  url: string
 }
 
 interface DocumentPreviewTableBlock {
@@ -209,6 +215,7 @@ interface DocumentPreviewPayload {
   comments?: DocumentPreviewComment[]
   commentCount?: number
   reviewMarkCount?: number
+  linkCount?: number
   headerText?: string
   footerText?: string
   sectionCount?: number
@@ -484,6 +491,7 @@ function extractDocxPreview(xml: string, archive: Buffer): DocumentPreviewPayloa
   const footnotes = extractDocxFootnotes(body, archive)
   const comments = extractDocxComments(body, archive)
   let reviewMarkCount = 0
+  let linkCount = 0
   for (const match of body.matchAll(/<w:(p|tbl)\b[\s\S]*?<\/w:\1>/g)) {
     const tag = match[1]
     const blockXml = match[0] ?? ''
@@ -498,8 +506,10 @@ function extractDocxPreview(xml: string, archive: Buffer): DocumentPreviewPayloa
     if (blockXml.includes('<wps:wsp')) continue
     const text = extractDocxParagraphText(blockXml)
     const reviewMark = extractDocxParagraphReviewMark(blockXml)
+    const links = extractDocxParagraphLinks(blockXml, relationships)
     if (reviewMark.reviewKind) reviewMarkCount += 1
-    if (text) blocks.push({ type: 'paragraph', text, ...extractDocxParagraphList(blockXml, numbering), ...reviewMark })
+    if (links.length > 0) linkCount += links.length
+    if (text) blocks.push({ type: 'paragraph', text, ...extractDocxParagraphList(blockXml, numbering), ...reviewMark, ...(links.length > 0 ? { links } : {}) })
     const imageBlocks = extractDocxImageBlocks(blockXml, archive, relationships)
     if (imageBlocks.length > 0) {
       blocks.push(...imageBlocks)
@@ -522,6 +532,7 @@ function extractDocxPreview(xml: string, archive: Buffer): DocumentPreviewPayloa
     ...(footnotes.length > 0 ? { footnotes, footnoteCount: footnotes.length } : {}),
     ...(comments.length > 0 ? { comments, commentCount: comments.length } : {}),
     ...(reviewMarkCount > 0 ? { reviewMarkCount } : {}),
+    ...(linkCount > 0 ? { linkCount } : {}),
     ...sections
   }
 }
@@ -648,6 +659,21 @@ function extractDocxParagraphReviewMark(xml: string): Pick<DocumentPreviewParagr
     ...(author ? { reviewAuthor: author } : {}),
     ...(date ? { reviewDate: date } : {})
   }
+}
+
+function extractDocxParagraphLinks(xml: string, relationships: Map<string, string>): DocumentPreviewLink[] {
+  return [...xml.matchAll(/<w:hyperlink\b([^>]*)>([\s\S]*?)<\/w:hyperlink>/g)]
+    .slice(0, 8)
+    .map((match) => {
+      const attributes = match[1] ?? ''
+      const linkXml = match[2] ?? ''
+      const relationshipId = /\b(?:r:)?id="([^"]+)"/.exec(attributes)?.[1] ?? ''
+      const anchor = /\b(?:w:)?anchor="([^"]+)"/.exec(attributes)?.[1] ?? ''
+      const url = relationshipId ? relationships.get(relationshipId) ?? '' : anchor ? `#${decodeXmlText(anchor)}` : ''
+      const text = extractDocxParagraphText(linkXml)
+      return text && url ? { text, url } : null
+    })
+    .filter((link): link is DocumentPreviewLink => link !== null)
 }
 
 function extractDocxFootnotes(xml: string, archive: Buffer): DocumentPreviewFootnote[] {
@@ -900,7 +926,8 @@ function extractZipRelationships(archive: Buffer, partPath: string): Map<string,
     const tag = match[0] ?? ''
     const id = /\bId="([^"]+)"/.exec(tag)?.[1] ?? ''
     const target = /\bTarget="([^"]+)"/.exec(tag)?.[1] ?? ''
-    if (id && target) relationships.set(id, resolveZipRelationshipTarget(partPath, target))
+    const targetMode = /\bTargetMode="([^"]+)"/.exec(tag)?.[1] ?? ''
+    if (id && target) relationships.set(id, targetMode.toLowerCase() === 'external' ? decodeXmlText(target) : resolveZipRelationshipTarget(partPath, target))
   }
   return relationships
 }

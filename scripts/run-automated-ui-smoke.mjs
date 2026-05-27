@@ -359,6 +359,9 @@ function createDocxFixture(blocks, options = {}) {
   const commentBlocks = blocks
     .filter((block) => block && typeof block === 'object' && block.commentText)
     .map((block, index) => ({ block, id: String(index + 1) }))
+  const linkBlocks = blocks
+    .filter((block) => block && typeof block === 'object' && block.linkUrl)
+    .map((block, index) => ({ block, id: `rLink${index + 1}` }))
   const listBlocks = blocks
     .filter((block) => block && typeof block === 'object' && block.listKind)
   const blockXml = blocks.map((block) => {
@@ -416,6 +419,11 @@ function createDocxFixture(blocks, options = {}) {
       const author = escapeXml(String(block.reviewAuthor ?? 'Codex Smoke'))
       const date = escapeXml(String(block.reviewDate ?? '2026-05-27T00:00:00Z'))
       return `<w:p><w:${kind} w:id="12" w:author="${author}" w:date="${date}"><w:r><w:${textTag}>${escapeXml(String(block.text ?? 'Document review mark text'))}</w:${textTag}></w:r></w:${kind}></w:p>`
+    }
+    if (block && typeof block === 'object' && block.linkUrl) {
+      const link = linkBlocks.find((item) => item.block === block)
+      const id = link?.id ?? 'rLink1'
+      return `<w:p><w:r><w:t>${escapeXml(String(block.text ?? 'Document link reference'))}</w:t></w:r><w:hyperlink r:id="${id}"><w:r><w:t>${escapeXml(String(block.linkText ?? 'Document link'))}</w:t></w:r></w:hyperlink></w:p>`
     }
     if (block && typeof block === 'object' && block.listKind) {
       const listKind = block.listKind === 'bullet' ? 'bullet' : 'ordered'
@@ -502,6 +510,7 @@ function createDocxFixture(blocks, options = {}) {
       data: `<?xml version="1.0" encoding="UTF-8"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   ${imageBlocks.map((image) => `<Relationship Id="rImage${image.index}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/document-image-${image.index}.png"/>`).join('\n  ')}
+  ${linkBlocks.map((link) => `<Relationship Id="${link.id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="${escapeXml(String(link.block.linkUrl))}" TargetMode="External"/>`).join('\n  ')}
   ${headerText ? '<Relationship Id="rHeader1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>' : ''}
   ${footerText ? '<Relationship Id="rFooter1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/>' : ''}
 </Relationships>`
@@ -1234,7 +1243,7 @@ if (fixtureWorkspaceViews.has(captureView)) {
     { text: 'Document smoke footnote reference', footnoteText: 'Document smoke footnote text' },
     { shapeText: 'Document smoke shape callout', geometry: 'roundRect', fillColor: '#E0F2FE', lineColor: '#38BDF8' },
     { text: 'Document smoke comment reference', commentText: 'Document smoke comment text', commentAuthor: 'Codex Smoke' },
-    'Document smoke appendix',
+    { text: 'Document smoke link reference', linkText: 'Document smoke hyperlink', linkUrl: 'https://example.test/orchestrator-docx-link' },
     { text: 'Document smoke inserted review text', reviewKind: 'insertion', reviewAuthor: 'Codex Smoke', reviewDate: '2026-05-27T00:00:00Z' }
     ], { headerText: 'Document smoke header', footerText: 'Document smoke footer', columnCount: 2 }))
     writeFileSync(join(workspaceDir, 'spreadsheet-preview-smoke.xlsx'), createXlsxFixture({
@@ -2011,6 +2020,7 @@ child.on('exit', async (code) => {
           filesDocumentFootnotes: result.filesDocumentFootnotesWorks === true,
           filesDocumentComments: result.filesDocumentCommentsWorks === true,
           filesDocumentReviewMarks: result.filesDocumentReviewMarksWorks === true,
+          filesDocumentHyperlinks: result.filesDocumentHyperlinksWorks === true,
           filesDocumentListRendering: result.filesDocumentListRenderingWorks === true,
           filesSpreadsheetPreview: result.filesSpreadsheetPreviewWorks === true,
           filesSlidesPreview: result.filesSlidesPreviewWorks === true,
@@ -2235,6 +2245,7 @@ child.on('exit', async (code) => {
         filesDocumentFootnotes: captureView !== 'inspector' || result.filesDocumentFootnotesWorks === true,
         filesDocumentComments: captureView !== 'inspector' || result.filesDocumentCommentsWorks === true,
         filesDocumentReviewMarks: captureView !== 'inspector' || result.filesDocumentReviewMarksWorks === true,
+        filesDocumentHyperlinks: captureView !== 'inspector' || result.filesDocumentHyperlinksWorks === true,
         filesDocumentListRendering: captureView !== 'inspector' || result.filesDocumentListRenderingWorks === true,
         filesSpreadsheetPreview: captureView !== 'inspector' || result.filesSpreadsheetPreviewWorks === true,
         filesSlidesPreview: captureView !== 'inspector' || result.filesSlidesPreviewWorks === true,

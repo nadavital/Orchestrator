@@ -41,7 +41,7 @@ interface NotebookCell {
 }
 
 type DocumentPreviewBlock =
-  | { type: 'paragraph'; text: string; listKind?: 'bullet' | 'ordered'; listLevel?: number; listMarker?: string; reviewKind?: 'insertion' | 'deletion'; reviewAuthor?: string; reviewDate?: string }
+  | { type: 'paragraph'; text: string; listKind?: 'bullet' | 'ordered'; listLevel?: number; listMarker?: string; reviewKind?: 'insertion' | 'deletion'; reviewAuthor?: string; reviewDate?: string; links?: Array<{ text: string; url: string }> }
   | { type: 'table'; rows: string[][] }
   | { type: 'image'; dataUrl: string; mimeType: string; alt?: string; width?: number; height?: number }
   | { type: 'shape'; text: string; geometry?: string; fillColor?: string; lineColor?: string }
@@ -106,6 +106,7 @@ function DocumentPreview({
   const comments = normalizeDocumentComments(preview.document?.comments)
   const commentCount = preview.document?.commentCount ?? comments.length
   const reviewMarkCount = Math.max(0, Math.floor(Number(preview.document?.reviewMarkCount ?? documentBlocks.filter((block) => block.type === 'paragraph' && block.reviewKind).length)))
+  const linkCount = Math.max(0, Math.floor(Number(preview.document?.linkCount ?? documentBlocks.reduce((count, block) => count + (block.type === 'paragraph' ? block.links?.length ?? 0 : 0), 0))))
   const headerText = typeof preview.document?.headerText === 'string' ? preview.document.headerText.trim() : ''
   const footerText = typeof preview.document?.footerText === 'string' ? preview.document.footerText.trim() : ''
   const sectionCount = Math.max(0, Math.floor(Number(preview.document?.sectionCount ?? 0)))
@@ -142,6 +143,7 @@ function DocumentPreview({
       data-document-preview-footnote-count={footnoteCount}
       data-document-preview-comment-count={commentCount}
       data-document-preview-review-mark-count={reviewMarkCount}
+      data-document-preview-link-count={linkCount}
       data-document-preview-header-text={headerText}
       data-document-preview-footer-text={footerText}
       data-document-preview-section-count={sectionCount}
@@ -230,6 +232,7 @@ function DocumentPreview({
         {footnoteCount > 0 && <span>{footnoteCount.toLocaleString()} {footnoteCount === 1 ? 'footnote' : 'footnotes'}</span>}
         {commentCount > 0 && <span>{commentCount.toLocaleString()} {commentCount === 1 ? 'comment' : 'comments'}</span>}
         {reviewMarkCount > 0 && <span>{reviewMarkCount.toLocaleString()} {reviewMarkCount === 1 ? 'revision' : 'revisions'}</span>}
+        {linkCount > 0 && <span>{linkCount.toLocaleString()} {linkCount === 1 ? 'link' : 'links'}</span>}
         {sectionCount > 0 && <span>{sectionCount.toLocaleString()} {sectionCount === 1 ? 'section' : 'sections'}</span>}
         {columnCount > 1 && <span>{columnCount.toLocaleString()} columns</span>}
         <span>{pageCount.toLocaleString()} pages</span>
@@ -321,7 +324,32 @@ function DocumentPreview({
                             <span>{block.text}</span>
                           </aside>
                         )
-                      : block.reviewKind
+                      : block.links && block.links.length > 0
+                        ? (
+                            <p
+                              key={`paragraph-${index}`}
+                              className="document-preview-link-paragraph"
+                              data-testid={`${testId}-link-paragraph`}
+                              data-document-link-count={block.links.length}
+                            >
+                              <span>{block.text}</span>
+                              <span className="document-preview-link-list">
+                                {block.links.map((link, linkIndex) => (
+                                  <a
+                                    key={`${link.url}-${linkIndex}`}
+                                    href={link.url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    data-testid={`${testId}-link`}
+                                    data-document-link-url={link.url}
+                                  >
+                                    {link.text}
+                                  </a>
+                                ))}
+                              </span>
+                            </p>
+                          )
+                        : block.reviewKind
                         ? (
                             <p
                               key={`paragraph-${index}`}
@@ -445,11 +473,13 @@ function normalizeDocumentBlocks(blocks: DocumentPreviewBlock[] | undefined, par
         const reviewKind = block.reviewKind === 'insertion' || block.reviewKind === 'deletion' ? block.reviewKind : undefined
         const reviewAuthor = String(block.reviewAuthor ?? '').trim().slice(0, 80)
         const reviewDate = String(block.reviewDate ?? '').trim().slice(0, 40)
+        const links = normalizeDocumentLinks(block.links)
         return {
           type: 'paragraph' as const,
           text: String(block.text ?? '').trim(),
           ...(listKind ? { listKind, listLevel, listMarker: listMarker || (listKind === 'bullet' ? '\u2022' : '1.') } : {}),
-          ...(reviewKind ? { reviewKind, ...(reviewAuthor ? { reviewAuthor } : {}), ...(reviewDate ? { reviewDate } : {}) } : {})
+          ...(reviewKind ? { reviewKind, ...(reviewAuthor ? { reviewAuthor } : {}), ...(reviewDate ? { reviewDate } : {}) } : {}),
+          ...(links.length > 0 ? { links } : {})
         }
       })
       .filter((block) => {
@@ -459,6 +489,23 @@ function normalizeDocumentBlocks(blocks: DocumentPreviewBlock[] | undefined, par
       })
   }
   return paragraphs.map((paragraph) => ({ type: 'paragraph', text: paragraph }))
+}
+
+function normalizeDocumentLinks(value: unknown): Array<{ text: string; url: string }> {
+  if (!Array.isArray(value)) return []
+  return value
+    .slice(0, 8)
+    .map((link) => {
+      const text = String((link as { text?: unknown }).text ?? '').trim()
+      const url = normalizeDocumentLinkUrl((link as { url?: unknown }).url)
+      return text && url ? { text, url } : null
+    })
+    .filter((link): link is { text: string; url: string } => link !== null)
+}
+
+function normalizeDocumentLinkUrl(value: unknown): string {
+  const text = String(value ?? '').trim()
+  return /^(?:https?:\/\/|mailto:|#)[^\s]+$/i.test(text) ? text : ''
 }
 
 function chunkDocumentBlocks(blocks: DocumentPreviewBlock[]): DocumentPreviewBlock[][] {

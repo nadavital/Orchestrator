@@ -6005,6 +6005,29 @@
     text-decoration: line-through;
   }
 
+  .document-preview-link-paragraph {
+    display: grid;
+    gap: 4px;
+    margin: 0;
+  }
+
+  .document-preview-link-list {
+    display: flex;
+    min-width: 0;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .document-preview-link-list a {
+    max-width: 100%;
+    overflow: hidden;
+    border-bottom: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+    color: var(--accent);
+    font-size: 11px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .document-preview-empty {
     color: var(--text-tertiary);
   }

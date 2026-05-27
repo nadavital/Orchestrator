@@ -11145,6 +11145,7 @@ function runAutomatedFocusedSurfaceSmoke(
               const documentFootnoteChecks = {};
               const documentCommentChecks = {};
               const documentReviewMarkChecks = {};
+              const documentLinkChecks = {};
               const documentListChecks = {};
               const spreadsheetRendererChecks = {};
               const spreadsheetControlChecks = {};
@@ -11624,6 +11625,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     const documentShapes = [...document.querySelectorAll('[data-testid="workspace-document-preview-shape"]')];
                     const documentListItems = [...document.querySelectorAll('[data-testid="workspace-document-preview-list-item"]')];
                     const documentReviewMarks = [...document.querySelectorAll('[data-testid="workspace-document-preview-review-mark"]')];
+                    const documentLinks = [...document.querySelectorAll('[data-testid="workspace-document-preview-link"]')];
                     documentFootnoteChecks[testId] =
                       Boolean(documentFootnoteChecks[testId]) &&
                       advancedPageBody instanceof HTMLElement &&
@@ -11650,6 +11652,15 @@ function runAutomatedFocusedSurfaceSmoke(
                       documentReviewMarks[0].getAttribute('data-document-review-date') === '2026-05-27T00:00:00Z' &&
                       documentReviewMarks[0].textContent?.includes('Inserted') === true &&
                       documentReviewMarks[0].textContent?.includes('Document smoke inserted review text') === true;
+                    documentLinkChecks[testId] =
+                      advancedPreview instanceof HTMLElement &&
+                      advancedPreview.getAttribute('data-document-preview-link-count') === '1' &&
+                      advancedPageBody instanceof HTMLElement &&
+                      advancedPageBody.textContent?.includes('Document smoke link reference') === true &&
+                      documentLinks.length === 1 &&
+                      documentLinks[0] instanceof HTMLAnchorElement &&
+                      documentLinks[0].getAttribute('data-document-link-url') === 'https://example.test/orchestrator-docx-link' &&
+                      documentLinks[0].textContent?.trim() === 'Document smoke hyperlink';
                     const pageNavigationWorks =
                       advancedPreview instanceof HTMLElement &&
                       advancedPreview.getAttribute('data-document-preview-page-count') === '2' &&
@@ -11664,7 +11675,7 @@ function runAutomatedFocusedSurfaceSmoke(
                       advancedNextPage.disabled &&
                       advancedPageBody instanceof HTMLElement &&
                       advancedPageBody.getAttribute('data-document-page-number') === '2' &&
-                      advancedPageBody.textContent?.includes('Document smoke appendix') === true;
+                      advancedPageBody.textContent?.includes('Document smoke link reference') === true;
                     const shapeStyle = documentShapes[0] instanceof HTMLElement ? getComputedStyle(documentShapes[0]) : null;
                     documentShapeChecks[testId] =
                       advancedPreview instanceof HTMLElement &&
@@ -13427,6 +13438,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 filesDocumentFootnotesWorks: Boolean(documentFootnoteChecks['workspace-document-preview']),
                 filesDocumentCommentsWorks: Boolean(documentCommentChecks['workspace-document-preview']),
                 filesDocumentReviewMarksWorks: Boolean(documentReviewMarkChecks['workspace-document-preview']),
+                filesDocumentHyperlinksWorks: Boolean(documentLinkChecks['workspace-document-preview']),
                 filesDocumentListRenderingWorks: Boolean(documentListChecks['workspace-document-preview']),
                 filesSpreadsheetRendererWorks: Boolean(spreadsheetRendererChecks['workspace-spreadsheet-preview']),
                 filesSlidesRendererWorks: Boolean(slidesRendererChecks['workspace-slides-preview']),
