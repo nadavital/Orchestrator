@@ -425,6 +425,7 @@ function createXlsxFixture({ sheetName, rows, sheets }) {
     const style = {
       ...(rawValue.fillColor ? { fillColor: String(rawValue.fillColor).toUpperCase() } : {}),
       ...(rawValue.textColor ? { textColor: String(rawValue.textColor).toUpperCase() } : {}),
+      ...(rawValue.borderColor ? { borderColor: String(rawValue.borderColor).toUpperCase() } : {}),
       ...(rawValue.bold === true ? { bold: true } : {}),
       ...(rawValue.wrapText === true ? { wrapText: true } : {}),
       ...(['left', 'center', 'right'].includes(rawValue.horizontalAlignment) ? { horizontalAlignment: rawValue.horizontalAlignment } : {}),
@@ -649,13 +650,19 @@ function createXlsxStylesXml(cellStyles) {
       ? `<fill><patternFill patternType="solid"><fgColor rgb="FF${String(style.fillColor).replace(/^#/, '')}"/><bgColor indexed="64"/></patternFill></fill>`
       : '<fill><patternFill patternType="none"/></fill>')
   ]
+  const borders = cellStyles.map((style, index) => {
+    if (index === 0 || !style.borderColor) return '<border><left/><right/><top/><bottom/><diagonal/></border>'
+    const color = String(style.borderColor).replace(/^#/, '')
+    const side = (name) => `<${name} style="thin"><color rgb="FF${color}"/></${name}>`
+    return `<border>${side('left')}${side('right')}${side('top')}${side('bottom')}<diagonal/></border>`
+  })
   const cellXfs = cellStyles.map((style, index) => {
     const alignmentAttributes = [
       style.horizontalAlignment ? `horizontal="${style.horizontalAlignment}"` : '',
       style.verticalAlignment ? `vertical="${style.verticalAlignment === 'middle' ? 'center' : style.verticalAlignment}"` : '',
       style.wrapText ? 'wrapText="1"' : ''
     ].filter(Boolean).join(' ')
-    const xfAttributes = `numFmtId="0" fontId="${index}" fillId="${index > 0 && style.fillColor ? index + 1 : 0}" borderId="0" xfId="0"${style.fillColor ? ' applyFill="1"' : ''}${style.bold || style.textColor ? ' applyFont="1"' : ''}${alignmentAttributes ? ' applyAlignment="1"' : ''}`
+    const xfAttributes = `numFmtId="0" fontId="${index}" fillId="${index > 0 && style.fillColor ? index + 1 : 0}" borderId="${index > 0 && style.borderColor ? index : 0}" xfId="0"${style.fillColor ? ' applyFill="1"' : ''}${style.borderColor ? ' applyBorder="1"' : ''}${style.bold || style.textColor ? ' applyFont="1"' : ''}${alignmentAttributes ? ' applyAlignment="1"' : ''}`
     return alignmentAttributes
       ? `<xf ${xfAttributes}><alignment ${alignmentAttributes}/></xf>`
       : `<xf ${xfAttributes}/>`
@@ -664,7 +671,7 @@ function createXlsxStylesXml(cellStyles) {
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
   <fonts count="${fonts.length}">${fonts.join('')}</fonts>
   <fills count="${fills.length}">${fills.join('')}</fills>
-  <borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>
+  <borders count="${borders.length}">${borders.join('')}</borders>
   <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
   <cellXfs count="${cellXfs.length}">${cellXfs.join('')}</cellXfs>
   <cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
@@ -961,7 +968,7 @@ if (fixtureWorkspaceViews.has(captureView)) {
           ],
           ['Alpha', '1', { value: 'Baseline', fillColor: '#FEF3C7', textColor: '#92400E' }],
           [{ value: 'Merged baseline note', fillColor: '#E0F2FE', textColor: '#075985', bold: true }, ''],
-          [{ value: 'Wrapped baseline note for alignment proof', fillColor: '#F0F9FF', textColor: '#075985', wrapText: true, horizontalAlignment: 'center', verticalAlignment: 'middle' }, '', '']
+          [{ value: 'Wrapped baseline note for alignment proof', fillColor: '#F0F9FF', textColor: '#075985', borderColor: '#2563EB', wrapText: true, horizontalAlignment: 'center', verticalAlignment: 'middle' }, '', '']
         ],
         columnWidths: [12, 24, 14],
         rowHeights: [20, 20, 38, 52],
@@ -1088,7 +1095,7 @@ if (fixtureWorkspaceViews.has(captureView)) {
           ['Alpha', '2', { value: 'Updated', fillColor: '#DCFCE7', textColor: '#166534' }],
           ['Beta', '3', { value: 'New', fillColor: '#F5F3FF', textColor: '#6D28D9' }],
           [{ value: 'Merged updated note', fillColor: '#E0F2FE', textColor: '#075985', bold: true }, ''],
-          [{ value: 'Wrapped centered updated note for alignment proof', fillColor: '#F0F9FF', textColor: '#075985', wrapText: true, horizontalAlignment: 'center', verticalAlignment: 'middle' }, '', '']
+          [{ value: 'Wrapped centered updated note for alignment proof', fillColor: '#F0F9FF', textColor: '#075985', borderColor: '#2563EB', wrapText: true, horizontalAlignment: 'center', verticalAlignment: 'middle' }, '', '']
         ],
         columnWidths: [12, 24, 14],
         rowHeights: [20, 20, 20, 42, 52],
@@ -1861,6 +1868,7 @@ child.on('exit', async (code) => {
           filesSpreadsheetTables: result.filesSpreadsheetTablesWorks === true,
           filesSpreadsheetConditionalFormatting: result.filesSpreadsheetConditionalFormattingWorks === true,
           filesSpreadsheetDataValidation: result.filesSpreadsheetDataValidationWorks === true,
+          filesSpreadsheetBorders: result.filesSpreadsheetBordersWorks === true,
           filesSpreadsheetFormulaEditing: result.filesSpreadsheetFormulaEditingWorks === true,
           filesSlidesControls: result.filesSlidesControlsWorks === true,
           filesSlidesSpeakerNotes: result.filesSlidesSpeakerNotesWorks === true,
@@ -2075,6 +2083,7 @@ child.on('exit', async (code) => {
         filesSpreadsheetTables: captureView !== 'inspector' || result.filesSpreadsheetTablesWorks === true,
         filesSpreadsheetConditionalFormatting: captureView !== 'inspector' || result.filesSpreadsheetConditionalFormattingWorks === true,
         filesSpreadsheetDataValidation: captureView !== 'inspector' || result.filesSpreadsheetDataValidationWorks === true,
+        filesSpreadsheetBorders: captureView !== 'inspector' || result.filesSpreadsheetBordersWorks === true,
         filesSpreadsheetFormulaEditing: captureView !== 'inspector' || result.filesSpreadsheetFormulaEditingWorks === true,
         filesSlidesControls: captureView !== 'inspector' || result.filesSlidesControlsWorks === true,
         filesSlidesSpeakerNotes: captureView !== 'inspector' || result.filesSlidesSpeakerNotesWorks === true,

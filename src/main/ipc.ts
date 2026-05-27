@@ -56,6 +56,7 @@ interface SpreadsheetPreviewCell {
   fillColor?: string
   conditionalFillColor?: string
   dataValidation?: SpreadsheetPreviewDataValidation
+  borderColor?: string
   textColor?: string
   bold?: boolean
   wrapText?: boolean
@@ -125,6 +126,7 @@ interface SpreadsheetFreezePanes {
 
 interface SpreadsheetCellStyle {
   fillColor?: string
+  borderColor?: string
   textColor?: string
   bold?: boolean
   wrapText?: boolean
@@ -1124,6 +1126,7 @@ function extractSpreadsheetStyles(xml: string): SpreadsheetCellStyle[] {
     }
   })
   const fills = [...xml.matchAll(/<fill\b[\s\S]*?<\/fill>/g)].map((match) => extractSpreadsheetColor(match[0] ?? ''))
+  const borders = [...xml.matchAll(/<border\b[\s\S]*?<\/border>/g)].map((match) => extractSpreadsheetBorderColor(match[0] ?? ''))
   return [...xml.matchAll(/<cellXfs\b[\s\S]*?<\/cellXfs>/g)][0]?.[0]
     ?.match(/<xf\b[^>]*\/>|<xf\b[^>]*>[\s\S]*?<\/xf>/g)
     ?.map((xfXml) => {
@@ -1134,10 +1137,13 @@ function extractSpreadsheetStyles(xml: string): SpreadsheetCellStyle[] {
       const wrapText = /\bwrapText="(?:1|true)"/i.test(alignmentAttributes)
       const fontId = numberAttribute(attributes, 'fontId') ?? 0
       const fillId = numberAttribute(attributes, 'fillId') ?? 0
+      const borderId = numberAttribute(attributes, 'borderId') ?? 0
       const font = fonts[fontId] ?? {}
       const fillColor = fills[fillId]
+      const borderColor = borders[borderId]
       return {
         ...(fillColor ? { fillColor } : {}),
+        ...(borderColor ? { borderColor } : {}),
         ...(font.textColor ? { textColor: font.textColor } : {}),
         ...(font.bold ? { bold: true } : {}),
         ...(wrapText ? { wrapText: true } : {}),
@@ -1145,6 +1151,11 @@ function extractSpreadsheetStyles(xml: string): SpreadsheetCellStyle[] {
         ...(verticalAlignment ? { verticalAlignment } : {})
       }
     }) ?? []
+}
+
+function extractSpreadsheetBorderColor(xml: string): string | undefined {
+  const side = /<(?:left|right|top|bottom)\b[^>]*\bstyle="[^"]+"[\s\S]*?<\/(?:left|right|top|bottom)>/.exec(xml)?.[0] ?? ''
+  return side ? extractSpreadsheetColor(side) ?? '#64748B' : undefined
 }
 
 function spreadsheetCellStyle(attributes: string, styles: SpreadsheetCellStyle[]): SpreadsheetCellStyle {

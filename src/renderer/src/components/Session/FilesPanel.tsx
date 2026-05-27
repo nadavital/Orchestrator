@@ -941,6 +941,7 @@ interface SpreadsheetPreviewCell {
   fillColor?: string
   conditionalFillColor?: string
   dataValidation?: SpreadsheetPreviewDataValidation
+  borderColor?: string
   textColor?: string
   bold?: boolean
   wrapText?: boolean
@@ -1272,7 +1273,7 @@ function SpreadsheetArtifactPreview({
   const activeCellValue = activeCellData?.value ?? ''
   const activeCellFormula = activeCellData?.formula ?? ''
   const styledCellCount = activeSheet
-    ? activeSheet.rows.reduce((count, row) => count + row.filter((cell) => Boolean(cell.fillColor || cell.conditionalFillColor || cell.textColor || cell.bold || cell.wrapText || cell.horizontalAlignment || cell.verticalAlignment)).length, 0)
+    ? activeSheet.rows.reduce((count, row) => count + row.filter((cell) => Boolean(cell.fillColor || cell.conditionalFillColor || cell.borderColor || cell.textColor || cell.bold || cell.wrapText || cell.horizontalAlignment || cell.verticalAlignment)).length, 0)
     : 0
   const alignedCellCount = activeSheet
     ? activeSheet.rows.reduce((count, row) => count + row.filter((cell) => Boolean(cell.wrapText || cell.horizontalAlignment || cell.verticalAlignment)).length, 0)
@@ -1281,6 +1282,9 @@ function SpreadsheetArtifactPreview({
   const tableCount = activeSheet?.tables?.length ?? 0
   const conditionalFormatCount = activeSheet?.conditionalFormatCount ?? 0
   const dataValidationCount = activeSheet?.dataValidationCount ?? 0
+  const borderCellCount = activeSheet
+    ? activeSheet.rows.reduce((count, row) => count + row.filter((cell) => Boolean(cell.borderColor)).length, 0)
+    : 0
   const sizedColumnCount = activeSheet?.columnWidths?.filter((width) => width !== undefined).length ?? 0
   const sizedRowCount = activeSheet?.rowHeights?.filter((height) => height !== undefined).length ?? 0
   const frozenRowCount = activeSheet?.freezePanes?.rows ?? 0
@@ -1328,6 +1332,7 @@ function SpreadsheetArtifactPreview({
       data-spreadsheet-table-count={tableCount}
       data-spreadsheet-conditional-format-count={conditionalFormatCount}
       data-spreadsheet-data-validation-count={dataValidationCount}
+      data-spreadsheet-border-cell-count={borderCellCount}
       data-spreadsheet-sized-column-count={sizedColumnCount}
       data-spreadsheet-sized-row-count={sizedRowCount}
       data-spreadsheet-frozen-row-count={frozenRowCount}
@@ -1551,7 +1556,8 @@ function SpreadsheetArtifactPreview({
                             fontWeight: cell.bold || isTableHeaderCell ? 700 : undefined,
                             minHeight: rowHeight,
                             whiteSpace: cell.wrapText ? 'normal' : 'nowrap',
-                            textAlign: cellHorizontalAlignment
+                            textAlign: cellHorizontalAlignment,
+                            boxShadow: cell.borderColor ? `inset 0 0 0 1px ${cell.borderColor}` : undefined
                           }
                           if (cell.wrapText || cell.horizontalAlignment || cell.verticalAlignment || isTableHeaderCell || hasDataValidationButton) {
                             cellStyle.display = 'flex'
@@ -1598,6 +1604,7 @@ function SpreadsheetArtifactPreview({
                                 data-spreadsheet-cell-kind={cell.formula ? 'formula' : 'value'}
                                 data-spreadsheet-cell-fill-color={cell.fillColor ?? ''}
                                 data-spreadsheet-cell-conditional-fill-color={cell.conditionalFillColor ?? ''}
+                                data-spreadsheet-cell-border-color={cell.borderColor ?? ''}
                                 data-spreadsheet-cell-text-color={cell.textColor ?? ''}
                                 data-spreadsheet-cell-bold={cell.bold ? 'true' : 'false'}
                                 data-spreadsheet-cell-wrap-text={cell.wrapText ? 'true' : 'false'}
@@ -2013,6 +2020,7 @@ function normalizeSpreadsheetPreviewCell(cell: unknown): SpreadsheetPreviewCell 
       fillColor?: unknown
       conditionalFillColor?: unknown
       dataValidation?: unknown
+      borderColor?: unknown
       textColor?: unknown
       bold?: unknown
       wrapText?: unknown
@@ -2021,6 +2029,7 @@ function normalizeSpreadsheetPreviewCell(cell: unknown): SpreadsheetPreviewCell 
     }
     const fillColor = normalizeSpreadsheetColor(candidate.fillColor)
     const conditionalFillColor = normalizeSpreadsheetColor(candidate.conditionalFillColor)
+    const borderColor = normalizeSpreadsheetColor(candidate.borderColor)
     const textColor = normalizeSpreadsheetColor(candidate.textColor)
     const horizontalAlignment = normalizeSpreadsheetHorizontalAlignment(candidate.horizontalAlignment)
     const verticalAlignment = normalizeSpreadsheetVerticalAlignment(candidate.verticalAlignment)
@@ -2030,6 +2039,7 @@ function normalizeSpreadsheetPreviewCell(cell: unknown): SpreadsheetPreviewCell 
       ...(fillColor ? { fillColor } : {}),
       ...(conditionalFillColor ? { conditionalFillColor } : {}),
       ...(normalizeSpreadsheetDataValidation(candidate.dataValidation) ? { dataValidation: normalizeSpreadsheetDataValidation(candidate.dataValidation) } : {}),
+      ...(borderColor ? { borderColor } : {}),
       ...(textColor ? { textColor } : {}),
       ...(candidate.bold === true ? { bold: true } : {}),
       ...(candidate.wrapText === true ? { wrapText: true } : {}),

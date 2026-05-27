@@ -11151,6 +11151,7 @@ function runAutomatedFocusedSurfaceSmoke(
               const spreadsheetTableChecks = {};
               const spreadsheetConditionalFormattingChecks = {};
               const spreadsheetDataValidationChecks = {};
+              const spreadsheetBorderChecks = {};
               const spreadsheetFormulaChecks = {};
               const spreadsheetFormulaEditingChecks = {};
               const officeZoomMenuChecks = {};
@@ -11832,6 +11833,12 @@ function runAutomatedFocusedSurfaceSmoke(
                       updatedStatusCell.getAttribute('data-spreadsheet-cell-data-validation-allow-blank') === 'true' &&
                       statusValidationButton instanceof HTMLElement &&
                       statusValidationButton.textContent?.trim() === 'v';
+                    spreadsheetBorderChecks[testId] =
+                      spreadsheetPreview instanceof HTMLElement &&
+                      spreadsheetPreview.getAttribute('data-spreadsheet-border-cell-count') === '1' &&
+                      alignedWrappedCell instanceof HTMLButtonElement &&
+                      alignedWrappedCell.getAttribute('data-spreadsheet-cell-border-color') === '#2563EB' &&
+                      getComputedStyle(alignedWrappedCell).boxShadow.includes('rgb(37, 99, 235)');
                     if (alphaCell instanceof HTMLButtonElement) {
                       alphaCell.click();
                       await sleep(120);
@@ -13291,6 +13298,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 filesSpreadsheetTablesWorks: Boolean(spreadsheetTableChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetConditionalFormattingWorks: Boolean(spreadsheetConditionalFormattingChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetDataValidationWorks: Boolean(spreadsheetDataValidationChecks['workspace-spreadsheet-preview']),
+                filesSpreadsheetBordersWorks: Boolean(spreadsheetBorderChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetFormulaEditingWorks: Boolean(spreadsheetFormulaEditingChecks['workspace-spreadsheet-preview']),
                 filesSlidesControlsWorks: Boolean(slidesControlChecks['workspace-slides-preview']),
                 filesSlidesSpeakerNotesWorks: Boolean(slidesNotesChecks['workspace-slides-preview']),
