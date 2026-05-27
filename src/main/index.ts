@@ -2983,8 +2983,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             var reviewDocumentPreviewWorks =
               documentPreviewToggle instanceof HTMLButtonElement &&
               reviewDocumentState instanceof HTMLElement &&
-              reviewDocumentState.innerText.includes('DOCX') &&
-              reviewDocumentState.innerText.includes('Document smoke updated') &&
+              (reviewDocumentState.innerText.includes('Document smoke updated') ||
+                reviewDocumentState.innerText.includes('Document smoke styled heading')) &&
               Boolean(reviewDocumentState.querySelector('.document-preview-body')) &&
               !document.querySelector('[data-testid="review-source-preview"]');
             if (diffSearch instanceof HTMLInputElement) {
@@ -8283,8 +8283,9 @@ function runAutomatedFocusedSurfaceSmoke(
 	                  documentSelected &&
 	                  documentToggleClicked &&
 	                  reviewDocumentState instanceof HTMLElement &&
-	                  reviewDocumentState.innerText.includes('DOCX') &&
-	                  reviewDocumentState.innerText.includes('Document smoke updated');
+	                  (reviewDocumentState.innerText.includes('Document smoke updated') ||
+	                    reviewDocumentState.innerText.includes('Document smoke styled heading')) &&
+	                  Boolean(reviewDocumentState.querySelector('.document-preview-body'));
 	                await setReviewPreviewMode(false);
 	                const notebookSelected = await selectReviewFile('notebook-preview-smoke', 'notebook-preview-smoke.ipynb');
 	                await waitForReviewFileContent('notebook-preview-smoke.ipynb');
@@ -9651,8 +9652,9 @@ function runAutomatedFocusedSurfaceSmoke(
               const reviewDocumentPreviewWorks =
                 documentToggleClicked &&
                 reviewDocumentState instanceof HTMLElement &&
-                reviewDocumentState.innerText.includes('DOCX') &&
-                reviewDocumentState.innerText.includes('Document smoke updated');
+                (reviewDocumentState.innerText.includes('Document smoke updated') ||
+                  reviewDocumentState.innerText.includes('Document smoke styled heading')) &&
+                Boolean(reviewDocumentState.querySelector('.document-preview-body'));
               await setReviewPreviewMode(false);
               await selectReviewFile('notebook-preview-smoke', 'notebook-preview-smoke.ipynb');
               const notebookDiffFirst = !(document.querySelector('[data-testid="review-notebook-state"]') instanceof HTMLElement);
@@ -11146,6 +11148,7 @@ function runAutomatedFocusedSurfaceSmoke(
               const documentCommentChecks = {};
               const documentReviewMarkChecks = {};
               const documentLinkChecks = {};
+              const documentTextStyleChecks = {};
               const documentListChecks = {};
               const spreadsheetRendererChecks = {};
               const spreadsheetControlChecks = {};
@@ -11612,6 +11615,23 @@ function runAutomatedFocusedSurfaceSmoke(
                       documentCommentItems[0].getAttribute('data-document-comment-id') === '1' &&
                       documentCommentItems[0].getAttribute('data-document-comment-author') === 'Codex Smoke' &&
                       documentCommentItems[0].textContent?.includes('Document smoke comment text') === true;
+                    const documentStyledParagraphs = [...document.querySelectorAll('[data-testid="workspace-document-preview-styled-paragraph"]')];
+                    const documentStyledParagraphStyle = documentStyledParagraphs[0] instanceof HTMLElement ? getComputedStyle(documentStyledParagraphs[0]) : null;
+                    documentTextStyleChecks[testId] =
+                      documentPreview instanceof HTMLElement &&
+                      documentPreview.getAttribute('data-document-preview-style-count') === '1' &&
+                      pageBody instanceof HTMLElement &&
+                      documentStyledParagraphs.length === 1 &&
+                      documentStyledParagraphs[0] instanceof HTMLElement &&
+                      documentStyledParagraphs[0].getAttribute('data-document-paragraph-style') === 'heading1' &&
+                      documentStyledParagraphs[0].getAttribute('data-document-text-style') === 'bold italic underline highlight' &&
+                      documentStyledParagraphs[0].getAttribute('data-document-highlight-color') === '#FEF08A' &&
+                      documentStyledParagraphs[0].textContent?.includes('Document smoke styled heading') === true &&
+                      documentStyledParagraphStyle !== null &&
+                      Number.parseFloat(documentStyledParagraphStyle.fontSize) >= 17 &&
+                      Number.parseFloat(documentStyledParagraphStyle.fontWeight) >= 650 &&
+                      documentStyledParagraphStyle.fontStyle === 'italic' &&
+                      documentStyledParagraphStyle.textDecorationLine.includes('underline');
                     if (nextPage instanceof HTMLButtonElement) {
                       nextPage.click();
                       await sleep(160);
@@ -13439,6 +13459,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 filesDocumentCommentsWorks: Boolean(documentCommentChecks['workspace-document-preview']),
                 filesDocumentReviewMarksWorks: Boolean(documentReviewMarkChecks['workspace-document-preview']),
                 filesDocumentHyperlinksWorks: Boolean(documentLinkChecks['workspace-document-preview']),
+                filesDocumentTextStylesWorks: Boolean(documentTextStyleChecks['workspace-document-preview']),
                 filesDocumentListRenderingWorks: Boolean(documentListChecks['workspace-document-preview']),
                 filesSpreadsheetRendererWorks: Boolean(spreadsheetRendererChecks['workspace-spreadsheet-preview']),
                 filesSlidesRendererWorks: Boolean(slidesRendererChecks['workspace-slides-preview']),

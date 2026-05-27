@@ -156,6 +156,8 @@ interface SlidePreviewShape {
 interface DocumentPreviewParagraphBlock {
   type: 'paragraph'
   text: string
+  paragraphStyle?: 'title' | 'heading1' | 'heading2'
+  textStyle?: DocumentPreviewTextStyle
   listKind?: 'bullet' | 'ordered'
   listLevel?: number
   listMarker?: string
@@ -163,6 +165,13 @@ interface DocumentPreviewParagraphBlock {
   reviewAuthor?: string
   reviewDate?: string
   links?: DocumentPreviewLink[]
+}
+
+interface DocumentPreviewTextStyle {
+  bold?: boolean
+  italic?: boolean
+  underline?: boolean
+  highlightColor?: string
 }
 
 interface DocumentPreviewLink {
@@ -216,6 +225,7 @@ interface DocumentPreviewPayload {
   commentCount?: number
   reviewMarkCount?: number
   linkCount?: number
+  styleCount?: number
   headerText?: string
   footerText?: string
   sectionCount?: number
@@ -492,6 +502,7 @@ function extractDocxPreview(xml: string, archive: Buffer): DocumentPreviewPayloa
   const comments = extractDocxComments(body, archive)
   let reviewMarkCount = 0
   let linkCount = 0
+  let styleCount = 0
   for (const match of body.matchAll(/<w:(p|tbl)\b[\s\S]*?<\/w:\1>/g)) {
     const tag = match[1]
     const blockXml = match[0] ?? ''
@@ -507,9 +518,11 @@ function extractDocxPreview(xml: string, archive: Buffer): DocumentPreviewPayloa
     const text = extractDocxParagraphText(blockXml)
     const reviewMark = extractDocxParagraphReviewMark(blockXml)
     const links = extractDocxParagraphLinks(blockXml, relationships)
+    const style = extractDocxParagraphStyle(blockXml)
     if (reviewMark.reviewKind) reviewMarkCount += 1
     if (links.length > 0) linkCount += links.length
-    if (text) blocks.push({ type: 'paragraph', text, ...extractDocxParagraphList(blockXml, numbering), ...reviewMark, ...(links.length > 0 ? { links } : {}) })
+    if (style.paragraphStyle || style.textStyle) styleCount += 1
+    if (text) blocks.push({ type: 'paragraph', text, ...style, ...extractDocxParagraphList(blockXml, numbering), ...reviewMark, ...(links.length > 0 ? { links } : {}) })
     const imageBlocks = extractDocxImageBlocks(blockXml, archive, relationships)
     if (imageBlocks.length > 0) {
       blocks.push(...imageBlocks)
@@ -533,6 +546,7 @@ function extractDocxPreview(xml: string, archive: Buffer): DocumentPreviewPayloa
     ...(comments.length > 0 ? { comments, commentCount: comments.length } : {}),
     ...(reviewMarkCount > 0 ? { reviewMarkCount } : {}),
     ...(linkCount > 0 ? { linkCount } : {}),
+    ...(styleCount > 0 ? { styleCount } : {}),
     ...sections
   }
 }
@@ -659,6 +673,64 @@ function extractDocxParagraphReviewMark(xml: string): Pick<DocumentPreviewParagr
     ...(author ? { reviewAuthor: author } : {}),
     ...(date ? { reviewDate: date } : {})
   }
+}
+
+function extractDocxParagraphStyle(xml: string): Pick<DocumentPreviewParagraphBlock, 'paragraphStyle' | 'textStyle'> {
+  const paragraphStyleValue = decodeXmlText(/<w:pStyle\b[^>]*\bw:val="([^"]+)"/.exec(xml)?.[1] ?? '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '')
+  const paragraphStyle = paragraphStyleValue === 'title'
+    ? 'title'
+    : paragraphStyleValue === 'heading1'
+      ? 'heading1'
+      : paragraphStyleValue === 'heading2'
+        ? 'heading2'
+        : undefined
+  const runProperties = [...xml.matchAll(/<w:rPr\b[\s\S]*?<\/w:rPr>|<w:rPr\b[^>]*\/>/g)].map((match) => match[0] ?? '')
+  const textStyle: DocumentPreviewTextStyle = {}
+  if (runProperties.some((runProperty) => hasDocxToggleProperty(runProperty, 'b'))) textStyle.bold = true
+  if (runProperties.some((runProperty) => hasDocxToggleProperty(runProperty, 'i'))) textStyle.italic = true
+  if (runProperties.some((runProperty) => hasDocxUnderlineProperty(runProperty))) textStyle.underline = true
+  const highlightColor = runProperties.map(extractDocxHighlightColor).find((color): color is string => Boolean(color))
+  if (highlightColor) textStyle.highlightColor = highlightColor
+  return {
+    ...(paragraphStyle ? { paragraphStyle } : {}),
+    ...(Object.keys(textStyle).length > 0 ? { textStyle } : {})
+  }
+}
+
+function hasDocxToggleProperty(xml: string, name: string): boolean {
+  return [...xml.matchAll(new RegExp(`<w:${name}\\b([^>]*)\\/?>(?:<\\/w:${name}>)?`, 'g'))].some((match) => {
+    const value = /\bw:val="([^"]*)"/.exec(match[1] ?? '')?.[1]?.toLowerCase()
+    return value === undefined || !['0', 'false', 'none'].includes(value)
+  })
+}
+
+function hasDocxUnderlineProperty(xml: string): boolean {
+  return [...xml.matchAll(/<w:u\b([^>]*)\/?>(?:<\/w:u>)?/g)].some((match) => {
+    const value = /\bw:val="([^"]*)"/.exec(match[1] ?? '')?.[1]?.toLowerCase()
+    return value === undefined || !['0', 'false', 'none'].includes(value)
+  })
+}
+
+function extractDocxHighlightColor(xml: string): string | undefined {
+  const value = /<w:highlight\b[^>]*\bw:val="([^"]+)"/.exec(xml)?.[1]?.toLowerCase()
+  if (!value || value === 'none') return undefined
+  const colors: Record<string, string> = {
+    yellow: '#FEF08A',
+    green: '#BBF7D0',
+    cyan: '#BAE6FD',
+    magenta: '#FBCFE8',
+    red: '#FECACA',
+    blue: '#BFDBFE',
+    darkyellow: '#FDE68A',
+    darkgreen: '#86EFAC',
+    darkcyan: '#67E8F9',
+    darkmagenta: '#F0ABFC',
+    darkred: '#FCA5A5',
+    darkblue: '#93C5FD'
+  }
+  return colors[value] ?? undefined
 }
 
 function extractDocxParagraphLinks(xml: string, relationships: Map<string, string>): DocumentPreviewLink[] {

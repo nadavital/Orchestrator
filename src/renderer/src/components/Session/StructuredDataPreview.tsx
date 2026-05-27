@@ -41,10 +41,17 @@ interface NotebookCell {
 }
 
 type DocumentPreviewBlock =
-  | { type: 'paragraph'; text: string; listKind?: 'bullet' | 'ordered'; listLevel?: number; listMarker?: string; reviewKind?: 'insertion' | 'deletion'; reviewAuthor?: string; reviewDate?: string; links?: Array<{ text: string; url: string }> }
+  | { type: 'paragraph'; text: string; paragraphStyle?: 'title' | 'heading1' | 'heading2'; textStyle?: DocumentTextStyle; listKind?: 'bullet' | 'ordered'; listLevel?: number; listMarker?: string; reviewKind?: 'insertion' | 'deletion'; reviewAuthor?: string; reviewDate?: string; links?: Array<{ text: string; url: string }> }
   | { type: 'table'; rows: string[][] }
   | { type: 'image'; dataUrl: string; mimeType: string; alt?: string; width?: number; height?: number }
   | { type: 'shape'; text: string; geometry?: string; fillColor?: string; lineColor?: string }
+
+interface DocumentTextStyle {
+  bold?: boolean
+  italic?: boolean
+  underline?: boolean
+  highlightColor?: string
+}
 
 export default function StructuredDataPreview({ name, preview, testId, statusLabel, actions }: Props): JSX.Element {
   if (preview.kind === 'document') {
@@ -107,6 +114,7 @@ function DocumentPreview({
   const commentCount = preview.document?.commentCount ?? comments.length
   const reviewMarkCount = Math.max(0, Math.floor(Number(preview.document?.reviewMarkCount ?? documentBlocks.filter((block) => block.type === 'paragraph' && block.reviewKind).length)))
   const linkCount = Math.max(0, Math.floor(Number(preview.document?.linkCount ?? documentBlocks.reduce((count, block) => count + (block.type === 'paragraph' ? block.links?.length ?? 0 : 0), 0))))
+  const styleCount = Math.max(0, Math.floor(Number(preview.document?.styleCount ?? documentBlocks.filter((block) => block.type === 'paragraph' && (block.paragraphStyle || block.textStyle)).length)))
   const headerText = typeof preview.document?.headerText === 'string' ? preview.document.headerText.trim() : ''
   const footerText = typeof preview.document?.footerText === 'string' ? preview.document.footerText.trim() : ''
   const sectionCount = Math.max(0, Math.floor(Number(preview.document?.sectionCount ?? 0)))
@@ -144,6 +152,7 @@ function DocumentPreview({
       data-document-preview-comment-count={commentCount}
       data-document-preview-review-mark-count={reviewMarkCount}
       data-document-preview-link-count={linkCount}
+      data-document-preview-style-count={styleCount}
       data-document-preview-header-text={headerText}
       data-document-preview-footer-text={footerText}
       data-document-preview-section-count={sectionCount}
@@ -233,6 +242,7 @@ function DocumentPreview({
         {commentCount > 0 && <span>{commentCount.toLocaleString()} {commentCount === 1 ? 'comment' : 'comments'}</span>}
         {reviewMarkCount > 0 && <span>{reviewMarkCount.toLocaleString()} {reviewMarkCount === 1 ? 'revision' : 'revisions'}</span>}
         {linkCount > 0 && <span>{linkCount.toLocaleString()} {linkCount === 1 ? 'link' : 'links'}</span>}
+        {styleCount > 0 && <span>{styleCount.toLocaleString()} {styleCount === 1 ? 'style' : 'styles'}</span>}
         {sectionCount > 0 && <span>{sectionCount.toLocaleString()} {sectionCount === 1 ? 'section' : 'sections'}</span>}
         {columnCount > 1 && <span>{columnCount.toLocaleString()} columns</span>}
         <span>{pageCount.toLocaleString()} pages</span>
@@ -324,6 +334,26 @@ function DocumentPreview({
                             <span>{block.text}</span>
                           </aside>
                         )
+                      : block.paragraphStyle || block.textStyle
+                        ? (
+                            <p
+                              key={`paragraph-${index}`}
+                              className={[
+                                'document-preview-styled-paragraph',
+                                block.paragraphStyle ? `document-preview-paragraph-${block.paragraphStyle}` : '',
+                                block.textStyle?.bold ? 'document-preview-text-bold' : '',
+                                block.textStyle?.italic ? 'document-preview-text-italic' : '',
+                                block.textStyle?.underline ? 'document-preview-text-underline' : ''
+                              ].filter(Boolean).join(' ')}
+                              data-testid={`${testId}-styled-paragraph`}
+                              data-document-paragraph-style={block.paragraphStyle ?? ''}
+                              data-document-text-style={formatDocumentTextStyle(block.textStyle)}
+                              data-document-highlight-color={block.textStyle?.highlightColor ?? ''}
+                              style={{ '--document-text-highlight-color': block.textStyle?.highlightColor ?? undefined } as CSSProperties}
+                            >
+                              {block.text}
+                            </p>
+                          )
                       : block.links && block.links.length > 0
                         ? (
                             <p
@@ -470,6 +500,8 @@ function normalizeDocumentBlocks(blocks: DocumentPreviewBlock[] | undefined, par
         const listKind = block.listKind === 'bullet' || block.listKind === 'ordered' ? block.listKind : undefined
         const listLevel = Math.max(0, Math.min(8, Math.floor(Number(block.listLevel ?? 0) || 0)))
         const listMarker = String(block.listMarker ?? '').trim().slice(0, 8)
+        const paragraphStyle = normalizeDocumentParagraphStyle(block.paragraphStyle)
+        const textStyle = normalizeDocumentTextStyle(block.textStyle)
         const reviewKind = block.reviewKind === 'insertion' || block.reviewKind === 'deletion' ? block.reviewKind : undefined
         const reviewAuthor = String(block.reviewAuthor ?? '').trim().slice(0, 80)
         const reviewDate = String(block.reviewDate ?? '').trim().slice(0, 40)
@@ -477,6 +509,8 @@ function normalizeDocumentBlocks(blocks: DocumentPreviewBlock[] | undefined, par
         return {
           type: 'paragraph' as const,
           text: String(block.text ?? '').trim(),
+          ...(paragraphStyle ? { paragraphStyle } : {}),
+          ...(textStyle ? { textStyle } : {}),
           ...(listKind ? { listKind, listLevel, listMarker: listMarker || (listKind === 'bullet' ? '\u2022' : '1.') } : {}),
           ...(reviewKind ? { reviewKind, ...(reviewAuthor ? { reviewAuthor } : {}), ...(reviewDate ? { reviewDate } : {}) } : {}),
           ...(links.length > 0 ? { links } : {})
@@ -489,6 +523,32 @@ function normalizeDocumentBlocks(blocks: DocumentPreviewBlock[] | undefined, par
       })
   }
   return paragraphs.map((paragraph) => ({ type: 'paragraph', text: paragraph }))
+}
+
+function normalizeDocumentParagraphStyle(value: unknown): 'title' | 'heading1' | 'heading2' | undefined {
+  return value === 'title' || value === 'heading1' || value === 'heading2' ? value : undefined
+}
+
+function normalizeDocumentTextStyle(value: unknown): DocumentTextStyle | undefined {
+  if (!value || typeof value !== 'object') return undefined
+  const raw = value as Record<string, unknown>
+  const textStyle: DocumentTextStyle = {}
+  if (raw.bold === true) textStyle.bold = true
+  if (raw.italic === true) textStyle.italic = true
+  if (raw.underline === true) textStyle.underline = true
+  const highlightColor = normalizeDocumentColor(raw.highlightColor)
+  if (highlightColor) textStyle.highlightColor = highlightColor
+  return Object.keys(textStyle).length > 0 ? textStyle : undefined
+}
+
+function formatDocumentTextStyle(textStyle: DocumentTextStyle | undefined): string {
+  if (!textStyle) return ''
+  return [
+    textStyle.bold ? 'bold' : '',
+    textStyle.italic ? 'italic' : '',
+    textStyle.underline ? 'underline' : '',
+    textStyle.highlightColor ? 'highlight' : ''
+  ].filter(Boolean).join(' ')
 }
 
 function normalizeDocumentLinks(value: unknown): Array<{ text: string; url: string }> {

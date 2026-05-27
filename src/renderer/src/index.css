@@ -5927,6 +5927,45 @@
     user-select: none;
   }
 
+  .document-preview-styled-paragraph {
+    background: var(--document-text-highlight-color, transparent);
+  }
+
+  .document-preview-paragraph-title {
+    color: var(--text-primary);
+    font-size: 21px;
+    font-weight: 700;
+    line-height: 1.22;
+  }
+
+  .document-preview-paragraph-heading1 {
+    color: var(--text-primary);
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 1.25;
+  }
+
+  .document-preview-paragraph-heading2 {
+    color: var(--text-primary);
+    font-size: 15px;
+    font-weight: 650;
+    line-height: 1.3;
+  }
+
+  .document-preview-text-bold {
+    font-weight: 700;
+  }
+
+  .document-preview-text-italic {
+    font-style: italic;
+  }
+
+  .document-preview-text-underline {
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 2px;
+  }
+
   .document-preview-footnotes {
     margin-top: 18px;
     border-top: 1px solid var(--border-subtle);

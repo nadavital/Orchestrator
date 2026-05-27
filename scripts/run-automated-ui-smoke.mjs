@@ -403,6 +403,20 @@ function createDocxFixture(blocks, options = {}) {
         </a:graphicData></a:graphic>
       </wp:inline></w:drawing></w:r></w:p>`
     }
+    if (block && typeof block === 'object' && (block.paragraphStyle || block.bold || block.italic || block.underline || block.highlight)) {
+      const paragraphStyle = String(block.paragraphStyle ?? '').trim()
+      const styleMap = new Map([['title', 'Title'], ['heading1', 'Heading1'], ['heading2', 'Heading2'], ['Title', 'Title'], ['Heading1', 'Heading1'], ['Heading2', 'Heading2']])
+      const styleId = styleMap.get(paragraphStyle) ?? ''
+      const highlight = String(block.highlight ?? '').trim()
+      const runProperties = [
+        block.bold === true ? '<w:b/>' : '',
+        block.italic === true ? '<w:i/>' : '',
+        block.underline === true ? '<w:u w:val="single"/>' : '',
+        highlight ? `<w:highlight w:val="${escapeXml(highlight)}"/>` : ''
+      ].filter(Boolean).join('')
+      const paragraphProperties = styleId ? `<w:pPr><w:pStyle w:val="${styleId}"/></w:pPr>` : ''
+      return `<w:p>${paragraphProperties}<w:r>${runProperties ? `<w:rPr>${runProperties}</w:rPr>` : ''}<w:t>${escapeXml(String(block.text ?? 'Document styled paragraph'))}</w:t></w:r></w:p>`
+    }
     if (block && typeof block === 'object' && block.footnoteText) {
       const footnote = footnoteBlocks.find((item) => item.block === block)
       const id = footnote?.id ?? '2'
@@ -1236,7 +1250,7 @@ if (fixtureWorkspaceViews.has(captureView)) {
     writeFileSync(join(workspaceDir, 'pdf-preview-smoke.pdf'), createPdfFixture(['PDF preview smoke updated', 'PDF preview smoke second page updated']))
     writeFileSync(join(workspaceDir, 'document-preview-smoke.docx'), createDocxFixture([
     'Document smoke updated',
-    'This verifies DOCX text preview in the inspector.',
+    { text: 'Document smoke styled heading', paragraphStyle: 'Heading1', bold: true, italic: true, underline: true, highlight: 'yellow' },
     { rows: [['Metric', 'Value'], ['Rows', '2'], ['Status', 'Updated table']] },
     { imageBase64: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADUlEQVR42mNkYPj/HwADAgH/akqSVAAAAABJRU5ErkJggg==', alt: 'Document smoke embedded image', cx: 914400, cy: 914400 },
     { text: 'Document smoke bullet list item', listKind: 'bullet' },
@@ -2021,6 +2035,7 @@ child.on('exit', async (code) => {
           filesDocumentComments: result.filesDocumentCommentsWorks === true,
           filesDocumentReviewMarks: result.filesDocumentReviewMarksWorks === true,
           filesDocumentHyperlinks: result.filesDocumentHyperlinksWorks === true,
+          filesDocumentTextStyles: result.filesDocumentTextStylesWorks === true,
           filesDocumentListRendering: result.filesDocumentListRenderingWorks === true,
           filesSpreadsheetPreview: result.filesSpreadsheetPreviewWorks === true,
           filesSlidesPreview: result.filesSlidesPreviewWorks === true,
@@ -2246,6 +2261,7 @@ child.on('exit', async (code) => {
         filesDocumentComments: captureView !== 'inspector' || result.filesDocumentCommentsWorks === true,
         filesDocumentReviewMarks: captureView !== 'inspector' || result.filesDocumentReviewMarksWorks === true,
         filesDocumentHyperlinks: captureView !== 'inspector' || result.filesDocumentHyperlinksWorks === true,
+        filesDocumentTextStyles: captureView !== 'inspector' || result.filesDocumentTextStylesWorks === true,
         filesDocumentListRendering: captureView !== 'inspector' || result.filesDocumentListRenderingWorks === true,
         filesSpreadsheetPreview: captureView !== 'inspector' || result.filesSpreadsheetPreviewWorks === true,
         filesSlidesPreview: captureView !== 'inspector' || result.filesSlidesPreviewWorks === true,
