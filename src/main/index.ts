@@ -11874,6 +11874,9 @@ function runAutomatedFocusedSurfaceSmoke(
                     const betaCountCommentIndicator = betaCountCell?.querySelector('[data-testid="workspace-spreadsheet-comment-indicator"]');
                     const spreadsheetComments = document.querySelector('[data-testid="workspace-spreadsheet-comments"]');
                     const betaCountComment = document.querySelector('[data-testid="workspace-spreadsheet-comment"][data-spreadsheet-comment-address="B3"]');
+                    const threadedCommentCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="D2"]');
+                    const threadedCommentIndicator = threadedCommentCell?.querySelector('[data-testid="workspace-spreadsheet-comment-indicator"]');
+                    const threadedComment = document.querySelector('[data-testid="workspace-spreadsheet-comment"][data-spreadsheet-comment-address="D2"]');
                     const tableFilterButton = headerNameCell?.querySelector('[data-testid="workspace-spreadsheet-filter-button"]');
                     const updatedStatusCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="C2"]');
                     const statusValidationButton = updatedStatusCell?.querySelector('[data-testid="workspace-spreadsheet-validation-button"]');
@@ -12106,18 +12109,33 @@ function runAutomatedFocusedSurfaceSmoke(
                       expressionTrendMissCell.getAttribute('data-spreadsheet-cell-conditional-fill-color') === '';
                     spreadsheetCommentChecks[testId] =
                       spreadsheetPreview instanceof HTMLElement &&
-                      spreadsheetPreview.getAttribute('data-spreadsheet-comment-count') === '1' &&
+                      spreadsheetPreview.getAttribute('data-spreadsheet-comment-count') === '2' &&
                       betaCountCell instanceof HTMLButtonElement &&
                       betaCountCell.getAttribute('data-spreadsheet-cell-comment-author') === 'Ava Reviewer' &&
                       betaCountCell.getAttribute('data-spreadsheet-cell-comment-text') === 'Confirm beta count before export.' &&
                       betaCountCommentIndicator instanceof HTMLElement &&
                       spreadsheetComments instanceof HTMLElement &&
-                      spreadsheetComments.getAttribute('data-spreadsheet-comment-count') === '1' &&
+                      spreadsheetComments.getAttribute('data-spreadsheet-comment-count') === '2' &&
                       betaCountComment instanceof HTMLElement &&
                       betaCountComment.getAttribute('data-spreadsheet-comment-author') === 'Ava Reviewer' &&
                       betaCountComment.getAttribute('data-spreadsheet-comment-text') === 'Confirm beta count before export.' &&
                       betaCountComment.textContent?.includes('B3') === true &&
-                      betaCountComment.textContent?.includes('Confirm beta count before export.') === true;
+                      betaCountComment.textContent?.includes('Confirm beta count before export.') === true &&
+                      threadedCommentCell instanceof HTMLButtonElement &&
+                      threadedCommentCell.getAttribute('data-spreadsheet-cell-comment-ref') === 'D2:F3' &&
+                      threadedCommentCell.getAttribute('data-spreadsheet-cell-comment-threaded') === 'true' &&
+                      threadedCommentCell.getAttribute('data-spreadsheet-cell-comment-reply-count') === '1' &&
+                      threadedCommentCell.getAttribute('data-spreadsheet-cell-comment-resolved') === 'true' &&
+                      threadedCommentIndicator instanceof HTMLElement &&
+                      threadedComment instanceof HTMLElement &&
+                      threadedComment.getAttribute('data-spreadsheet-comment-ref') === 'D2:F3' &&
+                      threadedComment.getAttribute('data-spreadsheet-comment-author') === 'Mia PM' &&
+                      threadedComment.getAttribute('data-spreadsheet-comment-threaded') === 'true' &&
+                      threadedComment.getAttribute('data-spreadsheet-comment-reply-count') === '1' &&
+                      threadedComment.getAttribute('data-spreadsheet-comment-resolved') === 'true' &&
+                      threadedComment.textContent?.includes('D2:F3') === true &&
+                      threadedComment.textContent?.includes('1 replies') === true &&
+                      threadedComment.textContent?.includes('Resolved') === true;
                     spreadsheetDataValidationChecks[testId] =
                       spreadsheetPreview instanceof HTMLElement &&
                       spreadsheetPreview.getAttribute('data-spreadsheet-data-validation-count') === '1' &&

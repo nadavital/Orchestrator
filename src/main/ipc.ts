@@ -167,6 +167,10 @@ interface SpreadsheetPreviewDataValidation {
 interface SpreadsheetPreviewCellComment {
   author?: string
   text: string
+  ref?: string
+  replyCount?: number
+  resolved?: boolean
+  threaded?: boolean
 }
 
 interface SpreadsheetPreviewCellCommentRange extends SpreadsheetPreviewCellComment {
@@ -1552,13 +1556,15 @@ function extractZipRelationshipsFromXml(xml: string, partPath: string): Map<stri
 function extractWorksheetComments(archive: Buffer, sheetPath: string): SpreadsheetPreviewCellCommentRange[] {
   const relsXml = readZipEntry(archive, zipRelationshipPathForPart(sheetPath))?.toString('utf8') ?? ''
   const commentPaths: string[] = []
+  const threadedCommentPaths: string[] = []
   for (const match of relsXml.matchAll(/<Relationship\b[^>]*>/g)) {
     const tag = match[0] ?? ''
     const type = /\bType="([^"]+)"/.exec(tag)?.[1] ?? ''
     const target = /\bTarget="([^"]+)"/.exec(tag)?.[1] ?? ''
     if (target && type.endsWith('/comments')) commentPaths.push(resolveZipRelationshipTarget(sheetPath, target))
+    if (target && /threadedComment/i.test(type)) threadedCommentPaths.push(resolveZipRelationshipTarget(sheetPath, target))
   }
-  return commentPaths
+  const comments = commentPaths
     .slice(0, 4)
     .flatMap((commentPath) => {
       const xml = readZipEntry(archive, commentPath)?.toString('utf8') ?? ''
@@ -1586,6 +1592,8 @@ function extractWorksheetComments(archive: Buffer, sheetPath: string): Spreadshe
           }]
         })
     })
+  const threadedComments = extractWorksheetThreadedComments(archive, threadedCommentPaths)
+  return [...comments, ...threadedComments].slice(0, 24)
 }
 
 function extractSpreadsheetCommentText(xml: string): string {
@@ -1596,6 +1604,72 @@ function extractSpreadsheetCommentText(xml: string): string {
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, 240)
+}
+
+function extractWorksheetThreadedComments(archive: Buffer, threadedCommentPaths: string[]): SpreadsheetPreviewCellCommentRange[] {
+  const persons = extractSpreadsheetThreadedCommentPersons(archive)
+  return threadedCommentPaths
+    .slice(0, 4)
+    .flatMap((commentPath) => {
+      const xml = readZipEntry(archive, commentPath)?.toString('utf8') ?? ''
+      if (!xml) return []
+      const rawComments = [...xml.matchAll(/<threadedComment\b([^>]*)>([\s\S]*?)<\/threadedComment>/g)]
+        .slice(0, 48)
+        .map((match) => {
+          const attributes = match[1] ?? ''
+          const id = /\bid="([^"]+)"/.exec(attributes)?.[1] ?? ''
+          const parentId = /\bparentId="([^"]+)"/.exec(attributes)?.[1] ?? ''
+          const ref = /\bref="([^"]+)"/.exec(attributes)?.[1]?.toUpperCase() ?? ''
+          const personId = /\bpersonId="([^"]+)"/.exec(attributes)?.[1] ?? ''
+          const author = decodeXmlText(/\bauthor="([^"]*)"/.exec(attributes)?.[1] ?? '').trim() || persons.get(personId)
+          const text = extractSpreadsheetThreadedCommentText(match[2] ?? '')
+          const resolved = /\b(?:done|resolved)="(?:1|true)"/i.test(attributes)
+          return { id, parentId, ref, author, text, resolved }
+        })
+        .filter((comment) => comment.id && comment.ref && comment.text)
+      const repliesByParent = new Map<string, typeof rawComments>()
+      for (const comment of rawComments) {
+        if (!comment.parentId) continue
+        repliesByParent.set(comment.parentId, [...(repliesByParent.get(comment.parentId) ?? []), comment])
+      }
+      return rawComments
+        .filter((comment) => !comment.parentId)
+        .flatMap((comment) => {
+          const range = spreadsheetRangePosition(comment.ref)
+          if (!range || range.startRow >= 24 || range.startColumn >= 12) return []
+          const replies = repliesByParent.get(comment.id) ?? []
+          return [{
+            ref: comment.ref,
+            row: range.startRow,
+            column: range.startColumn,
+            ...(comment.author ? { author: comment.author } : {}),
+            text: comment.text,
+            threaded: true,
+            ...(replies.length > 0 ? { replyCount: replies.length } : {}),
+            ...(comment.resolved || replies.some((reply) => reply.resolved) ? { resolved: true } : {})
+          }]
+        })
+    })
+}
+
+function extractSpreadsheetThreadedCommentPersons(archive: Buffer): Map<string, string> {
+  const persons = new Map<string, string>()
+  for (const entry of listZipEntries(archive)) {
+    if (!/^xl\/persons\/person\d*\.xml$/i.test(entry.name)) continue
+    const xml = readZipEntry(archive, entry.name)?.toString('utf8') ?? ''
+    for (const match of xml.matchAll(/<person\b([^>]*)\/?>/g)) {
+      const attributes = match[1] ?? ''
+      const id = /\bid="([^"]+)"/.exec(attributes)?.[1] ?? ''
+      const displayName = decodeXmlText(/\bdisplayName="([^"]*)"/.exec(attributes)?.[1] ?? '').trim()
+      if (id && displayName) persons.set(id, displayName)
+    }
+  }
+  return persons
+}
+
+function extractSpreadsheetThreadedCommentText(xml: string): string {
+  const text = /<text(?:\s[^>]*)?>([\s\S]*?)<\/text>/.exec(xml)?.[1] ?? ''
+  return decodeXmlText(text.replace(/<[^>]+>/g, '')).replace(/\s+/g, ' ').trim().slice(0, 240)
 }
 
 function extractSpreadsheetChartTitle(xml: string): string {
@@ -1960,7 +2034,11 @@ function applyWorksheetComments(rows: SpreadsheetPreviewCell[][], comments: Spre
     if (!cell) continue
     cell.comment = {
       ...(comment.author ? { author: comment.author } : {}),
-      text: comment.text
+      text: comment.text,
+      ...(comment.ref ? { ref: comment.ref } : {}),
+      ...(comment.replyCount ? { replyCount: comment.replyCount } : {}),
+      ...(comment.resolved ? { resolved: true } : {}),
+      ...(comment.threaded ? { threaded: true } : {})
     }
   }
 }

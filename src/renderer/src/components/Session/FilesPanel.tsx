@@ -1032,6 +1032,10 @@ interface SpreadsheetPreviewDataValidation {
 interface SpreadsheetPreviewCellComment {
   author?: string
   text: string
+  ref?: string
+  replyCount?: number
+  resolved?: boolean
+  threaded?: boolean
 }
 
 interface SpreadsheetFreezePanes {
@@ -1929,6 +1933,10 @@ function SpreadsheetArtifactPreview({
                                 data-spreadsheet-cell-data-validation-error={cell.dataValidation?.error ?? ''}
                                 data-spreadsheet-cell-comment-author={cell.comment?.author ?? ''}
                                 data-spreadsheet-cell-comment-text={cell.comment?.text ?? ''}
+                                data-spreadsheet-cell-comment-ref={cell.comment?.ref ?? ''}
+                                data-spreadsheet-cell-comment-threaded={cell.comment?.threaded ? 'true' : 'false'}
+                                data-spreadsheet-cell-comment-reply-count={cell.comment?.replyCount ?? 0}
+                                data-spreadsheet-cell-comment-resolved={cell.comment?.resolved ? 'true' : 'false'}
                                 data-spreadsheet-cell-merge-rowspan={merge?.rowSpan ?? 1}
                                 data-spreadsheet-cell-merge-colspan={merge?.colSpan ?? 1}
                                 data-spreadsheet-cell-column-width={activeSheet.columnWidths?.[cellIndex] ?? ''}
@@ -2260,10 +2268,16 @@ function SpreadsheetArtifactPreview({
                       data-spreadsheet-comment-address={address}
                       data-spreadsheet-comment-author={cell.comment.author ?? ''}
                       data-spreadsheet-comment-text={cell.comment.text}
+                      data-spreadsheet-comment-ref={cell.comment.ref ?? address}
+                      data-spreadsheet-comment-threaded={cell.comment.threaded ? 'true' : 'false'}
+                      data-spreadsheet-comment-reply-count={cell.comment.replyCount ?? 0}
+                      data-spreadsheet-comment-resolved={cell.comment.resolved ? 'true' : 'false'}
                     >
                       <div className="workspace-spreadsheet-comment-meta">
-                        <span>{address}</span>
+                        <span>{cell.comment.ref ?? address}</span>
                         {cell.comment.author ? <span>{cell.comment.author}</span> : null}
+                        {cell.comment.threaded ? <span>{cell.comment.replyCount ?? 0} replies</span> : null}
+                        {cell.comment.resolved ? <span>Resolved</span> : null}
                       </div>
                       <div className="workspace-spreadsheet-comment-text">{cell.comment.text}</div>
                     </div>
@@ -2693,13 +2707,21 @@ function normalizeSpreadsheetPreviewCell(cell: unknown): SpreadsheetPreviewCell 
 
 function normalizeSpreadsheetCellComment(value: unknown): SpreadsheetPreviewCellComment | undefined {
   if (!value || typeof value !== 'object') return undefined
-  const candidate = value as { author?: unknown; text?: unknown }
+  const candidate = value as { author?: unknown; text?: unknown; ref?: unknown; replyCount?: unknown; resolved?: unknown; threaded?: unknown }
   const text = typeof candidate.text === 'string' ? candidate.text.trim().slice(0, 240) : ''
   if (!text) return undefined
   const author = typeof candidate.author === 'string' ? candidate.author.trim().slice(0, 80) : ''
+  const ref = typeof candidate.ref === 'string' ? candidate.ref.trim().toUpperCase().slice(0, 32) : ''
+  const replyCount = typeof candidate.replyCount === 'number' && Number.isFinite(candidate.replyCount)
+    ? Math.max(0, Math.min(24, Math.floor(candidate.replyCount)))
+    : 0
   return {
     ...(author ? { author } : {}),
-    text
+    text,
+    ...(ref ? { ref } : {}),
+    ...(replyCount > 0 ? { replyCount } : {}),
+    ...(candidate.resolved === true ? { resolved: true } : {}),
+    ...(candidate.threaded === true ? { threaded: true } : {})
   }
 }
 

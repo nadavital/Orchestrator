@@ -677,6 +677,23 @@ function createXlsxFixture({ sheetName, rows, sheets }) {
       }))
       .filter((comment) => /^[A-Z]+\d+$/.test(comment.ref) && comment.text)
       .slice(0, 24)
+    const threadedComments = (sheet.threadedComments ?? [])
+      .map((comment, commentIndex) => ({
+        id: String(comment?.id ?? `threaded-comment-${sheetIndex + 1}-${commentIndex + 1}`),
+        ref: String(comment?.ref ?? '').toUpperCase(),
+        author: String(comment?.author ?? 'Ava Reviewer').trim() || 'Ava Reviewer',
+        text: String(comment?.text ?? '').trim(),
+        resolved: comment?.resolved === true,
+        replies: Array.isArray(comment?.replies)
+          ? comment.replies.map((reply, replyIndex) => ({
+              id: String(reply?.id ?? `threaded-comment-${sheetIndex + 1}-${commentIndex + 1}-reply-${replyIndex + 1}`),
+              author: String(reply?.author ?? 'Noah Owner').trim() || 'Noah Owner',
+              text: String(reply?.text ?? '').trim()
+            })).filter((reply) => reply.text).slice(0, 4)
+          : []
+      }))
+      .filter((comment) => /^[A-Z]+\d+(?::[A-Z]+\d+)?$/.test(comment.ref) && comment.text)
+      .slice(0, 12)
     const tableEntries = (sheet.tables ?? [])
       .map((table, tableIndex) => {
         const ref = String(table?.ref ?? '').toUpperCase()
@@ -795,6 +812,21 @@ function createXlsxFixture({ sheetName, rows, sheets }) {
 </comments>`
         }
       : null
+    const threadedCommentRelId = threadedComments.length > 0 ? `rId${tableEntries.length + chartEntries.length + drawingEntries.length + (commentEntry ? 1 : 0) + 1}` : ''
+    const threadedCommentEntry = threadedComments.length > 0
+      ? {
+          name: `xl/threadedComments/threadedComment${sheetIndex + 1}.xml`,
+          contentType: 'application/vnd.ms-excel.threadedcomments+xml',
+          data: `<?xml version="1.0" encoding="UTF-8"?>
+<ThreadedComments xmlns="http://schemas.microsoft.com/office/spreadsheetml/2018/threadedcomments">
+  ${threadedComments.flatMap((comment) => {
+    const root = `<threadedComment ref="${escapeXml(comment.ref)}" id="${escapeXml(comment.id)}" author="${escapeXml(comment.author)}"${comment.resolved ? ' resolved="1"' : ''}><text>${escapeXml(comment.text)}</text></threadedComment>`
+    const replies = comment.replies.map((reply) => `<threadedComment ref="${escapeXml(comment.ref)}" id="${escapeXml(reply.id)}" parentId="${escapeXml(comment.id)}" author="${escapeXml(reply.author)}"><text>${escapeXml(reply.text)}</text></threadedComment>`)
+    return [root, ...replies]
+  }).join('\n  ')}
+</ThreadedComments>`
+        }
+      : null
     const columnXml = Array.isArray(sheet.columnWidths)
       ? sheet.columnWidths
           .map((width, columnIndex) => {
@@ -844,7 +876,7 @@ function createXlsxFixture({ sheetName, rows, sheets }) {
     }).join('\n      ')
     return {
       name: `xl/worksheets/sheet${sheetIndex + 1}.xml`,
-      relationship: tableEntries.length > 0 || chartEntries.length > 0 || drawingEntries.length > 0 || commentEntry
+      relationship: tableEntries.length > 0 || chartEntries.length > 0 || drawingEntries.length > 0 || commentEntry || threadedCommentEntry
         ? {
             name: `xl/worksheets/_rels/sheet${sheetIndex + 1}.xml.rels`,
             data: `<?xml version="1.0" encoding="UTF-8"?>
@@ -853,6 +885,7 @@ function createXlsxFixture({ sheetName, rows, sheets }) {
     ${chartEntries.map((chart) => `<Relationship Id="${chart.relId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="${chart.target}"/>`).join('\n  ')}
     ${drawingEntries.map((drawing) => `<Relationship Id="${drawing.relId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="${drawing.target}"/>`).join('\n  ')}
     ${commentEntry ? `<Relationship Id="${commentRelId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="../comments/comment${sheetIndex + 1}.xml"/>` : ''}
+    ${threadedCommentEntry ? `<Relationship Id="${threadedCommentRelId}" Type="http://schemas.microsoft.com/office/2017/10/relationships/threadedComment" Target="../threadedComments/threadedComment${sheetIndex + 1}.xml"/>` : ''}
   </Relationships>`
           }
         : null,
@@ -868,6 +901,7 @@ function createXlsxFixture({ sheetName, rows, sheets }) {
         ...drawing.mediaEntries
       ]),
       commentEntry,
+      threadedCommentEntry,
       data: `<?xml version="1.0" encoding="UTF-8"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"${tableEntries.length > 0 || chartEntries.length > 0 || drawingEntries.length > 0 ? ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"' : ''}>
   ${paneXml}
@@ -891,7 +925,8 @@ function createXlsxFixture({ sheetName, rows, sheets }) {
     ...entry.tableEntries,
     ...entry.chartEntries,
     ...entry.drawingEntries,
-    ...(entry.commentEntry ? [entry.commentEntry] : [])
+    ...(entry.commentEntry ? [entry.commentEntry] : []),
+    ...(entry.threadedCommentEntry ? [entry.threadedCommentEntry] : [])
   ])
   const tableContentTypeOverrides = worksheetEntries.flatMap((entry) => entry.tableEntries)
   const chartContentTypeOverrides = worksheetEntries
@@ -902,6 +937,9 @@ function createXlsxFixture({ sheetName, rows, sheets }) {
     .filter((entry) => entry.contentType)
   const commentContentTypeOverrides = worksheetEntries
     .map((entry) => entry.commentEntry)
+    .filter(Boolean)
+  const threadedCommentContentTypeOverrides = worksheetEntries
+    .map((entry) => entry.threadedCommentEntry)
     .filter(Boolean)
   return createStoredZip([
     {
@@ -917,6 +955,7 @@ function createXlsxFixture({ sheetName, rows, sheets }) {
   ${chartContentTypeOverrides.map((entry) => `<Override PartName="/${entry.name}" ContentType="${entry.contentType}"/>`).join('\n  ')}
   ${drawingContentTypeOverrides.map((entry) => `<Override PartName="/${entry.name}" ContentType="${entry.contentType}"/>`).join('\n  ')}
   ${commentContentTypeOverrides.map((entry) => `<Override PartName="/${entry.name}" ContentType="${entry.contentType}"/>`).join('\n  ')}
+  ${threadedCommentContentTypeOverrides.map((entry) => `<Override PartName="/${entry.name}" ContentType="${entry.contentType}"/>`).join('\n  ')}
   <Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/>
   <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
 </Types>`
@@ -1467,6 +1506,13 @@ if (fixtureWorkspaceViews.has(captureView)) {
           error: 'Use Updated, New, or Blocked.'
         }],
           comments: [{ ref: 'B3', author: 'Ava Reviewer', text: 'Confirm beta count before export.' }],
+          threadedComments: [{
+            ref: 'D2:F3',
+            author: 'Mia PM',
+            text: 'These dates still assume the old launch sequence.',
+            resolved: true,
+            replies: [{ author: 'Noah Owner', text: 'Tracked. I will revise the milestone owners.' }]
+          }],
           tables: [{ ref: 'A1:C3', name: 'SmokeTable', styleName: 'TableStyleMedium2', showFilterButton: true, showRowStripes: true }],
           charts: [{ title: 'Status Count Chart', type: 'bar', sourceRange: 'Smoke data!B1:B3' }],
           sparklines: [{ type: 'line', targetCell: 'F2', sourceRange: 'Smoke data!G2:J2', markers: true }],
