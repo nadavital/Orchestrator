@@ -403,16 +403,22 @@ function createDocxFixture(blocks, options = {}) {
         </a:graphicData></a:graphic>
       </wp:inline></w:drawing></w:r></w:p>`
     }
-    if (block && typeof block === 'object' && (block.paragraphStyle || block.bold || block.italic || block.underline || block.highlight)) {
+    if (block && typeof block === 'object' && (block.paragraphStyle || block.bold || block.italic || block.underline || block.highlight || block.textColor || block.fontSizePt || block.fontFamily)) {
       const paragraphStyle = String(block.paragraphStyle ?? '').trim()
       const styleMap = new Map([['title', 'Title'], ['heading1', 'Heading1'], ['heading2', 'Heading2'], ['Title', 'Title'], ['Heading1', 'Heading1'], ['Heading2', 'Heading2']])
       const styleId = styleMap.get(paragraphStyle) ?? ''
       const highlight = String(block.highlight ?? '').trim()
+      const textColor = String(block.textColor ?? '').replace(/^#/, '').trim().toUpperCase()
+      const fontSizeHalfPoints = Number.isFinite(Number(block.fontSizePt)) ? Math.round(Number(block.fontSizePt) * 2) : 0
+      const fontFamily = String(block.fontFamily ?? '').trim()
       const runProperties = [
         block.bold === true ? '<w:b/>' : '',
         block.italic === true ? '<w:i/>' : '',
         block.underline === true ? '<w:u w:val="single"/>' : '',
-        highlight ? `<w:highlight w:val="${escapeXml(highlight)}"/>` : ''
+        highlight ? `<w:highlight w:val="${escapeXml(highlight)}"/>` : '',
+        /^[0-9A-F]{6}$/.test(textColor) ? `<w:color w:val="${textColor}"/>` : '',
+        fontSizeHalfPoints > 0 ? `<w:sz w:val="${fontSizeHalfPoints}"/>` : '',
+        fontFamily ? `<w:rFonts w:ascii="${escapeXml(fontFamily)}" w:hAnsi="${escapeXml(fontFamily)}"/>` : ''
       ].filter(Boolean).join('')
       const paragraphProperties = styleId ? `<w:pPr><w:pStyle w:val="${styleId}"/></w:pPr>` : ''
       return `<w:p>${paragraphProperties}<w:r>${runProperties ? `<w:rPr>${runProperties}</w:rPr>` : ''}<w:t>${escapeXml(String(block.text ?? 'Document styled paragraph'))}</w:t></w:r></w:p>`
@@ -1459,7 +1465,7 @@ if (fixtureWorkspaceViews.has(captureView)) {
     writeFileSync(join(workspaceDir, 'pdf-preview-smoke.pdf'), createPdfFixture(['PDF preview smoke updated', 'PDF preview smoke second page updated']))
     writeFileSync(join(workspaceDir, 'document-preview-smoke.docx'), createDocxFixture([
     'Document smoke updated',
-    { text: 'Document smoke styled heading', paragraphStyle: 'Heading1', bold: true, italic: true, underline: true, highlight: 'yellow' },
+    { text: 'Document smoke styled heading', paragraphStyle: 'Heading1', bold: true, italic: true, underline: true, highlight: 'yellow', textColor: '#1D4ED8', fontSizePt: 18, fontFamily: 'Aptos Display' },
     { rows: [['Metric', 'Value'], ['Rows', '2'], ['Status', 'Updated table']] },
     { imageBase64: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADUlEQVR42mNkYPj/HwADAgH/akqSVAAAAABJRU5ErkJggg==', alt: 'Document smoke embedded image', cx: 914400, cy: 914400 },
     { text: 'Document smoke bullet list item', listKind: 'bullet' },

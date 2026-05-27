@@ -11701,14 +11701,19 @@ function runAutomatedFocusedSurfaceSmoke(
                       documentStyledParagraphs.length === 1 &&
                       documentStyledParagraphs[0] instanceof HTMLElement &&
                       documentStyledParagraphs[0].getAttribute('data-document-paragraph-style') === 'heading1' &&
-                      documentStyledParagraphs[0].getAttribute('data-document-text-style') === 'bold italic underline highlight' &&
+                      documentStyledParagraphs[0].getAttribute('data-document-text-style') === 'bold italic underline highlight color size font' &&
                       documentStyledParagraphs[0].getAttribute('data-document-highlight-color') === '#FEF08A' &&
+                      documentStyledParagraphs[0].getAttribute('data-document-text-color') === '#1D4ED8' &&
+                      documentStyledParagraphs[0].getAttribute('data-document-font-size-pt') === '18' &&
+                      documentStyledParagraphs[0].getAttribute('data-document-font-family') === 'Aptos Display' &&
                       documentStyledParagraphs[0].textContent?.includes('Document smoke styled heading') === true &&
                       documentStyledParagraphStyle !== null &&
-                      Number.parseFloat(documentStyledParagraphStyle.fontSize) >= 17 &&
+                      Number.parseFloat(documentStyledParagraphStyle.fontSize) >= 23 &&
                       Number.parseFloat(documentStyledParagraphStyle.fontWeight) >= 650 &&
                       documentStyledParagraphStyle.fontStyle === 'italic' &&
-                      documentStyledParagraphStyle.textDecorationLine.includes('underline');
+                      documentStyledParagraphStyle.textDecorationLine.includes('underline') &&
+                      documentStyledParagraphStyle.color === 'rgb(29, 78, 216)' &&
+                      documentStyledParagraphStyle.fontFamily.includes('Aptos Display');
                     if (nextPage instanceof HTMLButtonElement) {
                       nextPage.click();
                       await sleep(160);

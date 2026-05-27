@@ -247,6 +247,9 @@ interface DocumentPreviewTextStyle {
   italic?: boolean
   underline?: boolean
   highlightColor?: string
+  textColor?: string
+  fontSizePt?: number
+  fontFamily?: string
 }
 
 interface DocumentPreviewLink {
@@ -770,6 +773,12 @@ function extractDocxParagraphStyle(xml: string): Pick<DocumentPreviewParagraphBl
   if (runProperties.some((runProperty) => hasDocxUnderlineProperty(runProperty))) textStyle.underline = true
   const highlightColor = runProperties.map(extractDocxHighlightColor).find((color): color is string => Boolean(color))
   if (highlightColor) textStyle.highlightColor = highlightColor
+  const textColor = runProperties.map(extractDocxTextColor).find((color): color is string => Boolean(color))
+  if (textColor) textStyle.textColor = textColor
+  const fontSizePt = runProperties.map(extractDocxFontSizePt).find((size): size is number => typeof size === 'number')
+  if (fontSizePt) textStyle.fontSizePt = fontSizePt
+  const fontFamily = runProperties.map(extractDocxFontFamily).find((family): family is string => Boolean(family))
+  if (fontFamily) textStyle.fontFamily = fontFamily
   return {
     ...(paragraphStyle ? { paragraphStyle } : {}),
     ...(Object.keys(textStyle).length > 0 ? { textStyle } : {})
@@ -808,6 +817,29 @@ function extractDocxHighlightColor(xml: string): string | undefined {
     darkblue: '#93C5FD'
   }
   return colors[value] ?? undefined
+}
+
+function extractDocxTextColor(xml: string): string | undefined {
+  const value = /<w:color\b[^>]*\bw:val="([^"]+)"/.exec(xml)?.[1]?.trim()
+  if (!value || value.toLowerCase() === 'auto' || !/^[0-9a-fA-F]{6}$/.test(value)) return undefined
+  return `#${value.toUpperCase()}`
+}
+
+function extractDocxFontSizePt(xml: string): number | undefined {
+  const value = numberAttribute(/<w:sz\b([^>]*)\/?>/.exec(xml)?.[1] ?? '', 'val')
+  if (value === null) return undefined
+  return Math.max(6, Math.min(72, value / 2))
+}
+
+function extractDocxFontFamily(xml: string): string | undefined {
+  const attributes = /<w:rFonts\b([^>]*)\/?>/.exec(xml)?.[1] ?? ''
+  const value = decodeXmlText(
+    /\b(?:w:)?ascii="([^"]+)"/.exec(attributes)?.[1] ??
+    /\b(?:w:)?hAnsi="([^"]+)"/.exec(attributes)?.[1] ??
+    ''
+  ).trim()
+  if (!value || !/^[\w .,'-]{1,48}$/.test(value)) return undefined
+  return value
 }
 
 function extractDocxParagraphLinks(xml: string, relationships: Map<string, string>): DocumentPreviewLink[] {

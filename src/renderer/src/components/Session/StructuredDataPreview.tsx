@@ -51,6 +51,9 @@ interface DocumentTextStyle {
   italic?: boolean
   underline?: boolean
   highlightColor?: string
+  textColor?: string
+  fontSizePt?: number
+  fontFamily?: string
 }
 
 export default function StructuredDataPreview({ name, preview, testId, statusLabel, actions }: Props): JSX.Element {
@@ -349,7 +352,15 @@ function DocumentPreview({
                               data-document-paragraph-style={block.paragraphStyle ?? ''}
                               data-document-text-style={formatDocumentTextStyle(block.textStyle)}
                               data-document-highlight-color={block.textStyle?.highlightColor ?? ''}
-                              style={{ '--document-text-highlight-color': block.textStyle?.highlightColor ?? undefined } as CSSProperties}
+                              data-document-text-color={block.textStyle?.textColor ?? ''}
+                              data-document-font-size-pt={block.textStyle?.fontSizePt ?? ''}
+                              data-document-font-family={block.textStyle?.fontFamily ?? ''}
+                              style={{
+                                '--document-text-highlight-color': block.textStyle?.highlightColor ?? undefined,
+                                color: block.textStyle?.textColor,
+                                fontSize: block.textStyle?.fontSizePt ? `${block.textStyle.fontSizePt}pt` : undefined,
+                                fontFamily: block.textStyle?.fontFamily ? `"${block.textStyle.fontFamily}", var(--font-sans, system-ui)` : undefined
+                              } as CSSProperties}
                             >
                               {block.text}
                             </p>
@@ -538,6 +549,12 @@ function normalizeDocumentTextStyle(value: unknown): DocumentTextStyle | undefin
   if (raw.underline === true) textStyle.underline = true
   const highlightColor = normalizeDocumentColor(raw.highlightColor)
   if (highlightColor) textStyle.highlightColor = highlightColor
+  const textColor = normalizeDocumentColor(raw.textColor)
+  if (textColor) textStyle.textColor = textColor
+  const fontSizePt = typeof raw.fontSizePt === 'number' ? raw.fontSizePt : Number(raw.fontSizePt)
+  if (Number.isFinite(fontSizePt) && fontSizePt >= 6 && fontSizePt <= 72) textStyle.fontSizePt = Math.round(fontSizePt * 2) / 2
+  const fontFamily = normalizeDocumentFontFamily(raw.fontFamily)
+  if (fontFamily) textStyle.fontFamily = fontFamily
   return Object.keys(textStyle).length > 0 ? textStyle : undefined
 }
 
@@ -547,7 +564,10 @@ function formatDocumentTextStyle(textStyle: DocumentTextStyle | undefined): stri
     textStyle.bold ? 'bold' : '',
     textStyle.italic ? 'italic' : '',
     textStyle.underline ? 'underline' : '',
-    textStyle.highlightColor ? 'highlight' : ''
+    textStyle.highlightColor ? 'highlight' : '',
+    textStyle.textColor ? 'color' : '',
+    textStyle.fontSizePt ? 'size' : '',
+    textStyle.fontFamily ? 'font' : ''
   ].filter(Boolean).join(' ')
 }
 
@@ -610,6 +630,11 @@ function normalizeDocumentShapeToken(value: unknown): string | undefined {
 function normalizeDocumentColor(value: unknown): string | undefined {
   const text = String(value ?? '').trim()
   return /^#[0-9A-Fa-f]{6}$/.test(text) ? text.toUpperCase() : undefined
+}
+
+function normalizeDocumentFontFamily(value: unknown): string | undefined {
+  const text = String(value ?? '').trim()
+  return /^[\w .,'-]{1,48}$/.test(text) ? text : undefined
 }
 
 function normalizeDocumentFootnotes(value: unknown): Array<{ id: string; text: string }> {
