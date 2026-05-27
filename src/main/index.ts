@@ -11142,6 +11142,7 @@ function runAutomatedFocusedSurfaceSmoke(
               const documentSectionChecks = {};
               const documentColumnLayoutChecks = {};
               const documentShapeChecks = {};
+              const documentFootnoteChecks = {};
               const spreadsheetRendererChecks = {};
               const spreadsheetControlChecks = {};
               const spreadsheetSheetTabChecks = {};
@@ -11512,6 +11513,8 @@ function runAutomatedFocusedSurfaceSmoke(
                     const pageContent = document.querySelector('[data-testid="workspace-document-preview-page-content"]');
                     const documentTables = [...document.querySelectorAll('[data-testid="workspace-document-preview-table"]')];
                     const documentImages = [...document.querySelectorAll('[data-testid="workspace-document-preview-image"]')];
+                    const documentFootnotes = document.querySelector('[data-testid="workspace-document-preview-footnotes"]');
+                    const documentFootnoteItems = [...document.querySelectorAll('[data-testid="workspace-document-preview-footnote"]')];
                     const documentHeader = document.querySelector('[data-testid="workspace-document-preview-header-text"]');
                     const documentFooter = document.querySelector('[data-testid="workspace-document-preview-footer-text"]');
                     const initialDocumentControls =
@@ -11584,6 +11587,15 @@ function runAutomatedFocusedSurfaceSmoke(
                       pageContentStyle !== null &&
                       pageContentStyle.columnCount === '2' &&
                       Number.parseFloat(pageContentStyle.columnGap) >= 24;
+                    documentFootnoteChecks[testId] =
+                      documentPreview instanceof HTMLElement &&
+                      documentPreview.getAttribute('data-document-preview-footnote-count') === '1' &&
+                      documentFootnotes instanceof HTMLElement &&
+                      documentFootnotes.getAttribute('data-document-footnote-count') === '1' &&
+                      documentFootnoteItems.length === 1 &&
+                      documentFootnoteItems[0] instanceof HTMLElement &&
+                      documentFootnoteItems[0].getAttribute('data-document-footnote-id') === '2' &&
+                      documentFootnoteItems[0].textContent?.includes('Document smoke footnote text') === true;
                     if (nextPage instanceof HTMLButtonElement) {
                       nextPage.click();
                       await sleep(160);
@@ -11595,6 +11607,10 @@ function runAutomatedFocusedSurfaceSmoke(
                     const advancedNextPage = document.querySelector('[data-testid="workspace-document-preview-page-next"]');
                     const advancedPageBody = document.querySelector('[data-testid="workspace-document-preview-page"]');
                     const documentShapes = [...document.querySelectorAll('[data-testid="workspace-document-preview-shape"]')];
+                    documentFootnoteChecks[testId] =
+                      Boolean(documentFootnoteChecks[testId]) &&
+                      advancedPageBody instanceof HTMLElement &&
+                      advancedPageBody.textContent?.includes('Document smoke footnote reference[2]') === true;
                     const pageNavigationWorks =
                       advancedPreview instanceof HTMLElement &&
                       advancedPreview.getAttribute('data-document-preview-page-count') === '2' &&
@@ -13369,6 +13385,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 filesDocumentSectionMetadataWorks: Boolean(documentSectionChecks['workspace-document-preview']),
                 filesDocumentColumnLayoutWorks: Boolean(documentColumnLayoutChecks['workspace-document-preview']),
                 filesDocumentShapeRenderingWorks: Boolean(documentShapeChecks['workspace-document-preview']),
+                filesDocumentFootnotesWorks: Boolean(documentFootnoteChecks['workspace-document-preview']),
                 filesSpreadsheetRendererWorks: Boolean(spreadsheetRendererChecks['workspace-spreadsheet-preview']),
                 filesSlidesRendererWorks: Boolean(slidesRendererChecks['workspace-slides-preview']),
                 filesSlidesShapeLayoutWorks: Boolean(slidesShapeLayoutChecks['workspace-slides-preview']),

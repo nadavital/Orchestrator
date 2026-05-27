@@ -101,6 +101,8 @@ function DocumentPreview({
   const tableCount = preview.document?.tableCount ?? documentBlocks.filter((block) => block.type === 'table').length
   const imageCount = preview.document?.imageCount ?? documentBlocks.filter((block) => block.type === 'image').length
   const shapeCount = preview.document?.shapeCount ?? documentBlocks.filter((block) => block.type === 'shape').length
+  const footnotes = normalizeDocumentFootnotes(preview.document?.footnotes)
+  const footnoteCount = preview.document?.footnoteCount ?? footnotes.length
   const headerText = typeof preview.document?.headerText === 'string' ? preview.document.headerText.trim() : ''
   const footerText = typeof preview.document?.footerText === 'string' ? preview.document.footerText.trim() : ''
   const sectionCount = Math.max(0, Math.floor(Number(preview.document?.sectionCount ?? 0)))
@@ -134,6 +136,7 @@ function DocumentPreview({
       data-document-preview-table-count={tableCount}
       data-document-preview-image-count={imageCount}
       data-document-preview-shape-count={shapeCount}
+      data-document-preview-footnote-count={footnoteCount}
       data-document-preview-header-text={headerText}
       data-document-preview-footer-text={footerText}
       data-document-preview-section-count={sectionCount}
@@ -219,6 +222,7 @@ function DocumentPreview({
         {tableCount > 0 && <span>{tableCount.toLocaleString()} {tableCount === 1 ? 'table' : 'tables'}</span>}
         {imageCount > 0 && <span>{imageCount.toLocaleString()} {imageCount === 1 ? 'image' : 'images'}</span>}
         {shapeCount > 0 && <span>{shapeCount.toLocaleString()} {shapeCount === 1 ? 'shape' : 'shapes'}</span>}
+        {footnoteCount > 0 && <span>{footnoteCount.toLocaleString()} {footnoteCount === 1 ? 'footnote' : 'footnotes'}</span>}
         {sectionCount > 0 && <span>{sectionCount.toLocaleString()} {sectionCount === 1 ? 'section' : 'sections'}</span>}
         {columnCount > 1 && <span>{columnCount.toLocaleString()} columns</span>}
         <span>{pageCount.toLocaleString()} pages</span>
@@ -313,6 +317,24 @@ function DocumentPreview({
                       : <p key={`paragraph-${index}`}>{block.text}</p>
               ))}
             </div>
+            {footnotes.length > 0 && (
+              <aside
+                className="document-preview-footnotes"
+                data-testid={`${testId}-footnotes`}
+                data-document-footnote-count={footnotes.length}
+              >
+                {footnotes.map((footnote) => (
+                  <p
+                    key={footnote.id}
+                    data-testid={`${testId}-footnote`}
+                    data-document-footnote-id={footnote.id}
+                  >
+                    <sup>{footnote.id}</sup>
+                    <span>{footnote.text}</span>
+                  </p>
+                ))}
+              </aside>
+            )}
             {footerText && (
               <div
                 className="document-preview-page-footer"
@@ -415,6 +437,18 @@ function normalizeDocumentShapeToken(value: unknown): string | undefined {
 function normalizeDocumentColor(value: unknown): string | undefined {
   const text = String(value ?? '').trim()
   return /^#[0-9A-Fa-f]{6}$/.test(text) ? text.toUpperCase() : undefined
+}
+
+function normalizeDocumentFootnotes(value: unknown): Array<{ id: string; text: string }> {
+  if (!Array.isArray(value)) return []
+  return value
+    .slice(0, 12)
+    .map((footnote) => {
+      const id = String((footnote as { id?: unknown }).id ?? '').trim()
+      const text = String((footnote as { text?: unknown }).text ?? '').trim()
+      return id && text ? { id, text } : null
+    })
+    .filter((footnote): footnote is { id: string; text: string } => footnote !== null)
 }
 
 function NotebookPreview({

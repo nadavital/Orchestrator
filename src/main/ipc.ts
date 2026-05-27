@@ -180,6 +180,11 @@ interface DocumentPreviewShapeBlock {
   lineColor?: string
 }
 
+interface DocumentPreviewFootnote {
+  id: string
+  text: string
+}
+
 type DocumentPreviewBlock = DocumentPreviewParagraphBlock | DocumentPreviewTableBlock | DocumentPreviewImageBlock | DocumentPreviewShapeBlock
 
 interface DocumentPreviewPayload {
@@ -187,6 +192,8 @@ interface DocumentPreviewPayload {
   tableCount: number
   imageCount: number
   shapeCount?: number
+  footnotes?: DocumentPreviewFootnote[]
+  footnoteCount?: number
   headerText?: string
   footerText?: string
   sectionCount?: number
@@ -458,6 +465,7 @@ function extractDocxPreview(xml: string, archive: Buffer): DocumentPreviewPayloa
   const relationships = extractZipRelationships(archive, 'word/document.xml')
   const sections = extractDocxSections(body, archive, relationships)
   const shapeBlocks = extractDocxShapeBlocks(body)
+  const footnotes = extractDocxFootnotes(body, archive)
   for (const match of body.matchAll(/<w:(p|tbl)\b[\s\S]*?<\/w:\1>/g)) {
     const tag = match[1]
     const blockXml = match[0] ?? ''
@@ -491,6 +499,7 @@ function extractDocxPreview(xml: string, archive: Buffer): DocumentPreviewPayloa
     tableCount,
     imageCount,
     ...(shapeCount > 0 ? { shapeCount } : {}),
+    ...(footnotes.length > 0 ? { footnotes, footnoteCount: footnotes.length } : {}),
     ...sections
   }
 }
@@ -537,11 +546,33 @@ function extractDocxTableRows(xml: string): string[][] {
 }
 
 function extractDocxParagraphText(xml: string): string {
-  const normalized = xml
-    .replace(/<w:tab\s*\/>/g, '\t')
-    .replace(/<w:br\s*\/>/g, '\n')
-  const textRuns = [...normalized.matchAll(/<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/g)]
-  return textRuns.map((match) => decodeXmlText(match[1] ?? '')).join('').trim()
+  const parts = [...xml.matchAll(/<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>|<w:footnoteReference\b[^>]*\bw:id="([^"]+)"[^>]*(?:\/>|><\/w:footnoteReference>)|<w:tab\s*\/>|<w:br\s*\/>/g)]
+  return parts.map((match) => {
+    if (match[1] !== undefined) return decodeXmlText(match[1] ?? '')
+    if (match[2] !== undefined) return `[${match[2] ?? ''}]`
+    return match[0].startsWith('<w:tab') ? '\t' : '\n'
+  }).join('').trim()
+}
+
+function extractDocxFootnotes(xml: string, archive: Buffer): DocumentPreviewFootnote[] {
+  const referenceIds = [...new Set([...xml.matchAll(/<w:footnoteReference\b[^>]*\bw:id="([^"]+)"/g)]
+    .map((match) => match[1] ?? '')
+    .filter((id) => id && id !== '-1' && id !== '0'))]
+  if (referenceIds.length === 0) return []
+  const footnotesXml = readZipEntry(archive, 'word/footnotes.xml')?.toString('utf8') ?? ''
+  if (!footnotesXml) return []
+  return referenceIds
+    .slice(0, 12)
+    .map((id) => {
+      const footnoteXml = new RegExp(`<w:footnote\\b[^>]*\\bw:id="${escapeRegExp(id)}"[\\s\\S]*?<\\/w:footnote>`).exec(footnotesXml)?.[0] ?? ''
+      const text = footnoteXml ? extractDocxParagraphText(footnoteXml) : ''
+      return text ? { id, text } : null
+    })
+    .filter((footnote): footnote is DocumentPreviewFootnote => footnote !== null)
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 function extractDocxImageBlocks(xml: string, archive: Buffer, relationships: Map<string, string>): DocumentPreviewImageBlock[] {

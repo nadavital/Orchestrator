@@ -353,6 +353,9 @@ function createDocxFixture(blocks, options = {}) {
   const imageBlocks = blocks
     .filter((block) => block && typeof block === 'object' && block.imageBase64)
     .map((block, index) => ({ block, index: index + 1 }))
+  const footnoteBlocks = blocks
+    .filter((block) => block && typeof block === 'object' && block.footnoteText)
+    .map((block, index) => ({ block, id: String(index + 2) }))
   const blockXml = blocks.map((block) => {
     if (block && typeof block === 'object' && Array.isArray(block.rows)) {
       return `<w:tbl>
@@ -392,6 +395,11 @@ function createDocxFixture(blocks, options = {}) {
         </a:graphicData></a:graphic>
       </wp:inline></w:drawing></w:r></w:p>`
     }
+    if (block && typeof block === 'object' && block.footnoteText) {
+      const footnote = footnoteBlocks.find((item) => item.block === block)
+      const id = footnote?.id ?? '2'
+      return `<w:p><w:r><w:t>${escapeXml(String(block.text ?? 'Document footnote reference'))}</w:t></w:r><w:r><w:footnoteReference w:id="${id}"/></w:r></w:p>`
+    }
     return `<w:p><w:r><w:t>${escapeXml(String(block))}</w:t></w:r></w:p>`
   }).join('\n    ')
   const headerText = String(options.headerText ?? '').trim()
@@ -417,6 +425,14 @@ function createDocxFixture(blocks, options = {}) {
       data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:r><w:t>${escapeXml(footerText)}</w:t></w:r></w:p></w:ftr>`
     }] : [])
   ]
+  const footnotesEntry = footnoteBlocks.length > 0
+    ? [{
+        name: 'word/footnotes.xml',
+        data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  ${footnoteBlocks.map((footnote) => `<w:footnote w:id="${footnote.id}"><w:p><w:r><w:t>${escapeXml(String(footnote.block.footnoteText))}</w:t></w:r></w:p></w:footnote>`).join('\n  ')}
+</w:footnotes>`
+      }]
+    : []
   return createStoredZip([
     {
       name: '[Content_Types].xml',
@@ -448,6 +464,7 @@ function createDocxFixture(blocks, options = {}) {
     },
     { name: 'word/document.xml', data: documentXml },
     ...headerFooterEntries,
+    ...footnotesEntry,
     ...imageBlocks.map((image) => ({
       name: `word/media/document-image-${image.index}.png`,
       data: Buffer.from(String(image.block.imageBase64), 'base64')
@@ -1041,7 +1058,7 @@ if (fixtureWorkspaceViews.has(captureView)) {
     'This verifies DOCX text preview in the inspector.',
     { rows: [['Metric', 'Value'], ['Rows', '2'], ['Status', 'Baseline table']] },
     'Document smoke baseline section alpha',
-    'Document smoke baseline section beta',
+    { text: 'Document smoke baseline footnote reference', footnoteText: 'Document smoke baseline footnote text' },
     { shapeText: 'Document smoke shape baseline', geometry: 'roundRect', fillColor: '#E0F2FE', lineColor: '#38BDF8' },
     'Document smoke baseline section delta',
     'Document smoke baseline appendix',
@@ -1168,7 +1185,7 @@ if (fixtureWorkspaceViews.has(captureView)) {
     { rows: [['Metric', 'Value'], ['Rows', '2'], ['Status', 'Updated table']] },
     { imageBase64: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADUlEQVR42mNkYPj/HwADAgH/akqSVAAAAABJRU5ErkJggg==', alt: 'Document smoke embedded image', cx: 914400, cy: 914400 },
     'Document smoke section alpha',
-    'Document smoke section beta',
+    { text: 'Document smoke footnote reference', footnoteText: 'Document smoke footnote text' },
     { shapeText: 'Document smoke shape callout', geometry: 'roundRect', fillColor: '#E0F2FE', lineColor: '#38BDF8' },
       'Document smoke section delta',
       'Document smoke appendix',
@@ -1945,6 +1962,7 @@ child.on('exit', async (code) => {
           filesDocumentSectionMetadata: result.filesDocumentSectionMetadataWorks === true,
           filesDocumentColumnLayout: result.filesDocumentColumnLayoutWorks === true,
           filesDocumentShapeRendering: result.filesDocumentShapeRenderingWorks === true,
+          filesDocumentFootnotes: result.filesDocumentFootnotesWorks === true,
           filesSpreadsheetPreview: result.filesSpreadsheetPreviewWorks === true,
           filesSlidesPreview: result.filesSlidesPreviewWorks === true,
           filesSpreadsheetRenderer: result.filesSpreadsheetRendererWorks === true,
@@ -2165,6 +2183,7 @@ child.on('exit', async (code) => {
         filesDocumentSectionMetadata: captureView !== 'inspector' || result.filesDocumentSectionMetadataWorks === true,
         filesDocumentColumnLayout: captureView !== 'inspector' || result.filesDocumentColumnLayoutWorks === true,
         filesDocumentShapeRendering: captureView !== 'inspector' || result.filesDocumentShapeRenderingWorks === true,
+        filesDocumentFootnotes: captureView !== 'inspector' || result.filesDocumentFootnotesWorks === true,
         filesSpreadsheetPreview: captureView !== 'inspector' || result.filesSpreadsheetPreviewWorks === true,
         filesSlidesPreview: captureView !== 'inspector' || result.filesSlidesPreviewWorks === true,
         filesSpreadsheetRenderer: captureView !== 'inspector' || result.filesSpreadsheetRendererWorks === true,
