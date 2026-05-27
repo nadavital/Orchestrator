@@ -71,9 +71,11 @@ interface SpreadsheetPreviewSheet {
   merges?: SpreadsheetPreviewMerge[]
   tables?: SpreadsheetPreviewTable[]
   charts?: SpreadsheetPreviewChart[]
+  drawings?: SpreadsheetPreviewDrawing[]
   conditionalFormatCount?: number
   dataValidationCount?: number
   commentCount?: number
+  drawingCount?: number
   columnWidths?: Array<number | undefined>
   rowHeights?: Array<number | undefined>
   freezePanes?: SpreadsheetFreezePanes
@@ -103,6 +105,26 @@ interface SpreadsheetPreviewChart {
   title: string
   type: string
   sourceRange?: string
+}
+
+interface SpreadsheetPreviewDrawing {
+  kind: 'shape' | 'image'
+  name?: string
+  description?: string
+  text?: string
+  geometry?: string
+  fillColor?: string
+  lineColor?: string
+  row: number
+  column: number
+  rowOffsetPx?: number
+  columnOffsetPx?: number
+  widthPx?: number
+  heightPx?: number
+  toRow?: number
+  toColumn?: number
+  imageDataUrl?: string
+  imageMimeType?: string
 }
 
 interface SpreadsheetPreviewConditionalFormat {
@@ -887,6 +909,7 @@ function extractSpreadsheetPreview(archive: Buffer): { sheets: SpreadsheetPrevie
     const merges = extractWorksheetMerges(xml)
     const tables = extractWorksheetTables(xml, archive, sheet.path)
     const charts = extractWorksheetCharts(xml, archive, sheet.path)
+    const drawings = extractWorksheetDrawings(xml, archive, sheet.path)
     const conditionalFormats = extractWorksheetConditionalFormats(xml)
     applyWorksheetConditionalFormats(parsed.rows, conditionalFormats)
     const dataValidations = extractWorksheetDataValidations(xml, parsed.rows, sheet.name)
@@ -902,6 +925,7 @@ function extractSpreadsheetPreview(archive: Buffer): { sheets: SpreadsheetPrevie
       ...(merges.length > 0 ? { merges } : {}),
       ...(tables.length > 0 ? { tables } : {}),
       ...(charts.length > 0 ? { charts } : {}),
+      ...(drawings.length > 0 ? { drawings, drawingCount: drawings.length } : {}),
       ...(conditionalFormats.length > 0 ? { conditionalFormatCount: conditionalFormats.length } : {}),
       ...(dataValidations.length > 0 ? { dataValidationCount: dataValidations.length } : {}),
       ...(comments.length > 0 ? { commentCount: comments.length } : {}),
@@ -1299,6 +1323,133 @@ function extractWorksheetCharts(xml: string, archive: Buffer, sheetPath: string)
       }]
     })
   }).slice(0, 8)
+}
+
+function extractWorksheetDrawings(xml: string, archive: Buffer, sheetPath: string): SpreadsheetPreviewDrawing[] {
+  const drawingRelIds = [...xml.matchAll(/<drawing\b[^>]*r:id="([^"]+)"[^>]*\/>/g)]
+    .map((match) => match[1] ?? '')
+    .filter(Boolean)
+    .slice(0, 6)
+  if (drawingRelIds.length === 0) return []
+  const sheetRelsXml = readZipEntry(archive, zipRelationshipPathForPart(sheetPath))?.toString('utf8') ?? ''
+  const sheetRelationships = extractZipRelationshipsFromXml(sheetRelsXml, sheetPath)
+  return drawingRelIds.flatMap((drawingRelId) => {
+    const drawingPath = sheetRelationships.get(drawingRelId)
+    if (!drawingPath) return []
+    const drawingXml = readZipEntry(archive, drawingPath)?.toString('utf8') ?? ''
+    if (!drawingXml) return []
+    const drawingRelsXml = readZipEntry(archive, zipRelationshipPathForPart(drawingPath))?.toString('utf8') ?? ''
+    const drawingRelationships = extractZipRelationshipsFromXml(drawingRelsXml, drawingPath)
+    return extractSpreadsheetDrawingAnchors(drawingXml, archive, drawingRelationships)
+  }).slice(0, 16)
+}
+
+function extractSpreadsheetDrawingAnchors(xml: string, archive: Buffer, relationships: Map<string, string>): SpreadsheetPreviewDrawing[] {
+  return [...xml.matchAll(/<xdr:(?:oneCellAnchor|twoCellAnchor)\b[\s\S]*?<\/xdr:(?:oneCellAnchor|twoCellAnchor)>/g)]
+    .slice(0, 24)
+    .flatMap((match) => {
+      const anchorXml = match[0] ?? ''
+      const anchor = extractSpreadsheetDrawingAnchor(anchorXml)
+      if (!anchor) return []
+      const shapeXml = /<xdr:sp\b[\s\S]*?<\/xdr:sp>/.exec(anchorXml)?.[0] ?? ''
+      const pictureXml = /<xdr:pic\b[\s\S]*?<\/xdr:pic>/.exec(anchorXml)?.[0] ?? ''
+      if (shapeXml) {
+        const propertiesXml = /<xdr:spPr\b[\s\S]*?<\/xdr:spPr>/.exec(shapeXml)?.[0] ?? ''
+        const text = extractXmlText(shapeXml).trim().replace(/\s+/g, ' ').slice(0, 160)
+        const name = spreadsheetDrawingName(shapeXml)
+        const description = spreadsheetDrawingDescription(shapeXml)
+        const geometry = /<a:prstGeom\b[^>]*\bprst="([^"]+)"/.exec(propertiesXml)?.[1]
+        const lineXml = /<a:ln\b[\s\S]*?<\/a:ln>/.exec(propertiesXml)?.[0] ?? ''
+        const fillColor = extractSolidFillColor(propertiesXml)
+        const lineColor = lineXml ? extractSolidFillColor(lineXml) : undefined
+        if (!text && !geometry && !name) return []
+        return [{
+          kind: 'shape' as const,
+          ...anchor,
+          ...(name ? { name } : {}),
+          ...(description ? { description } : {}),
+          ...(text ? { text } : {}),
+          ...(geometry ? { geometry } : {}),
+          ...(fillColor ? { fillColor } : {}),
+          ...(lineColor ? { lineColor } : {})
+        }]
+      }
+      if (pictureXml) {
+        const embedId = /\b(?:r:)?embed="([^"]+)"/.exec(pictureXml)?.[1] ?? ''
+        const target = relationships.get(embedId)
+        const image = target ? readZipEntry(archive, target) : null
+        const mimeType = target ? imageMimeTypeForPath(target) : null
+        const name = spreadsheetDrawingName(pictureXml)
+        const description = spreadsheetDrawingDescription(pictureXml)
+        return [{
+          kind: 'image' as const,
+          ...anchor,
+          ...(name ? { name } : {}),
+          ...(description ? { description } : {}),
+          ...(image && mimeType && image.byteLength <= 250_000 ? { imageDataUrl: `data:${mimeType};base64,${image.toString('base64')}`, imageMimeType: mimeType } : {})
+        }]
+      }
+      return []
+    })
+}
+
+function extractSpreadsheetDrawingAnchor(xml: string): Pick<SpreadsheetPreviewDrawing, 'row' | 'column' | 'rowOffsetPx' | 'columnOffsetPx' | 'widthPx' | 'heightPx' | 'toRow' | 'toColumn'> | null {
+  const fromXml = /<xdr:from\b[\s\S]*?<\/xdr:from>/.exec(xml)?.[0] ?? ''
+  if (!fromXml) return null
+  const row = spreadsheetDrawingInteger(fromXml, 'row')
+  const column = spreadsheetDrawingInteger(fromXml, 'col')
+  if (row === null || column === null) return null
+  const toXml = /<xdr:to\b[\s\S]*?<\/xdr:to>/.exec(xml)?.[0] ?? ''
+  const extXml = /<xdr:ext\b([^>]*)\/>/.exec(xml)?.[1] ?? ''
+  const rowOffsetPx = spreadsheetDrawingEmuToPx(spreadsheetDrawingInteger(fromXml, 'rowOff') ?? 0)
+  const columnOffsetPx = spreadsheetDrawingEmuToPx(spreadsheetDrawingInteger(fromXml, 'colOff') ?? 0)
+  const toRow = toXml ? spreadsheetDrawingInteger(toXml, 'row') : null
+  const toColumn = toXml ? spreadsheetDrawingInteger(toXml, 'col') : null
+  const widthEmu = extXml ? numberAttribute(extXml, 'cx') : null
+  const heightEmu = extXml ? numberAttribute(extXml, 'cy') : null
+  const widthPx = widthEmu !== null
+    ? spreadsheetDrawingEmuToPx(widthEmu)
+    : toColumn !== null
+      ? Math.max(28, (toColumn - column) * 88)
+      : undefined
+  const heightPx = heightEmu !== null
+    ? spreadsheetDrawingEmuToPx(heightEmu)
+    : toRow !== null
+      ? Math.max(20, (toRow - row) * 29)
+      : undefined
+  return {
+    row,
+    column,
+    ...(rowOffsetPx > 0 ? { rowOffsetPx } : {}),
+    ...(columnOffsetPx > 0 ? { columnOffsetPx } : {}),
+    ...(widthPx !== undefined ? { widthPx } : {}),
+    ...(heightPx !== undefined ? { heightPx } : {}),
+    ...(toRow !== null ? { toRow } : {}),
+    ...(toColumn !== null ? { toColumn } : {})
+  }
+}
+
+function spreadsheetDrawingInteger(xml: string, tagName: string): number | null {
+  const value = new RegExp(`<xdr:${escapeRegExp(tagName)}>(-?\\d+)<\\/xdr:${escapeRegExp(tagName)}>`).exec(xml)?.[1]
+  if (value === undefined) return null
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function spreadsheetDrawingEmuToPx(value: number): number {
+  return Math.max(0, Math.round(value / 9525))
+}
+
+function spreadsheetDrawingName(xml: string): string | undefined {
+  const attributes = /<xdr:cNvPr\b([^>]*)\/>/.exec(xml)?.[1] ?? ''
+  const value = decodeXmlText(/\bname="([^"]*)"/.exec(attributes)?.[1] ?? '').trim()
+  return value ? value.slice(0, 80) : undefined
+}
+
+function spreadsheetDrawingDescription(xml: string): string | undefined {
+  const attributes = /<xdr:cNvPr\b([^>]*)\/>/.exec(xml)?.[1] ?? ''
+  const value = decodeXmlText(/\bdescr="([^"]*)"/.exec(attributes)?.[1] ?? '').trim()
+  return value ? value.slice(0, 120) : undefined
 }
 
 function extractZipRelationshipsFromXml(xml: string, partPath: string): Map<string, string> {

@@ -11192,11 +11192,12 @@ function runAutomatedFocusedSurfaceSmoke(
               const spreadsheetDataValidationMessageChecks = {};
               const spreadsheetDataValidationOverlayChecks = {};
               const spreadsheetDataValidationRangeChecks = {};
-              const spreadsheetCommentChecks = {};
-              const spreadsheetBorderChecks = {};
-              const spreadsheetChartChecks = {};
-              const spreadsheetChartPlotChecks = {};
-              const spreadsheetFormulaChecks = {};
+	              const spreadsheetCommentChecks = {};
+	              const spreadsheetBorderChecks = {};
+	              const spreadsheetChartChecks = {};
+	              const spreadsheetChartPlotChecks = {};
+	              const spreadsheetDrawingChecks = {};
+	              const spreadsheetFormulaChecks = {};
               const spreadsheetFormulaEditingChecks = {};
               const officeZoomMenuChecks = {};
               const documentPdfZoomMenuChecks = {};
@@ -11841,10 +11842,15 @@ function runAutomatedFocusedSurfaceSmoke(
                     const tableWrap = document.querySelector('[data-testid="workspace-spreadsheet-table-wrap"]');
                     const freezeOverlay = document.querySelector('[data-testid="workspace-spreadsheet-freeze-overlay"]');
                     const freezeColumnLine = document.querySelector('[data-testid="workspace-spreadsheet-freeze-column-line"]');
-                    const freezeColumnHandle = document.querySelector('[data-testid="workspace-spreadsheet-freeze-column-handle"]');
-                    const freezeRowLine = document.querySelector('[data-testid="workspace-spreadsheet-freeze-row-line"]');
-                    const freezeRowHandle = document.querySelector('[data-testid="workspace-spreadsheet-freeze-row-handle"]');
-                    const chartPreview = document.querySelector('[data-testid="workspace-spreadsheet-chart-preview"]');
+	                    const freezeColumnHandle = document.querySelector('[data-testid="workspace-spreadsheet-freeze-column-handle"]');
+	                    const freezeRowLine = document.querySelector('[data-testid="workspace-spreadsheet-freeze-row-line"]');
+	                    const freezeRowHandle = document.querySelector('[data-testid="workspace-spreadsheet-freeze-row-handle"]');
+	                    const spreadsheetDrawings = document.querySelector('[data-testid="workspace-spreadsheet-drawings"]');
+	                    const drawingCards = [...document.querySelectorAll('[data-testid="workspace-spreadsheet-drawing"]')];
+	                    const shapeDrawing = document.querySelector('[data-testid="workspace-spreadsheet-drawing"][data-spreadsheet-drawing-kind="shape"]');
+	                    const imageDrawing = document.querySelector('[data-testid="workspace-spreadsheet-drawing"][data-spreadsheet-drawing-kind="image"]');
+	                    const imageDrawingImg = imageDrawing instanceof HTMLElement ? imageDrawing.querySelector('[data-testid="workspace-spreadsheet-drawing-image"]') : null;
+	                    const chartPreview = document.querySelector('[data-testid="workspace-spreadsheet-chart-preview"]');
                     const chartPlot = document.querySelector('[data-testid="workspace-spreadsheet-chart-plot"]');
                     const chartSvg = document.querySelector('[data-testid="workspace-spreadsheet-chart-svg"]');
                     const chartBars = [...document.querySelectorAll('[data-testid="workspace-spreadsheet-chart-bar"]')];
@@ -12146,9 +12152,9 @@ function runAutomatedFocusedSurfaceSmoke(
                       chartPreview.getAttribute('data-spreadsheet-chart-source-range') === 'Smoke data!B1:B3' &&
                       chartPreview.textContent?.includes('Status Count Chart') === true &&
                       chartPreview.textContent?.includes('Bar') === true;
-                    spreadsheetChartPlotChecks[testId] =
-                      spreadsheetChartChecks[testId] === true &&
-                      chartPreview instanceof HTMLElement &&
+	                    spreadsheetChartPlotChecks[testId] =
+	                      spreadsheetChartChecks[testId] === true &&
+	                      chartPreview instanceof HTMLElement &&
                       chartPreview.getAttribute('data-spreadsheet-chart-rendered') === 'true' &&
                       chartPreview.getAttribute('data-spreadsheet-chart-datum-count') === '2' &&
                       chartPreview.getAttribute('data-spreadsheet-chart-max-value') === '3' &&
@@ -12161,10 +12167,33 @@ function runAutomatedFocusedSurfaceSmoke(
                       chartBars[0] instanceof SVGRectElement &&
                       chartBars[0].getAttribute('data-spreadsheet-chart-datum-label') === 'Alpha' &&
                       chartBars[0].getAttribute('data-spreadsheet-chart-datum-value') === '2' &&
-                      chartBars[1] instanceof SVGRectElement &&
-                      chartBars[1].getAttribute('data-spreadsheet-chart-datum-label') === 'Beta' &&
-                      chartBars[1].getAttribute('data-spreadsheet-chart-datum-value') === '3';
-                    if (alphaCell instanceof HTMLButtonElement) {
+	                      chartBars[1] instanceof SVGRectElement &&
+	                      chartBars[1].getAttribute('data-spreadsheet-chart-datum-label') === 'Beta' &&
+	                      chartBars[1].getAttribute('data-spreadsheet-chart-datum-value') === '3';
+	                    spreadsheetDrawingChecks[testId] =
+	                      spreadsheetPreview instanceof HTMLElement &&
+	                      spreadsheetPreview.getAttribute('data-spreadsheet-drawing-count') === '2' &&
+	                      spreadsheetDrawings instanceof HTMLElement &&
+	                      spreadsheetDrawings.getAttribute('data-spreadsheet-drawing-count') === '2' &&
+	                      drawingCards.length === 2 &&
+	                      shapeDrawing instanceof HTMLElement &&
+	                      shapeDrawing.getAttribute('data-spreadsheet-drawing-name') === 'Workbook shape callout' &&
+	                      shapeDrawing.getAttribute('data-spreadsheet-drawing-text') === 'Workbook shape callout' &&
+	                      shapeDrawing.getAttribute('data-spreadsheet-drawing-geometry') === 'upArrow' &&
+	                      shapeDrawing.getAttribute('data-spreadsheet-drawing-fill-color') === '#2563EB' &&
+	                      shapeDrawing.getAttribute('data-spreadsheet-drawing-line-color') === '#1D4ED8' &&
+	                      shapeDrawing.getAttribute('data-spreadsheet-drawing-anchor-row') === '2' &&
+	                      shapeDrawing.getAttribute('data-spreadsheet-drawing-anchor-column') === 'F' &&
+	                      shapeDrawing.textContent?.includes('Workbook shape callout') === true &&
+	                      imageDrawing instanceof HTMLElement &&
+	                      imageDrawing.getAttribute('data-spreadsheet-drawing-name') === 'Workbook image' &&
+	                      imageDrawing.getAttribute('data-spreadsheet-drawing-description') === 'Workbook smoke embedded image' &&
+	                      imageDrawing.getAttribute('data-spreadsheet-drawing-image-mime-type') === 'image/png' &&
+	                      imageDrawing.getAttribute('data-spreadsheet-drawing-anchor-row') === '4' &&
+	                      imageDrawing.getAttribute('data-spreadsheet-drawing-anchor-column') === 'F' &&
+	                      imageDrawingImg instanceof HTMLElement &&
+	                      imageDrawingImg.getAttribute('src')?.startsWith('data:image/png;base64,') === true;
+	                    if (alphaCell instanceof HTMLButtonElement) {
                       alphaCell.click();
                       await sleep(120);
                     }
@@ -13641,9 +13670,10 @@ function runAutomatedFocusedSurfaceSmoke(
                 filesSpreadsheetDataValidationRangeWorks: Boolean(spreadsheetDataValidationRangeChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetCommentsWorks: Boolean(spreadsheetCommentChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetBordersWorks: Boolean(spreadsheetBorderChecks['workspace-spreadsheet-preview']),
-                filesSpreadsheetChartsWorks: Boolean(spreadsheetChartChecks['workspace-spreadsheet-preview']),
-                filesSpreadsheetChartPlotWorks: Boolean(spreadsheetChartPlotChecks['workspace-spreadsheet-preview']),
-                filesSpreadsheetFormulaEditingWorks: Boolean(spreadsheetFormulaEditingChecks['workspace-spreadsheet-preview']),
+	                filesSpreadsheetChartsWorks: Boolean(spreadsheetChartChecks['workspace-spreadsheet-preview']),
+	                filesSpreadsheetChartPlotWorks: Boolean(spreadsheetChartPlotChecks['workspace-spreadsheet-preview']),
+	                filesSpreadsheetDrawingsWorks: Boolean(spreadsheetDrawingChecks['workspace-spreadsheet-preview']),
+	                filesSpreadsheetFormulaEditingWorks: Boolean(spreadsheetFormulaEditingChecks['workspace-spreadsheet-preview']),
                 filesSlidesControlsWorks: Boolean(slidesControlChecks['workspace-slides-preview']),
                 filesSlidesSpeakerNotesWorks: Boolean(slidesNotesChecks['workspace-slides-preview']),
                 filesSlidesThumbnailRailWorks: Boolean(slidesThumbnailRailChecks['workspace-slides-preview']),

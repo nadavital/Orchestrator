@@ -703,7 +703,40 @@ function createXlsxFixture({ sheetName, rows, sheets }) {
         }
       })
       .filter(Boolean)
-    const commentRelId = comments.length > 0 ? `rId${tableEntries.length + chartEntries.length + 1}` : ''
+    const drawingEntries = (sheet.drawings ?? [])
+      .map((drawing, drawingIndex) => {
+        const id = nextChartId++
+        const relId = `rId${tableEntries.length + chartEntries.length + drawingIndex + 1}`
+        const imageDrawings = drawing?.kind === 'image' && drawing.imageBase64
+          ? [{ relId: 'rId1', imageBase64: String(drawing.imageBase64), name: String(drawing.name ?? 'Workbook image'), alt: String(drawing.alt ?? drawing.description ?? 'Workbook image') }]
+          : []
+        const anchor = xlsxDrawingAnchor(drawing, drawing?.kind === 'image' ? { row: 3, col: 5, widthPx: 48, heightPx: 48 } : { row: 1, col: 5, widthPx: 180, heightPx: 92 })
+        const shapeXml = drawing?.kind === 'image'
+          ? `<xdr:pic><xdr:nvPicPr><xdr:cNvPr id="${id}" name="${escapeXml(String(drawing.name ?? 'Workbook image'))}" descr="${escapeXml(String(drawing.alt ?? drawing.description ?? 'Workbook image'))}"/><xdr:cNvPicPr/></xdr:nvPicPr><xdr:blipFill><a:blip r:embed="rId1"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill><xdr:spPr><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr></xdr:pic>`
+          : `<xdr:sp><xdr:nvSpPr><xdr:cNvPr id="${id}" name="${escapeXml(String(drawing?.name ?? 'Workbook shape'))}" descr="${escapeXml(String(drawing?.description ?? 'Workbook shape'))}"/><xdr:cNvSpPr/></xdr:nvSpPr><xdr:spPr><a:prstGeom prst="${escapeXml(String(drawing?.geometry ?? 'roundRect'))}"><a:avLst/></a:prstGeom><a:solidFill><a:srgbClr val="${escapeXml(String(drawing?.fillColor ?? '#DBEAFE').replace(/^#/, '').toUpperCase())}"/></a:solidFill><a:ln><a:solidFill><a:srgbClr val="${escapeXml(String(drawing?.lineColor ?? '#2563EB').replace(/^#/, '').toUpperCase())}"/></a:solidFill></a:ln></xdr:spPr><xdr:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>${escapeXml(String(drawing?.text ?? 'Workbook shape'))}</a:t></a:r></a:p></xdr:txBody></xdr:sp>`
+        return {
+          id,
+          relId,
+          target: `../drawings/drawing${id}.xml`,
+          drawingPath: `xl/drawings/drawing${id}.xml`,
+          drawingRelsPath: `xl/drawings/_rels/drawing${id}.xml.rels`,
+          imageDrawings,
+          data: `<?xml version="1.0" encoding="UTF-8"?>
+<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <xdr:oneCellAnchor>${anchor.xml}<xdr:ext cx="${anchor.widthPx * 9525}" cy="${anchor.heightPx * 9525}"/>${shapeXml}<xdr:clientData/></xdr:oneCellAnchor>
+</xdr:wsDr>`,
+          relsData: `<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  ${imageDrawings.map((image) => `<Relationship Id="${image.relId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/spreadsheet-drawing-${id}.png"/>`).join('\n  ')}
+</Relationships>`,
+          mediaEntries: imageDrawings.map((image) => ({
+            name: `xl/media/spreadsheet-drawing-${id}.png`,
+            data: Buffer.from(image.imageBase64, 'base64')
+          }))
+        }
+      })
+      .filter(Boolean)
+    const commentRelId = comments.length > 0 ? `rId${tableEntries.length + chartEntries.length + drawingEntries.length + 1}` : ''
     const commentEntry = comments.length > 0
       ? {
           name: `xl/comments/comment${sheetIndex + 1}.xml`,
@@ -768,15 +801,16 @@ function createXlsxFixture({ sheetName, rows, sheets }) {
     }).join('\n      ')
     return {
       name: `xl/worksheets/sheet${sheetIndex + 1}.xml`,
-      relationship: tableEntries.length > 0 || chartEntries.length > 0 || commentEntry
+      relationship: tableEntries.length > 0 || chartEntries.length > 0 || drawingEntries.length > 0 || commentEntry
         ? {
             name: `xl/worksheets/_rels/sheet${sheetIndex + 1}.xml.rels`,
             data: `<?xml version="1.0" encoding="UTF-8"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-  ${tableEntries.map((table) => `<Relationship Id="${table.relId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/table" Target="${table.target}"/>`).join('\n  ')}
-  ${chartEntries.map((chart) => `<Relationship Id="${chart.relId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="${chart.target}"/>`).join('\n  ')}
-  ${commentEntry ? `<Relationship Id="${commentRelId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="../comments/comment${sheetIndex + 1}.xml"/>` : ''}
-</Relationships>`
+    ${tableEntries.map((table) => `<Relationship Id="${table.relId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/table" Target="${table.target}"/>`).join('\n  ')}
+    ${chartEntries.map((chart) => `<Relationship Id="${chart.relId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="${chart.target}"/>`).join('\n  ')}
+    ${drawingEntries.map((drawing) => `<Relationship Id="${drawing.relId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="${drawing.target}"/>`).join('\n  ')}
+    ${commentEntry ? `<Relationship Id="${commentRelId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="../comments/comment${sheetIndex + 1}.xml"/>` : ''}
+  </Relationships>`
           }
         : null,
       tableEntries: tableEntries.map((table) => ({ name: table.path, data: table.data })),
@@ -785,9 +819,14 @@ function createXlsxFixture({ sheetName, rows, sheets }) {
         { name: chart.drawingPath, data: chart.drawingData, contentType: 'application/vnd.openxmlformats-officedocument.drawing+xml' },
         { name: chart.drawingRelsPath, data: chart.drawingRelationshipData }
       ]),
+      drawingEntries: drawingEntries.flatMap((drawing) => [
+        { name: drawing.drawingPath, data: drawing.data, contentType: 'application/vnd.openxmlformats-officedocument.drawing+xml' },
+        { name: drawing.drawingRelsPath, data: drawing.relsData },
+        ...drawing.mediaEntries
+      ]),
       commentEntry,
       data: `<?xml version="1.0" encoding="UTF-8"?>
-<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"${tableEntries.length > 0 || chartEntries.length > 0 ? ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"' : ''}>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"${tableEntries.length > 0 || chartEntries.length > 0 || drawingEntries.length > 0 ? ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"' : ''}>
   ${paneXml}
   ${columnXml ? `<cols>${columnXml}</cols>` : ''}
   <sheetData>
@@ -798,19 +837,24 @@ function createXlsxFixture({ sheetName, rows, sheets }) {
   ${mergeRefs.length > 0 ? `<mergeCells count="${mergeRefs.length}">${mergeRefs.map((merge) => `<mergeCell ref="${escapeXml(merge.toUpperCase())}"/>`).join('')}</mergeCells>` : ''}
   ${tableEntries.length > 0 ? `<tableParts count="${tableEntries.length}">${tableEntries.map((table) => `<tablePart r:id="${table.relId}"/>`).join('')}</tableParts>` : ''}
   ${chartEntries.map((chart) => `<drawing r:id="${chart.relId}"/>`).join('\n  ')}
+  ${drawingEntries.map((drawing) => `<drawing r:id="${drawing.relId}"/>`).join('\n  ')}
 </worksheet>`
-    }
-  })
+      }
+    })
   const worksheetZipEntries = worksheetEntries.flatMap((entry) => [
     { name: entry.name, data: entry.data },
     ...(entry.relationship ? [entry.relationship] : []),
     ...entry.tableEntries,
     ...entry.chartEntries,
+    ...entry.drawingEntries,
     ...(entry.commentEntry ? [entry.commentEntry] : [])
   ])
   const tableContentTypeOverrides = worksheetEntries.flatMap((entry) => entry.tableEntries)
   const chartContentTypeOverrides = worksheetEntries
     .flatMap((entry) => entry.chartEntries)
+    .filter((entry) => entry.contentType)
+  const drawingContentTypeOverrides = worksheetEntries
+    .flatMap((entry) => entry.drawingEntries)
     .filter((entry) => entry.contentType)
   const commentContentTypeOverrides = worksheetEntries
     .map((entry) => entry.commentEntry)
@@ -822,10 +866,12 @@ function createXlsxFixture({ sheetName, rows, sheets }) {
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
   <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
   <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
   ${workbookSheets.map((_, index) => `<Override PartName="/xl/worksheets/sheet${index + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('\n  ')}
   ${tableContentTypeOverrides.map((entry) => `<Override PartName="/${entry.name}" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.table+xml"/>`).join('\n  ')}
   ${chartContentTypeOverrides.map((entry) => `<Override PartName="/${entry.name}" ContentType="${entry.contentType}"/>`).join('\n  ')}
+  ${drawingContentTypeOverrides.map((entry) => `<Override PartName="/${entry.name}" ContentType="${entry.contentType}"/>`).join('\n  ')}
   ${commentContentTypeOverrides.map((entry) => `<Override PartName="/${entry.name}" ContentType="${entry.contentType}"/>`).join('\n  ')}
   <Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/>
   <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
@@ -867,6 +913,20 @@ function createXlsxFixture({ sheetName, rows, sheets }) {
     },
     ...worksheetZipEntries
   ])
+}
+
+function xlsxDrawingAnchor(drawing, fallback) {
+  const row = Math.max(0, Math.floor(Number(drawing?.row ?? fallback.row) || 0))
+  const col = Math.max(0, Math.floor(Number(drawing?.col ?? drawing?.column ?? fallback.col) || 0))
+  const rowOffsetPx = Math.max(0, Math.floor(Number(drawing?.rowOffsetPx ?? 0) || 0))
+  const colOffsetPx = Math.max(0, Math.floor(Number(drawing?.colOffsetPx ?? drawing?.columnOffsetPx ?? 0) || 0))
+  const widthPx = Math.max(1, Math.floor(Number(drawing?.widthPx ?? fallback.widthPx) || fallback.widthPx))
+  const heightPx = Math.max(1, Math.floor(Number(drawing?.heightPx ?? fallback.heightPx) || fallback.heightPx))
+  return {
+    xml: `<xdr:from><xdr:col>${col}</xdr:col><xdr:colOff>${colOffsetPx * 9525}</xdr:colOff><xdr:row>${row}</xdr:row><xdr:rowOff>${rowOffsetPx * 9525}</xdr:rowOff></xdr:from>`,
+    widthPx,
+    heightPx
+  }
 }
 
 function createXlsxStylesXml(cellStyles) {
@@ -1343,11 +1403,15 @@ if (fixtureWorkspaceViews.has(captureView)) {
           errorTitle: 'Unsupported status',
           error: 'Use Updated, New, or Blocked.'
         }],
-        comments: [{ ref: 'B3', author: 'Ava Reviewer', text: 'Confirm beta count before export.' }],
-        tables: [{ ref: 'A1:C3', name: 'SmokeTable', styleName: 'TableStyleMedium2', showFilterButton: true, showRowStripes: true }],
-        charts: [{ title: 'Status Count Chart', type: 'bar', sourceRange: 'Smoke data!B1:B3' }],
-        merges: ['A4:B4']
-      },
+          comments: [{ ref: 'B3', author: 'Ava Reviewer', text: 'Confirm beta count before export.' }],
+          tables: [{ ref: 'A1:C3', name: 'SmokeTable', styleName: 'TableStyleMedium2', showFilterButton: true, showRowStripes: true }],
+          charts: [{ title: 'Status Count Chart', type: 'bar', sourceRange: 'Smoke data!B1:B3' }],
+          drawings: [
+            { kind: 'shape', name: 'Workbook shape callout', description: 'Workbook smoke shape', text: 'Workbook shape callout', geometry: 'upArrow', row: 1, col: 5, rowOffsetPx: 6, colOffsetPx: 4, widthPx: 170, heightPx: 92, fillColor: '#2563EB', lineColor: '#1D4ED8' },
+            { kind: 'image', name: 'Workbook image', alt: 'Workbook smoke embedded image', row: 3, col: 5, rowOffsetPx: 8, colOffsetPx: 96, widthPx: 44, heightPx: 44, imageBase64: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADUlEQVR42mNkYPj/HwADAgH/akqSVAAAAABJRU5ErkJggg==' }
+          ],
+          merges: ['A4:B4']
+        },
         {
           sheetName: 'Totals',
           rows: [
@@ -2131,6 +2195,7 @@ child.on('exit', async (code) => {
           filesSpreadsheetBorders: result.filesSpreadsheetBordersWorks === true,
           filesSpreadsheetCharts: result.filesSpreadsheetChartsWorks === true,
           filesSpreadsheetChartPlot: result.filesSpreadsheetChartPlotWorks === true,
+          filesSpreadsheetDrawings: result.filesSpreadsheetDrawingsWorks === true,
           filesSpreadsheetFormulaEditing: result.filesSpreadsheetFormulaEditingWorks === true,
           filesSlidesControls: result.filesSlidesControlsWorks === true,
           filesSlidesSpeakerNotes: result.filesSlidesSpeakerNotesWorks === true,
@@ -2363,6 +2428,7 @@ child.on('exit', async (code) => {
         filesSpreadsheetBorders: captureView !== 'inspector' || result.filesSpreadsheetBordersWorks === true,
         filesSpreadsheetCharts: captureView !== 'inspector' || result.filesSpreadsheetChartsWorks === true,
         filesSpreadsheetChartPlot: captureView !== 'inspector' || result.filesSpreadsheetChartPlotWorks === true,
+        filesSpreadsheetDrawings: captureView !== 'inspector' || result.filesSpreadsheetDrawingsWorks === true,
         filesSpreadsheetFormulaEditing: captureView !== 'inspector' || result.filesSpreadsheetFormulaEditingWorks === true,
         filesSlidesControls: captureView !== 'inspector' || result.filesSlidesControlsWorks === true,
         filesSlidesSpeakerNotes: captureView !== 'inspector' || result.filesSlidesSpeakerNotesWorks === true,

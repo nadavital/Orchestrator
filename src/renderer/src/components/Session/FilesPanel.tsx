@@ -927,9 +927,11 @@ interface SpreadsheetPreviewPayload {
     merges?: SpreadsheetPreviewMerge[]
     tables?: SpreadsheetPreviewTable[]
     charts?: SpreadsheetPreviewChart[]
+    drawings?: SpreadsheetPreviewDrawing[]
     conditionalFormatCount?: number
     dataValidationCount?: number
     commentCount?: number
+    drawingCount?: number
     columnWidths?: Array<number | undefined>
     rowHeights?: Array<number | undefined>
     freezePanes?: SpreadsheetFreezePanes
@@ -976,6 +978,26 @@ interface SpreadsheetPreviewChart {
   title: string
   type: string
   sourceRange?: string
+}
+
+interface SpreadsheetPreviewDrawing {
+  kind: 'shape' | 'image'
+  name?: string
+  description?: string
+  text?: string
+  geometry?: string
+  fillColor?: string
+  lineColor?: string
+  row: number
+  column: number
+  rowOffsetPx?: number
+  columnOffsetPx?: number
+  widthPx?: number
+  heightPx?: number
+  toRow?: number
+  toColumn?: number
+  imageDataUrl?: string
+  imageMimeType?: string
 }
 
 interface SpreadsheetPreviewChartDatum {
@@ -1056,9 +1078,11 @@ function cloneSpreadsheetSheets(sheets: SpreadsheetPreviewPayload['sheets']): Sp
     ...(sheet.merges ? { merges: sheet.merges.map((merge) => ({ ...merge })) } : {}),
     ...(sheet.tables ? { tables: sheet.tables.map((table) => ({ ...table })) } : {}),
     ...(sheet.charts ? { charts: sheet.charts.map((chart) => ({ ...chart })) } : {}),
+    ...(sheet.drawings ? { drawings: sheet.drawings.map((drawing) => ({ ...drawing })) } : {}),
     ...(sheet.conditionalFormatCount ? { conditionalFormatCount: sheet.conditionalFormatCount } : {}),
     ...(sheet.dataValidationCount ? { dataValidationCount: sheet.dataValidationCount } : {}),
     ...(sheet.commentCount ? { commentCount: sheet.commentCount } : {}),
+    ...(sheet.drawingCount ? { drawingCount: sheet.drawingCount } : {}),
     ...(sheet.columnWidths ? { columnWidths: [...sheet.columnWidths] } : {}),
     ...(sheet.rowHeights ? { rowHeights: [...sheet.rowHeights] } : {}),
     ...(sheet.freezePanes ? { freezePanes: { ...sheet.freezePanes } } : {})
@@ -1272,6 +1296,17 @@ function spreadsheetChartData(
   return rows.slice(0, 12)
 }
 
+function spreadsheetDrawingAnchorLabel(drawing: SpreadsheetPreviewDrawing): string {
+  const from = `${spreadsheetColumnLabel(drawing.column)}${drawing.row + 1}`
+  const to = drawing.toRow !== undefined && drawing.toColumn !== undefined
+    ? `${spreadsheetColumnLabel(drawing.toColumn)}${drawing.toRow + 1}`
+    : ''
+  const size = drawing.widthPx !== undefined && drawing.heightPx !== undefined
+    ? `${drawing.widthPx}x${drawing.heightPx}px`
+    : ''
+  return [to ? `${from}:${to}` : from, size].filter(Boolean).join(' · ')
+}
+
 function spreadsheetCellNumber(cell: SpreadsheetPreviewCell | undefined): number {
   const value = Number(cell?.value ?? 0)
   return Number.isFinite(value) ? value : 0
@@ -1389,7 +1424,8 @@ function SpreadsheetArtifactPreview({
         1,
         ...activeSheet.rows.map((row) => row.length),
         ...(activeSheet.merges ?? []).map((merge) => merge.startColumn + merge.colSpan),
-        ...(activeSheet.tables ?? []).map((table) => table.startColumn + table.colSpan)
+        ...(activeSheet.tables ?? []).map((table) => table.startColumn + table.colSpan),
+        ...(activeSheet.drawings ?? []).map((drawing) => drawing.column + Math.max(1, Math.ceil((drawing.widthPx ?? 88) / 88)))
       )
     : 1
   const activeCellRow = activeSheet ? Math.min(activeCell.row, Math.max(0, activeSheet.rows.length - 1)) : 0
@@ -1415,6 +1451,7 @@ function SpreadsheetArtifactPreview({
   const mergeCount = activeSheet?.merges?.length ?? 0
   const tableCount = activeSheet?.tables?.length ?? 0
   const chartCount = activeSheet?.charts?.length ?? 0
+  const drawingCount = activeSheet?.drawingCount ?? activeSheet?.drawings?.length ?? 0
   const conditionalFormatCount = activeSheet?.conditionalFormatCount ?? 0
   const dataValidationCount = activeSheet?.dataValidationCount ?? 0
   const commentCount = activeSheet?.commentCount ?? 0
@@ -1513,6 +1550,7 @@ function SpreadsheetArtifactPreview({
       data-spreadsheet-merge-count={mergeCount}
       data-spreadsheet-table-count={tableCount}
       data-spreadsheet-chart-count={chartCount}
+      data-spreadsheet-drawing-count={drawingCount}
       data-spreadsheet-conditional-format-count={conditionalFormatCount}
       data-spreadsheet-data-validation-count={dataValidationCount}
       data-spreadsheet-comment-count={commentCount}
@@ -1731,11 +1769,11 @@ function SpreadsheetArtifactPreview({
                         ? 26 + spreadsheetDimensionOffset(activeSheet.rowHeights, rowIndex, 29)
                         : undefined
                       return (
-                      <tr
-                        key={rowIndex}
-                        data-spreadsheet-row-height={rowHeight ?? ''}
-                        style={{ height: rowHeight }}
-                      >
+                        <tr
+                          key={rowIndex}
+                          data-spreadsheet-row-height={rowHeight ?? ''}
+                          style={{ height: rowHeight }}
+                        >
                         <th
                           className="workspace-spreadsheet-row-header"
                           data-testid="workspace-spreadsheet-row-header"
@@ -1978,79 +2016,133 @@ function SpreadsheetArtifactPreview({
                     onPointerDown={(event) => { beginFreezePaneDrag('row', event) }}
                   />
                 </div>
-              </div>
-              {(activeSheet.charts?.length ?? 0) > 0 && (
-                <div className="workspace-spreadsheet-charts" data-testid="workspace-spreadsheet-chart-preview-list">
-                  {activeSheet.charts?.map((chart, index) => {
-                    const chartData = spreadsheetChartData(activeSheet, chart)
-                    const chartMax = Math.max(1, ...chartData.map((datum) => datum.value))
-                    return (
+                </div>
+                {(activeSheet.drawings?.length ?? 0) > 0 && (
+                  <div
+                    className="workspace-spreadsheet-drawings"
+                    data-testid="workspace-spreadsheet-drawings"
+                    data-spreadsheet-drawing-count={activeSheet.drawings?.length ?? 0}
+                  >
+                    {activeSheet.drawings?.map((drawing, index) => (
                       <div
-                        key={`${chart.title}-${index}`}
-                        className="workspace-spreadsheet-chart-card"
-                        data-testid="workspace-spreadsheet-chart-preview"
-                        data-spreadsheet-chart-title={chart.title}
-                        data-spreadsheet-chart-type={chart.type}
-                        data-spreadsheet-chart-source-range={chart.sourceRange ?? ''}
-                        data-spreadsheet-chart-rendered={chartData.length > 0 ? 'true' : 'false'}
-                        data-spreadsheet-chart-datum-count={chartData.length}
-                        data-spreadsheet-chart-max-value={chartMax}
+                        key={`${drawing.kind}-${drawing.name ?? drawing.text ?? index}`}
+                        className="workspace-spreadsheet-drawing-card"
+                        data-testid="workspace-spreadsheet-drawing"
+                        data-spreadsheet-drawing-kind={drawing.kind}
+                        data-spreadsheet-drawing-name={drawing.name ?? ''}
+                        data-spreadsheet-drawing-description={drawing.description ?? ''}
+                        data-spreadsheet-drawing-text={drawing.text ?? ''}
+                        data-spreadsheet-drawing-geometry={drawing.geometry ?? ''}
+                        data-spreadsheet-drawing-fill-color={drawing.fillColor ?? ''}
+                        data-spreadsheet-drawing-line-color={drawing.lineColor ?? ''}
+                        data-spreadsheet-drawing-anchor-row={drawing.row + 1}
+                        data-spreadsheet-drawing-anchor-column={spreadsheetColumnLabel(drawing.column)}
+                        data-spreadsheet-drawing-width-px={drawing.widthPx ?? ''}
+                        data-spreadsheet-drawing-height-px={drawing.heightPx ?? ''}
+                        data-spreadsheet-drawing-image-mime-type={drawing.imageMimeType ?? ''}
                       >
-                        <div className="workspace-spreadsheet-chart-header">
-                          <Icon name="usage" size={14} />
-                          <div className="min-w-0">
-                            <div className="workspace-spreadsheet-chart-title">{chart.title}</div>
-                            <div className="workspace-spreadsheet-chart-meta">{chart.type}{chart.sourceRange ? ` · ${chart.sourceRange}` : ''}</div>
+                        <div
+                          className="workspace-spreadsheet-drawing-preview"
+                          data-spreadsheet-drawing-preview-kind={drawing.kind}
+                          style={{
+                            '--spreadsheet-drawing-fill': drawing.fillColor ?? 'color-mix(in srgb, var(--accent) 16%, var(--surface-bg))',
+                            '--spreadsheet-drawing-line': drawing.lineColor ?? 'var(--border-strong)'
+                          } as CSSProperties}
+                        >
+                          {drawing.kind === 'image' && drawing.imageDataUrl ? (
+                            <img
+                              src={drawing.imageDataUrl}
+                              alt={drawing.description ?? drawing.name ?? 'Workbook image'}
+                              data-testid="workspace-spreadsheet-drawing-image"
+                            />
+                          ) : (
+                            <span>{drawing.kind === 'image' ? 'Image' : drawing.text || drawing.geometry || 'Shape'}</span>
+                          )}
+                        </div>
+                        <div className="workspace-spreadsheet-drawing-body">
+                          <div className="workspace-spreadsheet-drawing-title">
+                            {drawing.text || drawing.description || drawing.name || (drawing.kind === 'image' ? 'Image' : 'Shape')}
+                          </div>
+                          <div className="workspace-spreadsheet-drawing-meta">
+                            {drawing.kind}{drawing.geometry ? ` · ${drawing.geometry}` : ''} · {spreadsheetDrawingAnchorLabel(drawing)}
                           </div>
                         </div>
-                        {chartData.length > 0 && (
-                          <div
-                            className="workspace-spreadsheet-chart-plot"
-                            data-testid="workspace-spreadsheet-chart-plot"
-                            data-spreadsheet-chart-labels={chartData.map((datum) => datum.label).join('|')}
-                            data-spreadsheet-chart-values={chartData.map((datum) => String(datum.value)).join('|')}
-                          >
-                            <svg
-                              className="workspace-spreadsheet-chart-svg"
-                              data-testid="workspace-spreadsheet-chart-svg"
-                              viewBox="0 0 220 104"
-                              role="img"
-                              aria-label={`${chart.title} chart`}
-                            >
-                              <line className="workspace-spreadsheet-chart-axis" x1="24" y1="84" x2="212" y2="84" />
-                              <line className="workspace-spreadsheet-chart-axis" x1="24" y1="12" x2="24" y2="84" />
-                              {chartData.map((datum, datumIndex) => {
-                                const barWidth = Math.max(14, Math.min(32, 132 / Math.max(1, chartData.length)))
-                                const gap = Math.max(10, (164 - chartData.length * barWidth) / Math.max(1, chartData.length + 1))
-                                const barHeight = Math.max(2, Math.round((datum.value / chartMax) * 64))
-                                const x = 30 + gap + datumIndex * (barWidth + gap)
-                                const y = 84 - barHeight
-                                return (
-                                  <g key={datum.address} data-spreadsheet-chart-datum-address={datum.address}>
-                                    <rect
-                                      className="workspace-spreadsheet-chart-bar"
-                                      data-testid="workspace-spreadsheet-chart-bar"
-                                      data-spreadsheet-chart-datum-label={datum.label}
-                                      data-spreadsheet-chart-datum-value={datum.value}
-                                      x={x}
-                                      y={y}
-                                      width={barWidth}
-                                      height={barHeight}
-                                      rx="3"
-                                    />
-                                    <text className="workspace-spreadsheet-chart-value" x={x + barWidth / 2} y={Math.max(10, y - 4)} textAnchor="middle">{datum.value}</text>
-                                    <text className="workspace-spreadsheet-chart-label" x={x + barWidth / 2} y="98" textAnchor="middle">{datum.label}</text>
-                                  </g>
-                                )
-                              })}
-                            </svg>
-                          </div>
-                        )}
                       </div>
-                    )
-                  })}
-                </div>
-              )}
+                    ))}
+                  </div>
+                )}
+                {(activeSheet.charts?.length ?? 0) > 0 && (
+                  <div className="workspace-spreadsheet-charts" data-testid="workspace-spreadsheet-chart-preview-list">
+                    {activeSheet.charts?.map((chart, index) => {
+                      const chartData = spreadsheetChartData(activeSheet, chart)
+                      const chartMax = Math.max(1, ...chartData.map((datum) => datum.value))
+                      return (
+                        <div
+                          key={`${chart.title}-${index}`}
+                          className="workspace-spreadsheet-chart-card"
+                          data-testid="workspace-spreadsheet-chart-preview"
+                          data-spreadsheet-chart-title={chart.title}
+                          data-spreadsheet-chart-type={chart.type}
+                          data-spreadsheet-chart-source-range={chart.sourceRange ?? ''}
+                          data-spreadsheet-chart-rendered={chartData.length > 0 ? 'true' : 'false'}
+                          data-spreadsheet-chart-datum-count={chartData.length}
+                          data-spreadsheet-chart-max-value={chartMax}
+                        >
+                          <div className="workspace-spreadsheet-chart-header">
+                            <Icon name="usage" size={14} />
+                            <div className="min-w-0">
+                              <div className="workspace-spreadsheet-chart-title">{chart.title}</div>
+                              <div className="workspace-spreadsheet-chart-meta">{chart.type}{chart.sourceRange ? ` · ${chart.sourceRange}` : ''}</div>
+                            </div>
+                          </div>
+                          {chartData.length > 0 && (
+                            <div
+                              className="workspace-spreadsheet-chart-plot"
+                              data-testid="workspace-spreadsheet-chart-plot"
+                              data-spreadsheet-chart-labels={chartData.map((datum) => datum.label).join('|')}
+                              data-spreadsheet-chart-values={chartData.map((datum) => String(datum.value)).join('|')}
+                            >
+                              <svg
+                                className="workspace-spreadsheet-chart-svg"
+                                data-testid="workspace-spreadsheet-chart-svg"
+                                viewBox="0 0 220 104"
+                                role="img"
+                                aria-label={`${chart.title} chart`}
+                              >
+                                <line className="workspace-spreadsheet-chart-axis" x1="24" y1="84" x2="212" y2="84" />
+                                <line className="workspace-spreadsheet-chart-axis" x1="24" y1="12" x2="24" y2="84" />
+                                {chartData.map((datum, datumIndex) => {
+                                  const barWidth = Math.max(14, Math.min(32, 132 / Math.max(1, chartData.length)))
+                                  const gap = Math.max(10, (164 - chartData.length * barWidth) / Math.max(1, chartData.length + 1))
+                                  const barHeight = Math.max(2, Math.round((datum.value / chartMax) * 64))
+                                  const x = 30 + gap + datumIndex * (barWidth + gap)
+                                  const y = 84 - barHeight
+                                  return (
+                                    <g key={datum.address} data-spreadsheet-chart-datum-address={datum.address}>
+                                      <rect
+                                        className="workspace-spreadsheet-chart-bar"
+                                        data-testid="workspace-spreadsheet-chart-bar"
+                                        data-spreadsheet-chart-datum-label={datum.label}
+                                        data-spreadsheet-chart-datum-value={datum.value}
+                                        x={x}
+                                        y={y}
+                                        width={barWidth}
+                                        height={barHeight}
+                                        rx="3"
+                                      />
+                                      <text className="workspace-spreadsheet-chart-value" x={x + barWidth / 2} y={Math.max(10, y - 4)} textAnchor="middle">{datum.value}</text>
+                                      <text className="workspace-spreadsheet-chart-label" x={x + barWidth / 2} y="98" textAnchor="middle">{datum.label}</text>
+                                    </g>
+                                  )
+                                })}
+                              </svg>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
               {commentCells.length > 0 && (
                 <div
                   className="workspace-spreadsheet-comments"
@@ -2416,6 +2508,9 @@ function parseSpreadsheetPreview(text: string | undefined): SpreadsheetPreviewPa
         charts: Array.isArray(sheet.charts)
           ? sheet.charts.map((chart) => normalizeSpreadsheetChart(chart)).filter((chart): chart is SpreadsheetPreviewChart => Boolean(chart))
           : undefined,
+        drawings: Array.isArray(sheet.drawings)
+          ? sheet.drawings.map((drawing) => normalizeSpreadsheetDrawing(drawing)).filter((drawing): drawing is SpreadsheetPreviewDrawing => Boolean(drawing))
+          : undefined,
         conditionalFormatCount: typeof sheet.conditionalFormatCount === 'number' && sheet.conditionalFormatCount > 0
           ? Math.min(24, Math.floor(sheet.conditionalFormatCount))
           : undefined,
@@ -2424,6 +2519,9 @@ function parseSpreadsheetPreview(text: string | undefined): SpreadsheetPreviewPa
           : undefined,
         commentCount: typeof sheet.commentCount === 'number' && sheet.commentCount > 0
           ? Math.min(24, Math.floor(sheet.commentCount))
+          : undefined,
+        drawingCount: typeof sheet.drawingCount === 'number' && sheet.drawingCount > 0
+          ? Math.min(24, Math.floor(sheet.drawingCount))
           : undefined,
         columnWidths: Array.isArray(sheet.columnWidths)
           ? normalizeSpreadsheetDimensionArray(sheet.columnWidths, 48, 320, 12)
@@ -2615,6 +2713,61 @@ function normalizeSpreadsheetChart(value: unknown): SpreadsheetPreviewChart | nu
   }
 }
 
+function normalizeSpreadsheetDrawing(value: unknown): SpreadsheetPreviewDrawing | null {
+  if (!value || typeof value !== 'object') return null
+  const candidate = value as {
+    kind?: unknown
+    name?: unknown
+    description?: unknown
+    text?: unknown
+    geometry?: unknown
+    fillColor?: unknown
+    lineColor?: unknown
+    row?: unknown
+    column?: unknown
+    rowOffsetPx?: unknown
+    columnOffsetPx?: unknown
+    widthPx?: unknown
+    heightPx?: unknown
+    toRow?: unknown
+    toColumn?: unknown
+    imageDataUrl?: unknown
+    imageMimeType?: unknown
+  }
+  if (candidate.kind !== 'shape' && candidate.kind !== 'image') return null
+  const row = normalizeSpreadsheetSpanNumber(candidate.row, 0, 999)
+  const column = normalizeSpreadsheetSpanNumber(candidate.column, 0, 255)
+  if (row === null || column === null) return null
+  const rowOffsetPx = normalizeSpreadsheetOptionalNumber(candidate.rowOffsetPx, 0, 600)
+  const columnOffsetPx = normalizeSpreadsheetOptionalNumber(candidate.columnOffsetPx, 0, 1200)
+  const widthPx = normalizeSpreadsheetOptionalNumber(candidate.widthPx, 1, 1200)
+  const heightPx = normalizeSpreadsheetOptionalNumber(candidate.heightPx, 1, 800)
+  const toRow = normalizeSpreadsheetOptionalInteger(candidate.toRow, 0, 999)
+  const toColumn = normalizeSpreadsheetOptionalInteger(candidate.toColumn, 0, 255)
+  const imageDataUrl = typeof candidate.imageDataUrl === 'string' && candidate.imageDataUrl.startsWith('data:image/')
+    ? candidate.imageDataUrl
+    : undefined
+  return {
+    kind: candidate.kind,
+    row,
+    column,
+    ...(boundedString(candidate.name, 80) ? { name: boundedString(candidate.name, 80) } : {}),
+    ...(boundedString(candidate.description, 120) ? { description: boundedString(candidate.description, 120) } : {}),
+    ...(boundedString(candidate.text, 160) ? { text: boundedString(candidate.text, 160) } : {}),
+    ...(boundedString(candidate.geometry, 40) ? { geometry: boundedString(candidate.geometry, 40) } : {}),
+    ...(boundedSpreadsheetColor(candidate.fillColor) ? { fillColor: boundedSpreadsheetColor(candidate.fillColor) } : {}),
+    ...(boundedSpreadsheetColor(candidate.lineColor) ? { lineColor: boundedSpreadsheetColor(candidate.lineColor) } : {}),
+    ...(rowOffsetPx !== undefined ? { rowOffsetPx } : {}),
+    ...(columnOffsetPx !== undefined ? { columnOffsetPx } : {}),
+    ...(widthPx !== undefined ? { widthPx } : {}),
+    ...(heightPx !== undefined ? { heightPx } : {}),
+    ...(toRow !== undefined ? { toRow } : {}),
+    ...(toColumn !== undefined ? { toColumn } : {}),
+    ...(imageDataUrl ? { imageDataUrl } : {}),
+    ...(typeof candidate.imageMimeType === 'string' && candidate.imageMimeType.startsWith('image/') ? { imageMimeType: candidate.imageMimeType.slice(0, 40) } : {})
+  }
+}
+
 function normalizeSpreadsheetFreezePanes(value: unknown): SpreadsheetFreezePanes | undefined {
   if (!value || typeof value !== 'object') return undefined
   const candidate = value as { rows?: unknown; columns?: unknown }
@@ -2624,10 +2777,33 @@ function normalizeSpreadsheetFreezePanes(value: unknown): SpreadsheetFreezePanes
   return { rows, columns }
 }
 
+function normalizeSpreadsheetOptionalInteger(value: unknown, min: number, max: number): number | undefined {
+  const normalized = normalizeSpreadsheetSpanNumber(value, min, max)
+  return normalized === null ? undefined : normalized
+}
+
+function normalizeSpreadsheetOptionalNumber(value: unknown, min: number, max: number): number | undefined {
+  const number = typeof value === 'number' ? value : Number(value)
+  if (!Number.isFinite(number) || number < min || number > max) return undefined
+  return Math.round(number)
+}
+
 function normalizeSpreadsheetSpanNumber(value: unknown, min: number, max: number): number | null {
   const number = typeof value === 'number' ? value : Number(value)
   if (!Number.isInteger(number) || number < min || number > max) return null
   return number
+}
+
+function boundedString(value: unknown, maxLength: number): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const normalized = value.trim().replace(/\s+/g, ' ').slice(0, maxLength)
+  return normalized || undefined
+}
+
+function boundedSpreadsheetColor(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const normalized = value.trim().toUpperCase()
+  return /^#[0-9A-F]{6}$/.test(normalized) ? normalized : undefined
 }
 
 function normalizeSpreadsheetDimensionArray(values: unknown[], min: number, max: number, limit: number): Array<number | undefined> {
