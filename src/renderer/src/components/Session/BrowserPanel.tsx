@@ -1052,6 +1052,28 @@ export default function BrowserPanel({
     }
   }
 
+  const captureBrowserClientToolScreenshot = async (webview: WebviewElement | null): Promise<Record<string, unknown>> => {
+    if (!webview || !(webview.getURL?.() || currentUrl)) {
+      return { ok: false, error: 'Browser page is not available for screenshot capture.' }
+    }
+    const image = await webview.capturePage()
+    const size = image.getSize()
+    const dataUrl = image.toDataURL()
+    const saved = await window.api.browser.saveDataUrlArtifact(dataUrl, `browser-client-tool-${Date.now()}.png`)
+    setScreenshot(dataUrl)
+    setArtifactPath(saved.path)
+    patchWorkbench({ inspectorOpen: true, inspectorMode: 'console' })
+    return {
+      ok: true,
+      mimeType: 'image/png',
+      width: size.width,
+      height: size.height,
+      byteSize: saved.size,
+      artifactPath: saved.path,
+      dataUrlLength: dataUrl.length
+    }
+  }
+
   const answerBrowserClientTool = (
     call: BrowserClientToolCall,
     success: boolean,
@@ -1161,7 +1183,7 @@ export default function BrowserPanel({
     const expectedSessionId = sessionIdFromBrowserHost(hostId)
     if (!expectedSessionId || call.sessionId !== expectedSessionId) return
     if (call.namespace !== 'orchestrator') return
-    if (call.tool !== 'browser_open' && call.tool !== 'browser_read' && call.tool !== 'browser_click' && call.tool !== 'browser_type') return
+    if (call.tool !== 'browser_open' && call.tool !== 'browser_read' && call.tool !== 'browser_click' && call.tool !== 'browser_type' && call.tool !== 'browser_screenshot') return
     if (handledClientToolRequestIdsRef.current.has(call.requestId)) return
     handledClientToolRequestIdsRef.current.add(call.requestId)
 
@@ -1184,6 +1206,16 @@ export default function BrowserPanel({
       }
 
       const webview = await waitForActiveWebview(webviewRef, 1000)
+      if (call.tool === 'browser_screenshot') {
+        if (webview) await waitForWebviewSettled(webview, 1200)
+        const screenshotResult = await captureBrowserClientToolScreenshot(webview)
+        answerBrowserClientTool(call, screenshotResult.ok === true, {
+          ...(await browserClientToolSnapshot(webview)),
+          action: 'screenshot',
+          screenshot: screenshotResult
+        })
+        return
+      }
       if ((call.tool === 'browser_click' || call.tool === 'browser_type') && webview) {
         await webview.executeJavaScript<VisibleTarget[]>(VISIBLE_TARGETS_SCRIPT, true)
         const actionResult = await runBrowserClientToolAction(webview, call.tool === 'browser_click' ? 'click' : 'type', call.arguments)

@@ -14263,6 +14263,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
             };
             let browserClientToolBridgeWorks = false;
             let browserClientToolActionsWork = false;
+            let browserClientToolScreenshotWorks = false;
             if (activeSmokeSession) {
               const readResponse = await window.api.browser.runClientToolSmoke({
                 sessionId: activeSmokeSession.id,
@@ -14292,6 +14293,13 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                 arguments: { targetText: 'Smoke input', text: 'CLIENT_TYPE_OK' }
               });
               const typePayload = parseClientToolPayload(typeResponse);
+              const screenshotResponse = await window.api.browser.runClientToolSmoke({
+                sessionId: activeSmokeSession.id,
+                namespace: 'orchestrator',
+                tool: 'browser_screenshot',
+                arguments: {}
+              });
+              const screenshotPayload = parseClientToolPayload(screenshotResponse);
               browserClientToolActionsWork =
                 clickResponse?.success === true &&
                 typeResponse?.success === true &&
@@ -14304,6 +14312,17 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                 typePayload.targetAction?.ok === true &&
                 typePayload.targetAction?.target?.value?.includes('CLIENT_TYPE_OK') === true &&
                 typePayload.targetAction?.pageState?.inputValue?.includes('CLIENT_TYPE_OK') === true;
+              browserClientToolScreenshotWorks =
+                screenshotResponse?.success === true &&
+                screenshotPayload.ok === true &&
+                screenshotPayload.action === 'screenshot' &&
+                screenshotPayload.screenshot?.ok === true &&
+                screenshotPayload.screenshot?.mimeType === 'image/png' &&
+                Number(screenshotPayload.screenshot?.width ?? 0) > 0 &&
+                Number(screenshotPayload.screenshot?.height ?? 0) > 0 &&
+                Number(screenshotPayload.screenshot?.byteSize ?? 0) > 0 &&
+                typeof screenshotPayload.screenshot?.artifactPath === 'string' &&
+                screenshotPayload.screenshot.artifactPath.endsWith('.png');
               browserClientToolBridgeWorks =
                 readResponse?.success === true &&
                 openResponse?.success === true &&
@@ -14312,6 +14331,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                 readPayload.action === 'read' &&
                 openPayload.action === 'open' &&
                 browserClientToolActionsWork &&
+                browserClientToolScreenshotWorks &&
                 Array.isArray(openPayload.targets) &&
                 openPayload.targets.some((target) => target?.visibleText === 'Target button') &&
                 typeof readPayload.visibleStructure === 'string' &&
@@ -14942,6 +14962,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserManagerStateBridgeWorks,
               browserClientToolBridgeWorks,
               browserClientToolActionsWork,
+              browserClientToolScreenshotWorks,
               browserCaptureGeometryWorks,
               browserUseNoMutationWorks,
               browserCacheReloadWorks,

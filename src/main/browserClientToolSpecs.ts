@@ -5,6 +5,7 @@ export const BROWSER_CLIENT_TOOL_OPEN = 'browser_open'
 export const BROWSER_CLIENT_TOOL_READ = 'browser_read'
 export const BROWSER_CLIENT_TOOL_CLICK = 'browser_click'
 export const BROWSER_CLIENT_TOOL_TYPE = 'browser_type'
+export const BROWSER_CLIENT_TOOL_SCREENSHOT = 'browser_screenshot'
 
 export const browserClientDynamicTools: JsonObject[] = [
   {
@@ -91,6 +92,16 @@ export const browserClientDynamicTools: JsonObject[] = [
         }
       }
     }
+  },
+  {
+    namespace: BROWSER_CLIENT_TOOL_NAMESPACE,
+    name: BROWSER_CLIENT_TOOL_SCREENSHOT,
+    description: 'Capture the current Orchestrator Browser page and return screenshot metadata plus the saved local artifact path.',
+    inputSchema: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {}
+    }
   }
 ]
 
@@ -100,6 +111,7 @@ export function isBrowserClientDynamicTool(namespace: string | null | undefined,
       tool === BROWSER_CLIENT_TOOL_OPEN ||
       tool === BROWSER_CLIENT_TOOL_READ ||
       tool === BROWSER_CLIENT_TOOL_CLICK ||
-      tool === BROWSER_CLIENT_TOOL_TYPE
+      tool === BROWSER_CLIENT_TOOL_TYPE ||
+      tool === BROWSER_CLIENT_TOOL_SCREENSHOT
     )
 }

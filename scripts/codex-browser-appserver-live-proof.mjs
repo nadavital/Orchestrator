@@ -15,6 +15,7 @@ const {
   BROWSER_CLIENT_TOOL_CLICK,
   BROWSER_CLIENT_TOOL_OPEN,
   BROWSER_CLIENT_TOOL_READ,
+  BROWSER_CLIENT_TOOL_SCREENSHOT,
   BROWSER_CLIENT_TOOL_TYPE,
   browserClientDynamicTools,
   isBrowserClientDynamicTool
@@ -41,6 +42,7 @@ const browserOpenFullName = `${BROWSER_CLIENT_TOOL_NAMESPACE}.${BROWSER_CLIENT_T
 const browserReadFullName = `${BROWSER_CLIENT_TOOL_NAMESPACE}.${BROWSER_CLIENT_TOOL_READ}`
 const browserClickFullName = `${BROWSER_CLIENT_TOOL_NAMESPACE}.${BROWSER_CLIENT_TOOL_CLICK}`
 const browserTypeFullName = `${BROWSER_CLIENT_TOOL_NAMESPACE}.${BROWSER_CLIENT_TOOL_TYPE}`
+const browserScreenshotFullName = `${BROWSER_CLIENT_TOOL_NAMESPACE}.${BROWSER_CLIENT_TOOL_SCREENSHOT}`
 const defaultPrompt = enableRealBrowserToolProof
   ? [
       'This is a live Orchestrator/Codex app-server Browser dynamic client-tool proof.',
@@ -50,8 +52,9 @@ const defaultPrompt = enableRealBrowserToolProof
       `Then call the dynamic client tool named ${browserReadFullName}.`,
       `Then call ${browserClickFullName} for the Target button. You may use the nodeId returned by ${BROWSER_CLIENT_TOOL_READ}, or use the visible text "Target button".`,
       `Then call ${browserTypeFullName} for the Smoke input with text LIVE_TYPE_OK. You may use the nodeId returned by ${BROWSER_CLIENT_TOOL_READ}, or use targetText "Smoke input".`,
+      `Then call ${browserScreenshotFullName}.`,
       `Then call ${browserReadFullName} one more time.`,
-      `After both tools return, reply with exactly ${expectedToken}.`,
+      `After all tools return, reply with exactly ${expectedToken}.`,
       `If any tool is not available, reply with exactly ${noBrowserToken}.`
     ]
   : enableDynamicToolProof
@@ -194,16 +197,18 @@ try {
       request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_OPEN}"`) ||
       request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_READ}"`) ||
       request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_CLICK}"`) ||
-      request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_TYPE}"`)
+      request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_TYPE}"`) ||
+      request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_SCREENSHOT}"`)
     )
   )
   const calledBrowserOpen = realBrowserToolCalls.some((request) => request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_OPEN}"`))
   const calledBrowserRead = realBrowserToolCalls.some((request) => request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_READ}"`))
   const calledBrowserClick = realBrowserToolCalls.some((request) => request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_CLICK}"`))
   const calledBrowserType = realBrowserToolCalls.some((request) => request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_TYPE}"`))
+  const calledBrowserScreenshot = realBrowserToolCalls.some((request) => request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_SCREENSHOT}"`))
 
-  if (enableRealBrowserToolProof && calledBrowserOpen && calledBrowserRead && calledBrowserClick && calledBrowserType && assistantSawOk) {
-    finish(true, 'live Codex app-server requested real Browser dynamic tools and completed browser_open/browser_read/browser_click/browser_type round trip')
+  if (enableRealBrowserToolProof && calledBrowserOpen && calledBrowserRead && calledBrowserClick && calledBrowserType && calledBrowserScreenshot && assistantSawOk) {
+    finish(true, 'live Codex app-server requested real Browser dynamic tools and completed browser_open/browser_read/browser_click/browser_type/browser_screenshot round trip')
   } else if (enableRealBrowserToolProof && realBrowserToolCalls.length > 0) {
     finish(false, `real Browser tool call observed but required open/read calls or expected assistant token were missing: ${assistantText.trim()}`)
   } else if (enableRealBrowserToolProof) {
@@ -369,7 +374,9 @@ function browserToolProofResponse(tool, args) {
       ? 'click'
       : tool === BROWSER_CLIENT_TOOL_TYPE
         ? 'type'
-        : 'read'
+        : tool === BROWSER_CLIENT_TOOL_SCREENSHOT
+          ? 'screenshot'
+          : 'read'
   return {
     contentItems: [{
       type: 'inputText',
@@ -385,6 +392,16 @@ function browserToolProofResponse(tool, args) {
         ],
         targetAction: tool === BROWSER_CLIENT_TOOL_CLICK || tool === BROWSER_CLIENT_TOOL_TYPE
           ? { ok: true, action }
+          : undefined,
+        screenshot: tool === BROWSER_CLIENT_TOOL_SCREENSHOT
+          ? {
+              ok: true,
+              mimeType: 'image/png',
+              width: 800,
+              height: 600,
+              byteSize: 4096,
+              artifactPath: '/tmp/orchestrator-browser-proof.png'
+            }
           : undefined
       })
     }],
