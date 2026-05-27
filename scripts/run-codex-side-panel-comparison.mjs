@@ -326,11 +326,11 @@ function buildContracts() {
       area: 'Settings host scope',
       scope: 'Settings window/surface',
       captureIds: ['settings', 'settings-providers', 'pets'],
-      codexAssetNames: ['settings-', 'appearance-settings-', 'personalization-settings-', 'remote-connections-settings-', 'worktrees-settings-'],
-      smokeChecks: ['settingsHostContext', 'settingsHostAdapterBoundary', 'settingsPersonalizationHostBoundary', 'settingsContentLayout'],
+      codexAssetNames: ['settings-', 'appearance-settings-', 'personalization-settings-', 'remote-connections-settings-', 'worktrees-settings-', 'browser-use-settings-'],
+      smokeChecks: ['settingsHostContext', 'settingsHostAdapterBoundary', 'settingsPersonalizationHostBoundary', 'settingsContentLayout', 'settingsBrowserPage', 'settingsBrowserSurface', 'settingsBrowserModule'],
       statusWhenCovered: 'fixture-covered',
-      caveat: 'Host-scoped unavailable states are explicit; real remote-host adapters and Codex Personalization data are still missing.',
-      next: 'Add host adapters only where provider data exists.'
+      caveat: 'Host-scoped unavailable states are explicit, and the Browser Settings page exposes real host-scoped in-app Browser data clearing while keeping Browser permissions session-scoped in the side-panel Security inspector. Real remote-host adapters, Codex Personalization data, and full global Browser Use approval/history/domain persistence remain incomplete.',
+      next: 'Add host adapters only where provider data exists; deepen Browser Use settings only when approval/history/domain policy can be persisted beyond an individual Browser panel.'
     },
     {
       id: 'chat-sidebar-provider-state',

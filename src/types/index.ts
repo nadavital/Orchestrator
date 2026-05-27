@@ -1320,6 +1320,7 @@ export type SettingsSectionId =
   | 'worktrees'
   | 'shortcuts'
   | 'personalization'
+  | 'browser'
   | 'pets'
   | 'data'
 export type SettingsRouteMode = 'path' | 'hash'
@@ -1332,6 +1333,7 @@ export const SETTINGS_SECTION_IDS: SettingsSectionId[] = [
   'providers',
   'shortcuts',
   'personalization',
+  'browser',
   'pets',
   'automations',
   'worktrees',
@@ -1372,7 +1374,7 @@ export const SETTINGS_NAVIGATION_GROUP_DEFINITIONS: SettingsNavigationGroupDefin
   {
     id: 'host',
     label: 'Host',
-    sections: ['automations', 'worktrees', 'shortcuts', 'personalization', 'data']
+    sections: ['automations', 'worktrees', 'shortcuts', 'personalization', 'browser', 'data']
   }
 ]
 

@@ -974,6 +974,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 document.querySelector('[data-settings-content-scope="app"][data-settings-host-adapter="app-global"]') instanceof HTMLElement &&
                 !remoteSettingsHostNavLabels.includes('Automations') &&
                 !remoteSettingsHostNavLabels.includes('Worktrees') &&
+                !remoteSettingsHostNavLabels.includes('Browser') &&
                 !remoteSettingsHostNavLabels.includes('Data controls') &&
                 remoteSettingsHostNavLabels.includes('Shortcuts') &&
                 remoteSettingsHostNavLabels.includes('Personalization') &&
@@ -1213,6 +1214,47 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 settingsHostSelect.dispatchEvent(new Event('change', { bubbles: true }));
                 await sleep(140);
               }
+              const browserButton = document.querySelector('[data-sidebar-key="settings:browser"]') ??
+                [...document.querySelectorAll('button')]
+                  .find((button) => button.textContent?.replace(/\s+/g, ' ').trim() === 'Browser');
+              browserButton?.click();
+              await sleep(220);
+              const browserSettingsSection = document.querySelector('[data-testid="browser-settings-section"]');
+              settingsContentLayoutWorks = settingsContentLayoutWorks &&
+                settingsContentLayoutMatches('settings-content-layout-browser', 'Browser', 'built-in Browser data');
+              const browserSettingsDataSurface = document.querySelector('[data-testid="settings-browser-data-surface"]');
+              const browserSettingsPermissionsSurface = document.querySelector('[data-testid="settings-browser-permissions-surface"]');
+              const browserSettingsClearCache = document.querySelector('[data-testid="settings-browser-clear-cache"]');
+              if (browserSettingsClearCache instanceof HTMLButtonElement) {
+                browserSettingsClearCache.click();
+                await sleep(180);
+              }
+              const browserSettingsStatus = document.querySelector('[data-testid="settings-browser-clear-status"]');
+              const browserSettingsRows = browserSettingsSection instanceof HTMLElement
+                ? [...browserSettingsSection.querySelectorAll('.settings-row')]
+                : [];
+              var settingsBrowserPageWorks =
+                browserSettingsSection instanceof HTMLElement &&
+                browserSettingsSection.innerText.includes('Data') &&
+                browserSettingsSection.innerText.includes('Browsing data') &&
+                browserSettingsSection.innerText.includes('Delete cookies') &&
+                browserSettingsSection.innerText.includes('Delete site data') &&
+                browserSettingsSection.innerText.includes('Cached images and files') &&
+                browserSettingsSection.innerText.includes('Permissions') &&
+                browserSettingsSection.innerText.includes('Session scoped') &&
+                browserSettingsStatus instanceof HTMLElement &&
+                browserSettingsStatus.textContent?.includes('Browser cache cleared') === true;
+              var settingsBrowserSurfaceWorks =
+                browserSettingsSection instanceof HTMLElement &&
+                browserSettingsSection.classList.contains('settings-page-section') &&
+                browserSettingsDataSurface instanceof HTMLElement &&
+                browserSettingsPermissionsSurface instanceof HTMLElement &&
+                browserSettingsRows.length >= 7 &&
+                browserSettingsSection.querySelector('.settings-panel') === null &&
+                browserSettingsSection.querySelector('.compact-setting') === null;
+              var settingsBrowserModuleWorks =
+                browserSettingsSection instanceof HTMLElement &&
+                browserSettingsSection.closest('[data-settings-page-module="browser"]') instanceof HTMLElement;
               const dataButton = [...document.querySelectorAll('button')]
                 .find((button) => button.textContent?.includes('Data controls'));
               dataButton?.click();
@@ -5370,6 +5412,9 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             settingsDataControlsWorks: typeof settingsDataControlsWorks === 'boolean' ? settingsDataControlsWorks : null,
             settingsDataControlsSurfaceWorks: typeof settingsDataControlsSurfaceWorks === 'boolean' ? settingsDataControlsSurfaceWorks : null,
             settingsDataControlsModuleWorks: typeof settingsDataControlsModuleWorks === 'boolean' ? settingsDataControlsModuleWorks : null,
+            settingsBrowserPageWorks: typeof settingsBrowserPageWorks === 'boolean' ? settingsBrowserPageWorks : null,
+            settingsBrowserSurfaceWorks: typeof settingsBrowserSurfaceWorks === 'boolean' ? settingsBrowserSurfaceWorks : null,
+            settingsBrowserModuleWorks: typeof settingsBrowserModuleWorks === 'boolean' ? settingsBrowserModuleWorks : null,
             settingsAutomationsPageWorks: typeof settingsAutomationsPageWorks === 'boolean' ? settingsAutomationsPageWorks : null,
             settingsWorktreesPageWorks: typeof settingsWorktreesPageWorks === 'boolean' ? settingsWorktreesPageWorks : null,
             settingsWorktreesCreateWorks: typeof settingsWorktreesCreateWorks === 'boolean' ? settingsWorktreesCreateWorks : null,

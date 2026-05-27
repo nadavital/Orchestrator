@@ -20,6 +20,7 @@ const SETTINGS_SECTION_LABELS: Record<SettingsSection, string> = {
   worktrees: 'Worktrees',
   shortcuts: 'Shortcuts',
   personalization: 'Personalization',
+  browser: 'Browser',
   pets: 'Pet overlay',
   data: 'Data controls'
 }
@@ -32,6 +33,7 @@ const SETTINGS_SECTION_ICONS: Record<SettingsSection, IconName> = {
   worktrees: 'branch',
   shortcuts: 'keyboard',
   personalization: 'book',
+  browser: 'browser',
   pets: 'sparkles',
   data: 'folder'
 }

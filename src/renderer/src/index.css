@@ -8071,6 +8071,10 @@
     max-width: 760px;
   }
 
+  .browser-settings-page {
+    max-width: 760px;
+  }
+
   .automations-settings-page {
     max-width: 860px;
   }
@@ -8110,6 +8114,23 @@
 
   .data-controls-content-group {
     min-width: 0;
+  }
+
+  .browser-settings-content-group,
+  .browser-settings-surface {
+    min-width: 0;
+  }
+
+  .browser-settings-status {
+    color: var(--text-secondary);
+    font-size: 12px;
+    padding: 2px 4px 0;
+  }
+
+  .browser-settings-value {
+    color: var(--text-secondary);
+    font-size: 12px;
+    white-space: nowrap;
   }
 
   .automations-settings-content-group {
