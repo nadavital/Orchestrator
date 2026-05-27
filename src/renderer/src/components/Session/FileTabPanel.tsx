@@ -294,7 +294,7 @@ export default function FileTabPanel({
     <span className="file-tab-actions-menu relative">
       <IconButton
         icon="ellipsis"
-        label="File actions"
+        label="File viewer options"
         size="sm"
         variant="toolbar"
         active={fileActionsOpen}
@@ -331,7 +331,7 @@ export default function FileTabPanel({
             />
             <MenuItem
               icon="external"
-              label={`Open file in ${openTarget.shortLabel}`}
+              label="Open in editor"
               onClick={() => { void window.api.fs.openPath(absolutePath); setFileActionsOpen(false) }}
             />
             <MenuItem
@@ -360,6 +360,14 @@ export default function FileTabPanel({
                 setFileActionsOpen(false)
               }}
             />
+            <MenuItem
+              icon="wrap"
+              label={sourceWrap ? 'Disable word wrap' : 'Enable word wrap'}
+              onClick={() => {
+                updateFileTabState({ sourceWrap: !sourceWrap })
+                setFileActionsOpen(false)
+              }}
+            />
           </MenuSection>
           <MenuSection dataTestId="file-tab-actions-selection-section">
             <MenuSectionLabel>Selection</MenuSectionLabel>
@@ -377,7 +385,7 @@ export default function FileTabPanel({
             />
             <MenuItem
               icon="external"
-              label={`Open selected line in ${openTarget.shortLabel}`}
+              label="Open selected line in editor"
               disabled={selectedSourceLine === null}
               onClick={() => { openSelectedLine(); setFileActionsOpen(false) }}
             />
@@ -522,7 +530,7 @@ export default function FileTabPanel({
           />
           <IconButton
             icon="wrap"
-            label={sourceWrap ? 'Disable source wrap' : 'Enable source wrap'}
+            label={sourceWrap ? 'Disable word wrap' : 'Enable word wrap'}
             size="sm"
             variant="toolbar"
             active={sourceWrap}
@@ -562,7 +570,7 @@ export default function FileTabPanel({
           />
           <IconButton
             icon="external"
-            label={`Open selected line in ${openTarget.shortLabel}`}
+            label="Open selected line in editor"
             size="sm"
             variant="toolbar"
             className="file-tab-secondary-action"
@@ -581,7 +589,7 @@ export default function FileTabPanel({
             onClick={() => addSourceAnnotation(selectedSourceLine)}
           />
           <IconButton icon="copy" label="Copy path" size="sm" variant="toolbar" className="file-tab-secondary-action" onClick={copyPath} />
-          <IconButton icon="external" label={`Open file in ${openTarget.shortLabel}`} size="sm" variant="toolbar" className="file-tab-secondary-action" onClick={() => { void window.api.fs.openPath(absolutePath) }} />
+          <IconButton icon="external" label="Open in editor" size="sm" variant="toolbar" className="file-tab-secondary-action" onClick={() => { void window.api.fs.openPath(absolutePath) }} />
           <IconButton icon="folder" label="Reveal file" size="sm" variant="toolbar" className="file-tab-secondary-action" onClick={() => { void window.api.fs.showInFolder(absolutePath) }} />
           {fileActionsMenu}
         </span>

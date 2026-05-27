@@ -10797,6 +10797,7 @@ function runAutomatedFocusedSurfaceSmoke(
               let workbenchFileTabWorks = false;
               let workbenchFileTabPinWorks = false;
               let workbenchFileTabActionMenuSharedSectionsWorks = false;
+              let workbenchFileTabCodexActionLabelsWorks = false;
               let filesContentSearchWorks = false;
               let fileSourceLineSelectionWorks = false;
               let fileSourceWrapToggleWorks = false;
@@ -11950,6 +11951,12 @@ function runAutomatedFocusedSurfaceSmoke(
                       fileTabActionText.includes('Show git blame') &&
                       fileTabActionText.includes('Reveal selected line') &&
                       fileTabActionSurface.scrollWidth <= fileTabActionSurface.clientWidth + 2;
+                    workbenchFileTabCodexActionLabelsWorks =
+                      fileTabActionMenuButton.getAttribute('aria-label') === 'File viewer options' &&
+                      fileTabActionMenuButton.getAttribute('data-tooltip-label') === 'File viewer options' &&
+                      fileTabActionText.includes('Open in editor') &&
+                      fileTabActionText.some((label) => label === 'Enable word wrap' || label === 'Disable word wrap') &&
+                      fileTabActionText.some((label) => label.includes('source wrap')) === false;
                     fileTabActionMenuButton.click();
                     await sleep(80);
                   }
@@ -12368,6 +12375,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 workbenchFileTabWorks,
                 workbenchFileTabPinWorks,
                 workbenchFileTabActionMenuSharedSectionsWorks,
+                workbenchFileTabCodexActionLabelsWorks,
                 fileOpenTargetDiagnosticWorks: workbenchFileTabWorks,
                 fileSourceLineSelectionWorks,
                 fileSourceLineUtilitiesWorks,
