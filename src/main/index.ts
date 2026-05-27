@@ -10924,6 +10924,7 @@ function runAutomatedFocusedSurfaceSmoke(
               const previewArtifactHeaderChecks = {};
               const previewControlChecks = {};
               const previewArtifactTabChecks = {};
+              const previewOpenOptionsChecks = {};
               const pdfPreviewControlChecks = {};
               const notebookReadOnlyControlChecks = {};
               const notebookOutputRenderingChecks = {};
@@ -11028,8 +11029,10 @@ function runAutomatedFocusedSurfaceSmoke(
                     (requiresRawCopy
                       ? actions.getAttribute('data-preview-controls')?.includes('copy-raw') === true
                       : actions.getAttribute('data-preview-controls')?.includes('copy-raw') !== true) &&
-                    actions.getAttribute('data-preview-controls')?.includes('open-file') === true &&
-                    actions.getAttribute('data-preview-controls')?.includes('reveal-file') === true &&
+                    actions.getAttribute('data-preview-controls')?.includes('open-options') === true &&
+                    actions.getAttribute('data-artifact-open-options') === 'true' &&
+                    document.querySelector('[data-testid="' + testId + '-action-open-primary"]') instanceof HTMLElement &&
+                    document.querySelector('[data-testid="' + testId + '-action-open-options"]') instanceof HTMLElement &&
                     actionButtons.length >= (requiresRawCopy ? 4 : 3) &&
                     actionButtons.every((button) =>
                       button instanceof HTMLElement &&
@@ -11037,6 +11040,26 @@ function runAutomatedFocusedSurfaceSmoke(
                       button.getBoundingClientRect().width === 24 &&
                       button.getBoundingClientRect().height === 24
                   );
+                  const openOptionsButton = document.querySelector('[data-testid="' + testId + '-action-open-options"]');
+                  if (openOptionsButton instanceof HTMLButtonElement) {
+                    openOptionsButton.click();
+                    await sleep(120);
+                  }
+                  const openOptionsMenu = document.querySelector('[data-testid="' + testId + '-open-options-menu"]');
+                  const openOptionsOpenFile = document.querySelector('[data-testid="' + testId + '-open-options-open-file"]');
+                  const openOptionsRevealFile = document.querySelector('[data-testid="' + testId + '-open-options-reveal-file"]');
+                  previewOpenOptionsChecks[testId] =
+                    openOptionsButton instanceof HTMLButtonElement &&
+                    openOptionsMenu instanceof HTMLElement &&
+                    openOptionsMenu.textContent?.includes('Open') === true &&
+                    openOptionsOpenFile instanceof HTMLButtonElement &&
+                    openOptionsOpenFile.textContent?.includes('Open file') === true &&
+                    openOptionsRevealFile instanceof HTMLButtonElement &&
+                    openOptionsRevealFile.textContent?.includes('Reveal file') === true;
+                  if (openOptionsMenu instanceof HTMLElement) {
+                    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+                    await sleep(80);
+                  }
                   const artifactTab = document.querySelector('[data-testid="workbench-file-tab"]');
                   const controls = actions instanceof HTMLElement
                     ? actions.getAttribute('data-preview-controls') ?? ''
@@ -12380,6 +12403,14 @@ function runAutomatedFocusedSurfaceSmoke(
                   Boolean(previewControlChecks['workspace-spreadsheet-preview']) &&
                   Boolean(previewControlChecks['workspace-slides-preview']) &&
                   Boolean(previewControlChecks['workspace-notebook-preview']),
+                filesArtifactOpenOptionsWorks:
+                  Boolean(previewOpenOptionsChecks['workspace-json-preview']) &&
+                  Boolean(previewOpenOptionsChecks['workspace-csv-preview']) &&
+                  Boolean(previewOpenOptionsChecks['workspace-pdf-preview']) &&
+                  Boolean(previewOpenOptionsChecks['workspace-document-preview']) &&
+                  Boolean(previewOpenOptionsChecks['workspace-spreadsheet-preview']) &&
+                  Boolean(previewOpenOptionsChecks['workspace-slides-preview']) &&
+                  Boolean(previewOpenOptionsChecks['workspace-notebook-preview']),
                 filesArtifactHeaderTitleTypeWorks:
                   Boolean(previewArtifactHeaderChecks['workspace-pdf-preview']) &&
                   Boolean(previewArtifactHeaderChecks['workspace-document-preview']) &&

@@ -7,7 +7,7 @@ import type { WorkspaceSearchEntry, WorkspaceSearchResult } from '../../types'
 import { useSessionStore } from '../../store/sessions'
 import { Badge, Button, IconButton, MenuItem, MenuSection, MenuSectionLabel, MenuSurface, PanelHeader, PanelNotice, PanelToolbar, WorkbenchSearchField } from '../shared/designSystem'
 import Icon from '../shared/Icon'
-import StructuredDataPreview, { ArtifactPreviewHeader, stripArtifactExtension, type PreviewHeaderAction } from './StructuredDataPreview'
+import StructuredDataPreview, { ArtifactOpenOptions, ArtifactPreviewHeader, stripArtifactExtension, type PreviewHeaderAction } from './StructuredDataPreview'
 import WorkbenchTree, { WorkbenchTreeMessage, type WorkbenchTreeRow } from './WorkbenchTree'
 
 interface Props {
@@ -842,6 +842,43 @@ function fallbackActionIcon(label: string): 'external' | 'folder' | 'file' {
   return 'file'
 }
 
+function ArtifactHeaderActionButtons({
+  actions,
+  testId
+}: {
+  actions: PreviewHeaderAction[]
+  testId: string
+}): JSX.Element {
+  const openFileAction = actions.find((action) => action.id === 'open-file')
+  const revealFileAction = actions.find((action) => action.id === 'reveal-file')
+  const visibleActions = openFileAction && revealFileAction
+    ? actions.filter((action) => action.id !== 'open-file' && action.id !== 'reveal-file')
+    : actions
+
+  return (
+    <>
+      {visibleActions.map((action) => (
+        <IconButton
+          key={action.id}
+          icon={action.icon}
+          label={action.label}
+          size="sm"
+          variant="toolbar"
+          dataTestId={`${testId}-action-${action.id}`}
+          onClick={action.onClick}
+        />
+      ))}
+      {openFileAction && revealFileAction && (
+        <ArtifactOpenOptions
+          openAction={openFileAction}
+          revealAction={revealFileAction}
+          testId={testId}
+        />
+      )}
+    </>
+  )
+}
+
 function artifactPreviewActions(
   entry: WorkspaceSearchEntry,
   absolutePath: string,
@@ -968,7 +1005,8 @@ function SpreadsheetArtifactPreview({
           <span
             className="file-preview-header-actions"
             data-testid="workspace-spreadsheet-preview-actions"
-            data-preview-controls="copy-path spreadsheet-sheet-navigation spreadsheet-zoom open-file reveal-file"
+            data-preview-controls="copy-path spreadsheet-sheet-navigation spreadsheet-zoom open-options"
+            data-artifact-open-options="true"
           >
             {payload && (
               <span
@@ -999,17 +1037,7 @@ function SpreadsheetArtifactPreview({
                 />
               </span>
             )}
-            {actions.map((action) => (
-              <IconButton
-                key={action.id}
-                icon={action.icon}
-                label={action.label}
-                size="sm"
-                variant="toolbar"
-                dataTestId={`workspace-spreadsheet-preview-action-${action.id}`}
-                onClick={action.onClick}
-              />
-            ))}
+            <ArtifactHeaderActionButtons actions={actions} testId="workspace-spreadsheet-preview" />
           </span>
         )}
         testId="workspace-spreadsheet-preview"
@@ -1128,7 +1156,8 @@ function SlidesArtifactPreview({
           <span
             className="file-preview-header-actions"
             data-testid="workspace-slides-preview-actions"
-            data-preview-controls="copy-path slides-slide-navigation slides-zoom open-file reveal-file"
+            data-preview-controls="copy-path slides-slide-navigation slides-zoom open-options"
+            data-artifact-open-options="true"
           >
             {payload && (
               <span
@@ -1159,17 +1188,7 @@ function SlidesArtifactPreview({
                 />
               </span>
             )}
-            {actions.map((action) => (
-              <IconButton
-                key={action.id}
-                icon={action.icon}
-                label={action.label}
-                size="sm"
-                variant="toolbar"
-                dataTestId={`workspace-slides-preview-action-${action.id}`}
-                onClick={action.onClick}
-              />
-            ))}
+            <ArtifactHeaderActionButtons actions={actions} testId="workspace-slides-preview" />
           </span>
         )}
         testId="workspace-slides-preview"
@@ -1384,7 +1403,8 @@ function PdfPreview({
               <span
                 className="file-preview-header-actions"
                 data-testid="workspace-pdf-preview-actions"
-                data-preview-controls="copy-path pdf-page-navigation pdf-zoom pdf-invert-colors pdf-presentation open-file reveal-file"
+                data-preview-controls="copy-path pdf-page-navigation pdf-zoom pdf-invert-colors pdf-presentation open-options"
+                data-artifact-open-options="true"
               >
                 <IconButton
                   active={invertColors}
@@ -1430,17 +1450,7 @@ function PdfPreview({
                   dataTestId="workspace-pdf-preview-presentation"
                   onClick={() => { setPresentationMode(true) }}
                 />
-                {artifactPreviewActions(entry, absolutePath, preview).map((action) => (
-                  <IconButton
-                    key={action.id}
-                    icon={action.icon}
-                    label={action.label}
-                    size="sm"
-                    variant="toolbar"
-                    dataTestId={`workspace-pdf-preview-action-${action.id}`}
-                    onClick={action.onClick}
-                  />
-                ))}
+                <ArtifactHeaderActionButtons actions={artifactPreviewActions(entry, absolutePath, preview)} testId="workspace-pdf-preview" />
               </span>
             )}
             testId="workspace-pdf-preview"

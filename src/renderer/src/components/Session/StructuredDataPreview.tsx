@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { FilePreviewResult } from '../../env'
-import { Badge, IconButton, PanelToolbar } from '../shared/designSystem'
+import { Badge, IconButton, MenuItem, MenuSection, MenuSectionLabel, MenuSurface, PanelToolbar } from '../shared/designSystem'
 import Icon from '../shared/Icon'
 import type { IconName } from '../shared/Icon'
 
@@ -97,6 +97,17 @@ function DocumentPreview({
   const zoomIn = (): void => {
     setZoomPercent((zoom) => Math.min(200, zoom + 25))
   }
+  const openFileAction = actions?.find((action) => action.id === 'open-file')
+  const revealFileAction = actions?.find((action) => action.id === 'reveal-file')
+  const visibleActions = openFileAction && revealFileAction
+    ? actions?.filter((action) => action.id !== 'open-file' && action.id !== 'reveal-file') ?? []
+    : actions ?? []
+  const previewControls = [
+    ...visibleActions.map((action) => action.id),
+    'docx-page-navigation',
+    'docx-zoom',
+    ...(openFileAction && revealFileAction ? ['open-options'] : [])
+  ].join(' ')
   const visiblePage = pages[currentPage - 1] ?? []
   return (
     <div
@@ -139,7 +150,12 @@ function DocumentPreview({
           </span>
         )}
         rightContent={(
-          <span className="file-preview-header-actions" data-testid={`${testId}-actions`} data-preview-controls={`${actions?.map((action) => action.id).join(' ') ?? ''} docx-page-navigation docx-zoom`.trim()}>
+          <span
+            className="file-preview-header-actions"
+            data-testid={`${testId}-actions`}
+            data-preview-controls={previewControls}
+            data-artifact-open-options={openFileAction && revealFileAction ? 'true' : undefined}
+          >
             <span
               className="file-preview-zoom-controls"
               data-testid={`${testId}-zoom-controls`}
@@ -167,7 +183,7 @@ function DocumentPreview({
                 onClick={zoomIn}
               />
             </span>
-            {actions?.map((action) => (
+            {visibleActions.map((action) => (
               <IconButton
                 key={action.id}
                 icon={action.icon}
@@ -178,6 +194,13 @@ function DocumentPreview({
                 onClick={action.onClick}
               />
             ))}
+            {openFileAction && revealFileAction && (
+              <ArtifactOpenOptions
+                openAction={openFileAction}
+                revealAction={revealFileAction}
+                testId={testId}
+              />
+            )}
           </span>
         )}
         testId={testId}
@@ -536,7 +559,7 @@ function NotebookReadOnlyControls({ testId }: { testId: string }): JSX.Element {
   )
 }
 
-function PreviewHeaderActions({
+export function PreviewHeaderActions({
   actions,
   testId
 }: {
@@ -544,13 +567,22 @@ function PreviewHeaderActions({
   testId: string
 }): JSX.Element | null {
   if (!actions?.length) return null
+  const openFileAction = actions.find((action) => action.id === 'open-file')
+  const revealFileAction = actions.find((action) => action.id === 'reveal-file')
+  const visibleActions = openFileAction && revealFileAction
+    ? actions.filter((action) => action.id !== 'open-file' && action.id !== 'reveal-file')
+    : actions
+  const controls = openFileAction && revealFileAction
+    ? [...visibleActions.map((action) => action.id), 'open-options']
+    : visibleActions.map((action) => action.id)
   return (
     <span
       className="file-preview-header-actions"
       data-testid={`${testId}-actions`}
-      data-preview-controls={actions.map((action) => action.id).join(' ')}
+      data-preview-controls={controls.join(' ')}
+      data-artifact-open-options={openFileAction && revealFileAction ? 'true' : undefined}
     >
-      {actions.map((action) => (
+      {visibleActions.map((action) => (
         <IconButton
           key={action.id}
           icon={action.icon}
@@ -561,6 +593,90 @@ function PreviewHeaderActions({
           onClick={action.onClick}
         />
       ))}
+      {openFileAction && revealFileAction && (
+        <ArtifactOpenOptions
+          openAction={openFileAction}
+          revealAction={revealFileAction}
+          testId={testId}
+        />
+      )}
+    </span>
+  )
+}
+
+export function ArtifactOpenOptions({
+  openAction,
+  revealAction,
+  testId
+}: {
+  openAction: PreviewHeaderAction
+  revealAction: PreviewHeaderAction
+  testId: string
+}): JSX.Element {
+  const [menuStyle, setMenuStyle] = useState<CSSProperties | null>(null)
+  const triggerRef = useRef<HTMLSpanElement>(null)
+  const openMenu = (): void => {
+    const rect = triggerRef.current?.getBoundingClientRect()
+    setMenuStyle({
+      position: 'fixed',
+      right: Math.max(8, window.innerWidth - (rect?.right ?? window.innerWidth) - 2),
+      top: (rect?.bottom ?? 0) + 6,
+      width: 190,
+      zIndex: 120
+    })
+  }
+  const closeMenu = (): void => setMenuStyle(null)
+  const select = (action: PreviewHeaderAction): void => {
+    action.onClick()
+    closeMenu()
+  }
+
+  return (
+    <span
+      ref={triggerRef}
+      className="artifact-preview-open-options"
+      data-testid={`${testId}-open-options-control`}
+    >
+      <IconButton
+        icon={openAction.icon}
+        label={openAction.label}
+        size="sm"
+        variant="toolbar"
+        dataTestId={`${testId}-action-open-primary`}
+        onClick={openAction.onClick}
+      />
+      <IconButton
+        icon="chevronDown"
+        label="Open options"
+        size="sm"
+        variant="toolbar"
+        active={menuStyle !== null}
+        dataTestId={`${testId}-action-open-options`}
+        onClick={openMenu}
+      />
+      {menuStyle && (
+        <MenuSurface
+          data-testid={`${testId}-open-options-menu`}
+          onClose={closeMenu}
+          style={menuStyle}
+        >
+          <MenuSection dataTestId={`${testId}-open-options-menu-section`}>
+            <MenuSectionLabel>Open</MenuSectionLabel>
+            <MenuItem
+              icon={openAction.icon}
+              label={openAction.label}
+              dataTestId={`${testId}-open-options-open-file`}
+              onClick={() => select(openAction)}
+            />
+            <MenuItem
+              icon={revealAction.icon}
+              label={revealAction.label}
+              dataTestId={`${testId}-open-options-reveal-file`}
+              onClick={() => select(revealAction)}
+            />
+          </MenuSection>
+        </MenuSurface>
+      )}
     </span>
   )
 }

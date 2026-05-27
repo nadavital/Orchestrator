@@ -4520,6 +4520,13 @@
     margin-left: auto;
   }
 
+  .artifact-preview-open-options {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 1px;
+  }
+
   .file-preview-page-controls,
   .file-preview-zoom-controls {
     display: inline-flex;
