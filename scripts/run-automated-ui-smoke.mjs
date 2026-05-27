@@ -349,7 +349,7 @@ if (captureView === 'capabilities') {
   writeFileSync(join(smokeCommandDir, 'orchestrator-smoke.md'), '# Orchestrator smoke command\n\nRun the smoke fixture.\n')
 }
 
-function createDocxFixture(blocks) {
+function createDocxFixture(blocks, options = {}) {
   const imageBlocks = blocks
     .filter((block) => block && typeof block === 'object' && block.imageBase64)
     .map((block, index) => ({ block, index: index + 1 }))
@@ -374,12 +374,29 @@ function createDocxFixture(blocks) {
     }
     return `<w:p><w:r><w:t>${escapeXml(String(block))}</w:t></w:r></w:p>`
   }).join('\n    ')
+  const headerText = String(options.headerText ?? '').trim()
+  const footerText = String(options.footerText ?? '').trim()
+  const columnCount = Math.max(0, Math.min(6, Math.floor(Number(options.columnCount ?? 0) || 0)))
+  const sectionXml = headerText || footerText || columnCount > 1
+    ? `<w:sectPr>${headerText ? '<w:headerReference w:type="default" r:id="rHeader1"/>' : ''}${footerText ? '<w:footerReference w:type="default" r:id="rFooter1"/>' : ''}${columnCount > 1 ? `<w:cols w:num="${columnCount}"/>` : ''}</w:sectPr>`
+    : ''
   const documentXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
   <w:body>
     ${blockXml}
+    ${sectionXml}
   </w:body>
 </w:document>`
+  const headerFooterEntries = [
+    ...(headerText ? [{
+      name: 'word/header1.xml',
+      data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:r><w:t>${escapeXml(headerText)}</w:t></w:r></w:p></w:hdr>`
+    }] : []),
+    ...(footerText ? [{
+      name: 'word/footer1.xml',
+      data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:r><w:t>${escapeXml(footerText)}</w:t></w:r></w:p></w:ftr>`
+    }] : [])
+  ]
   return createStoredZip([
     {
       name: '[Content_Types].xml',
@@ -389,6 +406,8 @@ function createDocxFixture(blocks) {
   <Default Extension="xml" ContentType="application/xml"/>
   <Default Extension="png" ContentType="image/png"/>
   <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  ${headerText ? '<Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>' : ''}
+  ${footerText ? '<Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>' : ''}
 </Types>`
     },
     {
@@ -403,9 +422,12 @@ function createDocxFixture(blocks) {
       data: `<?xml version="1.0" encoding="UTF-8"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   ${imageBlocks.map((image) => `<Relationship Id="rImage${image.index}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/document-image-${image.index}.png"/>`).join('\n  ')}
+  ${headerText ? '<Relationship Id="rHeader1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>' : ''}
+  ${footerText ? '<Relationship Id="rFooter1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/>' : ''}
 </Relationships>`
     },
     { name: 'word/document.xml', data: documentXml },
+    ...headerFooterEntries,
     ...imageBlocks.map((image) => ({
       name: `word/media/document-image-${image.index}.png`,
       data: Buffer.from(String(image.block.imageBase64), 'base64')
@@ -1004,7 +1026,7 @@ if (fixtureWorkspaceViews.has(captureView)) {
     'Document smoke baseline section delta',
     'Document smoke baseline appendix',
     'Document smoke baseline closing note'
-  ]))
+  ], { headerText: 'Document smoke header', footerText: 'Document smoke footer', columnCount: 2 }))
   writeFileSync(join(workspaceDir, 'spreadsheet-preview-smoke.xlsx'), createXlsxFixture({
     sheets: [
       {
@@ -1131,7 +1153,7 @@ if (fixtureWorkspaceViews.has(captureView)) {
       'Document smoke section delta',
       'Document smoke appendix',
       'Document smoke closing note'
-    ]))
+    ], { headerText: 'Document smoke header', footerText: 'Document smoke footer', columnCount: 2 }))
     writeFileSync(join(workspaceDir, 'spreadsheet-preview-smoke.xlsx'), createXlsxFixture({
       sheets: [
         {
@@ -1900,6 +1922,7 @@ child.on('exit', async (code) => {
           filesDocumentPageControls: result.filesDocumentPageControlsWorks === true,
           filesDocumentTableRendering: result.filesDocumentTableRenderingWorks === true,
           filesDocumentImageRendering: result.filesDocumentImageRenderingWorks === true,
+          filesDocumentSectionMetadata: result.filesDocumentSectionMetadataWorks === true,
           filesSpreadsheetPreview: result.filesSpreadsheetPreviewWorks === true,
           filesSlidesPreview: result.filesSlidesPreviewWorks === true,
           filesSpreadsheetRenderer: result.filesSpreadsheetRendererWorks === true,
@@ -2117,6 +2140,7 @@ child.on('exit', async (code) => {
         filesDocumentPageControls: captureView !== 'inspector' || result.filesDocumentPageControlsWorks === true,
         filesDocumentTableRendering: captureView !== 'inspector' || result.filesDocumentTableRenderingWorks === true,
         filesDocumentImageRendering: captureView !== 'inspector' || result.filesDocumentImageRenderingWorks === true,
+        filesDocumentSectionMetadata: captureView !== 'inspector' || result.filesDocumentSectionMetadataWorks === true,
         filesSpreadsheetPreview: captureView !== 'inspector' || result.filesSpreadsheetPreviewWorks === true,
         filesSlidesPreview: captureView !== 'inspector' || result.filesSlidesPreviewWorks === true,
         filesSpreadsheetRenderer: captureView !== 'inspector' || result.filesSpreadsheetRendererWorks === true,

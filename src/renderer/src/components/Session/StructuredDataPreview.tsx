@@ -99,6 +99,10 @@ function DocumentPreview({
   const effectiveZoomPercent = fitToWidth ? 100 : zoomPercent
   const tableCount = preview.document?.tableCount ?? documentBlocks.filter((block) => block.type === 'table').length
   const imageCount = preview.document?.imageCount ?? documentBlocks.filter((block) => block.type === 'image').length
+  const headerText = typeof preview.document?.headerText === 'string' ? preview.document.headerText.trim() : ''
+  const footerText = typeof preview.document?.footerText === 'string' ? preview.document.footerText.trim() : ''
+  const sectionCount = Math.max(0, Math.floor(Number(preview.document?.sectionCount ?? 0)))
+  const columnCount = Math.max(0, Math.floor(Number(preview.document?.columnCount ?? 0)))
   useEffect(() => {
     setCurrentPage((page) => Math.min(Math.max(page, 1), pageCount))
   }, [pageCount])
@@ -127,6 +131,10 @@ function DocumentPreview({
       data-document-preview-block-count={documentBlocks.length}
       data-document-preview-table-count={tableCount}
       data-document-preview-image-count={imageCount}
+      data-document-preview-header-text={headerText}
+      data-document-preview-footer-text={footerText}
+      data-document-preview-section-count={sectionCount}
+      data-document-preview-column-count={columnCount}
     >
       <ArtifactPreviewHeader
         artifactType={statusLabel ? `DOC · ${statusLabel}` : 'DOC'}
@@ -207,6 +215,8 @@ function DocumentPreview({
         <span>{paragraphs.length.toLocaleString()} paragraphs</span>
         {tableCount > 0 && <span>{tableCount.toLocaleString()} {tableCount === 1 ? 'table' : 'tables'}</span>}
         {imageCount > 0 && <span>{imageCount.toLocaleString()} {imageCount === 1 ? 'image' : 'images'}</span>}
+        {sectionCount > 0 && <span>{sectionCount.toLocaleString()} {sectionCount === 1 ? 'section' : 'sections'}</span>}
+        {columnCount > 1 && <span>{columnCount.toLocaleString()} columns</span>}
         <span>{pageCount.toLocaleString()} pages</span>
         <span>{formatBytes(preview.size ?? 0)}</span>
       </div>
@@ -224,6 +234,15 @@ function DocumentPreview({
             data-testid={`${testId}-page`}
             data-document-page-number={currentPage}
           >
+            {headerText && (
+              <div
+                className="document-preview-page-header"
+                data-testid={`${testId}-header-text`}
+                data-document-header-text={headerText}
+              >
+                {headerText}
+              </div>
+            )}
             {visiblePage.map((block, index) => (
               block.type === 'table'
                 ? (
@@ -265,6 +284,15 @@ function DocumentPreview({
                     )
                   : <p key={`paragraph-${index}`}>{block.text}</p>
             ))}
+            {footerText && (
+              <div
+                className="document-preview-page-footer"
+                data-testid={`${testId}-footer-text`}
+                data-document-footer-text={footerText}
+              >
+                {footerText}
+              </div>
+            )}
           </section>
         ) : (
           <p className="document-preview-empty">No document text found.</p>

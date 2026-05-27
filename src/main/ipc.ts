@@ -178,6 +178,10 @@ interface DocumentPreviewPayload {
   blocks: DocumentPreviewBlock[]
   tableCount: number
   imageCount: number
+  headerText?: string
+  footerText?: string
+  sectionCount?: number
+  columnCount?: number
 }
 
 interface BrowserAssetRequest {
@@ -442,6 +446,7 @@ function extractDocxPreview(xml: string, archive: Buffer): DocumentPreviewPayloa
   let tableCount = 0
   let imageCount = 0
   const relationships = extractZipRelationships(archive, 'word/document.xml')
+  const sections = extractDocxSections(body, archive, relationships)
   for (const match of body.matchAll(/<w:(p|tbl)\b[\s\S]*?<\/w:\1>/g)) {
     const tag = match[1]
     const blockXml = match[0] ?? ''
@@ -465,7 +470,44 @@ function extractDocxPreview(xml: string, archive: Buffer): DocumentPreviewPayloa
     const text = extractDocxParagraphText(xml)
     if (text) blocks.push({ type: 'paragraph', text })
   }
-  return { blocks: blocks.slice(0, 80), tableCount, imageCount }
+  return {
+    blocks: blocks.slice(0, 80),
+    tableCount,
+    imageCount,
+    ...sections
+  }
+}
+
+function extractDocxSections(xml: string, archive: Buffer, relationships: Map<string, string>): Pick<DocumentPreviewPayload, 'headerText' | 'footerText' | 'sectionCount' | 'columnCount'> {
+  const sectionXmls = [...xml.matchAll(/<w:sectPr\b[\s\S]*?<\/w:sectPr>/g)]
+    .map((match) => match[0] ?? '')
+    .filter(Boolean)
+  const headerRelId = sectionXmls
+    .map((section) => /<w:headerReference\b[^>]*(?:r:)?id="([^"]+)"/.exec(section)?.[1] ?? '')
+    .find(Boolean)
+  const footerRelId = sectionXmls
+    .map((section) => /<w:footerReference\b[^>]*(?:r:)?id="([^"]+)"/.exec(section)?.[1] ?? '')
+    .find(Boolean)
+  const columnCount = Math.max(
+    0,
+    ...sectionXmls.map((section) => Math.max(0, Math.round(numberAttribute(/<w:cols\b([^>]*)\/?>/.exec(section)?.[1] ?? '', 'num') ?? 0)))
+  )
+  const headerText = extractDocxRelatedText(archive, relationships, headerRelId)
+  const footerText = extractDocxRelatedText(archive, relationships, footerRelId)
+  return {
+    ...(headerText ? { headerText } : {}),
+    ...(footerText ? { footerText } : {}),
+    ...(sectionXmls.length > 0 ? { sectionCount: sectionXmls.length } : {}),
+    ...(columnCount > 0 ? { columnCount } : {})
+  }
+}
+
+function extractDocxRelatedText(archive: Buffer, relationships: Map<string, string>, relationshipId: string | undefined): string {
+  if (!relationshipId) return ''
+  const target = relationships.get(relationshipId)
+  if (!target) return ''
+  const xml = readZipEntry(archive, target)?.toString('utf8') ?? ''
+  return extractDocxParagraphText(xml)
 }
 
 function extractDocxTableRows(xml: string): string[][] {

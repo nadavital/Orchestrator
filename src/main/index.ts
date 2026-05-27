@@ -11139,6 +11139,7 @@ function runAutomatedFocusedSurfaceSmoke(
               const documentPageControlChecks = {};
               const documentTableChecks = {};
               const documentImageChecks = {};
+              const documentSectionChecks = {};
               const spreadsheetRendererChecks = {};
               const spreadsheetControlChecks = {};
               const spreadsheetSheetTabChecks = {};
@@ -11508,6 +11509,8 @@ function runAutomatedFocusedSurfaceSmoke(
                     const pageBody = document.querySelector('[data-testid="workspace-document-preview-page"]');
                     const documentTables = [...document.querySelectorAll('[data-testid="workspace-document-preview-table"]')];
                     const documentImages = [...document.querySelectorAll('[data-testid="workspace-document-preview-image"]')];
+                    const documentHeader = document.querySelector('[data-testid="workspace-document-preview-header-text"]');
+                    const documentFooter = document.querySelector('[data-testid="workspace-document-preview-footer-text"]');
                     const initialDocumentControls =
                       documentPreview instanceof HTMLElement &&
                       documentPreview.getAttribute('data-document-preview-page-count') === '2' &&
@@ -11553,6 +11556,18 @@ function runAutomatedFocusedSurfaceSmoke(
                       documentImages[0].getAttribute('data-document-image-mime-type') === 'image/png' &&
                       documentImages[0].getAttribute('data-document-image-alt') === 'Document smoke embedded image' &&
                       documentImages[0].querySelector('img') instanceof HTMLImageElement;
+                    documentSectionChecks[testId] =
+                      documentPreview instanceof HTMLElement &&
+                      documentPreview.getAttribute('data-document-preview-section-count') === '1' &&
+                      documentPreview.getAttribute('data-document-preview-column-count') === '2' &&
+                      documentPreview.getAttribute('data-document-preview-header-text') === 'Document smoke header' &&
+                      documentPreview.getAttribute('data-document-preview-footer-text') === 'Document smoke footer' &&
+                      documentHeader instanceof HTMLElement &&
+                      documentHeader.getAttribute('data-document-header-text') === 'Document smoke header' &&
+                      documentHeader.textContent?.includes('Document smoke header') === true &&
+                      documentFooter instanceof HTMLElement &&
+                      documentFooter.getAttribute('data-document-footer-text') === 'Document smoke footer' &&
+                      documentFooter.textContent?.includes('Document smoke footer') === true;
                     if (nextPage instanceof HTMLButtonElement) {
                       nextPage.click();
                       await sleep(160);
@@ -13320,6 +13335,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 filesDocumentPageControlsWorks: Boolean(documentPageControlChecks['workspace-document-preview']),
                 filesDocumentTableRenderingWorks: Boolean(documentTableChecks['workspace-document-preview']),
                 filesDocumentImageRenderingWorks: Boolean(documentImageChecks['workspace-document-preview']),
+                filesDocumentSectionMetadataWorks: Boolean(documentSectionChecks['workspace-document-preview']),
                 filesSpreadsheetRendererWorks: Boolean(spreadsheetRendererChecks['workspace-spreadsheet-preview']),
                 filesSlidesRendererWorks: Boolean(slidesRendererChecks['workspace-slides-preview']),
                 filesSlidesShapeLayoutWorks: Boolean(slidesShapeLayoutChecks['workspace-slides-preview']),

@@ -5810,6 +5810,27 @@
     overflow-wrap: anywhere;
   }
 
+  .document-preview-page-header,
+  .document-preview-page-footer {
+    color: var(--text-tertiary);
+    font-size: 11px;
+    line-height: 1.35;
+    text-align: center;
+    white-space: pre-wrap;
+  }
+
+  .document-preview-page-header {
+    margin-bottom: 18px;
+    border-bottom: 1px solid var(--border-subtle);
+    padding-bottom: 8px;
+  }
+
+  .document-preview-page-footer {
+    margin-top: 18px;
+    border-top: 1px solid var(--border-subtle);
+    padding-top: 8px;
+  }
+
   .document-preview-body p + p {
     margin-top: 12px;
   }

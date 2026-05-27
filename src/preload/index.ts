@@ -63,6 +63,10 @@ interface FilePreviewResult {
     >
     tableCount: number
     imageCount?: number
+    headerText?: string
+    footerText?: string
+    sectionCount?: number
+    columnCount?: number
   }
   truncated: boolean
 }
