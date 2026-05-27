@@ -14289,6 +14289,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
             let browserClientToolBridgeWorks = false;
             let browserClientToolActionsWork = false;
             let browserClientToolScreenshotWorks = false;
+            let browserClientToolScreenshotImageWorks = false;
             let browserClientToolAdvancedActionsWork = false;
             if (activeSmokeSession) {
               const readResponse = await window.api.browser.runClientToolSmoke({
@@ -14323,7 +14324,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                 sessionId: activeSmokeSession.id,
                 namespace: 'orchestrator',
                 tool: 'browser_screenshot',
-                arguments: {}
+                arguments: { includeImage: true }
               });
               const screenshotPayload = parseClientToolPayload(screenshotResponse);
               const fillResponse = await window.api.browser.runClientToolSmoke({
@@ -14384,6 +14385,11 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                 Number(screenshotPayload.screenshot?.byteSize ?? 0) > 0 &&
                 typeof screenshotPayload.screenshot?.artifactPath === 'string' &&
                 screenshotPayload.screenshot.artifactPath.endsWith('.png');
+              browserClientToolScreenshotImageWorks =
+                browserClientToolScreenshotWorks &&
+                typeof screenshotPayload.screenshot?.dataUrl === 'string' &&
+                screenshotPayload.screenshot.dataUrl.startsWith('data:image/png;base64,') &&
+                screenshotPayload.screenshot.dataUrl.length === Number(screenshotPayload.screenshot?.dataUrlLength ?? 0);
               browserClientToolAdvancedActionsWork =
                 fillResponse?.success === true &&
                 keyResponse?.success === true &&
@@ -15053,6 +15059,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserClientToolBridgeWorks,
               browserClientToolActionsWork,
               browserClientToolScreenshotWorks,
+              browserClientToolScreenshotImageWorks,
               browserClientToolAdvancedActionsWork,
               browserCaptureGeometryWorks,
               browserUseNoMutationWorks,

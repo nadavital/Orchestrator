@@ -120,11 +120,16 @@ export const browserClientDynamicTools: JsonObject[] = [
   {
     namespace: BROWSER_CLIENT_TOOL_NAMESPACE,
     name: BROWSER_CLIENT_TOOL_SCREENSHOT,
-    description: 'Capture the current Orchestrator Browser page and return screenshot metadata plus the saved local artifact path.',
+    description: 'Capture the current Orchestrator Browser page and return screenshot metadata plus the saved local artifact path. Set includeImage to true when the caller needs the PNG data URL inline.',
     inputSchema: {
       type: 'object',
       additionalProperties: false,
-      properties: {}
+      properties: {
+        includeImage: {
+          type: 'boolean',
+          description: 'When true, include the captured PNG as a data:image/png;base64 URL in the screenshot result.'
+        }
+      }
     }
   },
   {

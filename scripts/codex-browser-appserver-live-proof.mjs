@@ -62,7 +62,7 @@ const defaultPrompt = enableRealBrowserToolProof
       `Then call the dynamic client tool named ${browserReadFullName}.`,
       `Then call ${browserClickFullName} for the Target button. You may use the nodeId returned by ${BROWSER_CLIENT_TOOL_READ}, or use the visible text "Target button".`,
       `Then call ${browserTypeFullName} for the Smoke input with text LIVE_TYPE_OK. You may use the nodeId returned by ${BROWSER_CLIENT_TOOL_READ}, or use targetText "Smoke input".`,
-      `Then call ${browserScreenshotFullName}.`,
+      `Then call ${browserScreenshotFullName} with includeImage true.`,
       `Then call ${browserFillFullName} for the Smoke input with text LIVE_FILL_OK.`,
       `Then call ${browserKeyFullName} for the Smoke input with key Enter.`,
       `Then call ${browserSelectFullName} for the Smoke select with text beta.`,
@@ -118,6 +118,7 @@ const rawLines = []
 const parseErrors = []
 const events = []
 const serverRequests = []
+const browserToolResponseSummaries = {}
 
 const timeout = setTimeout(() => {
   finish(false, `timed out after ${timeoutMs}ms`)
@@ -226,14 +227,18 @@ try {
   const calledBrowserClick = realBrowserToolCalls.some((request) => request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_CLICK}"`))
   const calledBrowserType = realBrowserToolCalls.some((request) => request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_TYPE}"`))
   const calledBrowserScreenshot = realBrowserToolCalls.some((request) => request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_SCREENSHOT}"`))
+  const calledBrowserScreenshotWithImage = realBrowserToolCalls.some((request) =>
+    request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_SCREENSHOT}"`) &&
+    request.paramsPreview.includes(`"includeImage":true`)
+  )
   const calledBrowserFill = realBrowserToolCalls.some((request) => request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_FILL}"`))
   const calledBrowserKey = realBrowserToolCalls.some((request) => request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_KEY}"`))
   const calledBrowserSelect = realBrowserToolCalls.some((request) => request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_SELECT}"`))
   const calledBrowserCheck = realBrowserToolCalls.some((request) => request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_CHECK}"`))
   const calledBrowserScroll = realBrowserToolCalls.some((request) => request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_SCROLL}"`))
 
-  if (enableRealBrowserToolProof && calledBrowserOpen && calledBrowserRead && calledBrowserClick && calledBrowserType && calledBrowserScreenshot && calledBrowserFill && calledBrowserKey && calledBrowserSelect && calledBrowserCheck && calledBrowserScroll && assistantSawOk) {
-    finish(true, 'live Codex app-server requested real Browser dynamic tools and completed browser_open/browser_read/browser_click/browser_type/browser_screenshot/browser_fill/browser_key/browser_select/browser_check/browser_scroll round trip')
+  if (enableRealBrowserToolProof && calledBrowserOpen && calledBrowserRead && calledBrowserClick && calledBrowserType && calledBrowserScreenshot && calledBrowserScreenshotWithImage && calledBrowserFill && calledBrowserKey && calledBrowserSelect && calledBrowserCheck && calledBrowserScroll && assistantSawOk) {
+    finish(true, 'live Codex app-server requested real Browser dynamic tools and completed browser_open/browser_read/browser_click/browser_type/browser_screenshot(includeImage)/browser_fill/browser_key/browser_select/browser_check/browser_scroll round trip')
   } else if (enableRealBrowserToolProof && realBrowserToolCalls.length > 0) {
     finish(false, `real Browser tool call observed but required open/read calls or expected assistant token were missing: ${assistantText.trim()}`)
   } else if (enableRealBrowserToolProof) {
@@ -412,6 +417,25 @@ function browserToolProofResponse(tool, args) {
                   : tool === BROWSER_CLIENT_TOOL_SCROLL
                     ? 'scroll'
                     : 'read'
+  const screenshot = tool === BROWSER_CLIENT_TOOL_SCREENSHOT
+    ? {
+        ok: true,
+        mimeType: 'image/png',
+        width: 800,
+        height: 600,
+        byteSize: 4096,
+        artifactPath: '/tmp/orchestrator-browser-proof.png',
+        dataUrlLength: record.includeImage === true ? 'data:image/png;base64,T1JDSEVTVFJBVE9SX0JST1dTRVJfUFJPT0Y='.length : 0,
+        ...(record.includeImage === true ? { dataUrl: 'data:image/png;base64,T1JDSEVTVFJBVE9SX0JST1dTRVJfUFJPT0Y=' } : {})
+      }
+    : undefined
+  browserToolResponseSummaries[tool] = {
+    ok: true,
+    action,
+    includeImage: record.includeImage === true,
+    screenshotHasInlineImage: typeof screenshot?.dataUrl === 'string' && screenshot.dataUrl.startsWith('data:image/png;base64,'),
+    dataUrlLength: typeof screenshot?.dataUrl === 'string' ? screenshot.dataUrl.length : 0
+  }
   return {
     contentItems: [{
       type: 'inputText',
@@ -436,16 +460,7 @@ function browserToolProofResponse(tool, args) {
           tool === BROWSER_CLIENT_TOOL_SCROLL
           ? { ok: true, action }
           : undefined,
-        screenshot: tool === BROWSER_CLIENT_TOOL_SCREENSHOT
-          ? {
-              ok: true,
-              mimeType: 'image/png',
-              width: 800,
-              height: 600,
-              byteSize: 4096,
-              artifactPath: '/tmp/orchestrator-browser-proof.png'
-            }
-          : undefined
+        screenshot
       })
     }],
     success: true
@@ -475,6 +490,7 @@ function writeArtifacts(result) {
     serverRequests,
     eventTypes: [...new Set(events.map((event) => event.type))],
     browserEvents,
+    browserToolResponseSummaries,
     codexBrowserBoundaryEvidence: collectCodexBrowserBoundaryEvidence(),
     assistantText,
     turnStatus,

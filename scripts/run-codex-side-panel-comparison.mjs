@@ -393,7 +393,7 @@ function buildContracts() {
       ],
       sourceEvidence: [
         { path: 'src/main/codexAppServerRuntime.ts', terms: ['clientDynamicToolBridge', 'dynamicTools', 'answerClientDynamicTool'] },
-        { path: 'src/main/browserClientToolSpecs.ts', terms: ['browser_open', 'browser_read', 'browser_click', 'browser_type', 'browser_screenshot', 'browser_fill', 'browser_key', 'browser_select', 'browser_check', 'browser_scroll', 'browserClientDynamicTools'] },
+        { path: 'src/main/browserClientToolSpecs.ts', terms: ['browser_open', 'browser_read', 'browser_click', 'browser_type', 'browser_screenshot', 'includeImage', 'browser_fill', 'browser_key', 'browser_select', 'browser_check', 'browser_scroll', 'browserClientDynamicTools'] },
         { path: 'src/main/browserClientTools.ts', terms: ['browser:clientToolCall', 'browser:runClientToolSmoke'] },
         { path: 'src/renderer/src/components/Session/BrowserPanel.tsx', terms: ['onClientToolCall', 'browserClientToolSnapshot', 'waitForWebviewSettled'] },
         { path: 'src/main/__tests__/codexAppServerRuntime.test.ts', terms: ['advertises and answers supported Browser dynamic tools', 'browser_read'] },
@@ -429,6 +429,8 @@ function buildContracts() {
             { serverToolCall: 'orchestrator.browser_click' },
             { serverToolCall: 'orchestrator.browser_type' },
             { serverToolCall: 'orchestrator.browser_screenshot' },
+            { path: 'browserToolResponseSummaries.browser_screenshot.includeImage', equals: true },
+            { path: 'browserToolResponseSummaries.browser_screenshot.screenshotHasInlineImage', equals: true },
             { serverToolCall: 'orchestrator.browser_fill' },
             { serverToolCall: 'orchestrator.browser_key' },
             { serverToolCall: 'orchestrator.browser_select' },
@@ -438,20 +440,15 @@ function buildContracts() {
           ]
         }
       ],
-      smokeChecks: ['browserWebviewManagerBoundary', 'browserHiddenWebviewContainment', 'browserForkDomTransfer', 'browserUseNoMutation', 'browserManagerStateBridge', 'browserClientToolBridge', 'browserClientToolActions', 'browserClientToolScreenshot', 'browserClientToolAdvancedActions', 'browserPersistedPolicyDefaults'],
+      smokeChecks: ['browserWebviewManagerBoundary', 'browserHiddenWebviewContainment', 'browserForkDomTransfer', 'browserUseNoMutation', 'browserManagerStateBridge', 'browserClientToolBridge', 'browserClientToolActions', 'browserClientToolScreenshot', 'browserClientToolScreenshotImage', 'browserClientToolAdvancedActions', 'browserPersistedPolicyDefaults'],
       statusWhenCovered: 'fixture-covered',
-      caveat: 'Synthetic manager events, UI boundaries, Browser renderer loopback, persisted Browser Use policy defaults in the right Browser panel, installed-app smoke proof, and live Codex app-server real browser_open/browser_read/browser_click/browser_type/browser_screenshot/browser_fill/browser_key/browser_select/browser_check/browser_scroll tool requests pass; native browser-use event streaming is still separate.',
-      next: 'Keep unavailable runtime boundaries explicit; expand only when native browser-use events, image-content screenshot semantics, provider design-change application, or live pixel/timing evidence becomes available.',
+      caveat: 'Synthetic manager events, UI boundaries, Browser renderer loopback, persisted Browser Use policy defaults in the right Browser panel, installed-app smoke proof, and live Codex app-server real browser_open/browser_read/browser_click/browser_type/browser_screenshot(includeImage)/browser_fill/browser_key/browser_select/browser_check/browser_scroll tool requests pass; native browser-use event streaming is still separate.',
+      next: 'Keep unavailable runtime boundaries explicit; expand only when native browser-use events, provider design-change application, or live pixel/timing evidence becomes available.',
       openIssues: [
         {
           category: 'runtime-signal',
           issue: 'Native browser-use event streaming is not exposed by the tested live Codex app-server path.',
           requiredEvidence: 'Live runtime events for browser-use state, viewport, capture surface, cursor, or route capture.'
-        },
-        {
-          category: 'browser-agent',
-          issue: 'Browser screenshot returns text metadata and artifact paths, but image-content screenshot semantics are not live-proven.',
-          requiredEvidence: 'Provider/client contract for returning screenshot image content directly.'
         },
         {
           category: 'provider-adapter',

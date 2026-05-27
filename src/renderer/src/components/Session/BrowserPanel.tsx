@@ -1053,7 +1053,7 @@ export default function BrowserPanel({
     }
   }
 
-  const captureBrowserClientToolScreenshot = async (webview: WebviewElement | null): Promise<Record<string, unknown>> => {
+  const captureBrowserClientToolScreenshot = async (webview: WebviewElement | null, options: { includeImage?: boolean } = {}): Promise<Record<string, unknown>> => {
     if (!webview || !(webview.getURL?.() || currentUrl)) {
       return { ok: false, error: 'Browser page is not available for screenshot capture.' }
     }
@@ -1071,7 +1071,8 @@ export default function BrowserPanel({
       height: size.height,
       byteSize: saved.size,
       artifactPath: saved.path,
-      dataUrlLength: dataUrl.length
+      dataUrlLength: dataUrl.length,
+      ...(options.includeImage === true ? { dataUrl } : {})
     }
   }
 
@@ -1261,7 +1262,9 @@ export default function BrowserPanel({
       const webview = await waitForActiveWebview(webviewRef, 1000)
       if (call.tool === 'browser_screenshot') {
         if (webview) await waitForWebviewSettled(webview, 1200)
-        const screenshotResult = await captureBrowserClientToolScreenshot(webview)
+        const screenshotResult = await captureBrowserClientToolScreenshot(webview, {
+          includeImage: call.arguments.includeImage === true
+        })
         answerBrowserClientTool(call, screenshotResult.ok === true, {
           ...(await browserClientToolSnapshot(webview)),
           action: 'screenshot',

@@ -344,7 +344,7 @@ function extractSlidesPreview(archive: Buffer): { slides: Array<{ index: number;
     .map((entry) => entry.name)
     .filter((name) => /^ppt\/slides\/slide\d+\.xml$/i.test(name))
     .sort(naturalCompare)
-  const slides: Array<{ index: number; title: string; text: string[] }> = []
+  const slides: Array<{ index: number; title: string; text: string[]; notes: string }> = []
   let truncated = slideNames.length > 12
   for (const [index, name] of slideNames.slice(0, 12).entries()) {
     const xml = readZipEntry(archive, name)?.toString('utf8') ?? ''
