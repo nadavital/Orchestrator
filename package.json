@@ -71,7 +71,8 @@
     "live:claude-capabilities": "tsc -p tsconfig.node.json --outDir out-test --module commonjs && node scripts/claude-live-capability-suite.mjs",
     "preview": "electron-vite preview",
     "rebuild": "electron-rebuild -f -w node-pty",
-    "postinstall": "echo 'Run npm run rebuild to build native modules'"
+    "postinstall": "echo 'Run npm run rebuild to build native modules'",
+    "live:codex-pinned-threads": "node -e \"require('fs').rmSync('out-test',{recursive:true,force:true})\" && tsc -p tsconfig.node.json --outDir out-test --module commonjs && node scripts/codex-pinned-threads-live-proof.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

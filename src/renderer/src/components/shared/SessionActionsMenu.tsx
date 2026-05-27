@@ -58,17 +58,12 @@ export default function SessionActionsMenu({
   const [automations, setAutomations] = useState<Automation[]>([])
   const existingAutomation = automations[0] ?? null
   const isPinned = isSidebarPinnedSession(session)
-  const providerPinMutable = session.provider === 'codex' && Boolean(session.providerSessionId)
-  const providerPinReadOnly = session.providerPinned === true && session.pinned !== true && !providerPinMutable
+  const providerPinReadOnly = session.providerPinned === true && session.pinned !== true
   const pinActionLabel = providerPinReadOnly
     ? 'Provider pin is read-only in Orchestrator'
-    : providerPinMutable
-      ? isPinned
-        ? 'Unpin chat in Codex'
-        : 'Pin chat in Codex'
-      : isPinned
-        ? 'Unpin chat locally'
-        : 'Pin chat locally'
+    : isPinned
+      ? 'Unpin chat locally'
+      : 'Pin chat locally'
 
   useEffect(() => {
     let cancelled = false

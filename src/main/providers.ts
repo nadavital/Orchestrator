@@ -972,7 +972,6 @@ const providerRegistries: Record<string, ProviderCapabilityRegistry> = {
       commandSurface('appserver-mcp-status', 'MCP status', 'mcp', ['app-server', 'mcpServerStatus/list'], 'app-server', 'none', false, 'settings', { featureId: 'mcp' }),
       commandSurface('appserver-external-agent-config', 'External agent configs', 'agents', ['app-server', 'externalAgentConfig/detect'], 'app-server', 'none', false, 'settings', { featureId: 'multi-agent' }),
       commandSurface('appserver-threads', 'Threads', 'runtime', ['app-server', 'thread/list'], 'app-server', 'none', false, 'settings', { featureId: 'app-server' }),
-      commandSurface('appserver-pinned-threads', 'Pinned threads', 'runtime', ['app-server', 'list-pinned-threads'], 'app-server', 'none', false, 'settings', { featureId: 'app-server' }),
       commandSurface('appserver-loaded-threads', 'Loaded threads', 'runtime', ['app-server', 'thread/loaded/list'], 'app-server', 'none', false, 'settings', { featureId: 'app-server' })
     ],
     slashCommands: [
@@ -3476,7 +3475,6 @@ function codexAppServerSurfaceRequest(surfaceId: string, cwd = process.cwd()): C
     'appserver-mcp-status': { method: 'mcpServerStatus/list', params: { limit: 100 } },
     'appserver-external-agent-config': { method: 'externalAgentConfig/detect', params: { includeHome: true, cwds: [cwd] } },
     'appserver-threads': { method: 'thread/list', params: { limit: 50, cwd, useStateDbOnly: true } },
-    'appserver-pinned-threads': { method: 'list-pinned-threads', params: {} },
     'appserver-loaded-threads': { method: 'thread/loaded/list', params: { limit: 50 } }
   }
   return requests[surfaceId] ?? null
@@ -3632,34 +3630,6 @@ export async function runCodexAppServerCommandSurfaceRaw(surfaceId: string, cwd 
   const binary = resolveProviderBinary(provider)
   if (!binary) throw new Error('codex CLI is not available.')
   return await runCodexAppServerSingleRequest(provider, binary, request, cwd)
-}
-
-export async function setCodexAppServerThreadPinnedRaw(
-  threadId: string,
-  pinned: boolean,
-  cwd = process.cwd(),
-  beforeThreadId?: string
-): Promise<unknown> {
-  const provider = getProvider('codex')
-  const binary = resolveProviderBinary(provider)
-  if (!binary) throw new Error('codex CLI is not available.')
-  const params: Record<string, unknown> = beforeThreadId
-    ? { threadId, pinned, beforeThreadId }
-    : { threadId, pinned }
-  return await runCodexAppServerSingleRequest(provider, binary, { method: 'set-thread-pinned', params }, cwd)
-}
-
-export async function setCodexAppServerPinnedThreadsOrderRaw(
-  threadIds: string[],
-  cwd = process.cwd()
-): Promise<unknown> {
-  const provider = getProvider('codex')
-  const binary = resolveProviderBinary(provider)
-  if (!binary) throw new Error('codex CLI is not available.')
-  return await runCodexAppServerSingleRequest(provider, binary, {
-    method: 'set-pinned-threads-order',
-    params: { threadIds }
-  }, cwd)
 }
 
 export function runProviderCommandSurface(providerId: string, surfaceId: string): ProviderCommandSurfaceResult {

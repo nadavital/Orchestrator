@@ -16712,9 +16712,9 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
             const sidebarProviderPinBoundaryWorks =
               providerPinnedPin instanceof HTMLButtonElement &&
               localPinnedPin instanceof HTMLButtonElement &&
-              !providerPinnedPin.disabled &&
-              providerPinnedPin.getAttribute('data-sidebar-pin-boundary') === 'codex-provider' &&
-              (providerPinnedPin.getAttribute('aria-label') ?? '').includes('Codex') &&
+              providerPinnedPin.disabled &&
+              providerPinnedPin.getAttribute('data-sidebar-pin-boundary') === 'provider-readonly' &&
+              (providerPinnedPin.getAttribute('aria-label') ?? '').includes('Provider pin') &&
               !localPinnedPin.disabled &&
               localPinnedPin.getAttribute('data-sidebar-pin-boundary') === 'local' &&
               (localPinnedPin.getAttribute('aria-label') ?? '').includes('locally');
@@ -16784,7 +16784,8 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
                   providerPinnedShellAfterReorder.getAttribute('data-sidebar-provider-pinned') === 'true' &&
                   providerPinnedShellAfterReorder.getAttribute('data-sidebar-pinned-thread-key') === 'remote:sidebar-provider-pinned-codex' &&
                   providerPinnedPinAfterReorder instanceof HTMLButtonElement &&
-                  providerPinnedPinAfterReorder.getAttribute('data-sidebar-pin-boundary') === 'codex-provider';
+                  providerPinnedPinAfterReorder.getAttribute('data-sidebar-pin-boundary') === 'provider-readonly' &&
+                  providerPinnedPinAfterReorder.disabled;
               }
             }
             let sidebarProjectlessChatsWorks = false;

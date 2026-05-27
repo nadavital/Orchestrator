@@ -85,18 +85,13 @@ function SessionItem({ session }: Props): JSX.Element {
   const threadKind = sidebarThreadKind(session)
   const labelColor = sidebarLabelColor(session)
   const isPinned = isSidebarPinnedSession(session)
-  const providerPinMutable = session.provider === 'codex' && Boolean(session.providerSessionId)
-  const providerPinReadOnly = session.providerPinned === true && session.pinned !== true && !providerPinMutable
-  const pinBoundary = providerPinMutable ? 'codex-provider' : providerPinReadOnly ? 'provider-readonly' : 'local'
+  const providerPinReadOnly = session.providerPinned === true && session.pinned !== true
+  const pinBoundary = providerPinReadOnly ? 'provider-readonly' : 'local'
   const pinActionLabel = providerPinReadOnly
     ? 'Provider pin is read-only in Orchestrator'
-    : providerPinMutable
-      ? isPinned
-        ? 'Unpin chat in Codex'
-        : 'Pin chat in Codex'
-      : isPinned
-        ? 'Unpin chat locally'
-        : 'Pin chat locally'
+    : isPinned
+      ? 'Unpin chat locally'
+      : 'Pin chat locally'
   const rowSelectedKey = sidebarSessionSelectedKey(session.id)
 
   useEffect(() => {
@@ -222,14 +217,6 @@ function SessionItem({ session }: Props): JSX.Element {
     event.stopPropagation()
     if (providerPinReadOnly) return
     const nextPinned = !isPinned
-    if (providerPinMutable) {
-      try {
-        await window.api.sessions.updatePinned(session.id, nextPinned)
-      } catch (error) {
-        console.error('Failed to update provider pinned chat', error)
-      }
-      return
-    }
     const previousPinOrder = session.pinOrder
     updatePinned(session.id, nextPinned)
     try {
