@@ -45,6 +45,21 @@ const pendingNavigationByWindow = new Map<number, OrchestratorDeepLinkNavigation
 let pendingNavigation: OrchestratorDeepLinkNavigation | null = null
 let automatedMultiWindowFocusSmokeStarted = false
 
+function seedAutomatedBrowserUsePolicy(): void {
+  settingsStore.set('browserUsePolicy', {
+    approvalMode: 'alwaysAllow',
+    historyApprovalMode: 'alwaysAllow',
+    downloadApprovalMode: 'alwaysAllow',
+    uploadApprovalMode: 'alwaysAllow',
+    allowedOrigins: ['localhost', '127.0.0.1', 'example.com'],
+    blockedOrigins: ['blocked.example'],
+    allowedDownloadOrigins: ['downloads.example'],
+    blockedDownloadOrigins: [],
+    allowedUploadOrigins: ['uploads.example'],
+    blockedUploadOrigins: []
+  })
+}
+
 function activeAppWindow(): BrowserWindow | null {
   const focusedWindow = BrowserWindow.getFocusedWindow()
   if (focusedWindow && appWindows.has(focusedWindow) && !focusedWindow.isDestroyed()) return focusedWindow
@@ -1224,14 +1239,36 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 settingsContentLayoutMatches('settings-content-layout-browser', 'Browser', 'built-in Browser data');
               const browserSettingsDataSurface = document.querySelector('[data-testid="settings-browser-data-surface"]');
               const browserSettingsPermissionsSurface = document.querySelector('[data-testid="settings-browser-permissions-surface"]');
+              const browserSettingsDomainsSurface = document.querySelector('[data-testid="settings-browser-domains-surface"]');
+              const browserSettingsApprovalSelect = document.querySelector('[data-testid="settings-browser-approval-mode"]');
+              if (browserSettingsApprovalSelect instanceof HTMLSelectElement) {
+                browserSettingsApprovalSelect.value = 'alwaysAllow';
+                browserSettingsApprovalSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                await sleep(180);
+              }
+              const browserAllowedDomainInput = document.querySelector('[data-testid="settings-browser-allowedOrigins-input"]');
+              const browserAllowedDomainAdd = document.querySelector('[data-testid="settings-browser-allowedOrigins-add"]');
+              if (browserAllowedDomainInput instanceof HTMLInputElement && browserAllowedDomainAdd instanceof HTMLButtonElement) {
+                const setter = Object.getOwnPropertyDescriptor(browserAllowedDomainInput.constructor.prototype, 'value')?.set;
+                setter?.call(browserAllowedDomainInput, 'example.com');
+                browserAllowedDomainInput.dispatchEvent(new Event('input', { bubbles: true }));
+                await sleep(80);
+                browserAllowedDomainAdd.click();
+                await sleep(180);
+              }
               const browserSettingsClearCache = document.querySelector('[data-testid="settings-browser-clear-cache"]');
               if (browserSettingsClearCache instanceof HTMLButtonElement) {
                 browserSettingsClearCache.click();
                 await sleep(180);
               }
               const browserSettingsStatus = document.querySelector('[data-testid="settings-browser-clear-status"]');
+              const browserPolicyStatus = document.querySelector('[data-testid="settings-browser-policy-status"]');
+              const browserSettingsPolicy = (await window.api.settings.get()).browserUsePolicy;
               const browserSettingsRows = browserSettingsSection instanceof HTMLElement
                 ? [...browserSettingsSection.querySelectorAll('.settings-row')]
+                : [];
+              const browserDomainRows = browserSettingsSection instanceof HTMLElement
+                ? [...browserSettingsSection.querySelectorAll('[data-testid="settings-browser-domain-policy-row"]')]
                 : [];
               var settingsBrowserPageWorks =
                 browserSettingsSection instanceof HTMLElement &&
@@ -1241,7 +1278,9 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 browserSettingsSection.innerText.includes('Delete site data') &&
                 browserSettingsSection.innerText.includes('Cached images and files') &&
                 browserSettingsSection.innerText.includes('Permissions') &&
-                browserSettingsSection.innerText.includes('Session scoped') &&
+                browserSettingsSection.innerText.includes('Domains') &&
+                browserSettingsSection.innerText.includes('Always allow') &&
+                browserSettingsSection.innerText.includes('example.com') &&
                 browserSettingsStatus instanceof HTMLElement &&
                 browserSettingsStatus.textContent?.includes('Browser cache cleared') === true;
               var settingsBrowserSurfaceWorks =
@@ -1249,12 +1288,22 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 browserSettingsSection.classList.contains('settings-page-section') &&
                 browserSettingsDataSurface instanceof HTMLElement &&
                 browserSettingsPermissionsSurface instanceof HTMLElement &&
-                browserSettingsRows.length >= 7 &&
+                browserSettingsDomainsSurface instanceof HTMLElement &&
+                browserSettingsRows.length >= 8 &&
+                browserDomainRows.length >= 6 &&
                 browserSettingsSection.querySelector('.settings-panel') === null &&
                 browserSettingsSection.querySelector('.compact-setting') === null;
               var settingsBrowserModuleWorks =
                 browserSettingsSection instanceof HTMLElement &&
                 browserSettingsSection.closest('[data-settings-page-module="browser"]') instanceof HTMLElement;
+              var settingsBrowserPolicyPersistenceWorks =
+                browserSettingsApprovalSelect instanceof HTMLSelectElement &&
+                browserSettingsApprovalSelect.value === 'alwaysAllow' &&
+                browserPolicyStatus instanceof HTMLElement &&
+                browserPolicyStatus.textContent?.includes('Browser permissions saved') === true &&
+                browserSettingsPolicy?.approvalMode === 'alwaysAllow' &&
+                Array.isArray(browserSettingsPolicy?.allowedOrigins) &&
+                browserSettingsPolicy.allowedOrigins.includes('example.com');
               const dataButton = [...document.querySelectorAll('button')]
                 .find((button) => button.textContent?.includes('Data controls'));
               dataButton?.click();
@@ -3386,6 +3435,21 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                   !findButton('Pin file tab');
               }
             }
+            if (window.api?.settings?.set) {
+              await window.api.settings.set('browserUsePolicy', {
+                approvalMode: 'alwaysAllow',
+                historyApprovalMode: 'alwaysAllow',
+                downloadApprovalMode: 'alwaysAllow',
+                uploadApprovalMode: 'alwaysAllow',
+                allowedOrigins: ['localhost', '127.0.0.1', 'example.com'],
+                blockedOrigins: ['blocked.example'],
+                allowedDownloadOrigins: ['downloads.example'],
+                blockedDownloadOrigins: [],
+                allowedUploadOrigins: ['uploads.example'],
+                blockedUploadOrigins: []
+              });
+              await sleep(160);
+            }
             const browserPanelTabButton = document.querySelector('[data-tab-id="browser"]')?.closest('[role="tab"]');
             if (browserPanelTabButton instanceof HTMLElement) {
               browserPanelTabButton.click();
@@ -3863,9 +3927,29 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 await sleep(100);
               }
             }
+            for (let index = 0; index < 20; index += 1) {
+              const values = [...document.querySelectorAll('[data-testid="browser-security-pane"] .browser-policy-select select')]
+                .map((select) => select instanceof HTMLSelectElement ? select.value : '');
+              const policyText = document.querySelector('[data-testid="browser-security-pane"]')?.textContent ?? '';
+              if (
+                values.length === 4 &&
+                values.every((value) => value === 'alwaysAllow') &&
+                policyText.includes('example.com') &&
+                policyText.includes('blocked.example') &&
+                policyText.includes('downloads.example') &&
+                policyText.includes('uploads.example')
+              ) {
+                break;
+              }
+              await sleep(100);
+            }
             const browserSecurityPane = document.querySelector('[data-testid="browser-security-pane"]');
             const browserSecurityOrigin = document.querySelector('[data-testid="browser-security-origin"]');
             const browserSecurityRows = [...document.querySelectorAll('[data-testid="browser-security-policy-row"]')];
+            const browserSecurityPolicySelectValues = browserSecurityPane instanceof HTMLElement
+              ? [...browserSecurityPane.querySelectorAll('.browser-policy-select select')]
+                .map((select) => select instanceof HTMLSelectElement ? select.value : '')
+              : [];
             const browserSecurityText = browserSecurityPane instanceof HTMLElement
               ? browserSecurityPane.textContent?.toLowerCase() ?? ''
               : '';
@@ -3881,6 +3965,14 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               browserSecurityText.includes('downloads') &&
               browserSecurityText.includes('uploads') &&
               browserSecurityPane.querySelectorAll('.browser-policy-select').length === 4;
+            var browserPersistedPolicyDefaultsWorks =
+              browserSecurityPane instanceof HTMLElement &&
+              browserSecurityPolicySelectValues.length === 4 &&
+              browserSecurityPolicySelectValues.every((value) => value === 'alwaysAllow') &&
+              browserSecurityText.includes('example.com') &&
+              browserSecurityText.includes('blocked.example') &&
+              browserSecurityText.includes('downloads.example') &&
+              browserSecurityText.includes('uploads.example');
             var browserSecurityPaneNoHorizontalOverflowWorks = (() => {
               const drawer = document.querySelector('.browser-inspector-drawer');
               const output = document.querySelector('[data-testid="browser-inspector-output"]');
@@ -5323,6 +5415,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             browserAssetBundleWorks: typeof browserAssetBundleWorks === 'boolean' ? browserAssetBundleWorks : null,
             browserInlineSvgInventoryWorks: typeof browserInlineSvgInventoryWorks === 'boolean' ? browserInlineSvgInventoryWorks : null,
             browserSecurityPaneWorks: typeof browserSecurityPaneWorks === 'boolean' ? browserSecurityPaneWorks : null,
+            browserPersistedPolicyDefaultsWorks: typeof browserPersistedPolicyDefaultsWorks === 'boolean' ? browserPersistedPolicyDefaultsWorks : null,
             browserSecurityPaneNoHorizontalOverflowWorks: typeof browserSecurityPaneNoHorizontalOverflowWorks === 'boolean' ? browserSecurityPaneNoHorizontalOverflowWorks : null,
             browserInspectorContainersSharedWorks: typeof browserInspectorContainersSharedWorks === 'boolean' ? browserInspectorContainersSharedWorks : null,
             browserInspectorChromeCompactWorks: typeof browserInspectorChromeCompactWorks === 'boolean' ? browserInspectorChromeCompactWorks : null,
@@ -5415,6 +5508,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             settingsBrowserPageWorks: typeof settingsBrowserPageWorks === 'boolean' ? settingsBrowserPageWorks : null,
             settingsBrowserSurfaceWorks: typeof settingsBrowserSurfaceWorks === 'boolean' ? settingsBrowserSurfaceWorks : null,
             settingsBrowserModuleWorks: typeof settingsBrowserModuleWorks === 'boolean' ? settingsBrowserModuleWorks : null,
+            settingsBrowserPolicyPersistenceWorks: typeof settingsBrowserPolicyPersistenceWorks === 'boolean' ? settingsBrowserPolicyPersistenceWorks : null,
             settingsAutomationsPageWorks: typeof settingsAutomationsPageWorks === 'boolean' ? settingsAutomationsPageWorks : null,
             settingsWorktreesPageWorks: typeof settingsWorktreesPageWorks === 'boolean' ? settingsWorktreesPageWorks : null,
             settingsWorktreesCreateWorks: typeof settingsWorktreesCreateWorks === 'boolean' ? settingsWorktreesCreateWorks : null,
@@ -14426,14 +14520,35 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               );
             let browserSecurityActionsSharedWorks = false;
             let browserSecuritySharedContainersWorks = false;
+            let browserPersistedPolicyDefaultsWorks = false;
             const browserSecurityButton = document.querySelector('[data-testid="browser-inspector-security"]');
             if (browserSecurityButton instanceof HTMLButtonElement) {
               browserSecurityButton.click();
-              await sleep(120);
+              for (let index = 0; index < 20; index += 1) {
+                const values = [...document.querySelectorAll('[data-testid="browser-security-pane"] .browser-policy-select select')]
+                  .map((select) => select instanceof HTMLSelectElement ? select.value : '');
+                const text = document.querySelector('[data-testid="browser-security-pane"]')?.textContent ?? '';
+                if (
+                  values.length === 4 &&
+                  values.every((value) => value === 'alwaysAllow') &&
+                  text.includes('example.com') &&
+                  text.includes('blocked.example') &&
+                  text.includes('downloads.example') &&
+                  text.includes('uploads.example')
+                ) {
+                  break;
+                }
+                await sleep(100);
+              }
               const securityPane = document.querySelector('[data-testid="browser-security-pane"]');
               const securityPolicyRows = [...document.querySelectorAll('[data-testid="browser-security-policy-row"]')];
               const securityPolicyButtons = [...document.querySelectorAll('[data-testid="browser-security-policy-row"] .browser-inspector-action-button')]
                 .filter((button) => button instanceof HTMLElement);
+              const securityPolicySelectValues = securityPane instanceof HTMLElement
+                ? [...securityPane.querySelectorAll('.browser-policy-select select')]
+                  .map((select) => select instanceof HTMLSelectElement ? select.value : '')
+                : [];
+              const securityPolicyText = securityPane instanceof HTMLElement ? securityPane.textContent ?? '' : '';
               browserSecurityActionsSharedWorks =
                 securityPane instanceof HTMLElement &&
                 securityPolicyButtons.length >= 8 &&
@@ -14453,6 +14568,14 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                   row.getAttribute('data-inspector-row') === 'true' &&
                   row.classList.contains('orchestrator-inspector-row')
                 );
+              browserPersistedPolicyDefaultsWorks =
+                securityPane instanceof HTMLElement &&
+                securityPolicySelectValues.length === 4 &&
+                securityPolicySelectValues.every((value) => value === 'alwaysAllow') &&
+                securityPolicyText.includes('example.com') &&
+                securityPolicyText.includes('blocked.example') &&
+                securityPolicyText.includes('downloads.example') &&
+                securityPolicyText.includes('uploads.example');
             }
             var browserInspectorActionsSharedWorks =
               browserAssetsBundleSharedWorks &&
@@ -14821,6 +14944,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserInspectorContainersSharedWorks,
               browserTargetActionsSharedWorks,
               browserSecurityActionsSharedWorks,
+              browserPersistedPolicyDefaultsWorks,
               browserInspectorActionsSharedWorks,
               browserVisibilityControlWorks,
               browserHiddenStateWorks,
@@ -19519,7 +19643,12 @@ async function bootstrapAutomatedUiSmokeState(): Promise<void> {
     process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW?.startsWith('diff-') ||
     process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'inspector'
   ) {
+    if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'inspector') {
+      seedAutomatedBrowserUsePolicy()
+    }
     seedAutomatedReviewCardSmokeSession(session.id)
+  } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'browser') {
+    seedAutomatedBrowserUsePolicy()
   } else if (
     process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'pet-overlay' ||
     process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'motion-reduced'

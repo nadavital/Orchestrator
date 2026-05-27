@@ -2154,6 +2154,13 @@ export {
   artifactImportKindSupportsSource,
   artifactTabPresentationForPath
 } from './artifactTabs'
+export {
+  DEFAULT_BROWSER_USE_POLICY,
+  normalizeBrowserUseApprovalMode,
+  normalizeBrowserUseOrigin,
+  normalizeBrowserUseOrigins,
+  normalizeBrowserUsePolicy
+} from './browserUsePolicy'
 export type {
   PinOrderedSession,
   ProviderPinnedThreadKeyKind,
@@ -2166,6 +2173,10 @@ export type {
   ArtifactTabPresentation,
   ArtifactType
 } from './artifactTabs'
+export type {
+  BrowserUseApprovalMode,
+  BrowserUsePolicy
+} from './browserUsePolicy'
 export type {
   OrderedSidebarProjectGroup
 } from './sidebarLayout'

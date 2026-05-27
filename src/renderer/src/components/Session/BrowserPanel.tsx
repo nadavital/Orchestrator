@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { MouseEvent as ReactMouseEvent, MutableRefObject, PointerEvent as ReactPointerEvent } from 'react'
 import type { BrowserApprovalMode, BrowserDeviceMode, BrowserHistoryEntry, BrowserLocalServerRoute, BrowserTabState, BrowserUseCursorState, BrowserUseSurfaceBounds, BrowserUseSurfaceSize, BrowserWorkbenchState } from '../../store/sessions'
-import { browserWebviewPartitionForHost } from '../../types'
+import type { BrowserUsePolicy } from '../../types'
+import { browserWebviewPartitionForHost, DEFAULT_BROWSER_USE_POLICY, normalizeBrowserUsePolicy } from '../../types'
 import { Badge, Button, IconButton, InspectorDisclosure, InspectorRow, InspectorSection, MenuItem, MenuMessage, MenuRow, MenuSection, MenuSectionLabel, MenuSurface, PanelMessage, PanelNotice, PanelTabStrip, PanelToolbar, ToolbarButton, WorkbenchSearchField } from '../shared/designSystem'
 import Icon from '../shared/Icon'
 import BrowserWebviewManager, { type BrowserVisibleGeometry, type WebviewElement } from './BrowserWebviewManager'
@@ -534,6 +535,21 @@ export default function BrowserPanel({
     workbenchRef.current = { ...workbenchRef.current, ...patch }
     onBrowserStateChange?.(patch)
   }
+
+  useEffect(() => {
+    let cancelled = false
+    window.api.settings.get()
+      .then((settings) => {
+        if (cancelled) return
+        const policy = normalizeBrowserUsePolicy(settings.browserUsePolicy)
+        const current = workbenchRef.current
+        if (browserWorkbenchHasDefaultPolicy(current) && !browserWorkbenchPolicyEquals(current, policy)) {
+          patchWorkbench(browserPolicyWorkbenchPatch(policy))
+        }
+      })
+      .catch(() => undefined)
+    return () => { cancelled = true }
+  }, [hostId])
 
   const hideLocalTarget = (url: string): void => {
     patchWorkbench({ hiddenLocalTargets: Array.from(new Set([...workbenchRef.current.hiddenLocalTargets, url])) })
@@ -2691,6 +2707,42 @@ function normalizeWorkbench(state: BrowserWorkbenchState | undefined, initialUrl
     localServerRoutes: normalizeLocalServerRoutes(state?.localServerRoutes ?? []),
     hiddenLocalServerRoutes: normalizeHiddenLocalServerRoutes(state?.hiddenLocalServerRoutes ?? [])
   }
+}
+
+function browserPolicyWorkbenchPatch(policy: BrowserUsePolicy): Partial<BrowserWorkbenchState> {
+  return {
+    approvalMode: policy.approvalMode,
+    historyApprovalMode: policy.historyApprovalMode,
+    downloadApprovalMode: policy.downloadApprovalMode,
+    uploadApprovalMode: policy.uploadApprovalMode,
+    allowedOrigins: policy.allowedOrigins,
+    blockedOrigins: policy.blockedOrigins,
+    allowedDownloadOrigins: policy.allowedDownloadOrigins,
+    blockedDownloadOrigins: policy.blockedDownloadOrigins,
+    allowedUploadOrigins: policy.allowedUploadOrigins,
+    blockedUploadOrigins: policy.blockedUploadOrigins
+  }
+}
+
+function browserWorkbenchHasDefaultPolicy(workbench: BrowserWorkbenchState): boolean {
+  return browserWorkbenchPolicyEquals(workbench, DEFAULT_BROWSER_USE_POLICY)
+}
+
+function browserWorkbenchPolicyEquals(workbench: BrowserWorkbenchState, policy: BrowserUsePolicy): boolean {
+  return workbench.approvalMode === policy.approvalMode &&
+    workbench.historyApprovalMode === policy.historyApprovalMode &&
+    workbench.downloadApprovalMode === policy.downloadApprovalMode &&
+    workbench.uploadApprovalMode === policy.uploadApprovalMode &&
+    stringArrayEqual(workbench.allowedOrigins, policy.allowedOrigins) &&
+    stringArrayEqual(workbench.blockedOrigins, policy.blockedOrigins) &&
+    stringArrayEqual(workbench.allowedDownloadOrigins, policy.allowedDownloadOrigins) &&
+    stringArrayEqual(workbench.blockedDownloadOrigins, policy.blockedDownloadOrigins) &&
+    stringArrayEqual(workbench.allowedUploadOrigins, policy.allowedUploadOrigins) &&
+    stringArrayEqual(workbench.blockedUploadOrigins, policy.blockedUploadOrigins)
+}
+
+function stringArrayEqual(left: string[], right: string[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index])
 }
 
 function normalizeBrowserTransferHostId(hostId: string | null | undefined): string | null {

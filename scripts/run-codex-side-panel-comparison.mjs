@@ -263,9 +263,9 @@ function buildContracts() {
           ]
         }
       ],
-      smokeChecks: ['browserWebviewManagerBoundary', 'browserHiddenWebviewContainment', 'browserForkDomTransfer', 'browserUseNoMutation', 'browserManagerStateBridge', 'browserClientToolBridge'],
+      smokeChecks: ['browserWebviewManagerBoundary', 'browserHiddenWebviewContainment', 'browserForkDomTransfer', 'browserUseNoMutation', 'browserManagerStateBridge', 'browserClientToolBridge', 'browserPersistedPolicyDefaults'],
       statusWhenCovered: 'fixture-covered',
-      caveat: 'Synthetic manager events, UI boundaries, smoke-only Browser renderer loopback, and live Codex app-server real browser_open/browser_read tool requests pass; native browser-use event streaming is still separate.',
+      caveat: 'Synthetic manager events, UI boundaries, smoke-only Browser renderer loopback, persisted Browser Use policy defaults in the right Browser panel, and live Codex app-server real browser_open/browser_read tool requests pass; native browser-use event streaming is still separate.',
       next: 'Expand click/type/screenshot coverage only from real browser-use requests or a full installed-app end-to-end run; keep unavailable runtime boundaries explicit.'
     },
     {
@@ -327,10 +327,10 @@ function buildContracts() {
       scope: 'Settings window/surface',
       captureIds: ['settings', 'settings-providers', 'pets'],
       codexAssetNames: ['settings-', 'appearance-settings-', 'personalization-settings-', 'remote-connections-settings-', 'worktrees-settings-', 'browser-use-settings-'],
-      smokeChecks: ['settingsHostContext', 'settingsHostAdapterBoundary', 'settingsPersonalizationHostBoundary', 'settingsContentLayout', 'settingsBrowserPage', 'settingsBrowserSurface', 'settingsBrowserModule'],
+      smokeChecks: ['settingsHostContext', 'settingsHostAdapterBoundary', 'settingsPersonalizationHostBoundary', 'settingsContentLayout', 'settingsBrowserPage', 'settingsBrowserSurface', 'settingsBrowserModule', 'settingsBrowserPolicyPersistence'],
       statusWhenCovered: 'fixture-covered',
-      caveat: 'Host-scoped unavailable states are explicit, and the Browser Settings page exposes real host-scoped in-app Browser data clearing while keeping Browser permissions session-scoped in the side-panel Security inspector. Real remote-host adapters, Codex Personalization data, and full global Browser Use approval/history/domain persistence remain incomplete.',
-      next: 'Add host adapters only where provider data exists; deepen Browser Use settings only when approval/history/domain policy can be persisted beyond an individual Browser panel.'
+      caveat: 'Host-scoped unavailable states are explicit, and the Browser Settings page exposes real host-scoped in-app Browser data clearing plus persisted Browser Use approval/history/download/upload and domain-policy defaults. Real remote-host adapters, Codex Personalization data, and provider-backed Browser Use adapters remain incomplete.',
+      next: 'Add host adapters only where provider data exists; deepen Browser Use settings only when a provider or browser-use runtime exposes more policy state.'
     },
     {
       id: 'chat-sidebar-provider-state',

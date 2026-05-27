@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import type { Attachment, Session, SessionListItem, ChatMessage, SessionEffort, SessionPermissionMode, SessionRunEventRecord, TranscriptPage, UsageSummary } from '../types'
-import { closePanelTab, filePanelTabId, movePanelTabByDirection, nextPinOrder, parseFilePanelTabId, reorderPinnedSessions, resetPanelTabSet, resolvePanelTabTransferAvailability, transferPanelTab, upsertPanelTab } from '../types'
+import { closePanelTab, DEFAULT_BROWSER_USE_POLICY, filePanelTabId, movePanelTabByDirection, nextPinOrder, parseFilePanelTabId, reorderPinnedSessions, resetPanelTabSet, resolvePanelTabTransferAvailability, transferPanelTab, upsertPanelTab } from '../types'
 import type { SettingsSectionId } from '../../../types'
 
 export type SettingsSection = SettingsSectionId
@@ -363,16 +363,16 @@ function defaultBrowserWorkbench(): BrowserWorkbenchState {
     nextTabIndex: 2,
     inspectorOpen: false,
     inspectorMode: 'console',
-    approvalMode: 'alwaysAsk',
-    historyApprovalMode: 'alwaysAsk',
-    downloadApprovalMode: 'alwaysAsk',
-    uploadApprovalMode: 'alwaysAsk',
-    allowedOrigins: ['localhost', '127.0.0.1'],
-    blockedOrigins: [],
-    allowedDownloadOrigins: [],
-    blockedDownloadOrigins: [],
-    allowedUploadOrigins: [],
-    blockedUploadOrigins: [],
+    approvalMode: DEFAULT_BROWSER_USE_POLICY.approvalMode,
+    historyApprovalMode: DEFAULT_BROWSER_USE_POLICY.historyApprovalMode,
+    downloadApprovalMode: DEFAULT_BROWSER_USE_POLICY.downloadApprovalMode,
+    uploadApprovalMode: DEFAULT_BROWSER_USE_POLICY.uploadApprovalMode,
+    allowedOrigins: [...DEFAULT_BROWSER_USE_POLICY.allowedOrigins],
+    blockedOrigins: [...DEFAULT_BROWSER_USE_POLICY.blockedOrigins],
+    allowedDownloadOrigins: [...DEFAULT_BROWSER_USE_POLICY.allowedDownloadOrigins],
+    blockedDownloadOrigins: [...DEFAULT_BROWSER_USE_POLICY.blockedDownloadOrigins],
+    allowedUploadOrigins: [...DEFAULT_BROWSER_USE_POLICY.allowedUploadOrigins],
+    blockedUploadOrigins: [...DEFAULT_BROWSER_USE_POLICY.blockedUploadOrigins],
     hiddenLocalTargets: [],
     localServerRoutes: [],
     hiddenLocalServerRoutes: []

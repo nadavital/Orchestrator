@@ -1,6 +1,8 @@
 import Store from 'electron-store'
 import { migrateLegacyUserData } from './userDataMigration'
 import type { ShortcutOverrides } from '../types/appCommands'
+import type { BrowserUsePolicy } from '../types/browserUsePolicy'
+import { DEFAULT_BROWSER_USE_POLICY } from '../types/browserUsePolicy'
 
 interface AppSettings {
   defaultProvider: string
@@ -29,6 +31,7 @@ interface AppSettings {
   usePointerCursors: boolean
   reduceMotion: boolean
   shortcutOverrides: ShortcutOverrides
+  browserUsePolicy: BrowserUsePolicy
 }
 
 interface ChromeTheme {
@@ -101,6 +104,7 @@ export const settingsStore = new Store<AppSettings>({
     usePointerCursors: true,
     reduceMotion: false,
     shortcutOverrides: {},
+    browserUsePolicy: DEFAULT_BROWSER_USE_POLICY,
   }
 })
 

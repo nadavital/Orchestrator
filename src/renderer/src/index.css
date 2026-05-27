@@ -8133,6 +8133,107 @@
     white-space: nowrap;
   }
 
+  .browser-settings-select,
+  .browser-domain-input {
+    min-height: 28px;
+    border: 1px solid var(--border-subtle);
+    border-radius: 7px;
+    background: var(--control-bg);
+    color: var(--text-primary);
+    font-size: 12px;
+    outline: none;
+  }
+
+  .browser-settings-select {
+    padding: 0 8px;
+  }
+
+  .browser-domain-settings-surface {
+    overflow: visible;
+  }
+
+  .browser-domain-policy-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(180px, 220px);
+    gap: 12px;
+    align-items: start;
+    min-height: 58px;
+    padding: 10px 12px;
+  }
+
+  .browser-domain-policy-row + .browser-domain-policy-row {
+    border-top: 1px solid color-mix(in srgb, var(--border-subtle) 72%, transparent);
+  }
+
+  .browser-domain-policy-copy {
+    min-width: 0;
+  }
+
+  .browser-domain-policy-values {
+    display: flex;
+    min-width: 0;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 7px;
+  }
+
+  .browser-domain-empty {
+    color: var(--text-tertiary);
+    font-size: 12px;
+  }
+
+  .browser-domain-pill {
+    display: inline-flex;
+    max-width: 100%;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid var(--border-subtle);
+    border-radius: 7px;
+    background: var(--surface-bg-secondary);
+    color: var(--text-secondary);
+    font-size: 12px;
+    line-height: 1.2;
+    padding: 3px 6px;
+  }
+
+  .browser-domain-pill button {
+    border: 0;
+    background: transparent;
+    color: var(--text-tertiary);
+    cursor: pointer;
+    font-size: 11px;
+    padding: 0;
+  }
+
+  .browser-domain-pill button:hover,
+  .browser-domain-pill button:focus-visible {
+    color: var(--text-primary);
+    outline: none;
+  }
+
+  .browser-domain-policy-control {
+    display: flex;
+    min-width: 0;
+    justify-content: flex-end;
+    gap: 6px;
+  }
+
+  .browser-domain-input {
+    min-width: 0;
+    width: 100%;
+    padding: 0 8px;
+  }
+
+  @media (max-width: 760px) {
+    .browser-domain-policy-row {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .browser-domain-policy-control {
+      justify-content: stretch;
+    }
+  }
+
   .automations-settings-content-group {
     min-width: 0;
   }
