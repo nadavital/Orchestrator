@@ -14264,6 +14264,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
             let browserClientToolBridgeWorks = false;
             let browserClientToolActionsWork = false;
             let browserClientToolScreenshotWorks = false;
+            let browserClientToolAdvancedActionsWork = false;
             if (activeSmokeSession) {
               const readResponse = await window.api.browser.runClientToolSmoke({
                 sessionId: activeSmokeSession.id,
@@ -14300,6 +14301,41 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                 arguments: {}
               });
               const screenshotPayload = parseClientToolPayload(screenshotResponse);
+              const fillResponse = await window.api.browser.runClientToolSmoke({
+                sessionId: activeSmokeSession.id,
+                namespace: 'orchestrator',
+                tool: 'browser_fill',
+                arguments: { targetText: 'Smoke input', text: 'CLIENT_FILL_OK' }
+              });
+              const fillPayload = parseClientToolPayload(fillResponse);
+              const keyResponse = await window.api.browser.runClientToolSmoke({
+                sessionId: activeSmokeSession.id,
+                namespace: 'orchestrator',
+                tool: 'browser_key',
+                arguments: { targetText: 'Smoke input', key: 'Enter' }
+              });
+              const keyPayload = parseClientToolPayload(keyResponse);
+              const selectResponse = await window.api.browser.runClientToolSmoke({
+                sessionId: activeSmokeSession.id,
+                namespace: 'orchestrator',
+                tool: 'browser_select',
+                arguments: { targetText: 'Smoke select', text: 'beta' }
+              });
+              const selectPayload = parseClientToolPayload(selectResponse);
+              const checkResponse = await window.api.browser.runClientToolSmoke({
+                sessionId: activeSmokeSession.id,
+                namespace: 'orchestrator',
+                tool: 'browser_check',
+                arguments: { targetText: 'Smoke checkbox', checked: true }
+              });
+              const checkPayload = parseClientToolPayload(checkResponse);
+              const scrollResponse = await window.api.browser.runClientToolSmoke({
+                sessionId: activeSmokeSession.id,
+                namespace: 'orchestrator',
+                tool: 'browser_scroll',
+                arguments: { scrollY: 120 }
+              });
+              const scrollPayload = parseClientToolPayload(scrollResponse);
               browserClientToolActionsWork =
                 clickResponse?.success === true &&
                 typeResponse?.success === true &&
@@ -14323,6 +14359,34 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                 Number(screenshotPayload.screenshot?.byteSize ?? 0) > 0 &&
                 typeof screenshotPayload.screenshot?.artifactPath === 'string' &&
                 screenshotPayload.screenshot.artifactPath.endsWith('.png');
+              browserClientToolAdvancedActionsWork =
+                fillResponse?.success === true &&
+                keyResponse?.success === true &&
+                selectResponse?.success === true &&
+                checkResponse?.success === true &&
+                scrollResponse?.success === true &&
+                fillPayload.ok === true &&
+                keyPayload.ok === true &&
+                selectPayload.ok === true &&
+                checkPayload.ok === true &&
+                scrollPayload.ok === true &&
+                fillPayload.action === 'fill' &&
+                keyPayload.action === 'key' &&
+                selectPayload.action === 'select' &&
+                checkPayload.action === 'check' &&
+                scrollPayload.action === 'scroll' &&
+                fillPayload.targetAction?.ok === true &&
+                fillPayload.targetAction?.target?.value === 'CLIENT_FILL_OK' &&
+                fillPayload.targetAction?.pageState?.inputValue === 'CLIENT_FILL_OK' &&
+                keyPayload.targetAction?.ok === true &&
+                keyPayload.targetAction?.pageState?.keyPressed === 'Enter' &&
+                selectPayload.targetAction?.ok === true &&
+                selectPayload.targetAction?.target?.value === 'beta' &&
+                selectPayload.targetAction?.pageState?.selectedOption === 'beta' &&
+                checkPayload.targetAction?.ok === true &&
+                checkPayload.targetAction?.target?.checked === true &&
+                checkPayload.targetAction?.pageState?.checkedState === 'true' &&
+                scrollPayload.targetAction?.ok === true;
               browserClientToolBridgeWorks =
                 readResponse?.success === true &&
                 openResponse?.success === true &&
@@ -14332,6 +14396,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                 openPayload.action === 'open' &&
                 browserClientToolActionsWork &&
                 browserClientToolScreenshotWorks &&
+                browserClientToolAdvancedActionsWork &&
                 Array.isArray(openPayload.targets) &&
                 openPayload.targets.some((target) => target?.visibleText === 'Target button') &&
                 typeof readPayload.visibleStructure === 'string' &&
@@ -14963,6 +15028,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserClientToolBridgeWorks,
               browserClientToolActionsWork,
               browserClientToolScreenshotWorks,
+              browserClientToolAdvancedActionsWork,
               browserCaptureGeometryWorks,
               browserUseNoMutationWorks,
               browserCacheReloadWorks,

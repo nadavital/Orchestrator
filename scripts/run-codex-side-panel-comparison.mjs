@@ -351,7 +351,7 @@ function buildContracts() {
       ],
       sourceEvidence: [
         { path: 'src/main/codexAppServerRuntime.ts', terms: ['clientDynamicToolBridge', 'dynamicTools', 'answerClientDynamicTool'] },
-        { path: 'src/main/browserClientToolSpecs.ts', terms: ['browser_open', 'browser_read', 'browser_click', 'browser_type', 'browser_screenshot', 'browserClientDynamicTools'] },
+        { path: 'src/main/browserClientToolSpecs.ts', terms: ['browser_open', 'browser_read', 'browser_click', 'browser_type', 'browser_screenshot', 'browser_fill', 'browser_key', 'browser_select', 'browser_check', 'browser_scroll', 'browserClientDynamicTools'] },
         { path: 'src/main/browserClientTools.ts', terms: ['browser:clientToolCall', 'browser:runClientToolSmoke'] },
         { path: 'src/renderer/src/components/Session/BrowserPanel.tsx', terms: ['onClientToolCall', 'browserClientToolSnapshot', 'waitForWebviewSettled'] },
         { path: 'src/main/__tests__/codexAppServerRuntime.test.ts', terms: ['advertises and answers supported Browser dynamic tools', 'browser_read'] },
@@ -377,18 +377,28 @@ function buildContracts() {
             { path: 'advertisedDynamicTools', includes: 'orchestrator.browser_click' },
             { path: 'advertisedDynamicTools', includes: 'orchestrator.browser_type' },
             { path: 'advertisedDynamicTools', includes: 'orchestrator.browser_screenshot' },
+            { path: 'advertisedDynamicTools', includes: 'orchestrator.browser_fill' },
+            { path: 'advertisedDynamicTools', includes: 'orchestrator.browser_key' },
+            { path: 'advertisedDynamicTools', includes: 'orchestrator.browser_select' },
+            { path: 'advertisedDynamicTools', includes: 'orchestrator.browser_check' },
+            { path: 'advertisedDynamicTools', includes: 'orchestrator.browser_scroll' },
             { serverToolCall: 'orchestrator.browser_open' },
             { serverToolCall: 'orchestrator.browser_read' },
             { serverToolCall: 'orchestrator.browser_click' },
             { serverToolCall: 'orchestrator.browser_type' },
             { serverToolCall: 'orchestrator.browser_screenshot' },
+            { serverToolCall: 'orchestrator.browser_fill' },
+            { serverToolCall: 'orchestrator.browser_key' },
+            { serverToolCall: 'orchestrator.browser_select' },
+            { serverToolCall: 'orchestrator.browser_check' },
+            { serverToolCall: 'orchestrator.browser_scroll' },
             { path: 'assistantText', includes: 'CODEX_BROWSER_LIVE_OK' }
           ]
         }
       ],
-      smokeChecks: ['browserWebviewManagerBoundary', 'browserHiddenWebviewContainment', 'browserForkDomTransfer', 'browserUseNoMutation', 'browserManagerStateBridge', 'browserClientToolBridge', 'browserClientToolActions', 'browserClientToolScreenshot', 'browserPersistedPolicyDefaults'],
+      smokeChecks: ['browserWebviewManagerBoundary', 'browserHiddenWebviewContainment', 'browserForkDomTransfer', 'browserUseNoMutation', 'browserManagerStateBridge', 'browserClientToolBridge', 'browserClientToolActions', 'browserClientToolScreenshot', 'browserClientToolAdvancedActions', 'browserPersistedPolicyDefaults'],
       statusWhenCovered: 'fixture-covered',
-      caveat: 'Synthetic manager events, UI boundaries, smoke-only Browser renderer loopback, persisted Browser Use policy defaults in the right Browser panel, and live Codex app-server real browser_open/browser_read/browser_click/browser_type/browser_screenshot tool requests pass; native browser-use event streaming is still separate.',
+      caveat: 'Synthetic manager events, UI boundaries, smoke-only Browser renderer loopback, persisted Browser Use policy defaults in the right Browser panel, and live Codex app-server real browser_open/browser_read/browser_click/browser_type/browser_screenshot/browser_fill/browser_key/browser_select/browser_check/browser_scroll tool requests pass; native browser-use event streaming is still separate.',
       next: 'Expand richer interaction coverage only from real browser-use requests or a full installed-app end-to-end run; keep unavailable runtime boundaries explicit.'
     },
     {

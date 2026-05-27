@@ -13,9 +13,14 @@ const browserToolSpecsModulePath = join(repoRoot, 'out-test/src/main/browserClie
 const {
   BROWSER_CLIENT_TOOL_NAMESPACE,
   BROWSER_CLIENT_TOOL_CLICK,
+  BROWSER_CLIENT_TOOL_CHECK,
+  BROWSER_CLIENT_TOOL_FILL,
+  BROWSER_CLIENT_TOOL_KEY,
   BROWSER_CLIENT_TOOL_OPEN,
   BROWSER_CLIENT_TOOL_READ,
   BROWSER_CLIENT_TOOL_SCREENSHOT,
+  BROWSER_CLIENT_TOOL_SCROLL,
+  BROWSER_CLIENT_TOOL_SELECT,
   BROWSER_CLIENT_TOOL_TYPE,
   browserClientDynamicTools,
   isBrowserClientDynamicTool
@@ -43,6 +48,11 @@ const browserReadFullName = `${BROWSER_CLIENT_TOOL_NAMESPACE}.${BROWSER_CLIENT_T
 const browserClickFullName = `${BROWSER_CLIENT_TOOL_NAMESPACE}.${BROWSER_CLIENT_TOOL_CLICK}`
 const browserTypeFullName = `${BROWSER_CLIENT_TOOL_NAMESPACE}.${BROWSER_CLIENT_TOOL_TYPE}`
 const browserScreenshotFullName = `${BROWSER_CLIENT_TOOL_NAMESPACE}.${BROWSER_CLIENT_TOOL_SCREENSHOT}`
+const browserFillFullName = `${BROWSER_CLIENT_TOOL_NAMESPACE}.${BROWSER_CLIENT_TOOL_FILL}`
+const browserKeyFullName = `${BROWSER_CLIENT_TOOL_NAMESPACE}.${BROWSER_CLIENT_TOOL_KEY}`
+const browserSelectFullName = `${BROWSER_CLIENT_TOOL_NAMESPACE}.${BROWSER_CLIENT_TOOL_SELECT}`
+const browserCheckFullName = `${BROWSER_CLIENT_TOOL_NAMESPACE}.${BROWSER_CLIENT_TOOL_CHECK}`
+const browserScrollFullName = `${BROWSER_CLIENT_TOOL_NAMESPACE}.${BROWSER_CLIENT_TOOL_SCROLL}`
 const defaultPrompt = enableRealBrowserToolProof
   ? [
       'This is a live Orchestrator/Codex app-server Browser dynamic client-tool proof.',
@@ -53,6 +63,11 @@ const defaultPrompt = enableRealBrowserToolProof
       `Then call ${browserClickFullName} for the Target button. You may use the nodeId returned by ${BROWSER_CLIENT_TOOL_READ}, or use the visible text "Target button".`,
       `Then call ${browserTypeFullName} for the Smoke input with text LIVE_TYPE_OK. You may use the nodeId returned by ${BROWSER_CLIENT_TOOL_READ}, or use targetText "Smoke input".`,
       `Then call ${browserScreenshotFullName}.`,
+      `Then call ${browserFillFullName} for the Smoke input with text LIVE_FILL_OK.`,
+      `Then call ${browserKeyFullName} for the Smoke input with key Enter.`,
+      `Then call ${browserSelectFullName} for the Smoke select with text beta.`,
+      `Then call ${browserCheckFullName} for the Smoke checkbox with checked true.`,
+      `Then call ${browserScrollFullName} with scrollY 120.`,
       `Then call ${browserReadFullName} one more time.`,
       `After all tools return, reply with exactly ${expectedToken}.`,
       `If any tool is not available, reply with exactly ${noBrowserToken}.`
@@ -198,7 +213,12 @@ try {
       request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_READ}"`) ||
       request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_CLICK}"`) ||
       request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_TYPE}"`) ||
-      request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_SCREENSHOT}"`)
+      request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_SCREENSHOT}"`) ||
+      request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_FILL}"`) ||
+      request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_KEY}"`) ||
+      request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_SELECT}"`) ||
+      request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_CHECK}"`) ||
+      request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_SCROLL}"`)
     )
   )
   const calledBrowserOpen = realBrowserToolCalls.some((request) => request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_OPEN}"`))
@@ -206,9 +226,14 @@ try {
   const calledBrowserClick = realBrowserToolCalls.some((request) => request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_CLICK}"`))
   const calledBrowserType = realBrowserToolCalls.some((request) => request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_TYPE}"`))
   const calledBrowserScreenshot = realBrowserToolCalls.some((request) => request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_SCREENSHOT}"`))
+  const calledBrowserFill = realBrowserToolCalls.some((request) => request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_FILL}"`))
+  const calledBrowserKey = realBrowserToolCalls.some((request) => request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_KEY}"`))
+  const calledBrowserSelect = realBrowserToolCalls.some((request) => request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_SELECT}"`))
+  const calledBrowserCheck = realBrowserToolCalls.some((request) => request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_CHECK}"`))
+  const calledBrowserScroll = realBrowserToolCalls.some((request) => request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_SCROLL}"`))
 
-  if (enableRealBrowserToolProof && calledBrowserOpen && calledBrowserRead && calledBrowserClick && calledBrowserType && calledBrowserScreenshot && assistantSawOk) {
-    finish(true, 'live Codex app-server requested real Browser dynamic tools and completed browser_open/browser_read/browser_click/browser_type/browser_screenshot round trip')
+  if (enableRealBrowserToolProof && calledBrowserOpen && calledBrowserRead && calledBrowserClick && calledBrowserType && calledBrowserScreenshot && calledBrowserFill && calledBrowserKey && calledBrowserSelect && calledBrowserCheck && calledBrowserScroll && assistantSawOk) {
+    finish(true, 'live Codex app-server requested real Browser dynamic tools and completed browser_open/browser_read/browser_click/browser_type/browser_screenshot/browser_fill/browser_key/browser_select/browser_check/browser_scroll round trip')
   } else if (enableRealBrowserToolProof && realBrowserToolCalls.length > 0) {
     finish(false, `real Browser tool call observed but required open/read calls or expected assistant token were missing: ${assistantText.trim()}`)
   } else if (enableRealBrowserToolProof) {
@@ -376,7 +401,17 @@ function browserToolProofResponse(tool, args) {
         ? 'type'
         : tool === BROWSER_CLIENT_TOOL_SCREENSHOT
           ? 'screenshot'
-          : 'read'
+          : tool === BROWSER_CLIENT_TOOL_FILL
+            ? 'fill'
+            : tool === BROWSER_CLIENT_TOOL_KEY
+              ? 'key'
+              : tool === BROWSER_CLIENT_TOOL_SELECT
+                ? 'select'
+                : tool === BROWSER_CLIENT_TOOL_CHECK
+                  ? 'check'
+                  : tool === BROWSER_CLIENT_TOOL_SCROLL
+                    ? 'scroll'
+                    : 'read'
   return {
     contentItems: [{
       type: 'inputText',
@@ -385,12 +420,20 @@ function browserToolProofResponse(tool, args) {
         action,
         url,
         title: 'Orchestrator Browser Proof',
-        visibleStructure: 'ORCHESTRATOR_BROWSER_PROOF_PAGE\n<button>Target button</button>\n<input aria-label="Smoke input" value="LIVE_TYPE_OK">',
+        visibleStructure: 'ORCHESTRATOR_BROWSER_PROOF_PAGE\n<button>Target button</button>\n<input aria-label="Smoke input" value="LIVE_TYPE_OK">\n<select aria-label="Smoke select"><option value="beta">Beta</option></select>\n<input type="checkbox" aria-label="Smoke checkbox">',
         targets: [
           { index: 1, nodeId: 'node-1', tagName: 'button', visibleText: 'Target button', preview: 'button · Target button', selector: '#target-button' },
-          { index: 2, nodeId: 'node-2', tagName: 'input', ariaName: 'Smoke input', preview: 'input · Smoke input', selector: 'input[aria-label="Smoke input"]' }
+          { index: 2, nodeId: 'node-2', tagName: 'input', ariaName: 'Smoke input', preview: 'input · Smoke input', selector: 'input[aria-label="Smoke input"]' },
+          { index: 3, nodeId: 'node-3', tagName: 'select', ariaName: 'Smoke select', preview: 'select · Smoke select', selector: 'select[aria-label="Smoke select"]' },
+          { index: 4, nodeId: 'node-4', tagName: 'input', ariaName: 'Smoke checkbox', preview: 'input · Smoke checkbox', selector: 'input[aria-label="Smoke checkbox"]' }
         ],
-        targetAction: tool === BROWSER_CLIENT_TOOL_CLICK || tool === BROWSER_CLIENT_TOOL_TYPE
+        targetAction: tool === BROWSER_CLIENT_TOOL_CLICK ||
+          tool === BROWSER_CLIENT_TOOL_TYPE ||
+          tool === BROWSER_CLIENT_TOOL_FILL ||
+          tool === BROWSER_CLIENT_TOOL_KEY ||
+          tool === BROWSER_CLIENT_TOOL_SELECT ||
+          tool === BROWSER_CLIENT_TOOL_CHECK ||
+          tool === BROWSER_CLIENT_TOOL_SCROLL
           ? { ok: true, action }
           : undefined,
         screenshot: tool === BROWSER_CLIENT_TOOL_SCREENSHOT

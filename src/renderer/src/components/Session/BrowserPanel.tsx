@@ -94,6 +94,7 @@ interface BrowserCommentRegion {
 type BrowserCommentIntent = 'comment' | 'design-tweak'
 
 type BrowserTargetAction = 'click' | 'double_click' | 'type' | 'fill' | 'key' | 'select' | 'check' | 'read' | 'scroll'
+type BrowserClientToolAction = 'click' | 'type' | 'fill' | 'key' | 'select' | 'check' | 'scroll'
 interface BrowserClientToolActionResult {
   ok: boolean
   action: string
@@ -1091,20 +1092,27 @@ export default function BrowserPanel({
 
   const runBrowserClientToolAction = async (
     webview: WebviewElement,
-    action: 'click' | 'type',
+    action: BrowserClientToolAction,
     args: Record<string, unknown>
   ): Promise<BrowserClientToolActionResult> => {
     const scriptArgs = {
       action,
       nodeId: typeof args.nodeId === 'string' ? args.nodeId : null,
       selector: typeof args.selector === 'string' ? args.selector : null,
-      text: typeof args.text === 'string' ? args.text : '',
+      text: typeof args.key === 'string'
+        ? args.key
+        : typeof args.text === 'string'
+          ? args.text
+          : action === 'check' && typeof args.checked === 'boolean'
+            ? String(args.checked)
+            : '',
       targetText: typeof args.targetText === 'string'
         ? args.targetText
         : typeof args.text === 'string' && action === 'click'
           ? args.text
           : null,
-      index: typeof args.index === 'number' ? args.index : null
+      index: typeof args.index === 'number' ? args.index : null,
+      scrollY: typeof args.scrollY === 'number' ? args.scrollY : 360
     }
     return webview.executeJavaScript<BrowserClientToolActionResult>(`
       (() => {
@@ -1154,21 +1162,57 @@ export default function BrowserPanel({
         }
         const pageState = () => ({
           clicked: document.body?.dataset?.clicked || null,
-          inputValue: document.body?.dataset?.inputValue || null
+          inputValue: document.body?.dataset?.inputValue || null,
+          keyPressed: document.body?.dataset?.keyPressed || null,
+          selectedOption: document.body?.dataset?.selectedOption || null,
+          checkedState: document.body?.dataset?.checkedState || null,
+          scrollY: Math.round(window.scrollY)
         });
+        if (args.action === 'scroll') {
+          if (element instanceof HTMLElement && visible(element)) {
+            element.scrollBy({ top: Number.isFinite(args.scrollY) ? args.scrollY : 360, behavior: 'instant' });
+          } else {
+            window.scrollBy({ top: Number.isFinite(args.scrollY) ? args.scrollY : 360, left: 0, behavior: 'instant' });
+          }
+          return { ok: true, action: args.action, target: element instanceof HTMLElement ? readTarget(element) : null, targetCount: targets.length, pageState: pageState() };
+        }
         if (!(element instanceof HTMLElement) || !visible(element)) {
           return { ok: false, action: args.action, error: 'Target not found or not visible.', targetCount: targets.length };
         }
         element.focus();
-        if (args.action === 'type') {
-          if (!args.text) return { ok: false, action: args.action, error: 'browser_type requires text.', target: readTarget(element), targetCount: targets.length, pageState: pageState() };
+        if (args.action === 'type' || args.action === 'fill') {
+          if (!args.text) return { ok: false, action: args.action, error: args.action === 'type' ? 'browser_type requires text.' : 'browser_fill requires text.', target: readTarget(element), targetCount: targets.length, pageState: pageState() };
           if ('value' in element) {
-            element.value = String(element.value || '') + args.text;
+            element.value = args.action === 'fill' ? args.text : String(element.value || '') + args.text;
             element.dispatchEvent(new Event('input', { bubbles: true }));
             element.dispatchEvent(new Event('change', { bubbles: true }));
           } else {
             document.execCommand('insertText', false, args.text);
           }
+        } else if (args.action === 'key') {
+          if (!args.text) return { ok: false, action: args.action, error: 'browser_key requires key.', target: readTarget(element), targetCount: targets.length, pageState: pageState() };
+          const key = String(args.text);
+          const eventInit = { key, code: key.length === 1 ? 'Key' + key.toUpperCase() : key, bubbles: true, cancelable: true };
+          element.dispatchEvent(new KeyboardEvent('keydown', eventInit));
+          element.dispatchEvent(new KeyboardEvent('keyup', eventInit));
+        } else if (args.action === 'select') {
+          if (!args.text) return { ok: false, action: args.action, error: 'browser_select requires text.', target: readTarget(element), targetCount: targets.length, pageState: pageState() };
+          if (!(element instanceof HTMLSelectElement)) {
+            return { ok: false, action: args.action, error: 'Target is not a select control.', target: readTarget(element), targetCount: targets.length, pageState: pageState() };
+          }
+          const option = [...element.options].find((item) => item.value === args.text || item.textContent?.trim() === args.text);
+          if (!option) return { ok: false, action: args.action, error: 'Option not found.', target: readTarget(element), targetCount: targets.length, pageState: pageState() };
+          element.value = option.value;
+          element.dispatchEvent(new Event('input', { bubbles: true }));
+          element.dispatchEvent(new Event('change', { bubbles: true }));
+        } else if (args.action === 'check') {
+          if (!(element instanceof HTMLInputElement) || (element.type !== 'checkbox' && element.type !== 'radio')) {
+            return { ok: false, action: args.action, error: 'Target is not a checkbox or radio control.', target: readTarget(element), targetCount: targets.length, pageState: pageState() };
+          }
+          const normalized = String(args.text || 'true').trim().toLowerCase();
+          element.checked = !['0', 'false', 'off', 'no', 'unchecked'].includes(normalized);
+          element.dispatchEvent(new Event('input', { bubbles: true }));
+          element.dispatchEvent(new Event('change', { bubbles: true }));
         } else {
           element.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, view: window }));
           element.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, view: window }));
@@ -1183,7 +1227,16 @@ export default function BrowserPanel({
     const expectedSessionId = sessionIdFromBrowserHost(hostId)
     if (!expectedSessionId || call.sessionId !== expectedSessionId) return
     if (call.namespace !== 'orchestrator') return
-    if (call.tool !== 'browser_open' && call.tool !== 'browser_read' && call.tool !== 'browser_click' && call.tool !== 'browser_type' && call.tool !== 'browser_screenshot') return
+    const browserClientToolActions: Record<string, BrowserClientToolAction> = {
+      browser_click: 'click',
+      browser_type: 'type',
+      browser_fill: 'fill',
+      browser_key: 'key',
+      browser_select: 'select',
+      browser_check: 'check',
+      browser_scroll: 'scroll'
+    }
+    if (call.tool !== 'browser_open' && call.tool !== 'browser_read' && call.tool !== 'browser_screenshot' && !(call.tool in browserClientToolActions)) return
     if (handledClientToolRequestIdsRef.current.has(call.requestId)) return
     handledClientToolRequestIdsRef.current.add(call.requestId)
 
@@ -1216,20 +1269,21 @@ export default function BrowserPanel({
         })
         return
       }
-      if ((call.tool === 'browser_click' || call.tool === 'browser_type') && webview) {
+      const clientAction = browserClientToolActions[call.tool]
+      if (clientAction && webview) {
         await webview.executeJavaScript<VisibleTarget[]>(VISIBLE_TARGETS_SCRIPT, true)
-        const actionResult = await runBrowserClientToolAction(webview, call.tool === 'browser_click' ? 'click' : 'type', call.arguments)
+        const actionResult = await runBrowserClientToolAction(webview, clientAction, call.arguments)
         if (actionResult.ok) {
           await waitForWebviewSettled(webview, 1200)
         }
         answerBrowserClientTool(call, actionResult.ok, {
           ...(await browserClientToolSnapshot(webview)),
-          action: call.tool === 'browser_click' ? 'click' : 'type',
+          action: clientAction,
           targetAction: actionResult
         })
         return
       }
-      if (call.tool === 'browser_click' || call.tool === 'browser_type') {
+      if (clientAction) {
         answerBrowserClientTool(call, false, { ok: false, error: 'Browser page is not available for interaction.' })
         return
       }
