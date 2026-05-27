@@ -11148,6 +11148,7 @@ function runAutomatedFocusedSurfaceSmoke(
               const documentPdfZoomMenuChecks = {};
               const slidesRendererChecks = {};
               const slidesControlChecks = {};
+              const slidesShapeLayoutChecks = {};
               const slidesNotesChecks = {};
               const slidesThumbnailRailChecks = {};
               const previewTargets = [
@@ -11930,6 +11931,8 @@ function runAutomatedFocusedSurfaceSmoke(
                     const thumbnailRail = document.querySelector('[data-testid="workspace-slides-preview-thumbnail-rail"]');
                     const editorShell = document.querySelector('[data-testid="workspace-slides-preview-editor-shell"]');
                     const addSlide = document.querySelector('[data-testid="workspace-slides-preview-add-slide"]');
+                    const shapeCanvas = document.querySelector('[data-testid="workspace-slides-preview-shape-canvas"]');
+                    const positionedShapes = [...document.querySelectorAll('[data-testid="workspace-slides-preview-shape"]')];
                     slidesRendererChecks[testId] =
                       slidesPreview instanceof HTMLElement &&
                       slidesPreview.getAttribute('data-slides-preview-rendered') === 'true' &&
@@ -11943,6 +11946,19 @@ function runAutomatedFocusedSurfaceSmoke(
                       slides.some((slide) => slide.textContent?.includes('Slides smoke updated')) &&
                       slides.some((slide) => slide.textContent?.includes('Second slide updated')) &&
                       slides.some((slide) => slide.textContent?.includes('Follow-up content'));
+                    slidesShapeLayoutChecks[testId] =
+                      slidesPreview instanceof HTMLElement &&
+                      slidesPreview.getAttribute('data-slides-preview-stage-renderer') === 'positioned-shapes' &&
+                      slidesPreview.getAttribute('data-slides-preview-current-shape-count') === '2' &&
+                      currentSlide instanceof HTMLElement &&
+                      currentSlide.getAttribute('data-slides-stage-renderer') === 'positioned-shapes' &&
+                      currentSlide.getAttribute('data-slides-shape-count') === '2' &&
+                      shapeCanvas instanceof HTMLElement &&
+                      positionedShapes.length === 2 &&
+                      positionedShapes[0] instanceof HTMLElement &&
+                      positionedShapes[0].textContent?.includes('Slides smoke updated') === true &&
+                      positionedShapes[0].style.left !== '' &&
+                      positionedShapes[0].style.top !== '';
                     const initialSlidesControls =
                       slidesPreview instanceof HTMLElement &&
                       slidesPreview.getAttribute('data-slides-preview-zoom-percent') === '100' &&
@@ -13090,6 +13106,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 filesDocumentTableRenderingWorks: Boolean(documentTableChecks['workspace-document-preview']),
                 filesSpreadsheetRendererWorks: Boolean(spreadsheetRendererChecks['workspace-spreadsheet-preview']),
                 filesSlidesRendererWorks: Boolean(slidesRendererChecks['workspace-slides-preview']),
+                filesSlidesShapeLayoutWorks: Boolean(slidesShapeLayoutChecks['workspace-slides-preview']),
                 filesSpreadsheetControlsWorks: Boolean(spreadsheetControlChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetSheetTabsWorks: Boolean(spreadsheetSheetTabChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetActiveCellWorks: Boolean(spreadsheetActiveCellChecks['workspace-spreadsheet-preview']),

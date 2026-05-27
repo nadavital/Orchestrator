@@ -472,8 +472,8 @@ function createXlsxFixture({ sheetName, rows, sheets }) {
 
 function createPptxFixture(slides) {
   const normalizedSlides = slides.map((slide) => Array.isArray(slide)
-    ? { lines: slide, notes: [] }
-    : { lines: slide.lines ?? [], notes: slide.notes ?? [] })
+    ? { lines: slide, notes: [], shapes: [] }
+    : { lines: slide.lines ?? [], notes: slide.notes ?? [], shapes: slide.shapes ?? [] })
   const slidesWithNotes = normalizedSlides
     .map((slide, index) => ({ ...slide, index: index + 1 }))
     .filter((slide) => slide.notes.length > 0)
@@ -510,7 +510,16 @@ function createPptxFixture(slides) {
       data: `<?xml version="1.0" encoding="UTF-8"?>
 <p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
   <p:cSld><p:spTree>
-    ${slide.lines.map((line) => `<p:sp><p:txBody><a:p><a:r><a:t>${escapeXml(line)}</a:t></a:r></a:p></p:txBody></p:sp>`).join('\n    ')}
+    ${(slide.shapes.length > 0 ? slide.shapes : slide.lines.map((line, lineIndex) => ({
+      text: [line],
+      x: lineIndex === 0 ? 914400 : 1371600,
+      y: lineIndex === 0 ? 914400 : 2286000 + (lineIndex - 1) * 457200,
+      cx: lineIndex === 0 ? 10363200 : 9144000,
+      cy: lineIndex === 0 ? 914400 : 685800
+    }))).map((shape) => {
+      const text = Array.isArray(shape.text) ? shape.text : [shape.text ?? '']
+      return `<p:sp><p:spPr><a:xfrm><a:off x="${shape.x}" y="${shape.y}"/><a:ext cx="${shape.cx}" cy="${shape.cy}"/></a:xfrm></p:spPr><p:txBody>${text.map((line) => `<a:p><a:r><a:t>${escapeXml(String(line))}</a:t></a:r></a:p>`).join('')}</p:txBody></p:sp>`
+    }).join('\n    ')}
   </p:spTree></p:cSld>
 </p:sld>`
     })
@@ -1546,6 +1555,7 @@ child.on('exit', async (code) => {
           filesSlidesPreview: result.filesSlidesPreviewWorks === true,
           filesSpreadsheetRenderer: result.filesSpreadsheetRendererWorks === true,
           filesSlidesRenderer: result.filesSlidesRendererWorks === true,
+          filesSlidesShapeLayout: result.filesSlidesShapeLayoutWorks === true,
           filesSpreadsheetControls: result.filesSpreadsheetControlsWorks === true,
           filesSpreadsheetSheetTabs: result.filesSpreadsheetSheetTabsWorks === true,
           filesSpreadsheetActiveCell: result.filesSpreadsheetActiveCellWorks === true,
@@ -1748,6 +1758,7 @@ child.on('exit', async (code) => {
         filesSlidesPreview: captureView !== 'inspector' || result.filesSlidesPreviewWorks === true,
         filesSpreadsheetRenderer: captureView !== 'inspector' || result.filesSpreadsheetRendererWorks === true,
         filesSlidesRenderer: captureView !== 'inspector' || result.filesSlidesRendererWorks === true,
+        filesSlidesShapeLayout: captureView !== 'inspector' || result.filesSlidesShapeLayoutWorks === true,
         filesSpreadsheetControls: captureView !== 'inspector' || result.filesSpreadsheetControlsWorks === true,
         filesSpreadsheetSheetTabs: captureView !== 'inspector' || result.filesSpreadsheetSheetTabsWorks === true,
         filesSpreadsheetActiveCell: captureView !== 'inspector' || result.filesSpreadsheetActiveCellWorks === true,

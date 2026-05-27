@@ -931,7 +931,13 @@ interface SpreadsheetPreviewCell {
 }
 
 interface SlidesPreviewPayload {
-  slides: Array<{ index: number; title: string; text: string[]; notes?: string }>
+  slides: Array<{
+    index: number
+    title: string
+    text: string[]
+    notes?: string
+    shapes?: Array<{ text: string[]; x: number; y: number; width: number; height: number }>
+  }>
   truncated?: boolean
 }
 
@@ -1427,6 +1433,7 @@ function SlidesArtifactPreview({
   const currentSlide = slides[currentSlideIndex] ?? null
   const notesCount = slides.filter((slide) => slide.notes?.trim()).length
   const currentSlideNotes = currentSlide?.notes?.trim() ?? ''
+  const shapeCount = slides.reduce((count, slide) => count + (slide.shapes?.length ?? 0), 0)
   const effectiveZoomPercent = fitToWidth ? 100 : zoomPercent
   useEffect(() => {
     setCurrentSlideIndex((index) => Math.min(Math.max(index, 0), Math.max(0, slideCount - 1)))
@@ -1446,6 +1453,9 @@ function SlidesArtifactPreview({
       data-slides-preview-current-notes={currentSlideNotes}
       data-slides-preview-thumbnail-rail={payload ? 'codex-left' : 'none'}
       data-slides-preview-add-slide="read-only"
+      data-slides-preview-shape-count={shapeCount}
+      data-slides-preview-current-shape-count={currentSlide?.shapes?.length ?? 0}
+      data-slides-preview-stage-renderer={shapeCount > 0 ? 'positioned-shapes' : 'text-outline'}
     >
       <ArtifactPreviewHeader
         artifactType="PPTX"
@@ -1548,15 +1558,42 @@ function SlidesArtifactPreview({
                   className="workspace-slide-stage"
                   data-testid="workspace-slides-preview-current-slide"
                   data-slide-index={currentSlide.index}
+                  data-slides-stage-renderer={(currentSlide.shapes?.length ?? 0) > 0 ? 'positioned-shapes' : 'text-outline'}
+                  data-slides-shape-count={currentSlide.shapes?.length ?? 0}
                   style={{ fontSize: `${Math.max(10, Math.min(18, 13 * (effectiveZoomPercent / 100)))}px` }}
                 >
                   <div className="workspace-slide-preview-number">{currentSlide.index}</div>
-                  <div className="workspace-slide-preview-content">
-                    <h3>{currentSlide.title}</h3>
-                    {currentSlide.text.map((line, index) => (
-                      <p key={index}>{line}</p>
-                    ))}
-                  </div>
+                  {(currentSlide.shapes?.length ?? 0) > 0 ? (
+                    <div className="workspace-slide-positioned-canvas" data-testid="workspace-slides-preview-shape-canvas">
+                      {currentSlide.shapes?.map((shape, index) => (
+                        <div
+                          key={index}
+                          className="workspace-slide-positioned-shape"
+                          data-testid="workspace-slides-preview-shape"
+                          data-slide-shape-index={index + 1}
+                          style={{
+                            left: `${shape.x}%`,
+                            top: `${shape.y}%`,
+                            width: `${shape.width}%`,
+                            height: `${shape.height}%`
+                          }}
+                        >
+                          {shape.text.map((line, lineIndex) => (
+                            lineIndex === 0 && index === 0
+                              ? <h3 key={lineIndex}>{line}</h3>
+                              : <p key={lineIndex}>{line}</p>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="workspace-slide-preview-content">
+                      <h3>{currentSlide.title}</h3>
+                      {currentSlide.text.map((line, index) => (
+                        <p key={index}>{line}</p>
+                      ))}
+                    </div>
+                  )}
                 </section>
                 {notesCount > 0 && (
                   <section
@@ -1666,7 +1703,18 @@ function parseSlidesPreview(text: string | undefined): SlidesPreviewPayload | nu
         index: slide.index,
         title: slide.title,
         text: slide.text.map((line) => String(line)),
-        notes: typeof slide.notes === 'string' ? slide.notes : ''
+        notes: typeof slide.notes === 'string' ? slide.notes : '',
+        shapes: Array.isArray(slide.shapes)
+          ? slide.shapes
+            .map((shape) => ({
+              text: Array.isArray(shape?.text) ? shape.text.map((line) => String(line)) : [],
+              x: clampPercent(Number(shape?.x ?? 0)),
+              y: clampPercent(Number(shape?.y ?? 0)),
+              width: clampPercent(Number(shape?.width ?? 0), 1),
+              height: clampPercent(Number(shape?.height ?? 0), 1)
+            }))
+            .filter((shape) => shape.text.length > 0 && shape.width > 0 && shape.height > 0)
+          : []
       }))
     if (slides.length === 0) return null
     return {
@@ -1676,6 +1724,11 @@ function parseSlidesPreview(text: string | undefined): SlidesPreviewPayload | nu
   } catch {
     return null
   }
+}
+
+function clampPercent(value: number, minimum = 0): number {
+  if (!Number.isFinite(value)) return minimum
+  return Math.max(minimum, Math.min(100, value))
 }
 
 function PdfPreview({

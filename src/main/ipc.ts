@@ -60,6 +60,14 @@ interface SpreadsheetPreviewSheet {
   rows: SpreadsheetPreviewCell[][]
 }
 
+interface SlidePreviewShape {
+  text: string[]
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
 interface DocumentPreviewParagraphBlock {
   type: 'paragraph'
   text: string
@@ -399,13 +407,13 @@ function extractSpreadsheetPreview(archive: Buffer): { sheets: SpreadsheetPrevie
   return sheets.length > 0 ? { sheets, truncated } : null
 }
 
-function extractSlidesPreview(archive: Buffer): { slides: Array<{ index: number; title: string; text: string[]; notes: string }>; truncated: boolean } | null {
+function extractSlidesPreview(archive: Buffer): { slides: Array<{ index: number; title: string; text: string[]; notes: string; shapes: SlidePreviewShape[] }>; truncated: boolean } | null {
   const entries = listZipEntries(archive)
   const slideNames = entries
     .map((entry) => entry.name)
     .filter((name) => /^ppt\/slides\/slide\d+\.xml$/i.test(name))
     .sort(naturalCompare)
-  const slides: Array<{ index: number; title: string; text: string[]; notes: string }> = []
+  const slides: Array<{ index: number; title: string; text: string[]; notes: string; shapes: SlidePreviewShape[] }> = []
   let truncated = slideNames.length > 12
   for (const [index, name] of slideNames.slice(0, 12).entries()) {
     const xml = readZipEntry(archive, name)?.toString('utf8') ?? ''
@@ -413,15 +421,52 @@ function extractSlidesPreview(archive: Buffer): { slides: Array<{ index: number;
     const text = [...xml.matchAll(/<a:t(?:\s[^>]*)?>([\s\S]*?)<\/a:t>/g)]
       .map((match) => decodeXmlText(match[1] ?? '').trim())
       .filter(Boolean)
+    const shapes = extractSlideShapes(xml)
     if (text.length > 12) truncated = true
     slides.push({
       index: index + 1,
       title: text[0] ?? `Slide ${index + 1}`,
       text: text.slice(1, 12),
-      notes: extractSlideNotes(archive, name, index + 1)
+      notes: extractSlideNotes(archive, name, index + 1),
+      shapes
     })
   }
   return slides.length > 0 ? { slides, truncated } : null
+}
+
+function extractSlideShapes(xml: string): SlidePreviewShape[] {
+  return [...xml.matchAll(/<p:sp\b[\s\S]*?<\/p:sp>/g)]
+    .slice(0, 24)
+    .flatMap((match) => {
+      const shapeXml = match[0] ?? ''
+      const text = [...shapeXml.matchAll(/<a:t(?:\s[^>]*)?>([\s\S]*?)<\/a:t>/g)]
+        .map((textMatch) => decodeXmlText(textMatch[1] ?? '').trim())
+        .filter(Boolean)
+      if (text.length === 0) return []
+      const transform = /<a:xfrm[\s\S]*?<a:off\b([^>]*)\/>[\s\S]*?<a:ext\b([^>]*)\/>[\s\S]*?<\/a:xfrm>/.exec(shapeXml)
+      if (!transform) return []
+      const off = transform[1] ?? ''
+      const ext = transform[2] ?? ''
+      const x = numberAttribute(off, 'x')
+      const y = numberAttribute(off, 'y')
+      const width = numberAttribute(ext, 'cx')
+      const height = numberAttribute(ext, 'cy')
+      if ([x, y, width, height].some((value) => value === null) || width === 0 || height === 0) return []
+      return [{
+        text,
+        x: Math.max(0, Math.min(100, ((x ?? 0) / 12_192_000) * 100)),
+        y: Math.max(0, Math.min(100, ((y ?? 0) / 6_858_000) * 100)),
+        width: Math.max(1, Math.min(100, ((width ?? 0) / 12_192_000) * 100)),
+        height: Math.max(1, Math.min(100, ((height ?? 0) / 6_858_000) * 100))
+      }]
+    })
+}
+
+function numberAttribute(attributes: string, name: string): number | null {
+  const value = new RegExp(`\\b${name}="(-?\\d+)"`).exec(attributes)?.[1]
+  if (value === undefined) return null
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
 }
 
 function extractSlideNotes(archive: Buffer, slidePath: string, slideIndex: number): string {
