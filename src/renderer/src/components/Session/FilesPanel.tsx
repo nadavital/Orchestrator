@@ -921,8 +921,13 @@ function artifactPreviewActions(
 }
 
 interface SpreadsheetPreviewPayload {
-  sheets: Array<{ name: string; rows: string[][] }>
+  sheets: Array<{ name: string; rows: SpreadsheetPreviewCell[][] }>
   truncated?: boolean
+}
+
+interface SpreadsheetPreviewCell {
+  value: string
+  formula?: string
 }
 
 interface SlidesPreviewPayload {
@@ -967,7 +972,9 @@ function SpreadsheetArtifactPreview({
   const activeCellRow = activeSheet ? Math.min(activeCell.row, Math.max(0, activeSheet.rows.length - 1)) : 0
   const activeCellColumn = activeSheet ? Math.min(activeCell.column, Math.max(0, maxColumnCount - 1)) : 0
   const activeCellAddress = `${spreadsheetColumnLabel(activeCellColumn)}${activeCellRow + 1}`
-  const activeCellValue = activeSheet?.rows[activeCellRow]?.[activeCellColumn] ?? ''
+  const activeCellData = activeSheet?.rows[activeCellRow]?.[activeCellColumn] ?? null
+  const activeCellValue = activeCellData?.value ?? ''
+  const activeCellFormula = activeCellData?.formula ?? ''
   useEffect(() => {
     setActiveSheetIndex((index) => Math.min(Math.max(index, 0), Math.max(0, sheetCount - 1)))
   }, [sheetCount])
@@ -989,6 +996,7 @@ function SpreadsheetArtifactPreview({
       data-spreadsheet-preview-zoom-fit={fitToWidth ? 'true' : 'false'}
       data-spreadsheet-active-cell-address={activeSheet ? activeCellAddress : ''}
       data-spreadsheet-active-cell-value={activeSheet ? activeCellValue : ''}
+      data-spreadsheet-active-cell-formula={activeSheet ? activeCellFormula : ''}
     >
       <ArtifactPreviewHeader
         artifactType="XLSX"
@@ -1065,6 +1073,8 @@ function SpreadsheetArtifactPreview({
                 data-testid="workspace-spreadsheet-formula-bar"
                 data-spreadsheet-active-cell-address={activeCellAddress}
                 data-spreadsheet-active-cell-value={activeCellValue}
+                data-spreadsheet-active-cell-formula={activeCellFormula}
+                data-spreadsheet-active-cell-kind={activeCellFormula ? 'formula' : 'value'}
               >
                 <span
                   className="workspace-spreadsheet-cell-address"
@@ -1075,9 +1085,11 @@ function SpreadsheetArtifactPreview({
                 <input
                   className="workspace-spreadsheet-formula-value"
                   data-testid="workspace-spreadsheet-active-cell-value"
+                  data-spreadsheet-active-cell-value={activeCellValue}
+                  data-spreadsheet-active-cell-formula={activeCellFormula}
                   aria-label="Active cell value"
                   readOnly
-                  value={activeCellValue}
+                  value={activeCellFormula || activeCellValue}
                 />
               </div>
               <div className="workspace-spreadsheet-table-wrap">
@@ -1114,7 +1126,7 @@ function SpreadsheetArtifactPreview({
                           {rowIndex + 1}
                         </th>
                         {Array.from({ length: maxColumnCount }, (_, cellIndex) => {
-                          const cell = row[cellIndex] ?? ''
+                          const cell = row[cellIndex] ?? { value: '' }
                           const cellAddress = `${spreadsheetColumnLabel(cellIndex)}${rowIndex + 1}`
                           const isActive = rowIndex === activeCellRow && cellIndex === activeCellColumn
                           return (
@@ -1128,13 +1140,15 @@ function SpreadsheetArtifactPreview({
                                 className="workspace-spreadsheet-cell-button"
                                 data-testid="workspace-spreadsheet-cell"
                                 data-spreadsheet-cell-address={cellAddress}
-                                data-spreadsheet-cell-value={cell}
+                                data-spreadsheet-cell-value={cell.value}
+                                data-spreadsheet-cell-formula={cell.formula ?? ''}
+                                data-spreadsheet-cell-kind={cell.formula ? 'formula' : 'value'}
                                 data-active={isActive ? 'true' : 'false'}
-                                aria-label={`${cellAddress} ${cell}`.trim()}
+                                aria-label={`${cellAddress} ${cell.value}`.trim()}
                                 onClick={() => { setActiveCell({ row: rowIndex, column: cellIndex }) }}
                                 onFocus={() => { setActiveCell({ row: rowIndex, column: cellIndex }) }}
                               >
-                                {cell}
+                                {cell.value}
                               </button>
                             </td>
                           )
@@ -1388,7 +1402,7 @@ function parseSpreadsheetPreview(text: string | undefined): SpreadsheetPreviewPa
         name: sheet.name,
         rows: sheet.rows
           .filter((row) => Array.isArray(row))
-          .map((row) => row.map((cell) => String(cell)))
+          .map((row) => row.map((cell) => normalizeSpreadsheetPreviewCell(cell)))
       }))
       .filter((sheet) => sheet.rows.length > 0)
     if (sheets.length === 0) return null
@@ -1399,6 +1413,17 @@ function parseSpreadsheetPreview(text: string | undefined): SpreadsheetPreviewPa
   } catch {
     return null
   }
+}
+
+function normalizeSpreadsheetPreviewCell(cell: unknown): SpreadsheetPreviewCell {
+  if (cell && typeof cell === 'object') {
+    const candidate = cell as { value?: unknown; formula?: unknown }
+    return {
+      value: String(candidate.value ?? ''),
+      ...(typeof candidate.formula === 'string' && candidate.formula ? { formula: candidate.formula } : {})
+    }
+  }
+  return { value: String(cell ?? '') }
 }
 
 function parseSlidesPreview(text: string | undefined): SlidesPreviewPayload | null {

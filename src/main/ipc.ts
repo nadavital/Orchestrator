@@ -50,6 +50,16 @@ interface ZipEntryRecord {
   localHeaderOffset: number
 }
 
+interface SpreadsheetPreviewCell {
+  value: string
+  formula?: string
+}
+
+interface SpreadsheetPreviewSheet {
+  name: string
+  rows: SpreadsheetPreviewCell[][]
+}
+
 interface BrowserAssetRequest {
   inventoryId: string
   pageUrl?: string | null
@@ -312,7 +322,7 @@ function extractDocxText(xml: string): string {
     .join('\n\n')
 }
 
-function extractSpreadsheetPreview(archive: Buffer): { sheets: Array<{ name: string; rows: string[][] }>; truncated: boolean } | null {
+function extractSpreadsheetPreview(archive: Buffer): { sheets: SpreadsheetPreviewSheet[]; truncated: boolean } | null {
   const entries = listZipEntries(archive)
   const sharedStrings = extractSpreadsheetSharedStrings(readZipEntry(archive, 'xl/sharedStrings.xml')?.toString('utf8') ?? '')
   const workbookXml = readZipEntry(archive, 'xl/workbook.xml')?.toString('utf8') ?? ''
@@ -325,7 +335,7 @@ function extractSpreadsheetPreview(archive: Buffer): { sheets: Array<{ name: str
       .filter((name) => /^xl\/worksheets\/sheet\d+\.xml$/i.test(name))
       .sort(naturalCompare)
       .map((path, index) => ({ name: `Sheet ${index + 1}`, path }))
-  const sheets: Array<{ name: string; rows: string[][] }> = []
+  const sheets: SpreadsheetPreviewSheet[] = []
   let truncated = false
   for (const sheet of worksheetEntries.slice(0, 6)) {
     const xml = readZipEntry(archive, sheet.path)?.toString('utf8') ?? ''
@@ -426,35 +436,118 @@ function extractWorkbookSheetTargets(workbookXml: string, relationshipsXml: stri
     })
 }
 
-function extractWorksheetRows(xml: string, sharedStrings: string[]): { rows: string[][]; truncated: boolean } {
-  const rows: string[][] = []
+function extractWorksheetRows(xml: string, sharedStrings: string[]): { rows: SpreadsheetPreviewCell[][]; truncated: boolean } {
+  const rows: SpreadsheetPreviewCell[][] = []
+  const cellsByAddress = new Map<string, SpreadsheetPreviewCell>()
   let truncated = false
   for (const rowMatch of xml.matchAll(/<row\b[\s\S]*?<\/row>/g)) {
-    const values: string[] = []
+    const cells: SpreadsheetPreviewCell[] = []
     for (const cellMatch of (rowMatch[0] ?? '').matchAll(/<c\b([^>]*)>([\s\S]*?)<\/c>/g)) {
       const attributes = cellMatch[1] ?? ''
       const cellXml = cellMatch[2] ?? ''
       const type = /t="([^"]+)"/.exec(attributes)?.[1] ?? ''
+      const address = /\br="([^"]+)"/.exec(attributes)?.[1]?.toUpperCase() ?? ''
+      const columnIndex = address ? spreadsheetColumnIndex(address) : cells.length
+      while (cells.length < columnIndex) cells.push({ value: '' })
+      const formula = decodeXmlText(/<f(?:\s[^>]*)?>([\s\S]*?)<\/f>/.exec(cellXml)?.[1] ?? '').trim()
+      const cell: SpreadsheetPreviewCell = { value: '' }
+      if (formula) cell.formula = formula.startsWith('=') ? formula : `=${formula}`
       if (type === 's') {
         const index = Number(/<v>([\s\S]*?)<\/v>/.exec(cellXml)?.[1] ?? -1)
-        values.push(Number.isFinite(index) && index >= 0 ? sharedStrings[index] ?? '' : '')
+        cell.value = Number.isFinite(index) && index >= 0 ? sharedStrings[index] ?? '' : ''
       } else if (type === 'inlineStr') {
-        values.push(extractXmlText(cellXml))
+        cell.value = extractXmlText(cellXml)
       } else {
-        values.push(decodeXmlText(/<v>([\s\S]*?)<\/v>/.exec(cellXml)?.[1] ?? '').trim())
+        cell.value = decodeXmlText(/<v>([\s\S]*?)<\/v>/.exec(cellXml)?.[1] ?? '').trim()
       }
-      if (values.length >= 12) {
+      cells[columnIndex] = cell
+      if (address) cellsByAddress.set(address, cell)
+      if (cells.length >= 12) {
         truncated = true
         break
       }
     }
-    if (values.some(Boolean)) rows.push(values)
+    if (cells.some((cell) => cell.value || cell.formula)) rows.push(cells)
     if (rows.length >= 24) {
       truncated = true
       break
     }
   }
+  evaluateWorksheetFormulas(rows, cellsByAddress)
   return { rows, truncated }
+}
+
+function spreadsheetColumnIndex(address: string): number {
+  const letters = /^[A-Z]+/.exec(address)?.[0] ?? ''
+  let value = 0
+  for (const letter of letters) value = value * 26 + (letter.charCodeAt(0) - 64)
+  return Math.max(0, value - 1)
+}
+
+function evaluateWorksheetFormulas(rows: SpreadsheetPreviewCell[][], cellsByAddress: Map<string, SpreadsheetPreviewCell>): void {
+  for (const row of rows) {
+    for (const cell of row) {
+      if (!cell.formula) continue
+      const computed = evaluateSpreadsheetFormula(cell.formula, cellsByAddress)
+      if (computed !== null) cell.value = formatSpreadsheetNumber(computed)
+    }
+  }
+}
+
+function evaluateSpreadsheetFormula(formula: string, cellsByAddress: Map<string, SpreadsheetPreviewCell>): number | null {
+  const expression = formula.replace(/^=/, '').trim()
+  const sumMatch = /^SUM\(([^)]+)\)$/i.exec(expression)
+  if (sumMatch) {
+    return sumMatch[1]
+      .split(',')
+      .flatMap((part) => spreadsheetFormulaValues(part.trim(), cellsByAddress))
+      .reduce((total, value) => total + value, 0)
+  }
+  const arithmetic = expression.replace(/\b[A-Z]{1,3}\d+\b/g, (address) => String(spreadsheetCellNumber(cellsByAddress.get(address.toUpperCase()))))
+  if (!/^[\d+\-*/().\s]+$/.test(arithmetic)) return null
+  try {
+    const value = Function(`"use strict"; return (${arithmetic})`)() as unknown
+    return typeof value === 'number' && Number.isFinite(value) ? value : null
+  } catch {
+    return null
+  }
+}
+
+function spreadsheetFormulaValues(reference: string, cellsByAddress: Map<string, SpreadsheetPreviewCell>): number[] {
+  const rangeMatch = /^([A-Z]{1,3})(\d+):([A-Z]{1,3})(\d+)$/i.exec(reference)
+  if (!rangeMatch) return [spreadsheetCellNumber(cellsByAddress.get(reference.toUpperCase()))]
+  const startColumn = spreadsheetColumnIndex(rangeMatch[1].toUpperCase())
+  const endColumn = spreadsheetColumnIndex(rangeMatch[3].toUpperCase())
+  const startRow = Number(rangeMatch[2])
+  const endRow = Number(rangeMatch[4])
+  const values: number[] = []
+  for (let row = Math.min(startRow, endRow); row <= Math.max(startRow, endRow); row += 1) {
+    for (let column = Math.min(startColumn, endColumn); column <= Math.max(startColumn, endColumn); column += 1) {
+      values.push(spreadsheetCellNumber(cellsByAddress.get(`${spreadsheetColumnName(column)}${row}`)))
+    }
+  }
+  return values
+}
+
+function spreadsheetColumnName(index: number): string {
+  let value = index + 1
+  let label = ''
+  while (value > 0) {
+    const remainder = (value - 1) % 26
+    label = String.fromCharCode(65 + remainder) + label
+    value = Math.floor((value - 1) / 26)
+  }
+  return label
+}
+
+function spreadsheetCellNumber(cell: SpreadsheetPreviewCell | undefined): number {
+  const value = Number(cell?.value ?? 0)
+  return Number.isFinite(value) ? value : 0
+}
+
+function formatSpreadsheetNumber(value: number): string {
+  if (Number.isInteger(value)) return String(value)
+  return String(Number(value.toFixed(8)))
 }
 
 function extractXmlText(xml: string): string {

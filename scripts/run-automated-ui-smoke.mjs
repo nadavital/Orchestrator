@@ -383,7 +383,19 @@ function createXlsxFixture({ sheetName, rows, sheets }) {
   const sharedStringIndex = new Map()
   const worksheetEntries = workbookSheets.map((sheet, sheetIndex) => {
     const cellXml = sheet.rows.map((row, rowIndex) => {
-      const cells = row.map((value, columnIndex) => {
+      const cells = row.map((rawValue, columnIndex) => {
+        const formula = rawValue && typeof rawValue === 'object' && !Array.isArray(rawValue)
+          ? String(rawValue.formula ?? '').replace(/^=/, '')
+          : ''
+        const value = rawValue && typeof rawValue === 'object' && !Array.isArray(rawValue)
+          ? rawValue.value
+          : rawValue
+        if (formula) {
+          const cachedValue = value === undefined || value === null || value === ''
+            ? ''
+            : `<v>${escapeXml(String(value))}</v>`
+          return `<c r="${columnName(columnIndex)}${rowIndex + 1}"><f>${escapeXml(formula)}</f>${cachedValue}</c>`
+        }
         const key = String(value)
         let index = sharedStringIndex.get(key)
         if (index === undefined) {
@@ -794,7 +806,7 @@ if (fixtureWorkspaceViews.has(captureView)) {
           rows: [
             ['Metric', 'Value'],
             ['Updated total', '5'],
-            ['Gamma', '7']
+            ['Formula total', { formula: 'B2+2' }]
           ]
         }
       ]
@@ -1525,6 +1537,7 @@ child.on('exit', async (code) => {
           filesSpreadsheetControls: result.filesSpreadsheetControlsWorks === true,
           filesSpreadsheetSheetTabs: result.filesSpreadsheetSheetTabsWorks === true,
           filesSpreadsheetActiveCell: result.filesSpreadsheetActiveCellWorks === true,
+          filesSpreadsheetFormulaEvaluation: result.filesSpreadsheetFormulaEvaluationWorks === true,
           filesSlidesControls: result.filesSlidesControlsWorks === true,
           filesSlidesSpeakerNotes: result.filesSlidesSpeakerNotesWorks === true,
           filesOfficeZoomMenu: result.filesOfficeZoomMenuWorks === true,
@@ -1722,6 +1735,7 @@ child.on('exit', async (code) => {
         filesSpreadsheetControls: captureView !== 'inspector' || result.filesSpreadsheetControlsWorks === true,
         filesSpreadsheetSheetTabs: captureView !== 'inspector' || result.filesSpreadsheetSheetTabsWorks === true,
         filesSpreadsheetActiveCell: captureView !== 'inspector' || result.filesSpreadsheetActiveCellWorks === true,
+        filesSpreadsheetFormulaEvaluation: captureView !== 'inspector' || result.filesSpreadsheetFormulaEvaluationWorks === true,
         filesSlidesControls: captureView !== 'inspector' || result.filesSlidesControlsWorks === true,
         filesSlidesSpeakerNotes: captureView !== 'inspector' || result.filesSlidesSpeakerNotesWorks === true,
         filesOfficeZoomMenu: captureView !== 'inspector' || result.filesOfficeZoomMenuWorks === true,
