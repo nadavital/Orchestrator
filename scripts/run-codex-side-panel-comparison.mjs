@@ -499,7 +499,7 @@ function evaluateFileEvidence(contract, fileCache) {
   return {
     required: fileResults.some((file) => file.required),
     available: fileResults.every((file) => file.available),
-    passed: fileResults.every((file) => !file.required || file.passed) && fileResults.every((file) => file.required || file.available),
+    passed: fileResults.every((file) => file.passed),
     files: fileResults
   }
 }
