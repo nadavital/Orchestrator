@@ -9102,3 +9102,13 @@ Implemented: closing the whole Workbench panel or its final tab now restores foc
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and `git diff --check` passed. The first sandboxed `node scripts/run-automated-ui-smoke.mjs --right-panel` hit the expected localhost bind denial; the elevated rerun passed with `rightPanelLastTabCloseFocusRestored=true` while preserving right-panel shell ownership, header seam/band, resize, tab close/reorder/drag, tab a11y, find routing/status/focus, browser command routing, and transfer-boundary gates. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779997390432.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779997390432.png`.
 
 Remaining: this closes local Workbench final-tab close focus restoration only. Whole-app keyboard traversal and live Codex right-panel animation timing remain separate.
+
+### 2026-05-28 - Settings Content Focus On Open
+
+Product evidence: Settings is a Phase 1 app surface for provider, account, runtime, browser, shell, and personalization preferences. Opening Settings or switching host/section already scrolled the content to the top, but focus stayed outside the newly shown content region, making keyboard traversal less predictable.
+
+Implemented: the Settings content scroll region is now a named focusable region with `role="region"`, `aria-label="<Section> settings"`, and `tabIndex=-1`; it receives focus on Settings open, section changes, and host changes while still scrolling to the top.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and `git diff --check` passed before the focused run. The first sandboxed `node scripts/run-automated-ui-smoke.mjs --settings` hit the expected localhost bind denial; the elevated rerun passed with `settingsContentFocusOnOpen=true` while preserving existing Settings, theme, provider, shortcut, browser, worktree, automation, and personalization gates. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779997741401.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779997741401.png`.
+
+Remaining: this closes local Settings route content focus only. Provider-native Settings adapters, remote-host adapters, and whole-app keyboard traversal remain separate.

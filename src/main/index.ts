@@ -767,6 +767,13 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               .find((button) => button.textContent?.trim() === 'Settings' || buttonLabel(button) === 'Settings');
             settingsButton?.click();
             await sleep(450);
+            const initialSettingsScroll = document.querySelector('.settings-scroll');
+            var settingsContentFocusOnOpenWorks =
+              initialSettingsScroll instanceof HTMLElement &&
+              document.activeElement === initialSettingsScroll &&
+              initialSettingsScroll.getAttribute('role') === 'region' &&
+              initialSettingsScroll.getAttribute('aria-label') === 'General settings' &&
+              initialSettingsScroll.getAttribute('tabindex') === '-1';
             if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'settings-providers') {
               const providersNavButton = [...document.querySelectorAll('button')]
                 .find((button) => button.textContent?.includes('Providers'));
@@ -6978,6 +6985,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             settingsGeneralPreferredEditorPersistenceWorks: typeof settingsGeneralPreferredEditorPersistenceWorks === 'boolean' ? settingsGeneralPreferredEditorPersistenceWorks : null,
             settingsTopbarSharedWorks: typeof settingsTopbarSharedWorks === 'boolean' ? settingsTopbarSharedWorks : null,
             settingsContentLayoutWorks: typeof settingsContentLayoutWorks === 'boolean' ? settingsContentLayoutWorks : null,
+            settingsContentFocusOnOpenWorks: typeof settingsContentFocusOnOpenWorks === 'boolean' ? settingsContentFocusOnOpenWorks : null,
             settingsRouteOwnedWorks: typeof settingsRouteOwnedWorks === 'boolean' ? settingsRouteOwnedWorks : null,
             settingsDeepLinkRouteWorks: typeof settingsDeepLinkRouteWorks === 'boolean' ? settingsDeepLinkRouteWorks : null,
             settingsDeepLinkRouteDebug: typeof settingsDeepLinkRouteDebug === 'object' ? settingsDeepLinkRouteDebug : null,

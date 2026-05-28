@@ -144,7 +144,9 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
   }, [effectiveSection, section, setSettingsSection])
 
   useLayoutEffect(() => {
-    settingsScrollRef.current?.scrollTo({ top: 0, left: 0 })
+    const scroll = settingsScrollRef.current
+    scroll?.scrollTo({ top: 0, left: 0 })
+    scroll?.focus({ preventScroll: true })
   }, [effectiveSection, selectedSettingsHost.id])
 
   const loadProviderDiagnostics = useCallback((providerId: string): void => {
@@ -436,6 +438,9 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
           key={selectedSettingsHost.id}
           ref={settingsScrollRef}
           className="settings-scroll"
+          tabIndex={-1}
+          role="region"
+          aria-label={`${settingsTitle(effectiveSection)} settings`}
           data-settings-content-host-id={selectedSettingsHost.id}
           data-settings-content-host-kind={selectedSettingsHost.kind}
           data-settings-content-scope={contentScope}
