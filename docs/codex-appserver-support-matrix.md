@@ -41,6 +41,9 @@ Local Codex CLI: `codex-cli 0.128.0`
 - Composer runtime lifecycle boundary proof:
   - `npm run live:codex-composer-runtime-lifecycle`
   - `tmp/codex-composer-runtime-lifecycle-live-proof/result.json`
+- Composer session lifecycle boundary proof:
+  - `npm run live:codex-composer-session-lifecycle`
+  - `tmp/codex-composer-session-lifecycle-live-proof/result.json`
 
 ## Status Legend
 
@@ -57,7 +60,7 @@ Local Codex CLI: `codex-cli 0.128.0`
 | Capability area | Orchestrator status | Notes |
 | --- | --- | --- |
 | App-server stdio transport | Supported | Starts `codex app-server --listen stdio://`, sends `initialize`, then `initialized`. |
-| Core chat loop | Supported | Starts/resumes thread and starts turns through app-server. Live composer resume proof confirms a persisted Codex thread can be resumed from a fresh app-server process with the same thread id and prior-turn context; live runtime lifecycle proof confirms Orchestrator's `CodexAppServerRuntimeManager` emits the expected runtime events while doing the same through the production runtime wrapper. |
+| Core chat loop | Supported | Starts/resumes thread and starts turns through app-server. Live composer resume proof confirms a persisted Codex thread can be resumed from a fresh app-server process with the same thread id and prior-turn context; live runtime lifecycle proof confirms Orchestrator's `CodexAppServerRuntimeManager` emits the expected runtime events while doing the same through the production runtime wrapper; live session lifecycle proof confirms compiled `sessionManager.sendMessage`, `continueLastTurn`, and `retryLastUserMessage` all complete against the same live Codex provider session. |
 | Follow-up while running | Supported | Uses `turn/steer` when an app-server turn is active. |
 | Stop/interrupt | Supported | Uses `turn/interrupt` when a Codex app-server turn id is known. |
 | Command/file/permission approvals | Supported | Handles `item/commandExecution/requestApproval`, `item/fileChange/requestApproval`, and `item/permissions/requestApproval`; maps allow once/session/deny back to app-server responses. The live composer proofs confirm Codex returns Orchestrator's requested managed permission profile, can complete an allowed workspace-write command without an explicit approval request, and can send a real command approval request that Orchestrator answers successfully. |
@@ -83,7 +86,7 @@ Local Codex CLI: `codex-cli 0.128.0`
 | App-server method group | Methods | Orchestrator support |
 | --- | --- | --- |
 | Initialization | `initialize` plus client `initialized` notification | Supported. |
-| Thread create/resume | `thread/start`, `thread/resume` | Supported for normal Codex sessions. Live `npm run live:codex-composer-resume` starts a non-ephemeral thread, resumes it from a fresh process, and validates prior-turn context before archiving the disposable thread. Live `npm run live:codex-composer-runtime-lifecycle` covers the same start/resume path through Orchestrator's runtime manager and event normalization layer. |
+| Thread create/resume | `thread/start`, `thread/resume` | Supported for normal Codex sessions. Live `npm run live:codex-composer-resume` starts a non-ephemeral thread, resumes it from a fresh process, and validates prior-turn context before archiving the disposable thread. Live `npm run live:codex-composer-runtime-lifecycle` covers the same start/resume path through Orchestrator's runtime manager and event normalization layer. Live `npm run live:codex-composer-session-lifecycle` covers the main-process sessionManager send/continue/retry lifecycle above the runtime layer. |
 | Thread fork/history/list/read | `thread/fork`, `thread/list`, `thread/loaded/list`, `thread/read`, `thread/turns/list` | Partial. `thread/list` and `thread/loaded/list` are exposed as read-only settings surfaces; fork/read/turn listing are not productized. |
 | Thread metadata/lifecycle | `thread/archive`, `thread/unarchive`, `thread/unsubscribe`, `thread/name/set`, `thread/metadata/update` | Not wired. |
 | Thread context operations | `thread/compact/start`, `thread/rollback`, `thread/inject_items` | Partial. Live proof shows `thread/rollback` accepts `{ threadId, numTurns: 1 }` on persisted threads and rewrites thread history, but it does not revert the workspace file/git diff. It is not a Review Undo implementation by itself. |
