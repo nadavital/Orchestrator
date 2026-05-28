@@ -9274,3 +9274,13 @@ Implemented: the Environment header now includes an `Add environment to chat` ac
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --environment` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-environment-1780007816535.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-environment-1780007816535.png`. The focused run adds `environmentAddToChat=true` while preserving Environment visual, action-row, source-boundary, disabled-row a11y, and provider-settings navigation gates.
 
 Remaining: this closes local Environment-to-composer context flow only. Provider-backed web-search source state, provider-native environment sources, hosted PR metadata, commit/PR creation, and exact live Codex timing remain separate.
+
+### 2026-05-28 - Latest Assistant Regenerate
+
+Product evidence: PP-052 tracks main-chat edit/resend/regenerate ergonomics for daily coding. Orchestrator had failed-run Retry and latest-assistant Continue, but a completed assistant response did not expose a direct way to ask the provider to regenerate from the previous user prompt without manually copying or editing the prompt.
+
+Implemented: the latest assistant response now shows a compact `Regenerate` action when the session is idle and a retryable user prompt exists. The action calls the existing provider-neutral retry-last-user-message path, shows `Regenerate sent` or failure state, and exposes the same polite live-region semantics as Continue. Permission-card action rows were also tightened for narrow transcript layouts, and the transcript-layout smoke now scans the full virtualized scroll range before checking narrow permission actions.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --transcript-layout` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-transcript-layout-1780008552761.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-transcript-layout-1780008552761.png`. The run adds `chatRegenerateLastResponse=true` and `chatRegenerateLastResponseA11y=true` while keeping `narrowPermissionActionsWrap=true`.
+
+Remaining: this closes the local latest-assistant regenerate affordance only. Richer provider-native edit/resend/regenerate semantics, original-history preservation UI, and exact live Codex focus/timing evidence remain separate.

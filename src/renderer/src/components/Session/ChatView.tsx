@@ -149,6 +149,7 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
     }
     return null
   }, [session.messages])
+  const canRegenerateLastAssistant = !isActiveSessionStatus(session.status) && hasRetryableUserMessage(session)
   const loadedHiddenCount = Math.max(0, session.messages.length - visibleMessages.length)
   const unloadedBeforeCount = Math.max(0, totalMessageCount - session.messages.length)
   const virtualWindow = useMemo(() => buildVirtualTranscriptWindow(
@@ -864,6 +865,7 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
                         preferredEditor={preferredEditor}
                         canCopy={item.message.id === lastAssistantTextId}
                         canContinue={item.message.id === lastAssistantTextId && !isActiveSessionStatus(session.status)}
+                        canRegenerate={item.message.id === lastAssistantTextId && canRegenerateLastAssistant}
                         onSteerQueuedMessage={steerQueuedMessage}
                         onCancelQueuedMessage={cancelQueuedMessage}
                         onEditUserMessageAsDraft={editUserMessageAsDraft}
@@ -1355,6 +1357,47 @@ function ContinueButton({ sessionId }: { sessionId: string }): JSX.Element {
   )
 }
 
+function RegenerateButton({ sessionId }: { sessionId: string }): JSX.Element {
+  const [state, setState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
+  const label = state === 'sending' ? 'Regenerating' : state === 'sent' ? 'Regenerate sent' : state === 'error' ? 'Regenerate failed' : 'Regenerate'
+
+  const handleRegenerate = useCallback(async (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (state === 'sending') return
+    setState('sending')
+    try {
+      const ok = await window.api.sessions.retryLastUserMessage(sessionId)
+      setState(ok ? 'sent' : 'error')
+    } catch {
+      setState('error')
+    }
+  }, [sessionId, state])
+
+  return (
+    <Button
+      variant="ghost"
+      className="h-7 px-2 text-[11px]"
+      dataTestId="chat-regenerate-last-response"
+      disabled={state === 'sending'}
+      title={label}
+      ariaLabel={label}
+      onClick={handleRegenerate}
+    >
+      {state === 'sending' ? <ThinkingDots /> : <Icon name="refresh" size={13} />}
+      <span
+        data-testid="chat-regenerate-last-response-label"
+        data-regenerate-state={state}
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+      >
+        {label}
+      </span>
+    </Button>
+  )
+}
+
 function ForkFromMessageButton({
   onFork,
   canForkSameWorktree,
@@ -1639,6 +1682,7 @@ function MessageRow({
   preferredEditor,
   canCopy,
   canContinue,
+  canRegenerate,
   onSteerQueuedMessage,
   onCancelQueuedMessage,
   onEditUserMessageAsDraft,
@@ -1650,6 +1694,7 @@ function MessageRow({
   preferredEditor: PreferredEditor
   canCopy: boolean
   canContinue: boolean
+  canRegenerate: boolean
   onSteerQueuedMessage: (messageId: string) => Promise<void>
   onCancelQueuedMessage: (messageId: string, queueState: 'queued' | 'steer_next') => Promise<void>
   onEditUserMessageAsDraft: (content: string, attachments?: Attachment[]) => void
@@ -1697,7 +1742,7 @@ function MessageRow({
           }}
         >
           <div
-            className={`min-w-0 break-words ${isUser ? (canForkFromMessage ? 'px-4 py-3 pr-16' : 'px-4 py-3 pr-9') : (canContinue || canForkFromMessage) ? 'pr-36 py-1' : 'pr-8 py-1'}`}
+            className={`min-w-0 break-words ${isUser ? (canForkFromMessage ? 'px-4 py-3 pr-16' : 'px-4 py-3 pr-9') : (canContinue || canRegenerate || canForkFromMessage) ? 'pr-64 py-1' : 'pr-8 py-1'}`}
             style={{
               background: isUser ? 'var(--control-bg-active)' : 'transparent',
               color: 'var(--text-primary)',
@@ -1803,7 +1848,7 @@ function MessageRow({
               </div>
             )}
           </div>
-          {(canCopy || canContinue || canForkFromMessage) && !isUser && (
+          {(canCopy || canContinue || canRegenerate || canForkFromMessage) && !isUser && (
             <div
               className="flex items-center gap-1"
               style={{
@@ -1813,6 +1858,7 @@ function MessageRow({
               }}
             >
               {canContinue && <ContinueButton sessionId={session.id} />}
+              {canRegenerate && <RegenerateButton sessionId={session.id} />}
               {canForkFromMessage && (
                 <ForkFromMessageButton
                   canForkSameWorktree={session.useWorktree}
@@ -3173,12 +3219,12 @@ function PermissionCard({ msg, sessionId, sessionStatus }: { msg: ResultMessage;
         </div>
         {decision === 'pending' && requestIsActive ? (
           isPlanApproval ? (
-            <div className="flex flex-wrap gap-2" data-testid="chat-permission-actions" role="group" aria-label="Plan approval actions">
+            <div className="flex w-full min-w-0 max-w-full flex-wrap gap-2 overflow-hidden" data-testid="chat-permission-actions" role="group" aria-label="Plan approval actions">
               <Button
                 onClick={handleAllowOnce}
                 variant="primary"
                 disabled={submittingDecision !== null}
-                className="min-w-[132px] flex-1"
+                className="min-w-[112px] flex-1"
                 dataTestId="chat-permission-allow-once"
                 ariaLabel={allowOnceLabel}
               >
@@ -3188,7 +3234,7 @@ function PermissionCard({ msg, sessionId, sessionStatus }: { msg: ResultMessage;
                 onClick={handleDeny}
                 variant="secondary"
                 disabled={submittingDecision !== null}
-                className="min-w-[120px] px-4"
+                className="min-w-[104px] px-3"
                 dataTestId="chat-permission-deny"
                 ariaLabel={denyLabel}
               >
@@ -3196,12 +3242,12 @@ function PermissionCard({ msg, sessionId, sessionStatus }: { msg: ResultMessage;
               </Button>
             </div>
           ) : (
-            <div className="flex flex-wrap gap-2" data-testid="chat-permission-actions" role="group" aria-label="Permission decision actions">
+            <div className="flex w-full min-w-0 max-w-full flex-wrap gap-2 overflow-hidden" data-testid="chat-permission-actions" role="group" aria-label="Permission decision actions">
               <Button
                 onClick={handleAllowOnce}
                 variant="primary"
                 disabled={submittingDecision !== null}
-                className="min-w-[112px] flex-1"
+                className="min-w-[96px] flex-1"
                 dataTestId="chat-permission-allow-once"
                 ariaLabel={allowOnceLabel}
               >
@@ -3211,7 +3257,7 @@ function PermissionCard({ msg, sessionId, sessionStatus }: { msg: ResultMessage;
                 onClick={handleAllowSession}
                 variant="secondary"
                 disabled={submittingDecision !== null}
-                className="min-w-[124px] flex-1"
+                className="min-w-[108px] flex-1"
                 dataTestId="chat-permission-allow-session"
                 ariaLabel={allowSessionLabel}
               >
@@ -3221,7 +3267,7 @@ function PermissionCard({ msg, sessionId, sessionStatus }: { msg: ResultMessage;
                 onClick={handleDeny}
                 variant="secondary"
                 disabled={submittingDecision !== null}
-                className="min-w-[76px] px-4"
+                className="min-w-[68px] px-3"
                 dataTestId="chat-permission-deny"
                 ariaLabel={denyLabel}
               >

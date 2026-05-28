@@ -22666,15 +22666,16 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
               if (document.querySelector('pre') && document.querySelector('table')) break;
             }
             let permissionCard = document.querySelector('[data-testid="chat-permission-card"]');
-            for (let index = 0; index < 10 && !(permissionCard instanceof HTMLElement); index += 1) {
-              scroller.scrollTop = Math.max(0, scroller.scrollHeight - scroller.clientHeight) * ((index + 2) / 12);
+            for (let index = 0; index < 40 && !(permissionCard instanceof HTMLElement); index += 1) {
+              scroller.scrollTop = Math.max(0, scroller.scrollHeight - scroller.clientHeight) * (index / 39);
               scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
-              await sleep(120);
+              await sleep(90);
               permissionCard = document.querySelector('[data-testid="chat-permission-card"]');
             }
             if (permissionCard instanceof HTMLElement) {
               permissionCard.scrollIntoView({ block: 'center', inline: 'nearest' });
               await sleep(160);
+              permissionCard = document.querySelector('[data-testid="chat-permission-card"]');
             }
             const viewportWidth = document.documentElement.clientWidth;
             const docScrollWidth = Math.max(document.documentElement.scrollWidth, document.body.scrollWidth);
@@ -22799,6 +22800,46 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
                 retryStatus.getAttribute('role') === 'status' &&
                 retryStatus.getAttribute('aria-live') === 'polite' &&
                 retryStatus.getAttribute('aria-atomic') === 'true'
+            };
+          })()
+        `)
+        const regenerateResult = await win.webContents.executeJavaScript(`
+          (async () => {
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            const scroller = document.querySelector('[data-testid="transcript-scroll"]');
+            if (!(scroller instanceof HTMLElement)) return { chatRegenerateLastResponseWorks: false };
+            scroller.scrollTop = 0;
+            scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
+            await sleep(260);
+            const buttons = [...document.querySelectorAll('[data-testid="chat-regenerate-last-response"]')];
+            const labels = [...document.querySelectorAll('[data-testid="chat-regenerate-last-response-label"]')];
+            const button = buttons.at(-1);
+            const label = labels.at(-1);
+            const scrollerRect = scroller.getBoundingClientRect();
+            const buttonRect = button instanceof HTMLElement ? button.getBoundingClientRect() : null;
+            const buttonBounded = buttonRect !== null &&
+              buttonRect.left >= scrollerRect.left - 2 &&
+              buttonRect.right <= scrollerRect.right + 2 &&
+              buttonRect.width > 0 &&
+              buttonRect.height > 0;
+            if (button instanceof HTMLButtonElement && !button.disabled) {
+              button.click();
+              await sleep(220);
+            }
+            return {
+              chatRegenerateLastResponseWorks:
+                button instanceof HTMLButtonElement &&
+                label instanceof HTMLElement &&
+                buttonBounded &&
+                label.textContent?.includes('Regenerate sent') === true,
+              chatRegenerateLastResponseA11yWorks:
+                button instanceof HTMLButtonElement &&
+                label instanceof HTMLElement &&
+                button.getAttribute('aria-label') === 'Regenerate sent' &&
+                label.getAttribute('role') === 'status' &&
+                label.getAttribute('aria-live') === 'polite' &&
+                label.getAttribute('aria-atomic') === 'true' &&
+                label.getAttribute('data-regenerate-state') === 'sent'
             };
           })()
         `)
@@ -22961,7 +23002,7 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
           const image = await win.webContents.capturePage()
           writeFileSync(screenshotPath, image.toPNG())
         }
-        writeFileSync(outputPath, JSON.stringify({ ok: true, result: { profile, ...result, ...narrowResult, ...retryResult, ...retryPreparationFailureResult, ...continueResult, ...continueFailureResult, ...shortcutResult }, screenshotPath }, null, 2))
+        writeFileSync(outputPath, JSON.stringify({ ok: true, result: { profile, ...result, ...narrowResult, ...retryResult, ...retryPreparationFailureResult, ...regenerateResult, ...continueResult, ...continueFailureResult, ...shortcutResult }, screenshotPath }, null, 2))
         app.quit()
       } catch (error) {
         writeFileSync(outputPath, JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2))
