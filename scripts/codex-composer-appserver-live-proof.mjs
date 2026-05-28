@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { spawn, execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url))
@@ -10,20 +10,27 @@ const providersModulePath = join(repoRoot, 'out-test/src/main/providers.js')
 const { PROVIDERS, codexRuntimePolicyConfig, providerSpawnEnv, resolveProviderCommand } = await import(providersModulePath)
 
 const provider = PROVIDERS.codex
-const artifactRoot = process.env.CODEX_COMPOSER_PROOF_ARTIFACT_DIR
+const artifactRoot = resolve(process.env.CODEX_COMPOSER_PROOF_ARTIFACT_DIR
   ? process.env.CODEX_COMPOSER_PROOF_ARTIFACT_DIR
-  : join(repoRoot, 'tmp', 'codex-composer-appserver-live-proof')
-const workspaceDir = process.env.CODEX_COMPOSER_PROOF_CWD ?? join(artifactRoot, 'workspace')
+  : join(repoRoot, 'tmp', 'codex-composer-appserver-live-proof'))
+const workspaceDir = resolve(process.env.CODEX_COMPOSER_PROOF_CWD ?? join(artifactRoot, 'workspace'))
 const timeoutMs = Number(process.env.CODEX_COMPOSER_PROOF_TIMEOUT_MS ?? 180_000)
 const model = process.env.CODEX_COMPOSER_PROOF_MODEL ?? 'gpt-5.4-mini'
 const effort = process.env.CODEX_COMPOSER_PROOF_EFFORT ?? 'low'
 const executionPolicy = process.env.CODEX_COMPOSER_PROOF_POLICY ?? 'default'
+const requireApproval = process.env.CODEX_COMPOSER_PROOF_REQUIRE_APPROVAL === '1'
 const expectedToken = 'CODEX_COMPOSER_LIVE_OK'
-const proofFileName = 'live-composer-permission-proof.txt'
-const proofFilePath = join(workspaceDir, proofFileName)
-const commandText = `printf 'CODEX_COMPOSER_PERMISSION_OK\\n' > ${proofFileName}`
+const proofFileName = requireApproval ? 'live-composer-approval-proof.txt' : 'live-composer-permission-proof.txt'
+const proofToken = requireApproval ? 'CODEX_COMPOSER_APPROVAL_OK' : 'CODEX_COMPOSER_PERMISSION_OK'
+const proofFilePath = requireApproval ? join(artifactRoot, proofFileName) : join(workspaceDir, proofFileName)
+const workspaceSeedFileName = 'live-composer-permission-proof.txt'
+const commandText = requireApproval
+  ? `printf '${proofToken}\\n' > ../${proofFileName}`
+  : `printf '${proofToken}\\n' > ${proofFileName}`
 const prompt = process.env.CODEX_COMPOSER_PROOF_PROMPT ?? [
-  'This is a live Orchestrator/Codex app-server Composer model and permission proof in a disposable git workspace.',
+  requireApproval
+    ? 'This is a live Orchestrator/Codex app-server approval-card proof in a disposable git workspace.'
+    : 'This is a live Orchestrator/Codex app-server Composer model and permission proof in a disposable git workspace.',
   'Use command execution to run exactly this command:',
   commandText,
   'Do not edit any other file.',
@@ -134,13 +141,18 @@ try {
 
   await waitForCompletion()
   const fileText = readProofFile()
-  const gitDiff = runGit(['diff', '--', proofFileName])
+  const gitDiff = requireApproval ? '' : runGit(['diff', '--', proofFileName])
   const assistantSawOk = assistantText.includes(expectedToken)
-  const editApplied = fileText.includes('CODEX_COMPOSER_PERMISSION_OK') && gitDiff.includes('CODEX_COMPOSER_PERMISSION_OK')
+  const editApplied = fileText.includes(proofToken) && (requireApproval || gitDiff.includes(proofToken))
   const commandCompleted = commandExecutions.some((execution) =>
     execution.method === 'item/completed' &&
     execution.status === 'completed' &&
-    execution.command.includes('CODEX_COMPOSER_PERMISSION_OK')
+    execution.command.includes(proofToken)
+  )
+  const approvalRoundTrip = !requireApproval || (
+    permissionRequests.length > 0 &&
+    permissionResponses.length > 0 &&
+    permissionRequests.some((request) => request.method === 'item/commandExecution/requestApproval')
   )
   const threadPolicyMatches = threadStartResult?.model === model &&
     threadStartResult?.approvalPolicy === policy.approvalPolicy &&
@@ -148,10 +160,14 @@ try {
     sandboxMatches(threadStartResult?.sandbox, policy.sandboxMode) &&
     (effort ? threadStartResult?.reasoningEffort === effort : true)
 
-  if (editApplied && assistantSawOk && commandCompleted && threadPolicyMatches) {
-    finish(true, 'live Codex app-server accepted composer model/policy config and completed command execution under the managed permission profile')
+  if (editApplied && assistantSawOk && commandCompleted && threadPolicyMatches && approvalRoundTrip) {
+    finish(true, requireApproval
+      ? 'live Codex app-server requested command approval, accepted the client response, and completed the approved command'
+      : 'live Codex app-server accepted composer model/policy config and completed command execution under the managed permission profile')
   } else if (!threadPolicyMatches) {
     finish(false, 'live Codex app-server thread/start response did not match the requested model/policy config')
+  } else if (!approvalRoundTrip) {
+    finish(false, 'live Codex app-server did not complete a command approval request/response round trip')
   } else if (!commandCompleted) {
     finish(false, 'live Codex app-server completed without a completed commandExecution item for the proof command')
   } else if (!editApplied) {
@@ -214,7 +230,7 @@ function handleLine(line) {
     })
   }
 
-  if (message.id && !message.method) {
+  if (message.id != null && !message.method) {
     const waiter = pending.get(message.id)
     if (!waiter) return
     pending.delete(message.id)
@@ -223,7 +239,7 @@ function handleLine(line) {
     return
   }
 
-  if (message.id && message.method) {
+  if (message.id != null && message.method) {
     const requestSummary = {
       id: message.id,
       method: message.method,
@@ -300,7 +316,7 @@ function resetArtifacts() {
 }
 
 function setupWorkspace() {
-  writeFileSync(proofFilePath, [
+  writeFileSync(join(workspaceDir, workspaceSeedFileName), [
     'Live Codex Composer proof fixture.',
     'Token: EXACT_ORIGINAL_TOKEN',
     ''
@@ -308,7 +324,7 @@ function setupWorkspace() {
   runGit(['init'])
   runGit(['config', 'user.email', 'orchestrator-live-proof@example.invalid'])
   runGit(['config', 'user.name', 'Orchestrator Live Proof'])
-  runGit(['add', proofFileName])
+  runGit(['add', workspaceSeedFileName])
   runGit(['commit', '-m', 'Initial proof fixture'])
 }
 
@@ -333,6 +349,7 @@ function writeArtifacts(result) {
     model,
     effort,
     executionPolicy,
+    requireApproval,
     policy,
     prompt,
     threadId,
@@ -391,6 +408,7 @@ function finish(ok, reason) {
     model: result.model,
     effort: result.effort,
     executionPolicy: result.executionPolicy,
+    requireApproval: result.requireApproval,
     permissionRequestCount: result.permissionRequests.length,
     commandExecutionCount: result.commandExecutions.length,
     methods: result.methods

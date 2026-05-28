@@ -32,6 +32,9 @@ Local Codex CLI: `codex-cli 0.128.0`
 - Composer model/policy boundary proof:
   - `npm run live:codex-composer-appserver`
   - `tmp/codex-composer-appserver-live-proof/result.json`
+- Composer command-approval boundary proof:
+  - `npm run live:codex-composer-approval`
+  - `tmp/codex-composer-approval-live-proof/result.json`
 
 ## Status Legend
 
@@ -51,7 +54,7 @@ Local Codex CLI: `codex-cli 0.128.0`
 | Core chat loop | Supported | Starts/resumes thread and starts turns through app-server. |
 | Follow-up while running | Supported | Uses `turn/steer` when an app-server turn is active. |
 | Stop/interrupt | Supported | Uses `turn/interrupt` when a Codex app-server turn id is known. |
-| Command/file/permission approvals | Supported | Handles `item/commandExecution/requestApproval`, `item/fileChange/requestApproval`, and `item/permissions/requestApproval`; maps allow once/session/deny back to app-server responses. The live composer proof confirms Codex returns Orchestrator's requested managed permission profile and can complete an allowed workspace-write command without an explicit approval request. |
+| Command/file/permission approvals | Supported | Handles `item/commandExecution/requestApproval`, `item/fileChange/requestApproval`, and `item/permissions/requestApproval`; maps allow once/session/deny back to app-server responses. The live composer proofs confirm Codex returns Orchestrator's requested managed permission profile, can complete an allowed workspace-write command without an explicit approval request, and can send a real command approval request that Orchestrator answers successfully. |
 | User questions | Supported | Handles `item/tool/requestUserInput` and sends structured answers. |
 | MCP elicitation | Supported | Handles `mcpServer/elicitation/request` and sends accept response. |
 | Assistant streaming | Supported | Handles `item/agentMessage/delta` and suppresses duplicate final text. |
@@ -175,7 +178,7 @@ Local Codex CLI: `codex-cli 0.128.0`
 | Plan mode | Supported | `turn/plan/updated` feeds existing plan UI. | Real live fixture for Codex plan-producing turn. |
 | Subagents | Parsed | `collabAgentToolCall` maps to agent lifecycle and existing Agents sidebar path. | Rich child transcript capture if Codex emits child-thread items separately; live multi-agent fixture. |
 | Side questions | External | `/btw` side question exists as Orchestrator-owned detached provider call. | App-server-native same-thread side channel, if product wants Codex parity with Mac app behavior. |
-| Approvals | Supported | Command/file/permission requests round-trip through app-server. | Live approval-producing Codex UI smoke and auto-review/guardian details. |
+| Approvals | Supported | Command approval requests round-trip through app-server in the live composer approval proof; file/profile permission requests are implemented through the same runtime path. | Live file/profile permission fixtures plus auto-review/guardian details. |
 | MCP elicitation | Supported | Request maps to user input and responds through JSON-RPC. | Live MCP form fixture and structured schema-aware form UI. |
 | Apps/connectors | Partial | `app/list` is available as a read-only app-server settings surface. | Browser/mention insertion with `app://...` and connector invocation UI. |
 | Browser-use client tools | Partial | Manual Browser panel state, tabs, navigation, inspection, comments, security policy, and local-target discovery are Orchestrator-owned and provider-neutral. The Codex desktop bundle has browser-use client route evidence, the live dynamicTools proof confirms the app-server transport can advertise and answer dynamic client tools, the live Browser tools proof confirms Codex requests real `orchestrator.browser_open` / `orchestrator.browser_read`, and Orchestrator has renderer-backed Browser open/read tools routed from `item/tool/call`. Focused Browser smoke gates the main IPC to renderer webview loopback with `browserClientToolBridge=true`. The live browser-use proof still emits no native browser events or provider-specific browser-use requests. If a server requests an unimplemented client dynamic tool, the unsupported boundary remains visible in the transcript and test-covered. | Broader click/type/screenshot tools only from real browser-use requests, explicit product scope, or a full installed-app end-to-end run. |
