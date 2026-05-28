@@ -3016,6 +3016,7 @@ child.on('exit', async (code) => {
         composerPermissionContextSignal: captureView !== 'composer' || result.composerPermissionContextSignal === true,
         composerDropdownMaterial: captureView !== 'composer' || result.composerDropdownMaterialWorks === true,
         composerPermissionNativeTooltips: captureView !== 'composer' || result.composerPermissionNativeTooltipsWork === true,
+        composerContextChips: captureView !== 'composer' || result.composerContextChips === true,
         composerPermissionLabelsCalm: captureView !== 'composer' || result.composerPermissionLabelsCalm === true,
         composerPermissionRuleStatus: captureView !== 'composer' || result.composerPermissionRuleStatus === true,
         composerSlashEscapePreservesDraft: captureView !== 'composer' || result.composerSlashEscapePreservesDraft === true,

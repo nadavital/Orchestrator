@@ -5817,6 +5817,30 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             }
             await selectThreadByTitle('Active settings smoke');
             await sleep(220);
+            const composerContextRow = document.querySelector('[data-testid="composer-context-chips"]');
+            const composerContextWorkspaceChip = document.querySelector('[data-testid="composer-context-workspace-chip"]');
+            const composerContextWorktreeChip = document.querySelector('[data-testid="composer-context-worktree-chip"]');
+            const composerContextAdditionalDirsChip = document.querySelector('[data-testid="composer-context-additional-dirs-chip"]');
+            var composerContextChips =
+              composerContextRow instanceof HTMLElement &&
+              composerContextRow.getAttribute('role') === 'list' &&
+              composerContextRow.getAttribute('aria-label') === 'Current composer context' &&
+              composerContextRow.getAttribute('data-composer-context-workdir')?.endsWith('orchestrator-automated-ui-workspace') === true &&
+              composerContextRow.getAttribute('data-composer-context-workspace-label') === 'orchestrator-automated-ui-workspace' &&
+              composerContextRow.getAttribute('data-composer-context-additional-dir-count') === '2' &&
+              composerContextRow.getAttribute('data-composer-context-worktree') === 'false' &&
+              composerContextWorkspaceChip instanceof HTMLElement &&
+              composerContextWorkspaceChip.getAttribute('role') === 'listitem' &&
+              composerContextWorkspaceChip.getAttribute('aria-label')?.includes('Workspace:') === true &&
+              composerContextWorkspaceChip.getAttribute('data-composer-context-detail')?.includes('orchestrator-automated-ui-workspace') === true &&
+              composerContextWorkspaceChip.textContent?.includes('orchestrator-automated-ui-workspace') === true &&
+              composerContextWorktreeChip instanceof HTMLElement &&
+              composerContextWorktreeChip.getAttribute('role') === 'listitem' &&
+              composerContextWorktreeChip.textContent?.includes('Local') === true &&
+              composerContextAdditionalDirsChip instanceof HTMLElement &&
+              composerContextAdditionalDirsChip.getAttribute('role') === 'listitem' &&
+              composerContextAdditionalDirsChip.textContent?.includes('+2 dirs') === true &&
+              composerContextAdditionalDirsChip.getAttribute('data-composer-context-detail')?.includes('/tmp/orchestrator-composer-context') === true;
             const skipToTranscript = document.querySelector('[data-testid="app-skip-to-transcript"]');
             const skipToComposer = document.querySelector('[data-testid="app-skip-to-composer"]');
             const skipToWorkbench = document.querySelector('[data-testid="app-skip-to-workbench"]');
@@ -7328,6 +7352,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             composerPermissionContextSignal: typeof composerPermissionContextSignal === 'boolean' ? composerPermissionContextSignal : null,
             composerDropdownMaterialWorks: typeof composerDropdownMaterialWorks === 'boolean' ? composerDropdownMaterialWorks : null,
             composerPermissionNativeTooltipsWork: typeof composerPermissionNativeTooltipsWork === 'boolean' ? composerPermissionNativeTooltipsWork : null,
+            composerContextChips: typeof composerContextChips === 'boolean' ? composerContextChips : null,
             composerPermissionLabelsCalm: typeof composerPermissionLabelsCalm === 'boolean' ? composerPermissionLabelsCalm : null,
             composerPermissionRuleStatus: typeof composerPermissionRuleStatus === 'boolean' ? composerPermissionRuleStatus : null,
             composerSlashEscapePreservesDraft: typeof composerSlashEscapePreservesDraft === 'boolean' ? composerSlashEscapePreservesDraft : null,
@@ -25888,6 +25913,10 @@ async function seedAutomatedComposerSmokeSession(projectId: string, workDir: str
     ...activeSettingsSession,
     name: 'Active settings smoke',
     status: 'idle',
+    additionalDirs: [
+      `${workDir}/packages/shared-context`,
+      '/tmp/orchestrator-composer-context'
+    ],
     messages: [
       ...activeSettingsSession.messages.filter((message) => message.id !== activeSettingsMessage.id),
       activeSettingsMessage

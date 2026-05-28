@@ -781,6 +781,11 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   }
 
   const sendTitle = isSavingPastedFiles ? 'Saving pasted files' : sendState.willQueue ? 'Queue message (↵)' : 'Send (↵)'
+  const additionalContextDirs = session.additionalDirs ?? []
+  const workspaceLabel = pathBaseName(session.workDir) || session.workDir
+  const additionalDirsLabel = additionalContextDirs.length === 1
+    ? pathBaseName(additionalContextDirs[0]) || additionalContextDirs[0]
+    : `${additionalContextDirs.length} dirs`
 
   // Compact agent pill label: "Provider · Model [· Effort]"
   const agentLabel = [
@@ -862,6 +867,37 @@ function InputBar({ session, isNew }: Props): JSX.Element {
             className="flex-1 resize-none bg-transparent outline-none"
             style={{ color: 'var(--text-primary)', lineHeight: 1.5, maxHeight: 180, userSelect: 'text', fontSize: 14 }}
           />
+        </div>
+        <div
+          className="flex flex-wrap gap-1.5 px-4 pb-2"
+          data-testid="composer-context-chips"
+          data-composer-context-workdir={session.workDir}
+          data-composer-context-workspace-label={workspaceLabel}
+          data-composer-context-additional-dir-count={additionalContextDirs.length}
+          data-composer-context-worktree={effectiveMode ? 'true' : 'false'}
+          role="list"
+          aria-label="Current composer context"
+        >
+          <ComposerContextChip
+            icon="folder"
+            label={workspaceLabel}
+            detail={`Workspace: ${session.workDir}`}
+            dataTestId="composer-context-workspace-chip"
+          />
+          <ComposerContextChip
+            icon={effectiveMode ? 'branch' : 'folder'}
+            label={effectiveMode ? 'Branch' : 'Local'}
+            detail={effectiveMode ? 'Runs in a new branch/worktree' : 'Runs in the current workspace'}
+            dataTestId="composer-context-worktree-chip"
+          />
+          {additionalContextDirs.length > 0 && (
+            <ComposerContextChip
+              icon="folder"
+              label={`+${additionalDirsLabel}`}
+              detail={`Additional directories: ${additionalContextDirs.join(', ')}`}
+              dataTestId="composer-context-additional-dirs-chip"
+            />
+          )}
         </div>
         {(attachments.length > 0 || pendingAttachments.length > 0) && (
           <div className="flex flex-wrap gap-1.5 px-4 pb-2" aria-label="Attachments">
@@ -1572,6 +1608,36 @@ function sideChatTitle(question: string): string {
   return compact.length > 28 ? `${compact.slice(0, 25)}...` : compact || 'Side chat'
 }
 
+function ComposerContextChip({
+  icon,
+  label,
+  detail,
+  dataTestId
+}: {
+  icon: 'folder' | 'branch'
+  label: string
+  detail: string
+  dataTestId: string
+}): JSX.Element {
+  return (
+    <span
+      className="inline-flex max-w-full items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] leading-4"
+      data-testid={dataTestId}
+      data-composer-context-detail={detail}
+      role="listitem"
+      aria-label={detail}
+      style={{
+        background: 'var(--control-bg)',
+        borderColor: 'var(--border-subtle)',
+        color: 'var(--text-secondary)'
+      }}
+    >
+      <Icon name={icon} size={11} />
+      <span className="min-w-0 max-w-[180px] truncate">{label}</span>
+    </span>
+  )
+}
+
 function AttachmentChip({
   attachment,
   onRemove
@@ -1649,6 +1715,10 @@ function formatBytes(value: number): string {
   if (value < 1024) return `${value} B`
   if (value < 1024 * 1024) return `${Math.round(value / 1024)} KB`
   return `${(value / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function pathBaseName(path: string): string {
+  return path.split(/[\\/]/).filter(Boolean).at(-1) ?? path
 }
 
 function ToolbarBtn({

@@ -9254,3 +9254,13 @@ Implemented: File/source tabs now retain the last `fs.openPath` result, announce
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --files` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1780007258105.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1780007258105.png`. The focused run adds `fileOpenTargetOutcomeDiagnostic=true` while preserving file tab reset, source line utilities, add-to-chat, blame, source search, content-search line open, Office/artifact, notebook, and fallback gates.
 
 Remaining: this closes file-tab open outcome visibility only. Richer preview-mode/cwd semantics at call sites and optional custom open-target discovery remain PP-048 follow-ups.
+
+### 2026-05-28 - Composer Context Chips
+
+Product evidence: PP-040 tracks composer context ergonomics as a Phase 1 coding workflow. The composer already exposed model, permission, and attachment state, but it did not keep the actual run context visible: workspace, local-vs-branch mode, and any additional directories were hidden behind other settings. That made it too easy to type a coding prompt without seeing the context it would run against.
+
+Implemented: the composer now renders compact context chips directly under the input for the current workspace, local/branch execution mode, and additional-directory count. The chips use accessible detail metadata and truncate long workspace names without widening the composer. The focused composer smoke seeds two additional directories and gates the row as `composerContextChips=true`.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --composer` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1780007565893.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1780007565893.png`.
+
+Remaining: this closes the local composer context-chip gap only. Provider-backed context sources and deeper attachment/context behavior remain PP-040 follow-ups.

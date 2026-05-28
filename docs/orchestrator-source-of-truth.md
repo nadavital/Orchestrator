@@ -10,6 +10,7 @@ For provider-specific implementation work, use `docs/provider-integration-runboo
 
 Recent side-panel parity checkpoint:
 
+- Composer context chips checkpoint: the composer now shows compact context chips for current workspace, local/branch execution mode, and additional-directory count with accessible metadata. Focused composer smoke gates this as `composerContextChips=true` while preserving existing draft, attachment, queue, permission, provider/model, and toolbar checks.
 - File/source open outcome checkpoint: Files source tabs now keep the last `fs.openPath` result instead of discarding it, announce the resolved editor target/method/line/fallback in the action status, and expose structured diagnostic attributes so the focused Files smoke can gate `fileOpenTargetOutcomeDiagnostic=true`.
 - Composer pending attachment checkpoint: delayed pasted/dropped attachment saves now expose pending chips with explicit `Cancel saving ...` labels, failed chips use `Dismiss ...`, and focused composer smoke gates a delayed large attachment cancellation with `composerPendingAttachmentCancel=true` so a canceled save cannot attach after it eventually resolves.
 - Shared find-step command checkpoint: `Find Next` and `Find Previous` now live in the shared app command registry with `Cmd/Ctrl+G` and `Cmd/Ctrl+Shift+G`. The app shell routes them to the active shared chat/diff/source find bar or Browser page find, and focused right-panel smoke gates `rightPanelFindStepShortcutRouting=true`.
