@@ -187,6 +187,7 @@ function buildDiffChecks(result, view) {
     diffActionMenuCompact: result.diffActionMenuCompactWorks === true,
     diffActionMenuMaterial: result.diffActionMenuMaterialWorks === true,
     reviewGitApplyCommandCoversAll: result.reviewGitApplyCommandCoversAllWorks === true,
+    reviewGitApplyCopyStatus: result.reviewGitApplyCopyStatusWorks === true,
     reviewFloatingGitActions: result.reviewFloatingGitActionsWork === true,
     reviewFloatingGitActionStatus: result.reviewFloatingGitActionStatusWorks === true,
     reviewRevertAllConfirmation: result.reviewRevertAllConfirmationWorks === true,
@@ -279,6 +280,7 @@ function buildDiffChecks(result, view) {
       'diffActionMenuCompact',
       'diffActionMenuMaterial',
       'reviewGitApplyCommandCoversAll',
+      'reviewGitApplyCopyStatus',
       'reviewFloatingGitActions',
       'reviewFloatingGitActionStatus',
       'reviewRevertAllConfirmation'

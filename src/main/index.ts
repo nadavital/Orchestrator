@@ -8617,6 +8617,7 @@ function runAutomatedFocusedSurfaceSmoke(
               let diffActionMenuCompactWorks = false;
               let diffActionMenuMaterialWorks = false;
               let reviewGitApplyCommandCoversAllWorks = false;
+              let reviewGitApplyCopyStatusWorks = false;
               let reviewFloatingGitActionsWork = false;
               let reviewFloatingGitActionStatusWorks = false;
               let reviewRevertAllConfirmationWorks = false;
@@ -8664,9 +8665,11 @@ function runAutomatedFocusedSurfaceSmoke(
                 if (copyGitApplyMenuItem instanceof HTMLButtonElement && !copyGitApplyMenuItem.disabled) {
                   copyGitApplyMenuItem.click();
                   await sleep(120);
+                  const gitApplyCopyStatus = document.querySelector('[data-testid="review-floating-action-status"]');
                   const copiedGitApplyCommand =
                     window.__orchestratorLastReviewGitApplyCommandForSmoke ??
-                    await navigator.clipboard?.readText().catch(() => '') ??
+                    await window.api?.clipboard?.readText?.().catch(() => '') ??
+                    await navigator.clipboard?.readText?.().catch(() => '') ??
                     '';
                   const copiedPatchFileCount = (copiedGitApplyCommand.match(/^diff --git /gm) ?? []).length;
                   reviewGitApplyCommandCoversAllWorks =
@@ -8676,6 +8679,13 @@ function runAutomatedFocusedSurfaceSmoke(
                     copiedPatchFileCount === expectedGitApplyFileCount &&
                     copiedGitApplyCommand.includes('Nested Folder/nested note.md') &&
                     copiedGitApplyCommand.includes('data-preview-smoke.json');
+                  reviewGitApplyCopyStatusWorks =
+                    gitApplyCopyStatus instanceof HTMLElement &&
+                    gitApplyCopyStatus.textContent?.includes('Git apply command copied') === true &&
+                    gitApplyCopyStatus.getAttribute('role') === 'status' &&
+                    gitApplyCopyStatus.getAttribute('aria-live') === 'polite' &&
+                    gitApplyCopyStatus.getAttribute('aria-atomic') === 'true' &&
+                    gitApplyCopyStatus.getAttribute('data-review-floating-action-status-tone') === 'info';
                 }
                 window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
                 await sleep(80);
@@ -9306,6 +9316,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   diffActionMenuCompactWorks,
                   diffActionMenuMaterialWorks,
                   reviewGitApplyCommandCoversAllWorks,
+                  reviewGitApplyCopyStatusWorks,
                   reviewFloatingGitActionsWork,
                   reviewFloatingGitActionStatusWorks,
                   reviewRevertAllConfirmationWorks

@@ -690,18 +690,39 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
     void window.api.fs.showInFolder(joinPath(workDir, selectedFile))
   }
 
-  const copySelectedPath = (): void => {
-    if (!selectedFile || !selectedChange) return
-    void navigator.clipboard.writeText(selectedFile)
+  const writeReviewClipboardText = async (text: string): Promise<void> => {
+    if (typeof window.api.clipboard?.writeText === 'function') {
+      const didWrite = await window.api.clipboard.writeText(text)
+      if (!didWrite) throw new Error('Clipboard write failed')
+      return
+    }
+    await navigator.clipboard.writeText(text)
   }
 
-  const copyGitApplyCommand = (): void => {
+  const copySelectedPath = async (): Promise<void> => {
+    if (!selectedFile || !selectedChange) return
+    setReviewGitActionMessage({ text: 'Copying path', tone: 'info' })
+    try {
+      await writeReviewClipboardText(selectedFile)
+      setReviewGitActionMessage({ text: 'Path copied', tone: 'info' })
+    } catch {
+      setReviewGitActionMessage({ text: 'Copy path failed', tone: 'danger' })
+    }
+  }
+
+  const copyGitApplyCommand = async (): Promise<void> => {
     if (!reviewPatchText.trim()) return
     const patch = reviewPatchText.endsWith('\n') ? reviewPatchText : `${reviewPatchText}\n`
     const command = `git apply <<'PATCH'\n${patch}PATCH`
     const globals = window as typeof window & { __orchestratorLastReviewGitApplyCommandForSmoke?: string }
     globals.__orchestratorLastReviewGitApplyCommandForSmoke = command
-    void navigator.clipboard.writeText(command)
+    setReviewGitActionMessage({ text: 'Copying git apply command', tone: 'info' })
+    try {
+      await writeReviewClipboardText(command)
+      setReviewGitActionMessage({ text: 'Git apply command copied', tone: 'info' })
+    } catch {
+      setReviewGitActionMessage({ text: 'Copy git apply command failed', tone: 'danger' })
+    }
   }
 
   const runReviewGitAction = async (action: 'stage' | 'unstage' | 'revert'): Promise<void> => {
@@ -1070,7 +1091,7 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
             label="Copy git apply command"
             disabled={!reviewPatchText.trim()}
             dataTestId="review-copy-git-apply-command"
-            onClick={() => { copyGitApplyCommand(); setReviewOptionsOpen(false) }}
+            onClick={() => { void copyGitApplyCommand(); setReviewOptionsOpen(false) }}
           />
           <div className="review-options-divider" />
           <MenuItem
@@ -1089,7 +1110,7 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
             icon="copy"
             label="Copy path"
             disabled={!selectedChange}
-            onClick={() => { copySelectedPath(); setReviewOptionsOpen(false) }}
+            onClick={() => { void copySelectedPath(); setReviewOptionsOpen(false) }}
           />
         </MenuSurface>
       )}
