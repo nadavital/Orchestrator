@@ -1822,6 +1822,7 @@ child.on('exit', async (code) => {
         streamingSessionActive: result.streamingSessionActive === true,
         streamingTextVisible: result.streamingTextVisible === true,
         composerQueuedSummary: result.composerQueuedSummaryWorks === true,
+        composerWillQueueStatus: result.composerWillQueueStatusWorks === true,
         composerTyped: result.composerTyped === true,
         typingTimerDriftAcceptable: Number(result.maxTypingTimerDriftMs ?? Number.POSITIVE_INFINITY) < 55,
         inputDispatchAcceptable: Number(result.maxInputDispatchMs ?? Number.POSITIVE_INFINITY) < 24,

@@ -21298,6 +21298,7 @@ function runAutomatedStreamingTypingSmoke(win: BrowserWindow, outputPath: string
             textarea.value = '';
             textarea.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'deleteContentBackward', data: null }));
             const chars = 'typing while streaming should stay responsive and boring';
+            const setter = Object.getOwnPropertyDescriptor(textarea.constructor.prototype, 'value')?.set;
             const timerDrifts = [];
             const inputDispatchMs = [];
             let expectedAt = performance.now() + 24;
@@ -21305,16 +21306,21 @@ function runAutomatedStreamingTypingSmoke(win: BrowserWindow, outputPath: string
               await sleep(Math.max(0, expectedAt - performance.now()));
               const before = performance.now();
               timerDrifts.push(before - expectedAt);
-              textarea.value += char;
+              setter?.call(textarea, textarea.value + char);
               textarea.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: char }));
               inputDispatchMs.push(performance.now() - before);
               expectedAt += 24;
             }
             await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+            const sendStatus = document.querySelector('[data-testid="composer-send-status"]');
             return {
               composerFound: true,
               typedLength: chars.length,
               composerValue: textarea.value,
+              composerWillQueueStatusVisible:
+                sendStatus instanceof HTMLElement &&
+                sendStatus.getAttribute('data-composer-send-state') === 'will-queue' &&
+                sendStatus.textContent?.includes('Will queue after current run') === true,
               maxTypingTimerDriftMs: timerDrifts.length ? Math.max(...timerDrifts) : null,
               p95TypingTimerDriftMs: percentile(timerDrifts, 0.95),
               maxInputDispatchMs: inputDispatchMs.length ? Math.max(...inputDispatchMs) : null,
@@ -21359,6 +21365,7 @@ function runAutomatedStreamingTypingSmoke(win: BrowserWindow, outputPath: string
           streamingMessageUpdated,
           streamingSessionActive,
           composerTyped: typedValue.includes('typing while streaming should stay responsive'),
+          composerWillQueueStatusWorks: typingResult?.composerWillQueueStatusVisible === true,
           composerQueuedSummaryWorks:
             result.composerQueuedSummaryVisible === true &&
             result.composerQueuedSummaryText.includes('1 queued') &&
