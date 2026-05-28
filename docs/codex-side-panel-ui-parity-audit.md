@@ -9142,3 +9142,13 @@ Implemented: Browser Security origin rows now use explicit `Allow`, `Block`, and
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --browser` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779998711089.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779998711089.png`. The run adds `browserSecurityPolicyOriginControls=true` while keeping Browser local-server, webview, find, zoom, device, browser-use, actions-menu, context-menu, comment, target, load-error, copy-status, visibility, lifecycle, and transfer gates green.
 
 Remaining: this closes local Browser Security per-session origin policy controls only. Provider-emitted Browser/browser-use proof and non-Codex browser/local-server adapters remain separate.
+
+### 2026-05-28 - Browser Security Origin Policy Mutual Exclusion
+
+Product evidence: Browser Security is a Phase 1 app-building control surface. Allow and Block actions should not leave the same origin in contradictory allowed and blocked policy lists, especially for download/upload controls used during local app testing.
+
+Implemented: Browser Security add-origin actions now remove the current origin from the opposite policy list for page, download, and upload origin policy families. The focused Browser smoke re-queries the live row after Block/Allow interactions and verifies the normalized current origin remains present while no longer appearing in the blocked segment.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --browser` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779999461705.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779999461705.png`. The run adds `browserSecurityPolicyMutualExclusion=true` while preserving the existing Browser Security origin-controls and broader Browser gates.
+
+Remaining: this closes local Browser Security policy consistency only. Provider-emitted Browser/browser-use proof and non-Codex browser/local-server adapters remain separate.

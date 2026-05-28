@@ -17,6 +17,23 @@ type BrowserOriginPolicyKey =
   | 'allowedUploadOrigins'
   | 'blockedUploadOrigins'
 
+function oppositeOriginPolicyKey(key: BrowserOriginPolicyKey): BrowserOriginPolicyKey {
+  switch (key) {
+    case 'allowedOrigins':
+      return 'blockedOrigins'
+    case 'blockedOrigins':
+      return 'allowedOrigins'
+    case 'allowedDownloadOrigins':
+      return 'blockedDownloadOrigins'
+    case 'blockedDownloadOrigins':
+      return 'allowedDownloadOrigins'
+    case 'allowedUploadOrigins':
+      return 'blockedUploadOrigins'
+    case 'blockedUploadOrigins':
+      return 'allowedUploadOrigins'
+  }
+}
+
 interface Props {
   initialUrl?: string
   embedded?: boolean
@@ -1437,8 +1454,14 @@ export default function BrowserPanel({
     if (!urlOrigin) return
     const origin = originKey(urlOrigin)
     const values = workbench[key]
-    if (values.includes(origin)) return
-    patchWorkbench({ [key]: [...values, origin] } as Partial<BrowserWorkbenchState>)
+    const oppositeKey = oppositeOriginPolicyKey(key)
+    const patch: Partial<BrowserWorkbenchState> = {
+      [key]: values.includes(origin) ? values : [...values, origin]
+    }
+    if (oppositeKey) {
+      patch[oppositeKey] = workbench[oppositeKey].filter((value) => value !== origin)
+    }
+    patchWorkbench(patch)
   }
 
   const clearOriginPolicy = (keyOrKeys: BrowserOriginPolicyKey | BrowserOriginPolicyKey[]): void => {

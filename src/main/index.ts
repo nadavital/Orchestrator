@@ -4711,10 +4711,11 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             const browserSecurityPane = document.querySelector('[data-testid="browser-security-pane"]');
             const browserSecurityOrigin = document.querySelector('[data-testid="browser-security-origin"]');
             const browserSecurityRows = [...document.querySelectorAll('[data-testid="browser-security-policy-row"]')];
-            const browserSecurityPolicyRowByLabel = (label) => browserSecurityRows.find((row) =>
-              row instanceof HTMLElement &&
-              row.querySelector('.browser-policy-name')?.textContent?.trim() === label
-            );
+            const browserSecurityPolicyRowByLabel = (label) =>
+              [...document.querySelectorAll('[data-testid="browser-security-policy-row"]')].find((row) =>
+                row instanceof HTMLElement &&
+                row.querySelector('.browser-policy-name')?.textContent?.trim() === label
+              );
             const browserSecurityPolicyButtonLabels = (row) => row instanceof HTMLElement
               ? [...row.querySelectorAll('.browser-inspector-action-button')]
                 .map((button) => button instanceof HTMLElement ? button.textContent?.trim() ?? '' : '')
@@ -4761,6 +4762,37 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               browserSecurityUploadsRow.textContent?.includes('blocked: blocked-uploads.example') === true &&
               [...browserSecurityDownloadsRow.querySelectorAll('button'), ...browserSecurityUploadsRow.querySelectorAll('button')]
                 .every((button) => button instanceof HTMLButtonElement && button.getBoundingClientRect().height <= 34);
+            var browserSecurityPolicyMutualExclusionWorks = false;
+            if (browserSecurityDownloadsRow instanceof HTMLElement && browserSecurityOrigin instanceof HTMLElement) {
+              const currentOrigin = browserSecurityOrigin.querySelector('.browser-security-origin')?.textContent?.trim() ?? '';
+              let currentOriginPolicyKey = currentOrigin;
+              try {
+                currentOriginPolicyKey = new URL(currentOrigin).hostname;
+              } catch {}
+              if (currentOriginPolicyKey.startsWith('www.')) currentOriginPolicyKey = currentOriginPolicyKey.slice(4);
+              const downloadPolicyButton = (row, label) => row instanceof HTMLElement
+                ? [...row.querySelectorAll('.browser-inspector-action-button')]
+                  .find((button) => button instanceof HTMLButtonElement && button.textContent?.trim() === label)
+                : null;
+              const downloadBlockButton = downloadPolicyButton(browserSecurityDownloadsRow, 'Block');
+              if (currentOrigin && downloadBlockButton instanceof HTMLButtonElement) {
+                downloadBlockButton.click();
+                await sleep(180);
+                const blockedDownloadsRow = browserSecurityPolicyRowByLabel('Downloads');
+                const downloadAllowButton = downloadPolicyButton(blockedDownloadsRow, 'Allow');
+                if (downloadAllowButton instanceof HTMLButtonElement) {
+                  downloadAllowButton.click();
+                  await sleep(180);
+                  const updatedDownloadsRow = browserSecurityPolicyRowByLabel('Downloads');
+                  const updatedDownloadsText = updatedDownloadsRow instanceof HTMLElement ? updatedDownloadsRow.textContent ?? '' : '';
+                  browserSecurityPolicyMutualExclusionWorks =
+                    updatedDownloadsText.includes('allowed: ') &&
+                    updatedDownloadsText.includes(currentOriginPolicyKey) &&
+                    !updatedDownloadsText.includes('blocked: ' + currentOriginPolicyKey) &&
+                    !updatedDownloadsText.includes('blocked-downloads.example, ' + currentOriginPolicyKey);
+                }
+              }
+            }
             var browserSecurityPaneNoHorizontalOverflowWorks = (() => {
               const drawer = document.querySelector('.browser-inspector-drawer');
               const output = document.querySelector('[data-testid="browser-inspector-output"]');
@@ -6944,6 +6976,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             browserSecurityPaneWorks: typeof browserSecurityPaneWorks === 'boolean' ? browserSecurityPaneWorks : null,
             browserPersistedPolicyDefaultsWorks: typeof browserPersistedPolicyDefaultsWorks === 'boolean' ? browserPersistedPolicyDefaultsWorks : null,
             browserSecurityPolicyOriginControlsWorks: typeof browserSecurityPolicyOriginControlsWorks === 'boolean' ? browserSecurityPolicyOriginControlsWorks : null,
+            browserSecurityPolicyMutualExclusionWorks: typeof browserSecurityPolicyMutualExclusionWorks === 'boolean' ? browserSecurityPolicyMutualExclusionWorks : null,
             browserSecurityPaneNoHorizontalOverflowWorks: typeof browserSecurityPaneNoHorizontalOverflowWorks === 'boolean' ? browserSecurityPaneNoHorizontalOverflowWorks : null,
             browserInspectorContainersSharedWorks: typeof browserInspectorContainersSharedWorks === 'boolean' ? browserInspectorContainersSharedWorks : null,
             browserInspectorChromeCompactWorks: typeof browserInspectorChromeCompactWorks === 'boolean' ? browserInspectorChromeCompactWorks : null,
@@ -18497,11 +18530,13 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                 await sleep(100);
               }
               const securityPane = document.querySelector('[data-testid="browser-security-pane"]');
+              const securityOrigin = document.querySelector('[data-testid="browser-security-origin"]');
               const securityPolicyRows = [...document.querySelectorAll('[data-testid="browser-security-policy-row"]')];
-              const securityPolicyRowByLabel = (label) => securityPolicyRows.find((row) =>
-                row instanceof HTMLElement &&
-                row.querySelector('.browser-policy-name')?.textContent?.trim() === label
-              );
+              const securityPolicyRowByLabel = (label) =>
+                [...document.querySelectorAll('[data-testid="browser-security-policy-row"]')].find((row) =>
+                  row instanceof HTMLElement &&
+                  row.querySelector('.browser-policy-name')?.textContent?.trim() === label
+                );
               const securityPolicyButtonLabels = (row) => row instanceof HTMLElement
                 ? [...row.querySelectorAll('.browser-inspector-action-button')]
                   .map((button) => button instanceof HTMLElement ? button.textContent?.trim() ?? '' : '')
@@ -18553,6 +18588,37 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                 downloadsPolicyRow.textContent?.includes('blocked: blocked-downloads.example') === true &&
                 uploadsPolicyRow.textContent?.includes('allowed: uploads.example') === true &&
                 uploadsPolicyRow.textContent?.includes('blocked: blocked-uploads.example') === true;
+              var browserSecurityPolicyMutualExclusionWorks = false;
+              if (downloadsPolicyRow instanceof HTMLElement && securityOrigin instanceof HTMLElement) {
+                const currentOrigin = securityOrigin.querySelector('.browser-security-origin')?.textContent?.trim() ?? '';
+                let currentOriginPolicyKey = currentOrigin;
+                try {
+                  currentOriginPolicyKey = new URL(currentOrigin).hostname;
+                } catch {}
+                if (currentOriginPolicyKey.startsWith('www.')) currentOriginPolicyKey = currentOriginPolicyKey.slice(4);
+                const downloadPolicyButton = (row, label) => row instanceof HTMLElement
+                  ? [...row.querySelectorAll('.browser-inspector-action-button')]
+                    .find((button) => button instanceof HTMLButtonElement && button.textContent?.trim() === label)
+                  : null;
+                const downloadBlockButton = downloadPolicyButton(downloadsPolicyRow, 'Block');
+                if (currentOrigin && downloadBlockButton instanceof HTMLButtonElement) {
+                  downloadBlockButton.click();
+                  await sleep(180);
+                  const blockedDownloadsRow = securityPolicyRowByLabel('Downloads');
+                  const downloadAllowButton = downloadPolicyButton(blockedDownloadsRow, 'Allow');
+                  if (downloadAllowButton instanceof HTMLButtonElement) {
+                    downloadAllowButton.click();
+                    await sleep(180);
+                    const updatedDownloadsRow = securityPolicyRowByLabel('Downloads');
+                    const updatedDownloadsText = updatedDownloadsRow instanceof HTMLElement ? updatedDownloadsRow.textContent ?? '' : '';
+                    browserSecurityPolicyMutualExclusionWorks =
+                      updatedDownloadsText.includes('allowed: ') &&
+                      updatedDownloadsText.includes(currentOriginPolicyKey) &&
+                      !updatedDownloadsText.includes('blocked: ' + currentOriginPolicyKey) &&
+                      !updatedDownloadsText.includes('blocked-downloads.example, ' + currentOriginPolicyKey);
+                  }
+                }
+              }
             }
             var browserInspectorActionsSharedWorks =
               browserAssetsBundleSharedWorks &&
@@ -18934,6 +19000,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserSecurityActionsSharedWorks,
               browserPersistedPolicyDefaultsWorks,
               browserSecurityPolicyOriginControlsWorks,
+              browserSecurityPolicyMutualExclusionWorks,
               browserInspectorActionsSharedWorks,
               browserVisibilityControlWorks,
               browserHiddenStateWorks,
