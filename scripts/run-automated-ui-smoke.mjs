@@ -2219,6 +2219,7 @@ child.on('exit', async (code) => {
           workbenchNewTabVisual: result.workbenchNewTabVisualWorks === true,
           workbenchNewTabSingleAddAffordance: result.workbenchNewTabSingleAddAffordance === true,
           workbenchNewTabAgentsAction: result.workbenchNewTabAgentsActionWorks === true,
+          agentRuntimeEventDetail: result.agentRuntimeEventDetailWorks === true,
           workbenchNewTabCards: Number(result.workbenchNewTabActionCount ?? 0) >= 5,
           workbenchNewTabNoHorizontalOverflow: result.workbenchNewTabNoHorizontalOverflow === true
         }

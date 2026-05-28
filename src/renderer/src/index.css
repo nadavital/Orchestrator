@@ -8204,6 +8204,19 @@
     padding: 6px 8px;
   }
 
+  button.orchestrator-inspector-row {
+    width: 100%;
+    border: 0;
+    color: inherit;
+    cursor: pointer;
+    font: inherit;
+  }
+
+  button.orchestrator-inspector-row:hover,
+  button.orchestrator-inspector-row[data-agent-event-selected='true'] {
+    background: color-mix(in srgb, var(--accent) 12%, var(--control-bg));
+  }
+
   .orchestrator-inspector-disclosure {
     color: var(--text-secondary);
     font-size: 11px;

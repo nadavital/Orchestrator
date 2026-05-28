@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useSessionStore } from '../../store/sessions'
 import type { AgentNode, AgentStatus, Session, SessionRunEventRecord } from '../../types'
 import { Badge, InspectorCard, InspectorRow, InspectorSection, MetricPill, PanelHeader, TabButton } from '../shared/designSystem'
@@ -12,6 +12,7 @@ interface Props {
 
 export default function EventInspectorPanel({ session, embedded = false, activeAgentId = null }: Props): JSX.Element {
   const { eventBuffers, uiState, setActiveAgent, closeAgentTab } = useSessionStore()
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null)
   const events = eventBuffers[session.id] ?? []
   const agents = useMemo(() => deriveSessionAgentNodes(session, events), [events, session])
   const openAgentIds = uiState[session.id]?.agentTabIds ?? (activeAgentId ? [activeAgentId] : [])
@@ -25,6 +26,10 @@ export default function EventInspectorPanel({ session, embedded = false, activeA
   )
   const stats = useMemo(() => agentStats(agents), [agents])
   const recentEvents = useMemo(() => events.slice(-4).reverse(), [events])
+  const selectedEvent = useMemo(
+    () => events.find((record) => record.id === selectedEventId) ?? recentEvents[0] ?? null,
+    [events, recentEvents, selectedEventId]
+  )
 
   return (
     <section
@@ -45,7 +50,16 @@ export default function EventInspectorPanel({ session, embedded = false, activeA
       )}
 
       {(!embedded || stats.total > 0) && <AgentOverview stats={stats} embedded={embedded} />}
-      <SessionContextSummary session={session} stats={stats} events={events} recentEvents={recentEvents} embedded={embedded} />
+      <SessionContextSummary
+        session={session}
+        stats={stats}
+        events={events}
+        recentEvents={recentEvents}
+        selectedEventId={selectedEvent?.id ?? null}
+        selectedEvent={selectedEvent}
+        embedded={embedded}
+        onSelectEvent={setSelectedEventId}
+      />
 
       {visibleAgents.length === 0 ? (
         <EmptyState providerId={session.provider ?? 'provider'} embedded={embedded} hasEvents={events.length > 0} />
@@ -119,12 +133,18 @@ function SessionContextSummary({
   stats,
   events,
   recentEvents,
+  selectedEventId,
+  selectedEvent,
+  onSelectEvent,
   embedded = false
 }: {
   session: Session
   stats: ReturnType<typeof agentStats>
   events: SessionRunEventRecord[]
   recentEvents: SessionRunEventRecord[]
+  selectedEventId: string | null
+  selectedEvent: SessionRunEventRecord | null
+  onSelectEvent: (id: string) => void
   embedded?: boolean
 }): JSX.Element {
   const messageCount = session.messageCount ?? session.messages.length
@@ -158,7 +178,16 @@ function SessionContextSummary({
       {recentEvents.length > 0 && (
         <InspectorSection title="Recent activity" dataTestId="agent-recent-events">
           {recentEvents.map((record) => (
-            <InspectorRow key={record.id} dataTestId="agent-recent-event" variant="muted">
+            <button
+              key={record.id}
+              type="button"
+              className="orchestrator-inspector-row text-left"
+              data-inspector-row="true"
+              data-inspector-row-variant="muted"
+              data-testid="agent-recent-event"
+              data-agent-event-selected={selectedEventId === record.id ? 'true' : 'false'}
+              onClick={() => onSelectEvent(record.id)}
+            >
               <div className="min-w-0 flex-1">
                 <div className="truncate text-[11px] font-semibold" style={{ color: 'var(--color-text)' }}>
                   {eventTitle(record)}
@@ -168,11 +197,48 @@ function SessionContextSummary({
                 </div>
               </div>
               <Badge tone={eventTone(record)}>{eventBadge(record)}</Badge>
-            </InspectorRow>
+            </button>
           ))}
         </InspectorSection>
       )}
+
+      {selectedEvent && (
+        <EventDetailCard record={selectedEvent} />
+      )}
     </div>
+  )
+}
+
+function EventDetailCard({ record }: { record: SessionRunEventRecord }): JSX.Element {
+  const payload = compactJson(record.event)
+  return (
+    <InspectorSection title="Event detail" dataTestId="agent-event-detail">
+      <InspectorRow dataTestId="agent-event-detail-summary" variant="muted">
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-[11px] font-semibold" style={{ color: 'var(--color-text)' }}>
+            {eventTitle(record)}
+          </div>
+          <div className="truncate text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
+            {formatClockTime(record.timestamp)}
+          </div>
+        </div>
+        <Badge tone={eventTone(record)}>{record.event.type}</Badge>
+      </InspectorRow>
+      <pre
+        className="m-0 max-h-32 overflow-auto rounded-md px-2 py-1.5 text-[11px]"
+        data-testid="agent-event-detail-payload"
+        style={{
+          background: 'color-mix(in srgb, var(--surface-bg) 86%, var(--canvas-bg))',
+          border: '1px solid var(--border-subtle)',
+          color: 'var(--color-text-muted)',
+          lineHeight: 1.45,
+          whiteSpace: 'pre-wrap',
+          overflowWrap: 'anywhere'
+        }}
+      >
+        {payload}
+      </pre>
+    </InspectorSection>
   )
 }
 
@@ -266,6 +332,12 @@ function compactText(text: string): string {
   const compacted = text.replace(/\s+/g, ' ').trim()
   if (compacted.length <= 72) return compacted || 'Assistant update'
   return `${compacted.slice(0, 69)}...`
+}
+
+function compactJson(value: unknown): string {
+  const serialized = JSON.stringify(value, null, 2) ?? ''
+  if (serialized.length <= 1400) return serialized
+  return `${serialized.slice(0, 1397)}...`
 }
 
 function formatClockTime(timestamp: number): string {

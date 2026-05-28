@@ -5513,6 +5513,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             compactTaskRowsWork: typeof compactTaskRowsWork === 'boolean' ? compactTaskRowsWork : null,
             planAgentTabShimmerWorks: typeof planAgentTabShimmerWorks === 'boolean' ? planAgentTabShimmerWorks : null,
             planAgentStatLabelsCalm: typeof planAgentStatLabelsCalm === 'boolean' ? planAgentStatLabelsCalm : null,
+            agentRuntimeEventDetailWorks: typeof agentRuntimeEventDetailWorks === 'boolean' ? agentRuntimeEventDetailWorks : null,
             sideChatTabsWork: typeof sideChatTabsWork === 'boolean' ? sideChatTabsWork : null,
             sideChatComposerCompactWorks: typeof sideChatComposerCompactWorks === 'boolean' ? sideChatComposerCompactWorks : null,
             sideChatDraftPersistenceWorks: typeof sideChatDraftPersistenceWorks === 'boolean' ? sideChatDraftPersistenceWorks : null,
@@ -6081,6 +6082,66 @@ function runAutomatedFocusedSurfaceSmoke(
                   agentSessionContext.textContent?.includes('Events') === true &&
                   agentEmptyState instanceof HTMLElement &&
                   agentEmptyState.textContent?.includes('No agents yet') === true;
+                const activeSmokeSession = (await window.api.sessions.list())[0];
+                const appendEventsForSmoke = window.__orchestratorAppendSessionEventsForSmoke;
+                if (activeSmokeSession && typeof appendEventsForSmoke === 'function') {
+                  const now = Date.now();
+                  appendEventsForSmoke(activeSmokeSession.id, [
+                    {
+                      id: 'agent-inspector-smoke-started',
+                      timestamp: now,
+                      event: {
+                        type: 'agent.started',
+                        agent: {
+                          id: 'agent-inspector-smoke',
+                          providerId: 'codex',
+                          sessionId: activeSmokeSession.id,
+                          name: 'Runtime inspector smoke',
+                          role: 'Diagnostics',
+                          status: 'running',
+                          model: 'codex-smoke',
+                          startedAt: now,
+                          summary: 'Inspect runtime events and selected diagnostics.'
+                        }
+                      }
+                    },
+                    {
+                      id: 'agent-inspector-smoke-permission',
+                      timestamp: now + 1,
+                      event: {
+                        type: 'permission.requested',
+                        content: 'Allow inspecting runtime diagnostics?',
+                        denials: [{
+                          tool_name: 'Bash',
+                          tool_use_id: 'agent-inspector-smoke-permission-tool',
+                          tool_input: {
+                            command: 'git status --short',
+                            cwd: activeSmokeSession.workDir
+                          }
+                        }]
+                      }
+                    }
+                  ]);
+                  await sleep(220);
+                }
+                const recentEventRows = [...document.querySelectorAll('[data-testid="agent-recent-event"]')]
+                  .filter((row) => row instanceof HTMLButtonElement);
+                const permissionEventRow = recentEventRows.find((row) => row.textContent?.includes('Allow inspecting runtime diagnostics'));
+                if (permissionEventRow instanceof HTMLButtonElement) {
+                  permissionEventRow.click();
+                  await sleep(120);
+                }
+                const selectedRecentEvent = document.querySelector('[data-testid="agent-recent-event"][data-agent-event-selected="true"]');
+                const eventDetail = document.querySelector('[data-testid="agent-event-detail"]');
+                const eventPayload = document.querySelector('[data-testid="agent-event-detail-payload"]');
+                const agentRuntimeEventDetailWorks =
+                  agentsPanel instanceof HTMLElement &&
+                  recentEventRows.length >= 2 &&
+                  selectedRecentEvent instanceof HTMLElement &&
+                  eventDetail instanceof HTMLElement &&
+                  eventPayload instanceof HTMLElement &&
+                  eventDetail.textContent?.includes('permission.requested') === true &&
+                  eventPayload.textContent?.includes('git status --short') === true;
                 return {
                   profile,
                   hasRightPanelState: rightPanel instanceof HTMLElement &&
@@ -6102,6 +6163,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     activeNewTabIcon instanceof SVGElement &&
                     (activeNewTab.textContent ?? '').includes('New tab'),
                   workbenchNewTabAgentsActionWorks,
+                  agentRuntimeEventDetailWorks,
                   workbenchNewTabActionCount: newTabCards.length,
                   workbenchNewTabNoHorizontalOverflow:
                     rightPanelRect !== null &&
