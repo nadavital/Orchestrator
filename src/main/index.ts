@@ -777,6 +777,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               const providerCapabilitySummary = document.querySelector('[data-testid="provider-capability-summary"]');
               const providerCapabilitySelect = document.querySelector('[data-testid="provider-capability-select"]');
               const providerCapabilityOutput = document.querySelector('[data-testid="provider-capability-output"]');
+              const providerBoundarySummary = document.querySelector('[data-testid="provider-boundary-summary"]');
               const providerButtonLabels = diagnosticsSection instanceof HTMLElement
                 ? [...diagnosticsSection.querySelectorAll('button')].map((button) => button.textContent?.trim() ?? '')
                 : [];
@@ -853,13 +854,21 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 providerControlSurfaceText.includes('Mode') &&
                 providerControlSurfaceText.includes('Models') &&
                 providerControlSurfaceText.includes('Capabilities') &&
+                providerControlSurfaceText.includes('Boundaries') &&
                 diagnosticsSection.querySelector('.settings-panel') === null &&
                 diagnosticsSection.querySelector('.compact-setting') === null &&
                 permissionExecutionContract instanceof HTMLElement &&
                 permissionExecutionContract.getBoundingClientRect().height <= 28 &&
                 permissionExecutionContract.textContent?.includes('Source') &&
                 providerControlSurfaceText.indexOf('Default') < providerControlSurfaceText.indexOf('Models') &&
-                providerControlSurfaceText.indexOf('Models') < providerControlSurfaceText.indexOf('Capabilities');
+                providerControlSurfaceText.indexOf('Models') < providerControlSurfaceText.indexOf('Capabilities') &&
+                providerControlSurfaceText.indexOf('Capabilities') < providerControlSurfaceText.indexOf('Boundaries');
+              var settingsProviderBoundariesWorks =
+                providerBoundarySummary instanceof HTMLElement &&
+                providerBoundarySummary.getBoundingClientRect().height <= 46 &&
+                Number(providerBoundarySummary.getAttribute('data-provider-boundary-count')) > 0 &&
+                providerBoundarySummary.textContent?.includes('partial') &&
+                !providerBoundarySummary.textContent?.includes('adapter coming soon');
               var settingsProvidersModuleWorks =
                 diagnosticsSection instanceof HTMLElement &&
                 diagnosticsSection.closest('[data-settings-page-module="providers"]') instanceof HTMLElement;
@@ -1203,6 +1212,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               const providerCapabilitySummary = document.querySelector('[data-testid="provider-capability-summary"]');
               const providerCapabilitySelect = document.querySelector('[data-testid="provider-capability-select"]');
               const providerCapabilityOutput = document.querySelector('[data-testid="provider-capability-output"]');
+              const providerBoundarySummary = document.querySelector('[data-testid="provider-boundary-summary"]');
               var settingsDiagnosticsSectionWorks =
                 diagnosticsSection instanceof HTMLElement &&
                 diagnosticsSection.innerText.includes('Capabilities') &&
@@ -1260,6 +1270,12 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 configEditor instanceof HTMLElement &&
                 configEditor.dataset.expanded === 'false' &&
                 configEditor.querySelector('textarea') === null;
+              var settingsProviderBoundariesWorks =
+                providerBoundarySummary instanceof HTMLElement &&
+                providerBoundarySummary.getBoundingClientRect().height <= 46 &&
+                Number(providerBoundarySummary.getAttribute('data-provider-boundary-count')) > 0 &&
+                providerBoundarySummary.textContent?.includes('partial') &&
+                !providerBoundarySummary.textContent?.includes('adapter coming soon');
               var settingsProvidersModuleWorks =
                 diagnosticsSection instanceof HTMLElement &&
                 diagnosticsSection.closest('[data-settings-page-module="providers"]') instanceof HTMLElement;
@@ -5613,6 +5629,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             settingsUsageDiagnosticsWorks: typeof settingsUsageDiagnosticsWorks === 'boolean' ? settingsUsageDiagnosticsWorks : null,
             settingsProviderModelsCollapsedWorks: typeof settingsProviderModelsCollapsedWorks === 'boolean' ? settingsProviderModelsCollapsedWorks : null,
             settingsProviderControlSurfaceUnifiedWorks: typeof settingsProviderControlSurfaceUnifiedWorks === 'boolean' ? settingsProviderControlSurfaceUnifiedWorks : null,
+            settingsProviderBoundariesWorks: typeof settingsProviderBoundariesWorks === 'boolean' ? settingsProviderBoundariesWorks : null,
             settingsProvidersModuleWorks: typeof settingsProvidersModuleWorks === 'boolean' ? settingsProvidersModuleWorks : null,
             settingsProviderCatalogLabelCalm: typeof settingsProviderCatalogLabelCalm === 'boolean' ? settingsProviderCatalogLabelCalm : null,
             settingsDiagnosticsDisclosureCompactWorks: typeof settingsDiagnosticsDisclosureCompactWorks === 'boolean' ? settingsDiagnosticsDisclosureCompactWorks : null,

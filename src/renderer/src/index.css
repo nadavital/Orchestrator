@@ -10353,6 +10353,41 @@
     white-space: nowrap;
   }
 
+  .provider-boundary-summary {
+    display: grid;
+    min-width: 0;
+    gap: 4px;
+    color: var(--color-text-muted);
+    font-size: 11px;
+    line-height: 1.35;
+  }
+
+  .provider-boundary-summary-main {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .provider-boundary-summary-count {
+    flex: 0 0 auto;
+    font-weight: 750;
+    white-space: nowrap;
+  }
+
+  .provider-boundary-summary-text,
+  .provider-boundary-summary-next {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .provider-boundary-summary-text {
+    color: var(--color-text);
+    font-weight: 600;
+  }
+
   @media (max-width: 980px) {
     .provider-details-grid {
       grid-template-columns: minmax(0, 1fr);

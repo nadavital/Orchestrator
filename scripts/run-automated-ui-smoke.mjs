@@ -2711,6 +2711,7 @@ child.on('exit', async (code) => {
         settingsUsageDiagnostics: captureView !== 'settings-providers' || result.settingsUsageDiagnosticsWorks === true,
         settingsProviderModelsCollapsed: captureView !== 'settings-providers' || result.settingsProviderModelsCollapsedWorks === true,
         settingsProviderControlSurfaceUnified: captureView !== 'settings-providers' || result.settingsProviderControlSurfaceUnifiedWorks === true,
+        settingsProviderBoundaries: captureView !== 'settings-providers' || result.settingsProviderBoundariesWorks === true,
         settingsProvidersModule: captureView !== 'settings-providers' || result.settingsProvidersModuleWorks === true,
         settingsProviderCatalogLabelCalm: captureView !== 'settings-providers' || result.settingsProviderCatalogLabelCalm === true,
         settingsDiagnosticsDisclosureCompact: captureView !== 'settings-providers' || result.settingsDiagnosticsDisclosureCompactWorks === true,

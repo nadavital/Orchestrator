@@ -14,6 +14,7 @@ import {
   getPrimaryPermissionModes,
   getVisibleModels,
   type PermissionExecutionContract,
+  type ProviderCapabilityGap,
   type ProviderPermissionMode,
   type ProviderPermissionRuntimeContext,
   type ProviderCommandSurface,
@@ -264,6 +265,14 @@ export default function ProvidersSettingsPage({
                     )}
                   />
                 )}
+
+                {runtime?.registry.gaps.length ? (
+                  <SettingsRow
+                    label="Boundaries"
+                    className="provider-settings-row provider-settings-row-stacked"
+                    control={<ProviderBoundarySummary gaps={runtime.registry.gaps} color={providerDef.color} />}
+                  />
+                ) : null}
               </SettingsSurface>
             </SettingsGroupContent>
           </SettingsContentGroup>
@@ -744,6 +753,36 @@ function ProviderDropdown({
         )}
       </div>
       {!installed && <InstallCommand cmd={installCmd} />}
+    </div>
+  )
+}
+
+function ProviderBoundarySummary({ gaps, color }: { gaps: ProviderCapabilityGap[]; color: string }): JSX.Element {
+  const counts = gaps.reduce((acc, gap) => {
+    acc[gap.status] = (acc[gap.status] ?? 0) + 1
+    return acc
+  }, {} as Record<ProviderCapabilityGap['status'], number>)
+  const highPriorityGap = gaps.find((gap) => gap.severity === 'high') ?? gaps[0]
+  const summary = [
+    counts.partial ? `${counts.partial} partial` : null,
+    counts.missing ? `${counts.missing} missing` : null,
+    counts.blocked ? `${counts.blocked} blocked` : null
+  ].filter(Boolean).join(' · ')
+
+  return (
+    <div
+      className="provider-boundary-summary"
+      data-testid="provider-boundary-summary"
+      data-provider-boundary-count={gaps.length}
+      data-provider-boundary-partial-count={counts.partial ?? 0}
+      data-provider-boundary-missing-count={counts.missing ?? 0}
+      data-provider-boundary-blocked-count={counts.blocked ?? 0}
+    >
+      <div className="provider-boundary-summary-main">
+        <span className="provider-boundary-summary-count" style={{ color }}>{summary || `${gaps.length} tracked`}</span>
+        <span className="provider-boundary-summary-text">{highPriorityGap.summary}</span>
+      </div>
+      <div className="provider-boundary-summary-next">{highPriorityGap.nextStep}</div>
     </div>
   )
 }
