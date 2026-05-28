@@ -2308,6 +2308,7 @@ child.on('exit', async (code) => {
           rightPanelMiddleClickClose: result.rightPanelMiddleClickCloseWorks === true,
           rightPanelCloseFallbackFromMain: result.rightPanelCloseFallbackFromMainWorks === true,
           rightPanelTabPanelA11y: result.rightPanelTabPanelA11yWorks === true,
+          rightPanelTabRovingFocus: result.rightPanelTabRovingFocusWorks === true,
           rightPanelTabWheelScroll: result.rightPanelTabWheelScrollWorks === true,
           rightPanelFullscreenCleanup: result.rightPanelFullscreenCleanupWorks === true,
           rightPanelTabTelemetry: result.rightPanelTabTelemetryWorks === true,

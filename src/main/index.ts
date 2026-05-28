@@ -8086,6 +8086,7 @@ function runAutomatedFocusedSurfaceSmoke(
               let rightPanelMiddleClickCloseWorks = false;
               let rightPanelCloseFallbackFromMainWorks = false;
               let rightPanelTabPanelA11yWorks = false;
+              let rightPanelTabRovingFocusWorks = false;
               let rightPanelTabWheelScrollWorks = false;
               let rightPanelFullscreenCleanupWorks = false;
               let rightPanelTabTelemetryWorks = false;
@@ -8126,6 +8127,20 @@ function runAutomatedFocusedSurfaceSmoke(
                   (document.activeElement === workbenchPanelForA11y || workbenchPanelForA11y.contains(document.activeElement));
               }
               if (activeWorkbenchTabForA11y instanceof HTMLElement && tabbar instanceof HTMLElement) {
+                const workbenchTabsForFocus = [...tabbar.querySelectorAll('[role="tab"]')]
+                  .filter((tab) => tab instanceof HTMLElement);
+                const inactiveWorkbenchTabsForFocus = workbenchTabsForFocus
+                  .filter((tab) => tab.getAttribute('data-active') !== 'true');
+                const inactiveCloseButtonsForFocus = inactiveWorkbenchTabsForFocus
+                  .map((tab) => tab.querySelector('.motion-tab-close'))
+                  .filter((button) => button instanceof HTMLElement);
+                const activeCloseButtonForFocus = activeWorkbenchTabForA11y.querySelector('.motion-tab-close');
+                rightPanelTabRovingFocusWorks =
+                  workbenchTabsForFocus.length >= 2 &&
+                  activeWorkbenchTabForA11y.getAttribute('tabindex') === '0' &&
+                  inactiveWorkbenchTabsForFocus.every((tab) => tab.getAttribute('tabindex') === '-1') &&
+                  (!(activeCloseButtonForFocus instanceof HTMLElement) || activeCloseButtonForFocus.getAttribute('tabindex') === '0') &&
+                  inactiveCloseButtonsForFocus.every((button) => button.getAttribute('tabindex') === '-1');
                 const activeFontWeight = Number.parseFloat(getComputedStyle(activeWorkbenchTabForA11y).fontWeight || '0');
                 const tabCountWeights = [...tabbar.querySelectorAll('.panel-tab-count')]
                   .map((count) => count instanceof HTMLElement ? Number.parseFloat(getComputedStyle(count).fontWeight || '0') : 0)
@@ -9205,6 +9220,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 rightPanelMiddleClickCloseWorks,
                 rightPanelCloseFallbackFromMainWorks,
                 rightPanelTabPanelA11yWorks,
+                rightPanelTabRovingFocusWorks,
                 rightPanelTabWheelScrollWorks,
                 rightPanelFullscreenCleanupWorks,
                 rightPanelTabTelemetryWorks,

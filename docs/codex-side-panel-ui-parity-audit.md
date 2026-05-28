@@ -8952,3 +8952,13 @@ Implemented: the root app shell now exposes hidden-until-focused skip links for 
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and elevated `node scripts/run-automated-ui-smoke.mjs --composer` passed. The first sandboxed focused smoke hit the expected localhost bind denial; the elevated rerun passed with `appSkipLinksKeyboard=true` while keeping the composer, header, Workbench, Review, Files, Browser, Terminal, Settings, capability, and side-chat gates green. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1779992818102.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1779992818102.png`.
 
 Remaining: this is a concrete first-pass app-shell keyboard traversal fix. It does not close the whole-app accessibility audit; broader screen-reader label review, keyboard traversal through every right-panel tab, and exact live Codex focus timing remain separate.
+
+### 2026-05-28 - Workbench Tab Roving Focus
+
+Product evidence: the shared Workbench/terminal tab strip supported Arrow/Home/End navigation, but every tab remained in the document Tab order, and inactive tab close buttons were tabbable as well. That made keyboard traversal through the right-side Workbench noisier than a Codex-style app shell should be for day-to-day coding.
+
+Implemented: shared panel tabs now use roving tab focus. Only the active tab and its close button are reachable through Tab; inactive tabs and inactive close controls stay reachable through Arrow/Home/End activation and mouse interactions without adding extra tab stops.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and elevated `node scripts/run-automated-ui-smoke.mjs --right-panel` passed. The focused run added `rightPanelTabRovingFocus=true` while keeping right-panel resize, context menu, tab reorder/drag, close shortcuts, tab-panel a11y, find routing, Browser command routing, and transfer-boundary gates green. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779993058032.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779993058032.png`.
+
+Remaining: this closes a concrete keyboard traversal gap in shared app-shell tabs. It does not close broader screen-reader review, exact live Codex focus timing, or provider-backed right-panel functionality.

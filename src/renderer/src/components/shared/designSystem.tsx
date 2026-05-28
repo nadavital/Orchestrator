@@ -1313,7 +1313,7 @@ export function TabButton({
     <div
       id={tabId && panelId ? panelTabDomId(panelId, tabId) : undefined}
       role="tab"
-      tabIndex={0}
+      tabIndex={active ? 0 : -1}
       aria-label={ariaLabel}
       aria-selected={active}
       aria-controls={tabId && panelId ? panelTabPanelDomId(panelId, tabId) : undefined}
@@ -1354,6 +1354,7 @@ export function TabButton({
         <button
           type="button"
           aria-label={closeLabel}
+          tabIndex={active ? 0 : -1}
           data-native-title-free="true"
           className="motion-tab-close"
           onClick={(event) => {
