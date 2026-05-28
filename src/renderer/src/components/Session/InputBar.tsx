@@ -74,6 +74,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   const permissionButtonRef = useRef<HTMLButtonElement>(null)
   const cancelledPendingAttachments = useRef<Set<string>>(new Set())
   const activeAttachmentSaves = useRef<Set<string>>(new Set())
+  const pendingSettingsUpdateRef = useRef<Promise<void>>(Promise.resolve())
 
   useEffect(() => {
     const globals = window as typeof window & { __orchestratorInputBarCommitCount?: number }
@@ -157,6 +158,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     setAttachmentStatus(null)
     setRunActionStatus(null)
     setPermissionRulesStatus(null)
+    pendingSettingsUpdateRef.current = Promise.resolve()
     setSlashIndex(0)
     setDismissedSlashQuery(null)
     window.setTimeout(() => {
@@ -273,7 +275,23 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     availableTools?: string[]
     additionalDirs?: string[]
   }): void => {
-    window.api.sessions.updateSettings(session.id, patch)
+    const pendingUpdate = pendingSettingsUpdateRef.current
+      .catch(() => undefined)
+      .then(() => window.api.sessions.updateSettings(session.id, patch))
+    pendingSettingsUpdateRef.current = pendingUpdate
+    void pendingUpdate.catch((error) => {
+      setRunActionStatus({ text: `Settings update failed: ${errorText(error)}`, tone: 'danger' })
+    })
+  }
+
+  const flushPendingSettingsBeforeSend = async (): Promise<boolean> => {
+    try {
+      await pendingSettingsUpdateRef.current
+      return true
+    } catch (error) {
+      setRunActionStatus({ text: `Settings update failed: ${errorText(error)}`, tone: 'danger' })
+      return false
+    }
   }
 
   const switchProvider = (providerId: string): void => {
@@ -367,6 +385,8 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   const send = async (): Promise<void> => {
     if (!canSend) return
     const rawPrompt = text.trim()
+    setRunActionStatus(null)
+    if (!(await flushPendingSettingsBeforeSend())) return
     const sideQuestion = rawPrompt.match(/^\/btw(?:\s+([\s\S]+))?$/)
     if (sideQuestion) {
       const question = (sideQuestion[1] ?? '').trim()
@@ -423,7 +443,6 @@ function InputBar({ session, isNew }: Props): JSX.Element {
         }
       }, 0)
     }
-    setRunActionStatus(null)
     setComposerText('')
     setComposerAttachments(session.id, [])
     if (textareaRef.current) textareaRef.current.style.height = 'auto'

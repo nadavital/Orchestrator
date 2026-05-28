@@ -5176,27 +5176,27 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               element.dispatchEvent(new Event('input', { bubbles: true }));
               return true;
             };
-            const firstDraftRow = rowForTitle('Draft smoke one');
-            const secondDraftRow = rowForTitle('Draft smoke two');
             const unsupportedPermissionRow = rowForTitle('Unsupported permission smoke');
-            firstDraftRow?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+            const firstDraftInitiallySelected = await selectThreadByTitle('Draft smoke one');
             await sleep(180);
             const firstDraftTyped = setTextareaValue('draft belongs to chat one');
             await sleep(120);
-            secondDraftRow?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+            const secondDraftInitiallySelected = await selectThreadByTitle('Draft smoke two');
             await sleep(220);
             var composerDraftClearedOnSwitch = textareaValue() === '';
             const secondDraftTyped = setTextareaValue('draft belongs to chat two');
             await sleep(120);
-            firstDraftRow?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+            const firstDraftReselected = await selectThreadByTitle('Draft smoke one');
             await sleep(220);
             var composerFirstDraftRestored = textareaValue() === 'draft belongs to chat one';
-            secondDraftRow?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+            const secondDraftReselected = await selectThreadByTitle('Draft smoke two');
             await sleep(220);
             var composerSecondDraftRestored = textareaValue() === 'draft belongs to chat two';
             var composerDraftsPerChat =
-              Boolean(firstDraftRow) &&
-              Boolean(secondDraftRow) &&
+              firstDraftInitiallySelected &&
+              secondDraftInitiallySelected &&
+              firstDraftReselected &&
+              secondDraftReselected &&
               firstDraftTyped &&
               secondDraftTyped &&
               composerDraftClearedOnSwitch &&
@@ -5235,7 +5235,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               queuedCancelStatus.getAttribute('role') === 'status' &&
               queuedCancelStatus.getAttribute('aria-live') === 'polite' &&
               queuedCancelStatus.getAttribute('aria-atomic') === 'true';
-            firstDraftRow?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+            const firstDraftAttachmentSelected = await selectThreadByTitle('Draft smoke one');
             await sleep(220);
             addComposerAttachment('draft-one.txt', '/tmp/orchestrator-draft-one.txt');
             await sleep(120);
@@ -5243,7 +5243,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             var composerFirstAttachmentRestored =
               firstAttachmentLabels.some((label) => label.includes('draft-one.txt')) &&
               !firstAttachmentLabels.some((label) => label.includes('draft-two.txt'));
-            secondDraftRow?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+            const secondDraftAttachmentSelected = await selectThreadByTitle('Draft smoke two');
             await sleep(220);
             var composerAttachmentsClearedOnSwitch = !attachmentLabels().some((label) => label.includes('draft-one.txt'));
             addComposerAttachment('draft-two.txt', '/tmp/orchestrator-draft-two.txt');
@@ -5252,9 +5252,12 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             var composerSecondAttachmentRestored =
               secondAttachmentLabels.some((label) => label.includes('draft-two.txt')) &&
               !secondAttachmentLabels.some((label) => label.includes('draft-one.txt'));
-            firstDraftRow?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+            const firstDraftAttachmentReselected = await selectThreadByTitle('Draft smoke one');
             await sleep(220);
             var composerAttachmentsPerChat =
+              firstDraftAttachmentSelected &&
+              secondDraftAttachmentSelected &&
+              firstDraftAttachmentReselected &&
               composerFirstAttachmentRestored &&
               composerAttachmentsClearedOnSwitch &&
               composerSecondAttachmentRestored &&
@@ -5821,8 +5824,45 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               agentButton instanceof HTMLElement &&
               agentButton.getAttribute('aria-expanded') === 'false';
 
+            const settingsRaceSelected = await selectThreadByTitle('Draft smoke two');
+            await sleep(220);
+            const settingsRaceAgentButton = document.querySelector('[data-testid="composer-agent-menu"]');
+            settingsRaceAgentButton?.click();
+            await sleep(160);
+            const settingsRaceModelChoice = [...document.querySelectorAll('.motion-popover-surface [role="group"][aria-label="Model choices"] button')]
+              .find((button) =>
+                button instanceof HTMLButtonElement &&
+                button.textContent?.includes('Sonnet 4.6') === true &&
+                button.getAttribute('aria-pressed') === 'false'
+              );
+            if (settingsRaceModelChoice instanceof HTMLButtonElement) {
+              settingsRaceModelChoice.click();
+              setTextareaValue('SEND_AFTER_SETTINGS_FLUSH_SMOKE');
+              await sleep(20);
+            }
+            const settingsRaceSendButton = [...document.querySelectorAll('button')]
+              .find((button) => button.getAttribute('aria-label')?.startsWith('Send'));
+            if (settingsRaceSendButton instanceof HTMLButtonElement) {
+              settingsRaceSendButton.click();
+              await sleep(520);
+            }
+            const settingsRaceSessions = await window.api.sessions.list();
+            const settingsRaceSession = settingsRaceSessions.find((candidate) => candidate.name === 'Draft smoke two');
+            var composerSendFlushesPendingSettings =
+              settingsRaceSelected &&
+              settingsRaceModelChoice instanceof HTMLButtonElement &&
+              settingsRaceSendButton instanceof HTMLButtonElement &&
+              textareaValue() === '' &&
+              settingsRaceSession?.provider === 'claude' &&
+              settingsRaceSession?.model === 'claude-sonnet-4-6';
+            document.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, clientX: 1, clientY: 1 }));
+            await sleep(180);
+            await selectThreadByTitle('Active settings smoke');
+            await sleep(220);
+
             const composerShell = document.querySelector('[data-testid="composer-shell"]');
             const composerToolbar = document.querySelector('[data-testid="composer-toolbar"]');
+            const toolbarAgentButton = document.querySelector('[data-testid="composer-agent-menu"]');
             const previousComposerWidth = composerShell instanceof HTMLElement ? composerShell.style.width : '';
             const previousComposerMaxWidth = composerShell instanceof HTMLElement ? composerShell.style.maxWidth : '';
             if (composerShell instanceof HTMLElement) {
@@ -5833,10 +5873,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             var composerToolbarResponsiveWorks =
               composerToolbar instanceof HTMLElement &&
               composerToolbar.scrollWidth <= composerToolbar.clientWidth + 2 &&
-              (!(agentButton instanceof HTMLElement) ||
+              (!(toolbarAgentButton instanceof HTMLElement) ||
                 (
-                  agentButton instanceof HTMLElement &&
-                  getComputedStyle(agentButton.querySelector('.composer-control-label') ?? agentButton).display === 'none'
+                  toolbarAgentButton instanceof HTMLElement &&
+                  getComputedStyle(toolbarAgentButton.querySelector('.composer-control-label') ?? toolbarAgentButton).display === 'none'
                 ));
             if (composerShell instanceof HTMLElement) {
               composerShell.style.width = previousComposerWidth;
@@ -6949,6 +6989,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             composerActiveThreadProviderSwitchPersisted: typeof composerActiveThreadProviderSwitchPersisted === 'boolean' ? composerActiveThreadProviderSwitchPersisted : null,
             composerActiveThreadProviderSwitchPolicyPersisted: typeof composerActiveThreadProviderSwitchPolicyPersisted === 'boolean' ? composerActiveThreadProviderSwitchPolicyPersisted : null,
             composerActiveThreadModelSwitchPersisted: typeof composerActiveThreadModelSwitchPersisted === 'boolean' ? composerActiveThreadModelSwitchPersisted : null,
+            composerSendFlushesPendingSettings: typeof composerSendFlushesPendingSettings === 'boolean' ? composerSendFlushesPendingSettings : null,
             composerAgentChoiceA11y: typeof composerAgentChoiceA11y === 'boolean' ? composerAgentChoiceA11y : null,
             composerAgentRowLabelsCalm: typeof composerAgentRowLabelsCalm === 'boolean' ? composerAgentRowLabelsCalm : null,
             composerAgentMenuClosedWithOutsideClick: typeof composerAgentMenuClosedWithOutsideClick === 'boolean' ? composerAgentMenuClosedWithOutsideClick : null,
@@ -24102,7 +24143,7 @@ async function seedAutomatedComposerSmokeSession(projectId: string, workDir: str
     role: 'assistant',
     type: 'text',
     content: 'UNSUPPORTED_PERMISSION_SMOKE existing thread for composer send status.',
-    timestamp: baseTime + 2
+    timestamp: baseTime + 3
   }
   sessionManager.save({
     ...unsupportedPermissionSession,
@@ -24119,7 +24160,7 @@ async function seedAutomatedComposerSmokeSession(projectId: string, workDir: str
     latestMessageAt: unsupportedMessage.timestamp
   })
 
-  for (const stale of sessionManager.list().filter((candidate) => candidate.projectId === projectId && candidate.name === 'Context disabled permission smoke')) {
+  for (const stale of sessionManager.list().filter((candidate) => candidate.projectId === projectId && ['Context disabled permission smoke', 'Settings send race smoke'].includes(candidate.name))) {
     await sessionManager.archive(stale.id)
   }
 }

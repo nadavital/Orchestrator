@@ -2818,6 +2818,14 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
     if (
       process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT &&
       process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'composer' &&
+      prompt === 'SEND_AFTER_SETTINGS_FLUSH_SMOKE'
+    ) {
+      const session = sessionManager.get(sessionId)
+      return session?.model === 'claude-sonnet-4-6'
+    }
+    if (
+      process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT &&
+      process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'composer' &&
       prompt === 'SEND_FAILURE_SMOKE'
     ) {
       throw new Error('Smoke send failure')
@@ -2849,7 +2857,7 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('sessions:reorderPinned', (_, orderedPinnedSessionIds: string[]) =>
     sessionManager.reorderPinned(orderedPinnedSessionIds)
   )
-  ipcMain.handle('sessions:updateSettings', (_, id: string, patch: {
+  ipcMain.handle('sessions:updateSettings', async (_, id: string, patch: {
     provider?: string
     model?: string
     effort?: string
@@ -2862,9 +2870,18 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
     disallowedTools?: string[]
     availableTools?: string[]
     additionalDirs?: string[]
-  }) =>
-    sessionManager.updateSettings(id, patch)
-  )
+  }) => {
+    const session = sessionManager.get(id)
+    if (
+      process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT &&
+      process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'composer' &&
+      session?.name === 'Draft smoke two' &&
+      patch.model === 'claude-sonnet-4-6'
+    ) {
+      await new Promise((resolve) => setTimeout(resolve, 350))
+    }
+    return sessionManager.updateSettings(id, patch)
+  })
   ipcMain.handle('sessions:checkProviders', () => sessionManager.checkProviders())
   ipcMain.handle('sessions:stop', (_, sessionId: string) => sessionManager.stop(sessionId))
   ipcMain.handle('sessions:cancelQueuedMessage', (_, sessionId: string, messageId: string) =>

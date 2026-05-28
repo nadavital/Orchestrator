@@ -196,7 +196,7 @@ const api = {
       ipcRenderer.invoke('sessions:fork', id, mode),
     retryPendingWorktree: (id: string): Promise<Session> =>
       ipcRenderer.invoke('sessions:retryPendingWorktree', id),
-    sendMessage: (sessionId: string, prompt: string, useWorktree?: boolean, attachments?: Attachment[]): Promise<void> =>
+    sendMessage: (sessionId: string, prompt: string, useWorktree?: boolean, attachments?: Attachment[]): Promise<boolean> =>
       ipcRenderer.invoke('sessions:sendMessage', sessionId, prompt, useWorktree, attachments ?? []),
     retryLastUserMessage: (sessionId: string): Promise<boolean> =>
       ipcRenderer.invoke('sessions:retryLastUserMessage', sessionId),
