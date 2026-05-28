@@ -3258,32 +3258,40 @@ function cursorPolicy(policyId: string): ResolvedExecutionPolicy {
       }
     })
   }
-  if (policyId === 'sandbox') {
-    return policy(policyId, 'exact', ['--sandbox', 'enabled', '--trust'], 'Sandbox', 'Requests Cursor sandbox mode.', undefined, {
+  if (policyId === 'ask') {
+    return policy(
+      policyId,
+      'exact',
+      ['--mode', 'ask', '--trust'],
+      'Read-only',
+      'Cursor ask mode is read-only and does not apply edits.',
+      undefined,
+      {
+        intent: 'ask',
+        interaction: 'headless',
+        controls: cursorPermissionControls,
+        execution: {
+          nativeMode: 'ask',
+          sandboxMode: 'read-only',
+          configSource: 'cli'
+        }
+      }
+    )
+  }
+  return policy(
+    policyId,
+    'exact',
+    ['--sandbox', 'enabled', '--trust'],
+    'Sandbox',
+    'Requests Cursor sandbox mode so the agent can edit inside the workspace.',
+    undefined,
+    {
       intent: 'workspaceSandbox',
       interaction: 'headless',
       controls: cursorPermissionControls,
       execution: {
         nativeMode: 'sandbox',
         sandboxMode: 'enabled',
-        configSource: 'cli'
-      }
-    })
-  }
-  return policy(
-    policyId,
-    'exact',
-    ['--mode', 'ask', '--trust'],
-    'Ask',
-    'Cursor ask mode is read-only and does not apply edits.',
-    undefined,
-    {
-      intent: 'ask',
-      interaction: 'headless',
-      controls: cursorPermissionControls,
-      execution: {
-        nativeMode: 'ask',
-        sandboxMode: 'read-only',
         configSource: 'cli'
       }
     }

@@ -430,8 +430,8 @@ export const PROVIDER_DEFS: Record<string, ProviderDef> = {
     effortLevels: [],
     supportsResume: true,
     permissionModes: [
-      { id: 'default', label: 'Ask', desc: 'Ask mode', intent: 'ask' },
-      { id: 'sandbox', label: 'Sandbox', desc: 'Sandbox mode', intent: 'workspaceSandbox' },
+      { id: 'default', label: 'Sandbox', desc: 'Edit in Cursor sandbox mode.', intent: 'workspaceSandbox' },
+      { id: 'ask', label: 'Read-only', desc: 'Cursor ask mode does not apply edits.', intent: 'ask' },
       { id: 'yolo', label: 'Auto', desc: 'Skip prompts', intent: 'bypass' }
     ]
   }
