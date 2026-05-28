@@ -9314,3 +9314,13 @@ Implemented: successful sends now append to per-session composer prompt history,
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --composer` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1780010082730.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1780010082730.png`. The focused Composer smoke now gates `composerPromptHistoryRecall=true` while preserving draft isolation, attachment isolation, async attachment switching, pending cancel, manual attachment switching, permission, provider/model, slash, and toolbar checks.
 
 Remaining: this closes local per-session prompt recall only. Configurable Enter behavior, provider-backed context sources, and deeper attachment/context behavior remain separate Phase 1 follow-ups.
+
+### 2026-05-28 - Composer Enter Behavior Setting
+
+Product evidence: PP-040 tracks composer ergonomics as a Phase 1 coding workflow. Codex persists Enter-key behavior in composer atoms, while Orchestrator only supported `Enter` to send and `Shift-Enter` for a newline. That made multiline drafting harder for users who prefer plain Enter to insert lines.
+
+Implemented: General Settings now includes a Composer section with `Enter sends` and `Enter inserts line` choices backed by persisted `composerEnterBehavior`. The main composer reads the persisted setting, responds to in-app settings updates, exposes the active behavior for smoke checks, and switches its send shortcut/status copy to `Command/Ctrl+Enter` when plain Enter inserts a newline.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, elevated `node scripts/run-automated-ui-smoke.mjs --composer`, and elevated `node scripts/run-automated-ui-smoke.mjs --settings` passed. Composer evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1780010616758.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1780010616758.png`. Settings evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1780010650988.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1780010650988.png`.
+
+Remaining: this closes local configurable Enter behavior only. Provider-backed context sources and deeper attachment/context behavior remain the PP-040 Phase 1 follow-ups; deep Office/PDF renderer fidelity remains Phase 2 unless it blocks coding workflows.

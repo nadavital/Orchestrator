@@ -11,6 +11,7 @@ export interface AppSettings {
   defaultPermissionModes: Record<string, string>
   providerModels: Record<string, string[]>
   preferredEditor: 'system' | 'vscode' | 'vscode-insiders' | 'cursor' | 'zed'
+  composerEnterBehavior: 'send' | 'newline'
   appearance: 'system' | 'mist' | 'graphite' | 'ocean' | 'palenight' | 'high-contrast' | 'dark' | 'light'
   accent: 'blue' | 'teal' | 'purple' | 'green' | 'rose' | 'system' | 'custom'
   customAccent: string

@@ -39,6 +39,7 @@ import {
 import { applyAppearance, type Accent, type Appearance, type AppearanceTheme, type ChromeTheme, type Density, type TranscriptStyle } from '../theme'
 
 type PreferredEditor = PreferredOpenTarget
+type ComposerEnterBehavior = 'send' | 'newline'
 
 interface Props {
   section: SettingsSection
@@ -60,6 +61,7 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
   const [providerDiagnostics, setProviderDiagnostics] = useState<Record<string, ProviderDiagnosticInfo>>({})
   const [diagnosticsLoading, setDiagnosticsLoading] = useState<Record<string, boolean>>({})
   const [preferredEditor, setPreferredEditor] = useState<PreferredEditor>('system')
+  const [composerEnterBehavior, setComposerEnterBehavior] = useState<ComposerEnterBehavior>('send')
   const [appearance, setAppearance] = useState<Appearance>('mist')
   const [accent, setAccent] = useState<Accent>('blue')
   const [density, setDensity] = useState<Density>('comfortable')
@@ -100,6 +102,7 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
       setDefaultPermissionModes((rec.defaultPermissionModes as Record<string, string>) ?? {})
       setProviderModels((rec.providerModels as Record<string, string[]>) ?? {})
       setPreferredEditor(normalizePreferredEditor(rec.preferredEditor))
+      setComposerEnterBehavior(normalizeComposerEnterBehavior(rec.composerEnterBehavior))
       setAppearance((rec.appearance as Appearance) ?? 'mist')
       setAccent((rec.accent as Accent) ?? 'blue')
       setDensity((rec.density as Density) ?? 'comfortable')
@@ -196,6 +199,20 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
       await window.api.settings.set('preferredEditor', value)
     } catch (error) {
       setPreferredEditor(previous)
+      throw error
+    }
+  }
+
+  const saveComposerEnterBehavior = async (value: ComposerEnterBehavior): Promise<void> => {
+    const previous = composerEnterBehavior
+    setComposerEnterBehavior(value)
+    try {
+      await window.api.settings.set('composerEnterBehavior', value)
+      window.dispatchEvent(new CustomEvent('orchestrator:settings-updated', {
+        detail: { composerEnterBehavior: value }
+      }))
+    } catch (error) {
+      setComposerEnterBehavior(previous)
       throw error
     }
   }
@@ -457,6 +474,8 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
                 <GeneralSettingsPage
                   preferredEditor={preferredEditor}
                   onSetPreferredEditor={savePreferredEditor}
+                  composerEnterBehavior={composerEnterBehavior}
+                  onSetComposerEnterBehavior={saveComposerEnterBehavior}
                 />
               )}
               {effectiveSection === 'appearance' && (
@@ -609,6 +628,10 @@ function normalizePreferredEditor(value: unknown): PreferredEditor {
   return value === 'vscode' || value === 'vscode-insiders' || value === 'cursor' || value === 'zed'
     ? value
     : 'system'
+}
+
+function normalizeComposerEnterBehavior(value: unknown): ComposerEnterBehavior {
+  return value === 'newline' ? 'newline' : 'send'
 }
 
 function normalizeChromeTheme(value: unknown, fallback: ChromeTheme): ChromeTheme {

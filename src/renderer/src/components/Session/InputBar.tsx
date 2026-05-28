@@ -24,6 +24,7 @@ interface PendingAttachment {
 }
 
 const cancelledComposerAttachmentSaves = new Set<string>()
+type ComposerEnterBehavior = 'send' | 'newline'
 
 function shouldNavigatePromptHistory(textarea: HTMLTextAreaElement, direction: 'previous' | 'next'): boolean {
   if (textarea.selectionStart !== textarea.selectionEnd) return false
@@ -32,6 +33,10 @@ function shouldNavigatePromptHistory(textarea: HTMLTextAreaElement, direction: '
   return direction === 'previous'
     ? cursor === 0
     : cursor === textarea.value.length
+}
+
+function normalizeComposerEnterBehavior(value: unknown): ComposerEnterBehavior {
+  return value === 'newline' ? 'newline' : 'send'
 }
 
 function InputBar({ session, isNew }: Props): JSX.Element {
@@ -83,6 +88,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   const [runActionStatus, setRunActionStatus] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
   const [permissionRulesStatus, setPermissionRulesStatus] = useState<string | null>(null)
   const [historyCursor, setHistoryCursor] = useState<number | null>(null)
+  const [composerEnterBehavior, setComposerEnterBehavior] = useState<ComposerEnterBehavior>('send')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const agentButtonRef = useRef<HTMLButtonElement>(null)
   const permissionButtonRef = useRef<HTMLButtonElement>(null)
@@ -117,6 +123,28 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   useEffect(() => {
     window.api.git.isGitRepo(session.workDir).then(setIsGitRepo)
   }, [session.workDir])
+
+  useEffect(() => {
+    let alive = true
+    window.api.settings.get()
+      .then((settings) => {
+        if (alive) setComposerEnterBehavior(normalizeComposerEnterBehavior(settings.composerEnterBehavior))
+      })
+      .catch(() => {
+        if (alive) setComposerEnterBehavior('send')
+      })
+    const onSettingsUpdated = (event: Event): void => {
+      const detail = (event as CustomEvent<{ composerEnterBehavior?: unknown }>).detail
+      if ('composerEnterBehavior' in (detail ?? {})) {
+        setComposerEnterBehavior(normalizeComposerEnterBehavior(detail?.composerEnterBehavior))
+      }
+    }
+    window.addEventListener('orchestrator:settings-updated', onSettingsUpdated)
+    return () => {
+      alive = false
+      window.removeEventListener('orchestrator:settings-updated', onSettingsUpdated)
+    }
+  }, [])
 
   useEffect(() => {
     window.api.providers.getRuntimeInfo().then(setRuntimeInfo)
@@ -395,7 +423,9 @@ function InputBar({ session, isNew }: Props): JSX.Element {
             state: 'will-queue' as const,
             tone: 'accent' as const,
             title: 'Will queue after current run',
-            detail: 'Press Enter to send this as a queued follow-up.'
+            detail: composerEnterBehavior === 'newline'
+              ? 'Press Command-Enter or Control-Enter to send this as a queued follow-up.'
+              : 'Press Enter to send this as a queued follow-up.'
           }
         : null
 
@@ -658,7 +688,15 @@ function InputBar({ session, isNew }: Props): JSX.Element {
       e.preventDefault()
       return
     }
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (
+      e.key === 'Enter' &&
+      !e.shiftKey &&
+      (
+        composerEnterBehavior === 'send' ||
+        e.metaKey ||
+        e.ctrlKey
+      )
+    ) {
       e.preventDefault()
       send()
     }
@@ -846,7 +884,12 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     textareaRef.current?.focus()
   }
 
-  const sendTitle = isSavingPastedFiles ? 'Saving pasted files' : sendState.willQueue ? 'Queue message (↵)' : 'Send (↵)'
+  const sendShortcutTitle = composerEnterBehavior === 'newline' ? '⌘/Ctrl+↵' : '↵'
+  const sendTitle = isSavingPastedFiles
+    ? 'Saving pasted files'
+    : sendState.willQueue
+      ? `Queue message (${sendShortcutTitle})`
+      : `Send (${sendShortcutTitle})`
   const additionalContextDirs = session.additionalDirs ?? []
   const workspaceLabel = pathBaseName(session.workDir) || session.workDir
   const additionalDirsLabel = additionalContextDirs.length === 1
@@ -930,6 +973,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
             placeholder={isNew ? 'What do you want to build?' : 'Message…'}
             data-composer-prompt-history-count={composerPromptHistory.length}
             data-composer-prompt-history-active={historyCursor !== null ? 'true' : 'false'}
+            data-composer-enter-behavior={composerEnterBehavior}
             rows={1}
             autoFocus={isNew}
             className="flex-1 resize-none bg-transparent outline-none"

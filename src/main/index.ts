@@ -1370,6 +1370,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 generalSection.closest('[data-settings-page-module="general"]') instanceof HTMLElement;
               var settingsGeneralActionStatusWorks = false;
               var settingsGeneralPreferredEditorPersistenceWorks = false;
+              var settingsGeneralComposerEnterBehaviorWorks = false;
               const systemEditorChoice = document.querySelector('[data-testid="settings-general-preferred-editor-system"]');
               if (systemEditorChoice instanceof HTMLButtonElement) {
                 systemEditorChoice.click();
@@ -1389,6 +1390,29 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                       systemEditorChoice.getAttribute('aria-pressed') === 'true';
                     settingsGeneralPreferredEditorPersistenceWorks =
                       currentSettings.preferredEditor === 'system';
+                    break;
+                  }
+                  await sleep(50);
+                }
+              }
+              const newlineEnterChoice = document.querySelector('[data-testid="settings-general-composer-enter-newline"]');
+              if (newlineEnterChoice instanceof HTMLButtonElement) {
+                newlineEnterChoice.click();
+                for (let index = 0; index < 40; index += 1) {
+                  const generalStatus = document.querySelector('[data-testid="settings-general-action-status"]');
+                  const generalModuleRoot = document.querySelector('[data-settings-page-module="general"]');
+                  const currentSettings = await window.api.settings.get();
+                  if (generalStatus instanceof HTMLElement && generalStatus.textContent?.includes('Enter inserts line saved') === true) {
+                    settingsGeneralComposerEnterBehaviorWorks =
+                      generalModuleRoot instanceof HTMLElement &&
+                      generalModuleRoot.getAttribute('data-settings-general-composer-enter-behavior') === 'newline' &&
+                      generalModuleRoot.getAttribute('data-settings-general-action-status') === 'Enter inserts line saved' &&
+                      generalModuleRoot.getAttribute('data-settings-general-action-status-tone') === 'info' &&
+                      generalStatus.getAttribute('role') === 'status' &&
+                      generalStatus.getAttribute('aria-live') === 'polite' &&
+                      generalStatus.getAttribute('aria-atomic') === 'true' &&
+                      newlineEnterChoice.getAttribute('aria-pressed') === 'true' &&
+                      currentSettings.composerEnterBehavior === 'newline';
                     break;
                   }
                   await sleep(50);
@@ -5361,13 +5385,14 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               element.dispatchEvent(new Event('input', { bubbles: true }));
               return true;
             };
-            const pressComposerKey = (key) => {
+            const pressComposerKey = (key, init = {}) => {
               const element = document.querySelector('textarea');
               if (!(element instanceof HTMLTextAreaElement)) return false;
               element.focus();
               element.setSelectionRange(element.value.length, element.value.length);
-              element.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
-              return true;
+              const keyEvent = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...init });
+              element.dispatchEvent(keyEvent);
+              return { dispatched: true, defaultPrevented: keyEvent.defaultPrevented };
             };
             const sendComposerPrompt = async (value) => {
               const typed = setTextareaValue(value);
@@ -5454,6 +5479,42 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               textareaValue() === '' &&
               promptHistoryActiveAfterUp === 'true' &&
               document.querySelector('[data-testid="composer-textarea"]')?.getAttribute('data-composer-prompt-history-active') === 'false';
+            await window.api.settings.set('composerEnterBehavior', 'newline');
+            window.dispatchEvent(new CustomEvent('orchestrator:settings-updated', {
+              detail: { composerEnterBehavior: 'newline' }
+            }));
+            await sleep(180);
+            const enterBehaviorTextarea = document.querySelector('[data-testid="composer-textarea"]');
+            const enterBehaviorSendButton = [...document.querySelectorAll('button')]
+              .find((button) => button.getAttribute('aria-label')?.startsWith('Send') || button.getAttribute('aria-label')?.startsWith('Queue message'));
+            const enterBehaviorModeApplied =
+              enterBehaviorTextarea instanceof HTMLTextAreaElement &&
+              enterBehaviorTextarea.getAttribute('data-composer-enter-behavior') === 'newline' &&
+              enterBehaviorSendButton instanceof HTMLButtonElement &&
+              enterBehaviorSendButton.getAttribute('aria-label')?.includes('⌘/Ctrl+↵') === true;
+            setTextareaValue('COMPOSER_ENTER_BEHAVIOR_SMOKE_NEWLINE');
+            await sleep(80);
+            const plainEnterResult = pressComposerKey('Enter');
+            await sleep(160);
+            const enterBehaviorPlainEnterPreservesDraft =
+              typeof plainEnterResult === 'object' &&
+              plainEnterResult.dispatched === true &&
+              plainEnterResult.defaultPrevented === false &&
+              textareaValue() === 'COMPOSER_ENTER_BEHAVIOR_SMOKE_NEWLINE';
+            const ctrlEnterResult = pressComposerKey('Enter', { ctrlKey: true });
+            await sleep(260);
+            var composerEnterBehaviorSetting =
+              enterBehaviorModeApplied &&
+              enterBehaviorPlainEnterPreservesDraft &&
+              typeof ctrlEnterResult === 'object' &&
+              ctrlEnterResult.dispatched === true &&
+              ctrlEnterResult.defaultPrevented === true &&
+              textareaValue() === '';
+            await window.api.settings.set('composerEnterBehavior', 'send');
+            window.dispatchEvent(new CustomEvent('orchestrator:settings-updated', {
+              detail: { composerEnterBehavior: 'send' }
+            }));
+            await sleep(120);
             const queuedCancelSelected = await selectThreadByTitle('Queued cancel smoke');
             const queuedCancelButton = document.querySelector('[data-testid="queued-message-cancel"]');
             const queuedMessageElement = document.querySelector('[data-message-id^="composer-queued-cancel-smoke-"]');
@@ -7281,6 +7342,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             settingsGeneralModuleWorks: typeof settingsGeneralModuleWorks === 'boolean' ? settingsGeneralModuleWorks : null,
             settingsGeneralActionStatusWorks: typeof settingsGeneralActionStatusWorks === 'boolean' ? settingsGeneralActionStatusWorks : null,
             settingsGeneralPreferredEditorPersistenceWorks: typeof settingsGeneralPreferredEditorPersistenceWorks === 'boolean' ? settingsGeneralPreferredEditorPersistenceWorks : null,
+            settingsGeneralComposerEnterBehaviorWorks: typeof settingsGeneralComposerEnterBehaviorWorks === 'boolean' ? settingsGeneralComposerEnterBehaviorWorks : null,
             settingsTopbarSharedWorks: typeof settingsTopbarSharedWorks === 'boolean' ? settingsTopbarSharedWorks : null,
             settingsContentLayoutWorks: typeof settingsContentLayoutWorks === 'boolean' ? settingsContentLayoutWorks : null,
             settingsContentFocusOnOpenWorks: typeof settingsContentFocusOnOpenWorks === 'boolean' ? settingsContentFocusOnOpenWorks : null,
@@ -7460,6 +7522,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             composerQueuedCancelStatusWorks: typeof composerQueuedCancelStatusWorks === 'boolean' ? composerQueuedCancelStatusWorks : null,
             composerEmptySuggestionFillsDraft: typeof composerEmptySuggestionFillsDraft === 'boolean' ? composerEmptySuggestionFillsDraft : null,
             composerPromptHistoryRecall: typeof composerPromptHistoryRecall === 'boolean' ? composerPromptHistoryRecall : null,
+            composerEnterBehaviorSetting: typeof composerEnterBehaviorSetting === 'boolean' ? composerEnterBehaviorSetting : null,
             composerDraftsPerChat: typeof composerDraftsPerChat === 'boolean' ? composerDraftsPerChat : null,
             composerDraftClearedOnSwitch: typeof composerDraftClearedOnSwitch === 'boolean' ? composerDraftClearedOnSwitch : null,
             composerFirstDraftRestored: typeof composerFirstDraftRestored === 'boolean' ? composerFirstDraftRestored : null,

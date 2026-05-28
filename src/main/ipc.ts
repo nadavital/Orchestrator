@@ -2818,7 +2818,10 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
     if (
       process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT &&
       process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'composer' &&
-      prompt.startsWith('COMPOSER_PROMPT_HISTORY_SMOKE_')
+      (
+        prompt.startsWith('COMPOSER_PROMPT_HISTORY_SMOKE_') ||
+        prompt.startsWith('COMPOSER_ENTER_BEHAVIOR_SMOKE_')
+      )
     ) {
       return true
     }

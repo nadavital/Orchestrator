@@ -11,6 +11,7 @@ interface AppSettings {
   defaultPermissionModes: Record<string, string>
   providerModels: Record<string, string[]>
   preferredEditor: 'system' | 'vscode' | 'vscode-insiders' | 'cursor' | 'zed'
+  composerEnterBehavior: 'send' | 'newline'
   appearance: 'system' | 'mist' | 'graphite' | 'ocean' | 'palenight' | 'high-contrast' | 'dark' | 'light'
   accent: 'blue' | 'teal' | 'purple' | 'green' | 'rose' | 'system' | 'custom'
   customAccent: string
@@ -65,6 +66,7 @@ export const settingsStore = new Store<AppSettings>({
     defaultPermissionModes: {},
     providerModels: {},
     preferredEditor: 'system',
+    composerEnterBehavior: 'send',
     appearance: 'mist',
     accent: 'blue',
     customAccent: '#0a7cff',
