@@ -5626,6 +5626,31 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                   text !== text.toUpperCase() &&
                   getComputedStyle(label).textTransform !== 'uppercase';
             });
+            const activeThreadClaudeModelChoice = [...document.querySelectorAll('.motion-popover-surface [role="group"][aria-label="Model choices"] button')]
+              .find((button) =>
+                button instanceof HTMLButtonElement &&
+                button.textContent?.includes('Sonnet 4.6') === true &&
+                button.getAttribute('aria-pressed') === 'false'
+              );
+            var composerActiveThreadModelSwitchPersisted = false;
+            if (activeThreadClaudeModelChoice instanceof HTMLButtonElement) {
+              activeThreadClaudeModelChoice.click();
+              await sleep(260);
+              const switchedClaudeAgentButton = document.querySelector('[data-testid="composer-agent-menu"]');
+              for (let index = 0; index < 10; index += 1) {
+                const modelSessions = await window.api.sessions.list();
+                const modelSession = modelSessions.find((candidate) => candidate.name === 'Active settings smoke');
+                composerActiveThreadModelSwitchPersisted =
+                  switchedClaudeAgentButton instanceof HTMLElement &&
+                  switchedClaudeAgentButton.textContent?.includes('Sonnet 4.6') === true &&
+                  modelSession?.provider === 'claude' &&
+                  modelSession?.model === 'claude-sonnet-4-6';
+                if (composerActiveThreadModelSwitchPersisted) break;
+                await sleep(80);
+              }
+            } else {
+              composerActiveThreadModelSwitchPersisted = composerActiveThreadSettings;
+            }
             var composerActiveThreadProviderSwitch = false;
             var composerActiveThreadProviderSwitchPersisted = false;
             var composerActiveThreadProviderSwitchPolicyPersisted = false;
@@ -6797,6 +6822,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             composerActiveThreadProviderSwitch: typeof composerActiveThreadProviderSwitch === 'boolean' ? composerActiveThreadProviderSwitch : null,
             composerActiveThreadProviderSwitchPersisted: typeof composerActiveThreadProviderSwitchPersisted === 'boolean' ? composerActiveThreadProviderSwitchPersisted : null,
             composerActiveThreadProviderSwitchPolicyPersisted: typeof composerActiveThreadProviderSwitchPolicyPersisted === 'boolean' ? composerActiveThreadProviderSwitchPolicyPersisted : null,
+            composerActiveThreadModelSwitchPersisted: typeof composerActiveThreadModelSwitchPersisted === 'boolean' ? composerActiveThreadModelSwitchPersisted : null,
             composerAgentChoiceA11y: typeof composerAgentChoiceA11y === 'boolean' ? composerAgentChoiceA11y : null,
             composerAgentRowLabelsCalm: typeof composerAgentRowLabelsCalm === 'boolean' ? composerAgentRowLabelsCalm : null,
             composerAgentMenuClosedWithOutsideClick: typeof composerAgentMenuClosedWithOutsideClick === 'boolean' ? composerAgentMenuClosedWithOutsideClick : null,
