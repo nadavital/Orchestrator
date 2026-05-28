@@ -21142,7 +21142,12 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
               permissionActions instanceof HTMLElement &&
               isInsideScroller(permissionCard) &&
               permissionButtons.length >= 3 &&
-              permissionButtons.every((button) => button instanceof HTMLButtonElement && !button.disabled && isInsideScroller(button));
+              permissionButtons.every((button) =>
+                button instanceof HTMLButtonElement &&
+                !button.disabled &&
+                isInsideScroller(button) &&
+                (button.getAttribute('aria-label') ?? '').includes('permission')
+              );
             const permissionActionsWrap =
               permissionActions instanceof HTMLElement &&
               permissionActions.scrollWidth <= permissionActions.clientWidth + 2;
@@ -21336,7 +21341,11 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
               narrowPermissionActionsWrap: permissionActions instanceof HTMLElement &&
                 permissionActions.scrollWidth <= permissionActions.clientWidth + 2 &&
                 permissionButtons.length >= 3 &&
-                permissionButtons.every((button) => button instanceof HTMLButtonElement && isInsideScroller(button)),
+                permissionButtons.every((button) =>
+                  button instanceof HTMLButtonElement &&
+                  isInsideScroller(button) &&
+                  (button.getAttribute('aria-label') ?? '').includes('permission')
+                ),
               narrowRawEventsHiddenFromTranscript: !scroller.innerText.includes('RAW_TRANSCRIPT_EVENT_SHOULD_NOT_RENDER')
             };
           })()
@@ -21673,7 +21682,11 @@ function runAutomatedTranscriptPermissionSmoke(win: BrowserWindow, outputPath: s
                 actions.getAttribute('role') === 'group' &&
                 actions.getAttribute('aria-label') === 'Permission decision actions' &&
                 buttons.length >= 3 &&
-                buttons.every((button) => button instanceof HTMLButtonElement && !button.disabled)
+                buttons.every((button) =>
+                  button instanceof HTMLButtonElement &&
+                  !button.disabled &&
+                  (button.getAttribute('aria-label') ?? '').includes('permission')
+                )
             };
           })()
         `)

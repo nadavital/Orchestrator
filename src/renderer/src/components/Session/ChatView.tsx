@@ -2832,6 +2832,14 @@ function PermissionCard({ msg, sessionId, sessionStatus }: { msg: ResultMessage;
   const isPlanApproval = denials.some((d) => d.tool_name === 'ExitPlanMode')
   const requestIsActive = sessionStatus === 'waiting_for_permission'
   const displayDecision = msg.permissionDecision ?? decision
+  const permissionTarget = isPlanApproval
+    ? 'plan approval'
+    : toolNames.length === 1
+      ? `${toolNames[0]} permission`
+      : `${toolNames.length} permission requests`
+  const allowOnceLabel = isPlanApproval ? 'Approve plan' : `Allow once for ${permissionTarget}`
+  const allowSessionLabel = `Allow for session for ${permissionTarget}`
+  const denyLabel = isPlanApproval ? 'Keep planning' : `Deny ${permissionTarget}`
 
   const submitPermissionDecision = async (
     nextDecision: 'allowed_once' | 'allowed_session' | 'denied',
@@ -2969,6 +2977,7 @@ function PermissionCard({ msg, sessionId, sessionStatus }: { msg: ResultMessage;
                 disabled={submittingDecision !== null}
                 className="min-w-[132px] flex-1"
                 dataTestId="chat-permission-allow-once"
+                ariaLabel={allowOnceLabel}
               >
                 {submittingDecision === 'allowed_once' ? 'Approving...' : 'Approve Plan'}
               </Button>
@@ -2978,6 +2987,7 @@ function PermissionCard({ msg, sessionId, sessionStatus }: { msg: ResultMessage;
                 disabled={submittingDecision !== null}
                 className="min-w-[120px] px-4"
                 dataTestId="chat-permission-deny"
+                ariaLabel={denyLabel}
               >
                 {submittingDecision === 'denied' ? 'Sending...' : 'Keep Planning'}
               </Button>
@@ -2990,6 +3000,7 @@ function PermissionCard({ msg, sessionId, sessionStatus }: { msg: ResultMessage;
                 disabled={submittingDecision !== null}
                 className="min-w-[112px] flex-1"
                 dataTestId="chat-permission-allow-once"
+                ariaLabel={allowOnceLabel}
               >
                 {submittingDecision === 'allowed_once' ? 'Allowing...' : 'Allow Once'}
               </Button>
@@ -2999,6 +3010,7 @@ function PermissionCard({ msg, sessionId, sessionStatus }: { msg: ResultMessage;
                 disabled={submittingDecision !== null}
                 className="min-w-[124px] flex-1"
                 dataTestId="chat-permission-allow-session"
+                ariaLabel={allowSessionLabel}
               >
                 {submittingDecision === 'allowed_session' ? 'Allowing...' : 'Allow Session'}
               </Button>
@@ -3008,6 +3020,7 @@ function PermissionCard({ msg, sessionId, sessionStatus }: { msg: ResultMessage;
                 disabled={submittingDecision !== null}
                 className="min-w-[76px] px-4"
                 dataTestId="chat-permission-deny"
+                ariaLabel={denyLabel}
               >
                 {submittingDecision === 'denied' ? 'Denying...' : 'Deny'}
               </Button>
