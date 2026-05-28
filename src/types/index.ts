@@ -1367,6 +1367,13 @@ export interface SettingsRouteLocationLike {
   hash?: string
 }
 
+export type SessionRouteMode = 'path' | 'hash'
+
+export interface SessionRoute {
+  sessionId: string
+  mode: SessionRouteMode
+}
+
 export type OrchestratorDeepLinkNavigation =
   | { kind: 'session'; sessionId: string }
   | { kind: 'settings'; section: SettingsSectionId; hostId: string | null }
@@ -1498,8 +1505,26 @@ export function settingsRouteUrlForLocation(section: SettingsSectionId, hostId: 
   return supportsSettingsPathRoutes(location) ? settingsRoutePath(section, hostId) : settingsRouteHash(section, hostId)
 }
 
+export function sessionRoutePath(sessionId: string): string {
+  return `/threads/${encodeURIComponent(sessionId)}`
+}
+
+export function sessionRouteHash(sessionId: string): string {
+  return `#/threads/${encodeURIComponent(sessionId)}`
+}
+
+export function sessionRouteUrlForLocation(sessionId: string, location: SettingsRouteLocationLike): string {
+  return supportsSettingsPathRoutes(location) ? sessionRoutePath(sessionId) : sessionRouteHash(sessionId)
+}
+
 export function settingsRouteExitUrl(mode: SettingsRouteMode): string {
   return mode === 'path' ? '/' : '#/'
+}
+
+export function parseSessionRouteLocation(location: SettingsRouteLocationLike): SessionRoute | null {
+  const hashRoute = parseSessionHashRoute(location.hash ?? '')
+  if (hashRoute) return hashRoute
+  return parseSessionPathRoute(location.pathname ?? '')
 }
 
 export function parseSettingsRouteLocation(location: SettingsRouteLocationLike): SettingsRoute | null {
@@ -1547,6 +1572,23 @@ function supportsSettingsPathRoutes(location: SettingsRouteLocationLike): boolea
   return location.protocol === 'http:' || location.protocol === 'https:' || location.protocol === 'orchestrator-app:'
 }
 
+function parseSessionHashRoute(hash: string): SessionRoute | null {
+  if (!hash.startsWith('#/threads') && !hash.startsWith('#/sessions')) return null
+  const raw = hash.slice(1)
+  const [path] = raw.split('?')
+  const [, root, encodedSessionId] = path.split('/')
+  if (root !== 'threads' && root !== 'sessions') return null
+  const sessionId = decodeRouteSegment(encodedSessionId)
+  return sessionId.length > 0 ? { sessionId, mode: 'hash' } : null
+}
+
+function parseSessionPathRoute(pathname: string): SessionRoute | null {
+  const [, root, encodedSessionId] = pathname.split('/')
+  if (root !== 'threads' && root !== 'sessions') return null
+  const sessionId = decodeRouteSegment(encodedSessionId)
+  return sessionId.length > 0 ? { sessionId, mode: 'path' } : null
+}
+
 function parseSettingsHashRoute(hash: string): SettingsRoute | null {
   if (!hash.startsWith('#/settings')) return null
   const raw = hash.slice(1)
@@ -1557,6 +1599,15 @@ function parseSettingsHashRoute(hash: string): SettingsRoute | null {
     section: normalizeSettingsSectionId(sectionSlug),
     hostId: new URLSearchParams(query).get('host'),
     mode: 'hash'
+  }
+}
+
+function decodeRouteSegment(value: string | undefined): string {
+  if (!value) return ''
+  try {
+    return decodeURIComponent(value).trim()
+  } catch {
+    return value.trim()
   }
 }
 

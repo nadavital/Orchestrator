@@ -5587,7 +5587,7 @@ These are the concrete UI targets before declaring sidebar/workbench parity:
 
 | Codex | Orchestrator | Gap |
 | --- | --- | --- |
-| Codex has route-backed thread identity and can open threads/hotkey threads/windows consistently. | Orchestrator still mostly uses `activeSessionId` in renderer state. | Window reopen and multi-window behavior remain weaker. |
+| Codex has route-backed thread identity and can open threads/hotkey threads/windows consistently. | Orchestrator now syncs local active chats into `/threads/{id}` or `#/threads/{id}`, parses those routes on renderer startup, handles back/forward route changes, and keeps app-protocol deeplinks/new windows on the same session identity path. | Local reopen/deeplink parity is covered; provider-native remote/hotkey route semantics and explicit missing/archived route states remain. |
 | Codex shell dispatches shortcut-state changes based on active focus area and open panels. | Orchestrator close-active-panel-tab is panel-focus aware and falls back from main focus; focused `Cmd+F` routes to transcript, Review file search, Files search, file-tab source search, or Browser find; Browser address/reload/back/forward commands route only when the focused right-panel tab is Browser; focused Browser/right-Terminal/bottom-Terminal `Cmd+T` routes through the shell; native menu enabled-state now follows the focused shell area for the smoked panel commands, including temp packaged-app proof. | Dedicated multi-window focus-switch proof remains incomplete. |
 | Codex title/header edge-scroll tint is shell-managed. | Orchestrator title/header styling is custom in `Titlebar` and CSS. | Header/chrome polish differs. |
 | Codex browser webviews and panels handle visibility/focus lifecycle carefully. | Orchestrator has had crashes/glitches around terminal/sidebar/window state. | Needs shell lifecycle hardening. |
@@ -7182,6 +7182,16 @@ Implemented: `navigateFromDeeplink` now only stores scoped pending navigation fo
 Verification: `node -c scripts/run-automated-ui-smoke.mjs`, `node -c scripts/run-codex-side-panel-comparison.mjs`, `git diff --check`, `pnpm exec tsc --noEmit`, and `npm run build` passed. Focused `npm run smoke:ui:auto -- --multi-window-focus` passed with `loadedDeepLinkDoesNotLeavePendingNavigation=true`; evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-multi-window-focus-1779852180207.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-multi-window-focus-1779852180207.png`. Elevated full `npm run compare:codex-side-panels -- --run-smoke --full --no-fail` passed with 27 captures, `fixture-covered=8`, `aligned=2`, `mismatch=0`, `blocked=0`, `needsSmoke=0`, and `needsProof=0`; manifest `/Users/nadav/Desktop/Orchestrator/tmp/side-panel-visual-inventory-current/manifest.json`, created at `2026-05-27T03:28:15.204Z`; comparison report `/Users/nadav/Desktop/Orchestrator/tmp/codex-side-panel-comparison/comparison-report.json`, created at `2026-05-27T03:28:15.455Z`. The full comparison's multi-window capture evidence JSON is `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-multi-window-focus-1779852428108.json`.
 
 Remaining: this removes another concrete route/window lifecycle edge. Broader route/window ownership, exact live Codex pixel spacing, OS focus behavior, and panel animation timing remain open.
+
+### 2026-05-28 - Route-Backed Local Session Identity
+
+Codex evidence: Codex treats the active thread as route-owned shell state, so a thread URL can cold-open the right conversation without depending only on a renderer store value or a one-shot pending-navigation slot.
+
+Implemented: Orchestrator now exposes local session route helpers for `/threads/{id}` and `#/threads/{id}`, serves those paths through the renderer protocol, parses session routes during renderer boot, preserves a requested empty route target during startup cleanup, syncs active local chats back into the URL, and handles `popstate`/`hashchange` session navigation in already-loaded windows. App-protocol `orchestrator://threads/{id}` deeplinks and open-in-new-window behavior continue through the existing pending-navigation bridge, but local renderer routes no longer depend on that bridge to reopen a chat.
+
+Verification: targeted route helper tests and focused session-switch smoke cover the route-backed slice. The session-switch smoke now starts the renderer at a seeded `#/threads/{id}` route and requires `startupRouteBacked=true`, `startupRouteTranscriptFound=true`, `firstRouteUpdated=true`, and `secondRouteUpdated=true` in addition to the existing transcript switching, lazy hydration, search, telemetry, and budget gates.
+
+Remaining: provider-native remote/hotkey route semantics, explicit missing/archived route states, exact live Codex pixel spacing, OS focus behavior, and panel animation timing remain open.
 
 ### 2026-05-27 - Installed Loaded-Window Deep-Link Proof
 

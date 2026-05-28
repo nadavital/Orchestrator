@@ -2,7 +2,11 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
   parseOrchestratorDeepLink,
+  parseSessionRouteLocation,
   parseSettingsRouteLocation,
+  sessionRouteHash,
+  sessionRoutePath,
+  sessionRouteUrlForLocation,
   settingsDeepLinkUrl,
   settingsRouteExitUrl,
   settingsRouteHash,
@@ -55,6 +59,32 @@ test('settings routes parse path and hash forms with section fallback', () => {
   assert.equal(parseSettingsRouteLocation({ pathname: '/', search: '', hash: '#/' }), null)
   assert.equal(settingsRouteExitUrl('path'), '/')
   assert.equal(settingsRouteExitUrl('hash'), '#/')
+})
+
+test('session routes prefer app paths and parse path and hash forms', () => {
+  assert.equal(sessionRouteUrlForLocation('session 123', { protocol: 'orchestrator-app:' }), '/threads/session%20123')
+  assert.equal(sessionRouteUrlForLocation('session 123', { protocol: 'file:' }), '#/threads/session%20123')
+  assert.equal(sessionRoutePath('session-123'), '/threads/session-123')
+  assert.equal(sessionRouteHash('session-123'), '#/threads/session-123')
+  assert.deepEqual(parseSessionRouteLocation({
+    protocol: 'orchestrator-app:',
+    pathname: '/threads/session-123',
+    search: '',
+    hash: ''
+  }), {
+    sessionId: 'session-123',
+    mode: 'path'
+  })
+  assert.deepEqual(parseSessionRouteLocation({
+    protocol: 'file:',
+    pathname: '/index.html',
+    search: '',
+    hash: '#/sessions/session%20123'
+  }), {
+    sessionId: 'session 123',
+    mode: 'hash'
+  })
+  assert.equal(parseSessionRouteLocation({ pathname: '/', hash: '#/' }), null)
 })
 
 test('orchestrator deep links route settings and sessions through the app protocol', () => {

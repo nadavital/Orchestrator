@@ -45,6 +45,7 @@ const menuCommandAvailabilityByWindow = new Map<number, AppCommandAvailability>(
 const pendingNavigationByWindow = new Map<number, OrchestratorDeepLinkNavigation>()
 let pendingNavigation: OrchestratorDeepLinkNavigation | null = null
 let automatedMultiWindowFocusSmokeStarted = false
+let automatedInitialRendererHash: string | null = null
 
 function seedAutomatedBrowserUsePolicy(): void {
   settingsStore.set('browserUsePolicy', {
@@ -406,6 +407,7 @@ function isPathInsideRendererRoot(rendererRoot: string, filePath: string): boole
 function shouldServeRendererIndex(pathname: string): boolean {
   if (pathname === '/' || pathname === '') return true
   if (pathname.startsWith('/settings')) return true
+  if (pathname.startsWith('/threads') || pathname.startsWith('/sessions')) return true
   return false
 }
 
@@ -512,7 +514,7 @@ function createWindow(): BrowserWindow {
 
   const rendererHash = process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'design-system'
     ? 'design-system'
-    : undefined
+    : automatedInitialRendererHash ?? undefined
 
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     win.loadURL(`${process.env['ELECTRON_RENDERER_URL']}${rendererHash ? `#${rendererHash}` : ''}`)
@@ -19265,12 +19267,34 @@ function runAutomatedSessionSwitchSmoke(win: BrowserWindow, outputPath: string, 
           })()
         `)
 
+        const startupRouteResult = await win.webContents.executeJavaScript(`
+          (async () => {
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            for (let index = 0; index < 80; index += 1) {
+              const title = document.querySelector('[data-testid="active-session-title"]')?.textContent ?? '';
+              const transcriptText = document.querySelector('[data-testid="transcript-scroll"]')?.innerText ?? '';
+              if (title.includes(${JSON.stringify(first.name)}) && transcriptText.includes('SESSION_SWITCH_SMOKE_ONE')) break;
+              await sleep(25);
+            }
+            const path = window.location.pathname + window.location.search;
+            const hash = window.location.hash;
+            return {
+              startupRouteBacked: (path.endsWith(${JSON.stringify(`/threads/${encodeURIComponent(first.id)}`)}) || hash === ${JSON.stringify(`#/threads/${encodeURIComponent(first.id)}`)}) &&
+                (document.querySelector('[data-testid="active-session-title"]')?.textContent?.includes(${JSON.stringify(first.name)}) ?? false),
+              startupRouteTranscriptFound: document.querySelector('[data-testid="transcript-scroll"]')?.innerText?.includes('SESSION_SWITCH_SMOKE_ONE') ?? false,
+              startupRoutePath: path,
+              startupRouteHash: hash
+            };
+          })()
+        `)
+
         win.webContents.send('pet:navigate', first.id)
         await new Promise((resolve) => setTimeout(resolve, 250))
         const before = await win.webContents.executeJavaScript(`
           (() => ({
             firstTranscriptFound: document.body.innerText.includes('SESSION_SWITCH_SMOKE_ONE'),
             firstTitleFound: document.querySelector('[data-testid="active-session-title"]')?.textContent?.includes(${JSON.stringify(first.name)}) ?? false,
+            firstRouteUpdated: window.location.pathname.endsWith(${JSON.stringify(`/threads/${encodeURIComponent(first.id)}`)}) || window.location.hash === ${JSON.stringify(`#/threads/${encodeURIComponent(first.id)}`)},
             sessionViewAnimated: document.querySelector('[data-motion-view="session"]')?.classList.contains('motion-view-animated') ?? null
           }))()
         `)
@@ -19378,6 +19402,7 @@ function runAutomatedSessionSwitchSmoke(win: BrowserWindow, outputPath: string, 
             return {
               secondTranscriptFound: transcriptText.includes('SESSION_SWITCH_SMOKE_TWO'),
               secondTitleFound: document.querySelector('[data-testid="active-session-title"]')?.textContent?.includes(${JSON.stringify(second.name)}) ?? false,
+              secondRouteUpdated: window.location.pathname.endsWith(${JSON.stringify(`/threads/${encodeURIComponent(second.id)}`)}) || window.location.hash === ${JSON.stringify(`#/threads/${encodeURIComponent(second.id)}`)},
               longHistoryDeferred: Boolean(document.querySelector('[data-testid="load-earlier-messages"]')),
               fullHydratedAfterSwitch,
               autoLazyLoadedEarlier: lazyBeforeHidden > 0 && (lazyAfterHidden ?? lazyBeforeHidden) < lazyBeforeHidden,
@@ -19407,7 +19432,7 @@ function runAutomatedSessionSwitchSmoke(win: BrowserWindow, outputPath: string, 
           const image = await win.webContents.capturePage()
           writeFileSync(screenshotPath, image.toPNG())
         }
-        writeFileSync(outputPath, JSON.stringify({ ok: true, result: { profile, ...summaryResult, ...before, ...after }, screenshotPath }, null, 2))
+        writeFileSync(outputPath, JSON.stringify({ ok: true, result: { profile, ...summaryResult, ...startupRouteResult, ...before, ...after }, screenshotPath }, null, 2))
         app.quit()
       } catch (error) {
         writeFileSync(outputPath, JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2))
@@ -25637,7 +25662,8 @@ async function bootstrapAutomatedUiSmokeState(): Promise<void> {
     seedAutomatedTranscriptToolFailureSmokeSession(session.id)
     pendingNavigation = { kind: 'session', sessionId: session.id }
   } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'session-switch') {
-    await seedAutomatedSessionSwitchSmokeSessions(project.id, project.rootPath)
+    const { one } = await seedAutomatedSessionSwitchSmokeSessions(project.id, project.rootPath)
+    automatedInitialRendererHash = `/threads/${encodeURIComponent(one.id)}`
   } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-stress') {
     await seedAutomatedTranscriptStressSmokeSession(project.id, project.rootPath)
   } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'streaming-drag') {
@@ -26735,7 +26761,10 @@ async function seedAutomatedSidebarSmokeSessions(projectId: string, workDir: str
   }
 }
 
-async function seedAutomatedSessionSwitchSmokeSessions(projectId: string, workDir: string): Promise<void> {
+async function seedAutomatedSessionSwitchSmokeSessions(
+  projectId: string,
+  workDir: string
+): Promise<{ one: ReturnType<typeof sessionManager.list>[number]; two: ReturnType<typeof sessionManager.list>[number] }> {
   const existing = sessionManager.list()
   const one = existing.find((session) =>
     session.messages.some((message) => message.type === 'text' && message.content.includes('SESSION_SWITCH_SMOKE_ONE'))
@@ -26745,6 +26774,7 @@ async function seedAutomatedSessionSwitchSmokeSessions(projectId: string, workDi
   ) ?? await createSessionSwitchFixture(projectId, workDir, 'Session switch two', 'SESSION_SWITCH_SMOKE_TWO')
   projectStore.addSession(projectId, one.id)
   projectStore.addSession(projectId, two.id)
+  return { one, two }
 }
 
 async function seedAutomatedTranscriptStressSmokeSession(projectId: string, workDir: string): Promise<void> {

@@ -1789,10 +1789,14 @@ child.on('exit', async (code) => {
     : captureView === 'session-switch'
     ? {
         isolatedProfile: result.profile?.isIsolated === true,
+        startupRouteBacked: result.startupRouteBacked === true,
+        startupRouteTranscriptFound: result.startupRouteTranscriptFound === true,
         firstTranscriptFound: result.firstTranscriptFound === true,
         firstTitleFound: result.firstTitleFound === true,
+        firstRouteUpdated: result.firstRouteUpdated === true,
         secondTranscriptFound: result.secondTranscriptFound === true,
         secondTitleFound: result.secondTitleFound === true,
+        secondRouteUpdated: result.secondRouteUpdated === true,
         summaryTailBounded: result.summaryTailBounded === true,
         longHistoryDeferred: result.longHistoryDeferred === true,
         fullHydratedAfterSwitch: result.fullHydratedAfterSwitch === true,

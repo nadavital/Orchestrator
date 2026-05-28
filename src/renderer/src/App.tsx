@@ -18,7 +18,7 @@ import { applyAppearance, type Appearance } from './theme'
 import { markRendererStart, recordRendererMetric } from './performance'
 import { APP_COMMANDS, appMenuCommandForKeyboardEvent, commandShortcuts, formatShortcutSequence } from '../../types/appCommands'
 import type { AppCommandAvailability, AppMenuCommand, ShortcutOverrides, StableAppCommand } from '../../types/appCommands'
-import { browserManagerPatchFromEvents, parseSettingsRouteLocation, resolvePanelBrowserCommandTarget, resolvePanelCloseTarget, resolvePanelFindTarget, resolvePanelNewTabTarget, settingsRouteExitUrl, settingsRouteUrlForLocation } from '../../types'
+import { browserManagerPatchFromEvents, parseSessionRouteLocation, parseSettingsRouteLocation, resolvePanelBrowserCommandTarget, resolvePanelCloseTarget, resolvePanelFindTarget, resolvePanelNewTabTarget, sessionRouteUrlForLocation, settingsRouteExitUrl, settingsRouteUrlForLocation } from '../../types'
 import type { PanelFindTarget, SessionRunEventRecord } from '../../types'
 import type { PanelCloseFocusArea } from '../../types'
 
@@ -50,6 +50,10 @@ const LEFT_SIDEBAR_COLLAPSED_KEY = 'orchestrator.leftSidebar.collapsed'
 
 function settingsRouteUrl(section: SettingsSection, hostId?: string | null): string {
   return settingsRouteUrlForLocation(section, hostId, window.location)
+}
+
+function sessionRouteUrl(sessionId: string): string {
+  return sessionRouteUrlForLocation(sessionId, window.location)
 }
 
 function currentUrlMatches(targetUrl: string): boolean {
@@ -189,6 +193,34 @@ export default function App(): JSX.Element {
       replaceRouteUrl(settingsRouteExitUrl(route.mode))
     }
   }, [settingsHostId, settingsSection, showSettings])
+
+  useEffect(() => {
+    if (window.location.hash === '#design-system') return
+    if (showSettings || showCapabilities || !activeSessionId) return
+    replaceRouteUrl(sessionRouteUrl(activeSessionId))
+  }, [activeSessionId, showCapabilities, showSettings])
+
+  useEffect(() => {
+    const applyRoute = (): void => {
+      if (window.location.hash === '#design-system') return
+      const route = parseSessionRouteLocation(window.location)
+      if (!route) return
+      const state = useSessionStore.getState()
+      if (!state.sessions.some((session) => session.id === route.sessionId)) return
+      if (state.activeSessionId === route.sessionId && !state.showSettings && !state.showCapabilities) return
+      setShowSettings(false)
+      setShowCapabilities(false)
+      setActiveSession(route.sessionId)
+      setHasUnread(route.sessionId, false)
+    }
+    applyRoute()
+    window.addEventListener('hashchange', applyRoute)
+    window.addEventListener('popstate', applyRoute)
+    return () => {
+      window.removeEventListener('hashchange', applyRoute)
+      window.removeEventListener('popstate', applyRoute)
+    }
+  }, [sessionCount, setActiveSession, setHasUnread, setShowCapabilities, setShowSettings])
 
   useEffect(() => {
     const globals = window as typeof window & {
@@ -993,6 +1025,10 @@ export default function App(): JSX.Element {
     Promise.all([window.api.projects.list(), window.api.sessions.listSummaries()]).then(
       async ([projects, sessions]) => {
         const pendingNavigation = await window.api.app.consumePendingNavigation()
+        const routeNavigation = parseSessionRouteLocation(window.location)
+        const effectiveNavigation = pendingNavigation ?? (routeNavigation
+          ? { kind: 'session' as const, sessionId: routeNavigation.sessionId }
+          : null)
         setProjects(projects)
 
         if (projects.length === 0) {
@@ -1003,7 +1039,13 @@ export default function App(): JSX.Element {
         // Most recent project = the one containing the latest session (by any session)
         let targetProject = projects[projects.length - 1]
         const allSorted = [...sessions].sort((a, b) => b.createdAt - a.createdAt)
-        if (allSorted.length > 0) {
+        const requestedSession = effectiveNavigation?.kind === 'session'
+          ? sessions.find((session) => session.id === effectiveNavigation.sessionId)
+          : undefined
+        if (requestedSession) {
+          const found = projects.find((p) => p.id === requestedSession.projectId)
+          if (found) targetProject = found
+        } else if (allSorted.length > 0) {
           const found = projects.find((p) => p.id === allSorted[0].projectId)
           if (found) targetProject = found
         }
@@ -1014,11 +1056,15 @@ export default function App(): JSX.Element {
         const liveSessions = sessions.filter((s) => s.messageCount > 0 || s.status === 'running' || hasComposerDraft(uiState[s.id]))
 
         // Keep one empty session in the target project to reuse; delete all others
-        const reuseCandidate = emptySessions
+        const requestedEmptySession = requestedSession && emptySessions.some((session) => session.id === requestedSession.id)
+          ? requestedSession
+          : undefined
+        const reuseCandidate = requestedEmptySession ?? emptySessions
           .filter((s) => s.projectId === targetProject.id)
           .sort((a, b) => b.createdAt - a.createdAt)[0]
 
-        const toDelete = emptySessions.filter((s) => s.id !== reuseCandidate?.id)
+        const requestedSessionId = effectiveNavigation?.kind === 'session' ? effectiveNavigation.sessionId : null
+        const toDelete = emptySessions.filter((s) => s.id !== reuseCandidate?.id && s.id !== requestedSessionId)
         for (const s of toDelete) {
           await window.api.sessions.remove(s.id)
           await window.api.projects.removeSession(s.projectId, s.id)
@@ -1035,12 +1081,13 @@ export default function App(): JSX.Element {
           messages: cleanSessions.reduce((sum, session) => sum + session.messageCount, 0)
         })
 
-        if (pendingNavigation?.kind === 'settings') {
-          navigateToSettings(pendingNavigation.section as SettingsSection, pendingNavigation.hostId)
-        } else if (pendingNavigation?.kind === 'session' && cleanSessions.some((session) => session.id === pendingNavigation.sessionId)) {
+        if (effectiveNavigation?.kind === 'settings') {
+          navigateToSettings(effectiveNavigation.section as SettingsSection, effectiveNavigation.hostId)
+        } else if (effectiveNavigation?.kind === 'session' && cleanSessions.some((session) => session.id === effectiveNavigation.sessionId)) {
           setShowSettings(false)
           setShowCapabilities(false)
-          setActiveSession(pendingNavigation.sessionId)
+          setActiveSession(effectiveNavigation.sessionId)
+          setHasUnread(effectiveNavigation.sessionId, false)
         } else if (reuseCandidate) {
           setActiveSession(reuseCandidate.id)
         } else {
