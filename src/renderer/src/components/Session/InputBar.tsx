@@ -65,6 +65,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   const [isSavingPastedFiles, setIsSavingPastedFiles] = useState(false)
   const [dragActive, setDragActive] = useState(false)
   const [attachmentStatus, setAttachmentStatus] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
+  const [permissionRulesStatus, setPermissionRulesStatus] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const cancelledPendingAttachments = useRef<Set<string>>(new Set())
   const activeAttachmentSaves = useRef<Set<string>>(new Set())
@@ -149,6 +150,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     setIsSavingPastedFiles(false)
     setDragActive(false)
     setAttachmentStatus(null)
+    setPermissionRulesStatus(null)
     setSlashIndex(0)
     window.setTimeout(() => {
       if (textareaRef.current) resizeTextarea(textareaRef.current)
@@ -284,7 +286,21 @@ function InputBar({ session, isNew }: Props): JSX.Element {
 
   const selectPermissionMode = (modeId: string): void => {
     update({ permissionMode: modeId })
+    setPermissionRulesStatus(null)
     setShowPermMenu(false)
+  }
+
+  const updatePermissionRules = (
+    label: string,
+    patch: {
+      allowedTools?: string[]
+      disallowedTools?: string[]
+      availableTools?: string[]
+      additionalDirs?: string[]
+    }
+  ): void => {
+    update(patch)
+    setPermissionRulesStatus(`${label} saved`)
   }
 
   const sendState = getComposerSendState({
@@ -1233,7 +1249,8 @@ function InputBar({ session, isNew }: Props): JSX.Element {
                     disallowedTools={session.disallowedTools ?? []}
                     availableTools={session.availableTools ?? []}
                     additionalDirs={session.additionalDirs ?? []}
-                    onChange={update}
+                    status={permissionRulesStatus}
+                    onChange={updatePermissionRules}
                   />
                 )}
               </DropdownPanel>
@@ -1611,13 +1628,15 @@ function ClaudePermissionRules({
   disallowedTools,
   availableTools,
   additionalDirs,
+  status,
   onChange
 }: {
   allowedTools: string[]
   disallowedTools: string[]
   availableTools: string[]
   additionalDirs: string[]
-  onChange: (patch: {
+  status: string | null
+  onChange: (label: string, patch: {
     allowedTools?: string[]
     disallowedTools?: string[]
     availableTools?: string[]
@@ -1638,43 +1657,71 @@ function ClaudePermissionRules({
   const labelStyle: React.CSSProperties = { color: 'var(--color-text-muted)', fontSize: 11 }
 
   return (
-    <div className="px-3 py-2 space-y-1.5" style={{ borderTop: '1px solid var(--color-border)' }}>
+    <div
+      className="px-3 py-2 space-y-1.5"
+      data-testid="composer-permission-rules"
+      style={{ borderTop: '1px solid var(--color-border)' }}
+    >
       <div style={rowStyle}>
-        <span style={labelStyle}>Allow</span>
+        <label htmlFor="composer-permission-allow-tools" style={labelStyle}>Allow</label>
         <input
+          id="composer-permission-allow-tools"
+          data-testid="composer-permission-allow-tools"
           defaultValue={allowedTools.join(', ')}
           placeholder="Read, Edit"
-          onBlur={(event) => onChange({ allowedTools: parseListInput(event.currentTarget.value) })}
+          onBlur={(event) => onChange('Allowed tools', { allowedTools: parseListInput(event.currentTarget.value) })}
           style={inputStyle}
         />
       </div>
       <div style={rowStyle}>
-        <span style={labelStyle}>Deny</span>
+        <label htmlFor="composer-permission-deny-tools" style={labelStyle}>Deny</label>
         <input
+          id="composer-permission-deny-tools"
+          data-testid="composer-permission-deny-tools"
           defaultValue={disallowedTools.join(', ')}
           placeholder="Bash(git push)"
-          onBlur={(event) => onChange({ disallowedTools: parseListInput(event.currentTarget.value) })}
+          onBlur={(event) => onChange('Denied tools', { disallowedTools: parseListInput(event.currentTarget.value) })}
           style={inputStyle}
         />
       </div>
       <div style={rowStyle}>
-        <span style={labelStyle}>Tools</span>
+        <label htmlFor="composer-permission-available-tools" style={labelStyle}>Tools</label>
         <input
+          id="composer-permission-available-tools"
+          data-testid="composer-permission-available-tools"
           defaultValue={availableTools.join(', ')}
           placeholder="default"
-          onBlur={(event) => onChange({ availableTools: parseListInput(event.currentTarget.value) })}
+          onBlur={(event) => onChange('Available tools', { availableTools: parseListInput(event.currentTarget.value) })}
           style={inputStyle}
         />
       </div>
       <div style={rowStyle}>
-        <span style={labelStyle}>Dirs</span>
+        <label htmlFor="composer-permission-additional-dirs" style={labelStyle}>Dirs</label>
         <input
+          id="composer-permission-additional-dirs"
+          data-testid="composer-permission-additional-dirs"
           defaultValue={additionalDirs.join(', ')}
           placeholder="/tmp/shared"
-          onBlur={(event) => onChange({ additionalDirs: parseListInput(event.currentTarget.value) })}
+          onBlur={(event) => onChange('Additional dirs', { additionalDirs: parseListInput(event.currentTarget.value) })}
           style={inputStyle}
         />
       </div>
+      {status && (
+        <div
+          className="rounded-md px-1.5 py-1 text-[10.5px]"
+          data-testid="composer-permission-rules-status"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          style={{
+            color: 'var(--accent)',
+            background: 'color-mix(in srgb, var(--accent) 8%, var(--surface-bg))',
+            border: '1px solid color-mix(in srgb, var(--accent) 20%, var(--border-subtle))'
+          }}
+        >
+          {status}
+        </div>
+      )}
     </div>
   )
 }

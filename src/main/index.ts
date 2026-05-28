@@ -5172,6 +5172,36 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               advancedPermissionsButton.click();
               await sleep(100);
             }
+            const permissionRulesPanel = document.querySelector('[data-testid="composer-permission-rules"]');
+            const allowToolsInput = document.querySelector('[data-testid="composer-permission-allow-tools"]');
+            const denyToolsInput = document.querySelector('[data-testid="composer-permission-deny-tools"]');
+            const availableToolsInput = document.querySelector('[data-testid="composer-permission-available-tools"]');
+            const additionalDirsInput = document.querySelector('[data-testid="composer-permission-additional-dirs"]');
+            if (allowToolsInput instanceof HTMLInputElement) {
+              allowToolsInput.focus();
+              setNativeValue(allowToolsInput, 'Read, Edit, Bash(git status)');
+              allowToolsInput.dispatchEvent(new Event('input', { bubbles: true }));
+              allowToolsInput.blur();
+              allowToolsInput.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
+              await sleep(180);
+            }
+            const permissionRulesStatus = document.querySelector('[data-testid="composer-permission-rules-status"]');
+            var composerPermissionRuleStatus =
+              permissionRulesPanel instanceof HTMLElement &&
+              allowToolsInput instanceof HTMLInputElement &&
+              denyToolsInput instanceof HTMLInputElement &&
+              availableToolsInput instanceof HTMLInputElement &&
+              additionalDirsInput instanceof HTMLInputElement &&
+              document.querySelector('label[for="composer-permission-allow-tools"]') instanceof HTMLLabelElement &&
+              document.querySelector('label[for="composer-permission-deny-tools"]') instanceof HTMLLabelElement &&
+              document.querySelector('label[for="composer-permission-available-tools"]') instanceof HTMLLabelElement &&
+              document.querySelector('label[for="composer-permission-additional-dirs"]') instanceof HTMLLabelElement &&
+              permissionRulesStatus instanceof HTMLElement &&
+              permissionRulesStatus.getAttribute('role') === 'status' &&
+              permissionRulesStatus.getAttribute('aria-live') === 'polite' &&
+              permissionRulesStatus.getAttribute('aria-atomic') === 'true' &&
+              permissionRulesStatus.textContent?.includes('Allowed tools saved') === true &&
+              allowToolsInput.value.includes('Bash(git status)');
             const permissionDangerLabel = document.querySelector('[data-testid="composer-permission-danger-label"]');
             var composerPermissionLabelsCalm =
               !(permissionDangerLabel instanceof HTMLElement) ||
@@ -6313,6 +6343,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             composerDropdownMaterialWorks: typeof composerDropdownMaterialWorks === 'boolean' ? composerDropdownMaterialWorks : null,
             composerPermissionNativeTooltipsWork: typeof composerPermissionNativeTooltipsWork === 'boolean' ? composerPermissionNativeTooltipsWork : null,
             composerPermissionLabelsCalm: typeof composerPermissionLabelsCalm === 'boolean' ? composerPermissionLabelsCalm : null,
+            composerPermissionRuleStatus: typeof composerPermissionRuleStatus === 'boolean' ? composerPermissionRuleStatus : null,
             composerPermissionTriggerExpandedOnOpen: typeof composerPermissionTriggerExpandedOnOpen === 'boolean' ? composerPermissionTriggerExpandedOnOpen : null,
             composerPermissionRovingKeyboard: typeof composerPermissionRovingKeyboard === 'boolean' ? composerPermissionRovingKeyboard : null,
             composerPermissionMenuClosedWithEscape: typeof composerPermissionMenuClosedWithEscape === 'boolean' ? composerPermissionMenuClosedWithEscape : null,

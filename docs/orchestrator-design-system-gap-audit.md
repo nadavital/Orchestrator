@@ -1328,6 +1328,7 @@ Completed in the latest implementation pass:
 - Composer provider/agent/permission dropdown panels now use shared dismissable popover behavior with focus return.
 - Composer smoke now verifies permission-menu Escape dismissal/focus return, agent-menu outside-click dismissal/focus return, expanded/collapsed ARIA state on Agent/Permission popover triggers, and Arrow-key roving focus inside composer popovers.
 - Composer smoke now verifies `composerPermissionContextSignal=true`, covering the closed permission trigger's Static/Live/Fallback config-source badge and accessible label before users open the permission menu.
+- Composer smoke now verifies `composerPermissionRuleStatus=true`, covering labelled advanced permission-rule inputs and polite saved feedback for Allow/Deny/Tools/Dirs edits.
 - Composer smoke now verifies `composerAttachmentStatus=true`, covering visible and announced add/remove attachment feedback mirrored on the composer shell.
 - Transcript layout/tool-failure smokes now verify `errorRecoveryRetryA11y=true`, `chatContinueLastTurnA11y=true`, and `transcriptToolFailureRetryA11y=true`, covering announced retry/continue state changes for the main recovery paths.
 - Composer blocked-send notices now render as polite atomic status regions, and transcript user-input/permission recovery states now expose assertive error alerts, polite sent/decision statuses, and named approval action groups.

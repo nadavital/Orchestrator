@@ -8192,3 +8192,13 @@ Implemented: the main composer now exposes a compact attachment-status pill as a
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and focused `node scripts/run-automated-ui-smoke.mjs --composer` passed. The first non-elevated smoke hit the expected sandbox localhost bind failure; the elevated final rerun passed with `composerAttachmentStatus=true` alongside the existing composer permission, agent, blocked-send, queued-cancel, draft, attachment-preservation, drag/drop, and responsive-toolbar gates. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1779956869196.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1779956869196.png`.
 
 Remaining: this closes local attachment add/remove/save/cancel/failure feedback only. Deeper context/permission workflow polish and real provider-backed retry/continue/model/permission proof remain Phase 1 work.
+
+### 2026-05-28 - Composer Permission Rule Status
+
+Product evidence: advanced Claude permission rules are a daily coding control because they shape which tools, denied tools, and extra directories a run can use. Before this slice those fields were raw blur-only inputs with no explicit saved feedback, so a user could change a rule without any visible confirmation that the composer accepted it.
+
+Implemented: the advanced composer permission rules now expose labelled Allow, Deny, Tools, and Dirs inputs with stable test IDs. Updating a rule sets a compact polite live-status pill such as `Allowed tools saved`, keeping rule edits visible and announced without adding speculative provider-native permission adapters.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and focused `node scripts/run-automated-ui-smoke.mjs --composer` passed. The first non-elevated smoke hit the expected sandbox localhost bind failure; the elevated final rerun passed with `composerPermissionRuleStatus=true` alongside the existing composer permission, context-source, blocked-send, attachment-status, queued-cancel, draft, drag/drop, and responsive-toolbar gates. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1779957287664.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1779957287664.png`.
+
+Remaining: this closes local advanced permission-rule edit feedback only. Real provider-backed permission switching proof, provider-native account/runtime adapters, and broader context/permission workflow redesign remain Phase 1 work.
