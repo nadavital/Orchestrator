@@ -22316,6 +22316,24 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
               chatCopyStatus.getAttribute('aria-live') === 'polite' &&
               chatCopyStatus.getAttribute('aria-atomic') === 'true' &&
               chatCopyStatus.getAttribute('data-copy-state') === 'copied';
+            scroller.scrollTop = 0;
+            scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
+            await sleep(180);
+            const userEditButton = document.querySelector('[data-testid="chat-user-message-edit"]');
+            if (userEditButton instanceof HTMLButtonElement) {
+              userEditButton.click();
+              await sleep(180);
+            }
+            const composerTextarea = document.querySelector('[data-testid="composer-textarea"]');
+            const editDraftStatus = document.querySelector('[data-testid="transcript-action-status"]');
+            const chatUserMessageEditToDraft =
+              userEditButton instanceof HTMLButtonElement &&
+              composerTextarea instanceof HTMLTextAreaElement &&
+              document.activeElement === composerTextarea &&
+              composerTextarea.value.includes('Please inspect this intentionally long input') &&
+              composerTextarea.value.includes('input-fragment-') &&
+              editDraftStatus instanceof HTMLElement &&
+              editDraftStatus.textContent?.includes('Copied message into composer draft') === true;
             let toolSummary = document.querySelector('[data-testid="tool-activity-summary"]');
             for (let index = 0; index < 10 && !toolSummary; index += 1) {
               scroller.scrollTop = Math.max(scroller.scrollHeight, scroller.clientHeight) * ((index + 1) / 10);
@@ -22390,6 +22408,7 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
               userInputCardWorks,
               permissionCardWorks,
               permissionActionsWrap,
+              chatUserMessageEditToDraft,
               relativeProseCardSuppressed,
               absoluteMissingFileCardDisabled,
               partialResponseStatusWorks,

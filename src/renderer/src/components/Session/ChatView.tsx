@@ -176,6 +176,19 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
     }
   }, [session.id])
 
+  const editUserMessageAsDraft = useCallback((content: string): void => {
+    const text = content.trim()
+    if (!text) return
+    window.dispatchEvent(new CustomEvent('orchestrator:set-composer-text', {
+      detail: { sessionId: session.id, text }
+    }))
+    setTranscriptActionStatus({ text: 'Copied message into composer draft', tone: 'info' })
+    window.setTimeout(() => {
+      const composer = document.querySelector<HTMLTextAreaElement>('[data-testid="composer-textarea"]')
+      composer?.focus()
+    }, 0)
+  }, [session.id])
+
   const updateScrollMetrics = useCallback(() => {
     const scroller = scrollContainerRef.current
     if (!scroller) return
@@ -811,6 +824,7 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
                         canContinue={item.message.id === lastAssistantTextId && !isActiveSessionStatus(session.status)}
                         onSteerQueuedMessage={steerQueuedMessage}
                         onCancelQueuedMessage={cancelQueuedMessage}
+                        onEditUserMessageAsDraft={editUserMessageAsDraft}
                       />
                     )}
                 </MeasuredTranscriptRow>
@@ -1486,7 +1500,8 @@ function MessageRow({
   canCopy,
   canContinue,
   onSteerQueuedMessage,
-  onCancelQueuedMessage
+  onCancelQueuedMessage,
+  onEditUserMessageAsDraft
 }: {
   msg: ChatMessage
   session: Session
@@ -1496,6 +1511,7 @@ function MessageRow({
   canContinue: boolean
   onSteerQueuedMessage: (messageId: string) => Promise<void>
   onCancelQueuedMessage: (messageId: string, queueState: 'queued' | 'steer_next') => Promise<void>
+  onEditUserMessageAsDraft: (content: string) => void
 }): JSX.Element | null {
   const [isUserMessageExpanded, setIsUserMessageExpanded] = useState(false)
 
@@ -1519,6 +1535,7 @@ function MessageRow({
       ? collapsedUserMessageContent(content)
       : content
     const queueState = isUser ? msg.queueState : undefined
+    const canEditAsDraft = isUser && !queueState && content.trim().length > 0
     const fileReferences = !isUser && !isSystem
       ? extractFileReferences(content, session.workDir).slice(0, 8)
       : []
@@ -1654,6 +1671,29 @@ function MessageRow({
             >
               {canContinue && <ContinueButton sessionId={session.id} />}
               {canCopy && <CopyButton getText={() => content} />}
+            </div>
+          )}
+          {canEditAsDraft && (
+            <div
+              className="flex items-center gap-1"
+              style={{
+                position: 'absolute',
+                top: 4,
+                right: 6
+              }}
+            >
+              <IconButton
+                icon="pencil"
+                label="Edit message as draft"
+                size="sm"
+                tone="neutral"
+                dataTestId="chat-user-message-edit"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onEditUserMessageAsDraft(content)
+                }}
+                style={{ opacity: 0.62 }}
+              />
             </div>
           )}
         </div>

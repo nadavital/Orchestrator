@@ -9182,3 +9182,13 @@ Implemented: manual file selection now captures the initiating session id before
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --composer` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1780000690946.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1780000690946.png`. The run adds `composerManualAttachmentSwitchIsolation=true` while preserving `composerAsyncAttachmentSwitchIsolation=true`, draft isolation, attachment isolation, side-chat attachment guard, send-failure recovery, provider/model settings, permission controls, and broader composer gates.
 
 Remaining: this closes local manual file-picker attachment switch isolation only. Deeper context/permission workflow polish and provider-backed lifecycle proof remain separate.
+
+### 2026-05-28 - User Message Edit As Draft
+
+Product evidence: PP-052 tracks a main-chat daily-use gap: prior user prompts in transcript history had no direct edit/reuse affordance, so users had to manually select/copy text before resending a corrected prompt.
+
+Implemented: completed user messages now show an `Edit message as draft` icon action. The action replaces the active composer draft with the original prompt text, focuses the composer, resizes it, and announces `Copied message into composer draft` in the transcript action status without deleting or rewriting the original transcript message. The existing `orchestrator:add-composer-text` append event remains unchanged for empty-state suggestions and side-panel insertions; edit-as-draft uses a new targeted `orchestrator:set-composer-text` event.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and elevated `node scripts/run-automated-ui-smoke.mjs --transcript-layout` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-transcript-layout-1780001209388.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-transcript-layout-1780001209388.png`. The focused smoke adds `chatUserMessageEditToDraft=true` while preserving transcript layout, shared find, user-input, permission, retry, copy, continue, partial-response, and tool-summary gates.
+
+Remaining: this is the first local PP-052 slice only. Provider-backed edit/resend/fork semantics, original-history preservation UI, and provider fork/resume mapping remain open.
