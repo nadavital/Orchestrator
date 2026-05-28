@@ -874,6 +874,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 providerModelList.scrollWidth <= providerModelList.clientWidth + 2 &&
                 configEditor instanceof HTMLElement &&
                 configEditor.dataset.expanded === 'false' &&
+                configEditor.getAttribute('data-config-editor-surface') === 'shared' &&
+                configEditor.getAttribute('data-config-editor-state') === 'clean' &&
                 configEditor.querySelector('textarea') === null;
               var settingsProviderControlSurfaceUnifiedWorks =
                 diagnosticsSection instanceof HTMLElement &&
@@ -992,6 +994,42 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                   .find((button) => button.textContent?.trim() === 'Done');
                 if (doneModelListButton instanceof HTMLButtonElement) {
                   doneModelListButton.click();
+                  await sleep(100);
+                }
+              }
+              const editConfigButton = [...document.querySelectorAll('button')]
+                .find((button) => button.textContent?.includes('Edit config'));
+              editConfigButton?.scrollIntoView({ block: 'center' });
+              var settingsProviderConfigEditorSharedWorks = false;
+              if (editConfigButton instanceof HTMLButtonElement) {
+                editConfigButton.click();
+                await sleep(140);
+                const openConfigEditor = document.querySelector('[data-testid="provider-config-editor"]');
+                const configPath = openConfigEditor?.querySelector('.provider-config-path');
+                const configTextarea = openConfigEditor?.querySelector('.provider-config-textarea');
+                const configFooter = openConfigEditor?.querySelector('.provider-config-footer');
+                const configStatus = openConfigEditor?.querySelector('.provider-config-status');
+                const configSave = openConfigEditor?.querySelector('.provider-config-save');
+                settingsProviderConfigEditorSharedWorks =
+                  openConfigEditor instanceof HTMLElement &&
+                  openConfigEditor.dataset.expanded === 'true' &&
+                  openConfigEditor.getAttribute('data-config-editor-surface') === 'shared' &&
+                  openConfigEditor.getAttribute('data-config-editor-state') === 'clean' &&
+                  openConfigEditor.scrollWidth <= openConfigEditor.clientWidth + 2 &&
+                  configPath instanceof HTMLElement &&
+                  (configPath.textContent?.includes('/') || configPath.textContent?.includes('Loading')) &&
+                  configTextarea instanceof HTMLTextAreaElement &&
+                  configTextarea.getBoundingClientRect().height >= 84 &&
+                  configTextarea.getBoundingClientRect().height <= 190 &&
+                  configFooter instanceof HTMLElement &&
+                  configStatus instanceof HTMLElement &&
+                  configStatus.getAttribute('data-tone') === 'muted' &&
+                  configSave instanceof HTMLButtonElement &&
+                  configSave.disabled === true;
+                const hideConfigButton = [...document.querySelectorAll('button')]
+                  .find((button) => button.textContent?.trim() === 'Hide');
+                if (hideConfigButton instanceof HTMLButtonElement) {
+                  hideConfigButton.click();
                   await sleep(100);
                 }
               }
@@ -5854,6 +5892,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             settingsUsageDiagnosticsWorks: typeof settingsUsageDiagnosticsWorks === 'boolean' ? settingsUsageDiagnosticsWorks : null,
             settingsProviderModelsCollapsedWorks: typeof settingsProviderModelsCollapsedWorks === 'boolean' ? settingsProviderModelsCollapsedWorks : null,
             settingsProviderModelListSharedWorks: typeof settingsProviderModelListSharedWorks === 'boolean' ? settingsProviderModelListSharedWorks : null,
+            settingsProviderConfigEditorSharedWorks: typeof settingsProviderConfigEditorSharedWorks === 'boolean' ? settingsProviderConfigEditorSharedWorks : null,
             settingsProviderControlSurfaceUnifiedWorks: typeof settingsProviderControlSurfaceUnifiedWorks === 'boolean' ? settingsProviderControlSurfaceUnifiedWorks : null,
             settingsProviderBoundariesWorks: typeof settingsProviderBoundariesWorks === 'boolean' ? settingsProviderBoundariesWorks : null,
             settingsProvidersModuleWorks: typeof settingsProvidersModuleWorks === 'boolean' ? settingsProvidersModuleWorks : null,

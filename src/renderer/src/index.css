@@ -10640,6 +10640,108 @@
     font-size: 10px;
   }
 
+  .provider-config-editor {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .provider-config-editor-header {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .provider-config-path {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .provider-config-toggle {
+    min-height: 26px;
+    flex-shrink: 0;
+    font-size: 11px;
+    font-weight: 650;
+  }
+
+  .provider-config-textarea {
+    width: 100%;
+    min-height: 84px;
+    max-height: 180px;
+    box-sizing: border-box;
+    resize: vertical;
+    border: 1px solid var(--border-subtle);
+    border-radius: 8px;
+    background: var(--control-bg);
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 16px;
+    outline: none;
+    padding: 10px;
+  }
+
+  .provider-config-editor[data-config-editor-state='dirty'] .provider-config-textarea {
+    border-color: color-mix(in srgb, var(--provider-color, var(--accent)) 58%, var(--border-subtle));
+  }
+
+  .provider-config-editor[data-config-editor-state='error'] .provider-config-textarea {
+    border-color: var(--color-red);
+  }
+
+  .provider-config-textarea:focus-visible {
+    border-color: color-mix(in srgb, var(--accent) 46%, var(--border-strong));
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 14%, transparent);
+  }
+
+  .provider-config-footer {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .provider-config-status {
+    min-width: 0;
+    color: var(--text-secondary);
+    font-size: 11px;
+    line-height: 1.35;
+  }
+
+  .provider-config-status[data-tone='error'] {
+    color: var(--color-red);
+  }
+
+  .provider-config-status[data-tone='success'] {
+    color: var(--color-green);
+  }
+
+  .provider-config-status[data-tone='warning'] {
+    color: var(--text-secondary);
+  }
+
+  .provider-config-save {
+    min-height: 30px;
+    flex-shrink: 0;
+    font-size: 11px;
+    font-weight: 650;
+  }
+
+  .provider-config-save:not(:disabled) {
+    border-color: color-mix(in srgb, var(--provider-color, var(--accent)) 54%, var(--border-subtle));
+    background: color-mix(in srgb, var(--provider-color, var(--accent)) 10%, var(--control-bg));
+    color: var(--provider-color, var(--accent));
+  }
+
   .provider-details-toggle {
     display: inline-flex;
     min-height: 26px;

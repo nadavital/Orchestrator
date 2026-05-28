@@ -1518,6 +1518,8 @@ function ProviderConfigEditor({ providerId, color }: { providerId: string; color
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
+  const editorState = error ? 'error' : dirty ? 'dirty' : 'clean'
+  const statusTone = error ? 'error' : saved ? 'success' : hasRedactions ? 'warning' : 'muted'
 
   useEffect(() => {
     const load = async (): Promise<void> => {
@@ -1560,42 +1562,22 @@ function ProviderConfigEditor({ providerId, color }: { providerId: string; color
   }
 
   return (
-    <div data-testid="provider-config-editor" data-expanded={open ? 'true' : 'false'} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 10,
-        }}
-      >
-        <span
-          style={{
-            minWidth: 0,
-            fontSize: 10.5,
-            fontFamily: 'monospace',
-            color: 'var(--color-text-muted)',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-          }}
-        >
+    <div
+      data-testid="provider-config-editor"
+      data-expanded={open ? 'true' : 'false'}
+      data-config-editor-surface="shared"
+      data-config-editor-state={editorState}
+      className="provider-config-editor"
+      style={{ '--provider-color': color } as CSSProperties}
+    >
+      <div className="provider-config-editor-header">
+        <span className="provider-config-path">
           {path || 'Loading...'}
         </span>
         <button
           type="button"
           onClick={() => setOpen((value) => !value)}
-          style={{
-            flexShrink: 0,
-            padding: '5px 9px',
-            borderRadius: 7,
-            border: '1px solid var(--color-border)',
-            background: 'var(--color-surface2)',
-            color: 'var(--color-text)',
-            cursor: 'pointer',
-            fontSize: 11,
-            fontWeight: 650,
-          }}
+          className="settings-action-button provider-config-toggle"
         >
           {open ? 'Hide' : 'Edit config'}
         </button>
@@ -1612,40 +1594,17 @@ function ProviderConfigEditor({ providerId, color }: { providerId: string; color
             }}
             spellCheck={false}
             placeholder={providerId === 'cursor' ? '{\n  "network": {\n    "useHttp1ForAgent": true\n  }\n}' : ''}
-            style={{
-              width: '100%',
-              minHeight: 84,
-              maxHeight: 180,
-              resize: 'vertical',
-              padding: 10,
-              borderRadius: 8,
-              border: `1px solid ${error ? '#F87171' : dirty ? color : 'var(--color-border)'}`,
-              background: 'var(--color-surface2)',
-              color: 'var(--color-text)',
-              outline: 'none',
-              fontSize: 11,
-              lineHeight: '16px',
-              fontFamily: 'ui-monospace, SFMono-Regular, monospace',
-              boxSizing: 'border-box',
-            }}
+            className="provider-config-textarea"
           />
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-            <div style={{ fontSize: 11, color: error ? '#F87171' : 'var(--color-text-muted)' }}>
+          <div className="provider-config-footer">
+            <div className="provider-config-status" data-tone={statusTone}>
               {error || (hasRedactions ? 'Secrets redacted; edit locally to change this file.' : saved ? 'Saved' : 'Local file override')}
             </div>
             <button
+              type="button"
               onClick={save}
               disabled={!dirty || saving || hasRedactions}
-              style={{
-                padding: '6px 12px',
-                borderRadius: 7,
-                border: `1px solid ${dirty && !hasRedactions ? color : 'var(--color-border)'}`,
-                background: dirty && !hasRedactions ? color : 'var(--color-surface2)',
-                color: dirty && !hasRedactions ? '#fff' : 'var(--color-text-muted)',
-                cursor: dirty && !hasRedactions ? 'pointer' : 'default',
-                fontSize: 11,
-                fontWeight: 650,
-              }}
+              className="settings-action-button provider-config-save"
             >
               {saving ? 'Saving...' : 'Save'}
             </button>
@@ -1653,12 +1612,7 @@ function ProviderConfigEditor({ providerId, color }: { providerId: string; color
         </>
       )}
       {!open && (
-        <div
-          style={{
-            fontSize: 11,
-            color: error ? '#F87171' : 'var(--color-text-muted)',
-          }}
-        >
+        <div className="provider-config-status" data-tone={statusTone}>
           {error || (hasRedactions ? 'Secrets redacted.' : saved ? 'Saved' : 'Local file override')}
         </div>
       )}

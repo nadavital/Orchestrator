@@ -2749,6 +2749,7 @@ child.on('exit', async (code) => {
         settingsUsageDiagnostics: captureView !== 'settings-providers' || result.settingsUsageDiagnosticsWorks === true,
         settingsProviderModelsCollapsed: captureView !== 'settings-providers' || result.settingsProviderModelsCollapsedWorks === true,
         settingsProviderModelListShared: captureView !== 'settings-providers' || result.settingsProviderModelListSharedWorks === true,
+        settingsProviderConfigEditorShared: captureView !== 'settings-providers' || result.settingsProviderConfigEditorSharedWorks === true,
         settingsProviderControlSurfaceUnified: captureView !== 'settings-providers' || result.settingsProviderControlSurfaceUnifiedWorks === true,
         settingsProviderBoundaries: captureView !== 'settings-providers' || result.settingsProviderBoundariesWorks === true,
         settingsProvidersModule: captureView !== 'settings-providers' || result.settingsProvidersModuleWorks === true,
