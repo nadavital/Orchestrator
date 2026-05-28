@@ -8972,3 +8972,13 @@ Implemented: `PanelTabStrip` now accepts a tab-list label, and the Workbench, Te
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and elevated `node scripts/run-automated-ui-smoke.mjs --right-panel` passed. The focused run added `rightPanelTabListLabel=true` and kept `rightPanelTabRovingFocus=true` plus the existing right-panel interaction gates green. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779993225902.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779993225902.png`.
 
 Remaining: this closes the shared app-shell tablist naming gap. Broader screen-reader traversal through every panel body and exact live Codex focus timing remain separate.
+
+### 2026-05-28 - Panel Toolbar Labels
+
+Product evidence: Review, Files, Browser, file-tab, preview, and Settings toolbars are core daily coding controls, but the shared toolbar primitive rendered labelled visual rows without toolbar semantics. That left screen-reader users with clusters of buttons and inputs that were not announced as named command toolbars.
+
+Implemented: `PanelToolbar` now exposes `role="toolbar"` whenever a label is supplied. Review, Files, Browser, Browser find, Browser inspector, file tabs, structured previews, artifact previews, and Settings topbar now provide explicit toolbar names.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and elevated `node scripts/run-automated-ui-smoke.mjs --right-panel` passed. The focused run added `rightPanelToolbarLabels=true` while keeping right-panel tablist labels, roving focus, resize, find routing, Browser command routing, and transfer-boundary gates green. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779993512807.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779993512807.png`.
+
+Remaining: this closes named toolbar semantics for the primary local coding toolbars. It does not close broader screen-reader traversal through every panel body, provider-backed functionality, or exact live Codex focus timing.

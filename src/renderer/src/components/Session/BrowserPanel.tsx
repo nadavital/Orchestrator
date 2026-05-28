@@ -1542,6 +1542,7 @@ export default function BrowserPanel({
       <PanelToolbar
         as="form"
         className="browser-toolbar"
+        ariaLabel="Browser toolbar"
         onSubmit={(event) => {
           event.preventDefault()
           navigate(address)
@@ -1789,7 +1790,7 @@ export default function BrowserPanel({
       </PanelToolbar>
 
       {workbench.findVisible && (
-        <PanelToolbar className="browser-find-toolbar">
+        <PanelToolbar className="browser-find-toolbar" ariaLabel="Browser find toolbar">
           <WorkbenchSearchField
             value={workbench.findQuery}
             onChange={searchInPage}
@@ -2421,7 +2422,7 @@ export default function BrowserPanel({
 
         {workbench.inspectorOpen && (
           <div className="browser-inspector-drawer">
-            <PanelToolbar className="browser-inspector-toolbar" dataTestId="browser-inspector-toolbar">
+            <PanelToolbar className="browser-inspector-toolbar" dataTestId="browser-inspector-toolbar" ariaLabel="Browser inspector toolbar">
               {BROWSER_INSPECTOR_TABS.map(({ mode, label, icon }) => (
                 <button
                   key={mode}

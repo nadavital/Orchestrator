@@ -489,7 +489,7 @@ export default function FileTabPanel({
       data-file-tab-source-reveal-line={sourceRevealLine ?? ''}
       data-file-tab-source-reveal-request={sourceRevealRequest}
     >
-      <PanelToolbar className="file-tab-toolbar" dataTestId="workbench-file-tab-toolbar">
+      <PanelToolbar className="file-tab-toolbar" dataTestId="workbench-file-tab-toolbar" ariaLabel="File tab toolbar">
         <span className="file-tab-title min-w-0 flex-1">
           <Icon name="file" size={13} />
           <span className="min-w-0 truncate">{filePath}</span>

@@ -2310,6 +2310,7 @@ child.on('exit', async (code) => {
           rightPanelTabPanelA11y: result.rightPanelTabPanelA11yWorks === true,
           rightPanelTabListLabel: result.rightPanelTabListLabelWorks === true,
           rightPanelTabRovingFocus: result.rightPanelTabRovingFocusWorks === true,
+          rightPanelToolbarLabels: result.rightPanelToolbarLabelsWorks === true,
           rightPanelTabWheelScroll: result.rightPanelTabWheelScrollWorks === true,
           rightPanelFullscreenCleanup: result.rightPanelFullscreenCleanupWorks === true,
           rightPanelTabTelemetry: result.rightPanelTabTelemetryWorks === true,

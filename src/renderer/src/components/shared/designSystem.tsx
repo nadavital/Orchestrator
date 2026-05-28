@@ -404,6 +404,7 @@ export function PanelToolbar({
   onSubmit,
 }: PanelToolbarProps): JSX.Element {
   const shared = {
+    role: ariaLabel ? 'toolbar' : undefined,
     className: `panel-toolbar ${className}`.trim(),
     'data-testid': dataTestId,
     'data-panel-toolbar': 'true',

@@ -1169,7 +1169,7 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
   )
 
   const reviewHeaderToolbar = (
-    <PanelToolbar className="diff-panel-toolbar" dataTestId="diff-panel-toolbar">
+    <PanelToolbar className="diff-panel-toolbar" dataTestId="diff-panel-toolbar" ariaLabel="Review toolbar">
       {reviewSourceSummary}
       <div className="diff-panel-action-strip" data-testid="review-toolbar-action-strip" data-review-toolbar-cluster="primary">
         {reviewOptions}

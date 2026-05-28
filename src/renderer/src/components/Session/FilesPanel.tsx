@@ -284,7 +284,7 @@ export default function FilesPanel({ sessionId, workDir, embedded = false }: Pro
       }}
     >
       {!embedded && <PanelHeader title="Files" actions={fileActions} />}
-      <PanelToolbar className="files-panel-toolbar" dataTestId="files-panel-toolbar">
+      <PanelToolbar className="files-panel-toolbar" dataTestId="files-panel-toolbar" ariaLabel="Files toolbar">
         <WorkbenchSearchField
           inputRef={searchInputRef}
           value={query}

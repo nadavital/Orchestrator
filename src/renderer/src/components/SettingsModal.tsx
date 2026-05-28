@@ -414,7 +414,7 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
       data-settings-route={`/settings/${effectiveSection}`}
       data-settings-route-owned="true"
     >
-      <PanelToolbar className="settings-topbar" dataTestId="settings-topbar">
+      <PanelToolbar className="settings-topbar" dataTestId="settings-topbar" ariaLabel="Settings toolbar">
         <span className="settings-topbar-title">{settingsTitle(effectiveSection)}</span>
         <div className="settings-topbar-actions">
           <Tooltip label="Back to chat">

@@ -8088,6 +8088,7 @@ function runAutomatedFocusedSurfaceSmoke(
               let rightPanelTabPanelA11yWorks = false;
               let rightPanelTabListLabelWorks = false;
               let rightPanelTabRovingFocusWorks = false;
+              let rightPanelToolbarLabelsWorks = false;
               let rightPanelTabWheelScrollWorks = false;
               let rightPanelFullscreenCleanupWorks = false;
               let rightPanelTabTelemetryWorks = false;
@@ -8566,8 +8567,15 @@ function runAutomatedFocusedSurfaceSmoke(
                   }
                   return document.activeElement?.getAttribute('data-testid') === testId;
                 };
+                const toolbarLabelWorks = (selector, label) => {
+                  const toolbar = document.querySelector(selector);
+                  return toolbar instanceof HTMLElement &&
+                    toolbar.getAttribute('role') === 'toolbar' &&
+                    toolbar.getAttribute('aria-label') === label;
+                };
                 await openPanelTab('diff', 'Review');
                 await waitForElement('[data-testid="diff-file-search"]');
+                const reviewToolbarLabelWorks = toolbarLabelWorks('[data-testid="diff-panel-toolbar"]', 'Review toolbar');
                 const reviewPanel = focusActiveRightPanel();
                 const reviewBrowserAddressMenuState = await waitForMenuEnabledState('focus-browser-address-bar', false);
                 const reviewFindMenuState = await waitForMenuEnabledState('search-transcript', true);
@@ -8659,15 +8667,23 @@ function runAutomatedFocusedSurfaceSmoke(
                   !(document.querySelector('[data-testid="thread-find-bar"]') instanceof HTMLElement);
                 await openPanelTab('files', 'Files');
                 await waitForElement('[data-testid="workspace-file-search"]');
+                const filesToolbarLabelWorks = toolbarLabelWorks('[data-testid="files-panel-toolbar"]', 'Files toolbar');
                 const filesPanel = focusActiveRightPanel();
                 sendShortcut(filesPanel, 'f', 'KeyF');
                 const fileFindFocused = await waitForActiveTestId('workspace-file-search');
                 await openPanelTab('browser', 'Browser');
                 await waitForElement('[data-testid="browser-panel"]');
+                const browserToolbarLabelWorks = toolbarLabelWorks('.browser-toolbar', 'Browser toolbar');
                 const browserPanel = focusActiveRightPanel();
                 const browserAddressMenuState = await waitForMenuEnabledState('focus-browser-address-bar', true);
                 sendShortcut(browserPanel, 'f', 'KeyF');
                 const browserFindFocused = await waitForActiveTestId('browser-find-input');
+                const browserFindToolbarLabelWorks = toolbarLabelWorks('.browser-find-toolbar', 'Browser find toolbar');
+                rightPanelToolbarLabelsWorks =
+                  reviewToolbarLabelWorks &&
+                  filesToolbarLabelWorks &&
+                  browserToolbarLabelWorks &&
+                  browserFindToolbarLabelWorks;
                 rightPanelFindShortcutRoutingWorks =
                   reviewFindFocused &&
                   reviewSharedFindDiffScope &&
@@ -9227,6 +9243,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 rightPanelTabPanelA11yWorks,
                 rightPanelTabListLabelWorks,
                 rightPanelTabRovingFocusWorks,
+                rightPanelToolbarLabelsWorks,
                 rightPanelTabWheelScrollWorks,
                 rightPanelFullscreenCleanupWorks,
                 rightPanelTabTelemetryWorks,
