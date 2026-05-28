@@ -154,7 +154,7 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
     ...sideChatTabs,
     ...terminalTabs,
     ...(hasPlan ? [{ id: 'plan' as const, label: 'Plan', icon: 'plan' as const, count: plans.length }] : []),
-    ...((hasOpenAgent || hasLiveAgent) ? [{ id: 'agents' as const, label: 'Agents', icon: 'agents' as const, count: agents.length, shimmering: hasLiveAgent }] : []),
+    ...((ui?.showEvents || hasOpenAgent || hasLiveAgent) ? [{ id: 'agents' as const, label: 'Agents', icon: 'agents' as const, count: agents.length, shimmering: hasLiveAgent }] : []),
     ...(ui?.showExtensions ? [{ id: 'extensions' as const, label: 'Extensions', icon: 'extensions' as const }] : []),
     ...(hasSideQuestions ? [{ id: 'side' as const, label: 'Side', icon: 'chat' as const, count: ui?.sideQuestions?.length ?? 0 }] : [])
   ]
@@ -330,6 +330,14 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
       icon: 'diff',
       disabled: ui?.showDiff || hasDiffTab,
       onSelect: () => openToolTab('diff')
+    },
+    {
+      id: 'agents',
+      title: 'Agents',
+      description: 'Inspect runtime activity',
+      icon: 'agents',
+      disabled: ui?.showEvents,
+      onSelect: () => setShowEvents(session.id, true)
     },
     {
       id: 'terminal',

@@ -82,6 +82,7 @@ Before considering the stabilization complete:
 These remain real goal gaps and should not be claimed complete from local fixture smokes:
 
 - Main chat thread, composer, inspector/context panel, and Settings still need an explicit day-to-day coding usability audit and implementation pass. Codex parity evidence is useful here, but Orchestrator-owned workflow quality is the success bar.
+- Inspector/context first pass: Agents is now reachable from the Workbench New tab even before a live subagent exists, and its empty state shows session/runtime context under `workbenchNewTabAgentsAction=true`. Remaining inspector work should focus on deeper selected-event/runtime diagnostics and real coding workflow gaps rather than more empty-state access fixes.
 - Codex-style global/thread find parity. Fresh Codex bundle evidence shows `Cmd+F` opens a floating `content-search-input` with `Search chat` and `Search diffs` scope controls, while Orchestrator currently routes `Cmd+F` to per-panel inputs. `rightPanelFindShortcutRouting=true` is therefore a regression check for current Orchestrator behavior, not full Codex parity.
 - Live Codex side-by-side visual comparison across the 23-surface inventory.
 - Route/window lifecycle and installed-app replacement proof.

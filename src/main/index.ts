@@ -4716,6 +4716,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               newTabActions.includes('side-chat') &&
               newTabActions.includes('browser') &&
               newTabActions.includes('review') &&
+              newTabActions.includes('agents') &&
               newTabActions.includes('terminal');
             const restoreTabId = previousRightPanelActiveTabId && previousRightPanelActiveTabId !== 'new-tab'
               ? previousRightPanelActiveTabId
@@ -6015,7 +6016,26 @@ function runAutomatedFocusedSurfaceSmoke(
                   newTabCardIds.includes('side-chat') &&
                   newTabCardIds.includes('browser') &&
                   newTabCardIds.includes('review') &&
+                  newTabCardIds.includes('agents') &&
                   newTabCardIds.includes('terminal');
+                const agentsAction = document.querySelector('[data-testid="workbench-new-tab-action-agents"]');
+                if (agentsAction instanceof HTMLButtonElement) {
+                  agentsAction.click();
+                  await sleep(180);
+                }
+                const agentsPanel = document.querySelector('[role="tabpanel"][data-tab-id="agents"]');
+                const agentSessionContext = document.querySelector('[data-testid="agent-session-context"]');
+                const agentEmptyState = document.querySelector('[data-testid="agent-empty-state"]');
+                const workbenchNewTabAgentsActionWorks =
+                  rightPanel instanceof HTMLElement &&
+                  rightPanel.getAttribute('data-right-panel-active-tab') === 'agents' &&
+                  rightPanel.getAttribute('data-right-panel-tabs')?.includes('agents') === true &&
+                  agentsPanel instanceof HTMLElement &&
+                  agentSessionContext instanceof HTMLElement &&
+                  agentSessionContext.textContent?.includes('Messages') === true &&
+                  agentSessionContext.textContent?.includes('Events') === true &&
+                  agentEmptyState instanceof HTMLElement &&
+                  agentEmptyState.textContent?.includes('No agents yet') === true;
                 return {
                   profile,
                   hasRightPanelState: rightPanel instanceof HTMLElement &&
@@ -6036,6 +6056,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     activeNewTab instanceof HTMLElement &&
                     activeNewTabIcon instanceof SVGElement &&
                     (activeNewTab.textContent ?? '').includes('New tab'),
+                  workbenchNewTabAgentsActionWorks,
                   workbenchNewTabActionCount: newTabCards.length,
                   workbenchNewTabNoHorizontalOverflow:
                     rightPanelRect !== null &&
@@ -6287,6 +6308,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   newTabActions.includes('side-chat') &&
                   newTabActions.includes('browser') &&
                   newTabActions.includes('review') &&
+                  newTabActions.includes('agents') &&
                   newTabActions.includes('terminal');
                 const browserTabButton = document.querySelector('[data-tab-id="browser"]')?.closest('[role="tab"]');
                 if (browserTabButton instanceof HTMLElement) {

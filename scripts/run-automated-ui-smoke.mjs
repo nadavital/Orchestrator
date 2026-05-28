@@ -2218,6 +2218,7 @@ child.on('exit', async (code) => {
           workbenchPanelNewTabPage: result.workbenchPanelNewTabPageWorks === true,
           workbenchNewTabVisual: result.workbenchNewTabVisualWorks === true,
           workbenchNewTabSingleAddAffordance: result.workbenchNewTabSingleAddAffordance === true,
+          workbenchNewTabAgentsAction: result.workbenchNewTabAgentsActionWorks === true,
           workbenchNewTabCards: Number(result.workbenchNewTabActionCount ?? 0) >= 5,
           workbenchNewTabNoHorizontalOverflow: result.workbenchNewTabNoHorizontalOverflow === true
         }

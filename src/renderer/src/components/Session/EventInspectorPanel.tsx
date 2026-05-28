@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { useSessionStore } from '../../store/sessions'
-import type { AgentNode, AgentStatus, Session } from '../../types'
-import { Badge, InspectorCard, MetricPill, PanelHeader, TabButton } from '../shared/designSystem'
+import type { AgentNode, AgentStatus, Session, SessionRunEventRecord } from '../../types'
+import { Badge, InspectorCard, InspectorRow, InspectorSection, MetricPill, PanelHeader, TabButton } from '../shared/designSystem'
 import { deriveSessionAgentNodes } from './agentNodes'
 
 interface Props {
@@ -24,6 +24,7 @@ export default function EventInspectorPanel({ session, embedded = false, activeA
     [activeAgentId, visibleAgents]
   )
   const stats = useMemo(() => agentStats(agents), [agents])
+  const recentEvents = useMemo(() => events.slice(-4).reverse(), [events])
 
   return (
     <section
@@ -44,9 +45,10 @@ export default function EventInspectorPanel({ session, embedded = false, activeA
       )}
 
       {(!embedded || stats.total > 0) && <AgentOverview stats={stats} embedded={embedded} />}
+      <SessionContextSummary session={session} stats={stats} events={events} recentEvents={recentEvents} embedded={embedded} />
 
       {visibleAgents.length === 0 ? (
-        <EmptyState providerId={session.provider ?? 'provider'} embedded={embedded} />
+        <EmptyState providerId={session.provider ?? 'provider'} embedded={embedded} hasEvents={events.length > 0} />
       ) : (
         <div className="flex flex-col min-h-0 min-w-0 flex-1 overflow-hidden">
           <div
@@ -112,14 +114,99 @@ function AgentStat({ label, value, tone }: { label: string; value: number; tone:
   )
 }
 
-function EmptyState({ providerId, embedded = false }: { providerId: string; embedded?: boolean }): JSX.Element {
+function SessionContextSummary({
+  session,
+  stats,
+  events,
+  recentEvents,
+  embedded = false
+}: {
+  session: Session
+  stats: ReturnType<typeof agentStats>
+  events: SessionRunEventRecord[]
+  recentEvents: SessionRunEventRecord[]
+  embedded?: boolean
+}): JSX.Element {
+  const messageCount = session.messageCount ?? session.messages.length
+  const workDirLabel = compactPath(session.workDir)
+
+  return (
+    <div
+      className={`grid shrink-0 gap-2 ${embedded ? 'px-2 py-2' : 'px-4 py-3'}`}
+      data-testid="agent-session-context"
+      style={{ borderBottom: '1px solid var(--border-subtle)' }}
+    >
+      <InspectorSection title="Session" variant="raised">
+        <InspectorRow dataTestId="agent-session-runtime">
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-xs font-semibold" style={{ color: 'var(--color-text)' }}>
+              {[session.provider, session.model].filter(Boolean).join(' · ') || 'Runtime'}
+            </div>
+            <div className="truncate text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
+              {workDirLabel}
+            </div>
+          </div>
+          <Badge tone={sessionStatusTone(session.status)}>{session.status}</Badge>
+        </InspectorRow>
+        <div className="grid grid-cols-3 gap-1.5">
+          <CompactMetric label="Messages" value={messageCount} />
+          <CompactMetric label="Events" value={events.length} />
+          <CompactMetric label="Agents" value={stats.total} />
+        </div>
+      </InspectorSection>
+
+      {recentEvents.length > 0 && (
+        <InspectorSection title="Recent activity" dataTestId="agent-recent-events">
+          {recentEvents.map((record) => (
+            <InspectorRow key={record.id} dataTestId="agent-recent-event" variant="muted">
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[11px] font-semibold" style={{ color: 'var(--color-text)' }}>
+                  {eventTitle(record)}
+                </div>
+                <div className="truncate text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
+                  {formatClockTime(record.timestamp)}
+                </div>
+              </div>
+              <Badge tone={eventTone(record)}>{eventBadge(record)}</Badge>
+            </InspectorRow>
+          ))}
+        </InspectorSection>
+      )}
+    </div>
+  )
+}
+
+function CompactMetric({ label, value }: { label: string; value: number }): JSX.Element {
+  return (
+    <InspectorCard className="rounded-md px-2 py-1.5 min-w-0">
+      <div className="truncate text-[10.5px] font-semibold" style={{ color: 'var(--color-text-muted)' }}>
+        {label}
+      </div>
+      <div className="truncate text-xs font-semibold" style={{ color: 'var(--color-text)' }}>
+        {value}
+      </div>
+    </InspectorCard>
+  )
+}
+
+function EmptyState({
+  providerId,
+  embedded = false,
+  hasEvents = false
+}: {
+  providerId: string
+  embedded?: boolean
+  hasEvents?: boolean
+}): JSX.Element {
   const title = embedded ? 'No agents yet' : 'No agent activity yet'
   const body = embedded
-    ? 'Agent transcripts will appear here.'
+    ? hasEvents
+      ? 'This session has runtime activity, but no subagent transcript has been opened yet.'
+      : 'Session diagnostics are available above. Agent transcripts will appear here when a side task starts.'
     : `When ${providerId} starts a subagent or side task, its status and transcript will appear here.`
 
   return (
-    <div className="flex-1 min-h-0 p-3">
+    <div className="flex-1 min-h-0 overflow-y-auto p-3" data-testid="agent-empty-state">
       <InspectorCard className="p-3">
         <div className="text-xs font-semibold" style={{ color: 'var(--color-text)' }}>
           {title}
@@ -130,6 +217,59 @@ function EmptyState({ providerId, embedded = false }: { providerId: string; embe
       </InspectorCard>
     </div>
   )
+}
+
+function sessionStatusTone(status: Session['status']): 'accent' | 'success' | 'warning' | 'danger' | 'neutral' {
+  if (status === 'running') return 'success'
+  if (status === 'waiting_for_permission' || status === 'waiting_for_user') return 'warning'
+  if (status === 'provider_error' || status === 'auth_error' || status === 'model_error' || status === 'quota_error' || status === 'rate_limit_error' || status === 'error') return 'danger'
+  if (status === 'idle') return 'accent'
+  return 'neutral'
+}
+
+function eventTone(record: SessionRunEventRecord): 'accent' | 'success' | 'warning' | 'danger' | 'neutral' {
+  const { type } = record.event
+  if (type === 'run.failed' || type === 'agent.failed') return 'danger'
+  if (type === 'permission.requested' || type === 'user_input.requested' || type === 'connection.reconnecting' || type === 'connection.retrying') return 'warning'
+  if (type === 'run.completed' || type === 'agent.completed' || type === 'tool.completed') return 'success'
+  if (type.startsWith('assistant.') || type.startsWith('agent.')) return 'accent'
+  return 'neutral'
+}
+
+function eventBadge(record: SessionRunEventRecord): string {
+  return record.event.type.split('.')[0]
+}
+
+function eventTitle(record: SessionRunEventRecord): string {
+  const { event } = record
+  if (event.type === 'assistant.status') return event.content || 'Assistant status'
+  if (event.type === 'assistant.text' || event.type === 'assistant.text.delta') return compactText(event.content)
+  if (event.type === 'tool.started') return `Started ${event.toolName}`
+  if (event.type === 'tool.completed') return event.isError ? 'Tool failed' : 'Tool completed'
+  if (event.type === 'agent.started' || event.type === 'agent.updated' || event.type === 'agent.completed' || event.type === 'agent.failed') {
+    return event.agent.name ?? event.agent.role ?? event.agent.id
+  }
+  if (event.type === 'permission.requested') return event.content ?? 'Permission requested'
+  if (event.type === 'user_input.requested') return event.content
+  if (event.type === 'run.failed') return event.content ?? 'Run failed'
+  if (event.type === 'run.completed') return event.content ?? 'Run completed'
+  return event.type.replace(/\./g, ' ')
+}
+
+function compactPath(path: string): string {
+  const parts = path.split('/').filter(Boolean)
+  if (parts.length <= 3) return path || 'Workspace'
+  return `.../${parts.slice(-3).join('/')}`
+}
+
+function compactText(text: string): string {
+  const compacted = text.replace(/\s+/g, ' ').trim()
+  if (compacted.length <= 72) return compacted || 'Assistant update'
+  return `${compacted.slice(0, 69)}...`
+}
+
+function formatClockTime(timestamp: number): string {
+  return new Date(timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
 }
 
 function agentStats(agents: AgentNode[]): {
