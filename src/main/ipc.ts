@@ -2971,9 +2971,30 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
     }
     return sessionManager.refreshCodexSidebarMetadata(cwd)
   })
-  ipcMain.handle('providers:getPermissionContext', (_, providerId: string, cwd?: string) =>
-    getProviderPermissionRuntimeContextAsync(providerId, cwd)
-  )
+  ipcMain.handle('providers:getPermissionContext', (_, providerId: string, cwd?: string) => {
+    if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'composer' && providerId === 'codex') {
+      return {
+        providerId,
+        cwd,
+        status: 'ok',
+        source: 'app-server',
+        defaultPolicy: 'autoReview',
+        visiblePolicies: ['default', 'untrusted', 'never', 'autoReview'],
+        disabledPolicies: {
+          fullAccess: 'Requires sandbox danger-full-access',
+          yolo: 'Requires sandbox danger-full-access'
+        },
+        effective: {
+          approvalPolicy: 'on-request',
+          approvalsReviewer: 'auto_review',
+          sandboxMode: 'workspace-write',
+          configSource: 'app-server'
+        },
+        summary: 'Smoke app-server config: 2 approval modes, 1 sandbox mode'
+      }
+    }
+    return getProviderPermissionRuntimeContextAsync(providerId, cwd)
+  })
   ipcMain.handle('providers:listResources', (_, providerId?: string, cwd?: string) =>
     listProviderResources(providerId, cwd)
   )

@@ -216,10 +216,20 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   const selectedPermissionMode = provider.permissionModes.find((p) => p.id === permissionMode)
   const permLabel = selectedPermissionMode?.label ?? 'Mode'
   const permissionSourceLabel = permissionContext ? permissionSourceBadgeLabel(permissionContext) : null
+  const contextDisabledPermissionReason = permissionContext?.status === 'ok'
+    ? permissionContext.disabledPolicies?.[permissionMode]
+    : undefined
+  const permissionUnavailableReason = (modeId: string): string | undefined => {
+    const policy = providerRuntime?.policies[modeId]
+    if (policy?.support === 'unsupported') return policy.description || 'Unsupported by this runtime'
+    if (permissionContext?.status === 'ok') return permissionContext.disabledPolicies?.[modeId]
+    return undefined
+  }
   const permissionTriggerLabel = [
     `Permission mode: ${permLabel}`,
     permissionSourceLabel ? `${permissionSourceLabel} permission config` : null,
-    resolvedPermission?.support === 'unsupported' ? 'unsupported by this runtime' : null
+    resolvedPermission?.support === 'unsupported' ? 'unsupported by this runtime' : null,
+    contextDisabledPermissionReason ? `disabled by live config: ${contextDisabledPermissionReason}` : null
   ].filter(Boolean).join('. ')
   const permissionTriggerTitle = [
     permissionTriggerLabel,
@@ -228,7 +238,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   const primaryPermissionModes = filterPermissionModes(getPrimaryPermissionModes(provider), permissionContext, permissionMode)
   const advancedPermissionModes = filterPermissionModes(getAdvancedPermissionModes(provider), permissionContext, permissionMode)
   const dangerPermissionModes = filterPermissionModes(getDangerPermissionModes(provider), permissionContext, permissionMode)
-  const canUsePermission = resolvedPermission?.support !== 'unsupported'
+  const canUsePermission = resolvedPermission?.support !== 'unsupported' && !contextDisabledPermissionReason
   const queuedFollowUpCount = queuedFollowUpSummary.queued
   const steeringFollowUpCount = queuedFollowUpSummary.steering
   const queuedFollowUpTotal = queuedFollowUpCount + steeringFollowUpCount
@@ -329,7 +339,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
         state: 'unsupported-permission' as const,
         tone: 'danger' as const,
         title: 'Permission mode unavailable',
-        detail: resolvedPermission?.description ?? 'Choose a supported permission mode before sending.'
+        detail: contextDisabledPermissionReason ?? resolvedPermission?.description ?? 'Choose a supported permission mode before sending.'
       }
     : hasDraftText && sideChatWithAttachments
       ? {
@@ -1306,7 +1316,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
                         opt={opt}
                         active={permissionMode === opt.id}
                         providerColor={provider.color}
-                        unsupported={providerRuntime?.policies[opt.id]?.support === 'unsupported'}
+                        unsupportedReason={permissionUnavailableReason(opt.id)}
                         onSelect={() => selectPermissionMode(opt.id)}
                       />
                     ))}
@@ -1340,7 +1350,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
                                   opt={opt}
                                   active={permissionMode === opt.id}
                                   providerColor={provider.color}
-                                  unsupported={providerRuntime?.policies[opt.id]?.support === 'unsupported'}
+                                  unsupportedReason={permissionUnavailableReason(opt.id)}
                                   onSelect={() => selectPermissionMode(opt.id)}
                                 />
                               ))}
@@ -1362,7 +1372,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
                                     opt={opt}
                                     active={permissionMode === opt.id}
                                     providerColor="var(--color-red)"
-                                    unsupported={providerRuntime?.policies[opt.id]?.support === 'unsupported'}
+                                    unsupportedReason={permissionUnavailableReason(opt.id)}
                                     onSelect={() => selectPermissionMode(opt.id)}
                                   />
                                 ))}
@@ -1471,23 +1481,24 @@ function PermissionModeChip({
   opt,
   active,
   providerColor,
-  unsupported,
+  unsupportedReason,
   onSelect
 }: {
   opt: { id: string; label: string; desc: string }
   active: boolean
   providerColor: string
-  unsupported: boolean
+  unsupportedReason?: string
   onSelect: () => void
 }): JSX.Element {
+  const disabled = Boolean(unsupportedReason)
   return (
     <Chip
       active={active}
-      disabled={unsupported}
+      disabled={disabled}
       onClick={() => {
-        if (!unsupported) onSelect()
+        if (!disabled) onSelect()
       }}
-      title={unsupported ? 'Unsupported by this runtime' : opt.desc}
+      title={unsupportedReason ?? opt.desc}
       activeColor={providerColor}
     >
       {opt.label}

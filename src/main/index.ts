@@ -5178,7 +5178,6 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             };
             const firstDraftRow = rowForTitle('Draft smoke one');
             const secondDraftRow = rowForTitle('Draft smoke two');
-            const activeSettingsRow = rowForTitle('Active settings smoke');
             const unsupportedPermissionRow = rowForTitle('Unsupported permission smoke');
             firstDraftRow?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
             await sleep(180);
@@ -5345,19 +5344,17 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               !(document.querySelector('[data-testid="composer-send-status"]') instanceof HTMLElement);
             setTextareaValue('');
             await sleep(80);
-            const attachmentOnlyRow = rowForTitle('Attachment only smoke');
-            attachmentOnlyRow?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+            const attachmentOnlySelected = await selectThreadByTitle('Attachment only smoke');
             await sleep(220);
             addComposerAttachment('attachment-only.txt', '/tmp/orchestrator-attachment-only.txt');
             await sleep(120);
-            secondDraftRow?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+            await selectThreadByTitle('Draft smoke two');
             await sleep(220);
-            const attachmentOnlyRowAfterSwitch = rowForTitle('Attachment only smoke');
-            attachmentOnlyRowAfterSwitch?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+            const attachmentOnlySelectedAfterSwitch = await selectThreadByTitle('Attachment only smoke');
             await sleep(220);
             var composerAttachmentOnlySessionPreserved =
-              Boolean(attachmentOnlyRow) &&
-              Boolean(attachmentOnlyRowAfterSwitch) &&
+              attachmentOnlySelected &&
+              attachmentOnlySelectedAfterSwitch &&
               attachmentLabels().some((label) => label.includes('attachment-only.txt'));
             setTextareaValue('SEND_FAILURE_SMOKE');
             await sleep(120);
@@ -5371,7 +5368,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             }
             const sendFailureStatus = document.querySelector('[data-testid="composer-run-action-status"]');
             var composerSendFailureRestoresDraft =
-              Boolean(attachmentOnlyRowAfterSwitch) &&
+              attachmentOnlySelectedAfterSwitch &&
               sendFailureButton instanceof HTMLButtonElement &&
               textareaValue() === 'SEND_FAILURE_SMOKE' &&
               attachmentLabels().some((label) => label.includes('send-failure.txt')) &&
@@ -5489,6 +5486,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               sendStatus.getAttribute('aria-atomic') === 'true' &&
               sendStatusAction instanceof HTMLButtonElement &&
               sendStatusAction.getAttribute('aria-label') === 'Change permission mode';
+            var composerContextDisabledPermissionBlocksSend =
+              composerSendStatusExplainsBlocked &&
+              sendStatus instanceof HTMLElement &&
+              sendStatus.textContent?.includes('Requires sandbox danger-full-access') === true;
             if (sendStatusAction instanceof HTMLButtonElement) {
               sendStatusAction.click();
               await sleep(140);
@@ -5523,7 +5524,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
               await sleep(140);
             }
-            activeSettingsRow?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+            await selectThreadByTitle('Active settings smoke');
             await sleep(220);
 
             setTextareaValue('/per');
@@ -6959,6 +6960,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             composerSendStatusActionOpensPermissions: typeof composerSendStatusActionOpensPermissions === 'boolean' ? composerSendStatusActionOpensPermissions : null,
             composerSendStatusActionFocusesPermissions: typeof composerSendStatusActionFocusesPermissions === 'boolean' ? composerSendStatusActionFocusesPermissions : null,
             composerSendStatusRecoveryClearsBlock: typeof composerSendStatusRecoveryClearsBlock === 'boolean' ? composerSendStatusRecoveryClearsBlock : null,
+            composerContextDisabledPermissionBlocksSend: typeof composerContextDisabledPermissionBlocksSend === 'boolean' ? composerContextDisabledPermissionBlocksSend : null,
             composerSendFailureRestoresDraft: typeof composerSendFailureRestoresDraft === 'boolean' ? composerSendFailureRestoresDraft : null,
             composerSendFalseRestoresDraft: typeof composerSendFalseRestoresDraft === 'boolean' ? composerSendFalseRestoresDraft : null,
             composerSendProviderFalseCleansTranscript: typeof composerSendProviderFalseCleansTranscript === 'boolean' ? composerSendProviderFalseCleansTranscript : null,
@@ -24108,7 +24110,7 @@ async function seedAutomatedComposerSmokeSession(projectId: string, workDir: str
     provider: 'codex',
     model: 'gpt-5.4',
     effort: 'medium',
-    permissionMode: 'unsupported-smoke-policy',
+    permissionMode: 'fullAccess',
     status: 'idle',
     messages: [
       ...unsupportedPermissionSession.messages.filter((message) => message.id !== unsupportedMessage.id),
@@ -24116,6 +24118,10 @@ async function seedAutomatedComposerSmokeSession(projectId: string, workDir: str
     ],
     latestMessageAt: unsupportedMessage.timestamp
   })
+
+  for (const stale of sessionManager.list().filter((candidate) => candidate.projectId === projectId && candidate.name === 'Context disabled permission smoke')) {
+    await sessionManager.archive(stale.id)
+  }
 }
 
 function injectAutomatedComposerQueuedCancelMessage(): void {
