@@ -8,6 +8,7 @@ import Icon from '../shared/Icon'
 import BrowserWebviewManager, { type BrowserVisibleGeometry, type WebviewElement } from './BrowserWebviewManager'
 
 const BROWSER_ACTIONS_MENU_ID = 'browser-actions-menu-surface'
+const BROWSER_ZOOM_PRESETS = [0.5, 0.75, 1, 1.25, 1.5, 2]
 
 type BrowserOriginPolicyKey =
   | 'allowedOrigins'
@@ -760,6 +761,10 @@ export default function BrowserPanel({
 
   const changeZoom = (delta: number): void => {
     const nextZoom = Math.max(0.5, Math.min(2, Number((workbench.zoomFactor + delta).toFixed(2))))
+    setZoomFactor(nextZoom)
+  }
+
+  const setZoomFactor = (nextZoom: number): void => {
     webviewRef.current?.setZoomFactor(nextZoom)
     patchWorkbench({ zoomFactor: nextZoom })
   }
@@ -1826,10 +1831,7 @@ export default function BrowserPanel({
                     data-testid="browser-zoom-reset"
                     className="browser-action-value"
                     disabled={!currentUrl}
-                    onClick={() => {
-                      webviewRef.current?.setZoomFactor(1)
-                      patchWorkbench({ zoomFactor: 1 })
-                    }}
+                    onClick={() => setZoomFactor(1)}
                   >
                     {Math.round(workbench.zoomFactor * 100)}%
                   </button>
@@ -1857,6 +1859,24 @@ export default function BrowserPanel({
                   ariaLabel={visible ? 'Hide browser surface' : 'Show browser surface'}
                   onClick={() => patchWorkbench({ visible: !visible })}
                 />
+              </MenuSection>
+              <MenuSection className="browser-action-section" dataTestId="browser-zoom-presets-section">
+                <MenuSectionLabel className="browser-action-label">Zoom presets</MenuSectionLabel>
+                {BROWSER_ZOOM_PRESETS.map((preset) => {
+                  const percent = Math.round(preset * 100)
+                  const active = Math.abs(workbench.zoomFactor - preset) < 0.001
+                  return (
+                    <MenuItem
+                      key={preset}
+                      icon={active ? 'check' : 'zoomIn'}
+                      label={`${percent}%`}
+                      ariaLabel={`Set browser zoom to ${percent}%`}
+                      disabled={!currentUrl}
+                      dataTestId={`browser-zoom-preset-${percent}`}
+                      onClick={() => setZoomFactor(preset)}
+                    />
+                  )
+                })}
               </MenuSection>
             </MenuSurface>
           )}

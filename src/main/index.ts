@@ -17940,6 +17940,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
             const browserActionsButton = findButton('Browser actions');
             let browserHistoryMenuWorks = false;
             let browserHistoryClearWorks = false;
+            let browserZoomPresetWorks = false;
             let browserActionsMenuMaterialWorks = false;
             let browserActionsMenuTriggerStateWorks = false;
             if (browserActionsButton instanceof HTMLButtonElement) {
@@ -17994,6 +17995,8 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                   label.getBoundingClientRect().height <= 24
                 );
               const browserZoomRow = document.querySelector('[data-testid="browser-zoom-row"]');
+              const browserZoomPresetsSection = document.querySelector('[data-testid="browser-zoom-presets-section"]');
+              const browserZoomPresetButtons = [...document.querySelectorAll('[data-testid^="browser-zoom-preset-"]')];
               var browserMenuRowsSharedWorks =
                 historyItems.length > 0 &&
                 historyItems.every((item) =>
@@ -18010,6 +18013,36 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                 browserZoomRow.querySelector('[data-testid="browser-zoom-reset"]') instanceof HTMLElement &&
                 browserZoomRow.getBoundingClientRect().height <= 30 &&
                 browserZoomRow.scrollWidth <= browserZoomRow.clientWidth + 2;
+              const browserZoomPreset125 = document.querySelector('[data-testid="browser-zoom-preset-125"]');
+              if (browserZoomPreset125 instanceof HTMLButtonElement) {
+                browserZoomPreset125.click();
+                await sleep(140);
+                const browserZoomPanel = document.querySelector('[data-testid="browser-panel"]');
+                const activeZoomPreset = document.querySelector('[data-testid="browser-zoom-preset-125"]');
+                browserZoomPresetWorks =
+                  browserZoomPresetsSection instanceof HTMLElement &&
+                  browserZoomPresetsSection.getAttribute('data-menu-section') === 'true' &&
+                  browserZoomPresetsSection.classList.contains('orchestrator-menu-section') &&
+                  browserZoomPresetButtons.length === 6 &&
+                  browserZoomPresetButtons.some((button) => button instanceof HTMLButtonElement && button.textContent?.trim() === '50%') &&
+                  browserZoomPresetButtons.some((button) => button instanceof HTMLButtonElement && button.textContent?.trim() === '200%') &&
+                  browserZoomPresetsSection.scrollWidth <= browserZoomPresetsSection.clientWidth + 2 &&
+                  browserZoomPresetButtons.every((button) =>
+                    button instanceof HTMLElement &&
+                    button.classList.contains('orchestrator-menu-item') &&
+                    button.getBoundingClientRect().height <= 30
+                  ) &&
+                  browserZoomPanel instanceof HTMLElement &&
+                  Number(browserZoomPanel.getAttribute('data-browser-zoom') ?? '0') === 1.25 &&
+                  activeZoomPreset instanceof HTMLButtonElement &&
+                  activeZoomPreset.getAttribute('aria-label') === 'Set browser zoom to 125%' &&
+                  activeZoomPreset.querySelector('svg') instanceof SVGElement;
+                const browserZoomPreset100 = document.querySelector('[data-testid="browser-zoom-preset-100"]');
+                if (browserZoomPreset100 instanceof HTMLButtonElement) {
+                  browserZoomPreset100.click();
+                  await sleep(80);
+                }
+              }
               browserHistoryMenuWorks =
                 historyMenu instanceof HTMLElement &&
                 historyItems.length > 0 &&
@@ -19385,6 +19418,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserToolbarHistoryWorks,
               browserHistoryMenuWorks,
               browserHistoryClearWorks,
+              browserZoomPresetWorks,
               browserActionsMenuCompactWorks: typeof browserActionsMenuCompactWorks === 'boolean' ? browserActionsMenuCompactWorks : null,
               browserActionsMenuTriggerStateWorks,
               browserActionsMenuMaterialWorks,

@@ -5800,7 +5800,7 @@ Remaining: Browser history rows and zoom controls are still richer local rows in
 
 Codex evidence: the current Codex dropdown/context menu primitives use the same compact row metrics for regular items, custom rows, and nested section content. The remaining Browser action-menu mismatch was not the material or section labels anymore; it was the custom history and zoom rows carrying Browser-only row chrome inside the shared surface.
 
-Implemented: added shared `MenuRow` to the design system for custom menu rows that need richer children than `MenuItem`. It supports clickable `role="menuitem"` rows and static rows with inline controls. Browser history entries and the zoom row now use `MenuRow`, and the Browser-only shared row chrome CSS was removed; only Browser-specific history grid and zoom mini-control styling remains local.
+Implemented: added shared `MenuRow` to the design system for custom menu rows that need richer children than `MenuItem`. It supports clickable `role="menuitem"` rows and static rows with inline controls. Browser history entries and the zoom row now use `MenuRow`, and the Browser-only shared row chrome CSS was removed; only Browser-specific history grid and zoom mini-control styling remains local. The later Browser zoom preset slice also moves preset zoom choices into shared `MenuItem` rows.
 
 Verification: `npm run build` passed. `git diff --check` passed. Focused `npm run smoke:ui:auto -- --browser` passed with `browserMenuRowsShared=true`, `browserMenuSectionsShared=true`, `browserActionsMenuMaterial=true`, `browserActionsMenuCompact=true`, and the existing Browser lifecycle, geometry, local target, history, data, context-menu, inspector, and hidden-state gates; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779642729139.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779642729139.png`.
 
@@ -9304,6 +9304,16 @@ Implemented: the Browser actions menu History section now includes `Clear histor
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --browser` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1780009556512.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1780009556512.png`. The focused Browser smoke now gates `browserHistoryClear=true` while preserving existing history-menu, zoom, lifecycle, webview, local-target, inspector, security-policy, and fork-transfer checks.
 
 Remaining: this closes local Browser history cleanup only. Richer Browser zoom row/preset polish and exact screenshot comparison remain separate.
+
+### 2026-05-28 - Browser Zoom Presets
+
+Product evidence: PP-058 tracks Browser action/history/zoom polish as part of day-to-day coding usability. The Browser actions menu had zoom out/reset/in controls, but no quick preset choices like the richer artifact preview zoom controls, so common Browser zoom changes required repeated clicks.
+
+Implemented: the Browser actions menu now includes a shared `Zoom presets` section with 50%, 75%, 100%, 125%, 150%, and 200% choices. Presets reuse the shared `MenuItem` row primitive, show an active check on the current zoom, update the Browser workbench zoom factor directly, and keep the compact zoom row for fine adjustment and reset.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --browser` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1780011035006.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1780011035006.png`. The focused Browser smoke now gates `browserZoomPreset=true` by selecting 125%, verifying active state and the Browser workbench zoom attribute, restoring 100%, and keeping `browserMenuSectionsShared=true`.
+
+Remaining: this closes local Browser zoom preset polish. Browser lifecycle/screenshot comparison, live provider-emitted Codex/browser-use proof, richer provider-produced annotation/design-change workflows, and actual provider application of design tweaks remain separate.
 
 ### 2026-05-28 - Composer Prompt History Recall
 
