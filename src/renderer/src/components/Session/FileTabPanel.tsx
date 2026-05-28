@@ -7,6 +7,8 @@ import { Badge, IconButton, MenuItem, MenuSection, MenuSectionLabel, MenuSurface
 import Icon from '../shared/Icon'
 import { FilePreview, formatBytes, joinPath } from './FilesPanel'
 
+const FILE_TAB_ACTIONS_MENU_ID = 'workbench-file-tab-actions-menu-surface'
+
 interface Props {
   workDir: string
   sessionId: string
@@ -358,10 +360,14 @@ export default function FileTabPanel({
         variant="toolbar"
         active={fileActionsOpen}
         dataTestId="workbench-file-tab-actions-menu"
+        ariaExpanded={fileActionsOpen}
+        ariaControls={FILE_TAB_ACTIONS_MENU_ID}
+        ariaHasPopup="menu"
         onClick={() => setFileActionsOpen((open) => !open)}
       />
       {fileActionsOpen && (
         <MenuSurface
+          id={FILE_TAB_ACTIONS_MENU_ID}
           className="file-tab-actions-menu-surface"
           onClose={() => setFileActionsOpen(false)}
           style={{ position: 'absolute', right: 0, top: 34, width: 204, zIndex: 92 }}

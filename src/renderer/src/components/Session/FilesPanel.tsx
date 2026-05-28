@@ -20,6 +20,8 @@ async function writeFilesClipboardText(text: string): Promise<void> {
   await navigator.clipboard.writeText(text)
 }
 
+const FILES_ACTION_MENU_ID = 'files-action-menu-surface'
+
 interface Props {
   sessionId?: string
   workDir: string
@@ -257,10 +259,15 @@ export default function FilesPanel({ sessionId, workDir, embedded = false }: Pro
         variant="toolbar"
         disabled={!selectedEntry}
         active={actionMenuOpen}
+        dataTestId="files-action-menu-trigger"
+        ariaExpanded={actionMenuOpen}
+        ariaControls={FILES_ACTION_MENU_ID}
+        ariaHasPopup="menu"
         onClick={() => setActionMenuOpen((open) => !open)}
       />
       {actionMenuOpen && (
         <MenuSurface
+          id={FILES_ACTION_MENU_ID}
           className="files-action-menu-surface"
           onClose={() => setActionMenuOpen(false)}
           style={{ position: 'absolute', right: 0, top: 34, width: 178, zIndex: 90 }}

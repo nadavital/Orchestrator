@@ -13345,6 +13345,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 initialFilesListRect.width >= initialFilesBodyRect.width - 2 &&
                 filesBody.scrollWidth <= filesBody.clientWidth + 2;
               let filesActionMenuCompactWorks = false;
+              let filesActionMenuTriggerStateWorks = false;
               let filesActionMenuMaterialWorks = false;
               let filesActionMenuSharedSectionsWorks = false;
               let filesRowContextMenuWorks = false;
@@ -13354,6 +13355,7 @@ function runAutomatedFocusedSurfaceSmoke(
               let workbenchFileTabWorks = false;
               let workbenchFileTabPinWorks = false;
               let workbenchFileTabActionMenuSharedSectionsWorks = false;
+              let workbenchFileTabActionMenuStateWorks = false;
               let workbenchFileTabCodexActionLabelsWorks = false;
               let workbenchFileTabCodexActionClusterWorks = false;
               let filesContentSearchWorks = false;
@@ -13369,6 +13371,7 @@ function runAutomatedFocusedSurfaceSmoke(
               if (fileActionMenuButton instanceof HTMLButtonElement) {
                 fileActionMenuButton.click();
                 await sleep(100);
+                const filesActionMenuId = fileActionMenuButton.getAttribute('aria-controls') ?? '';
                 const menuSurface = document.querySelector('.orchestrator-menu-surface');
                 const menuRows = [...document.querySelectorAll('.orchestrator-menu-surface [role="menuitem"]')]
                   .filter((item) => item instanceof HTMLElement);
@@ -13410,6 +13413,11 @@ function runAutomatedFocusedSurfaceSmoke(
                   labels.includes('Copy path') &&
                   labels.includes('Reveal file') &&
                   labels.includes('Open file');
+                filesActionMenuTriggerStateWorks =
+                  fileActionMenuButton.getAttribute('aria-haspopup') === 'menu' &&
+                  fileActionMenuButton.getAttribute('aria-expanded') === 'true' &&
+                  filesActionMenuId === 'files-action-menu-surface' &&
+                  document.getElementById(filesActionMenuId) instanceof HTMLElement;
                 filesActionMenuMaterialWorks =
                   menuSurface instanceof HTMLElement &&
                   menuSurfaceStyle !== null &&
@@ -13419,6 +13427,10 @@ function runAutomatedFocusedSurfaceSmoke(
                   Number.parseFloat(menuSurfaceStyle.borderTopWidth || '0') <= 1;
                 if (addToChat instanceof HTMLElement) addToChat.click();
                 await sleep(320);
+                filesActionMenuTriggerStateWorks =
+                  filesActionMenuTriggerStateWorks &&
+                  fileActionMenuButton.getAttribute('aria-expanded') === 'false' &&
+                  document.getElementById(filesActionMenuId) === null;
               }
               const rowContextTarget = filesWorkbenchRows()
                 .find((row) => row instanceof HTMLElement && row.textContent?.includes('nested note.md'));
@@ -15548,6 +15560,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   if (fileTabActionMenuButton instanceof HTMLButtonElement) {
                     fileTabActionMenuButton.click();
                     await sleep(120);
+                    const fileTabActionMenuId = fileTabActionMenuButton.getAttribute('aria-controls') ?? '';
                     const fileTabActionSurface = document.querySelector('.file-tab-actions-menu-surface');
                     const fileTabActionSections = fileTabActionSurface instanceof HTMLElement
                       ? [...fileTabActionSurface.querySelectorAll('[data-menu-section="true"]')]
@@ -15579,6 +15592,11 @@ function runAutomatedFocusedSurfaceSmoke(
                       fileTabActionText.includes('Show git blame') &&
                       fileTabActionText.includes('Reveal selected line') &&
                       fileTabActionSurface.scrollWidth <= fileTabActionSurface.clientWidth + 2;
+                    workbenchFileTabActionMenuStateWorks =
+                      fileTabActionMenuButton.getAttribute('aria-haspopup') === 'menu' &&
+                      fileTabActionMenuButton.getAttribute('aria-expanded') === 'true' &&
+                      fileTabActionMenuId === 'workbench-file-tab-actions-menu-surface' &&
+                      document.getElementById(fileTabActionMenuId) instanceof HTMLElement;
                     workbenchFileTabCodexActionLabelsWorks =
                       fileTabActionMenuButton.getAttribute('aria-label') === 'File viewer options' &&
                       fileTabActionMenuButton.getAttribute('data-tooltip-label') === 'File viewer options' &&
@@ -15587,6 +15605,10 @@ function runAutomatedFocusedSurfaceSmoke(
                       fileTabActionText.some((label) => label.includes('source wrap')) === false;
                     fileTabActionMenuButton.click();
                     await sleep(80);
+                    workbenchFileTabActionMenuStateWorks =
+                      workbenchFileTabActionMenuStateWorks &&
+                      fileTabActionMenuButton.getAttribute('aria-expanded') === 'false' &&
+                      document.getElementById(fileTabActionMenuId) === null;
                   }
                   const richPreviewBeforeSource = document.querySelector('[data-testid="workbench-file-tab"] [data-testid="workspace-markdown-preview"]');
                   const sourceModeButton = document.querySelector('[data-testid="workbench-file-tab-source-mode"]');
@@ -16108,6 +16130,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 filesLazyDirectoriesWorks,
                 filesStickyFoldersWorks,
                 filesActionMenuCompactWorks,
+                filesActionMenuTriggerStateWorks,
                 filesActionMenuMaterialWorks,
                 filesActionMenuSharedSectionsWorks,
                 filesRowContextMenuWorks,
@@ -16117,6 +16140,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 workbenchFileTabWorks,
                 workbenchFileTabPinWorks,
                 workbenchFileTabActionMenuSharedSectionsWorks,
+                workbenchFileTabActionMenuStateWorks,
                 workbenchFileTabCodexActionLabelsWorks,
                 workbenchFileTabCodexActionClusterWorks,
                 fileOpenTargetDiagnosticWorks: workbenchFileTabWorks,
