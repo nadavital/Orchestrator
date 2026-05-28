@@ -1,8 +1,8 @@
 import { v4 as uuidv4 } from 'uuid'
-import { accessSync, constants, readFileSync } from 'fs'
+import { accessSync, constants, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
 import { execFile, execFileSync, spawn } from 'child_process'
 import { delimiter, join } from 'path'
-import { homedir } from 'os'
+import { homedir, tmpdir } from 'os'
 import { promisify } from 'util'
 import type {
   AgentStatus,
@@ -23,6 +23,7 @@ import type {
   ProviderPermissionRuntimeContext,
   ProviderProbeDefinition,
   ProviderProbeResult,
+  ProviderAuthValidationResult,
   ProviderRuntimeInfo,
   ProviderSlashCommand,
   PlanItem,
@@ -36,6 +37,7 @@ import type {
 import { PROVIDER_DEFS } from '../types'
 import { loadDotEnvFile } from './localEnv'
 import { listProviderRuntimeConnections, listProviderRuntimeDebugEvents } from './providerRuntimeDiagnostics'
+import { providerKeychainEnv } from './providerSecrets'
 
 function isExecutablePath(path: string): boolean {
   try {
@@ -123,8 +125,79 @@ export function providerSpawnEnv(providerId?: string): NodeJS.ProcessEnv {
     ...loadDotEnvFile(),
     ...providerConfigEnv(providerId),
     ...orchestratorProviderEnv(providerId),
+    ...providerKeychainEnv(providerId),
     PATH: providerSearchPath(),
     TERM: 'xterm-256color'
+  }
+}
+
+export async function validateProviderAuthSecret(providerId: string): Promise<ProviderAuthValidationResult> {
+  if (providerId !== 'cursor') {
+    return {
+      ok: false,
+      providerId,
+      message: 'Auth validation is only implemented for Cursor API keys right now.'
+    }
+  }
+
+  const provider = PROVIDERS[providerId]
+  if (!provider) {
+    return { ok: false, providerId, message: 'Provider is not registered.' }
+  }
+
+  const cwd = mkdtempSync(join(tmpdir(), 'orchestrator-provider-auth-'))
+  const marker = 'ORCHESTRATOR_CURSOR_AUTH_OK'
+  try {
+    writeFileSync(join(cwd, 'SMOKE.md'), 'Disposable Orchestrator Cursor auth validation workspace.\n')
+    const request: RunRequest = {
+      prompt: [
+        'You are validating Cursor auth for Orchestrator.',
+        'Do not edit files.',
+        `Reply with exactly: ${marker}`
+      ].join(' '),
+      cwd,
+      model: 'composer-2.5-fast',
+      effort: 'low',
+      providerSessionId: null,
+      executionPolicy: 'default',
+      allowedTools: [],
+      runtime: 'headless'
+    }
+    const commandSpec = buildProviderCommandForRuntime(provider, request)
+    const command = commandSpec ? resolveProviderCommand(provider, commandSpec) : null
+    if (!command) return { ok: false, providerId, message: 'Cursor CLI is not available.' }
+
+    const { stdout } = await execFileAsync(command.binary, command.args, {
+      cwd,
+      env: providerSpawnEnv(providerId),
+      timeout: 90_000,
+      maxBuffer: 2 * 1024 * 1024
+    })
+    const events = String(stdout)
+      .split(/\r?\n/)
+      .filter(Boolean)
+      .flatMap((line) => provider.parseOutputLine(line))
+    const text = events
+      .filter((event) => event.type === 'assistant.text' || event.type === 'assistant.text.delta')
+      .map((event) => event.content)
+      .join('')
+    const eventTypes = [...new Set(events.map((event) => event.type))]
+    const failed = events.find((event) => event.type === 'run.failed')
+    if (failed?.type === 'run.failed') {
+      return { ok: false, providerId, message: failed.content ?? 'Cursor auth validation failed.', eventTypes }
+    }
+    if (!eventTypes.includes('run.completed') || !text.includes(marker)) {
+      return { ok: false, providerId, message: 'Cursor ran, but did not return the validation response.', eventTypes }
+    }
+    return { ok: true, providerId, message: 'Cursor auth validated.', eventTypes }
+  } catch (error) {
+    const err = error as { stderr?: Buffer | string; stdout?: Buffer | string; message?: string }
+    const stderr = Buffer.isBuffer(err.stderr) ? err.stderr.toString('utf8') : err.stderr
+    const stdout = Buffer.isBuffer(err.stdout) ? err.stdout.toString('utf8') : err.stdout
+    const output = [stderr, stdout, err.message].filter(Boolean).join('\n').trim()
+    return { ok: false, providerId, message: output.split(/\r?\n/).filter(Boolean).slice(-3).join('\n') || 'Cursor auth validation failed.' }
+  } finally {
+    rmSync(cwd, { recursive: true, force: true })
   }
 }
 
@@ -1008,7 +1081,7 @@ const providerRegistries: Record<string, ProviderCapabilityRegistry> = {
   cursor: {
     providerId: 'cursor',
     features: [
-      feature('sdk-runtime', 'SDK runtime', 'runtime', 'supported', 'sdk', ['sdk']),
+      feature('sdk-runtime', 'SDK runtime', 'runtime', 'partial', 'sdk', ['sdk'], 'Cloud auth works with the API key, but the local SDK stream still exits with an unmessaged ERROR before assistant text.'),
       feature('stream-json', 'Stream JSON', 'runtime', 'supported', 'adapter', ['headless']),
       feature('run-streaming', 'Run streaming', 'runtime', 'supported', 'sdk', ['sdk']),
       feature('ask-mode', 'Ask mode', 'permissions', 'supported', 'local-cli', ['headless', 'interactive']),
@@ -1034,6 +1107,15 @@ const providerRegistries: Record<string, ProviderCapabilityRegistry> = {
         'partial',
         'Cursor SDK supports MCP server configs, but does not expose the in-process dynamic tool callback shape used by Codex app-server and Claude SDK.',
         'Add an Orchestrator stdio/http MCP bridge or adopt a native Cursor SDK tool callback if one becomes available.'
+      ),
+      gap(
+        'cursor-sdk-local-stream',
+        'SDK local stream exits before content',
+        'runtime',
+        'high',
+        'blocked',
+        'Live Cursor SDK runtime smoke starts an agent, then the local stream returns ERROR before assistant text or run completion. API-key auth itself succeeds.',
+        'Keep Cursor SDK behind an experimental/runtime choice until Cursor exposes an HTTP/1.1 fallback or the local SDK transport succeeds on this machine.'
       ),
       gap(
         'cursor-keychain-models',
