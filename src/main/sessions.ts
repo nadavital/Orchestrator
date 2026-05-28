@@ -1613,9 +1613,6 @@ export const sessionManager = {
     if (!session) return
 
     const queuedMessage = session.messages.find((message) => message.id === followUp.id && message.type === 'text')
-    if (queuedMessage?.type === 'text') {
-      this.upsertMessage(sessionId, { ...queuedMessage, queueState: undefined })
-    }
 
     this.updateStatus(sessionId, 'running')
 
@@ -1626,7 +1623,29 @@ export const sessionManager = {
       runtime: session.runtime,
       attachments: followUp.attachments ?? []
     }
-    await this.startProviderRun(sessionId, session, provider, runRequest, mode)
+    try {
+      if (
+        process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT &&
+        followUp.prompt.includes('QUEUED_FOLLOW_UP_START_FAIL_SMOKE')
+      ) {
+        throw new Error('Smoke queued follow-up failed to start.')
+      }
+      const started = await this.startProviderRun(sessionId, session, provider, runRequest, mode)
+      if (started && queuedMessage?.type === 'text') {
+        this.upsertMessage(sessionId, { ...queuedMessage, queueState: undefined })
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      this.appendMessage(sessionId, [{
+        id: uuidv4(),
+        role: 'system',
+        type: 'result',
+        content: message,
+        subtype: 'error_during_execution',
+        timestamp: Date.now()
+      }])
+      this.updateStatus(sessionId, 'error')
+    }
   },
 
   async grantAndResume(sessionId: string, toolNames: string[]): Promise<SessionActionResult> {

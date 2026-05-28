@@ -23672,11 +23672,57 @@ function runAutomatedStreamingTypingSmoke(win: BrowserWindow, outputPath: string
             };
           })()
         `)
+        if (sessionId) {
+          sessionManager.updateStatus(sessionId, 'idle')
+          await new Promise((resolve) => setTimeout(resolve, 120))
+          sessionManager.appendMessage(sessionId, [{
+            id: 'streaming-typing-queued-start-failure',
+            role: 'user',
+            type: 'text',
+            content: 'QUEUED_FOLLOW_UP_START_FAIL_SMOKE: keep this visibly queued if provider start fails.',
+            queueState: 'queued',
+            timestamp: Date.now()
+          }])
+          await sessionManager.runQueuedFollowUp(sessionId, {
+            id: 'streaming-typing-queued-start-failure',
+            prompt: 'QUEUED_FOLLOW_UP_START_FAIL_SMOKE: keep this visibly queued if provider start fails.',
+            mode: 'queued',
+            attachments: []
+          })
+          await new Promise((resolve) => setTimeout(resolve, 220))
+        }
+        const queuedFailureSession = sessionId ? sessionManager.get(sessionId) : null
+        const queuedFailureStoredMessage = queuedFailureSession?.messages.find((message) =>
+          message.id === 'streaming-typing-queued-start-failure' && message.type === 'text'
+        )
+        const queuedFailureSessionStatus = queuedFailureSession?.status ?? null
+        const queuedFailureStoredState = queuedFailureStoredMessage?.type === 'text' ? queuedFailureStoredMessage.queueState ?? null : null
+        const queuedFailureResult = await win.webContents.executeJavaScript(`
+          (async () => {
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            for (let index = 0; index < 20; index += 1) {
+              if (document.body.innerText.includes('Smoke queued follow-up failed to start.')) break;
+              await sleep(80);
+            }
+            const queuedMessage = document.querySelector('[data-message-id="streaming-typing-queued-start-failure"]');
+            const queuedActions = queuedMessage?.querySelector('[data-testid="queued-message-actions"][data-queued-message-state="queued"]');
+            return {
+              queuedFollowUpStartFailureVisible:
+                queuedMessage instanceof HTMLElement &&
+                queuedActions instanceof HTMLElement &&
+                document.body.innerText.includes('Smoke queued follow-up failed to start.'),
+              queuedFollowUpStartFailureState:
+                ${JSON.stringify(queuedFailureSessionStatus)} === 'error' &&
+                queuedActions instanceof HTMLElement
+            };
+          })()
+        `)
 
         const profile = await win.webContents.executeJavaScript('window.api.app.getProfile()')
         const typedValue = typeof typingResult?.composerValue === 'string' ? typingResult.composerValue : ''
         const payload = {
           ...result,
+          ...queuedFailureResult,
           ...typingResult,
           profile,
           streamingMessageUpdated,

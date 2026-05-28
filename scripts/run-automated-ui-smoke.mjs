@@ -1836,6 +1836,8 @@ child.on('exit', async (code) => {
         composerWillQueueStatus: result.composerWillQueueStatusWorks === true,
         composerStopRunControl: result.composerStopRunControlWorks === true,
         composerStopRunStatus: result.composerStopRunStatusWorks === true,
+        queuedFollowUpStartFailureVisible: result.queuedFollowUpStartFailureVisible === true,
+        queuedFollowUpStartFailureState: result.queuedFollowUpStartFailureState === true,
         composerTyped: result.composerTyped === true,
         typingTimerDriftAcceptable: Number(result.maxTypingTimerDriftMs ?? Number.POSITIVE_INFINITY) < 55,
         inputDispatchAcceptable: Number(result.maxInputDispatchMs ?? Number.POSITIVE_INFINITY) < 24,
