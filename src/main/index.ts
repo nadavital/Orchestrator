@@ -21651,8 +21651,10 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
             scroller.scrollTop = 0;
             scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
             await sleep(260);
-            const button = document.querySelector('[data-testid="chat-continue-last-turn"]');
-            const label = document.querySelector('[data-testid="chat-continue-last-turn-label"]');
+            const buttons = [...document.querySelectorAll('[data-testid="chat-continue-last-turn"]')];
+            const labels = [...document.querySelectorAll('[data-testid="chat-continue-last-turn-label"]')];
+            const button = buttons.at(-1);
+            const label = labels.at(-1);
             const scrollerRect = scroller.getBoundingClientRect();
             const buttonRect = button instanceof HTMLElement ? button.getBoundingClientRect() : null;
             const buttonBounded = buttonRect !== null &&
@@ -21681,6 +21683,53 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
             };
           })()
         `)
+        if (session) {
+          sessionManager.appendMessage(session.id, [{
+            id: 'transcript-layout-continue-fail-assistant',
+            role: 'assistant',
+            type: 'text',
+            content: 'CONTINUE_START_FAIL_SMOKE interrupted assistant text for failed Continue recovery.',
+            interrupted: true,
+            timestamp: Date.now()
+          }])
+          sessionManager.updateStatus(session.id, 'idle')
+          await new Promise((resolve) => setTimeout(resolve, 180))
+        }
+        const failedContinueStarted = session ? await sessionManager.continueLastTurn(session.id) : null
+        const failedContinueSession = session ? sessionManager.get(session.id) : null
+        const failedContinuePromptCount = failedContinueSession?.messages.filter((message) =>
+          message.type === 'text' &&
+          message.role === 'user' &&
+          message.content === 'Continue from where you left off. The previous assistant response stopped mid-stream; do not repeat completed content unless necessary.'
+        ).length ?? -1
+        const failedContinueErrorMessage = failedContinueSession?.messages.some((message) =>
+          message.type === 'result' &&
+          message.subtype === 'error_during_execution' &&
+          message.content.includes('Provider runtime failed to start.')
+        ) ?? false
+        const continueFailureResult = await win.webContents.executeJavaScript(`
+          (async () => {
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            const scroller = document.querySelector('[data-testid="transcript-scroll"]');
+            if (!(scroller instanceof HTMLElement)) return { chatContinueFailedStartCleansSyntheticPrompt: false };
+            scroller.scrollTop = scroller.scrollHeight;
+            scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
+            for (let index = 0; index < 20; index += 1) {
+              if (scroller.innerText.includes('Provider runtime failed to start.')) break;
+              await sleep(80);
+            }
+            const transcriptText = scroller.innerText;
+            const continuePromptCount = (transcriptText.match(/Continue from where you left off\\./g) ?? []).length;
+            return {
+              chatContinueFailedStartCleansSyntheticPrompt:
+                ${JSON.stringify(failedContinueStarted)} === false &&
+                ${JSON.stringify(failedContinuePromptCount)} === 0 &&
+                ${JSON.stringify(failedContinueErrorMessage)} === true &&
+                transcriptText.includes('Provider runtime failed to start.') &&
+                continuePromptCount === 0
+            };
+          })()
+        `)
         const shortcutResult = await win.webContents.executeJavaScript(`
           (async () => {
             const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -21703,7 +21752,7 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
           const image = await win.webContents.capturePage()
           writeFileSync(screenshotPath, image.toPNG())
         }
-        writeFileSync(outputPath, JSON.stringify({ ok: true, result: { profile, ...result, ...narrowResult, ...retryResult, ...continueResult, ...shortcutResult }, screenshotPath }, null, 2))
+        writeFileSync(outputPath, JSON.stringify({ ok: true, result: { profile, ...result, ...narrowResult, ...retryResult, ...continueResult, ...continueFailureResult, ...shortcutResult }, screenshotPath }, null, 2))
         app.quit()
       } catch (error) {
         writeFileSync(outputPath, JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2))

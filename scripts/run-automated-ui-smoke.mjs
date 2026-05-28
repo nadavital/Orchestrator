@@ -2073,6 +2073,7 @@ child.on('exit', async (code) => {
         chatMessageCopyA11y: result.chatMessageCopyA11yWorks === true,
         chatContinueLastTurn: result.chatContinueLastTurnWorks === true,
         chatContinueLastTurnA11y: result.chatContinueLastTurnA11yWorks === true,
+        chatContinueFailedStartCleansSyntheticPrompt: result.chatContinueFailedStartCleansSyntheticPrompt === true,
         rawEventsHiddenFromTranscript: result.rawEventsHiddenFromTranscript === true,
         narrowDocumentNoHorizontalOverflow: result.narrowDocumentNoHorizontalOverflow === true,
         narrowTranscriptNoHorizontalOverflow: result.narrowTranscriptNoHorizontalOverflow === true,

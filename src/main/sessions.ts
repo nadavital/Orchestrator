@@ -1307,7 +1307,15 @@ export const sessionManager = {
       message.type === 'text' && message.role === 'assistant' && message.content.trim().length > 0
     )
     if (!lastAssistantText) return false
-    if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT && process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-layout') {
+    const simulateContinueStartFailure =
+      process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT &&
+      process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-layout' &&
+      lastAssistantText.content.includes('CONTINUE_START_FAIL_SMOKE')
+    if (
+      process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT &&
+      process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-layout' &&
+      !simulateContinueStartFailure
+    ) {
       return true
     }
 
@@ -1315,9 +1323,10 @@ export const sessionManager = {
       ? 'Continue from where you left off. The previous assistant response stopped mid-stream; do not repeat completed content unless necessary.'
       : 'Continue from where you left off.'
     const effectivePrompt = promptWithPersonalization(prompt)
+    const continueMessageId = uuidv4()
     this.updateStatus(sessionId, 'running')
     this.appendMessage(sessionId, [{
-      id: uuidv4(),
+      id: continueMessageId,
       role: 'user',
       type: 'text',
       content: prompt,
@@ -1332,7 +1341,38 @@ export const sessionManager = {
       runtime: currentSession.runtime,
       attachments: []
     }
-    return this.startProviderRun(sessionId, currentSession, provider, runRequest, mode)
+    try {
+      const started = simulateContinueStartFailure
+        ? false
+        : await this.startProviderRun(sessionId, currentSession, provider, runRequest, mode)
+      if (!started) {
+        this.removeMessage(sessionId, continueMessageId)
+        if (simulateContinueStartFailure) {
+          this.appendMessage(sessionId, [{
+            id: uuidv4(),
+            role: 'system',
+            type: 'result',
+            content: 'Provider runtime failed to start.',
+            subtype: 'error_during_execution',
+            timestamp: Date.now()
+          }])
+          this.updateStatus(sessionId, 'error')
+        }
+      }
+      return started
+    } catch (error) {
+      this.removeMessage(sessionId, continueMessageId)
+      this.appendMessage(sessionId, [{
+        id: uuidv4(),
+        role: 'system',
+        type: 'result',
+        content: error instanceof Error ? error.message : String(error),
+        subtype: 'error_during_execution',
+        timestamp: Date.now()
+      }])
+      this.updateStatus(sessionId, 'error')
+      return false
+    }
   },
 
   applyRunEvents(sessionId: string, events: RunEvent[]): void {
