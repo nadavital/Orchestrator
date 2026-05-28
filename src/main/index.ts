@@ -6126,7 +6126,25 @@ function runAutomatedFocusedSurfaceSmoke(
                 }
                 const recentEventRows = [...document.querySelectorAll('[data-testid="agent-recent-event"]')]
                   .filter((row) => row instanceof HTMLButtonElement);
-                const permissionEventRow = recentEventRows.find((row) => row.textContent?.includes('Allow inspecting runtime diagnostics'));
+                const eventSearch = document.querySelector('[data-testid="agent-event-search"]');
+                if (eventSearch instanceof HTMLInputElement) {
+                  const setter = Object.getOwnPropertyDescriptor(eventSearch.constructor.prototype, 'value')?.set;
+                  setter?.call(eventSearch, 'git status');
+                  eventSearch.dispatchEvent(new Event('input', { bubbles: true }));
+                  await sleep(180);
+                }
+                const filteredEventList = document.querySelector('[data-testid="agent-recent-event-list"]');
+                const filteredEventRows = [...document.querySelectorAll('[data-testid="agent-recent-event"]')]
+                  .filter((row) => row instanceof HTMLButtonElement);
+                const agentRuntimeEventFilterWorks =
+                  eventSearch instanceof HTMLInputElement &&
+                  filteredEventList instanceof HTMLElement &&
+                  filteredEventList.getAttribute('data-agent-event-query-active') === 'true' &&
+                  filteredEventList.getAttribute('data-agent-event-filtered-count') === '1' &&
+                  filteredEventRows.length === 1 &&
+                  filteredEventRows[0]?.textContent?.includes('Allow inspecting runtime diagnostics') === true &&
+                  filteredEventRows.every((row) => !row.textContent?.includes('Runtime inspector smoke'));
+                const permissionEventRow = filteredEventRows.find((row) => row.textContent?.includes('Allow inspecting runtime diagnostics'));
                 if (permissionEventRow instanceof HTMLButtonElement) {
                   permissionEventRow.click();
                   await sleep(120);
@@ -6137,6 +6155,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 const agentRuntimeEventDetailWorks =
                   agentsPanel instanceof HTMLElement &&
                   recentEventRows.length >= 2 &&
+                  agentRuntimeEventFilterWorks &&
                   selectedRecentEvent instanceof HTMLElement &&
                   eventDetail instanceof HTMLElement &&
                   eventPayload instanceof HTMLElement &&
@@ -6164,6 +6183,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     (activeNewTab.textContent ?? '').includes('New tab'),
                   workbenchNewTabAgentsActionWorks,
                   agentRuntimeEventDetailWorks,
+                  agentRuntimeEventFilterWorks,
                   workbenchNewTabActionCount: newTabCards.length,
                   workbenchNewTabNoHorizontalOverflow:
                     rightPanelRect !== null &&

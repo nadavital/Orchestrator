@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useSessionStore } from '../../store/sessions'
 import type { AgentNode, AgentStatus, Session, SessionRunEventRecord } from '../../types'
-import { Badge, InspectorCard, InspectorRow, InspectorSection, MetricPill, PanelHeader, TabButton } from '../shared/designSystem'
+import { Badge, InspectorCard, InspectorRow, InspectorSection, MetricPill, PanelHeader, TabButton, WorkbenchSearchField } from '../shared/designSystem'
 import { deriveSessionAgentNodes } from './agentNodes'
 
 interface Props {
@@ -147,8 +147,18 @@ function SessionContextSummary({
   onSelectEvent: (id: string) => void
   embedded?: boolean
 }): JSX.Element {
+  const [eventQuery, setEventQuery] = useState('')
   const messageCount = session.messageCount ?? session.messages.length
   const workDirLabel = compactPath(session.workDir)
+  const visibleEvents = useMemo(() => {
+    const query = eventQuery.trim().toLowerCase()
+    if (!query) return recentEvents
+    return events
+      .slice()
+      .reverse()
+      .filter((record) => eventSearchText(record).includes(query))
+      .slice(0, 8)
+  }, [eventQuery, events, recentEvents])
 
   return (
     <div
@@ -176,29 +186,63 @@ function SessionContextSummary({
       </InspectorSection>
 
       {recentEvents.length > 0 && (
-        <InspectorSection title="Recent activity" dataTestId="agent-recent-events">
-          {recentEvents.map((record) => (
-            <button
-              key={record.id}
-              type="button"
-              className="orchestrator-inspector-row text-left"
-              data-inspector-row="true"
-              data-inspector-row-variant="muted"
-              data-testid="agent-recent-event"
-              data-agent-event-selected={selectedEventId === record.id ? 'true' : 'false'}
-              onClick={() => onSelectEvent(record.id)}
-            >
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-[11px] font-semibold" style={{ color: 'var(--color-text)' }}>
-                  {eventTitle(record)}
+        <InspectorSection
+          title="Recent activity"
+          dataTestId="agent-recent-events"
+          className="gap-2"
+        >
+          <WorkbenchSearchField
+            value={eventQuery}
+            onChange={setEventQuery}
+            placeholder="Search runtime events"
+            clearLabel="Clear runtime event search"
+            dataTestId="agent-event-search"
+            clearDataTestId="agent-event-search-clear"
+            className="w-full"
+            inputClassName="text-[11px]"
+            ariaLabel="Search runtime events"
+          />
+          <div
+            className="grid gap-1.5"
+            data-testid="agent-recent-event-list"
+            data-agent-event-filtered-count={visibleEvents.length}
+            data-agent-event-query-active={eventQuery.trim() ? 'true' : 'false'}
+          >
+            {visibleEvents.length > 0 ? visibleEvents.map((record) => (
+              <button
+                key={record.id}
+                type="button"
+                className="orchestrator-inspector-row text-left"
+                data-inspector-row="true"
+                data-inspector-row-variant="muted"
+                data-testid="agent-recent-event"
+                data-agent-event-selected={selectedEventId === record.id ? 'true' : 'false'}
+                onClick={() => onSelectEvent(record.id)}
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[11px] font-semibold" style={{ color: 'var(--color-text)' }}>
+                    {eventTitle(record)}
+                  </div>
+                  <div className="truncate text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
+                    {formatClockTime(record.timestamp)}
+                  </div>
                 </div>
-                <div className="truncate text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
-                  {formatClockTime(record.timestamp)}
-                </div>
+                <Badge tone={eventTone(record)}>{eventBadge(record)}</Badge>
+              </button>
+            )) : (
+              <div
+                className="rounded-md px-2 py-1.5 text-[11px]"
+                data-testid="agent-recent-event-empty"
+                style={{
+                  background: 'var(--surface-muted)',
+                  color: 'var(--color-text-muted)',
+                  border: '1px solid var(--border-subtle)'
+                }}
+              >
+                No matching runtime events.
               </div>
-              <Badge tone={eventTone(record)}>{eventBadge(record)}</Badge>
-            </button>
-          ))}
+            )}
+          </div>
         </InspectorSection>
       )}
 
@@ -320,6 +364,14 @@ function eventTitle(record: SessionRunEventRecord): string {
   if (event.type === 'run.failed') return event.content ?? 'Run failed'
   if (event.type === 'run.completed') return event.content ?? 'Run completed'
   return event.type.replace(/\./g, ' ')
+}
+
+function eventSearchText(record: SessionRunEventRecord): string {
+  return [
+    record.event.type,
+    eventTitle(record),
+    compactJson(record.event)
+  ].join('\n').toLowerCase()
 }
 
 function compactPath(path: string): string {
