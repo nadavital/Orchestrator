@@ -61,6 +61,8 @@ export default function SlashCommandPalette({
 
   return (
     <PopoverSurface
+      data-testid="composer-slash-palette"
+      data-slash-command-palette="true"
       className="absolute left-0 right-0 bottom-full mb-2 overflow-hidden z-50"
       style={{
         borderRadius: 'var(--radius-xl)',

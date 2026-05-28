@@ -58,6 +58,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   const [showPermMenu, setShowPermMenu] = useState(false)
   const [showAdvancedPerms, setShowAdvancedPerms] = useState(false)
   const [slashIndex, setSlashIndex] = useState(0)
+  const [dismissedSlashQuery, setDismissedSlashQuery] = useState<string | null>(null)
   const [runtimeInfo, setRuntimeInfo] = useState<Record<string, ProviderRuntimeInfo>>({})
   const [permissionContext, setPermissionContext] = useState<ProviderPermissionRuntimeContext | null>(null)
   const [extensionCommands, setExtensionCommands] = useState<ProviderSlashCommand[]>([])
@@ -157,6 +158,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     setRunActionStatus(null)
     setPermissionRulesStatus(null)
     setSlashIndex(0)
+    setDismissedSlashQuery(null)
     window.setTimeout(() => {
       if (textareaRef.current) resizeTextarea(textareaRef.current)
     }, 0)
@@ -523,7 +525,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   }
 
   const slashQuery = getSlashQuery(text)
-  const showSlash = slashQuery !== null
+  const showSlash = slashQuery !== null && slashQuery !== dismissedSlashQuery
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>): void => {
     if (showSlash && (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Tab')) return
@@ -537,6 +539,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>): void => {
     setComposerText(e.target.value)
     setSlashIndex(0)
+    setDismissedSlashQuery(null)
     resizeTextarea(e.target)
   }
 
@@ -579,6 +582,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     const next = `${textarea.value.slice(0, start)}${value}${textarea.value.slice(end)}`
     setComposerText(next)
     setSlashIndex(0)
+    setDismissedSlashQuery(null)
     window.setTimeout(() => {
       if (!textareaRef.current) return
       const cursor = start + value.length
@@ -590,6 +594,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   const setTextareaText = (next: string): void => {
     setComposerText(next)
     setSlashIndex(0)
+    setDismissedSlashQuery(null)
     textareaRef.current?.focus()
     window.setTimeout(() => {
       if (textareaRef.current) {
@@ -606,6 +611,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
       if (!nextText) return
       setComposerText(text ? `${text.trimEnd()}\n\n${nextText}` : nextText)
       setSlashIndex(0)
+      setDismissedSlashQuery(null)
       textareaRef.current?.focus()
       window.setTimeout(() => {
         if (!textareaRef.current) return
@@ -638,6 +644,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     if (command.handler === 'app-action') {
       setComposerText('')
       setSlashIndex(0)
+      setDismissedSlashQuery(null)
       if (command.id === 'settings') setShowSettings(true)
       if (command.id === 'diff') setShowDiff(session.id, !currentUi.showDiff)
       if (command.id === 'plan-sidebar') setShowPlan(session.id, !currentUi.showPlan)
@@ -675,6 +682,12 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     }
 
     setTextareaText(`${command.name} `)
+  }
+
+  const dismissSlashPalette = (): void => {
+    if (slashQuery) setDismissedSlashQuery(slashQuery)
+    setSlashIndex(0)
+    textareaRef.current?.focus()
   }
 
   const sendTitle = isSavingPastedFiles ? 'Saving pasted files' : sendState.willQueue ? 'Queue message (↵)' : 'Send (↵)'
@@ -736,7 +749,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
             providerRuntime={providerRuntime}
             discoveredCommands={extensionCommands}
             onSelect={applySlashCommand}
-            onDismiss={() => setComposerText('')}
+            onDismiss={dismissSlashPalette}
             selectedIndex={slashIndex}
             onSelectedIndexChange={setSlashIndex}
           />

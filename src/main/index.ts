@@ -5419,6 +5419,21 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             activeSettingsRow?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
             await sleep(220);
 
+            setTextareaValue('/per');
+            await sleep(120);
+            const slashPaletteBeforeEscape =
+              document.querySelector('[data-testid="composer-slash-palette"]') ??
+              document.querySelector('[data-slash-command-palette="true"]');
+            window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+            await sleep(140);
+            var composerSlashEscapePreservesDraft =
+              slashPaletteBeforeEscape instanceof HTMLElement &&
+              !(document.querySelector('[data-testid="composer-slash-palette"]') instanceof HTMLElement) &&
+              !(document.querySelector('[data-slash-command-palette="true"]') instanceof HTMLElement) &&
+              textareaValue() === '/per';
+            setTextareaValue('');
+            await sleep(80);
+
             setTextareaValue('/model');
             await sleep(120);
             window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
@@ -6806,6 +6821,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             composerPermissionNativeTooltipsWork: typeof composerPermissionNativeTooltipsWork === 'boolean' ? composerPermissionNativeTooltipsWork : null,
             composerPermissionLabelsCalm: typeof composerPermissionLabelsCalm === 'boolean' ? composerPermissionLabelsCalm : null,
             composerPermissionRuleStatus: typeof composerPermissionRuleStatus === 'boolean' ? composerPermissionRuleStatus : null,
+            composerSlashEscapePreservesDraft: typeof composerSlashEscapePreservesDraft === 'boolean' ? composerSlashEscapePreservesDraft : null,
             composerSlashModelOpensSettings: typeof composerSlashModelOpensSettings === 'boolean' ? composerSlashModelOpensSettings : null,
             composerSlashModelFocusesMenu: typeof composerSlashModelFocusesMenu === 'boolean' ? composerSlashModelFocusesMenu : null,
             composerSlashPermissionsOpensMenu: typeof composerSlashPermissionsOpensMenu === 'boolean' ? composerSlashPermissionsOpensMenu : null,

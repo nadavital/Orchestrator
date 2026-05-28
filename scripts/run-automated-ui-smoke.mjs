@@ -2880,6 +2880,7 @@ child.on('exit', async (code) => {
         composerPermissionNativeTooltips: captureView !== 'composer' || result.composerPermissionNativeTooltipsWork === true,
         composerPermissionLabelsCalm: captureView !== 'composer' || result.composerPermissionLabelsCalm === true,
         composerPermissionRuleStatus: captureView !== 'composer' || result.composerPermissionRuleStatus === true,
+        composerSlashEscapePreservesDraft: captureView !== 'composer' || result.composerSlashEscapePreservesDraft === true,
         composerSlashModelOpensSettings: captureView !== 'composer' || result.composerSlashModelOpensSettings === true,
         composerSlashModelFocusesMenu: captureView !== 'composer' || result.composerSlashModelFocusesMenu === true,
         composerSlashPermissionsOpensMenu: captureView !== 'composer' || result.composerSlashPermissionsOpensMenu === true,
