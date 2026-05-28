@@ -4612,8 +4612,23 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               sendStatusPermissionMenu.textContent?.includes('Codex') === true &&
               [...sendStatusPermissionMenu.querySelectorAll('button')]
                 .some((button) => button.textContent?.includes('Ask'));
-            window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-            await sleep(140);
+            const askPermissionButton = sendStatusPermissionMenu instanceof HTMLElement
+              ? [...sendStatusPermissionMenu.querySelectorAll('button')]
+                  .find((button) => button.textContent?.includes('Ask'))
+              : null;
+            if (askPermissionButton instanceof HTMLButtonElement) {
+              askPermissionButton.click();
+              await sleep(260);
+            }
+            var composerSendStatusRecoveryClearsBlock =
+              composerSendStatusActionOpensPermissions &&
+              askPermissionButton instanceof HTMLButtonElement &&
+              !document.querySelector('.motion-popover-surface') &&
+              !(document.querySelector('[data-testid="composer-send-status"]') instanceof HTMLElement);
+            if (document.querySelector('.motion-popover-surface')) {
+              window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+              await sleep(140);
+            }
             activeSettingsRow?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
             await sleep(220);
 
@@ -5744,6 +5759,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             composerToolbarResponsiveWorks: typeof composerToolbarResponsiveWorks === 'boolean' ? composerToolbarResponsiveWorks : null,
             composerSendStatusExplainsBlocked: typeof composerSendStatusExplainsBlocked === 'boolean' ? composerSendStatusExplainsBlocked : null,
             composerSendStatusActionOpensPermissions: typeof composerSendStatusActionOpensPermissions === 'boolean' ? composerSendStatusActionOpensPermissions : null,
+            composerSendStatusRecoveryClearsBlock: typeof composerSendStatusRecoveryClearsBlock === 'boolean' ? composerSendStatusRecoveryClearsBlock : null,
             composerQueuedCancel: typeof composerQueuedCancel === 'boolean' ? composerQueuedCancel : null,
             composerEmptySuggestionFillsDraft: typeof composerEmptySuggestionFillsDraft === 'boolean' ? composerEmptySuggestionFillsDraft : null,
             composerDraftsPerChat: typeof composerDraftsPerChat === 'boolean' ? composerDraftsPerChat : null,

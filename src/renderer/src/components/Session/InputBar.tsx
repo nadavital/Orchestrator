@@ -269,6 +269,11 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     })
   }
 
+  const selectPermissionMode = (modeId: string): void => {
+    update({ permissionMode: modeId })
+    setShowPermMenu(false)
+  }
+
   const sendState = getComposerSendState({
     text,
     status: session.status,
@@ -1065,7 +1070,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
                         active={permissionMode === opt.id}
                         providerColor={provider.color}
                         unsupported={providerRuntime?.policies[opt.id]?.support === 'unsupported'}
-                        onSelect={() => update({ permissionMode: opt.id })}
+                        onSelect={() => selectPermissionMode(opt.id)}
                       />
                     ))}
                   </div>
@@ -1099,7 +1104,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
                                   active={permissionMode === opt.id}
                                   providerColor={provider.color}
                                   unsupported={providerRuntime?.policies[opt.id]?.support === 'unsupported'}
-                                  onSelect={() => update({ permissionMode: opt.id })}
+                                  onSelect={() => selectPermissionMode(opt.id)}
                                 />
                               ))}
                             </div>
@@ -1121,7 +1126,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
                                     active={permissionMode === opt.id}
                                     providerColor="var(--color-red)"
                                     unsupported={providerRuntime?.policies[opt.id]?.support === 'unsupported'}
-                                    onSelect={() => update({ permissionMode: opt.id })}
+                                    onSelect={() => selectPermissionMode(opt.id)}
                                   />
                                 ))}
                               </div>
