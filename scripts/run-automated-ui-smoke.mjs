@@ -2217,6 +2217,7 @@ child.on('exit', async (code) => {
           browserToolbarHistory: result.browserToolbarHistoryWorks === true,
           browserHistoryMenu: result.browserHistoryMenuWorks === true,
           browserActionsMenuCompact: result.browserActionsMenuCompactWorks === true,
+          browserActionsMenuTriggerState: result.browserActionsMenuTriggerStateWorks === true,
           browserActionsMenuMaterial: result.browserActionsMenuMaterialWorks === true,
           browserMenuSectionsShared: result.browserMenuSectionsSharedWorks === true,
           browserMenuRowsShared: result.browserMenuRowsSharedWorks === true,

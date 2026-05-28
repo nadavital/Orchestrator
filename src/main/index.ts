@@ -17336,9 +17336,15 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
             const browserActionsButton = findButton('Browser actions');
             let browserHistoryMenuWorks = false;
             let browserActionsMenuMaterialWorks = false;
+            let browserActionsMenuTriggerStateWorks = false;
             if (browserActionsButton instanceof HTMLButtonElement) {
+              const browserActionsMenuClosedStateWorks =
+                browserActionsButton.getAttribute('aria-haspopup') === 'menu' &&
+                browserActionsButton.getAttribute('aria-controls') === 'browser-actions-menu-surface' &&
+                browserActionsButton.getAttribute('aria-expanded') === 'false';
               browserActionsButton.click();
               await sleep(160);
+              const browserActionsMenuId = browserActionsButton.getAttribute('aria-controls') ?? '';
               const historyMenu = document.querySelector('[data-testid="browser-history-menu"]');
               const historyItems = [...document.querySelectorAll('[data-testid="browser-history-item"]')];
               const browserActionsMenu = document.querySelector('.browser-actions-menu');
@@ -17436,6 +17442,12 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                   return previous instanceof HTMLElement &&
                     row.getBoundingClientRect().top > previous.getBoundingClientRect().top;
                 });
+              browserActionsMenuTriggerStateWorks =
+                browserActionsMenuClosedStateWorks &&
+                browserActionsButton.getAttribute('aria-haspopup') === 'menu' &&
+                browserActionsButton.getAttribute('aria-expanded') === 'true' &&
+                browserActionsMenuId === 'browser-actions-menu-surface' &&
+                document.getElementById(browserActionsMenuId) instanceof HTMLElement;
               browserActionsMenuMaterialWorks =
                 browserActionsMenu instanceof HTMLElement &&
                 browserActionsMenuStyle !== null &&
@@ -17480,6 +17492,10 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                 browserActionsButton.click();
               }
               await sleep(80);
+              browserActionsMenuTriggerStateWorks =
+                browserActionsMenuTriggerStateWorks &&
+                browserActionsButton.getAttribute('aria-expanded') === 'false' &&
+                document.getElementById('browser-actions-menu-surface') === null;
             }
             var browserContextMenuWorks = false;
             var browserContextMenuMaterialWorks = false;
@@ -18689,6 +18705,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserToolbarHistoryWorks,
               browserHistoryMenuWorks,
               browserActionsMenuCompactWorks: typeof browserActionsMenuCompactWorks === 'boolean' ? browserActionsMenuCompactWorks : null,
+              browserActionsMenuTriggerStateWorks,
               browserActionsMenuMaterialWorks,
               browserMenuSectionsSharedWorks: typeof browserMenuSectionsSharedWorks === 'boolean' ? browserMenuSectionsSharedWorks : null,
               browserMenuRowsSharedWorks: typeof browserMenuRowsSharedWorks === 'boolean' ? browserMenuRowsSharedWorks : null,

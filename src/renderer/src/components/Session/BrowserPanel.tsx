@@ -7,6 +7,8 @@ import { Badge, Button, IconButton, InspectorDisclosure, InspectorRow, Inspector
 import Icon from '../shared/Icon'
 import BrowserWebviewManager, { type BrowserVisibleGeometry, type WebviewElement } from './BrowserWebviewManager'
 
+const BROWSER_ACTIONS_MENU_ID = 'browser-actions-menu-surface'
+
 interface Props {
   initialUrl?: string
   embedded?: boolean
@@ -1600,10 +1602,14 @@ export default function BrowserPanel({
             size="sm"
             active={browserMenuOpen}
             dataTestId="browser-actions-menu"
+            ariaExpanded={browserMenuOpen}
+            ariaControls={BROWSER_ACTIONS_MENU_ID}
+            ariaHasPopup="menu"
             onClick={() => setBrowserMenuOpen((open) => !open)}
           />
           {browserMenuOpen && (
             <MenuSurface
+              id={BROWSER_ACTIONS_MENU_ID}
               onClose={() => setBrowserMenuOpen(false)}
               className="browser-actions-menu"
               style={{ position: 'absolute', right: 0, top: 32, width: 236, zIndex: 100 }}

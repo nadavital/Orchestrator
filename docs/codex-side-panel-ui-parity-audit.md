@@ -9052,3 +9052,13 @@ Implemented: the Files `File actions` trigger and the workbench file-tab `File v
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and `git diff --check` passed. Elevated `node scripts/run-automated-ui-smoke.mjs --files` passed with `filesActionMenuTriggerState=true` and `workbenchFileTabActionMenuState=true` while preserving Files toolbar, row context menu, file-tab source, content-search, and preview gates. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779995678369.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779995678369.png`.
 
 Remaining: this closes local Files/source-tab menu-trigger state only. Deep Office/PDF renderer fidelity remains Phase 2 unless it blocks coding workflows, and broader whole-app menu-trigger/accessibility audit remains separate.
+
+### 2026-05-28 - Browser Actions Menu Trigger State
+
+Product evidence: Browser actions are core app-building controls for screenshots, comment mode, URL copy, external open, cache/data clearing, history, and zoom. The menu contents, shared sections, material, and action behavior were already smoke-covered, but the toolbar trigger did not identify the controlled menu or expose open/closed state.
+
+Implemented: the Browser `Browser actions` trigger now exposes `aria-haspopup="menu"`, `aria-expanded`, and `aria-controls="browser-actions-menu-surface"`, and the mounted menu surface uses the matching stable id. Pointer-invoked webview context menus remain covered as context menus rather than button-trigger relationships.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and `git diff --check` passed. Elevated `node scripts/run-automated-ui-smoke.mjs --browser` passed with `browserActionsMenuTriggerState=true` while preserving Browser history, action menu, comment mode, inspector, local target, error recovery, and webview gates. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779995962765.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779995962765.png`.
+
+Remaining: this closes local Browser actions menu-trigger state only. Live provider-emitted Browser/browser-use proof and non-Codex browser/local-server adapters remain separate.
