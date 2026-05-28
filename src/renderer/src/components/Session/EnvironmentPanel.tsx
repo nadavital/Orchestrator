@@ -195,6 +195,7 @@ function EnvironmentRow({
         className="environment-row"
         data-testid={dataTestId}
         data-environment-row-action={action}
+        aria-label={title ? `${label}. ${title}` : label}
         title={title}
         onClick={onClick}
       >
@@ -210,6 +211,8 @@ function EnvironmentRow({
       data-environment-row-disabled={disabled ? 'true' : 'false'}
       data-environment-row-disabled-reason={disabledReason}
       data-environment-row-action={action}
+      aria-disabled={disabled ? true : undefined}
+      aria-label={disabledReason ? `${label}. ${disabledReason}` : label}
       title={title ?? disabledReason}
     >
       {content}

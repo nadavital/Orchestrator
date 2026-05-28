@@ -9122,3 +9122,13 @@ Implemented: the Settings route close handler now focuses the main composer text
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --settings` passed. The focused run added `settingsCloseFocusRestored=true` while preserving the existing Settings gates, including `settingsContentFocusOnOpen=true`. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779998018822.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779998018822.png`.
 
 Remaining: this closes local Settings-to-chat focus restoration only. Whole-app keyboard traversal, provider-native Settings adapters, and remote-host Settings adapters remain separate.
+
+### 2026-05-28 - Environment Disabled Row Semantics
+
+Product evidence: Environment is a Phase 1 inspector/context surface for daily coding state. Its unavailable source rows already showed a reason visually and through `title`, but keyboard and assistive-tech users did not get an explicit disabled state or reason-bearing row label.
+
+Implemented: shared Environment rows now expose accessible labels for actionable rows, and disabled rows expose `aria-disabled="true"` plus an `aria-label` that includes the concrete unavailable reason. The focused Environment smoke gates the provider Web search source row with `environmentDisabledRowsA11y=true`.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --environment` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-environment-1779998274477.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-environment-1779998274477.png`. The run adds `environmentDisabledRowsA11y=true` while keeping Environment visual, action-row, source-boundary, and settings-open checks green.
+
+Remaining: this closes local Environment disabled-row semantics only. Provider-backed web-search source state, provider-native environment sources, hosted PR metadata, and commit/PR creation remain separate.

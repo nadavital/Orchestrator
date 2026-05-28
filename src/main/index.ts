@@ -8173,6 +8173,10 @@ function runAutomatedFocusedSurfaceSmoke(
                     environmentWebSearchRow.getAttribute('data-environment-row-disabled-reason') === 'Provider web-search source is not connected for this session' &&
                     environmentWebSearchRow.textContent?.includes('Unavailable') === true &&
                     environmentWebSearchRow.getAttribute('title') === 'Provider web-search source is not connected for this session',
+                  environmentDisabledRowsA11yWorks:
+                    environmentWebSearchRow instanceof HTMLElement &&
+                    environmentWebSearchRow.getAttribute('aria-disabled') === 'true' &&
+                    environmentWebSearchRow.getAttribute('aria-label') === 'Web search. Provider web-search source is not connected for this session',
                   environmentSettingsOpensProviders: environmentSettingsOpensProvidersWorks
                 };
               }
