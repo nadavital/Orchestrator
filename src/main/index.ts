@@ -4703,6 +4703,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             const permissionMenu = document.querySelector('.motion-popover-surface');
             const permissionDropdownSurface = document.querySelector('[data-testid="composer-dropdown-surface"]');
             var composerPermissionMenuOpened = Boolean(permissionMenu);
+            var composerPermissionTriggerExpandedOnOpen =
+              permissionButton instanceof HTMLElement &&
+              permissionButton.getAttribute('aria-haspopup') === 'menu' &&
+              permissionButton.getAttribute('aria-expanded') === 'true';
             var composerDropdownMaterialWorks =
               permissionDropdownSurface instanceof HTMLElement &&
               permissionDropdownSurface.dataset.composerDropdownSurface === 'true' &&
@@ -4734,11 +4738,18 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             await sleep(140);
             var composerPermissionMenuClosedWithEscape = !document.querySelector('.motion-popover-surface');
             var composerPermissionFocusReturned = document.activeElement === permissionButton;
+            var composerPermissionTriggerCollapsedOnClose =
+              permissionButton instanceof HTMLElement &&
+              permissionButton.getAttribute('aria-expanded') === 'false';
 
             const agentButton = document.querySelector('[data-testid="composer-agent-menu"]');
             agentButton?.click();
             await sleep(140);
             var composerAgentMenuOpened = Boolean(document.querySelector('.motion-popover-surface'));
+            var composerAgentTriggerExpandedOnOpen =
+              agentButton instanceof HTMLElement &&
+              agentButton.getAttribute('aria-haspopup') === 'menu' &&
+              agentButton.getAttribute('aria-expanded') === 'true';
             const activeAgentSummary = document.querySelector('[data-testid="composer-active-agent-summary"]');
             const agentRowLabels = [...document.querySelectorAll('[data-testid="composer-agent-row-label"]')]
               .filter((label) => label instanceof HTMLElement);
@@ -4759,6 +4770,9 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             await sleep(140);
             var composerAgentMenuClosedWithOutsideClick = !document.querySelector('.motion-popover-surface');
             var composerAgentFocusReturned = document.activeElement === agentButton;
+            var composerAgentTriggerCollapsedOnClose =
+              agentButton instanceof HTMLElement &&
+              agentButton.getAttribute('aria-expanded') === 'false';
 
             const composerShell = document.querySelector('[data-testid="composer-shell"]');
             const composerToolbar = document.querySelector('[data-testid="composer-toolbar"]');
@@ -5818,13 +5832,17 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             composerDropdownMaterialWorks: typeof composerDropdownMaterialWorks === 'boolean' ? composerDropdownMaterialWorks : null,
             composerPermissionNativeTooltipsWork: typeof composerPermissionNativeTooltipsWork === 'boolean' ? composerPermissionNativeTooltipsWork : null,
             composerPermissionLabelsCalm: typeof composerPermissionLabelsCalm === 'boolean' ? composerPermissionLabelsCalm : null,
+            composerPermissionTriggerExpandedOnOpen: typeof composerPermissionTriggerExpandedOnOpen === 'boolean' ? composerPermissionTriggerExpandedOnOpen : null,
             composerPermissionMenuClosedWithEscape: typeof composerPermissionMenuClosedWithEscape === 'boolean' ? composerPermissionMenuClosedWithEscape : null,
             composerPermissionFocusReturned: typeof composerPermissionFocusReturned === 'boolean' ? composerPermissionFocusReturned : null,
+            composerPermissionTriggerCollapsedOnClose: typeof composerPermissionTriggerCollapsedOnClose === 'boolean' ? composerPermissionTriggerCollapsedOnClose : null,
             composerAgentMenuOpened: typeof composerAgentMenuOpened === 'boolean' ? composerAgentMenuOpened : null,
+            composerAgentTriggerExpandedOnOpen: typeof composerAgentTriggerExpandedOnOpen === 'boolean' ? composerAgentTriggerExpandedOnOpen : null,
             composerActiveThreadSettings: typeof composerActiveThreadSettings === 'boolean' ? composerActiveThreadSettings : null,
             composerAgentRowLabelsCalm: typeof composerAgentRowLabelsCalm === 'boolean' ? composerAgentRowLabelsCalm : null,
             composerAgentMenuClosedWithOutsideClick: typeof composerAgentMenuClosedWithOutsideClick === 'boolean' ? composerAgentMenuClosedWithOutsideClick : null,
             composerAgentFocusReturned: typeof composerAgentFocusReturned === 'boolean' ? composerAgentFocusReturned : null,
+            composerAgentTriggerCollapsedOnClose: typeof composerAgentTriggerCollapsedOnClose === 'boolean' ? composerAgentTriggerCollapsedOnClose : null,
             composerToolbarResponsiveWorks: typeof composerToolbarResponsiveWorks === 'boolean' ? composerToolbarResponsiveWorks : null,
             composerSendStatusExplainsBlocked: typeof composerSendStatusExplainsBlocked === 'boolean' ? composerSendStatusExplainsBlocked : null,
             composerSendStatusActionOpensPermissions: typeof composerSendStatusActionOpensPermissions === 'boolean' ? composerSendStatusActionOpensPermissions : null,

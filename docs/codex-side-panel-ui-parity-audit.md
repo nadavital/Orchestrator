@@ -179,6 +179,14 @@ Verification: `pnpm exec tsc --noEmit` passed. `node -c scripts/run-automated-ui
 
 Remaining: this closes the local missing-resume approval recovery gap. It does not implement provider-native approval adapters or prove live non-Codex provider approval behavior.
 
+### 2026-05-28 - Composer Popover Accessibility State Slice
+
+Implemented: composer Worktree, Agent, and Permission toolbar triggers now expose `aria-haspopup="menu"` and live `aria-expanded` state when their popovers open or close. This builds on the shared dismissable popover focus-return behavior so the controls are not only visually interactive but also announce their menu state to keyboard and screen-reader users.
+
+Verification: `pnpm exec tsc --noEmit` passed. `node -c scripts/run-automated-ui-smoke.mjs` passed. `git diff --check` passed. Focused `node scripts/run-automated-ui-smoke.mjs --composer` passed with `composerPermissionTriggerAriaExpanded=true`, `composerPermissionTriggerAriaCollapsed=true`, `composerAgentTriggerAriaExpanded=true`, and `composerAgentTriggerAriaCollapsed=true` alongside the existing permission Escape/focus-return and agent outside-click/focus-return gates; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1779945983816.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1779945983816.png`.
+
+Remaining: this closes the immediate composer popover trigger-state gap. It does not close the whole-app accessibility audit, roving keyboard navigation, or live provider-backed model/permission workflow proof.
+
 ### 2026-05-28 - Composer Blocked Send Status Slice
 
 Implemented: the composer now shows a compact send-status strip when a draft cannot send because the selected permission policy is unsupported, when attachments are still saving, or when Enter will queue a follow-up behind a running turn. Unsupported permission states include a direct `Change` action that opens the permission menu, so the disabled send arrow is no longer the only signal.

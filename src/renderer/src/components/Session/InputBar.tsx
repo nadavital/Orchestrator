@@ -737,6 +737,8 @@ function InputBar({ session, isNew }: Props): JSX.Element {
                 title={!isGitRepo ? 'Not a git repository' : undefined}
                 dataTestId="composer-worktree-menu"
                 className="composer-worktree-trigger"
+                ariaExpanded={isGitRepo ? showModeMenu : undefined}
+                ariaHasPopup={isGitRepo ? 'menu' : undefined}
               >
                 <Icon name={effectiveMode ? 'branch' : 'folder'} size={13} />
                 <span className="composer-control-label composer-control-label-sm">
@@ -775,6 +777,8 @@ function InputBar({ session, isNew }: Props): JSX.Element {
                 className="composer-agent-trigger"
                 title="Thread model settings"
                 ariaLabel="Thread model settings"
+                ariaExpanded={showAgentMenu}
+                ariaHasPopup="menu"
               >
                 <ProviderIcon providerId={provider.id} size={11} color={provider.color} />
                 <span className="composer-control-label">{agentLabel}</span>
@@ -918,6 +922,8 @@ function InputBar({ session, isNew }: Props): JSX.Element {
                 providerColor={provider.color}
                 dataTestId="composer-agent-menu"
                 className="composer-agent-trigger"
+                ariaExpanded={showAgentMenu}
+                ariaHasPopup="menu"
               >
                 <ProviderIcon providerId={provider.id} size={11} color={provider.color} />
                 <span className="composer-control-label">{agentLabel}</span>
@@ -1051,6 +1057,8 @@ function InputBar({ session, isNew }: Props): JSX.Element {
               onClick={() => setShowPermMenu((v) => !v)}
               dataTestId="composer-permission-menu"
               className="composer-permission-trigger"
+              ariaExpanded={showPermMenu}
+              ariaHasPopup="menu"
             >
               <ProviderIcon providerId={provider.id} size={11} color={provider.color} />
               <span className="composer-control-label composer-control-label-xs">{permLabel}</span>
@@ -1337,7 +1345,7 @@ function formatBytes(value: number): string {
 }
 
 function ToolbarBtn({
-  children, active, onClick, muted, title, ariaLabel, providerColor, dataTestId, className
+  children, active, onClick, muted, title, ariaLabel, ariaExpanded, ariaHasPopup, providerColor, dataTestId, className
 }: {
   children: React.ReactNode
   active: boolean
@@ -1345,6 +1353,8 @@ function ToolbarBtn({
   muted?: boolean
   title?: string
   ariaLabel?: string
+  ariaExpanded?: boolean
+  ariaHasPopup?: 'menu' | 'listbox' | 'tree' | 'grid' | 'dialog'
   providerColor?: string
   dataTestId?: string
   className?: string
@@ -1359,6 +1369,8 @@ function ToolbarBtn({
         onClick?.()
       }}
       aria-label={ariaLabel}
+      aria-expanded={ariaExpanded}
+      aria-haspopup={ariaHasPopup}
       data-tooltip-label={title}
       data-native-title-free="true"
       data-testid={dataTestId}
