@@ -1303,6 +1303,12 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               const appearanceContentGroups = appearanceSection instanceof HTMLElement
                 ? [...appearanceSection.querySelectorAll('.settings-content-group')]
                 : [];
+              const appearanceChromeEditors = appearanceSection instanceof HTMLElement
+                ? [...appearanceSection.querySelectorAll('.appearance-chrome-theme-editor')]
+                : [];
+              const appearanceColorInputs = appearanceSection instanceof HTMLElement
+                ? [...appearanceSection.querySelectorAll('.appearance-color-input')]
+                : [];
               var settingsAppearanceSurfaceWorks =
                 appearanceSection instanceof HTMLElement &&
                 appearanceSection.classList.contains('settings-page-section') &&
@@ -1313,6 +1319,23 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 appearanceSection.querySelector('.settings-action-button') instanceof HTMLElement &&
                 appearanceSection.querySelector('.settings-group') === null &&
                 appearanceSection.querySelector('.settings-panel') === null;
+              var settingsAppearanceColorSwatchesSharedWorks =
+                appearanceSection instanceof HTMLElement &&
+                appearanceChromeEditors.length === 2 &&
+                appearanceChromeEditors.every((editor) =>
+                  editor instanceof HTMLElement &&
+                  editor.getAttribute('data-theme-editor-surface') === 'shared' &&
+                  editor.scrollWidth <= editor.clientWidth + 2
+                ) &&
+                appearanceColorInputs.length >= 7 &&
+                appearanceColorInputs.every((input) =>
+                  input instanceof HTMLInputElement &&
+                  input.type === 'color' &&
+                  input.getAttribute('data-color-input-surface') === 'shared' &&
+                  input.getBoundingClientRect().width <= 40 &&
+                  input.getBoundingClientRect().height <= 34 &&
+                  input.getAttribute('style') === null
+                );
               var settingsAppearanceModuleWorks =
                 appearanceSection instanceof HTMLElement &&
                 appearanceSection.closest('[data-settings-page-module="appearance"]') instanceof HTMLElement;
@@ -5869,6 +5892,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             themePresetPreviewWorks: typeof themePresetPreviewWorks === 'boolean' ? themePresetPreviewWorks : null,
             settingsTaxonomyWorks: typeof settingsTaxonomyWorks === 'boolean' ? settingsTaxonomyWorks : null,
             settingsRowsCalmWorks: typeof settingsRowsCalmWorks === 'boolean' ? settingsRowsCalmWorks : null,
+            settingsAppearanceColorSwatchesSharedWorks: typeof settingsAppearanceColorSwatchesSharedWorks === 'boolean' ? settingsAppearanceColorSwatchesSharedWorks : null,
             settingsAppearanceSurfaceWorks: typeof settingsAppearanceSurfaceWorks === 'boolean' ? settingsAppearanceSurfaceWorks : null,
             settingsAppearanceModuleWorks: typeof settingsAppearanceModuleWorks === 'boolean' ? settingsAppearanceModuleWorks : null,
             settingsGeneralSurfaceWorks: typeof settingsGeneralSurfaceWorks === 'boolean' ? settingsGeneralSurfaceWorks : null,

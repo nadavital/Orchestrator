@@ -410,6 +410,8 @@ export default function AppearanceSettingsPage({
                   description="Used when the custom accent swatch is selected."
                   control={(
                     <input
+                      data-testid="appearance-custom-accent-input"
+                      data-color-input-surface="shared"
                       type="color"
                       value={customAccent}
                       onChange={(event) => onSetCustomAccent(event.currentTarget.value)}
@@ -645,16 +647,10 @@ function ChromeThemeEditor({
   return (
     <div
       data-testid={`appearance-${variant}-chrome-editor`}
-      style={{
-        display: 'grid',
-        gap: 12,
-        padding: 14,
-        borderRadius: 'var(--radius-lg)',
-        border: '1px solid var(--border-subtle)',
-        background: 'var(--surface-bg)'
-      }}
+      data-theme-editor-surface="shared"
+      className="appearance-chrome-theme-editor"
     >
-      <div style={{ fontSize: 13, fontWeight: 650, color: 'var(--text-primary)' }}>{title}</div>
+      <div className="appearance-chrome-theme-editor-title">{title}</div>
       <ColorInput label="Accent" value={theme.accent} onChange={(value) => onChange(variant, { accent: value })} />
       <ColorInput label="Background" value={theme.surface} onChange={(value) => onChange(variant, { surface: value })} />
       <ColorInput label="Foreground" value={theme.ink} onChange={(value) => onChange(variant, { ink: value })} />
@@ -684,7 +680,7 @@ function ChromeThemeEditor({
             step="1"
             value={theme.contrast}
             onChange={(event) => onChange(variant, { contrast: Number(event.currentTarget.value) })}
-            style={{ width: 132 }}
+            className="appearance-contrast-range"
           />
         )}
       />
@@ -700,23 +696,20 @@ function ChromeThemeEditor({
 }
 
 function ColorInput({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }): JSX.Element {
+  const id = label.toLowerCase().replace(/[^a-z0-9]+/g, '-')
   return (
     <SettingsRow
       label={label}
       variant="nested"
       control={(
         <input
+          data-testid={`appearance-color-${id}`}
+          data-color-input-surface="shared"
           type="color"
           aria-label={label}
           value={value}
           onChange={(event) => onChange(event.currentTarget.value)}
-          style={{
-            width: 34,
-            height: 28,
-            border: '1px solid var(--border-subtle)',
-            borderRadius: 'var(--radius-md)',
-            background: 'transparent'
-          }}
+          className="appearance-color-input"
         />
       )}
     />

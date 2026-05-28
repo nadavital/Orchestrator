@@ -2727,6 +2727,7 @@ child.on('exit', async (code) => {
         themePresetPreview: captureView !== 'settings' || result.themePresetPreviewWorks === true,
         settingsTaxonomy: captureView !== 'settings' || result.settingsTaxonomyWorks === true,
         settingsRowsCalm: captureView !== 'settings' || result.settingsRowsCalmWorks === true,
+        settingsAppearanceColorSwatchesShared: captureView !== 'settings' || result.settingsAppearanceColorSwatchesSharedWorks === true,
         settingsAppearanceSurface: captureView !== 'settings' || result.settingsAppearanceSurfaceWorks === true,
         settingsAppearanceModule: captureView !== 'settings' || result.settingsAppearanceModuleWorks === true,
         settingsGeneralSurface: captureView !== 'settings' || result.settingsGeneralSurfaceWorks === true,
