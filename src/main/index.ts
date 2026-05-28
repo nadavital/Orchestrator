@@ -23814,7 +23814,8 @@ function runAutomatedStreamingTypingSmoke(win: BrowserWindow, outputPath: string
                 document.body.innerText.includes('Smoke queued follow-up failed to start.'),
               queuedFollowUpStartFailureState:
                 ${JSON.stringify(queuedFailureSessionStatus)} === 'error' &&
-                queuedActions instanceof HTMLElement
+                queuedActions instanceof HTMLElement,
+              queuedFollowUpStoredState: ${JSON.stringify(queuedFailureStoredState)}
             };
           })()
         `)

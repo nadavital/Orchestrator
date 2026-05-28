@@ -1,6 +1,6 @@
 # Codex App-Server Support Matrix
 
-Last checked: 2026-05-26
+Last checked: 2026-05-28
 Local Codex CLI: `codex-cli 0.128.0`
 
 ## Research Basis
@@ -29,6 +29,9 @@ Local Codex CLI: `codex-cli 0.128.0`
 - Review/rollback boundary proof:
   - `npm run live:codex-review-appserver`
   - `tmp/codex-review-appserver-live-proof/result.json`
+- Composer model/policy boundary proof:
+  - `npm run live:codex-composer-appserver`
+  - `tmp/codex-composer-appserver-live-proof/result.json`
 
 ## Status Legend
 
@@ -48,7 +51,7 @@ Local Codex CLI: `codex-cli 0.128.0`
 | Core chat loop | Supported | Starts/resumes thread and starts turns through app-server. |
 | Follow-up while running | Supported | Uses `turn/steer` when an app-server turn is active. |
 | Stop/interrupt | Supported | Uses `turn/interrupt` when a Codex app-server turn id is known. |
-| Command/file/permission approvals | Supported | Handles `item/commandExecution/requestApproval`, `item/fileChange/requestApproval`, and `item/permissions/requestApproval`; maps allow once/session/deny back to app-server responses. |
+| Command/file/permission approvals | Supported | Handles `item/commandExecution/requestApproval`, `item/fileChange/requestApproval`, and `item/permissions/requestApproval`; maps allow once/session/deny back to app-server responses. The live composer proof confirms Codex returns Orchestrator's requested managed permission profile and can complete an allowed workspace-write command without an explicit approval request. |
 | User questions | Supported | Handles `item/tool/requestUserInput` and sends structured answers. |
 | MCP elicitation | Supported | Handles `mcpServer/elicitation/request` and sends accept response. |
 | Assistant streaming | Supported | Handles `item/agentMessage/delta` and suppresses duplicate final text. |
@@ -77,7 +80,7 @@ Local Codex CLI: `codex-cli 0.128.0`
 | Thread context operations | `thread/compact/start`, `thread/rollback`, `thread/inject_items` | Partial. Live proof shows `thread/rollback` accepts `{ threadId, numTurns: 1 }` on persisted threads and rewrites thread history, but it does not revert the workspace file/git diff. It is not a Review Undo implementation by itself. |
 | Thread shell command | `thread/shellCommand` | Not wired. Existing terminal/shell surfaces are Orchestrator-owned. |
 | Guardian denied action | `thread/approveGuardianDeniedAction` | Not wired. |
-| Turn execution | `turn/start`, `turn/steer`, `turn/interrupt` | Supported. |
+| Turn execution | `turn/start`, `turn/steer`, `turn/interrupt` | Supported. Live composer proof covers a real `thread/start`/`turn/start` with model, effort, approval policy, sandbox profile, command execution, and final assistant token. |
 | Review | `review/start` | Not wired. Review-mode items are parsed, but the app-server review starter is not productized. |
 | Skills/hooks | `skills/list`, `skills/config/write`, `hooks/list` | Partial. `skills/list` and `hooks/list` are exposed as read-only settings surfaces; config write is not wired. |
 | Plugin marketplace | `marketplace/add`, `marketplace/remove`, `marketplace/upgrade` | Not wired. |
