@@ -22770,6 +22770,8 @@ function runAutomatedTranscriptForkSmoke(win: BrowserWindow, outputPath: string,
         if (session) {
           sessionManager.save({
             ...session,
+            pinned: true,
+            pinOrder: 7,
             useWorktree: true,
             worktreeState: 'ready',
             providerSessionId: 'transcript-layout-provider-thread',
@@ -22793,6 +22795,7 @@ function runAutomatedTranscriptForkSmoke(win: BrowserWindow, outputPath: string,
             repoRoot: session.repoRoot,
             workDir: session.workDir
           })
+          win.webContents.send('session:pinned', { id: session.id, pinned: true, pinOrder: 7 })
           win.webContents.send('pet:navigate', session.id)
           await new Promise((resolve) => setTimeout(resolve, 220))
         }
@@ -22842,14 +22845,15 @@ function runAutomatedTranscriptForkSmoke(win: BrowserWindow, outputPath: string,
             };
           })()
         `)
-        const forkedFromMessage = session
-          ? await sessionManager.fork(session.id, 'local', { throughMessageId: 'transcript-layout-user' })
+        const forkSource = session ? sessionManager.get(session.id) : null
+        const forkedFromMessage = forkSource
+          ? await sessionManager.fork(forkSource.id, 'local', { throughMessageId: 'transcript-layout-user' })
           : null
-        const sameWorktreeForkedFromMessage = session
-          ? await sessionManager.fork(session.id, 'same-worktree', { throughMessageId: 'transcript-layout-user' })
+        const sameWorktreeForkedFromMessage = forkSource
+          ? await sessionManager.fork(forkSource.id, 'same-worktree', { throughMessageId: 'transcript-layout-user' })
           : null
-        const newWorktreeForkedFromMessage = session
-          ? await sessionManager.fork(session.id, 'new-worktree', { throughMessageId: 'transcript-layout-user' })
+        const newWorktreeForkedFromMessage = forkSource
+          ? await sessionManager.fork(forkSource.id, 'new-worktree', { throughMessageId: 'transcript-layout-user' })
           : null
         if (forkedFromMessage) {
           projectStore.addSession(forkedFromMessage.projectId, forkedFromMessage.id)
@@ -22876,7 +22880,9 @@ function runAutomatedTranscriptForkSmoke(win: BrowserWindow, outputPath: string,
                       row.getAttribute('data-sidebar-provider-thread-source') === 'local' &&
                       !row.hasAttribute('data-sidebar-provider-pinned') &&
                       !row.hasAttribute('data-sidebar-provider-host-id') &&
-                      !row.hasAttribute('data-sidebar-worktree-host-id'),
+                      !row.hasAttribute('data-sidebar-worktree-host-id') &&
+                      row.querySelector('[data-testid="session-pin-toggle"]')?.getAttribute('data-pinned') === 'true' &&
+                      row.querySelector('[data-testid="session-pin-toggle"]')?.getAttribute('data-sidebar-pin-boundary') === 'local',
                     chatMessageForkHoverLineage:
                       hoverCard instanceof HTMLElement &&
                       hoverCard.textContent?.includes('Fork') === true &&
@@ -22908,8 +22914,14 @@ function runAutomatedTranscriptForkSmoke(win: BrowserWindow, outputPath: string,
             forkedFromMessage?.providerPinnedThreadKey == null &&
             forkedFromMessage?.providerProjectless !== true &&
             forkedFromMessage?.providerProjectlessThreadId == null,
+          chatMessageForkPreservesLocalPinPlacement:
+            forkedFromMessage?.pinned === true &&
+            typeof forkedFromMessage?.pinOrder === 'number' &&
+            typeof forkSource?.pinOrder === 'number' &&
+            forkedFromMessage.pinOrder > forkSource.pinOrder &&
+            forkedFromMessage.providerPinned !== true,
           chatMessageForkPersistsLineage:
-            forkedFromMessage?.forkedFromSessionId === session?.id &&
+            forkedFromMessage?.forkedFromSessionId === forkSource?.id &&
             forkedFromMessage?.forkedFromSessionName === 'Transcript layout smoke' &&
             forkedFromMessage?.forkedFromMessageId === 'transcript-layout-user' &&
             forkedFromMessage?.forkMode === 'local',
@@ -22917,7 +22929,7 @@ function runAutomatedTranscriptForkSmoke(win: BrowserWindow, outputPath: string,
             sameWorktreeForkedFromMessage?.forkMode === 'same-worktree' &&
             sameWorktreeForkedFromMessage?.forkedFromMessageId === 'transcript-layout-user' &&
             sameWorktreeForkedFromMessage?.useWorktree === true &&
-            sameWorktreeForkedFromMessage?.workDir === session?.workDir &&
+            sameWorktreeForkedFromMessage?.workDir === forkSource?.workDir &&
             sameWorktreeForkedFromMessage?.messages.length === 2,
           chatMessageForkNewWorktreeFromHere:
             newWorktreeForkedFromMessage?.forkMode === 'new-worktree' &&

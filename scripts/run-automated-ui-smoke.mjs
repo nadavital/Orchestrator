@@ -2159,6 +2159,7 @@ child.on('exit', async (code) => {
         chatMessageForkTruncatesLaterTurns: result.chatMessageForkTruncatesLaterTurns === true,
         chatMessageForkClearsProviderSession: result.chatMessageForkClearsProviderSession === true,
         chatMessageForkClearsProviderSidebarMetadata: result.chatMessageForkClearsProviderSidebarMetadata === true,
+        chatMessageForkPreservesLocalPinPlacement: result.chatMessageForkPreservesLocalPinPlacement === true,
         chatMessageForkPersistsLineage: result.chatMessageForkPersistsLineage === true,
         chatMessageForkSameWorktreeFromHere: result.chatMessageForkSameWorktreeFromHere === true,
         chatMessageForkNewWorktreeFromHere: result.chatMessageForkNewWorktreeFromHere === true,
