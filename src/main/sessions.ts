@@ -1186,6 +1186,10 @@ export const sessionManager = {
     const activeProviderId = session.provider ?? 'claude'
     const effectivePrompt = promptWithPersonalization(promptWithLocalAttachments(prompt, attachments))
     const runtimeAttachments = activeProviderId === 'codex' ? attachments : claudeResourceAttachmentSpecs(attachments)
+    const simulateSendStartFailure =
+      process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT &&
+      process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'composer' &&
+      prompt === 'SEND_PROVIDER_FALSE_SMOKE'
     if (providerRuntime.hasActiveRun(sessionId)) {
       if (session.runtime === 'interactive' && session.status === 'idle') {
         const userMsg: ChatMessage = {
@@ -1238,7 +1242,9 @@ export const sessionManager = {
 
     // Auto-name session from first user message (uniform across all providers)
     const freshSession = this.get(sessionId)
-    if (freshSession && freshSession.messages.filter((m) => m.role === 'user').length === 0) {
+    const shouldAutoName = freshSession && freshSession.messages.filter((m) => m.role === 'user').length === 0
+    const previousName = freshSession?.name
+    if (freshSession && shouldAutoName) {
       const collapsed = prompt.replace(/\s+/g, ' ').trim()
       const autoName = collapsed.length > 60 ? collapsed.slice(0, 60) + '…' : collapsed
       this.updateName(sessionId, autoName)
@@ -1246,8 +1252,9 @@ export const sessionManager = {
 
     this.updateStatus(sessionId, 'running')
 
+    const userMessageId = uuidv4()
     const userMsg: ChatMessage = {
-      id: uuidv4(),
+      id: userMessageId,
       role: 'user',
       type: 'text',
       content: prompt,
@@ -1262,7 +1269,44 @@ export const sessionManager = {
       ...requestFromSession(currentSession, effectivePrompt),
       attachments: provider.id === 'codex' ? attachments : claudeResourceAttachmentSpecs(attachments)
     }, options.permissionSnapshot)
-    return this.startProviderRun(sessionId, currentSession, provider, runRequest, 'start', options.onProviderRunComplete)
+    try {
+      const started = simulateSendStartFailure
+        ? false
+        : await this.startProviderRun(sessionId, currentSession, provider, runRequest, 'start', options.onProviderRunComplete)
+      if (!started) {
+        this.removeMessage(sessionId, userMessageId)
+        if (previousName && shouldAutoName) this.updateName(sessionId, previousName)
+        if (simulateSendStartFailure) {
+          const message = 'Provider runtime failed to start.'
+          this.appendMessage(sessionId, [{
+            id: uuidv4(),
+            role: 'system',
+            type: 'result',
+            content: message,
+            subtype: 'error_during_execution',
+            timestamp: Date.now()
+          }])
+          this.updateStatus(sessionId, 'error')
+          options.onProviderRunComplete?.({ ok: false, error: message })
+        }
+      }
+      return started
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      this.removeMessage(sessionId, userMessageId)
+      if (previousName && shouldAutoName) this.updateName(sessionId, previousName)
+      this.appendMessage(sessionId, [{
+        id: uuidv4(),
+        role: 'system',
+        type: 'result',
+        content: message,
+        subtype: 'error_during_execution',
+        timestamp: Date.now()
+      }])
+      this.updateStatus(sessionId, 'error')
+      options.onProviderRunComplete?.({ ok: false, error: message })
+      return false
+    }
   },
 
   async retryLastUserMessage(sessionId: string): Promise<boolean> {

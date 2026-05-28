@@ -5382,6 +5382,40 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             var composerEmptySuggestionFillsDraft =
               emptyStateSuggestion instanceof HTMLButtonElement &&
               textareaValue()?.includes('Review the current branch') === true;
+            setTextareaValue('SEND_PROVIDER_FALSE_SMOKE');
+            await sleep(120);
+            const sendProviderFalseButton = [...document.querySelectorAll('button')]
+              .find((button) => button.getAttribute('aria-label')?.startsWith('Send'));
+            if (sendProviderFalseButton instanceof HTMLButtonElement) {
+              sendProviderFalseButton.click();
+              await sleep(320);
+            }
+            const sendProviderFalseStatus = document.querySelector('[data-testid="composer-run-action-status"]');
+            const sessionsAfterProviderFalse = typeof window.api?.sessions?.list === 'function'
+              ? await window.api.sessions.list()
+              : [];
+            const providerFalseSession = sessionsAfterProviderFalse.find((candidate) => candidate.name === 'Attachment only smoke') ??
+              sessionsAfterProviderFalse.find((candidate) => candidate.messages?.some((message) =>
+                message.type === 'result' &&
+                message.content?.includes('Provider runtime failed to start.')
+              ));
+            const providerFalsePromptCount = providerFalseSession?.messages?.filter((message) =>
+              message.type === 'text' &&
+              message.role === 'user' &&
+              message.content === 'SEND_PROVIDER_FALSE_SMOKE'
+            ).length ?? -1;
+            const providerFalseErrorMessage = providerFalseSession?.messages?.some((message) =>
+              message.type === 'result' &&
+              message.subtype === 'error_during_execution' &&
+              message.content?.includes('Provider runtime failed to start.')
+            ) === true;
+            var composerSendProviderFalseCleansTranscript =
+              sendProviderFalseButton instanceof HTMLButtonElement &&
+              textareaValue() === 'SEND_PROVIDER_FALSE_SMOKE' &&
+              sendProviderFalseStatus instanceof HTMLElement &&
+              sendProviderFalseStatus.textContent?.includes('Run failed to start') === true &&
+              providerFalsePromptCount === 0 &&
+              providerFalseErrorMessage;
             const composerDropShell = document.querySelector('[data-testid="composer-shell"]');
             var composerDropOverlayWorks = false;
             var composerDragDropAttachmentWorks = false;
@@ -6896,6 +6930,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             composerSendStatusRecoveryClearsBlock: typeof composerSendStatusRecoveryClearsBlock === 'boolean' ? composerSendStatusRecoveryClearsBlock : null,
             composerSendFailureRestoresDraft: typeof composerSendFailureRestoresDraft === 'boolean' ? composerSendFailureRestoresDraft : null,
             composerSendFalseRestoresDraft: typeof composerSendFalseRestoresDraft === 'boolean' ? composerSendFalseRestoresDraft : null,
+            composerSendProviderFalseCleansTranscript: typeof composerSendProviderFalseCleansTranscript === 'boolean' ? composerSendProviderFalseCleansTranscript : null,
             composerQueuedCancel: typeof composerQueuedCancel === 'boolean' ? composerQueuedCancel : null,
             composerQueuedCancelStatusWorks: typeof composerQueuedCancelStatusWorks === 'boolean' ? composerQueuedCancelStatusWorks : null,
             composerEmptySuggestionFillsDraft: typeof composerEmptySuggestionFillsDraft === 'boolean' ? composerEmptySuggestionFillsDraft : null,
