@@ -287,7 +287,7 @@ test('provider spawn env merges generic env overrides from provider settings', (
         IGNORED_NON_STRING: 42
       }
     }))
-    writeFileSync(join(cursorDir, 'agent-config.json'), JSON.stringify({
+    writeFileSync(join(cursorDir, 'cli-config.json'), JSON.stringify({
       env: {
         CURSOR_API_BASE_URL: 'https://example.invalid/cursor/'
       }
@@ -432,7 +432,7 @@ test('providers expose native interactive CLI launch commands without headless o
   assert.deepEqual(copilotCommand.args.slice(-2), ['-i', 'hello'])
 })
 
-test('runtime command selection keeps Claude on structured output and other interactive sessions on native lanes', () => {
+test('runtime command selection removes Claude CLI launch commands and keeps other interactive sessions on native lanes', () => {
   const interactiveClaude = buildProviderCommandForRuntime(
     PROVIDERS.claude,
     request({
@@ -442,8 +442,7 @@ test('runtime command selection keeps Claude on structured output and other inte
       model: 'claude-sonnet-4-6'
     })
   )
-  assert.equal(interactiveClaude.args.includes('-p'), true)
-  assert.equal(interactiveClaude.args.includes('--output-format'), true)
+  assert.equal(interactiveClaude, null)
 
   const headlessClaude = buildProviderCommandForRuntime(
     PROVIDERS.claude,
@@ -454,131 +453,24 @@ test('runtime command selection keeps Claude on structured output and other inte
       model: 'claude-sonnet-4-6'
     })
   )
-  assert.equal(headlessClaude.args.includes('-p'), true)
-  assert.equal(headlessClaude.args.includes('--output-format'), true)
+  assert.equal(headlessClaude, null)
 
   const interactiveCopilot = buildProviderCommandForRuntime(
     PROVIDERS.copilot,
     request({ runtime: 'interactive', prompt: 'hello' })
   )
+  assert.ok(interactiveCopilot)
   assert.equal(interactiveCopilot.args.includes('--output-format'), false)
   assert.deepEqual(interactiveCopilot.args.slice(-2), ['-i', 'hello'])
 })
 
-test('claude product default permission mode is native auto', () => {
+test('claude product default permission modes are preserved for SDK mapping', () => {
   assert.equal(getDefaultPermissionMode(PROVIDER_DEFS.claude), 'auto')
   assert.deepEqual(getPrimaryPermissionModes(PROVIDER_DEFS.claude).map((mode) => mode.id), ['auto', 'plan', 'default'])
-
-  const command = PROVIDERS.claude.buildStartCommand(
-    request({ executionPolicy: getDefaultPermissionMode(PROVIDER_DEFS.claude) })
-  )
-  const permissionIndex = command.args.indexOf('--permission-mode')
-
-  assert.notEqual(permissionIndex, -1)
-  assert.equal(command.args[permissionIndex + 1], 'auto')
-})
-
-test('claude explicit ask-first mode remains available', () => {
-  const command = PROVIDERS.claude.buildStartCommand(request({ executionPolicy: 'default' }))
-  const permissionIndex = command.args.indexOf('--permission-mode')
-
-  assert.notEqual(permissionIndex, -1)
-  assert.equal(command.args[permissionIndex + 1], 'default')
-  assert.equal(command.args.includes('acceptEdits'), false)
-})
-
-test('claude explicit acceptEdits remains opt-in', () => {
-  const command = PROVIDERS.claude.buildStartCommand(
-    request({ executionPolicy: 'acceptEdits' })
-  )
-  const permissionIndex = command.args.indexOf('--permission-mode')
-
-  assert.equal(command.args[permissionIndex + 1], 'acceptEdits')
-})
-
-test('claude exposes every native safe permission mode in command construction', () => {
-  for (const mode of ['default', 'acceptEdits', 'auto', 'dontAsk', 'plan', 'bypassPermissions']) {
-    const command = PROVIDERS.claude.buildStartCommand(
-      request({ runtime: 'headless', executionPolicy: mode })
-    )
-    const permissionIndex = command.args.indexOf('--permission-mode')
-
-    assert.notEqual(permissionIndex, -1)
-    assert.equal(command.args[permissionIndex + 1], mode)
-  }
-})
-
-test('claude bypass permissions uses the explicit permission mode, not granted tools', () => {
-  const command = PROVIDERS.claude.buildStartCommand(
-    request({ executionPolicy: 'bypassPermissions', allowedTools: [] })
-  )
-  const permissionIndex = command.args.indexOf('--permission-mode')
-
-  assert.equal(command.args[permissionIndex + 1], 'bypassPermissions')
-  assert.equal(command.args.includes('--allowedTools'), false)
-})
-
-test('claude resume includes captured session id and granted tools', () => {
-  const command = PROVIDERS.claude.buildResumeCommand(
-    request({
-      prompt: 'continue',
-      providerSessionId: 'claude-session-123',
-      allowedTools: ['Read', 'Edit']
-    })
-  )
-
-  assert.equal(command.args.includes('--resume'), true)
-  assert.equal(command.args[command.args.indexOf('--resume') + 1], 'claude-session-123')
-  assert.equal(command.args.includes('--allowedTools'), true)
-  assert.equal(command.args[command.args.indexOf('--allowedTools') + 1], 'Read,Edit')
-})
-
-test('claude resume preserves permission and user-input continuation prompts', () => {
-  const permissionCommand = PROVIDERS.claude.buildResumeCommand(
-    request({
-      prompt: 'Permission granted. Please continue.',
-      providerSessionId: 'claude-session-allow',
-      allowedTools: ['Bash']
-    })
-  )
-  const userInputCommand = PROVIDERS.claude.buildResumeCommand(
-    request({
-      prompt: 'User answered the pending question:\n\nship-it\n\nPlease continue from where you stopped.',
-      providerSessionId: 'claude-session-question'
-    })
-  )
-
-  assert.equal(permissionCommand.args[permissionCommand.args.indexOf('-p') + 1], 'Permission granted. Please continue.')
-  assert.equal(permissionCommand.args[permissionCommand.args.indexOf('--resume') + 1], 'claude-session-allow')
-  assert.equal(permissionCommand.args[permissionCommand.args.indexOf('--allowedTools') + 1], 'Bash')
-  assert.equal(
-    userInputCommand.args[userInputCommand.args.indexOf('-p') + 1],
-    'User answered the pending question:\n\nship-it\n\nPlease continue from where you stopped.'
-  )
-  assert.equal(userInputCommand.args[userInputCommand.args.indexOf('--resume') + 1], 'claude-session-question')
-})
-
-test('claude selected agent maps to native launch flag only for new runs', () => {
-  const command = PROVIDERS.claude.buildStartCommand(
-    request({
-      agentName: 'Explore',
-      model: 'claude-sonnet-4-6'
-    })
-  )
-
-  assert.equal(command.args.includes('--agent'), true)
-  assert.equal(command.args[command.args.indexOf('--agent') + 1], 'Explore')
-
-  const resumeCommand = PROVIDERS.claude.buildResumeCommand(
-    request({
-      agentName: 'Explore',
-      providerSessionId: 'claude-session-123',
-      model: 'claude-sonnet-4-6'
-    })
-  )
-
-  assert.equal(resumeCommand.args.includes('--resume'), true)
-  assert.equal(resumeCommand.args.includes('--agent'), false)
+  assert.equal(PROVIDERS.claude.resolveExecutionPolicy('default').execution?.nativeMode, 'default')
+  assert.equal(PROVIDERS.claude.resolveExecutionPolicy('auto').execution?.nativeMode, 'auto')
+  assert.equal(PROVIDERS.claude.resolveExecutionPolicy('acceptEdits').execution?.nativeMode, 'acceptEdits')
+  assert.equal(PROVIDERS.claude.resolveExecutionPolicy('bypassPermissions').execution?.nativeMode, 'bypassPermissions')
 })
 
 test('claude agents output parses configured launch agents', () => {
@@ -596,56 +488,6 @@ test('claude agents output parses configured launch agents', () => {
     { id: 'general-purpose', name: 'general-purpose', model: 'inherit' },
     { id: 'Plan', name: 'Plan', model: 'inherit' }
   ])
-})
-
-test('claude command maps denied tools, tool set, and extra directories to native CLI flags', () => {
-  const command = PROVIDERS.claude.buildStartCommand(
-    request({
-      allowedTools: ['Read'],
-      disallowedTools: ['Bash(git push)', 'WebFetch'],
-      availableTools: ['Read', 'Edit', 'Bash'],
-      additionalDirs: ['/tmp/shared', '/tmp/other']
-    })
-  )
-
-  assert.equal(command.args[command.args.indexOf('--allowedTools') + 1], 'Read')
-  assert.equal(command.args[command.args.indexOf('--disallowedTools') + 1], 'Bash(git push),WebFetch')
-  assert.equal(command.args[command.args.indexOf('--tools') + 1], 'Read,Edit,Bash')
-  assert.equal(command.args.includes('--add-dir'), true)
-  const addDirIndex = command.args.indexOf('--add-dir')
-  assert.deepEqual(command.args.slice(addDirIndex + 1, addDirIndex + 3), ['/tmp/shared', '/tmp/other'])
-})
-
-test('claude command maps provider file resources to native --file specs', () => {
-  const command = PROVIDERS.claude.buildStartCommand(
-    request({
-      attachments: [
-        { id: 'local-1', kind: 'local_file', path: '/tmp/local.txt', name: 'local.txt' },
-        { id: 'file-1', kind: 'claude_file', fileId: 'file_abc', relativePath: 'docs/context.md' },
-        { id: 'file-2', kind: 'claude_file', fileId: 'file_def', relativePath: 'assets/img.png' }
-      ]
-    })
-  )
-
-  const fileIndex = command.args.indexOf('--file')
-  assert.notEqual(fileIndex, -1)
-  assert.deepEqual(command.args.slice(fileIndex + 1, fileIndex + 3), ['file_abc:docs/context.md', 'file_def:assets/img.png'])
-  assert.equal(command.args.includes('/tmp/local.txt'), false)
-})
-
-test('claude structured command carries per-run orchestrator hook settings', () => {
-  const command = PROVIDERS.claude.buildStartCommand(
-    request({
-      runtime: 'headless',
-      providerContext: {
-        settingsPath: '/tmp/orchestrator-claude-hooks/settings.json',
-        includeHookEvents: true
-      }
-    })
-  )
-
-  assert.equal(command.args.includes('--include-hook-events'), true)
-  assert.equal(command.args[command.args.indexOf('--settings') + 1], '/tmp/orchestrator-claude-hooks/settings.json')
 })
 
 test('claude brief fixture maps SendUserMessage to status and preserves usage summary', () => {
@@ -1564,7 +1406,7 @@ test('provider failure fixtures preserve useful error text', () => {
 
 test('copilot exposes forced all-tools policy for programmatic mode', () => {
   const resolved = PROVIDERS.copilot.resolveExecutionPolicy('default')
-  const command = PROVIDERS.copilot.buildStartCommand(request({ model: 'gpt-5.5' }))
+  const command = PROVIDERS.copilot.buildStartCommand!(request({ model: 'gpt-5.5' }))
 
   assert.equal(resolved.support, 'forced')
   assert.equal(command.args.includes('--allow-all-tools'), true)
@@ -1613,24 +1455,24 @@ test('copilot subagent events normalize into agent activity nodes', () => {
 })
 
 test('codex approval modes map to native approval policy config', () => {
-  const askCommand = PROVIDERS.codex.buildStartCommand(
+  const askCommand = PROVIDERS.codex.buildStartCommand!(
     request({ model: 'gpt-5.4', executionPolicy: 'default' })
   )
   assert.equal(askCommand.args.includes('--sandbox'), true)
   assert.equal(askCommand.args[askCommand.args.indexOf('--sandbox') + 1], 'workspace-write')
   assert.equal(askCommand.args.includes('approval_policy="on-request"'), true)
 
-  const untrustedCommand = PROVIDERS.codex.buildStartCommand(
+  const untrustedCommand = PROVIDERS.codex.buildStartCommand!(
     request({ model: 'gpt-5.4', executionPolicy: 'untrusted' })
   )
   assert.equal(untrustedCommand.args.includes('approval_policy="untrusted"'), true)
 
-  const neverCommand = PROVIDERS.codex.buildStartCommand(
+  const neverCommand = PROVIDERS.codex.buildStartCommand!(
     request({ model: 'gpt-5.4', executionPolicy: 'never' })
   )
   assert.equal(neverCommand.args.includes('approval_policy="never"'), true)
 
-  const autoReviewCommand = PROVIDERS.codex.buildStartCommand(
+  const autoReviewCommand = PROVIDERS.codex.buildStartCommand!(
     request({ model: 'gpt-5.4', executionPolicy: 'autoReview' })
   )
   assert.equal(autoReviewCommand.args.includes('approval_policy="on-request"'), true)
@@ -1643,12 +1485,12 @@ test('codex approval modes map to native approval policy config', () => {
   assert.equal(interactiveAutoReviewCommand.args[interactiveAutoReviewCommand.args.indexOf('--ask-for-approval') + 1], 'on-request')
   assert.equal(interactiveAutoReviewCommand.args.includes('approvals_reviewer="auto_review"'), true)
 
-  const fullAccessCommand = PROVIDERS.codex.buildStartCommand(
+  const fullAccessCommand = PROVIDERS.codex.buildStartCommand!(
     request({ model: 'gpt-5.4', executionPolicy: 'fullAccess' })
   )
   assert.equal(fullAccessCommand.args[fullAccessCommand.args.indexOf('--sandbox') + 1], 'danger-full-access')
 
-  const yoloCommand = PROVIDERS.codex.buildStartCommand(
+  const yoloCommand = PROVIDERS.codex.buildStartCommand!(
     request({ model: 'gpt-5.4', executionPolicy: 'yolo' })
   )
   assert.equal(yoloCommand.args.includes('--dangerously-bypass-approvals-and-sandbox'), true)
@@ -1709,7 +1551,7 @@ test('codex permission runtime context maps app-server config requirements to vi
 
 test('codex policy supports app-server approvals while exec stays config-driven', () => {
   const resolved = PROVIDERS.codex.resolveExecutionPolicy('default')
-  const command = PROVIDERS.codex.buildStartCommand(request({ executionPolicy: 'default' }))
+  const command = PROVIDERS.codex.buildStartCommand!(request({ executionPolicy: 'default' }))
 
   assert.equal(resolved.support, 'approximate')
   assert.match(resolved.warning ?? '', /app-server surfaces native approvals/)
@@ -1721,7 +1563,7 @@ test('codex policy supports app-server approvals while exec stays config-driven'
 
 test('unsupported execution policies fall back to provider defaults when launching', () => {
   const resolved = PROVIDERS.codex.resolveExecutionPolicy('allowEdits')
-  const command = PROVIDERS.codex.buildStartCommand(
+  const command = PROVIDERS.codex.buildStartCommand!(
     request({ model: 'gpt-5.4', executionPolicy: 'allowEdits' })
   )
 
@@ -1730,7 +1572,7 @@ test('unsupported execution policies fall back to provider defaults when launchi
 })
 
 test('codex resume preserves model, effort, sandbox, and session id', () => {
-  const command = PROVIDERS.codex.buildResumeCommand(request({
+  const command = PROVIDERS.codex.buildResumeCommand!(request({
     prompt: 'continue',
     model: 'gpt-5.5',
     effort: 'high',
@@ -1778,7 +1620,7 @@ test('cursor fixture normalizes anthropic-style and cursor tool-call events', ()
 
 test('cursor default policy uses read-only ask mode', () => {
   const resolved = PROVIDERS.cursor.resolveExecutionPolicy('default')
-  const command = PROVIDERS.cursor.buildStartCommand(request({ model: 'auto' }))
+  const command = PROVIDERS.cursor.buildStartCommand!(request({ model: 'auto' }))
 
   assert.equal(resolved.support, 'exact')
   assert.equal(resolved.intent, 'ask')
@@ -1791,7 +1633,7 @@ test('cursor default policy uses read-only ask mode', () => {
 
 test('cursor sandbox policy requests sandbox without forced all-tools mode', () => {
   const resolved = PROVIDERS.cursor.resolveExecutionPolicy('sandbox')
-  const command = PROVIDERS.cursor.buildStartCommand(request({ model: 'auto', executionPolicy: 'sandbox' }))
+  const command = PROVIDERS.cursor.buildStartCommand!(request({ model: 'auto', executionPolicy: 'sandbox' }))
 
   assert.equal(resolved.support, 'exact')
   assert.deepEqual(command.args.slice(0, 3), ['--print', '--output-format', 'stream-json'])

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { MouseEvent as ReactMouseEvent, MutableRefObject, PointerEvent as ReactPointerEvent } from 'react'
 import type { BrowserApprovalMode, BrowserDeviceMode, BrowserHistoryEntry, BrowserLocalServerRoute, BrowserTabState, BrowserUseCursorState, BrowserUseSurfaceBounds, BrowserUseSurfaceSize, BrowserWorkbenchState } from '../../store/sessions'
+import type { BrowserClientToolCall } from '../../env'
 import type { BrowserUsePolicy } from '../../types'
 import { browserWebviewPartitionForHost, DEFAULT_BROWSER_USE_POLICY, normalizeBrowserUsePolicy } from '../../types'
 import { Badge, Button, IconButton, InspectorDisclosure, InspectorRow, InspectorSection, MenuItem, MenuMessage, MenuRow, MenuSection, MenuSectionLabel, MenuSurface, PanelMessage, PanelNotice, PanelTabStrip, PanelToolbar, ToolbarButton, WorkbenchSearchField } from '../shared/designSystem'
@@ -199,13 +200,13 @@ export default function BrowserPanel({
   const [localTargets, setLocalTargets] = useState<LocalBrowserTarget[]>([])
   const [localTargetsLoading, setLocalTargetsLoading] = useState(false)
   const [localTargetActionStatus, setLocalTargetActionStatus] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
-  const localTargetActionStatusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const localTargetActionStatusTimeoutRef = useRef<number | null>(null)
   const [selectedTargetId, setSelectedTargetId] = useState('')
   const [actionText, setActionText] = useState('')
   const [targetReadResult, setTargetReadResult] = useState<BrowserTargetReadResult | null>(null)
   const [clipboardText, setClipboardText] = useState('')
   const [copyUrlStatus, setCopyUrlStatus] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
-  const copyUrlStatusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const copyUrlStatusTimeoutRef = useRef<number | null>(null)
   const [coordinateAction, setCoordinateAction] = useState({ x: 20, y: 20, scrollY: 360 })
   const [browserMenuOpen, setBrowserMenuOpen] = useState(false)
   const [pageContextMenu, setPageContextMenu] = useState<{ x: number; y: number } | null>(null)
@@ -1102,7 +1103,7 @@ export default function BrowserPanel({
       return { ok: false, error: 'Browser page is not available for screenshot capture.' }
     }
     const image = await webview.capturePage()
-    const size = image.getSize()
+    const size = image.getSize?.() ?? { width: 0, height: 0 }
     const dataUrl = image.toDataURL()
     const saved = await window.api.browser.saveDataUrlArtifact(dataUrl, `browser-client-tool-${Date.now()}.png`)
     setScreenshot(dataUrl)

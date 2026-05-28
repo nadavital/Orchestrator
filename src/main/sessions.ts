@@ -8,7 +8,7 @@ import { promisify } from 'util'
 import type { Attachment, AutomationPermissionSnapshot, Session, SessionForkMode, SessionListItem, ChatMessage, TextMessage, ProviderRuntimeKind, ProviderSidebarSyncResult, ReviewMetadata, RunEvent, RunRequest, SessionStatus, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary, WorktreeInventoryItem } from '../types'
 import { PROVIDER_DEFS, applyAutomationPermissionSnapshot, finalizeInterruptedMessages, getDefaultPermissionMode } from '../types'
 import { gitManager } from './git'
-import { getProvider, PROVIDERS, providerSpawnEnv, resolveProviderBinary, resolveProviderCommand, runCodexAppServerCommandSurfaceRaw } from './providers'
+import { buildProviderCommandForRuntime, getProvider, PROVIDERS, providerSpawnEnv, resolveProviderBinary, resolveProviderCommand, runCodexAppServerCommandSurfaceRaw } from './providers'
 import type { ProviderAdapter } from './providers'
 import { providerRuntime } from './providerRuntime'
 import { eventsToMessages } from './runEvents'
@@ -21,6 +21,7 @@ import { searchTranscriptMessages, transcriptPageForMessages } from './transcrip
 import { recordPerformanceMetric } from './performanceTelemetry'
 import { applyCodexThreadListMetadata, applyProviderPinnedThreadState, ensurePinnedSessionOrders, nextPinOrder, reorderPinnedSessions } from '../types'
 import { shouldRefreshCodexSidebarMetadataAfterRun, shouldRefreshCodexSidebarMetadataOnIdle, syncCodexSidebarThreadMetadata } from './providerSidebarSync'
+import { runClaudeSdkOneShot } from './claudeSdkRuntime'
 
 interface SessionStore {
   sessions: Session[]
@@ -72,11 +73,12 @@ function activeStoredSessions(): Session[] {
 
 function defaultRuntimeForProvider(providerId: string): ProviderRuntimeKind {
   if (providerId === 'codex') return 'app-server'
+  if (providerId === 'claude') return 'sdk'
   return 'headless'
 }
 
 function sessionRuntimeForProvider(providerId: string, runtime?: ProviderRuntimeKind): ProviderRuntimeKind {
-  if (providerId === 'claude' && runtime === 'interactive') return defaultRuntimeForProvider(providerId)
+  if (providerId === 'claude' && runtime !== 'sdk') return defaultRuntimeForProvider(providerId)
   return runtime ?? defaultRuntimeForProvider(providerId)
 }
 
@@ -1967,12 +1969,37 @@ export const sessionManager = {
       executionPolicy: provider.id === 'claude' ? 'dontAsk' : session.permissionMode,
       allowedTools: [],
       disallowedTools: [],
-      availableTools: provider.id === 'claude' ? [''] : [],
+      availableTools: [],
       attachments: []
     }
-    const command = resolveProviderCommand(provider, provider.buildStartCommand(request))
+
+    if (provider.id === 'claude') {
+      const { events } = await runClaudeSdkOneShot({
+        sessionId: `${sessionId}-side-question-${Date.now()}`,
+        session,
+        provider,
+        request: { ...request, runtime: 'sdk' },
+        maxBudgetUsd: 0.05,
+        timeoutMs: 90_000
+      })
+      const text = events
+        .flatMap((event) => event.type === 'assistant.text' ? [event.content] : [])
+        .join('\n')
+        .trim()
+      const terminal = [...events].reverse().find((event) => event.type === 'run.completed' || event.type === 'run.failed')
+      const usage = terminal?.type === 'run.completed' || terminal?.type === 'run.failed' ? terminal.usage : undefined
+      const fallback = terminal && (terminal.type === 'run.completed' || terminal.type === 'run.failed') ? terminal.content : undefined
+      return {
+        ok: terminal?.type !== 'run.failed',
+        answer: text || fallback || '',
+        error: terminal?.type === 'run.failed' ? (fallback || 'Side question failed.') : undefined,
+        usage
+      }
+    }
+
+    const commandSpec = buildProviderCommandForRuntime(provider, request)
+    const command = commandSpec ? resolveProviderCommand(provider, commandSpec) : null
     if (!command) return { ok: false, answer: '', error: `${provider.id} CLI is not available.` }
-    if (provider.id === 'claude') command.args.push('--max-budget-usd', '0.05')
 
     try {
       const { stdout } = await execFileAsync(command.binary, command.args, {

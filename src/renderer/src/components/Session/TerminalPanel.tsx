@@ -38,7 +38,7 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
   const openRightPanelBrowserUrl = useSessionStore((state) => state.openRightPanelBrowserUrl)
   const [terminalMenu, setTerminalMenu] = useState<{ tabId: number; x: number; y: number } | null>(null)
   const [terminalActionStatus, setTerminalActionStatus] = useState<TerminalActionStatus | null>(null)
-  const terminalActionStatusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const terminalActionStatusTimeoutRef = useRef<number | null>(null)
   const terminalPanel = ui.terminalPanel ?? { height: DEFAULT_TERMINAL_HEIGHT, tabs: [0], activeTabId: 0, nextTabId: 1 }
   const terminalResizeController = useAppShellResizeController({
     edge: 'top',

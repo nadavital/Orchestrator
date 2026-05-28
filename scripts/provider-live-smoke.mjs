@@ -8,9 +8,9 @@ import { CHEAP_LIVE_MODELS, liveSmokeEffort, liveSmokeModel } from './provider-s
 const __dirname = fileURLToPath(new URL('.', import.meta.url))
 const repoRoot = join(__dirname, '..')
 const providersModulePath = join(repoRoot, 'out-test/src/main/providers.js')
-const { PROVIDERS, resolveProviderCommand } = await import(providersModulePath)
+const { PROVIDERS, buildProviderCommandForRuntime, providerSpawnEnv, resolveProviderCommand } = await import(providersModulePath)
 
-const DEFAULT_PROVIDERS = ['claude', 'codex', 'copilot', 'cursor']
+const DEFAULT_PROVIDERS = ['codex', 'copilot', 'cursor']
 const selectedProviders = (process.env.LIVE_PROVIDERS ?? DEFAULT_PROVIDERS.join(','))
   .split(',')
   .map((id) => id.trim())
@@ -39,7 +39,8 @@ function makeRequest(cwd, providerId) {
 }
 
 function smokeCommandForProvider(providerId, provider, cwd) {
-  const baseCommand = provider.buildStartCommand(makeRequest(cwd, providerId))
+  const baseCommand = buildProviderCommandForRuntime(provider, makeRequest(cwd, providerId))
+  if (!baseCommand) return null
   if (providerId !== 'codex') return baseCommand
 
   const args = [...baseCommand.args]
@@ -58,6 +59,10 @@ function runProvider(providerId) {
   writeFileSync(join(cwd, 'SMOKE.md'), 'This is a safe smoke-test workspace. Do not edit files.\n')
 
   const baseCommand = smokeCommandForProvider(providerId, provider, cwd)
+  if (!baseCommand) {
+    rmSync(cwd, { recursive: true, force: true })
+    return Promise.resolve({ providerId, ok: false, reason: 'provider has no CLI smoke command' })
+  }
   const command = resolveProviderCommand(provider, baseCommand)
   if (!command) {
     rmSync(cwd, { recursive: true, force: true })
@@ -67,7 +72,7 @@ function runProvider(providerId) {
   return new Promise((resolve) => {
     const child = spawn(command.binary, command.args, {
       cwd,
-      env: { ...process.env, TERM: 'xterm-256color' },
+      env: providerSpawnEnv(providerId),
       stdio: ['ignore', 'pipe', 'pipe']
     })
 

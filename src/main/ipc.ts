@@ -483,7 +483,7 @@ function previewDocxFile(filePath: string, size: number): FilePreviewResult {
         ? block.rows.map((row) => row.join('\t'))
         : block.type === 'image'
           ? [`[Image${block.alt ? `: ${block.alt}` : ''}]`]
-          : [block.text])
+          : [`[Shape: ${block.text}]`])
     .filter(Boolean)
     .join('\n\n')
   if (!text.trim()) return { kind: 'document', size, text: '', truncated: false }

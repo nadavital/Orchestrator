@@ -1187,7 +1187,7 @@ function groupTranscriptMessages(messages: ChatMessage[]): TranscriptItem[] {
 function CopyButton({ getText }: { getText: () => string }): JSX.Element {
   const [copied, setCopied] = useState(false)
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'error'>('idle')
-  const copyStatusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const copyStatusTimeoutRef = useRef<number | null>(null)
 
   useEffect(() => () => {
     if (copyStatusTimeoutRef.current) window.clearTimeout(copyStatusTimeoutRef.current)

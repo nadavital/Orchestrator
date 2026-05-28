@@ -2,39 +2,26 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { ApprovalBroker, buildClaudeHookSettings } from '../approvalBroker'
+import { ApprovalBroker } from '../approvalBroker'
 import type { RunEvent } from '../../types'
-
-test('approval broker creates a per-run Claude hook settings file', async () => {
-  const settings = buildClaudeHookSettings(12345, 'secret', 'token')
-  const raw = JSON.stringify(settings)
-
-  assert.match(raw, /PreToolUse/)
-  assert.match(raw, /127\.0\.0\.1:12345/)
-  assert.match(raw, /Bash\|Edit\|Write/)
-})
 
 test('approval broker auto-allows safe tools and pauses mutating tools for the UI', async () => {
   const broker = new ApprovalBroker()
   const events: RunEvent[] = []
   broker.setEventSink((_sessionId, nextEvents) => events.push(...nextEvents))
 
-  const readDecision = await broker.handleClaudeHookForTest('session-2', {
-    hook_event_name: 'PreToolUse',
-    tool_name: 'Read',
-    tool_use_id: 'tool-read',
-    tool_input: { file_path: 'README.md' },
-    session_id: 'claude-session'
+  const readDecision = await broker.handleClaudeSdkPermission('session-2', {
+    toolName: 'Read',
+    toolUseId: 'tool-read',
+    toolInput: { file_path: 'README.md' }
   })
-  assert.equal((readDecision.hookSpecificOutput as Record<string, unknown>).permissionDecision, 'allow')
+  assert.equal(readDecision.approved, true)
   assert.equal(events.length, 0)
 
-  const writeDecisionPromise = broker.handleClaudeHookForTest('session-2', {
-    hook_event_name: 'PreToolUse',
-    tool_name: 'Write',
-    tool_use_id: 'tool-write',
-    tool_input: { file_path: 'notes.md' },
-    session_id: 'claude-session'
+  const writeDecisionPromise = broker.handleClaudeSdkPermission('session-2', {
+    toolName: 'Write',
+    toolUseId: 'tool-write',
+    toolInput: { file_path: 'notes.md' }
   })
 
   await new Promise((resolve) => setTimeout(resolve, 20))
@@ -47,7 +34,7 @@ test('approval broker auto-allows safe tools and pauses mutating tools for the U
 
   assert.equal(broker.resolveSessionApproval('session-2', true), true)
   const writeDecision = await writeDecisionPromise
-  assert.equal((writeDecision.hookSpecificOutput as Record<string, unknown>).permissionDecision, 'allow')
+  assert.equal(writeDecision.approved, true)
 })
 
 test('approval broker can resolve parallel pending approvals for a granted tool', async () => {
@@ -55,23 +42,20 @@ test('approval broker can resolve parallel pending approvals for a granted tool'
   const events: RunEvent[] = []
   broker.setEventSink((_sessionId, nextEvents) => events.push(...nextEvents))
 
-  const firstWrite = broker.handleClaudeHookForTest('session-3', {
-    hook_event_name: 'PreToolUse',
-    tool_name: 'Write',
-    tool_use_id: 'tool-write-a',
-    tool_input: { file_path: 'a.txt' }
+  const firstWrite = broker.handleClaudeSdkPermission('session-3', {
+    toolName: 'Write',
+    toolUseId: 'tool-write-a',
+    toolInput: { file_path: 'a.txt' }
   })
-  const secondWrite = broker.handleClaudeHookForTest('session-3', {
-    hook_event_name: 'PreToolUse',
-    tool_name: 'Write',
-    tool_use_id: 'tool-write-b',
-    tool_input: { file_path: 'b.txt' }
+  const secondWrite = broker.handleClaudeSdkPermission('session-3', {
+    toolName: 'Write',
+    toolUseId: 'tool-write-b',
+    toolInput: { file_path: 'b.txt' }
   })
-  const bash = broker.handleClaudeHookForTest('session-3', {
-    hook_event_name: 'PreToolUse',
-    tool_name: 'Bash',
-    tool_use_id: 'tool-bash',
-    tool_input: { command: 'echo hi' }
+  const bash = broker.handleClaudeSdkPermission('session-3', {
+    toolName: 'Bash',
+    toolUseId: 'tool-bash',
+    toolInput: { command: 'echo hi' }
   })
 
   await new Promise((resolve) => setTimeout(resolve, 20))
@@ -79,11 +63,11 @@ test('approval broker can resolve parallel pending approvals for a granted tool'
   assert.equal(broker.resolveSessionApprovals('session-3', true, undefined, ['Write']), 2)
 
   const [firstDecision, secondDecision] = await Promise.all([firstWrite, secondWrite])
-  assert.equal((firstDecision.hookSpecificOutput as Record<string, unknown>).permissionDecision, 'allow')
-  assert.equal((secondDecision.hookSpecificOutput as Record<string, unknown>).permissionDecision, 'allow')
+  assert.equal(firstDecision.approved, true)
+  assert.equal(secondDecision.approved, true)
   assert.equal(broker.resolveSessionApproval('session-3', false, 'still pending'), true)
   const bashDecision = await bash
-  assert.equal((bashDecision.hookSpecificOutput as Record<string, unknown>).permissionDecision, 'deny')
+  assert.equal(bashDecision.approved, false)
 })
 
 test('approval broker auto-allows tools granted for the active session', async () => {
@@ -92,14 +76,13 @@ test('approval broker auto-allows tools granted for the active session', async (
   broker.setEventSink((_sessionId, nextEvents) => events.push(...nextEvents))
   broker.grantTools('session-4', ['Write'])
 
-  const decision = await broker.handleClaudeHookForTest('session-4', {
-    hook_event_name: 'PreToolUse',
-    tool_name: 'Write',
-    tool_use_id: 'tool-write',
-    tool_input: { file_path: 'already-granted.txt' }
+  const decision = await broker.handleClaudeSdkPermission('session-4', {
+    toolName: 'Write',
+    toolUseId: 'tool-write',
+    toolInput: { file_path: 'already-granted.txt' }
   })
 
-  assert.equal((decision.hookSpecificOutput as Record<string, unknown>).permissionDecision, 'allow')
+  assert.equal(decision.approved, true)
   assert.equal(events.length, 0)
 })
 
@@ -108,26 +91,24 @@ test('approval broker auto-allows Claude plan artifact writes only under ~/.clau
   const events: RunEvent[] = []
   broker.setEventSink((_sessionId, nextEvents) => events.push(...nextEvents))
 
-  const planDecision = await broker.handleClaudeHookForTest('session-5', {
-    hook_event_name: 'PreToolUse',
-    tool_name: 'Write',
-    tool_use_id: 'tool-plan-write',
-    tool_input: { file_path: join(homedir(), '.claude', 'plans', 'sample-plan.md') }
+  const planDecision = await broker.handleClaudeSdkPermission('session-5', {
+    toolName: 'Write',
+    toolUseId: 'tool-plan-write',
+    toolInput: { file_path: join(homedir(), '.claude', 'plans', 'sample-plan.md') }
   })
 
-  assert.equal((planDecision.hookSpecificOutput as Record<string, unknown>).permissionDecision, 'allow')
+  assert.equal(planDecision.approved, true)
   assert.equal(events.length, 0)
 
-  const escapedPlanWrite = broker.handleClaudeHookForTest('session-5', {
-    hook_event_name: 'PreToolUse',
-    tool_name: 'Write',
-    tool_use_id: 'tool-plan-escape',
-    tool_input: { file_path: join(homedir(), '.claude', 'plans', '..', 'not-a-native-plan.md') }
+  const escapedPlanWrite = broker.handleClaudeSdkPermission('session-5', {
+    toolName: 'Write',
+    toolUseId: 'tool-plan-escape',
+    toolInput: { file_path: join(homedir(), '.claude', 'plans', '..', 'not-a-native-plan.md') }
   })
 
   await new Promise((resolve) => setTimeout(resolve, 20))
   assert.equal(events.length, 1)
   assert.equal(broker.resolveSessionApproval('session-5', false, 'outside native plan directory'), true)
   const escapedDecision = await escapedPlanWrite
-  assert.equal((escapedDecision.hookSpecificOutput as Record<string, unknown>).permissionDecision, 'deny')
+  assert.equal(escapedDecision.approved, false)
 })

@@ -1,6 +1,6 @@
 import { memo, useState, useRef, useEffect } from 'react'
 import type { Ref } from 'react'
-import type { Attachment, PermissionExecutionContract, ProviderAgentDef, ProviderPermissionMode, ProviderPermissionRuntimeContext, ProviderRuntimeInfo, ProviderSlashCommand, ResolvedExecutionPolicy, Session } from '../../types'
+import type { Attachment, ChatMessage, PermissionExecutionContract, ProviderAgentDef, ProviderPermissionMode, ProviderPermissionRuntimeContext, ProviderRuntimeInfo, ProviderSlashCommand, ResolvedExecutionPolicy, Session, TextMessage } from '../../types'
 import type { SlashPaletteCommand } from '../../types'
 import { PROVIDER_DEFS, canStopSession, expandSlashCommandPrompt, getAdvancedPermissionModes, getComposerSendState, getDangerPermissionModes, getDefaultPermissionMode, getPrimaryPermissionModes, getVisibleModels, parseClaudeAgentsOutput } from '../../types'
 import { defaultUI, sideChatContextSnapshot, useSessionStore } from '../../store/sessions'
@@ -28,9 +28,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   const providerModels = useSessionStore((state) => state.providerModels)
   const queuedFollowUpSummary = useSessionStore(useShallow((state) => {
     const current = state.sessions.find((candidate) => candidate.id === session.id)
-    const queuedMessages = (current?.messages ?? []).filter((message) =>
-      message.type === 'text' && message.role === 'user' && message.queueState
-    )
+    const queuedMessages = (current?.messages ?? []).filter(isQueuedUserTextMessage)
     const queued = queuedMessages.filter((message) => message.queueState === 'queued').length
     const steering = queuedMessages.filter((message) => message.queueState === 'steer_next').length
     return { queued, steering }
@@ -1472,6 +1470,10 @@ function InputBar({ session, isNew }: Props): JSX.Element {
       </div>
     </div>
   )
+}
+
+function isQueuedUserTextMessage(message: ChatMessage): message is TextMessage {
+  return message.type === 'text' && message.role === 'user' && Boolean(message.queueState)
 }
 
 export default memo(InputBar, (prev, next) => {

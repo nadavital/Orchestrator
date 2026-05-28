@@ -20,6 +20,8 @@ const captureView = process.argv.includes('--settings-deeplink')
     ? 'resources'
       : process.argv.includes('--composer')
         ? 'composer'
+      : process.argv.includes('--claude-browser-live')
+        ? 'claude-browser-live'
       : process.argv.includes('--pets')
         ? 'pets'
       : process.argv.includes('--terminal-visual')
@@ -118,7 +120,7 @@ const profile = 'automated-ui-smoke'
 const userDataDir = join(tmpdir(), 'orchestrator-profiles', `${profile}-${captureView}`)
 const workspaceDir = join(tmpdir(), 'orchestrator-automated-ui-workspace')
 const isDiffCaptureView = captureView === 'diff' || captureView.startsWith('diff-')
-const fixtureWorkspaceViews = new Set(['inspector', 'right-panel', 'workbench-new-tab', 'environment', 'workbench-perf', 'diff', 'diff-entry', 'diff-empty', 'diff-loading', 'diff-conflict', 'diff-narrow', 'diff-core', 'diff-last-turn', 'diff-source', 'diff-preview', 'files', 'side-chat', 'browser'])
+const fixtureWorkspaceViews = new Set(['inspector', 'right-panel', 'workbench-new-tab', 'environment', 'workbench-perf', 'diff', 'diff-entry', 'diff-empty', 'diff-loading', 'diff-conflict', 'diff-narrow', 'diff-core', 'diff-last-turn', 'diff-source', 'diff-preview', 'files', 'side-chat', 'browser', 'claude-browser-live'])
 const resetWorkspaceViews = new Set([...fixtureWorkspaceViews, 'sidebar', 'multi-window-focus'])
 const outputPath = join(tmpdir(), `orchestrator-automated-ui-smoke-${captureView}-${Date.now()}.json`)
 const screenshotPath = join(tmpdir(), `orchestrator-automated-ui-smoke-${captureView}-${Date.now()}.png`)
@@ -2255,6 +2257,23 @@ child.on('exit', async (code) => {
           browserForkDomTransfer: result.browserForkDomTransferWorks === true,
           browserStatusRowQuiet: result.browserStatusRowQuiet === true,
           browserNoHorizontalOverflow: result.browserNoHorizontalOverflow === true,
+          smokeWindowPolicy: foregroundSmoke
+            ? result.smokeWindow?.foregroundAllowed === true
+            : result.smokeWindow?.foregroundAllowed === false &&
+              result.smokeWindow?.focused === false &&
+              result.smokeWindow?.visible === true
+        }
+    : captureView === 'claude-browser-live'
+      ? {
+          isolatedProfile: result.profile?.isIsolated === true,
+          browserAutoMounted: result.browserInitiallyMounted === false,
+          claudeSdkRunCompleted: result.claudeSdkRunCompleted === true,
+          claudeSdkAssistantMarker: result.claudeSdkAssistantMarker === true,
+          claudeSdkBrowserOpenStarted: result.claudeSdkBrowserOpenStarted === true,
+          claudeSdkBrowserScreenshotStarted: result.claudeSdkBrowserScreenshotStarted === true,
+          claudeSdkBrowserReadStarted: result.claudeSdkBrowserReadStarted === true,
+          claudeSdkBrowserToolCompleted: result.claudeSdkBrowserToolCompleted === true,
+          claudeSdkBrowserToolReadPage: result.claudeSdkBrowserToolReadPage === true,
           smokeWindowPolicy: foregroundSmoke
             ? result.smokeWindow?.foregroundAllowed === true
             : result.smokeWindow?.foregroundAllowed === false &&

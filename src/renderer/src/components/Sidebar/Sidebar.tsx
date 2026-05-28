@@ -6,6 +6,7 @@ import { useProjectStore } from '../../store/projects'
 import type { SidebarCustomSection } from '../../store/sidebar'
 import { sidebarSessionSelectedKey, sidebarSettingsSelectedKey, useSidebarStore } from '../../store/sidebar'
 import { hasComposerDraft, useSessionStore } from '../../store/sessions'
+import type { SidebarSectionKey } from '../../store/sidebar'
 import ProjectSection from './ProjectSection'
 import SessionItem from './SessionItem'
 import { IconButton, MenuItem, MenuSection, MenuSectionLabel, MenuSurface, SidebarListRow, TextInputDialog } from '../shared/designSystem'
@@ -395,6 +396,7 @@ export default function Sidebar({
 
   const sectionKeyFromDragEvent = (event: ReactDragEvent<HTMLElement>): `custom:${string}` | null => {
     const key = event.dataTransfer.getData('application/x-orchestrator-sidebar-section-key') || draggedSectionKey
+    if (!key) return null
     return key.startsWith('custom:') ? key as `custom:${string}` : null
   }
 

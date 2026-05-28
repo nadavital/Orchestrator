@@ -606,6 +606,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
     runAutomatedBrowserSmoke(win, outputPath, screenshotPath)
     return
   }
+  if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'claude-browser-live') {
+    runAutomatedClaudeBrowserLiveSmoke(win, outputPath, screenshotPath)
+    return
+  }
   const smokeView = process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW ?? ''
   if (['header', 'right-panel', 'workbench-new-tab', 'environment', 'diff', 'files', 'side-chat'].includes(smokeView) || smokeView.startsWith('diff-')) {
     runAutomatedFocusedSurfaceSmoke(
@@ -18420,6 +18424,185 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
         app.quit()
       } catch (error) {
         writeFileSync(outputPath, JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2))
+        app.quit()
+      }
+    }, 700)
+  })
+}
+
+function runAutomatedClaudeBrowserLiveSmoke(win: BrowserWindow, outputPath: string, screenshotPath?: string): void {
+  win.webContents.once('did-finish-load', () => {
+    setTimeout(async () => {
+      let sessionId: string | null = null
+      try {
+        const setup = await win.webContents.executeJavaScript(`
+          (async () => {
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            const profile = await window.api.app.getProfile();
+            let projects = await window.api.projects.list();
+            if (projects.length === 0) {
+              const root = ${JSON.stringify(process.env.ORCHESTRATOR_SMOKE_WORKSPACE_DIR ?? process.cwd())};
+              const project = await window.api.projects.add('Claude SDK Browser Live Smoke', root);
+              projects = [project];
+            }
+            let sessions = await window.api.sessions.list();
+            if (sessions.length === 0) {
+              const project = projects[0];
+              const session = await window.api.sessions.create({
+                projectId: project.id,
+                workDir: project.rootPath,
+                useWorktree: false,
+                repoRoot: project.rootPath
+              });
+              await window.api.projects.addSession(project.id, session.id);
+              sessions = [session];
+            }
+            const session = sessions[0];
+            await window.api.sessions.updateSettings(session.id, {
+              provider: 'claude',
+              runtime: 'sdk',
+              model: ${JSON.stringify(process.env.LIVE_MODEL_CLAUDE ?? 'claude-sonnet-4-6')},
+              effort: ${JSON.stringify(process.env.LIVE_EFFORT_CLAUDE ?? 'low')},
+              permissionMode: 'dontAsk',
+              allowedTools: [
+                'mcp__orchestrator__browser_open',
+                'mcp__orchestrator__browser_screenshot',
+                'mcp__orchestrator__browser_read'
+              ],
+              availableTools: [
+                'mcp__orchestrator__browser_open',
+                'mcp__orchestrator__browser_screenshot',
+                'mcp__orchestrator__browser_read'
+              ],
+              disallowedTools: [],
+              additionalDirs: []
+            });
+            await sleep(900);
+            const smokeBaseUrl = ${JSON.stringify(process.env.ORCHESTRATOR_BROWSER_SMOKE_URL ?? 'http://127.0.0.1:9')};
+            return {
+              profile,
+              sessionId: session.id,
+              smokeBaseUrl,
+              browserInitiallyMounted: Boolean(document.querySelector('[data-testid="browser-panel"]'))
+            };
+          })()
+        `) as {
+          profile?: unknown
+          sessionId?: string
+          smokeBaseUrl?: string
+          browserInitiallyMounted?: boolean
+        }
+
+        sessionId = typeof setup.sessionId === 'string' ? setup.sessionId : null
+        if (!sessionId) throw new Error('Claude Browser live smoke could not create an active session.')
+        const session = sessionManager.get(sessionId)
+        if (!session) throw new Error(`Claude Browser live smoke session ${sessionId} was not found.`)
+
+        const prompt = [
+          `Use mcp__orchestrator__browser_open exactly once to open ${setup.smokeBaseUrl}.`,
+          'Then use mcp__orchestrator__browser_screenshot exactly once with includeImage false.',
+          'Then use mcp__orchestrator__browser_read exactly once to inspect the page.',
+          'After the tool results, reply with exactly one sentence containing CLAUDE_SDK_INSTALLED_BROWSER_OK, CLAUDE_SDK_BROWSER_OPEN_OK, CLAUDE_SDK_BROWSER_SCREENSHOT_OK, Orchestrator Browser Smoke, and Target button.',
+          'Do not use any other tools.'
+        ].join(' ')
+        const runResult = await new Promise<{ ok: boolean; error?: string | null }>((resolveRun) => {
+          let settled = false
+          const timeout = setTimeout(() => {
+            if (settled) return
+            settled = true
+            sessionManager.stop(sessionId!)
+            resolveRun({ ok: false, error: 'Timed out waiting for Claude SDK Browser live smoke.' })
+          }, 180_000)
+          void sessionManager.sendMessage(sessionId!, prompt, false, [], {
+            onProviderRunComplete: (result) => {
+              if (settled) return
+              settled = true
+              clearTimeout(timeout)
+              resolveRun(result)
+            }
+          }).then((started) => {
+            if (started || settled) return
+            settled = true
+            clearTimeout(timeout)
+            resolveRun({ ok: false, error: 'Claude SDK Browser live smoke failed to start.' })
+          }).catch((error) => {
+            if (settled) return
+            settled = true
+            clearTimeout(timeout)
+            resolveRun({ ok: false, error: error instanceof Error ? error.message : String(error) })
+          })
+        })
+
+        await new Promise((resolve) => setTimeout(resolve, 500))
+        const completedSession = sessionManager.get(sessionId)
+        const messages = completedSession?.messages ?? []
+        const assistantText = messages
+          .flatMap((message) => message.role === 'assistant' && message.type === 'text' ? [message.content] : [])
+          .join('\n')
+        const toolResults = messages
+          .flatMap((message) => message.type === 'tool_result' ? [String(message.content ?? '')] : [])
+          .join('\n')
+        const toolUses = messages
+          .flatMap((message) => message.type === 'tool_use' ? [String(message.toolName ?? '')] : [])
+        const hasToolResultAction = (action: string): boolean =>
+          toolResults.includes(`"action":"${action}"`) ||
+          toolResults.includes(`\\"action\\":\\"${action}\\"`)
+        const result = {
+          profile: setup.profile,
+          sessionId,
+          smokeBaseUrl: setup.smokeBaseUrl,
+          browserInitiallyMounted: setup.browserInitiallyMounted === true,
+          claudeSdkRunCompleted: runResult.ok === true && completedSession?.status === 'idle',
+          claudeSdkRunError: runResult.error ?? null,
+          claudeSdkAssistantMarker:
+            assistantText.includes('CLAUDE_SDK_INSTALLED_BROWSER_OK') &&
+            assistantText.includes('CLAUDE_SDK_BROWSER_OPEN_OK') &&
+            assistantText.includes('CLAUDE_SDK_BROWSER_SCREENSHOT_OK') &&
+            assistantText.includes('Orchestrator Browser Smoke') &&
+            assistantText.includes('Target button'),
+          claudeSdkBrowserOpenStarted: toolUses.includes('mcp__orchestrator__browser_open'),
+          claudeSdkBrowserScreenshotStarted: toolUses.includes('mcp__orchestrator__browser_screenshot'),
+          claudeSdkBrowserReadStarted: toolUses.includes('mcp__orchestrator__browser_read'),
+          claudeSdkBrowserToolCompleted:
+            toolResults.includes('Browser smoke page') &&
+            toolResults.includes('Target button') &&
+            hasToolResultAction('open') &&
+            hasToolResultAction('screenshot') &&
+            /artifactPath|byteSize|dataUrlLength|mimeType/.test(toolResults),
+          claudeSdkBrowserToolReadPage:
+            toolResults.includes('Orchestrator Browser Smoke') &&
+            toolResults.includes('Browser smoke page') &&
+            toolResults.includes('Target button'),
+          providerSessionId: completedSession?.providerSessionId ?? null,
+          messageCount: messages.length,
+          messageSummary: messages.map((message) => ({
+            role: message.role,
+            type: message.type,
+            content: 'content' in message ? String(message.content ?? '').slice(0, 1200) : undefined,
+            toolName: 'toolName' in message ? message.toolName : undefined,
+            isError: 'isError' in message ? message.isError : undefined
+          })),
+          assistantText,
+          toolResultsPreview: toolResults.slice(0, 2000),
+          smokeWindow: {
+            foregroundAllowed: process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_FOREGROUND === '1',
+            focused: win.isFocused(),
+            visible: win.isVisible()
+          }
+        }
+        if (screenshotPath) {
+          const image = await win.webContents.capturePage()
+          writeFileSync(screenshotPath, image.toPNG())
+        }
+        writeFileSync(outputPath, JSON.stringify({ ok: true, result, screenshotPath }, null, 2))
+        app.quit()
+      } catch (error) {
+        if (sessionId) sessionManager.stop(sessionId)
+        writeFileSync(outputPath, JSON.stringify({
+          ok: false,
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined
+        }, null, 2))
         app.quit()
       }
     }, 700)

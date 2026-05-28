@@ -1,6 +1,6 @@
 # Provider Integration Runbook
 
-Last updated: 2026-05-26
+Last updated: 2026-05-27
 
 Use this when adding or deepening Claude, Codex, Cursor, Copilot, or a future coding-agent provider. The durable rule is: provider-specific behavior belongs at the adapter/runtime boundary; UI should consume shared Orchestrator events, capabilities, and metadata whenever possible.
 
@@ -11,6 +11,8 @@ Use this when adding or deepening Claude, Codex, Cursor, Copilot, or a future co
 | Provider definitions, capabilities, command surfaces, output parsers | `src/main/providers.ts` | Start here for provider-specific CLI flags, supported features, and normalized `RunEvent` parsing. |
 | Runtime launch and lifecycle routing | `src/main/providerRuntime.ts` | Chooses Codex app-server vs headless/interactive CLI runtimes, starts processes, and forwards parsed events into sessions. |
 | Codex app-server transport | `src/main/codexAppServerRuntime.ts` | Codex-only JSON-RPC client for thread start/resume, turn start/steer/interrupt, approvals, user input, and app-server notifications. |
+| Claude SDK transport | `src/main/claudeSdkRuntime.ts` | Claude-only SDK runtime for query/resume/stop, SDK object normalization, permissions, user questions, attachments, and SDK-local MCP host tools. |
+| Provider host tools | `src/main/providerHostTools.ts` | Provider-neutral host-tool bridge adapted to Codex dynamic tools and Claude SDK-local MCP tools. |
 | Provider manifests exposed to UI | `src/main/providerManifest.ts` | Converts adapters into runtime/capability manifests for renderer-visible provider state. |
 | Shared event/message contract | `src/types/index.ts`, `src/main/runEvents.ts` | Add shared `RunEvent` fields here only when multiple surfaces can consume them. Keep provider-only details optional. |
 | Sessions and sidebar metadata sync | `src/main/sessions.ts`, `src/main/providerSidebarSync.ts` | Handles persisted sessions, Codex thread-list metadata, after-run refresh, and recurring sidebar refresh. |
@@ -45,17 +47,21 @@ Use this when adding or deepening Claude, Codex, Cursor, Copilot, or a future co
 | Command | What it proves | Current result |
 | --- | --- | --- |
 | `npm run live:providers` | General live provider smoke path. | Use when checking installed provider availability and basic runtime health. |
-| `npm run live:claude-capabilities` | Claude capability/resource behavior. | Use before claiming deeper Claude integration parity. |
+| `npm run live:claude-sdk-probe` | Claude Agent SDK capability/resource behavior. | Passed for plain, partial, message input, host tool, permission deny, plan, resume, and subagent scenarios. |
+| `npm run live:claude-sdk-runtime` | Orchestrator Claude SDK runtime path. | Passed for basic completion. Also run `CLAUDE_SDK_RUNTIME_SMOKE_SCENARIO=user_question_resume`, `browser_tool`, `permission_allow`, `permission_deny`, and `stop` before claiming replacement parity. |
+| `npm run smoke:ui:auto -- --installed --claude-browser-live` | Installed-app Claude SDK plus real Browser webview bridge. | Passed with Claude calling `mcp__orchestrator__browser_read` through the SDK-local MCP server and reading `Orchestrator Browser Smoke`; latest evidence `/var/folders/5n/nwtbs9wj6jl7whlscmg47_pc0000gn/T/orchestrator-automated-ui-smoke-claude-browser-live-1779914938045.json`. |
 | `npm run live:codex-appserver` | Basic Codex app-server thread/turn completion. | Proves the app-server transport can run a turn. |
 | `npm run live:codex-browser-appserver` | Whether live Codex app-server exposes browser-use events/tools to this client. | Currently blocked at this stdio client boundary; no browser-use surface is exposed. |
 | `npm run live:codex-review-appserver` | Live Codex `turn/diff/updated` and `thread/rollback` behavior. | Emits provider session/turn diff events with no checkpoint id; `thread/rollback` rolls back thread history but not workspace git diff. |
 
 ## Claude Integration Notes
 
-Claude is currently a headless CLI provider in Orchestrator. Its special handling lives mostly in:
+Claude is currently an SDK provider in Orchestrator. Its special handling lives mostly in:
 
-- `src/main/providers.ts` for command construction, capabilities, command surfaces, and output parsing.
-- `src/main/providerRuntime.ts` for Claude approval broker preparation before headless runs.
+- `src/main/claudeSdkRuntime.ts` for SDK start/stream/stop, permissions, user questions, attachments, and host-tool bridging.
+- `src/main/providerHostTools.ts` for shared Browser host-tool specs/calls used by both Claude SDK and Codex app-server adapters.
+- `src/main/providers.ts` for policy mapping, capabilities, command surfaces, and output parsing.
+- `src/main/providerRuntime.ts` for dispatching Claude runs to the SDK runtime.
 - `src/main/approvalBroker.ts` for safe approval routing.
 - `src/main/__fixtures__/providers/claude/` and `src/main/__tests__/providers.test.ts` for parser coverage.
 - `docs/claude-code-support-test-matrix.md` and `docs/claude-cli-map.md` for current Claude-specific support.
@@ -66,6 +72,10 @@ When adding Claude parity for a Codex-style surface, do not copy Codex app-serve
 - Can that data normalize into an existing `RunEvent`, file metadata model, permission request, or resource row?
 - Is this live-proven, fixture-proven, or just an intended adapter gap?
 - Should the UI show the same control as enabled, disabled with an explicit reason, or absent for Claude?
+
+Claude SDK `canUseTool` note: live testing showed an allowed SDK permission response must include `updatedInput` echoing the original tool input. Returning only `{ behavior: "allow" }` fails SDK validation even though the declaration file marks `updatedInput` optional.
+
+Claude SDK packaging note: packaged Electron runs must pass `pathToClaudeCodeExecutable` pointing at the SDK native binary under `app.asar.unpacked`. Letting the SDK resolve an `app.asar` path can fail at spawn time with `ENOTDIR`.
 
 ## Provider Undo Boundary
 

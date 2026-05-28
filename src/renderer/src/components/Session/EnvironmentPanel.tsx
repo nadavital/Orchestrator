@@ -92,7 +92,7 @@ export default function EnvironmentPanel({ session, embedded = false, onOpenRevi
               icon="settings"
               label="Open provider settings"
               size="xs"
-              variant="ghost"
+              variant="toolbar"
               dataTestId="codex-environment-settings"
               onClick={openProviderSettings}
             />

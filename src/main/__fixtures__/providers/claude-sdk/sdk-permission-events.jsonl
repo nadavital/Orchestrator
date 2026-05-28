@@ -1,0 +1,2 @@
+{"type":"result","subtype":"error","is_error":true,"session_id":"sdk-session-permission","result":"Permission needed","permission_denials":[{"tool_name":"Bash","tool_use_id":"toolu-bash","tool_input":{"command":"touch blocked.txt"}}]}
+{"type":"result","subtype":"error","is_error":true,"session_id":"sdk-session-plan","result":"Plan confirmation required","permission_denials":[{"tool_name":"ExitPlanMode","tool_use_id":"toolu-plan","tool_input":{"plan":"Create the file after approval."}}]}
