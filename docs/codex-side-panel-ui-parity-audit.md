@@ -9072,3 +9072,13 @@ Implemented: the shared artifact `Open options` trigger now exposes `aria-haspop
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and `git diff --check` passed. The first elevated `node scripts/run-automated-ui-smoke.mjs --files` exposed that the smoke checked close state before the shared retained-exit animation completed; after aligning the assertion with the 240 ms retained-exit timing, the focused Files smoke passed with `filesArtifactOpenOptionsTriggerState=true` while preserving all existing Files/source-tab/artifact preview gates. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779996440366.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779996440366.png`.
 
 Remaining: this closes local artifact open-options menu-trigger state only. Deep Office/PDF renderer fidelity remains Phase 2 unless it blocks coding workflows.
+
+### 2026-05-28 - Header Closed Panel Inert State
+
+Product evidence: the header owns the right Workbench and bottom Terminal panel toggles. Those panels remain mounted while their shared close animation runs, so `aria-hidden` alone was too weak for keyboard traversal: hidden Workbench or Terminal controls could still be focus candidates while the panel was visually closed.
+
+Implemented: the shared `MotionPanel` now sets the browser `inert` property whenever a panel is closed and exposes `data-app-shell-panel-inert` for deterministic verification. This applies to both right and bottom app-shell panels through the shared `AppShellPanel` primitive.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and `git diff --check` passed. The first sandboxed `node scripts/run-automated-ui-smoke.mjs --header` hit the expected localhost bind denial; the elevated rerun passed with `headerClosedPanelInert=true` while preserving header identity, metadata tooltip-only state, compact action chrome, controlled panel state, empty-panel fallback, and Chat actions menu gates. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-header-1779996867925.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-header-1779996867925.png`.
+
+Remaining: this closes local closed-panel keyboard containment for the shared right/bottom app-shell panels. Exact live Codex header/panel animation timing and whole-app keyboard traversal remain separate.

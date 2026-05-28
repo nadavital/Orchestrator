@@ -757,13 +757,21 @@ export function MotionPanel({
   style?: CSSProperties
 } & Omit<HTMLAttributes<HTMLDivElement>, 'children'>): JSX.Element {
   const animation = useAppShellPanelAnimation(open, size)
+  const panelRef = useRef<HTMLDivElement | null>(null)
   const dimensionStyle: CSSProperties = side === 'right'
     ? { width: animation.animatedSize, minWidth: animation.animatedSize, maxWidth: animation.animatedSize }
     : { height: animation.animatedSize, minHeight: animation.animatedSize, maxHeight: animation.animatedSize }
 
+  useEffect(() => {
+    const element = panelRef.current as (HTMLDivElement & { inert?: boolean }) | null
+    if (!element || typeof element.inert === 'undefined') return
+    element.inert = !open
+  }, [open])
+
   return (
     <div
       {...attrs}
+      ref={panelRef}
       data-open={open ? 'true' : 'false'}
       data-motion-panel={side}
       data-app-shell-panel-animation="shared"
@@ -772,6 +780,7 @@ export function MotionPanel({
       data-app-shell-panel-animated-size={Math.round(animation.animatedSize)}
       data-app-shell-panel-target-size={Math.round(size)}
       data-app-shell-panel-mounted={animation.isMounted ? 'true' : 'false'}
+      data-app-shell-panel-inert={open ? 'false' : 'true'}
       aria-hidden={!open}
       className={`motion-panel motion-panel-${side} shrink-0 overflow-hidden ${className}`}
       style={{

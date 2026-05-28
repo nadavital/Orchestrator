@@ -2286,6 +2286,7 @@ child.on('exit', async (code) => {
           headerNativeTooltips: result.headerNativeTooltipsWork === true,
           titlebarSidebarToggle: result.titlebarSidebarToggleWorks === true,
           titlebarPanelToggleState: result.titlebarPanelToggleStateWorks === true,
+          headerClosedPanelInert: result.headerClosedPanelInertWorks === true,
           headerPanelEmptyFallback: result.headerPanelEmptyFallbackWorks === true,
           headerActionMenuState: result.headerActionMenuStateWorks === true,
           headerActionMenu: result.headerActionMenuWorks === true

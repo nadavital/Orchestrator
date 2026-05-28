@@ -7405,6 +7405,43 @@ function runAutomatedFocusedSurfaceSmoke(
                   terminalPanel === null ||
                   terminalPanel.id === 'orchestrator-terminal-panel'
                 );
+              const closedPanelIsInert = (panel) => {
+                if (!(panel instanceof HTMLElement)) return false;
+                const focusable = panel.querySelector('button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])');
+                let focusStayedOutside = true;
+                if (focusable instanceof HTMLElement) {
+                  focusable.focus();
+                  focusStayedOutside = !panel.contains(document.activeElement);
+                }
+                const inertProperty = 'inert' in panel ? panel.inert === true : true;
+                return panel.getAttribute('data-open') === 'false' &&
+                  panel.getAttribute('aria-hidden') === 'true' &&
+                  panel.getAttribute('data-app-shell-panel-inert') === 'true' &&
+                  inertProperty &&
+                  focusStayedOutside;
+              };
+              let headerClosedPanelInertWorks = false;
+              let rightPanelClosedInertWorks = false;
+              let terminalPanelClosedInertWorks = false;
+              if (titlebarToggleSidebar instanceof HTMLButtonElement) {
+                if (titlebarToggleSidebar.getAttribute('aria-expanded') !== 'true') {
+                  titlebarToggleSidebar.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+                  await sleep(180);
+                }
+                titlebarToggleSidebar.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+                await sleep(180);
+                rightPanelClosedInertWorks = closedPanelIsInert(document.querySelector('[data-motion-panel="right"]'));
+              }
+              if (titlebarToggleTerminal instanceof HTMLButtonElement) {
+                if (titlebarToggleTerminal.getAttribute('aria-expanded') !== 'true') {
+                  titlebarToggleTerminal.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+                  await sleep(180);
+                }
+                titlebarToggleTerminal.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+                await sleep(180);
+                terminalPanelClosedInertWorks = closedPanelIsInert(document.querySelector('[data-motion-panel="bottom"]'));
+              }
+              headerClosedPanelInertWorks = rightPanelClosedInertWorks && terminalPanelClosedInertWorks;
               const headerTooltipIds = ['active-session-title', 'session-header-metadata', 'profile-badge'];
               if (document.querySelector('[data-testid="session-header-pinned"]')) headerTooltipIds.push('session-header-pinned');
               return {
@@ -7446,6 +7483,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   headerPanelToggleLabel === 'Toggle side panel' &&
                   headerPanelEmptyFallback === 'new-tab',
                 titlebarPanelToggleStateWorks,
+                headerClosedPanelInertWorks,
                 headerPanelEmptyFallbackWorks,
                 headerActionChromeCompactWorks,
                 headerActionMenuStateWorks,
