@@ -20446,14 +20446,21 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
                 .find((button) => buttonLabel(button) === 'Project actions') : null;
             };
             let projectActionMenuWorks = false;
+            let projectActionMenuTriggerStateWorks = false;
             let projectActionMenuSharedSectionsWorks = false;
             let projectRenameWorks = false;
             let projectPinWorks = false;
             let projectCollapsePersistenceWorks = false;
             const primaryProjectActions = projectActionButtonFor('Automated UI Smoke');
             if (primaryProjectActions instanceof HTMLButtonElement) {
+              const controlledProjectMenuId = primaryProjectActions.getAttribute('aria-controls') ?? '';
+              const projectActionMenuClosedState =
+                primaryProjectActions.getAttribute('aria-haspopup') === 'menu' &&
+                controlledProjectMenuId.startsWith('project-actions-menu-') &&
+                primaryProjectActions.getAttribute('aria-expanded') === 'false';
               primaryProjectActions.click();
               await sleep(140);
+              const controlledProjectMenu = controlledProjectMenuId ? document.getElementById(controlledProjectMenuId) : null;
               const menuText = document.body.innerText;
               const projectMenuSections = [...document.querySelectorAll('.project-section-menu [data-menu-section="true"]')]
                 .filter((section) => section instanceof HTMLElement);
@@ -20472,6 +20479,12 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
                   label.classList.contains('orchestrator-menu-section-label') &&
                   getComputedStyle(label).textTransform !== 'uppercase'
                 );
+              projectActionMenuTriggerStateWorks =
+                projectActionMenuClosedState &&
+                primaryProjectActions.getAttribute('aria-expanded') === 'true' &&
+                controlledProjectMenu instanceof HTMLElement &&
+                controlledProjectMenu.classList.contains('project-section-menu') &&
+                controlledProjectMenu.querySelector('[role="menu"]') instanceof HTMLElement;
               projectActionMenuWorks =
                 menuText.includes('Rename project') &&
                 menuText.includes('Pin project') &&
@@ -20516,10 +20529,16 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
             }
             const organizeButton = findButton('Organize sidebar');
             let organizeMenuWorks = false;
+            let organizeMenuTriggerStateWorks = false;
             let organizeMenuSharedSectionsWorks = false;
             if (organizeButton instanceof HTMLButtonElement) {
+              const organizeMenuClosedState =
+                organizeButton.getAttribute('aria-haspopup') === 'menu' &&
+                organizeButton.getAttribute('aria-controls') === 'sidebar-organize-menu' &&
+                organizeButton.getAttribute('aria-expanded') === 'false';
               organizeButton.click();
               await sleep(120);
+              const organizeMenu = document.getElementById('sidebar-organize-menu');
               const menuText = document.body.innerText;
               const organizeMenuSections = [...document.querySelectorAll('.sidebar-organize-menu [data-menu-section="true"]')]
                 .filter((section) => section instanceof HTMLElement);
@@ -20538,6 +20557,12 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
                   label.classList.contains('orchestrator-menu-section-label') &&
                   getComputedStyle(label).textTransform !== 'uppercase'
                 );
+              organizeMenuTriggerStateWorks =
+                organizeMenuClosedState &&
+                organizeButton.getAttribute('aria-expanded') === 'true' &&
+                organizeMenu instanceof HTMLElement &&
+                organizeMenu.classList.contains('sidebar-organize-menu') &&
+                organizeMenu.querySelector('[role="menu"]') instanceof HTMLElement;
               const chronological = [...document.querySelectorAll('[role="menuitem"]')]
                 .find((item) => item.textContent?.includes('Chronological list'));
               if (
@@ -21534,6 +21559,7 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               pinnedLiveOrderStable,
               grayIdleDotsAbsent: allDots.length >= 3,
               projectActionMenuWorks,
+              projectActionMenuTriggerStateWorks,
               projectActionMenuSharedSectionsWorks,
               projectRenameWorks,
               projectPinWorks,
@@ -21557,6 +21583,7 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               })(),
               customSectionCollapseWorks,
               organizeMenuWorks,
+              organizeMenuTriggerStateWorks,
               organizeMenuSharedSectionsWorks,
               sidebarConnectionGroupingWorks,
               dotCount: allDots.length,

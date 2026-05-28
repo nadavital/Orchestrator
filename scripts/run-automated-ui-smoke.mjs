@@ -2030,6 +2030,7 @@ child.on('exit', async (code) => {
         pinnedLiveOrderStable: result.pinnedLiveOrderStable === true,
         grayIdleDotsAbsent: result.grayIdleDotsAbsent === true,
         projectActionMenuWorks: result.projectActionMenuWorks === true,
+        projectActionMenuTriggerState: result.projectActionMenuTriggerStateWorks === true,
         projectActionMenuSharedSections: result.projectActionMenuSharedSectionsWorks === true,
         projectRenameWorks: result.projectRenameWorks === true,
         projectPinWorks: result.projectPinWorks === true,
@@ -2043,6 +2044,7 @@ child.on('exit', async (code) => {
         customSectionMembershipWorks: result.customSectionMembershipWorks === true,
         customSectionCollapseWorks: result.customSectionCollapseWorks === true,
         organizeMenuWorks: result.organizeMenuWorks === true,
+        organizeMenuTriggerState: result.organizeMenuTriggerStateWorks === true,
         organizeMenuSharedSections: result.organizeMenuSharedSectionsWorks === true,
         sidebarConnectionGrouping: result.sidebarConnectionGroupingWorks === true
       }

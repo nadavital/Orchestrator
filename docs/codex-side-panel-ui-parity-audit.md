@@ -9022,3 +9022,13 @@ Implemented: sidebar session action triggers now expose `aria-haspopup="menu"`, 
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and elevated `node scripts/run-automated-ui-smoke.mjs --sidebar` passed. The focused run added `sidebarActionMenuTriggerState=true` while keeping sidebar pinning, projectless chats, action menu chrome/sections, rename/copy/fork/automation actions, project menus, organize menu, and layout-density gates green. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779994640604.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779994640604.png`.
 
 Remaining: this closes local sidebar session action menu-trigger state only. Project/organize menu trigger state, exact live Codex sidebar timing, and provider-backed pin mutation remain separate.
+
+### 2026-05-28 - Sidebar Project And Organize Menu State
+
+Product evidence: the sidebar project action menu and Organize sidebar menu are daily workspace controls for renaming/pinning projects, changing sidebar grouping, sorting, layout, and custom sections. Their menu contents and actions were smoke-covered, but their triggers did not expose the controlled menu relationship or open/closed state.
+
+Implemented: project action triggers now expose `aria-haspopup="menu"`, `aria-expanded`, and stable `aria-controls` ids for their mounted project menus. The Organize sidebar trigger now exposes the same state against a stable `sidebar-organize-menu` id.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and elevated `node scripts/run-automated-ui-smoke.mjs --sidebar` passed. The focused run added `projectActionMenuTriggerState=true` and `organizeMenuTriggerState=true` while keeping sidebar session action menu state, pinning, projectless chats, project actions, custom sections, organize-menu actions, connection grouping, and layout-density gates green. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779994903512.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779994903512.png`.
+
+Remaining: this closes local sidebar project and organize menu-trigger state only. Exact live Codex sidebar timing, provider-backed pin mutation, and broader whole-app menu-trigger audit remain separate.

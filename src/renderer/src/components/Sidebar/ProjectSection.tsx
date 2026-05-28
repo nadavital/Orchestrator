@@ -21,6 +21,7 @@ export default function ProjectSection({ project, sessions, renderSession }: Pro
   const [renaming, setRenaming] = useState(false)
   const [menuPoint, setMenuPoint] = useState<{ x: number; y: number } | null>(null)
   const [expanded, setExpanded] = useState(false)
+  const projectMenuId = `project-actions-menu-${project.id}`
   const { removeProject, updateProjectName, updateProjectPinned, addSessionToProject, removeSessionFromProject } = useProjectStore()
   const removeSession = useSessionStore((state) => state.removeSession)
   const addSession = useSessionStore((state) => state.addSession)
@@ -165,6 +166,9 @@ export default function ProjectSection({ project, sessions, renderSession }: Pro
                 icon="ellipsis"
                 label="Project actions"
                 size="sm"
+                ariaExpanded={menuPoint !== null}
+                ariaControls={projectMenuId}
+                ariaHasPopup="menu"
                 onClick={openProjectMenu}
               />
               <IconButton
@@ -252,6 +256,7 @@ export default function ProjectSection({ project, sessions, renderSession }: Pro
       )}
       {menuPoint && (
         <MenuSurface
+          id={projectMenuId}
           className="project-section-menu fixed p-[5px]"
           onClose={() => setMenuPoint(null)}
           style={{

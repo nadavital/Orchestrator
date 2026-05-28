@@ -517,6 +517,9 @@ export default function Sidebar({
             label="Organize sidebar"
             size="sm"
             variant="toolbar"
+            ariaExpanded={organizeOpen}
+            ariaControls="sidebar-organize-menu"
+            ariaHasPopup="menu"
             onClick={() => setOrganizeOpen((open) => !open)}
             active={organizeOpen}
           />
@@ -529,6 +532,7 @@ export default function Sidebar({
           />
           {organizeOpen && (
             <MenuSurface
+              id="sidebar-organize-menu"
               className="sidebar-organize-menu"
               onClose={() => setOrganizeOpen(false)}
               style={{ position: 'absolute', right: 0, top: 34, width: 230, zIndex: 120 }}
