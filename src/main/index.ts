@@ -7017,6 +7017,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 const eventDetail = document.querySelector('[data-testid="agent-event-detail"]');
                 const eventPayload = document.querySelector('[data-testid="agent-event-detail-payload"]');
                 const eventDetailCopy = document.querySelector('[data-testid="agent-event-detail-copy"]');
+                const eventDetailAddToChat = document.querySelector('[data-testid="agent-event-detail-add-to-chat"]');
                 if (eventDetailCopy instanceof HTMLButtonElement) {
                   eventDetailCopy.click();
                 }
@@ -7034,6 +7035,29 @@ function runAutomatedFocusedSurfaceSmoke(
                     break;
                   }
                 }
+                const eventDetailCopyStatusSnapshot = {
+                  role: eventDetailCopyStatus instanceof HTMLElement ? eventDetailCopyStatus.getAttribute('role') : '',
+                  live: eventDetailCopyStatus instanceof HTMLElement ? eventDetailCopyStatus.getAttribute('aria-live') : '',
+                  atomic: eventDetailCopyStatus instanceof HTMLElement ? eventDetailCopyStatus.getAttribute('aria-atomic') : '',
+                  text: eventDetailCopyStatus instanceof HTMLElement ? eventDetailCopyStatus.textContent ?? '' : ''
+                };
+                if (eventDetailAddToChat instanceof HTMLButtonElement) {
+                  eventDetailAddToChat.click();
+                  await sleep(160);
+                }
+                const composerAfterEventAdd = document.querySelector('textarea');
+                const eventDetailAddStatus = document.querySelector('[data-testid="agent-event-detail-copy-status"]');
+                const agentRuntimeEventAddToChatWorks =
+                  eventDetailAddToChat instanceof HTMLButtonElement &&
+                  composerAfterEventAdd instanceof HTMLTextAreaElement &&
+                  composerAfterEventAdd.value.includes('Investigate this runtime event:') &&
+                  composerAfterEventAdd.value.includes('permission.requested') &&
+                  composerAfterEventAdd.value.includes('git status --short') &&
+                  eventDetailAddStatus instanceof HTMLElement &&
+                  eventDetailAddStatus.getAttribute('role') === 'status' &&
+                  eventDetailAddStatus.getAttribute('aria-live') === 'polite' &&
+                  eventDetailAddStatus.getAttribute('aria-atomic') === 'true' &&
+                  eventDetailAddStatus.textContent?.includes('Event added to chat') === true;
                 const agentRuntimeEventDetailWorks =
                   agentsPanel instanceof HTMLElement &&
                   recentEventRows.length >= 3 &&
@@ -7047,11 +7071,10 @@ function runAutomatedFocusedSurfaceSmoke(
                 const agentRuntimeEventCopyWorks =
                   agentRuntimeEventDetailWorks &&
                   eventDetailCopy instanceof HTMLButtonElement &&
-                  eventDetailCopyStatus instanceof HTMLElement &&
-                  eventDetailCopyStatus.getAttribute('role') === 'status' &&
-                  eventDetailCopyStatus.getAttribute('aria-live') === 'polite' &&
-                  eventDetailCopyStatus.getAttribute('aria-atomic') === 'true' &&
-                  eventDetailCopyStatus.textContent?.includes('Event payload copied') === true &&
+                  eventDetailCopyStatusSnapshot.role === 'status' &&
+                  eventDetailCopyStatusSnapshot.live === 'polite' &&
+                  eventDetailCopyStatusSnapshot.atomic === 'true' &&
+                  eventDetailCopyStatusSnapshot.text.includes('Event payload copied') &&
                   copiedEventPayload.includes('git status --short') === true &&
                   copiedEventPayload.includes('permission.requested') === true;
                 let agentRuntimeEventFacetFiltersWork = false;
@@ -7145,6 +7168,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   workbenchNewTabAgentsActionWorks,
                   agentRuntimeEventDetailWorks,
                   agentRuntimeEventCopyWorks,
+                  agentRuntimeEventAddToChatWorks,
                   agentRuntimeFailureGroupsWorks,
                   agentTransportLogWorks,
                   agentSelectedTimelineWorks,

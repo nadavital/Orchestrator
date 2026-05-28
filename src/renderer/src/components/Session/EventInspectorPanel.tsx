@@ -427,6 +427,20 @@ function EventDetailCard({ record }: { record: SessionRunEventRecord }): JSX.Ele
       .then(() => setCopyStatus('Event payload copied'))
       .catch(() => setCopyStatus('Unable to copy event payload'))
   }
+  const addEventToChat = (): void => {
+    window.dispatchEvent(new CustomEvent('orchestrator:add-composer-text', {
+      detail: {
+        text: [
+          'Investigate this runtime event:',
+          `Type: ${record.event.type}`,
+          `Time: ${formatClockTime(record.timestamp)}`,
+          '',
+          payload
+        ].join('\n')
+      }
+    }))
+    setCopyStatus('Event added to chat')
+  }
 
   return (
     <InspectorSection title="Event detail" dataTestId="agent-event-detail">
@@ -454,6 +468,19 @@ function EventDetailCard({ record }: { record: SessionRunEventRecord }): JSX.Ele
           }}
         >
           Copy payload
+        </button>
+        <button
+          type="button"
+          className="rounded-md border px-2 py-1 text-[11px] font-semibold"
+          data-testid="agent-event-detail-add-to-chat"
+          onClick={addEventToChat}
+          style={{
+            color: 'var(--color-text)',
+            background: 'var(--control-bg)',
+            borderColor: 'var(--border-subtle)'
+          }}
+        >
+          Add to chat
         </button>
         {copyStatus && (
           <span
