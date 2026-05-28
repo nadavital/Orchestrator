@@ -203,6 +203,9 @@ export default function AppearanceSettingsPage({
 }): JSX.Element {
   const [themeImportText, setThemeImportText] = useState('')
   const [themeImportStatus, setThemeImportStatus] = useState<string | null>(null)
+  const themeImportTone = themeImportStatus?.includes('imported') || themeImportStatus?.includes('copied')
+    ? 'success'
+    : themeImportStatus ? 'error' : 'muted'
   const accentOptions: Array<{ id: Accent; label: string; color: string }> = [
     { id: 'blue', label: 'Blue', color: '#0a7cff' },
     { id: 'teal', label: 'Teal', color: '#14a6a1' },
@@ -336,7 +339,7 @@ export default function AppearanceSettingsPage({
           />
           <SettingsGroupContent>
             <SettingsSurface className="appearance-settings-surface">
-              <div className="appearance-sharing-controls">
+              <div className="appearance-sharing-controls" data-import-controls-surface="shared">
                 <div className="settings-actions-inline appearance-sharing-actions">
                   <button
                     type="button"
@@ -357,6 +360,7 @@ export default function AppearanceSettingsPage({
                 </div>
                 <textarea
                   data-testid="theme-import-input"
+                  data-import-input-surface="shared"
                   value={themeImportText}
                   onChange={(event) => setThemeImportText(event.currentTarget.value)}
                   placeholder="codex-theme-v1:{...}"
@@ -366,13 +370,17 @@ export default function AppearanceSettingsPage({
                   <button
                     type="button"
                     data-testid="theme-import-button"
-                    className="settings-action-button"
+                    className="settings-action-button appearance-theme-import-action"
                     onClick={importTheme}
                   >
                     Import theme
                   </button>
                   {themeImportStatus && (
-                    <span data-testid="theme-import-status" className="appearance-theme-import-status">
+                    <span
+                      data-testid="theme-import-status"
+                      className="appearance-theme-import-status"
+                      data-tone={themeImportTone}
+                    >
                       {themeImportStatus}
                     </span>
                   )}

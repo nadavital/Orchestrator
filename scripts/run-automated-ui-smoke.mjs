@@ -2728,6 +2728,7 @@ child.on('exit', async (code) => {
         settingsTaxonomy: captureView !== 'settings' || result.settingsTaxonomyWorks === true,
         settingsRowsCalm: captureView !== 'settings' || result.settingsRowsCalmWorks === true,
         settingsAppearanceColorSwatchesShared: captureView !== 'settings' || result.settingsAppearanceColorSwatchesSharedWorks === true,
+        settingsAppearanceImportControlsShared: captureView !== 'settings' || result.settingsAppearanceImportControlsSharedWorks === true,
         settingsAppearanceSurface: captureView !== 'settings' || result.settingsAppearanceSurfaceWorks === true,
         settingsAppearanceModule: captureView !== 'settings' || result.settingsAppearanceModuleWorks === true,
         settingsGeneralSurface: captureView !== 'settings' || result.settingsGeneralSurfaceWorks === true,

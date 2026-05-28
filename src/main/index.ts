@@ -1280,6 +1280,22 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               }
               var themeImportWorks = document.querySelector('[data-testid="theme-import-status"]')?.textContent?.includes('Theme imported') === true;
               var themeSharingControls = Boolean(document.querySelector('[data-testid="copy-light-theme"]')) && Boolean(document.querySelector('[data-testid="appearance-light-chrome-editor"]'));
+              const themeImportControls = document.querySelector('.appearance-sharing-controls');
+              const themeImportStatus = document.querySelector('[data-testid="theme-import-status"]');
+              const themeImportButton = document.querySelector('[data-testid="theme-import-button"]');
+              var settingsAppearanceImportControlsSharedWorks =
+                themeImportControls instanceof HTMLElement &&
+                themeImportControls.getAttribute('data-import-controls-surface') === 'shared' &&
+                themeImportControls.scrollWidth <= themeImportControls.clientWidth + 2 &&
+                themeImport instanceof HTMLTextAreaElement &&
+                themeImport.getAttribute('data-import-input-surface') === 'shared' &&
+                themeImport.getAttribute('style') === null &&
+                themeImportButton instanceof HTMLButtonElement &&
+                themeImportButton.classList.contains('settings-action-button') &&
+                themeImportButton.classList.contains('appearance-theme-import-action') &&
+                themeImportStatus instanceof HTMLElement &&
+                themeImportStatus.getAttribute('data-tone') === 'success' &&
+                themeImportStatus.textContent?.includes('Theme imported');
               const oceanPreset = document.querySelector('[data-testid="appearance-preset-ocean"]');
               if (oceanPreset instanceof HTMLButtonElement) {
                 oceanPreset.click();
@@ -5893,6 +5909,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             settingsTaxonomyWorks: typeof settingsTaxonomyWorks === 'boolean' ? settingsTaxonomyWorks : null,
             settingsRowsCalmWorks: typeof settingsRowsCalmWorks === 'boolean' ? settingsRowsCalmWorks : null,
             settingsAppearanceColorSwatchesSharedWorks: typeof settingsAppearanceColorSwatchesSharedWorks === 'boolean' ? settingsAppearanceColorSwatchesSharedWorks : null,
+            settingsAppearanceImportControlsSharedWorks: typeof settingsAppearanceImportControlsSharedWorks === 'boolean' ? settingsAppearanceImportControlsSharedWorks : null,
             settingsAppearanceSurfaceWorks: typeof settingsAppearanceSurfaceWorks === 'boolean' ? settingsAppearanceSurfaceWorks : null,
             settingsAppearanceModuleWorks: typeof settingsAppearanceModuleWorks === 'boolean' ? settingsAppearanceModuleWorks : null,
             settingsGeneralSurfaceWorks: typeof settingsGeneralSurfaceWorks === 'boolean' ? settingsGeneralSurfaceWorks : null,

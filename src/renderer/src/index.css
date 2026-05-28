@@ -9407,6 +9407,8 @@
 
   .appearance-theme-import-input {
     min-height: 76px;
+    width: 100%;
+    box-sizing: border-box;
     resize: vertical;
     border: 1px solid var(--border-subtle);
     border-radius: 8px;
@@ -9428,6 +9430,7 @@
     display: flex;
     min-width: 0;
     align-items: center;
+    justify-content: space-between;
     gap: 10px;
   }
 
@@ -9435,6 +9438,19 @@
     min-width: 0;
     color: var(--text-secondary);
     font-size: 12px;
+    line-height: 1.35;
+  }
+
+  .appearance-theme-import-status[data-tone='success'] {
+    color: var(--color-green);
+  }
+
+  .appearance-theme-import-status[data-tone='error'] {
+    color: var(--color-red);
+  }
+
+  .appearance-theme-import-action {
+    flex-shrink: 0;
   }
 
   .appearance-accent-options {
