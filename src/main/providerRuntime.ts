@@ -67,6 +67,27 @@ function defaultSpawn(
   return ptySpawn(binary, args, options) as IPty
 }
 
+function providerExitedWithoutCompletionMessage(providerId: string, rawTail: string): string {
+  const cleanedTail = rawTail
+    .replace(/\u001b\[[0-?]*[ -/]*[@-~]/g, '')
+    .replace(/\r/g, '\n')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .slice(-4)
+    .join('\n')
+  const suffix = cleanedTail ? ` Last output:\n${cleanedTail}` : ''
+  return `${providerId} exited before emitting a structured completion event.${suffix}`
+}
+
+function parseProviderOutputLine(provider: ProviderAdapter, line: string): RunEvent[] {
+  try {
+    return provider.parseOutputLine(line)
+  } catch {
+    return []
+  }
+}
+
 export class ProviderRuntimeManager {
   private readonly activeProcesses = new Map<string, ProviderRuntimeProcess>()
   private readonly activeProcessInfo = new Map<string, { providerId: string; runtime: NonNullable<RunRequest['runtime']> }>()
@@ -292,20 +313,45 @@ export class ProviderRuntimeManager {
       message: `Started ${options.provider.id} ${options.request.runtime ?? 'headless'} runtime.`
     })
     let buffer = ''
+    let rawTail = ''
+    let sawTerminalEvent = false
+    let sawPauseEvent = false
+
+    const emitParsedEvents = (events: RunEvent[]): void => {
+      if (events.length === 0) return
+      sawTerminalEvent ||= events.some((event) => event.type === 'run.completed' || event.type === 'run.failed')
+      sawPauseEvent ||= events.some((event) => event.type === 'permission.requested' || event.type === 'user_input.requested')
+      options.onParsedEvents(events)
+    }
 
     process.onData((data) => {
       if (this.activeProcesses.get(options.sessionId) !== process) return
       options.onRawData(data)
       options.onData(data, process)
+      rawTail = `${rawTail}${data}`.slice(-2000)
 
       buffer += data
       const lines = buffer.split('\n')
       buffer = lines.pop() ?? ''
-      for (const line of lines) options.onParsedEvents(options.provider.parseOutputLine(line))
+      for (const line of lines) emitParsedEvents(parseProviderOutputLine(options.provider, line))
     })
 
     process.onExit(() => {
       if (this.activeProcesses.get(options.sessionId) !== process) return
+      const trailingLine = buffer.trim()
+      buffer = ''
+      if (trailingLine) emitParsedEvents(parseProviderOutputLine(options.provider, trailingLine))
+      if (
+        options.request.runtime !== 'interactive' &&
+        options.provider.capabilities.streamingJson &&
+        !sawTerminalEvent &&
+        !sawPauseEvent
+      ) {
+        emitParsedEvents([{
+          type: 'run.failed',
+          content: providerExitedWithoutCompletionMessage(options.provider.id, rawTail)
+        }])
+      }
       this.activeProcesses.delete(options.sessionId)
       this.activeProcessInfo.delete(options.sessionId)
       this.cleanupBridge(options.sessionId)
