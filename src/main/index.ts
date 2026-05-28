@@ -5580,6 +5580,63 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             }
             await selectThreadByTitle('Active settings smoke');
             await sleep(220);
+            const skipToTranscript = document.querySelector('[data-testid="app-skip-to-transcript"]');
+            const skipToComposer = document.querySelector('[data-testid="app-skip-to-composer"]');
+            const skipToWorkbench = document.querySelector('[data-testid="app-skip-to-workbench"]');
+            if (skipToTranscript instanceof HTMLAnchorElement) {
+              skipToTranscript.focus();
+              await sleep(80);
+              skipToTranscript.click();
+              await sleep(100);
+            }
+            const transcriptTarget = document.getElementById('orchestrator-chat-transcript');
+            const transcriptFocusedBySkip = transcriptTarget instanceof HTMLElement && document.activeElement === transcriptTarget;
+            if (skipToComposer instanceof HTMLAnchorElement) {
+              skipToComposer.focus();
+              await sleep(80);
+              skipToComposer.click();
+              await sleep(100);
+            }
+            const composerTarget = document.getElementById('orchestrator-chat-composer');
+            const composerFocusedBySkip = composerTarget instanceof HTMLTextAreaElement && document.activeElement === composerTarget;
+            const workbenchTargetBeforeOpen = document.getElementById('orchestrator-workbench-panel');
+            if (!(workbenchTargetBeforeOpen instanceof HTMLElement && workbenchTargetBeforeOpen.getBoundingClientRect().width > 120)) {
+              const sidePanelToggle = [...document.querySelectorAll('button')]
+                .find((button) =>
+                  button.getAttribute('aria-label') === 'Toggle side panel' ||
+                  button.getAttribute('data-tooltip-label') === 'Toggle side panel' ||
+                  button.getAttribute('title') === 'Toggle side panel'
+                );
+              if (sidePanelToggle instanceof HTMLButtonElement) {
+                sidePanelToggle.click();
+              }
+            }
+            await sleep(180);
+            if (skipToWorkbench instanceof HTMLAnchorElement) {
+              skipToWorkbench.focus();
+              await sleep(80);
+              skipToWorkbench.click();
+              await sleep(120);
+            }
+            const workbenchTarget = document.getElementById('orchestrator-workbench-panel');
+            const workbenchFocusedBySkip = workbenchTarget instanceof HTMLElement && document.activeElement === workbenchTarget;
+            var appSkipLinksKeyboard =
+              skipToTranscript instanceof HTMLAnchorElement &&
+              skipToComposer instanceof HTMLAnchorElement &&
+              skipToWorkbench instanceof HTMLAnchorElement &&
+              skipToTranscript.getAttribute('href') === '#orchestrator-chat-transcript' &&
+              skipToComposer.getAttribute('href') === '#orchestrator-chat-composer' &&
+              skipToWorkbench.getAttribute('href') === '#orchestrator-workbench-panel' &&
+              transcriptTarget instanceof HTMLElement &&
+              transcriptTarget.getAttribute('tabindex') === '-1' &&
+              transcriptTarget.getAttribute('role') === 'region' &&
+              composerTarget instanceof HTMLTextAreaElement &&
+              composerTarget.getAttribute('aria-label') === 'Message composer' &&
+              workbenchTarget instanceof HTMLElement &&
+              workbenchTarget.getAttribute('tabindex') === '-1' &&
+              transcriptFocusedBySkip &&
+              composerFocusedBySkip &&
+              workbenchFocusedBySkip;
 
             setTextareaValue('/per');
             await sleep(120);
@@ -7019,6 +7076,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             capabilityDialogExitRetained: typeof capabilityDialogExitRetained === 'boolean' ? capabilityDialogExitRetained : null,
             capabilityDialogClosedWithEscape: typeof capabilityDialogClosedWithEscape === 'boolean' ? capabilityDialogClosedWithEscape : null,
             composerPermissionMenuOpened: typeof composerPermissionMenuOpened === 'boolean' ? composerPermissionMenuOpened : null,
+            appSkipLinksKeyboard: typeof appSkipLinksKeyboard === 'boolean' ? appSkipLinksKeyboard : null,
             composerPermissionContextSignal: typeof composerPermissionContextSignal === 'boolean' ? composerPermissionContextSignal : null,
             composerDropdownMaterialWorks: typeof composerDropdownMaterialWorks === 'boolean' ? composerDropdownMaterialWorks : null,
             composerPermissionNativeTooltipsWork: typeof composerPermissionNativeTooltipsWork === 'boolean' ? composerPermissionNativeTooltipsWork : null,

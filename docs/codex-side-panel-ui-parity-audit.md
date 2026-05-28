@@ -8942,3 +8942,13 @@ Implemented: the Codex app-server runtime test now emits `item/fileChange/reques
 Verification: `pnpm exec tsc -p tsconfig.node.json --outDir out-test --module commonjs`, `pnpm exec tsc --noEmit`, and `node --test out-test/src/main/__tests__/codexAppServerRuntime.test.js` passed.
 
 Remaining: this closes local app-server runtime bridge coverage for non-command approval response shapes. It does not claim deterministic live provider forcing for `item/fileChange/requestApproval` or `item/permissions/requestApproval`; that remains separate until a live Codex prompt/API can reliably produce those exact methods.
+
+### 2026-05-28 - App Shell Skip Navigation
+
+Product evidence: the Phase 1 accessibility list still called out keyboard-only traversal as open. The app shell had many local focus gates for popovers, Review, Browser, Terminal, Settings, and transcript actions, but no top-level skip navigation, and the transcript/workbench landmarks were not reliable direct keyboard targets.
+
+Implemented: the root app shell now exposes hidden-until-focused skip links for the transcript, composer, and Workbench. The transcript empty state/transcript scroller and Workbench panel are named focusable regions, and the main composer textarea has a stable id, test id, and accessible label. The skip links focus the real app targets directly instead of only scrolling the page.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and elevated `node scripts/run-automated-ui-smoke.mjs --composer` passed. The first sandboxed focused smoke hit the expected localhost bind denial; the elevated rerun passed with `appSkipLinksKeyboard=true` while keeping the composer, header, Workbench, Review, Files, Browser, Terminal, Settings, capability, and side-chat gates green. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1779992818102.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1779992818102.png`.
+
+Remaining: this is a concrete first-pass app-shell keyboard traversal fix. It does not close the whole-app accessibility audit; broader screen-reader label review, keyboard traversal through every right-panel tab, and exact live Codex focus timing remain separate.

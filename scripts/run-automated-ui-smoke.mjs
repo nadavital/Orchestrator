@@ -2934,6 +2934,7 @@ child.on('exit', async (code) => {
           result.capabilityDialogClosedWithEscape === true
         ),
         composerPermissionMenu: captureView !== 'composer' || result.composerPermissionMenuOpened === true,
+        appSkipLinksKeyboard: captureView !== 'composer' || result.appSkipLinksKeyboard === true,
         composerPermissionContextSignal: captureView !== 'composer' || result.composerPermissionContextSignal === true,
         composerDropdownMaterial: captureView !== 'composer' || result.composerDropdownMaterialWorks === true,
         composerPermissionNativeTooltips: captureView !== 'composer' || result.composerPermissionNativeTooltipsWork === true,

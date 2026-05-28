@@ -809,11 +809,14 @@ function InputBar({ session, isNew }: Props): JSX.Element {
         {/* Text input */}
         <div className="flex items-end px-4 pt-3 pb-1 gap-2">
           <textarea
+            id="orchestrator-chat-composer"
+            data-testid="composer-textarea"
             ref={textareaRef}
             value={text}
             onChange={handleInput}
             onPaste={handlePaste}
             onKeyDown={handleKeyDown}
+            aria-label="Message composer"
             placeholder={isNew ? 'What do you want to build?' : 'Message…'}
             rows={1}
             autoFocus={isNew}

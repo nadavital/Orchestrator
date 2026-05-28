@@ -1,5 +1,5 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
-import type { RefObject } from 'react'
+import type { MouseEvent as ReactMouseEvent, RefObject } from 'react'
 import { flushSync } from 'react-dom'
 import { useProjectStore } from './store/projects'
 import { hasComposerDraft, sideChatIdFromTabId, useSessionStore } from './store/sessions'
@@ -141,6 +141,7 @@ export default function App(): JSX.Element {
   })
   const waitingNotificationKeysRef = useRef(new Set<string>())
   const shellFocusAreaRef = useRef<ShellFocusArea>('main')
+
   const threadFindInputRef = useRef<HTMLInputElement | null>(null)
   const threadFindReturnFocusRef = useRef<HTMLElement | null>(null)
   const deferredActiveSessionId = useDeferredValue(activeSessionId)
@@ -563,6 +564,15 @@ export default function App(): JSX.Element {
     shellFocusAreaRef.current = next
     setShellFocusArea(next)
   }, [])
+
+  const focusSkipTarget = useCallback((event: ReactMouseEvent<HTMLAnchorElement>, targetId: string): void => {
+    event.preventDefault()
+    const target = document.getElementById(targetId)
+    if (!(target instanceof HTMLElement)) return
+    target.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+    target.focus({ preventScroll: true })
+    updateShellFocusArea(target)
+  }, [updateShellFocusArea])
 
   const toggleActiveChatPin = useCallback(async (): Promise<void> => {
     const { sessions, activeSessionId } = useSessionStore.getState()
@@ -1224,6 +1234,32 @@ export default function App(): JSX.Element {
       onFocusCapture={(event) => updateShellFocusArea(event.target)}
       onPointerOverCapture={(event) => updateShellFocusArea(event.target)}
     >
+      <nav className="app-skip-links" aria-label="Skip navigation">
+        <a
+          href="#orchestrator-chat-transcript"
+          className="app-skip-link"
+          data-testid="app-skip-to-transcript"
+          onClick={(event) => focusSkipTarget(event, 'orchestrator-chat-transcript')}
+        >
+          Skip to transcript
+        </a>
+        <a
+          href="#orchestrator-chat-composer"
+          className="app-skip-link"
+          data-testid="app-skip-to-composer"
+          onClick={(event) => focusSkipTarget(event, 'orchestrator-chat-composer')}
+        >
+          Skip to composer
+        </a>
+        <a
+          href="#orchestrator-workbench-panel"
+          className="app-skip-link"
+          data-testid="app-skip-to-workbench"
+          onClick={(event) => focusSkipTarget(event, 'orchestrator-workbench-panel')}
+        >
+          Skip to Workbench
+        </a>
+      </nav>
       <Sidebar
         onNewChat={handleSidebarNewChat}
         onSearch={openSidebarSearch}

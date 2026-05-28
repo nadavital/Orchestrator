@@ -669,6 +669,9 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
     return (
       <div
         data-testid="chat-empty-state"
+        id="orchestrator-chat-transcript"
+        role="region"
+        tabIndex={-1}
         aria-label="New chat ready"
         className="chat-empty-state flex-1 flex items-center justify-center px-6"
         style={{ background: 'var(--canvas-bg)' }}
@@ -721,7 +724,11 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
     >
       <div
         data-testid="transcript-scroll"
+        id="orchestrator-chat-transcript"
         ref={scrollContainerRef}
+        role="region"
+        tabIndex={-1}
+        aria-label="Chat transcript"
         onScroll={handleScroll}
         onWheel={handleWheel}
         onTouchStart={handleTouchStart}

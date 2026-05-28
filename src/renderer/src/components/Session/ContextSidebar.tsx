@@ -381,9 +381,11 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
         />
       )}
       <aside
+        id="orchestrator-workbench-panel"
         className="workbench-panel-surface min-w-0 flex flex-1 flex-col overflow-hidden"
         data-testid="session-right-panel"
         data-app-shell-focus-area="right-panel"
+        tabIndex={-1}
         aria-label="Workbench panel"
         data-right-panel-open={rightPanelOpen ? 'true' : 'false'}
         data-right-panel-active-tab={effectiveTab ?? ''}
