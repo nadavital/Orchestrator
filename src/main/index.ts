@@ -12064,6 +12064,7 @@ function runAutomatedFocusedSurfaceSmoke(
               let fileSourceModeWorks = false;
               let fileSourceLineUtilitiesWorks = false;
               let fileSourceActionStatusWorks = false;
+              let fileSourceAddToChatWorks = false;
               let fileSourceLineBlameWorks = false;
               const fileActionMenuButton = findButton('File actions');
               if (fileActionMenuButton instanceof HTMLButtonElement) {
@@ -14422,6 +14423,18 @@ function runAutomatedFocusedSurfaceSmoke(
                 openSelectedLineButton instanceof HTMLButtonElement &&
                 copySelectedLineButton.disabled === false &&
                 openSelectedLineButton.disabled === false;
+              const sourceAddToChatButton = document.querySelector('[data-testid="workbench-file-tab"] button[aria-label="Add file to chat"]');
+              if (sourceAddToChatButton instanceof HTMLButtonElement) {
+                sourceAddToChatButton.click();
+                await sleep(180);
+              }
+              const sourceFileTabAfterAddToChat = document.querySelector('[data-testid="workbench-file-tab"]');
+              fileSourceAddToChatWorks =
+                sourceAddToChatButton instanceof HTMLButtonElement &&
+                sourceFileTabAfterAddToChat instanceof HTMLElement &&
+                sourceFileTabAfterAddToChat.getAttribute('data-file-tab-action-status') === 'Added file to chat' &&
+                [...document.querySelectorAll('.attachment-pill')]
+                  .some((attachment) => attachment.textContent?.includes('review-base.txt'));
               const inlineCommentButton = document.querySelector('[data-testid="workbench-file-tab"] [data-testid="workspace-source-line-action-comment"]');
               if (inlineCommentButton instanceof HTMLButtonElement) {
                 inlineCommentButton.click();
@@ -14761,6 +14774,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 fileSourceLineSelectionWorks,
                 fileSourceLineUtilitiesWorks,
                 fileSourceActionStatusWorks,
+                fileSourceAddToChatWorks,
                 fileSourceLineBlameWorks,
                 fileSourceBlameDetailsWorks,
                 fileSourceGutterBlameWorks,
