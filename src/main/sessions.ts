@@ -1689,6 +1689,11 @@ export const sessionManager = {
 
     const currentSession = this.get(sessionId)!
     const resumeProvider = getProvider(currentSession.provider ?? 'claude')
+    const simulatePermissionResumePreparationFailure =
+      process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT &&
+      currentSession.messages.some((message) =>
+        message.type === 'text' && message.content.includes('PERMISSION_RESUME_PREPARE_THROW_SMOKE')
+      )
     let runRequest: RunRequest = {
       ...requestFromSession(currentSession, 'Permission granted. Please continue.'),
       allowedTools: persistGrant
@@ -1696,7 +1701,23 @@ export const sessionManager = {
         : mergeToolNames(currentSession.allowedTools, toolNames),
       runtime: currentSession.runtime
     }
-    const started = await this.startProviderRun(sessionId, currentSession, resumeProvider, runRequest, 'resume')
+    let started = false
+    try {
+      if (simulatePermissionResumePreparationFailure) throw new Error('Smoke permission resume request preparation failed.')
+      started = await this.startProviderRun(sessionId, currentSession, resumeProvider, runRequest, 'resume')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      this.appendMessage(sessionId, [{
+        id: uuidv4(),
+        role: 'system',
+        type: 'result',
+        content: message,
+        subtype: 'error_during_execution',
+        timestamp: Date.now()
+      }])
+      this.updateStatus(sessionId, 'error')
+      return { ok: false, error: message }
+    }
     if (!started) return { ok: false, error: 'Provider runtime failed to resume after permission approval.' }
     markLatestPermissionDecision(sessionId, persistGrant ? 'allowed_session' : 'allowed_once')
     return { ok: true }
@@ -1707,7 +1728,10 @@ export const sessionManager = {
     if (!session) return { ok: false, error: `Session ${sessionId} not found.` }
     const trimmed = answer.trim()
     if (!trimmed) return { ok: false, error: 'Answer is empty.' }
-    if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT) {
+    const simulateUserInputResumePreparationFailure =
+      process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT &&
+      trimmed.includes('SMOKE_USER_INPUT_RESUME_THROW')
+    if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT && !simulateUserInputResumePreparationFailure) {
       if (trimmed.includes('SMOKE_MISSING_RESUME')) {
         return { ok: false, error: 'No active provider session is available to resume.' }
       }
@@ -1774,7 +1798,23 @@ export const sessionManager = {
       ),
       runtime: currentSession.runtime
     }
-    const started = await this.startProviderRun(sessionId, currentSession, resumeProvider, runRequest, 'resume')
+    let started = false
+    try {
+      if (simulateUserInputResumePreparationFailure) throw new Error('Smoke user input resume request preparation failed.')
+      started = await this.startProviderRun(sessionId, currentSession, resumeProvider, runRequest, 'resume')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      this.appendMessage(sessionId, [{
+        id: uuidv4(),
+        role: 'system',
+        type: 'result',
+        content: message,
+        subtype: 'error_during_execution',
+        timestamp: Date.now()
+      }])
+      this.updateStatus(sessionId, 'error')
+      return { ok: false, error: message }
+    }
     if (!started) return { ok: false, error: 'Provider runtime failed to resume after user input.' }
     if (session.status === 'waiting_for_permission') markLatestPermissionDecision(sessionId, 'kept_planning')
     return { ok: true }

@@ -2101,13 +2101,15 @@ child.on('exit', async (code) => {
           userInputStructuredSubmit: result.userInputStructuredSubmitWorks === true,
           userInputStructuredStatusLive: result.userInputStructuredStatusLive === true,
           userInputResumeError: result.userInputResumeErrorWorks === true,
-          userInputResumeErrorA11yLive: result.userInputResumeErrorA11yLive === true
+          userInputResumeErrorA11yLive: result.userInputResumeErrorA11yLive === true,
+          userInputResumePrepareFailure: result.userInputResumePrepareFailureWorks === true
         }
     : captureView === 'transcript-permission'
       ? {
           isolatedProfile: result.profile?.isIsolated === true,
           permissionResumeError: result.permissionResumeErrorWorks === true,
           permissionResumeErrorA11yLive: result.permissionResumeErrorA11yLive === true,
+          permissionResumePrepareFailure: result.permissionResumePrepareFailureWorks === true,
           permissionActionsRecoverable: result.permissionActionsRecoverableWorks === true
         }
     : captureView === 'design-system'

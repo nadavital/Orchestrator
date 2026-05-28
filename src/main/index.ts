@@ -21943,7 +21943,7 @@ function runAutomatedTranscriptUserInputSmoke(win: BrowserWindow, outputPath: st
           })()
         `)
         const failureSession = sessionManager.list().find((candidate) => candidate.name === 'Transcript user input resume failure')
-        let failureResult = { userInputResumeErrorWorks: false }
+        let failureResult = { userInputResumeErrorWorks: false, userInputResumePrepareFailureWorks: false }
         if (failureSession) {
           sessionManager.updateStatus(failureSession.id, 'waiting_for_user')
           win.webContents.send('pet:navigate', failureSession.id)
@@ -21979,11 +21979,47 @@ function runAutomatedTranscriptUserInputSmoke(win: BrowserWindow, outputPath: st
             })()
           `)
         }
+        const throwSession = sessionManager.list().find((candidate) => candidate.name === 'Transcript user input resume throw')
+        let throwResult = { userInputResumePrepareFailureWorks: false }
+        if (throwSession) {
+          sessionManager.updateStatus(throwSession.id, 'waiting_for_user')
+          win.webContents.send('pet:navigate', throwSession.id)
+          await new Promise((resolve) => setTimeout(resolve, 260))
+          throwResult = await win.webContents.executeJavaScript(`
+            (async () => {
+              const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+              const throwInput = document.querySelector('[data-testid="chat-user-input-form"] textarea');
+              const throwSetter = throwInput instanceof HTMLTextAreaElement
+                ? Object.getOwnPropertyDescriptor(throwInput.constructor.prototype, 'value')?.set
+                : null;
+              if (throwInput instanceof HTMLTextAreaElement && throwSetter) {
+                throwSetter.call(throwInput, 'SMOKE_USER_INPUT_RESUME_THROW');
+                throwInput.dispatchEvent(new Event('input', { bubbles: true }));
+                await sleep(80);
+              }
+              const throwSend = document.querySelector('[data-testid="chat-user-input-send"]');
+              if (throwSend instanceof HTMLButtonElement) {
+                throwSend.click();
+                await sleep(260);
+              }
+              const throwError = document.querySelector('[data-testid="chat-user-input-error"]');
+              const transcriptText = document.body.innerText;
+              const activeSession = await window.api.sessions.get(${JSON.stringify(throwSession.id)});
+              return {
+                userInputResumePrepareFailureWorks:
+                  throwError instanceof HTMLElement &&
+                  throwError.textContent?.includes('Smoke user input resume request preparation failed.') === true &&
+                  transcriptText.includes('Smoke user input resume request preparation failed.') &&
+                  activeSession?.status === 'error'
+              };
+            })()
+          `)
+        }
         if (screenshotPath) {
           const image = await win.webContents.capturePage()
           writeFileSync(screenshotPath, image.toPNG())
         }
-        writeFileSync(outputPath, JSON.stringify({ ok: true, result: { profile, ...result, ...failureResult }, screenshotPath }, null, 2))
+        writeFileSync(outputPath, JSON.stringify({ ok: true, result: { profile, ...result, ...failureResult, ...throwResult }, screenshotPath }, null, 2))
         app.quit()
       } catch (error) {
         writeFileSync(outputPath, JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2))
@@ -22041,11 +22077,37 @@ function runAutomatedTranscriptPermissionSmoke(win: BrowserWindow, outputPath: s
             };
           })()
         `)
+        const throwSession = sessionManager.list().find((candidate) => candidate.name === 'Transcript permission resume throw')
+        let throwResult = { permissionResumePrepareFailureWorks: false }
+        if (throwSession) {
+          win.webContents.send('pet:navigate', throwSession.id)
+          sessionManager.updateStatus(throwSession.id, 'waiting_for_permission')
+          await new Promise((resolve) => setTimeout(resolve, 280))
+          throwResult = await win.webContents.executeJavaScript(`
+            (async () => {
+              const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+              const allowOnce = document.querySelector('[data-testid="chat-permission-allow-once"]');
+              if (allowOnce instanceof HTMLButtonElement) {
+                allowOnce.click();
+                await sleep(260);
+              }
+              const error = document.querySelector('[data-testid="chat-permission-error"]');
+              const activeSession = await window.api.sessions.get(${JSON.stringify(throwSession.id)});
+              return {
+                permissionResumePrepareFailureWorks:
+                  error instanceof HTMLElement &&
+                  error.textContent?.includes('Smoke permission resume request preparation failed.') === true &&
+                  document.body.innerText.includes('Smoke permission resume request preparation failed.') &&
+                  activeSession?.status === 'error'
+              };
+            })()
+          `)
+        }
         if (screenshotPath) {
           const image = await win.webContents.capturePage()
           writeFileSync(screenshotPath, image.toPNG())
         }
-        writeFileSync(outputPath, JSON.stringify({ ok: true, result: { profile, ...result }, screenshotPath }, null, 2))
+        writeFileSync(outputPath, JSON.stringify({ ok: true, result: { profile, ...result, ...throwResult }, screenshotPath }, null, 2))
         app.quit()
       } catch (error) {
         writeFileSync(outputPath, JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2))
@@ -24480,6 +24542,37 @@ function seedAutomatedTranscriptUserInputSmokeSession(sessionId: string): void {
     createdAt: baseTime,
     latestMessageAt: baseTime + 2
   })
+
+  sessionManager.save({
+    ...session,
+    id: 'transcript-user-input-resume-throw-session',
+    name: 'Transcript user input resume throw',
+    status: 'waiting_for_user',
+    messages: [
+      {
+        id: 'transcript-user-input-throw-user',
+        role: 'user',
+        type: 'text',
+        content: 'TRANSCRIPT_USER_INPUT_THROW_SMOKE answer a prompt that fails while preparing resume.',
+        timestamp: baseTime
+      },
+      {
+        id: 'transcript-user-input-throw-request',
+        role: 'system',
+        type: 'result',
+        content: 'Describe the answer that should fail during resume preparation.',
+        subtype: 'waiting_for_user',
+        timestamp: baseTime + 1,
+        userInputQuestions: [{
+          id: 'transcript-user-input-throw-freeform',
+          question: 'Type a freeform answer.'
+        }]
+      }
+    ],
+    providerSessionId: 'transcript-user-input-throw-provider-session',
+    createdAt: baseTime,
+    latestMessageAt: baseTime + 2
+  })
 }
 
 function seedAutomatedTranscriptPermissionSmokeSession(sessionId: string): void {
@@ -24521,6 +24614,41 @@ function seedAutomatedTranscriptPermissionSmokeSession(sessionId: string): void 
     providerSessionId: null,
     createdAt: baseTime,
     latestMessageAt: baseTime + messages.length
+  })
+
+  sessionManager.save({
+    ...session,
+    id: 'transcript-permission-resume-throw-session',
+    name: 'Transcript permission resume throw',
+    status: 'waiting_for_permission',
+    messages: [
+      {
+        id: 'transcript-permission-throw-user',
+        role: 'user',
+        type: 'text',
+        content: 'PERMISSION_RESUME_PREPARE_THROW_SMOKE approve a permission that fails while preparing resume.',
+        timestamp: baseTime
+      },
+      {
+        id: 'transcript-permission-throw-request',
+        role: 'system',
+        type: 'result',
+        content: 'Allow this command to inspect the workspace during resume preparation failure?',
+        subtype: 'error_during_execution',
+        timestamp: baseTime + 1,
+        permissionDenials: [{
+          tool_name: 'Bash',
+          tool_use_id: 'transcript-permission-throw',
+          tool_input: {
+            command: 'git status --short',
+            cwd: process.env.ORCHESTRATOR_SMOKE_WORKSPACE_DIR ?? '/tmp/orchestrator-automated-ui-workspace'
+          }
+        }]
+      }
+    ],
+    providerSessionId: 'transcript-permission-throw-provider-session',
+    createdAt: baseTime,
+    latestMessageAt: baseTime + 2
   })
 }
 
