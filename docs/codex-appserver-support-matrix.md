@@ -35,6 +35,9 @@ Local Codex CLI: `codex-cli 0.128.0`
 - Composer command-approval boundary proof:
   - `npm run live:codex-composer-approval`
   - `tmp/codex-composer-approval-live-proof/result.json`
+- Composer resume boundary proof:
+  - `npm run live:codex-composer-resume`
+  - `tmp/codex-composer-resume-live-proof/result.json`
 
 ## Status Legend
 
@@ -51,7 +54,7 @@ Local Codex CLI: `codex-cli 0.128.0`
 | Capability area | Orchestrator status | Notes |
 | --- | --- | --- |
 | App-server stdio transport | Supported | Starts `codex app-server --listen stdio://`, sends `initialize`, then `initialized`. |
-| Core chat loop | Supported | Starts/resumes thread and starts turns through app-server. |
+| Core chat loop | Supported | Starts/resumes thread and starts turns through app-server. Live composer resume proof confirms a persisted Codex thread can be resumed from a fresh app-server process with the same thread id and prior-turn context. |
 | Follow-up while running | Supported | Uses `turn/steer` when an app-server turn is active. |
 | Stop/interrupt | Supported | Uses `turn/interrupt` when a Codex app-server turn id is known. |
 | Command/file/permission approvals | Supported | Handles `item/commandExecution/requestApproval`, `item/fileChange/requestApproval`, and `item/permissions/requestApproval`; maps allow once/session/deny back to app-server responses. The live composer proofs confirm Codex returns Orchestrator's requested managed permission profile, can complete an allowed workspace-write command without an explicit approval request, and can send a real command approval request that Orchestrator answers successfully. |
@@ -77,7 +80,7 @@ Local Codex CLI: `codex-cli 0.128.0`
 | App-server method group | Methods | Orchestrator support |
 | --- | --- | --- |
 | Initialization | `initialize` plus client `initialized` notification | Supported. |
-| Thread create/resume | `thread/start`, `thread/resume` | Supported for normal Codex sessions. |
+| Thread create/resume | `thread/start`, `thread/resume` | Supported for normal Codex sessions. Live `npm run live:codex-composer-resume` starts a non-ephemeral thread, resumes it from a fresh process, and validates prior-turn context before archiving the disposable thread. |
 | Thread fork/history/list/read | `thread/fork`, `thread/list`, `thread/loaded/list`, `thread/read`, `thread/turns/list` | Partial. `thread/list` and `thread/loaded/list` are exposed as read-only settings surfaces; fork/read/turn listing are not productized. |
 | Thread metadata/lifecycle | `thread/archive`, `thread/unarchive`, `thread/unsubscribe`, `thread/name/set`, `thread/metadata/update` | Not wired. |
 | Thread context operations | `thread/compact/start`, `thread/rollback`, `thread/inject_items` | Partial. Live proof shows `thread/rollback` accepts `{ threadId, numTurns: 1 }` on persisted threads and rewrites thread history, but it does not revert the workspace file/git diff. It is not a Review Undo implementation by itself. |
