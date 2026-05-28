@@ -3167,6 +3167,17 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
     return result.canceled ? null : result.filePaths[0]
   })
   ipcMain.handle('dialog:openFiles', async (): Promise<Array<{ path: string; name: string; size?: number }> | null> => {
+    if (
+      process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT &&
+      process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'composer'
+    ) {
+      await new Promise((resolve) => setTimeout(resolve, 260))
+      return [{
+        path: '/tmp/orchestrator-manual-switch.txt',
+        name: 'manual-switch.txt',
+        size: 48
+      }]
+    }
     const result = await dialog.showOpenDialog({ properties: ['openFile', 'multiSelections'] })
     if (result.canceled) return null
     return result.filePaths.map((filePath) => {

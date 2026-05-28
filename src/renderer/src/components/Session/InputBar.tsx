@@ -469,6 +469,8 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   }
 
   const attachFiles = async (): Promise<void> => {
+    const targetSessionId = session.id
+    const targetSessionIsActive = (): boolean => useSessionStore.getState().activeSessionId === targetSessionId
     const files = await window.api.dialog.openFiles()
     if (!files?.length) return
     const next = files.map((file): Attachment => ({
@@ -478,9 +480,11 @@ function InputBar({ session, isNew }: Props): JSX.Element {
       name: file.name,
       size: file.size
     }))
-    setComposerAttachments(session.id, (current) => dedupeAttachments([...current, ...next]))
-    setAttachmentStatus({ text: `Attached ${next.length} ${next.length === 1 ? 'file' : 'files'}`, tone: 'info' })
-    textareaRef.current?.focus()
+    setComposerAttachments(targetSessionId, (current) => dedupeAttachments([...current, ...next]))
+    if (targetSessionIsActive()) {
+      setAttachmentStatus({ text: `Attached ${next.length} ${next.length === 1 ? 'file' : 'files'}`, tone: 'info' })
+      textareaRef.current?.focus()
+    }
   }
 
   const attachPastedFiles = async (files: File[]): Promise<void> => {

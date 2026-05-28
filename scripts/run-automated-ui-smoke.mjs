@@ -3024,6 +3024,7 @@ child.on('exit', async (code) => {
         composerAttachmentsPerChat: captureView !== 'composer' || result.composerAttachmentsPerChat === true,
         composerAttachmentsClearedOnSwitch: captureView !== 'composer' || result.composerAttachmentsClearedOnSwitch === true,
         composerAsyncAttachmentSwitchIsolation: captureView !== 'composer' || result.composerAsyncAttachmentSwitchIsolation === true,
+        composerManualAttachmentSwitchIsolation: captureView !== 'composer' || result.composerManualAttachmentSwitchIsolation === true,
         composerAttachmentOnlySessionPreserved: captureView !== 'composer' || result.composerAttachmentOnlySessionPreserved === true,
         composerAttachmentStatus: captureView !== 'composer' || result.composerAttachmentStatusWorks === true,
         composerSideChatAttachmentGuard: captureView !== 'composer' || result.composerSideChatAttachmentGuard === true,

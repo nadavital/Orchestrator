@@ -9172,3 +9172,13 @@ Implemented: pasted/dropped attachment saves now keep their target session for p
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --composer` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1780000193007.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1780000193007.png`. The run adds `composerAsyncAttachmentSwitchIsolation=true` while preserving draft isolation, attachment isolation, side-chat attachment guard, send-failure recovery, provider/model settings, permission controls, and broader composer gates.
 
 Remaining: this closes local async attachment switch isolation only. Deeper context/permission workflow polish and provider-backed lifecycle proof remain separate.
+
+### 2026-05-28 - Composer Manual Attachment Switch Isolation
+
+Product evidence: the manual file-picker attachment path is also asynchronous. If a user starts attaching files and switches chats before the file dialog resolves, the selected files should persist to the original chat without showing completion status or stealing focus in the newly active composer.
+
+Implemented: manual file selection now captures the initiating session id before opening the dialog. It still writes selected attachments to that target session, but only publishes attachment status and returns focus when that session is still active. The focused composer smoke now exercises the real attach button and main-process file-dialog IPC with a delayed smoke fixture.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --composer` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1780000690946.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1780000690946.png`. The run adds `composerManualAttachmentSwitchIsolation=true` while preserving `composerAsyncAttachmentSwitchIsolation=true`, draft isolation, attachment isolation, side-chat attachment guard, send-failure recovery, provider/model settings, permission controls, and broader composer gates.
+
+Remaining: this closes local manual file-picker attachment switch isolation only. Deeper context/permission workflow polish and provider-backed lifecycle proof remain separate.

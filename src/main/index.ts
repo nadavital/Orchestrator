@@ -5308,6 +5308,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               [...document.querySelectorAll('[aria-label="Attachments"] .attachment-pill')]
                 .map((element) => element.textContent?.trim() ?? '')
                 .filter(Boolean);
+            const attachmentLabelsIncludeFamily = (labels, family) =>
+              labels.some((label) => label.includes(String(family)) && label.includes('.txt'));
             const composerAttachmentStatus = () => document.querySelector('[data-testid="composer-attachment-status"]');
             const waitForComposerAttachmentStatus = async (text) => {
               for (let attempt = 0; attempt < 12; attempt += 1) {
@@ -5472,15 +5474,37 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                     asyncAttachmentFirstSelected &&
                     asyncAttachmentSecondSelected &&
                     asyncAttachmentFirstReselected &&
-                    !activeSecondLabels.some((label) => label.includes('async-switch.txt')) &&
+                    !attachmentLabelsIncludeFamily(activeSecondLabels, 'async-switch') &&
                     !(activeSecondStatus instanceof HTMLElement && activeSecondStatus.textContent?.includes('async-switch.txt') === true) &&
-                    attachmentLabels().some((label) => label.includes('async-switch.txt'));
+                    attachmentLabelsIncludeFamily(attachmentLabels(), 'async-switch');
                 }
               } catch {
                 composerAsyncAttachmentSwitchIsolation = false;
               } finally {
                 window.api.attachments.savePastedFile = asyncAttachmentOriginalSave;
               }
+            }
+            var composerManualAttachmentSwitchIsolation = false;
+            const manualAttachmentFirstSelected = await selectThreadByTitle('Draft smoke one');
+            await sleep(160);
+            const attachButton = [...document.querySelectorAll('button')]
+              .find((button) => button.getAttribute('aria-label') === 'Attach files');
+            if (attachButton instanceof HTMLButtonElement) {
+              attachButton.click();
+              await sleep(40);
+              const manualAttachmentSecondSelected = await selectThreadByTitle('Draft smoke two');
+              await sleep(560);
+              const activeSecondLabels = attachmentLabels();
+              const activeSecondStatus = composerAttachmentStatus();
+              const manualAttachmentFirstReselected = await selectThreadByTitle('Draft smoke one');
+              await sleep(220);
+              composerManualAttachmentSwitchIsolation =
+                manualAttachmentFirstSelected &&
+                manualAttachmentSecondSelected &&
+                manualAttachmentFirstReselected &&
+                !attachmentLabelsIncludeFamily(activeSecondLabels, 'manual-switch') &&
+                !(activeSecondStatus instanceof HTMLElement && activeSecondStatus.textContent?.includes('Attached 1 file') === true) &&
+                attachmentLabelsIncludeFamily(attachmentLabels(), 'manual-switch');
             }
             addComposerAttachment('status-remove.txt', '/tmp/orchestrator-status-remove.txt');
             const {
@@ -7305,6 +7329,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             composerAttachmentsPerChat: typeof composerAttachmentsPerChat === 'boolean' ? composerAttachmentsPerChat : null,
             composerAttachmentsClearedOnSwitch: typeof composerAttachmentsClearedOnSwitch === 'boolean' ? composerAttachmentsClearedOnSwitch : null,
             composerAsyncAttachmentSwitchIsolation: typeof composerAsyncAttachmentSwitchIsolation === 'boolean' ? composerAsyncAttachmentSwitchIsolation : null,
+            composerManualAttachmentSwitchIsolation: typeof composerManualAttachmentSwitchIsolation === 'boolean' ? composerManualAttachmentSwitchIsolation : null,
             composerFirstAttachmentRestored: typeof composerFirstAttachmentRestored === 'boolean' ? composerFirstAttachmentRestored : null,
             composerSecondAttachmentRestored: typeof composerSecondAttachmentRestored === 'boolean' ? composerSecondAttachmentRestored : null,
             composerAttachmentOnlySessionPreserved: typeof composerAttachmentOnlySessionPreserved === 'boolean' ? composerAttachmentOnlySessionPreserved : null,
