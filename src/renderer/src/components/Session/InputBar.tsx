@@ -7,6 +7,7 @@ import SlashCommandPalette, { getSlashQuery } from './SlashCommandPalette'
 import ProviderIcon from '../shared/ProviderIcon'
 import Icon from '../shared/Icon'
 import { AttachmentPill, DismissablePopoverSurface, Tooltip } from '../shared/designSystem'
+import { useShallow } from 'zustand/react/shallow'
 
 interface Props {
   session: Session
@@ -24,6 +25,15 @@ interface PendingAttachment {
 function InputBar({ session, isNew }: Props): JSX.Element {
   const providerAvailability = useSessionStore((state) => state.providerAvailability)
   const providerModels = useSessionStore((state) => state.providerModels)
+  const queuedFollowUpSummary = useSessionStore(useShallow((state) => {
+    const current = state.sessions.find((candidate) => candidate.id === session.id)
+    const queuedMessages = (current?.messages ?? []).filter((message) =>
+      message.type === 'text' && message.role === 'user' && message.queueState
+    )
+    const queued = queuedMessages.filter((message) => message.queueState === 'queued').length
+    const steering = queuedMessages.filter((message) => message.queueState === 'steer_next').length
+    return { queued, steering }
+  }))
   const currentUi = useSessionStore((state) => state.uiState[session.id] ?? defaultUI)
   const setComposerDraft = useSessionStore((state) => state.setComposerDraft)
   const setComposerAttachments = useSessionStore((state) => state.setComposerAttachments)
@@ -197,6 +207,13 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   const advancedPermissionModes = filterPermissionModes(getAdvancedPermissionModes(provider), permissionContext, permissionMode)
   const dangerPermissionModes = filterPermissionModes(getDangerPermissionModes(provider), permissionContext, permissionMode)
   const canUsePermission = resolvedPermission?.support !== 'unsupported'
+  const queuedFollowUpCount = queuedFollowUpSummary.queued
+  const steeringFollowUpCount = queuedFollowUpSummary.steering
+  const queuedFollowUpTotal = queuedFollowUpCount + steeringFollowUpCount
+  const queuedFollowUpLabel = [
+    queuedFollowUpCount > 0 ? `${queuedFollowUpCount} queued` : null,
+    steeringFollowUpCount > 0 ? `${steeringFollowUpCount} steering` : null
+  ].filter(Boolean).join(' · ')
 
   // Cursor per-model effort/thinking/fast config
   const cursorCfg = provider.id === 'cursor'
@@ -681,6 +698,16 @@ function InputBar({ session, isNew }: Props): JSX.Element {
             <div className="flex items-center gap-1.5 px-1" style={{ color: 'var(--color-text-muted)', minWidth: 0 }}>
               <ProviderIcon providerId={provider.id} size={11} color="var(--color-text-muted)" />
               <span className="text-xs truncate" style={{ maxWidth: 360 }}>{agentLabel}</span>
+              {queuedFollowUpTotal > 0 && (
+                <span
+                  className="composer-queued-summary"
+                  data-testid="composer-queued-summary"
+                  data-queued-follow-up-count={queuedFollowUpCount}
+                  data-steering-follow-up-count={steeringFollowUpCount}
+                >
+                  {queuedFollowUpLabel}
+                </span>
+              )}
             </div>
           )}
 

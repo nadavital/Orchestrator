@@ -636,6 +636,22 @@
     white-space: nowrap;
   }
 
+  .composer-queued-summary {
+    min-width: 0;
+    max-width: min(180px, 30cqw);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    border: 1px solid var(--border-subtle);
+    border-radius: 999px;
+    background: var(--surface-bg);
+    color: var(--text-secondary);
+    font-size: 10.5px;
+    font-weight: 700;
+    line-height: 1;
+    padding: 4px 7px;
+  }
+
   @container composer-toolbar (width <= 560px) {
     .composer-agent-trigger .composer-control-label {
       max-width: min(176px, 32cqw);
@@ -644,11 +660,16 @@
     .composer-permission-trigger .composer-control-label {
       display: none;
     }
+
+    .composer-queued-summary {
+      max-width: min(128px, 24cqw);
+    }
   }
 
   @container composer-toolbar (width <= 440px) {
     .composer-worktree-trigger .composer-control-label,
-    .composer-agent-trigger .composer-control-label {
+    .composer-agent-trigger .composer-control-label,
+    .composer-queued-summary {
       display: none;
     }
   }

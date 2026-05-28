@@ -21085,6 +21085,19 @@ function runAutomatedStreamingTypingSmoke(win: BrowserWindow, outputPath: string
           })()
         `)
 
+        if (sessionId) {
+          sessionManager.updateStatus(sessionId, 'running')
+          sessionManager.appendMessage(sessionId, [{
+            id: 'streaming-typing-queued-follow-up',
+            role: 'user',
+            type: 'text',
+            content: 'STREAMING_TYPING_QUEUED_FOLLOW_UP: keep this queued while the current run streams.',
+            queueState: 'queued',
+            timestamp: Date.now()
+          }])
+          await new Promise((resolve) => setTimeout(resolve, 120))
+        }
+
         const updatePromise = (async () => {
           const active = sessionId ? sessionManager.get(sessionId) : null
           const existing = active?.messages.find((message) => message.id === 'streaming-typing-message')
@@ -21167,7 +21180,10 @@ function runAutomatedStreamingTypingSmoke(win: BrowserWindow, outputPath: string
               chatViewCommitCount: window.__orchestratorChatViewCommitCount ?? null,
               maxFrameGapMs: gaps.length ? Math.max(...gaps) : null,
               frameSamples: gaps.length,
-              streamingTextVisible: document.body.innerText.includes('typing stream update 110')
+              streamingTextVisible: document.body.innerText.includes('typing stream update 110'),
+              composerQueuedSummaryVisible: document.querySelector('[data-testid="composer-queued-summary"]') instanceof HTMLElement,
+              composerQueuedSummaryText: document.querySelector('[data-testid="composer-queued-summary"]')?.textContent ?? '',
+              composerQueuedSummaryCount: document.querySelector('[data-testid="composer-queued-summary"]')?.getAttribute('data-queued-follow-up-count') ?? null
             };
           })()
         `)
@@ -21180,7 +21196,11 @@ function runAutomatedStreamingTypingSmoke(win: BrowserWindow, outputPath: string
           profile,
           streamingMessageUpdated,
           streamingSessionActive,
-          composerTyped: typedValue.includes('typing while streaming should stay responsive')
+          composerTyped: typedValue.includes('typing while streaming should stay responsive'),
+          composerQueuedSummaryWorks:
+            result.composerQueuedSummaryVisible === true &&
+            result.composerQueuedSummaryText.includes('1 queued') &&
+            result.composerQueuedSummaryCount === '1'
         }
 
         if (screenshotPath) {
