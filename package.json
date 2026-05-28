@@ -70,6 +70,7 @@
     "live:codex-composer-appserver": "node -e \"require('fs').rmSync('out-test',{recursive:true,force:true})\" && tsc -p tsconfig.node.json --outDir out-test --module commonjs && node scripts/codex-composer-appserver-live-proof.mjs",
     "live:codex-composer-approval": "node -e \"require('fs').rmSync('out-test',{recursive:true,force:true})\" && tsc -p tsconfig.node.json --outDir out-test --module commonjs && CODEX_COMPOSER_PROOF_REQUIRE_APPROVAL=1 CODEX_COMPOSER_PROOF_ARTIFACT_DIR=tmp/codex-composer-approval-live-proof node scripts/codex-composer-appserver-live-proof.mjs",
     "live:codex-composer-resume": "node -e \"require('fs').rmSync('out-test',{recursive:true,force:true})\" && tsc -p tsconfig.node.json --outDir out-test --module commonjs && node scripts/codex-composer-resume-live-proof.mjs",
+    "live:codex-composer-runtime-lifecycle": "node -e \"require('fs').rmSync('out-test',{recursive:true,force:true})\" && tsc -p tsconfig.node.json --outDir out-test --module commonjs && node scripts/codex-composer-runtime-lifecycle-live-proof.mjs",
     "live:codex-review-appserver": "node -e \"require('fs').rmSync('out-test',{recursive:true,force:true})\" && tsc -p tsconfig.node.json --outDir out-test --module commonjs && node scripts/codex-review-appserver-live-proof.mjs",
     "live:claude-capabilities": "tsc -p tsconfig.node.json --outDir out-test --module commonjs && node scripts/claude-live-capability-suite.mjs",
     "preview": "electron-vite preview",
