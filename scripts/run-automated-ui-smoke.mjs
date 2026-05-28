@@ -2153,11 +2153,15 @@ child.on('exit', async (code) => {
         isolatedProfile: result.profile?.isIsolated === true,
         transcriptFound: result.transcriptFound === true,
         chatMessageForkButtonVisible: result.chatMessageForkButtonVisible === true,
+        chatMessageForkMenuChoices: result.chatMessageForkMenuChoices === true,
+        chatMessageForkSameWorktreeUi: result.chatMessageForkSameWorktreeUi === true,
         chatMessageForkFromHere: result.chatMessageForkFromHere === true,
         chatMessageForkTruncatesLaterTurns: result.chatMessageForkTruncatesLaterTurns === true,
         chatMessageForkClearsProviderSession: result.chatMessageForkClearsProviderSession === true,
         chatMessageForkClearsProviderSidebarMetadata: result.chatMessageForkClearsProviderSidebarMetadata === true,
         chatMessageForkPersistsLineage: result.chatMessageForkPersistsLineage === true,
+        chatMessageForkSameWorktreeFromHere: result.chatMessageForkSameWorktreeFromHere === true,
+        chatMessageForkNewWorktreeFromHere: result.chatMessageForkNewWorktreeFromHere === true,
         chatMessageForkSidebarLineage: result.chatMessageForkSidebarLineage === true,
         chatMessageForkHoverLineage: result.chatMessageForkHoverLineage === true
       }

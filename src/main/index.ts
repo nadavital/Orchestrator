@@ -22770,6 +22770,8 @@ function runAutomatedTranscriptForkSmoke(win: BrowserWindow, outputPath: string,
         if (session) {
           sessionManager.save({
             ...session,
+            useWorktree: true,
+            worktreeState: 'ready',
             providerSessionId: 'transcript-layout-provider-thread',
             providerThreadSource: 'cloud',
             providerHostId: 'transcript-layout-host',
@@ -22784,6 +22786,13 @@ function runAutomatedTranscriptForkSmoke(win: BrowserWindow, outputPath: string,
             providerProjectless: true,
             providerProjectlessThreadId: 'transcript-layout-provider-thread'
           })
+          win.webContents.send('session:updated', {
+            id: session.id,
+            useWorktree: true,
+            worktreeState: 'ready',
+            repoRoot: session.repoRoot,
+            workDir: session.workDir
+          })
           win.webContents.send('pet:navigate', session.id)
           await new Promise((resolve) => setTimeout(resolve, 220))
         }
@@ -22796,16 +22805,51 @@ function runAutomatedTranscriptForkSmoke(win: BrowserWindow, outputPath: string,
             scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
             await sleep(220);
             const forkButton = document.querySelector('[data-message-id="transcript-layout-user"] [data-testid="chat-message-fork"]');
+            const chatMessageForkButtonVisible =
+              forkButton instanceof HTMLButtonElement &&
+              forkButton.getAttribute('aria-label') === 'Fork from here';
+            let chatMessageForkMenuChoices = false;
+            let chatMessageForkSameWorktreeUi = false;
+            if (forkButton instanceof HTMLButtonElement) {
+              forkButton.click();
+              await sleep(180);
+              const menu = document.querySelector('[data-testid="chat-message-fork-menu"]');
+              const localItem = document.querySelector('[data-testid="chat-message-fork-local"]');
+              const sameItem = document.querySelector('[data-testid="chat-message-fork-same-worktree"]');
+              const newItem = document.querySelector('[data-testid="chat-message-fork-new-worktree"]');
+              chatMessageForkMenuChoices =
+                menu instanceof HTMLElement &&
+                localItem instanceof HTMLButtonElement &&
+                sameItem instanceof HTMLButtonElement &&
+                newItem instanceof HTMLButtonElement;
+              if (sameItem instanceof HTMLButtonElement) {
+                sameItem.click();
+                for (let attempt = 0; attempt < 16; attempt += 1) {
+                  await sleep(120);
+                  const forked = window.__orchestratorLastMessageForkedSession ?? null;
+                  if (forked?.mode === 'same-worktree' && forked?.sourceMessageId === 'transcript-layout-user') {
+                    chatMessageForkSameWorktreeUi = forked.useWorktree === true;
+                    break;
+                  }
+                }
+              }
+            }
             return {
               transcriptFound: true,
-              chatMessageForkButtonVisible:
-                forkButton instanceof HTMLButtonElement &&
-                forkButton.getAttribute('aria-label') === 'Fork from here'
+              chatMessageForkButtonVisible,
+              chatMessageForkMenuChoices,
+              chatMessageForkSameWorktreeUi
             };
           })()
         `)
         const forkedFromMessage = session
           ? await sessionManager.fork(session.id, 'local', { throughMessageId: 'transcript-layout-user' })
+          : null
+        const sameWorktreeForkedFromMessage = session
+          ? await sessionManager.fork(session.id, 'same-worktree', { throughMessageId: 'transcript-layout-user' })
+          : null
+        const newWorktreeForkedFromMessage = session
+          ? await sessionManager.fork(session.id, 'new-worktree', { throughMessageId: 'transcript-layout-user' })
           : null
         if (forkedFromMessage) {
           projectStore.addSession(forkedFromMessage.projectId, forkedFromMessage.id)
@@ -22869,6 +22913,18 @@ function runAutomatedTranscriptForkSmoke(win: BrowserWindow, outputPath: string,
             forkedFromMessage?.forkedFromSessionName === 'Transcript layout smoke' &&
             forkedFromMessage?.forkedFromMessageId === 'transcript-layout-user' &&
             forkedFromMessage?.forkMode === 'local',
+          chatMessageForkSameWorktreeFromHere:
+            sameWorktreeForkedFromMessage?.forkMode === 'same-worktree' &&
+            sameWorktreeForkedFromMessage?.forkedFromMessageId === 'transcript-layout-user' &&
+            sameWorktreeForkedFromMessage?.useWorktree === true &&
+            sameWorktreeForkedFromMessage?.workDir === session?.workDir &&
+            sameWorktreeForkedFromMessage?.messages.length === 2,
+          chatMessageForkNewWorktreeFromHere:
+            newWorktreeForkedFromMessage?.forkMode === 'new-worktree' &&
+            newWorktreeForkedFromMessage?.forkedFromMessageId === 'transcript-layout-user' &&
+            newWorktreeForkedFromMessage?.useWorktree === true &&
+            (newWorktreeForkedFromMessage?.worktreeState === 'pending' || newWorktreeForkedFromMessage?.worktreeState === 'ready') &&
+            newWorktreeForkedFromMessage?.messages.length === 2,
           ...sidebarLineageResult
         }
         if (screenshotPath) {

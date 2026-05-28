@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback } from 'react'
 import type { ReactNode, WheelEvent } from 'react'
+import { createPortal } from 'react-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
@@ -11,6 +12,10 @@ import {
   DisclosureSection,
   IconButton,
   MarkdownSurface,
+  MenuItem,
+  MenuSection,
+  MenuSectionLabel,
+  MenuSurface,
   ScrollEdgeButton,
   StatusBadge,
   SurfaceRow,
@@ -28,7 +33,7 @@ import {
   permissionRequestDetail,
   summarizeToolActivities
 } from '../../types'
-import type { Session, ChatMessage, FileChange, FileReference, ResultMessage, SessionRunEventRecord, ToolResultMessage, ToolUseMessage, UserInputQuestion } from '../../types'
+import type { Session, ChatMessage, FileChange, FileReference, ResultMessage, SessionForkMode, SessionRunEventRecord, ToolResultMessage, ToolUseMessage, UserInputQuestion } from '../../types'
 import type { Attachment } from '../../types'
 import type { TranscriptSearchResult } from '../../types'
 import { useSessionStore } from '../../store/sessions'
@@ -200,16 +205,19 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
     }, 0)
   }, [session.id])
 
-  const forkFromMessage = useCallback(async (messageId: string): Promise<void> => {
+  const forkFromMessage = useCallback(async (messageId: string, mode: SessionForkMode = 'local'): Promise<void> => {
     setTranscriptActionStatus({ text: 'Forking chat from selected message', tone: 'info' })
     try {
-      const forked = await window.api.sessions.fork(session.id, 'local', { throughMessageId: messageId })
-      const testWindow = window as typeof window & { __orchestratorLastMessageForkedSession?: { id: string; sourceSessionId: string; sourceMessageId: string; messageCount: number } }
+      const forked = await window.api.sessions.fork(session.id, mode, { throughMessageId: messageId })
+      const testWindow = window as typeof window & { __orchestratorLastMessageForkedSession?: { id: string; mode: SessionForkMode; sourceSessionId: string; sourceMessageId: string; messageCount: number; useWorktree: boolean; worktreeState?: Session['worktreeState'] } }
       testWindow.__orchestratorLastMessageForkedSession = {
         id: forked.id,
+        mode,
         sourceSessionId: session.id,
         sourceMessageId: messageId,
-        messageCount: forked.messages.length
+        messageCount: forked.messages.length,
+        useWorktree: forked.useWorktree,
+        worktreeState: forked.worktreeState
       }
       addSession(forked)
       transferBrowserWorkbench(session.id, forked.id)
@@ -1347,32 +1355,100 @@ function ContinueButton({ sessionId }: { sessionId: string }): JSX.Element {
   )
 }
 
-function ForkFromMessageButton({ onFork }: { onFork: () => void | Promise<void> }): JSX.Element {
+function ForkFromMessageButton({
+  onFork,
+  canForkSameWorktree,
+  canForkNewWorktree
+}: {
+  onFork: (mode: SessionForkMode) => void | Promise<void>
+  canForkSameWorktree: boolean
+  canForkNewWorktree: boolean
+}): JSX.Element {
   const [state, setState] = useState<'idle' | 'forking' | 'error'>('idle')
+  const [menuPosition, setMenuPosition] = useState<{ left: number; top: number } | null>(null)
   const label = state === 'forking' ? 'Forking chat' : state === 'error' ? 'Fork failed' : 'Fork from here'
+  const hasForkChoices = canForkSameWorktree || canForkNewWorktree
 
-  const handleFork = useCallback(async (event: React.MouseEvent) => {
-    event.preventDefault()
-    event.stopPropagation()
+  const forkWithMode = useCallback(async (mode: SessionForkMode) => {
     if (state === 'forking') return
+    setMenuPosition(null)
     setState('forking')
     try {
-      await onFork()
+      await onFork(mode)
     } catch {
       setState('error')
     }
   }, [onFork, state])
 
+  const openMenu = useCallback((event: React.MouseEvent) => {
+    event.preventDefault()
+    event.stopPropagation()
+    if (state === 'forking') return
+    if (!hasForkChoices) {
+      void forkWithMode('local')
+      return
+    }
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
+    setMenuPosition({
+      left: Math.min(Math.max(rect.right - 214, 8), window.innerWidth - 222),
+      top: Math.min(rect.bottom + 6, window.innerHeight - 170)
+    })
+  }, [forkWithMode, hasForkChoices, state])
+
   return (
-    <IconButton
-      icon={state === 'forking' ? 'refresh' : 'branch'}
-      label={label}
-      size="sm"
-      tone={state === 'error' ? 'danger' : 'neutral'}
-      dataTestId="chat-message-fork"
-      onClick={handleFork}
-      style={{ opacity: state === 'forking' ? 1 : 0.62 }}
-    />
+    <>
+      <IconButton
+        icon={state === 'forking' ? 'refresh' : 'branch'}
+        label={label}
+        size="sm"
+        tone={state === 'error' ? 'danger' : 'neutral'}
+        dataTestId="chat-message-fork"
+        ariaExpanded={menuPosition !== null}
+        ariaHasPopup={hasForkChoices ? 'menu' : undefined}
+        onClick={openMenu}
+        style={{ opacity: state === 'forking' ? 1 : 0.62 }}
+      />
+      {menuPosition && createPortal(
+        <MenuSurface
+          onClose={() => setMenuPosition(null)}
+          data-testid="chat-message-fork-menu"
+          style={{
+            position: 'fixed',
+            left: menuPosition.left,
+            top: menuPosition.top,
+            zIndex: 120,
+            minWidth: 214
+          }}
+        >
+          <MenuSection>
+            <MenuSectionLabel>Fork from here</MenuSectionLabel>
+            <MenuItem
+              icon="branch"
+              label="Fork locally"
+              dataTestId="chat-message-fork-local"
+              onClick={() => void forkWithMode('local')}
+            />
+            {canForkSameWorktree && (
+              <MenuItem
+                icon="branch"
+                label="Fork in same worktree"
+                dataTestId="chat-message-fork-same-worktree"
+                onClick={() => void forkWithMode('same-worktree')}
+              />
+            )}
+            {canForkNewWorktree && (
+              <MenuItem
+                icon="branch"
+                label="Fork in new worktree"
+                dataTestId="chat-message-fork-new-worktree"
+                onClick={() => void forkWithMode('new-worktree')}
+              />
+            )}
+          </MenuSection>
+        </MenuSurface>,
+        document.body
+      )}
+    </>
   )
 }
 
@@ -1577,7 +1653,7 @@ function MessageRow({
   onSteerQueuedMessage: (messageId: string) => Promise<void>
   onCancelQueuedMessage: (messageId: string, queueState: 'queued' | 'steer_next') => Promise<void>
   onEditUserMessageAsDraft: (content: string, attachments?: Attachment[]) => void
-  onForkFromMessage: (messageId: string) => Promise<void>
+  onForkFromMessage: (messageId: string, mode?: SessionForkMode) => Promise<void>
 }): JSX.Element | null {
   const [isUserMessageExpanded, setIsUserMessageExpanded] = useState(false)
 
@@ -1737,7 +1813,13 @@ function MessageRow({
               }}
             >
               {canContinue && <ContinueButton sessionId={session.id} />}
-              {canForkFromMessage && <ForkFromMessageButton onFork={() => onForkFromMessage(msg.id)} />}
+              {canForkFromMessage && (
+                <ForkFromMessageButton
+                  canForkSameWorktree={session.useWorktree}
+                  canForkNewWorktree={Boolean(session.repoRoot)}
+                  onFork={(mode) => onForkFromMessage(msg.id, mode)}
+                />
+              )}
               {canCopy && <CopyButton getText={() => content} />}
             </div>
           )}
@@ -1764,7 +1846,13 @@ function MessageRow({
                   style={{ opacity: 0.62 }}
                 />
               )}
-              {canForkFromMessage && <ForkFromMessageButton onFork={() => onForkFromMessage(msg.id)} />}
+              {canForkFromMessage && (
+                <ForkFromMessageButton
+                  canForkSameWorktree={session.useWorktree}
+                  canForkNewWorktree={Boolean(session.repoRoot)}
+                  onFork={(mode) => onForkFromMessage(msg.id, mode)}
+                />
+              )}
             </div>
           )}
         </div>
