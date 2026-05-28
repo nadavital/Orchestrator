@@ -163,6 +163,16 @@ Current Review verification debt:
 
 ## Implementation Progress
 
+### 2026-05-28 - Review Toolbar File Navigation Slice
+
+Product evidence: Review is a Phase 1 daily coding surface. Orchestrator already supported changed-file tree keyboard movement and a jump menu, but the toolbar still lacked direct previous/next changed-file controls for stepping through a review without returning focus to the tree.
+
+Implemented: detailed Review now exposes compact `Previous changed file` and `Next changed file` toolbar buttons. They reuse the same active changed-file path model as tree keyboard navigation, close open Review menus when used, and sit after the existing Review options, Jump, and Refresh controls so the primary toolbar order stays Codex-like.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and `git diff --check` passed. Focused `node scripts/run-automated-ui-smoke.mjs --diff-core` first caught a toolbar order regression when the new buttons were inserted before Jump; after moving them after Refresh, the elevated rerun passed with `reviewToolbarFileNavigation=true` while preserving `reviewToolbarPrimaryOrder=true` and `reviewToolbarHeaderRow=true`. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-core-1780011874151.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-core-1780011874151.png`.
+
+Remaining: this closes local toolbar changed-file stepping only. Provider-backed hosted Review sources, provider checkpoint restore, exact live Codex Review spacing, and deeper source/provider diff navigation remain separate.
+
 ### 2026-05-28 - Workbench Tab Readability Slice
 
 Implemented: fixed a header/panel visual defect where crowded Workbench right-panel tabs could read as a single run-together label row. The Workbench tab strip now applies the intended Workbench-specific row spacing to the actual shared `PanelTabStrip` row, and the focused right-panel smoke now gates readable adjacent-tab separation so tab chrome cannot pass solely on width caps.

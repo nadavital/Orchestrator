@@ -10310,6 +10310,24 @@ function runAutomatedFocusedSurfaceSmoke(
                   keyboardPathBefore.length > 0 &&
                   keyboardPathAfter.length > 0 &&
                   keyboardPathBefore !== keyboardPathAfter;
+                const reviewPreviousFileButton = document.querySelector('[data-testid="review-previous-file"]');
+                const reviewNextFileButton = document.querySelector('[data-testid="review-next-file"]');
+                let reviewToolbarFileNavigationWorks = false;
+                if (reviewPreviousFileButton instanceof HTMLButtonElement && reviewNextFileButton instanceof HTMLButtonElement) {
+                  reviewPreviousFileButton.click();
+                  await sleep(100);
+                  const toolbarPathAfterPrevious = activeReviewPath();
+                  reviewNextFileButton.click();
+                  await sleep(100);
+                  const toolbarPathAfterNext = activeReviewPath();
+                  reviewToolbarFileNavigationWorks =
+                    reviewPreviousFileButton.getAttribute('aria-label') === 'Previous changed file' &&
+                    reviewNextFileButton.getAttribute('aria-label') === 'Next changed file' &&
+                    typeof keyboardPathBefore === 'string' &&
+                    typeof keyboardPathAfter === 'string' &&
+                    toolbarPathAfterPrevious === keyboardPathBefore &&
+                    toolbarPathAfterNext === keyboardPathAfter;
+                }
                 const diffRevealSelectedPathWorks =
                   finalDiffPanelList instanceof HTMLElement &&
                   finalDiffPanelList.getAttribute('data-reveal-active-row') === 'true' &&
@@ -10903,6 +10921,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   diffRevealSelectedPathWorks,
                   diffTreeGroupingWorks,
                   diffKeyboardNavigationWorks,
+                  reviewToolbarFileNavigationWorks,
                   diffLineNumbersWork,
                   diffLineSelectionWorks,
                   diffHunkCollapseWorks,
@@ -12616,6 +12635,24 @@ function runAutomatedFocusedSurfaceSmoke(
                 keyboardPathBefore.length > 0 &&
                 keyboardPathAfter.length > 0 &&
                   keyboardPathBefore !== keyboardPathAfter;
+              const reviewPreviousFileButton = document.querySelector('[data-testid="review-previous-file"]');
+              const reviewNextFileButton = document.querySelector('[data-testid="review-next-file"]');
+              let reviewToolbarFileNavigationWorks = false;
+              if (reviewPreviousFileButton instanceof HTMLButtonElement && reviewNextFileButton instanceof HTMLButtonElement) {
+                reviewPreviousFileButton.click();
+                await sleep(100);
+                const toolbarPathAfterPrevious = activeReviewPath();
+                reviewNextFileButton.click();
+                await sleep(100);
+                const toolbarPathAfterNext = activeReviewPath();
+                reviewToolbarFileNavigationWorks =
+                  reviewPreviousFileButton.getAttribute('aria-label') === 'Previous changed file' &&
+                  reviewNextFileButton.getAttribute('aria-label') === 'Next changed file' &&
+                  typeof keyboardPathBefore === 'string' &&
+                  typeof keyboardPathAfter === 'string' &&
+                  toolbarPathAfterPrevious === keyboardPathBefore &&
+                  toolbarPathAfterNext === keyboardPathAfter;
+              }
               const diffRevealSelectedPathWorks =
                 finalDiffPanelList instanceof HTMLElement &&
                 finalDiffPanelList.getAttribute('data-reveal-active-row') === 'true' &&
@@ -13738,6 +13775,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 reviewTabPanelFocusRingCalmWorks,
                 diffTreeGroupingWorks,
                 diffKeyboardNavigationWorks,
+                reviewToolbarFileNavigationWorks,
                 diffRevealSelectedPathWorks,
                 diffActionMenuCompactWorks,
                 diffActionMenuMaterialWorks,

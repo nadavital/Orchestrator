@@ -198,6 +198,9 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
     return counts
   }, [reviewCommentsByPath])
   const selectedChange = selectedFile ? sourceFiles.find((file) => file.path === selectedFile) ?? null : null
+  const selectedFileIndex = selectedFile ? filteredFiles.findIndex((file) => file.path === selectedFile) : -1
+  const canSelectPreviousFile = selectedFileIndex > 0
+  const canSelectNextFile = selectedFileIndex >= 0 && selectedFileIndex < filteredFiles.length - 1
   const visibleReviewChanges = selectedChange ? [selectedChange] : []
   const selectedReviewContent = selectedFile ? reviewFileContentByPath[selectedFile] : undefined
   const fileDiff = selectedReviewContent?.diff ?? ''
@@ -873,6 +876,13 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
     setFileJumpQuery('')
   }
 
+  const navigateReviewFile = (direction: 'next' | 'previous'): void => {
+    selectAdjacentFile(direction)
+    setFileJumpOpen(false)
+    setReviewOptionsOpen(false)
+    setReviewMetadataOpen(null)
+  }
+
   const fileJumpControl = (
     <div className="review-file-jump relative">
       <button
@@ -1201,6 +1211,24 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
           variant="toolbar"
           dataTestId="review-refresh"
           onClick={refresh}
+        />
+        <IconButton
+          icon="arrowUp"
+          label="Previous changed file"
+          size="sm"
+          variant="toolbar"
+          disabled={!canSelectPreviousFile}
+          dataTestId="review-previous-file"
+          onClick={() => navigateReviewFile('previous')}
+        />
+        <IconButton
+          icon="arrowDown"
+          label="Next changed file"
+          size="sm"
+          variant="toolbar"
+          disabled={!canSelectNextFile}
+          dataTestId="review-next-file"
+          onClick={() => navigateReviewFile('next')}
         />
         {reviewMetadata && (
           <ReviewMetadataStrip
