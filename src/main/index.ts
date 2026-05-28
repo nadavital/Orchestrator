@@ -5627,6 +5627,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                   getComputedStyle(label).textTransform !== 'uppercase';
             });
             var composerActiveThreadProviderSwitch = false;
+            var composerActiveThreadProviderSwitchPersisted = false;
             if (activeThreadCodexProviderChoice instanceof HTMLButtonElement) {
               activeThreadCodexProviderChoice.click();
               await sleep(360);
@@ -5644,8 +5645,20 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                   button.textContent?.includes('GPT') === true &&
                   button.getAttribute('aria-pressed') === 'true'
                 );
+              for (let index = 0; index < 10; index += 1) {
+                const switchedSessions = await window.api.sessions.list();
+                const switchedSession = switchedSessions.find((candidate) => candidate.name === 'Active settings smoke');
+                composerActiveThreadProviderSwitchPersisted =
+                  switchedSession?.provider === 'codex' &&
+                  switchedSession?.runtime === 'app-server' &&
+                  typeof switchedSession?.model === 'string' &&
+                  switchedSession.model.includes('gpt');
+                if (composerActiveThreadProviderSwitchPersisted) break;
+                await sleep(80);
+              }
             } else {
               composerActiveThreadProviderSwitch = composerActiveThreadProviderChoices;
+              composerActiveThreadProviderSwitchPersisted = composerActiveThreadProviderChoices;
             }
             document.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, clientX: 1, clientY: 1 }));
             await sleep(300);
@@ -6777,6 +6790,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             composerActiveThreadSettings: typeof composerActiveThreadSettings === 'boolean' ? composerActiveThreadSettings : null,
             composerActiveThreadProviderChoices: typeof composerActiveThreadProviderChoices === 'boolean' ? composerActiveThreadProviderChoices : null,
             composerActiveThreadProviderSwitch: typeof composerActiveThreadProviderSwitch === 'boolean' ? composerActiveThreadProviderSwitch : null,
+            composerActiveThreadProviderSwitchPersisted: typeof composerActiveThreadProviderSwitchPersisted === 'boolean' ? composerActiveThreadProviderSwitchPersisted : null,
             composerAgentChoiceA11y: typeof composerAgentChoiceA11y === 'boolean' ? composerAgentChoiceA11y : null,
             composerAgentRowLabelsCalm: typeof composerAgentRowLabelsCalm === 'boolean' ? composerAgentRowLabelsCalm : null,
             composerAgentMenuClosedWithOutsideClick: typeof composerAgentMenuClosedWithOutsideClick === 'boolean' ? composerAgentMenuClosedWithOutsideClick : null,
