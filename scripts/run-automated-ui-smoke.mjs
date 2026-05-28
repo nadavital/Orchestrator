@@ -2273,6 +2273,7 @@ child.on('exit', async (code) => {
           headerActionChromeCompact: result.headerActionChromeCompactWorks === true,
           headerNativeTooltips: result.headerNativeTooltipsWork === true,
           titlebarSidebarToggle: result.titlebarSidebarToggleWorks === true,
+          titlebarPanelToggleState: result.titlebarPanelToggleStateWorks === true,
           headerPanelEmptyFallback: result.headerPanelEmptyFallbackWorks === true,
           headerActionMenu: result.headerActionMenuWorks === true
         }

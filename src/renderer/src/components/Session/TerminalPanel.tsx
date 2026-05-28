@@ -179,6 +179,7 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
       {ui.showTerminal && (
         <>
           <div
+            id="orchestrator-terminal-panel"
             className="app-shell-panel-chrome"
             data-testid="session-bottom-panel"
             data-app-shell-focus-area="bottom-panel"

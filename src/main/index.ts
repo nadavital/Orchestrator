@@ -7311,6 +7311,7 @@ function runAutomatedFocusedSurfaceSmoke(
               const metadataRect = headerMetadata instanceof HTMLElement ? headerMetadata.getBoundingClientRect() : null;
               const activeTitleTooltip = activeSessionTitle instanceof HTMLElement ? activeSessionTitle.getAttribute('data-tooltip-label') ?? '' : '';
               const titlebarToggleSidebar = document.querySelector('[data-testid="titlebar-toggle-sidebar"]');
+              const titlebarToggleTerminal = document.querySelector('[data-testid="titlebar-toggle-terminal"]');
               const chatActionsButton = document.querySelector('[data-testid="titlebar-chat-actions"]');
               const titlebarActions = document.querySelector('[data-testid="titlebar-actions"]');
               const headerActions = titlebarActions?.getAttribute('data-header-actions') ?? '';
@@ -7372,6 +7373,27 @@ function runAutomatedFocusedSurfaceSmoke(
               } else {
                 headerPanelEmptyFallbackWorks = true;
               }
+              const rightPanelAfterToggle = document.querySelector('[data-testid="session-right-panel"]');
+              const terminalPanel = document.querySelector('[data-testid="session-bottom-panel"]');
+              const titlebarPanelToggleStateWorks =
+                titlebarToggleSidebar instanceof HTMLButtonElement &&
+                titlebarToggleSidebar.getAttribute('aria-controls') === 'orchestrator-workbench-panel' &&
+                ['true', 'false'].includes(titlebarToggleSidebar.getAttribute('aria-expanded') ?? '') &&
+                (
+                  rightPanelAfterToggle === null ||
+                  rightPanelAfterToggle.id === 'orchestrator-workbench-panel'
+                ) &&
+                (
+                  rightPanelAfterToggle === null ||
+                  titlebarToggleSidebar.getAttribute('aria-expanded') === 'true'
+                ) &&
+                titlebarToggleTerminal instanceof HTMLButtonElement &&
+                titlebarToggleTerminal.getAttribute('aria-controls') === 'orchestrator-terminal-panel' &&
+                ['true', 'false'].includes(titlebarToggleTerminal.getAttribute('aria-expanded') ?? '') &&
+                (
+                  terminalPanel === null ||
+                  terminalPanel.id === 'orchestrator-terminal-panel'
+                );
               const headerTooltipIds = ['active-session-title', 'session-header-metadata', 'profile-badge'];
               if (document.querySelector('[data-testid="session-header-pinned"]')) headerTooltipIds.push('session-header-pinned');
               return {
@@ -7412,6 +7434,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   headerPanelOwner === 'right-workbench' &&
                   headerPanelToggleLabel === 'Toggle side panel' &&
                   headerPanelEmptyFallback === 'new-tab',
+                titlebarPanelToggleStateWorks,
                 headerPanelEmptyFallbackWorks,
                 headerActionChromeCompactWorks,
                 headerActionMenuWorks

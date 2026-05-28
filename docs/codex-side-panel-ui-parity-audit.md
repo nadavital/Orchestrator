@@ -8992,3 +8992,13 @@ Implemented: `SegmentedControl` now requires an explicit `ariaLabel` and applies
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and elevated focused smokes passed. `node scripts/run-automated-ui-smoke.mjs --settings-providers` first hit the expected sandbox localhost bind failure; the elevated rerun passed with `settingsProviderSegmentedControlLabels=true`. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-providers-1779993923181.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-providers-1779993923181.png`. `node scripts/run-automated-ui-smoke.mjs --capabilities` passed with `capabilitySegmentedControlLabels=true`. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-capabilities-1779993940145.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-capabilities-1779993940145.png`.
 
 Remaining: this closes shared segmented-control naming for current Settings and Capabilities callsites. It does not close whole-app screen-reader traversal, provider-native Settings adapters, or exact live Codex focus/timing evidence.
+
+### 2026-05-28 - Header Panel Toggle State
+
+Product evidence: the header owns the right Workbench and bottom Terminal panel toggles, but those toggle buttons only exposed visual active state. For keyboard and screen-reader users, the controls did not declare the panel they control or whether that panel is expanded.
+
+Implemented: shared toolbar icon buttons now support `aria-expanded` and `aria-controls`. The header side-panel toggle controls `orchestrator-workbench-panel`, and the terminal toggle controls `orchestrator-terminal-panel`; the bottom panel now exposes that stable id when mounted.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and elevated `node scripts/run-automated-ui-smoke.mjs --header` passed. The focused run added `titlebarPanelToggleState=true` while keeping header identity, tooltip, compact action chrome, side-panel toggle, empty-panel fallback, and action-menu gates green. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-header-1779994218641.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-header-1779994218641.png`.
+
+Remaining: this closes local header toggle ownership/state semantics for the right Workbench and bottom Terminal panels. Exact live Codex header/panel pixel timing and installed-app replacement proof remain separate.

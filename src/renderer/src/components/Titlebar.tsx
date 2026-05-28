@@ -261,6 +261,8 @@ function Titlebar(): JSX.Element {
               icon="panelRight"
               label="Toggle side panel"
               active={inspectorOpen}
+              ariaExpanded={inspectorOpen}
+              ariaControls="orchestrator-workbench-panel"
               dataTestId="titlebar-toggle-sidebar"
               size="sm"
               variant="toolbar"
@@ -270,6 +272,8 @@ function Titlebar(): JSX.Element {
               icon="terminal"
               label="Toggle terminal"
               active={showTerminal}
+              ariaExpanded={showTerminal}
+              ariaControls="orchestrator-terminal-panel"
               dataTestId="titlebar-toggle-terminal"
               size="sm"
               variant="toolbar"

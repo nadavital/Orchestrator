@@ -293,6 +293,7 @@ interface IconButtonProps {
   tooltip?: boolean
   dataTestId?: string
   ariaExpanded?: boolean
+  ariaControls?: string
 }
 
 export function IconButton({
@@ -309,6 +310,7 @@ export function IconButton({
   tooltip = true,
   dataTestId,
   ariaExpanded,
+  ariaControls,
 }: IconButtonProps): JSX.Element {
   const buttonSize = size === 'xs' ? 18 : size === 'sm' ? 24 : 30
   const iconSize = size === 'xs' ? 11 : size === 'sm' ? 13 : 15
@@ -319,6 +321,7 @@ export function IconButton({
       disabled={disabled}
       aria-label={label}
       aria-expanded={ariaExpanded}
+      aria-controls={ariaControls}
       data-tooltip-label={label}
       data-icon={icon}
       data-native-title-free="true"
@@ -353,6 +356,8 @@ export function ToolbarButton({
   dataTestId,
   size = 'md',
   variant = 'default',
+  ariaExpanded,
+  ariaControls,
 }: {
   icon: IconName
   label: string
@@ -363,6 +368,8 @@ export function ToolbarButton({
   dataTestId?: string
   size?: 'sm' | 'md'
   variant?: 'default' | 'toolbar'
+  ariaExpanded?: boolean
+  ariaControls?: string
 }): JSX.Element {
   return (
     <IconButton
@@ -375,6 +382,8 @@ export function ToolbarButton({
       dataTestId={dataTestId}
       size={size}
       variant={variant}
+      ariaExpanded={ariaExpanded}
+      ariaControls={ariaControls}
       className="toolbar-button"
       style={variant === 'toolbar'
         ? undefined
