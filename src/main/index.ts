@@ -5628,6 +5628,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             });
             var composerActiveThreadProviderSwitch = false;
             var composerActiveThreadProviderSwitchPersisted = false;
+            var composerActiveThreadProviderSwitchPolicyPersisted = false;
             if (activeThreadCodexProviderChoice instanceof HTMLButtonElement) {
               activeThreadCodexProviderChoice.click();
               await sleep(360);
@@ -5653,12 +5654,16 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                   switchedSession?.runtime === 'app-server' &&
                   typeof switchedSession?.model === 'string' &&
                   switchedSession.model.includes('gpt');
+                composerActiveThreadProviderSwitchPolicyPersisted =
+                  switchedSession?.permissionMode === 'default' &&
+                  switchedSession?.effort === 'low';
                 if (composerActiveThreadProviderSwitchPersisted) break;
                 await sleep(80);
               }
             } else {
               composerActiveThreadProviderSwitch = composerActiveThreadProviderChoices;
               composerActiveThreadProviderSwitchPersisted = composerActiveThreadProviderChoices;
+              composerActiveThreadProviderSwitchPolicyPersisted = composerActiveThreadProviderChoices;
             }
             document.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, clientX: 1, clientY: 1 }));
             await sleep(300);
@@ -6791,6 +6796,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             composerActiveThreadProviderChoices: typeof composerActiveThreadProviderChoices === 'boolean' ? composerActiveThreadProviderChoices : null,
             composerActiveThreadProviderSwitch: typeof composerActiveThreadProviderSwitch === 'boolean' ? composerActiveThreadProviderSwitch : null,
             composerActiveThreadProviderSwitchPersisted: typeof composerActiveThreadProviderSwitchPersisted === 'boolean' ? composerActiveThreadProviderSwitchPersisted : null,
+            composerActiveThreadProviderSwitchPolicyPersisted: typeof composerActiveThreadProviderSwitchPolicyPersisted === 'boolean' ? composerActiveThreadProviderSwitchPolicyPersisted : null,
             composerAgentChoiceA11y: typeof composerAgentChoiceA11y === 'boolean' ? composerAgentChoiceA11y : null,
             composerAgentRowLabelsCalm: typeof composerAgentRowLabelsCalm === 'boolean' ? composerAgentRowLabelsCalm : null,
             composerAgentMenuClosedWithOutsideClick: typeof composerAgentMenuClosedWithOutsideClick === 'boolean' ? composerAgentMenuClosedWithOutsideClick : null,
