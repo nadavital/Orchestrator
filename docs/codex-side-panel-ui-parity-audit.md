@@ -163,6 +163,14 @@ Current Review verification debt:
 
 ## Implementation Progress
 
+### 2026-05-28 - Composer Active Thread Model Settings Slice
+
+Implemented: existing-thread composer provider/model text is no longer a dead label. It now opens a compact `Thread settings` popover with the current provider identity plus model, Claude agent, and effort/thinking controls where supported. New-thread setup still keeps provider switching in the setup menu; this slice makes the active coding-thread controls inspectable and adjustable without expanding into new provider adapters.
+
+Verification: `pnpm exec tsc --noEmit` passed. `node -c scripts/run-automated-ui-smoke.mjs` passed. `git diff --check` passed. Focused `node scripts/run-automated-ui-smoke.mjs --composer` passed with `composerActiveThreadSettings=true` plus the existing permission menu, agent menu, queued cancel, draft, attachment, drag/drop, and toolbar responsive composer gates; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1779936345825.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1779936345825.png`.
+
+Remaining: this improves active-thread model/control ergonomics. It does not add provider-native account/runtime adapters, live provider-backed model switching proof, or deeper context/permission workflow redesign.
+
 ### 2026-05-28 - Chat Long-Thread History Control Slice
 
 Implemented: Orchestrator's transcript history affordance now exposes explicit visible/total message counts, distinguishes fetching older unloaded history from revealing already loaded history, and keeps a compact all-loaded status when a large transcript is fully present. Shared `SurfaceRow` now forwards stable `data-*` attributes so focused smokes can verify user-visible state without parsing button copy. Shared find jumps also seed the virtual scroller with an estimated target offset before calling `scrollIntoView`, so searching an early long-thread result lands on the matching row instead of staying near the bottom of the loaded page.

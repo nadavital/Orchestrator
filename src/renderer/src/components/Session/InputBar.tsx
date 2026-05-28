@@ -694,10 +694,21 @@ function InputBar({ session, isNew }: Props): JSX.Element {
               )}
             </div>
           ) : (
-            /* Active session: read-only agent label */
-            <div className="flex items-center gap-1.5 px-1" style={{ color: 'var(--color-text-muted)', minWidth: 0 }}>
-              <ProviderIcon providerId={provider.id} size={11} color="var(--color-text-muted)" />
-              <span className="text-xs truncate" style={{ maxWidth: 360 }}>{agentLabel}</span>
+            /* Active session: compact thread settings */
+            <div className="relative flex items-center gap-1.5" style={{ minWidth: 0 }}>
+              <ToolbarBtn
+                active={showAgentMenu}
+                onClick={() => setShowAgentMenu((v) => !v)}
+                providerColor={provider.color}
+                dataTestId="composer-agent-menu"
+                className="composer-agent-trigger"
+                title="Thread model settings"
+                ariaLabel="Thread model settings"
+              >
+                <ProviderIcon providerId={provider.id} size={11} color={provider.color} />
+                <span className="composer-control-label">{agentLabel}</span>
+                <Chevron />
+              </ToolbarBtn>
               {queuedFollowUpTotal > 0 && (
                 <span
                   className="composer-queued-summary"
@@ -707,6 +718,111 @@ function InputBar({ session, isNew }: Props): JSX.Element {
                 >
                   {queuedFollowUpLabel}
                 </span>
+              )}
+              {showAgentMenu && (
+                <DropdownPanel onClose={() => setShowAgentMenu(false)} style={{ bottom: '100%', marginBottom: 8, left: 0, minWidth: 300 }}>
+                  <div
+                    className="px-3 py-2"
+                    data-testid="composer-active-agent-summary"
+                    style={{ borderBottom: '1px solid var(--color-border)' }}
+                  >
+                    <div className="flex items-center gap-2">
+                      <ProviderIcon providerId={provider.id} size={12} color={provider.color} />
+                      <div className="min-w-0">
+                        <div className="text-xs font-semibold truncate" style={{ color: 'var(--color-text)' }}>
+                          {provider.name}
+                        </div>
+                        <div className="text-[11px] truncate" style={{ color: 'var(--color-text-muted)' }}>
+                          Thread settings
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <TieredRow label="Model">
+                    {getVisibleModels(provider, providerModels).map((opt) => (
+                      <Chip
+                        key={opt.id}
+                        active={model === opt.id}
+                        onClick={() => provider.id === 'cursor' ? switchCursorModel(opt.id) : update({ model: opt.id })}
+                        activeColor={provider.color}
+                      >
+                        {opt.label}
+                      </Chip>
+                    ))}
+                  </TieredRow>
+
+                  {provider.id === 'claude' && (
+                    <TieredRow label="Agent">
+                      <Chip
+                        active={!selectedAgentName}
+                        onClick={() => update({ agentName: null })}
+                        activeColor={provider.color}
+                      >
+                        Default
+                      </Chip>
+                      {claudeAgentsStatus === 'loading' && <InlineHint>Loading</InlineHint>}
+                      {claudeAgentsStatus === 'error' && <InlineHint>Unavailable</InlineHint>}
+                      {claudeAgentsStatus === 'loaded' && claudeAgents.length === 0 && <InlineHint>None</InlineHint>}
+                      {claudeAgents.map((agent) => (
+                        <Chip
+                          key={agent.id}
+                          active={selectedAgentName === agent.name}
+                          onClick={() => update({ agentName: agent.name })}
+                          activeColor={provider.color}
+                          title={agent.model ? `${agent.name} · ${agent.model}` : agent.name}
+                        >
+                          {agent.name}
+                          {agent.model && <span style={{ opacity: 0.72 }}>{agent.model}</span>}
+                        </Chip>
+                      ))}
+                    </TieredRow>
+                  )}
+
+                  {provider.id === 'cursor' && cursorEffortLevels.length > 0 && (
+                    <TieredRow label="Effort">
+                      {cursorEffortLevels.map((level) => (
+                        <Chip
+                          key={level.id}
+                          active={cursorEffort === level.id}
+                          onClick={() => update({ effort: level.id, useFast: false })}
+                          activeColor={provider.color}
+                        >
+                          {level.label}
+                        </Chip>
+                      ))}
+                    </TieredRow>
+                  )}
+
+                  {provider.id === 'cursor' && hasThinking && (
+                    <TieredRow label="Thinking">
+                      <Chip active={!useThinking} onClick={() => update({ useThinking: false })} activeColor={provider.color}>Off</Chip>
+                      <Chip active={useThinking} onClick={() => update({ useThinking: true })} activeColor={provider.color}>On</Chip>
+                    </TieredRow>
+                  )}
+
+                  {provider.id === 'cursor' && hasFast && (
+                    <TieredRow label="Speed">
+                      <Chip active={!useFast} onClick={() => update({ useFast: false })} activeColor={provider.color}>Standard</Chip>
+                      <Chip active={useFast} onClick={() => update({ useFast: true })} activeColor={provider.color}>Fast</Chip>
+                    </TieredRow>
+                  )}
+
+                  {provider.supportsEffort && provider.effortLevels.length > 0 && (
+                    <TieredRow label="Thinking">
+                      {provider.effortLevels.map((opt) => (
+                        <Chip
+                          key={opt.id}
+                          active={effort === opt.id}
+                          onClick={() => update({ effort: opt.id })}
+                          activeColor={provider.color}
+                        >
+                          {opt.label}
+                        </Chip>
+                      ))}
+                    </TieredRow>
+                  )}
+                </DropdownPanel>
               )}
             </div>
           )}

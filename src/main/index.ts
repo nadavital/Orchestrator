@@ -4469,6 +4469,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             };
             const firstDraftRow = rowForTitle('Draft smoke one');
             const secondDraftRow = rowForTitle('Draft smoke two');
+            const activeSettingsRow = rowForTitle('Active settings smoke');
             firstDraftRow?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
             await sleep(180);
             const firstDraftTyped = setTextareaValue('draft belongs to chat one');
@@ -4588,6 +4589,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 composerDragDropAttachmentWorks = false;
               }
             }
+            activeSettingsRow?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+            await sleep(220);
 
             const permissionButton = document.querySelector('[data-testid="composer-permission-menu"]');
             permissionButton?.click();
@@ -4631,8 +4634,14 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             agentButton?.click();
             await sleep(140);
             var composerAgentMenuOpened = Boolean(document.querySelector('.motion-popover-surface'));
+            const activeAgentSummary = document.querySelector('[data-testid="composer-active-agent-summary"]');
             const agentRowLabels = [...document.querySelectorAll('[data-testid="composer-agent-row-label"]')]
               .filter((label) => label instanceof HTMLElement);
+            var composerActiveThreadSettings =
+              activeAgentSummary instanceof HTMLElement &&
+              activeAgentSummary.textContent?.includes('Thread settings') === true &&
+              [...document.querySelectorAll('.motion-popover-surface button')]
+                .some((button) => button.textContent?.includes('Sonnet'));
             var composerAgentRowLabelsCalm =
               agentRowLabels.length >= 2 &&
               agentRowLabels.every((label) => {
@@ -5703,6 +5712,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             composerPermissionMenuClosedWithEscape: typeof composerPermissionMenuClosedWithEscape === 'boolean' ? composerPermissionMenuClosedWithEscape : null,
             composerPermissionFocusReturned: typeof composerPermissionFocusReturned === 'boolean' ? composerPermissionFocusReturned : null,
             composerAgentMenuOpened: typeof composerAgentMenuOpened === 'boolean' ? composerAgentMenuOpened : null,
+            composerActiveThreadSettings: typeof composerActiveThreadSettings === 'boolean' ? composerActiveThreadSettings : null,
             composerAgentRowLabelsCalm: typeof composerAgentRowLabelsCalm === 'boolean' ? composerAgentRowLabelsCalm : null,
             composerAgentMenuClosedWithOutsideClick: typeof composerAgentMenuClosedWithOutsideClick === 'boolean' ? composerAgentMenuClosedWithOutsideClick : null,
             composerAgentFocusReturned: typeof composerAgentFocusReturned === 'boolean' ? composerAgentFocusReturned : null,
@@ -21590,6 +21600,34 @@ async function seedAutomatedComposerSmokeSession(projectId: string, workDir: str
       queuedMessage
     ],
     latestMessageAt: baseTime
+  })
+
+  let activeSettingsSession = sessionManager.list().find((candidate) => candidate.projectId === projectId && candidate.name === 'Active settings smoke')
+  if (!activeSettingsSession) {
+    activeSettingsSession = await sessionManager.create({
+      projectId,
+      workDir,
+      useWorktree: false,
+      repoRoot: workDir
+    })
+    projectStore.addSession(projectId, activeSettingsSession.id)
+  }
+  const activeSettingsMessage: ChatMessage = {
+    id: 'composer-active-settings-smoke-message',
+    role: 'assistant',
+    type: 'text',
+    content: 'ACTIVE_SETTINGS_SMOKE existing thread for composer model controls.',
+    timestamp: baseTime + 1
+  }
+  sessionManager.save({
+    ...activeSettingsSession,
+    name: 'Active settings smoke',
+    status: 'idle',
+    messages: [
+      ...activeSettingsSession.messages.filter((message) => message.id !== activeSettingsMessage.id),
+      activeSettingsMessage
+    ],
+    latestMessageAt: activeSettingsMessage.timestamp
   })
 }
 
