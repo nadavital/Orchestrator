@@ -9132,3 +9132,13 @@ Implemented: shared Environment rows now expose accessible labels for actionable
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --environment` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-environment-1779998274477.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-environment-1779998274477.png`. The run adds `environmentDisabledRowsA11y=true` while keeping Environment visual, action-row, source-boundary, and settings-open checks green.
 
 Remaining: this closes local Environment disabled-row semantics only. Provider-backed web-search source state, provider-native environment sources, hosted PR metadata, and commit/PR creation remain separate.
+
+### 2026-05-28 - Browser Security Origin Policy Controls
+
+Product evidence: Browser Security is a Phase 1 app-building control surface. It showed allowed and blocked download/upload origin policy state, but the per-session row controls only managed allowed origins, so blocked download/upload state could be visible without an equivalent row-level control.
+
+Implemented: Browser Security origin rows now use explicit `Allow`, `Block`, and `Clear` controls where both allowed and blocked policy lists exist. Download/upload rows show both allowed and blocked summaries, and `Clear` clears both lists for that policy family.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --browser` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779998711089.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779998711089.png`. The run adds `browserSecurityPolicyOriginControls=true` while keeping Browser local-server, webview, find, zoom, device, browser-use, actions-menu, context-menu, comment, target, load-error, copy-status, visibility, lifecycle, and transfer gates green.
+
+Remaining: this closes local Browser Security per-session origin policy controls only. Provider-emitted Browser/browser-use proof and non-Codex browser/local-server adapters remain separate.

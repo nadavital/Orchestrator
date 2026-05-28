@@ -9,6 +9,14 @@ import BrowserWebviewManager, { type BrowserVisibleGeometry, type WebviewElement
 
 const BROWSER_ACTIONS_MENU_ID = 'browser-actions-menu-surface'
 
+type BrowserOriginPolicyKey =
+  | 'allowedOrigins'
+  | 'blockedOrigins'
+  | 'allowedDownloadOrigins'
+  | 'blockedDownloadOrigins'
+  | 'allowedUploadOrigins'
+  | 'blockedUploadOrigins'
+
 interface Props {
   initialUrl?: string
   embedded?: boolean
@@ -1425,7 +1433,7 @@ export default function BrowserPanel({
     setAssetBundlePath(bundle.manifestPath)
   }
 
-  const addOriginPolicy = (key: keyof Pick<BrowserWorkbenchState, 'allowedOrigins' | 'blockedOrigins' | 'allowedDownloadOrigins' | 'blockedDownloadOrigins' | 'allowedUploadOrigins' | 'blockedUploadOrigins'>): void => {
+  const addOriginPolicy = (key: BrowserOriginPolicyKey): void => {
     if (!urlOrigin) return
     const origin = originKey(urlOrigin)
     const values = workbench[key]
@@ -1433,8 +1441,9 @@ export default function BrowserPanel({
     patchWorkbench({ [key]: [...values, origin] } as Partial<BrowserWorkbenchState>)
   }
 
-  const clearOriginPolicy = (key: keyof Pick<BrowserWorkbenchState, 'allowedOrigins' | 'blockedOrigins' | 'allowedDownloadOrigins' | 'blockedDownloadOrigins' | 'allowedUploadOrigins' | 'blockedUploadOrigins'>): void => {
-    patchWorkbench({ [key]: [] } as Partial<BrowserWorkbenchState>)
+  const clearOriginPolicy = (keyOrKeys: BrowserOriginPolicyKey | BrowserOriginPolicyKey[]): void => {
+    const keys = Array.isArray(keyOrKeys) ? keyOrKeys : [keyOrKeys]
+    patchWorkbench(Object.fromEntries(keys.map((key) => [key, []])) as Partial<BrowserWorkbenchState>)
   }
 
   const openExternal = (): void => {
@@ -2920,8 +2929,8 @@ function SecurityPane({
   workbench: BrowserWorkbenchState
   currentOrigin: string
   onPatch: (patch: Partial<BrowserWorkbenchState>) => void
-  onAddOriginPolicy: (key: 'allowedOrigins' | 'blockedOrigins' | 'allowedDownloadOrigins' | 'blockedDownloadOrigins' | 'allowedUploadOrigins' | 'blockedUploadOrigins') => void
-  onClearOriginPolicy: (key: 'allowedOrigins' | 'blockedOrigins' | 'allowedDownloadOrigins' | 'blockedDownloadOrigins' | 'allowedUploadOrigins' | 'blockedUploadOrigins') => void
+  onAddOriginPolicy: (key: BrowserOriginPolicyKey) => void
+  onClearOriginPolicy: (key: BrowserOriginPolicyKey | BrowserOriginPolicyKey[]) => void
 }): JSX.Element {
   return (
     <div className="browser-security-pane" data-testid="browser-security-pane">
@@ -2951,10 +2960,26 @@ function SecurityPane({
         />
       </InspectorSection>
       <InspectorSection title="Origins" className="browser-security-card browser-security-policies" dataTestId="browser-security-policies" variant="raised">
-        <PolicyRow label="Allowed" values={workbench.allowedOrigins} onAdd={() => onAddOriginPolicy('allowedOrigins')} onClear={() => onClearOriginPolicy('allowedOrigins')} />
-        <PolicyRow label="Blocked" values={workbench.blockedOrigins} onAdd={() => onAddOriginPolicy('blockedOrigins')} onClear={() => onClearOriginPolicy('blockedOrigins')} />
-        <PolicyRow label="Downloads" values={workbench.allowedDownloadOrigins} blockedValues={workbench.blockedDownloadOrigins} onAdd={() => onAddOriginPolicy('allowedDownloadOrigins')} onClear={() => onClearOriginPolicy('allowedDownloadOrigins')} />
-        <PolicyRow label="Uploads" values={workbench.allowedUploadOrigins} blockedValues={workbench.blockedUploadOrigins} onAdd={() => onAddOriginPolicy('allowedUploadOrigins')} onClear={() => onClearOriginPolicy('allowedUploadOrigins')} />
+        <PolicyRow label="Allowed" values={workbench.allowedOrigins} addLabel="Allow" onAdd={() => onAddOriginPolicy('allowedOrigins')} onClear={() => onClearOriginPolicy('allowedOrigins')} />
+        <PolicyRow label="Blocked" values={workbench.blockedOrigins} addLabel="Block" onAdd={() => onAddOriginPolicy('blockedOrigins')} onClear={() => onClearOriginPolicy('blockedOrigins')} />
+        <PolicyRow
+          label="Downloads"
+          values={workbench.allowedDownloadOrigins}
+          blockedValues={workbench.blockedDownloadOrigins}
+          addLabel="Allow"
+          onAdd={() => onAddOriginPolicy('allowedDownloadOrigins')}
+          onBlock={() => onAddOriginPolicy('blockedDownloadOrigins')}
+          onClear={() => onClearOriginPolicy(['allowedDownloadOrigins', 'blockedDownloadOrigins'])}
+        />
+        <PolicyRow
+          label="Uploads"
+          values={workbench.allowedUploadOrigins}
+          blockedValues={workbench.blockedUploadOrigins}
+          addLabel="Allow"
+          onAdd={() => onAddOriginPolicy('allowedUploadOrigins')}
+          onBlock={() => onAddOriginPolicy('blockedUploadOrigins')}
+          onClear={() => onClearOriginPolicy(['allowedUploadOrigins', 'blockedUploadOrigins'])}
+        />
       </InspectorSection>
     </div>
   )
@@ -2981,20 +3006,24 @@ function PolicyRow({
   label,
   values,
   blockedValues = [],
+  addLabel = 'Add',
   onAdd,
+  onBlock,
   onClear
 }: {
   label: string
   values: string[]
   blockedValues?: string[]
+  addLabel?: string
   onAdd: () => void
+  onBlock?: () => void
   onClear: () => void
 }): JSX.Element {
-  const summary = values.length > 0
-    ? values.join(', ')
-    : blockedValues.length > 0
-      ? `blocked: ${blockedValues.join(', ')}`
-      : 'none'
+  const summary = [
+    values.length > 0 ? `allowed: ${values.join(', ')}` : null,
+    blockedValues.length > 0 ? `blocked: ${blockedValues.join(', ')}` : null
+  ].filter(Boolean).join(' · ') || 'none'
+  const hasPolicyValues = values.length > 0 || blockedValues.length > 0
   return (
     <InspectorRow className="browser-policy-row" dataTestId="browser-security-policy-row" variant="muted">
       <div className="min-w-0">
@@ -3002,8 +3031,9 @@ function PolicyRow({
         <div className="browser-policy-value">{summary}</div>
       </div>
       <div className="browser-policy-actions">
-        <ActionButton label="Add" onClick={onAdd} />
-        <ActionButton label="Clear" onClick={onClear} disabled={values.length === 0} />
+        <ActionButton label={addLabel} onClick={onAdd} />
+        {onBlock && <ActionButton label="Block" onClick={onBlock} />}
+        <ActionButton label="Clear" onClick={onClear} disabled={!hasPolicyValues} />
       </div>
     </InspectorRow>
   )
