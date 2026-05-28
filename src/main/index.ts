@@ -7596,6 +7596,7 @@ function runAutomatedFocusedSurfaceSmoke(
               let workbenchPanelTabCloseStartEdgeDebug = [];
               let workbenchPanelNewTabPageWorks = false;
               let rightPanelFindShortcutRoutingWorks = false;
+              let rightPanelFindStatusA11yWorks = false;
               let rightPanelFindShortcutRoutingDebug = {};
               let rightPanelBrowserCommandRoutingWorks = false;
               let rightPanelBrowserVisualResetWorks = false;
@@ -8075,6 +8076,15 @@ function runAutomatedFocusedSurfaceSmoke(
                   }
                   await sleep(80);
                 }
+                const threadFindStatus = document.querySelector('[data-testid="thread-find-status"]');
+                rightPanelFindStatusA11yWorks =
+                  reviewSharedFindInput instanceof HTMLInputElement &&
+                  threadFindStatus instanceof HTMLElement &&
+                  threadFindStatus.textContent?.includes('results') === true &&
+                  threadFindStatus.getAttribute('role') === 'status' &&
+                  threadFindStatus.getAttribute('aria-live') === 'polite' &&
+                  threadFindStatus.getAttribute('aria-atomic') === 'true' &&
+                  reviewSharedFindInput.getAttribute('aria-describedby') === threadFindStatus.id;
                 document.querySelector('[data-testid="thread-find-bar"] button[aria-label="Close find"]')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
                 await sleep(120);
                 await openPanelTab('files', 'Files');
@@ -8655,6 +8665,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 rightPanelMenuCommandStateWorks,
                 rightPanelMenuCommandStateDebug,
                 rightPanelFindShortcutRoutingWorks,
+                rightPanelFindStatusA11yWorks,
                 rightPanelFindShortcutRoutingDebug,
                 rightPanelBrowserCommandRoutingWorks,
                 rightPanelBrowserVisualResetWorks,

@@ -1308,6 +1308,7 @@ function ThreadFindBar({
       ? `${Math.max(1, status.activeMatch || 1)} / ${status.totalMatches}${status.isCapped ? '+' : ''} results`
       : '0 results'
     : ''
+  const statusId = 'thread-find-status'
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>): void => {
     if (event.key === 'Enter') {
@@ -1341,6 +1342,7 @@ function ThreadFindBar({
           type="text"
           value={query}
           aria-label="Find in chat"
+          aria-describedby={countLabel ? statusId : undefined}
           placeholder={domain === 'diff' ? 'Search diff...' : 'Search chat...'}
           className="thread-find-input"
           onChange={(event) => onQueryChange(event.target.value)}
@@ -1370,7 +1372,18 @@ function ThreadFindBar({
         </button>
       </div>
       <div className="thread-find-result-cell">
-        {countLabel && <span className="thread-find-result-count">{countLabel}</span>}
+        {countLabel && (
+          <span
+            id={statusId}
+            className="thread-find-result-count"
+            data-testid="thread-find-status"
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            {countLabel}
+          </span>
+        )}
         <button
           type="button"
           className="thread-find-nav-button"
