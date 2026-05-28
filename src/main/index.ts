@@ -12249,7 +12249,12 @@ function runAutomatedFocusedSurfaceSmoke(
                 reviewTranscriptCard.textContent?.includes('Undo') === true &&
                 reviewTranscriptCard.textContent?.includes('Review') === true &&
                 reviewTranscriptCardFiles.length >= 3 &&
-                reviewTranscriptCardFiles.every((row) => (row.textContent ?? '').trim().length > 0);
+                reviewTranscriptCardFiles.every((row) =>
+                  (row.textContent ?? '').trim().length > 0 &&
+                  Boolean(row.getAttribute('aria-label')) &&
+                  (row.getAttribute('aria-label') ?? '').includes(row.getAttribute('data-review-card-path') ?? '') &&
+                  (row.getAttribute('aria-label') ?? '').toLowerCase().includes(row.getAttribute('data-review-card-status') ?? '')
+                );
               const finalDiffToolbarRect = finalDiffToolbar instanceof HTMLElement ? finalDiffToolbar.getBoundingClientRect() : null;
               const finalWorkbenchPanelTabbarRect = finalWorkbenchPanelTabbar instanceof HTMLElement ? finalWorkbenchPanelTabbar.getBoundingClientRect() : null;
               const reviewToolbarHeaderRowDebug = {

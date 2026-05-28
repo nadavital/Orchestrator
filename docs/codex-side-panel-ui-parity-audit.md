@@ -8512,3 +8512,13 @@ Implemented: the transcript Review card now gives the `Review` action a contextu
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and `git diff --check` passed. Focused `node scripts/run-automated-ui-smoke.mjs --diff-entry` passed with `reviewTranscriptCard=true` and `reviewTranscriptCardUndo=true` alongside the Review toolbar/source header, metadata flyout, and environment-panel gates. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-entry-1779972100110.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-entry-1779972100110.png`.
 
 Remaining: this closes the local transcript Review-card open-action accessible-name gap only. Provider-backed Review source behavior, checkpoint rollback, and live Codex Review spacing remain Phase 1 work.
+
+### 2026-05-28 - Transcript Review File Row Accessible Labels
+
+Product evidence: transcript Review-card file rows are navigation controls that expand inline diffs and lead users toward the right-side Review workflow. They already displayed status, path, and change counts, but their explicit accessible label was missing; the only native title was the path.
+
+Implemented: each transcript Review-card file row now exposes an `aria-label` containing the status, path, and addition/deletion counts. The focused card smoke now checks that every visible file row has an accessible label tied back to its row metadata before considering `reviewTranscriptCard=true` complete.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and `git diff --check` passed. Focused `node scripts/run-automated-ui-smoke.mjs --diff-entry` passed with `reviewTranscriptCard=true` and `reviewTranscriptCardUndo=true` alongside the Review toolbar/source header, metadata flyout, and environment-panel gates. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-entry-1779972254064.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-entry-1779972254064.png`.
+
+Remaining: this closes local transcript Review-card file-row labels only. Provider-backed source rows, richer PR metadata, and live Codex Review spacing remain Phase 1 work.

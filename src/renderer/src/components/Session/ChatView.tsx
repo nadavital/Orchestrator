@@ -2055,6 +2055,12 @@ function ChangesReviewCard({ content, session, hideWhenEmpty = false }: { conten
             visibleFiles.map((file) => {
               const fileExpanded = expandedPath === file.path
               const diffState = diffsByPath[file.path]
+              const fileStatusLabel = reviewCardStatusLabel(file)
+              const fileStatsLabel = [
+                file.additions > 0 ? `${file.additions} ${file.additions === 1 ? 'addition' : 'additions'}` : '',
+                file.deletions > 0 ? `${file.deletions} ${file.deletions === 1 ? 'deletion' : 'deletions'}` : ''
+              ].filter(Boolean).join(', ')
+              const fileActionLabel = `${fileStatusLabel} ${file.path}${fileStatsLabel ? `, ${fileStatsLabel}` : ''}`
               return (
                 <div
                   key={file.path}
@@ -2068,11 +2074,12 @@ function ChangesReviewCard({ content, session, hideWhenEmpty = false }: { conten
                     data-review-card-path={file.path}
                     data-review-card-status={reviewCardStatus(file)}
                     aria-expanded={fileExpanded}
+                    aria-label={fileActionLabel}
                     onClick={() => setExpandedPath((current) => current === file.path ? null : file.path)}
                     title={file.path}
                   >
                     <span className="codex-review-card-file-leading">
-                      <span className="codex-review-card-file-status">{reviewCardStatusLabel(file)}</span>
+                      <span className="codex-review-card-file-status">{fileStatusLabel}</span>
                       <span className="codex-review-card-path">{file.path}</span>
                     </span>
                     <span className="codex-review-card-file-stats">
