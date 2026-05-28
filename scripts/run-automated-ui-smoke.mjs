@@ -2320,6 +2320,7 @@ child.on('exit', async (code) => {
           fileSourceVirtualization: result.fileSourceVirtualizationWorks === true,
           fileSourceRevealSelectedLine: result.fileSourceRevealSelectedLineWorks === true,
           fileSourceLoadingState: result.fileSourceLoadingStateWorks === true,
+          fileTabStripOverflow: result.fileTabStripOverflowWorks === true,
           fileSourceMode: result.fileSourceModeWorks === true,
           filesFileTabFirstLayout: result.filesFileTabFirstLayoutWorks === true,
           filesWorkbenchTree: result.filesWorkbenchTreeWorks === true,

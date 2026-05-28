@@ -14238,6 +14238,57 @@ function runAutomatedFocusedSurfaceSmoke(
                 observedLoadingText.includes('Loading file...') &&
                 loadedPreview instanceof HTMLElement &&
                 loadedPreview.textContent?.includes('loaded preview') === true;
+              const fileTabbar = document.querySelector('[data-testid="workbench-panel-tabbar"]');
+              const fileTabRow = document.querySelector('[data-testid="workbench-panel-tab-row"]');
+              const fileTabActions = document.querySelector('[data-testid="workbench-panel-tab-actions"]');
+              const activeSourceTab = document.querySelector('[data-testid="workbench-panel-tabbar"] [role="tab"][data-active="true"][data-tab-id^="file:"]');
+              const fileTabButtons = fileTabbar instanceof HTMLElement
+                ? [...fileTabbar.querySelectorAll('[role="tab"]')].filter((tab) => tab instanceof HTMLElement)
+                : [];
+              const fileTabRowStyle = fileTabRow instanceof HTMLElement ? getComputedStyle(fileTabRow) : null;
+              const fileTabMaskImage = fileTabRowStyle?.webkitMaskImage || fileTabRowStyle?.maskImage || '';
+              const fileTabRowRect = fileTabRow instanceof HTMLElement ? fileTabRow.getBoundingClientRect() : null;
+              const fileTabActionsRect = fileTabActions instanceof HTMLElement ? fileTabActions.getBoundingClientRect() : null;
+              const activeSourceTabRect = activeSourceTab instanceof HTMLElement ? activeSourceTab.getBoundingClientRect() : null;
+              const fileVisibleRight = fileTabRowRect
+                ? Math.min(fileTabRowRect.right, fileTabActionsRect?.left ?? fileTabRowRect.right)
+                : Number.NaN;
+              const fileTabRects = fileTabButtons.map((tab) => tab.getBoundingClientRect());
+              const fileTabsDoNotOverlap = fileTabRects.every((rect, index) => {
+                const next = fileTabRects[index + 1];
+                return !next || rect.right <= next.left + 1;
+              });
+              const fileTabGaps = fileTabRects.slice(0, -1).map((rect, index) => Math.round((fileTabRects[index + 1]?.left ?? rect.right) - rect.right));
+              const fileTabStripOverflowWorks =
+                fileTabbar instanceof HTMLElement &&
+                fileTabRow instanceof HTMLElement &&
+                activeSourceTab instanceof HTMLElement &&
+                activeSourceTabRect !== null &&
+                fileTabRowRect !== null &&
+                fileTabButtons.length >= 5 &&
+                fileTabbar.getAttribute('data-overflow-start') === 'true' &&
+                fileTabRow.scrollLeft > 0 &&
+                fileTabMaskImage.includes('linear-gradient') &&
+                activeSourceTabRect.left >= fileTabRowRect.left - 1 &&
+                activeSourceTabRect.right <= fileVisibleRight + 1 &&
+                activeSourceTabRect.width <= 162 &&
+                fileTabsDoNotOverlap;
+              const fileTabStripOverflowDebug = {
+                overflowStart: fileTabbar instanceof HTMLElement ? fileTabbar.getAttribute('data-overflow-start') : null,
+                overflowEnd: fileTabbar instanceof HTMLElement ? fileTabbar.getAttribute('data-overflow-end') : null,
+                rowScrollLeft: fileTabRow instanceof HTMLElement ? fileTabRow.scrollLeft : null,
+                rowScrollWidth: fileTabRow instanceof HTMLElement ? fileTabRow.scrollWidth : null,
+                rowClientWidth: fileTabRow instanceof HTMLElement ? fileTabRow.clientWidth : null,
+                maskImage: fileTabMaskImage,
+                activeLeft: activeSourceTabRect?.left ?? null,
+                activeRight: activeSourceTabRect?.right ?? null,
+                activeWidth: activeSourceTabRect?.width ?? null,
+                visibleLeft: fileTabRowRect?.left ?? null,
+                visibleRight: fileVisibleRight,
+                tabsDoNotOverlap: fileTabsDoNotOverlap,
+                tabGaps: fileTabGaps,
+                tabIds: fileTabButtons.map((tab) => tab.getAttribute('data-tab-id') ?? '')
+              };
               return {
                 profile,
                 filesHeaderPanelSeamWorks,
@@ -14279,6 +14330,8 @@ function runAutomatedFocusedSurfaceSmoke(
                 fileSourceVirtualizationWorks,
                 fileSourceRevealSelectedLineWorks,
                 fileSourceLoadingStateWorks,
+                fileTabStripOverflowWorks,
+                fileTabStripOverflowDebug,
                 fileSourceModeWorks,
                 filesTabSearchWorks,
                 filesContentSearchWorks,
