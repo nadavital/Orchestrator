@@ -2576,6 +2576,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             var terminalTabPanelA11yWorks = false;
             var terminalFailureStateA11yWorks = false;
             var terminalClipboardStatusWorks = false;
+            var terminalClearActionStatusWorks = false;
             var terminalFullscreenCleanupWorks = false;
             var terminalTabTelemetryWorks = false;
             var terminalTabLifecycleTelemetryWorks = false;
@@ -2788,6 +2789,23 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 controls === terminalPanelForA11y.id &&
                 terminalPanelForA11y.getAttribute('aria-labelledby') === activeTerminalTabForA11y.id &&
                 terminalPanelForA11y.getAttribute('data-tab-id') === bottomPanelRestored?.getAttribute('data-bottom-panel-active-tab');
+            }
+            const clearTerminalButton = findButton('Clear terminal');
+            if (clearTerminalButton instanceof HTMLButtonElement) {
+              clearTerminalButton.click();
+              await sleep(180);
+              const clearStatusHost = document.querySelector('[data-testid="session-bottom-panel"]');
+              const clearStatus = document.querySelector('[data-testid="terminal-panel-action-status"]');
+              terminalClearActionStatusWorks =
+                clearStatusHost instanceof HTMLElement &&
+                clearStatus instanceof HTMLElement &&
+                clearStatus.textContent?.includes('Terminal cleared') === true &&
+                clearStatus.getAttribute('role') === 'status' &&
+                clearStatus.getAttribute('aria-live') === 'polite' &&
+                clearStatus.getAttribute('aria-atomic') === 'true' &&
+                clearStatus.getAttribute('data-terminal-action-status-tone') === 'info' &&
+                clearStatusHost.getAttribute('data-terminal-action-status') === 'Terminal cleared' &&
+                clearStatusHost.getAttribute('data-terminal-action-status-tone') === 'info';
             }
             const terminalView = document.querySelector('[data-testid="terminal-view"]');
             if (terminalView instanceof HTMLElement) {
@@ -6516,6 +6534,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             terminalTabPanelA11yWorks: typeof terminalTabPanelA11yWorks === 'boolean' ? terminalTabPanelA11yWorks : null,
             terminalFailureStateA11yWorks: typeof terminalFailureStateA11yWorks === 'boolean' ? terminalFailureStateA11yWorks : null,
             terminalClipboardStatusWorks: typeof terminalClipboardStatusWorks === 'boolean' ? terminalClipboardStatusWorks : null,
+            terminalClearActionStatusWorks: typeof terminalClearActionStatusWorks === 'boolean' ? terminalClearActionStatusWorks : null,
             terminalFullscreenCleanupWorks: typeof terminalFullscreenCleanupWorks === 'boolean' ? terminalFullscreenCleanupWorks : null,
             terminalTabTelemetryWorks: typeof terminalTabTelemetryWorks === 'boolean' ? terminalTabTelemetryWorks : null,
             terminalTabLifecycleTelemetryWorks: typeof terminalTabLifecycleTelemetryWorks === 'boolean' ? terminalTabLifecycleTelemetryWorks : null,

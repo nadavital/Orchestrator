@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { DEFAULT_TERMINAL_PANEL_CONTENT_HEIGHT, defaultUI, useSessionStore } from '../../store/sessions'
 import type { Session } from '../../types'
@@ -10,6 +10,11 @@ const MAX_TERMINAL_HEIGHT = 600
 const DEFAULT_TERMINAL_HEIGHT = DEFAULT_TERMINAL_PANEL_CONTENT_HEIGHT
 const MIN_PRIMARY_CONTENT_HEIGHT = 260
 const TERMINAL_PANEL_CHROME_HEIGHT = 50
+
+type TerminalActionStatus = {
+  text: string
+  tone: 'info' | 'danger'
+}
 
 interface TerminalPanelProps {
   session: Pick<Session, 'id' | 'workDir'>
@@ -32,6 +37,8 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
   const closeTerminalTab = useSessionStore((state) => state.closeTerminalTab)
   const openRightPanelBrowserUrl = useSessionStore((state) => state.openRightPanelBrowserUrl)
   const [terminalMenu, setTerminalMenu] = useState<{ tabId: number; x: number; y: number } | null>(null)
+  const [terminalActionStatus, setTerminalActionStatus] = useState<TerminalActionStatus | null>(null)
+  const terminalActionStatusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const terminalPanel = ui.terminalPanel ?? { height: DEFAULT_TERMINAL_HEIGHT, tabs: [0], activeTabId: 0, nextTabId: 1 }
   const terminalResizeController = useAppShellResizeController({
     edge: 'top',
@@ -67,6 +74,25 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
   const addTab = (): void => {
     addTerminalTab(session.id)
   }
+
+  useEffect(() => () => {
+    if (terminalActionStatusTimeoutRef.current) window.clearTimeout(terminalActionStatusTimeoutRef.current)
+  }, [])
+
+  const setPanelActionStatus = useCallback((status: TerminalActionStatus): void => {
+    if (terminalActionStatusTimeoutRef.current) window.clearTimeout(terminalActionStatusTimeoutRef.current)
+    setTerminalActionStatus(status)
+    terminalActionStatusTimeoutRef.current = window.setTimeout(() => {
+      setTerminalActionStatus(null)
+      terminalActionStatusTimeoutRef.current = null
+    }, 2200)
+  }, [])
+
+  const clearActiveTerminal = useCallback((): void => {
+    void window.api.terminal.clear(`${session.id}-${activeTab}`)
+      .then(() => setPanelActionStatus({ text: 'Terminal cleared', tone: 'info' }))
+      .catch(() => setPanelActionStatus({ text: 'Clear failed', tone: 'danger' }))
+  }, [activeTab, session.id, setPanelActionStatus])
 
   const closeTab = (tabId: number): void => {
     exitFullscreenForPanelTab('bottom', tabId)
@@ -165,6 +191,8 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
             data-bottom-panel-container-size={Math.round(terminalLayout.containerSize)}
             data-bottom-panel-tabs={tabs.join(',')}
             data-bottom-panel-active-tab={activeTab}
+            data-terminal-action-status={terminalActionStatus?.text ?? ''}
+            data-terminal-action-status-tone={terminalActionStatus?.tone ?? ''}
           >
             <PanelTabStrip
               tabs={terminalTabs}
@@ -181,13 +209,25 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
               tabRowTestId="terminal-panel-tab-row"
               actions={(
                 <>
+                  {terminalActionStatus && (
+                    <span
+                      className="terminal-panel-action-status"
+                      data-testid="terminal-panel-action-status"
+                      data-terminal-action-status-tone={terminalActionStatus.tone}
+                      role={terminalActionStatus.tone === 'danger' ? 'alert' : 'status'}
+                      aria-live={terminalActionStatus.tone === 'danger' ? 'assertive' : 'polite'}
+                      aria-atomic="true"
+                    >
+                      {terminalActionStatus.text}
+                    </span>
+                  )}
                   <IconButton icon="plus" label="New terminal" size="sm" variant="toolbar" onClick={addTab} />
                   <ToolbarButton
                     icon="eraser"
                     label="Clear terminal"
                     size="sm"
                     variant="toolbar"
-                    onClick={() => window.api.terminal.clear(terminalId(activeTab))}
+                    onClick={clearActiveTerminal}
                   />
                   <ToolbarButton
                     icon="close"

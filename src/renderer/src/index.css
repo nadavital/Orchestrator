@@ -1589,6 +1589,29 @@
     outline: none;
   }
 
+  .terminal-panel-action-status {
+    display: inline-flex;
+    max-width: 150px;
+    min-height: 22px;
+    align-items: center;
+    overflow: hidden;
+    padding: 2px 7px;
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--accent) 9%, var(--surface-bg));
+    color: var(--accent);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .terminal-panel-action-status[data-terminal-action-status-tone='danger'] {
+    background: color-mix(in srgb, var(--state-danger) 10%, var(--surface-bg));
+    color: var(--state-danger);
+  }
+
   .diff-panel-toolbar {
     container: diff-panel-toolbar / inline-size;
     display: grid;
