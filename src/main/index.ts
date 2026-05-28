@@ -1705,6 +1705,51 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 automationActionButtons.some((button) => button.textContent?.trim() === 'Delete') &&
                 automationsSection.querySelector('.settings-panel') === null &&
                 automationsSection.querySelector('.compact-setting') === null;
+              var settingsAutomationsActionA11yWorks = false;
+              const smokeAutomationRow = automationRows.find((row) => row.textContent?.includes('Settings automation smoke'));
+              const automationRowsHaveA11y =
+                automationRows.length >= 1 &&
+                automationRows.every((row) =>
+                  row.getAttribute('role') === 'group' &&
+                  (row.getAttribute('aria-label') ?? '').startsWith('Automation ')
+                ) &&
+                [...document.querySelectorAll('[data-testid="automations-settings-section"] .settings-action-button')]
+                  .every((button) =>
+                    !(button instanceof HTMLButtonElement) ||
+                    (button.textContent?.trim() === 'Refresh') ||
+                    Boolean(button.getAttribute('aria-label'))
+                  );
+              if (smokeAutomationRow instanceof HTMLElement) {
+                const pauseAutomationButton = [...smokeAutomationRow.querySelectorAll('button')]
+                  .find((button) => button.textContent?.trim() === 'Pause');
+                if (pauseAutomationButton instanceof HTMLButtonElement) {
+                  pauseAutomationButton.click();
+                  for (let index = 0; index < 80; index += 1) {
+                    const actionStatus = document.querySelector('[data-testid="automations-action-status"]');
+                    const automationsModuleRoot = document.querySelector('[data-settings-page-module="automations"]');
+                    const pausedSmokeRow = [...document.querySelectorAll('[data-testid="automation-settings-row"]')]
+                      .find((row) => row.textContent?.includes('Settings automation smoke'));
+                    if (
+                      actionStatus instanceof HTMLElement &&
+                      automationsModuleRoot instanceof HTMLElement &&
+                      pausedSmokeRow instanceof HTMLElement &&
+                      actionStatus.textContent?.includes('Paused: Settings automation smoke') === true
+                    ) {
+                      settingsAutomationsActionA11yWorks =
+                        automationRowsHaveA11y &&
+                        pausedSmokeRow.getAttribute('data-automation-status') === 'PAUSED' &&
+                        automationsModuleRoot.getAttribute('data-settings-automations-action-status') === 'Paused: Settings automation smoke' &&
+                        automationsModuleRoot.getAttribute('data-settings-automations-action-status-tone') === 'info' &&
+                        actionStatus.getAttribute('role') === 'status' &&
+                        actionStatus.getAttribute('aria-live') === 'polite' &&
+                        actionStatus.getAttribute('aria-atomic') === 'true' &&
+                        actionStatus.getAttribute('data-automations-action-status-tone') === 'info';
+                      break;
+                    }
+                    await sleep(50);
+                  }
+                }
+              }
               const worktreesButton = [...document.querySelectorAll('button')]
                 .find((button) => button.textContent?.includes('Worktrees'));
               worktreesButton?.click();
@@ -6384,6 +6429,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             settingsBrowserStatusA11yWorks: typeof settingsBrowserStatusA11yWorks === 'boolean' ? settingsBrowserStatusA11yWorks : null,
             settingsBrowserDomainControlsA11yWorks: typeof settingsBrowserDomainControlsA11yWorks === 'boolean' ? settingsBrowserDomainControlsA11yWorks : null,
             settingsAutomationsPageWorks: typeof settingsAutomationsPageWorks === 'boolean' ? settingsAutomationsPageWorks : null,
+            settingsAutomationsActionA11yWorks: typeof settingsAutomationsActionA11yWorks === 'boolean' ? settingsAutomationsActionA11yWorks : null,
             settingsWorktreesPageWorks: typeof settingsWorktreesPageWorks === 'boolean' ? settingsWorktreesPageWorks : null,
             settingsWorktreesCreateWorks: typeof settingsWorktreesCreateWorks === 'boolean' ? settingsWorktreesCreateWorks : null,
             settingsWorktreesDeleteWorks: typeof settingsWorktreesDeleteWorks === 'boolean' ? settingsWorktreesDeleteWorks : null,

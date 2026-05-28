@@ -459,6 +459,10 @@ Current progress:
 
 Why it matters: settings is still the biggest non-system surface and carries provider, model, pets, diagnostics, and appearance controls.
 
+Current verification:
+
+- Focused `node scripts/run-automated-ui-smoke.mjs --settings` verifies Automations settings row grouping, action labels, and pause-result live status under `settingsAutomationsActionA11y=true`.
+
 Still needed:
 
 - `SettingsRow`.

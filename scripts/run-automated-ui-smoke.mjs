@@ -2807,6 +2807,7 @@ child.on('exit', async (code) => {
         settingsBrowserStatusA11y: captureView !== 'settings' || result.settingsBrowserStatusA11yWorks === true,
         settingsBrowserDomainControlsA11y: captureView !== 'settings' || result.settingsBrowserDomainControlsA11yWorks === true,
         settingsAutomationsPage: captureView !== 'settings' || result.settingsAutomationsPageWorks === true,
+        settingsAutomationsActionA11y: captureView !== 'settings' || result.settingsAutomationsActionA11yWorks === true,
         settingsWorktreesPage: captureView !== 'settings' || result.settingsWorktreesPageWorks === true,
         settingsWorktreesCreate: captureView !== 'settings' || result.settingsWorktreesCreateWorks === true,
         settingsWorktreesDelete: captureView !== 'settings' || result.settingsWorktreesDeleteWorks === true,
