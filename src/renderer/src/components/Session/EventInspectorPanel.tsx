@@ -159,6 +159,20 @@ function SessionContextSummary({
       .filter((record) => eventSearchText(record).includes(query))
       .slice(0, 8)
   }, [eventQuery, events, recentEvents])
+  const issueEvents = useMemo(() => (
+    events
+      .slice()
+      .reverse()
+      .filter(isRuntimeIssueEvent)
+      .slice(0, 4)
+  ), [events])
+  const runtimeIssueCounts = useMemo(() => {
+    return issueEvents.reduce((counts, record) => {
+      if (eventTone(record) === 'danger') counts.failures += 1
+      else counts.waiting += 1
+      return counts
+    }, { failures: 0, waiting: 0 })
+  }, [issueEvents])
 
   return (
     <div
@@ -184,6 +198,49 @@ function SessionContextSummary({
           <CompactMetric label="Agents" value={stats.total} />
         </div>
       </InspectorSection>
+
+      {issueEvents.length > 0 && (
+        <InspectorSection
+          title="Runtime issues"
+          dataTestId="agent-runtime-issues"
+          className="gap-2"
+        >
+          <div
+            className="grid grid-cols-2 gap-1.5"
+            data-testid="agent-runtime-issue-summary"
+            data-agent-runtime-issue-count={issueEvents.length}
+            data-agent-runtime-failure-count={runtimeIssueCounts.failures}
+            data-agent-runtime-waiting-count={runtimeIssueCounts.waiting}
+          >
+            <CompactMetric label="Failures" value={runtimeIssueCounts.failures} />
+            <CompactMetric label="Waiting" value={runtimeIssueCounts.waiting} />
+          </div>
+          <div className="grid gap-1.5">
+            {issueEvents.map((record) => (
+              <button
+                key={record.id}
+                type="button"
+                className="orchestrator-inspector-row text-left"
+                data-inspector-row="true"
+                data-inspector-row-variant="muted"
+                data-testid="agent-runtime-issue"
+                data-agent-event-selected={selectedEventId === record.id ? 'true' : 'false'}
+                onClick={() => onSelectEvent(record.id)}
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[11px] font-semibold" style={{ color: 'var(--color-text)' }}>
+                    {eventTitle(record)}
+                  </div>
+                  <div className="truncate text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
+                    {formatClockTime(record.timestamp)}
+                  </div>
+                </div>
+                <Badge tone={eventTone(record)}>{eventBadge(record)}</Badge>
+              </button>
+            ))}
+          </div>
+        </InspectorSection>
+      )}
 
       {recentEvents.length > 0 && (
         <InspectorSection
@@ -348,6 +405,16 @@ function eventTone(record: SessionRunEventRecord): 'accent' | 'success' | 'warni
 
 function eventBadge(record: SessionRunEventRecord): string {
   return record.event.type.split('.')[0]
+}
+
+function isRuntimeIssueEvent(record: SessionRunEventRecord): boolean {
+  const { event } = record
+  if (event.type === 'run.failed' || event.type === 'agent.failed') return true
+  if (event.type === 'tool.completed') return event.isError
+  return event.type === 'permission.requested' ||
+    event.type === 'user_input.requested' ||
+    event.type === 'connection.reconnecting' ||
+    event.type === 'connection.retrying'
 }
 
 function eventTitle(record: SessionRunEventRecord): string {

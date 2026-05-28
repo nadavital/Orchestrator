@@ -6120,12 +6120,40 @@ function runAutomatedFocusedSurfaceSmoke(
                           }
                         }]
                       }
+                    },
+                    {
+                      id: 'agent-inspector-smoke-run-failed',
+                      timestamp: now + 2,
+                      event: {
+                        type: 'run.failed',
+                        content: 'Runtime transport failed during diagnostics smoke.'
+                      }
                     }
                   ]);
                   await sleep(220);
                 }
                 const recentEventRows = [...document.querySelectorAll('[data-testid="agent-recent-event"]')]
                   .filter((row) => row instanceof HTMLButtonElement);
+                const runtimeIssues = document.querySelector('[data-testid="agent-runtime-issues"]');
+                const runtimeIssueSummary = document.querySelector('[data-testid="agent-runtime-issue-summary"]');
+                const runtimeIssueRows = [...document.querySelectorAll('[data-testid="agent-runtime-issue"]')]
+                  .filter((row) => row instanceof HTMLButtonElement);
+                const failedRuntimeIssueRow = runtimeIssueRows.find((row) => row.textContent?.includes('Runtime transport failed'));
+                if (failedRuntimeIssueRow instanceof HTMLButtonElement) {
+                  failedRuntimeIssueRow.click();
+                  await sleep(100);
+                }
+                const failedIssueDetail = document.querySelector('[data-testid="agent-event-detail"]');
+                const agentRuntimeIssueTriageWorks =
+                  runtimeIssues instanceof HTMLElement &&
+                  runtimeIssueSummary instanceof HTMLElement &&
+                  runtimeIssueSummary.getAttribute('data-agent-runtime-issue-count') === '2' &&
+                  runtimeIssueSummary.getAttribute('data-agent-runtime-failure-count') === '1' &&
+                  runtimeIssueSummary.getAttribute('data-agent-runtime-waiting-count') === '1' &&
+                  runtimeIssueRows.length >= 2 &&
+                  failedRuntimeIssueRow instanceof HTMLButtonElement &&
+                  failedIssueDetail instanceof HTMLElement &&
+                  failedIssueDetail.textContent?.includes('run.failed') === true;
                 const eventSearch = document.querySelector('[data-testid="agent-event-search"]');
                 if (eventSearch instanceof HTMLInputElement) {
                   const setter = Object.getOwnPropertyDescriptor(eventSearch.constructor.prototype, 'value')?.set;
@@ -6154,8 +6182,9 @@ function runAutomatedFocusedSurfaceSmoke(
                 const eventPayload = document.querySelector('[data-testid="agent-event-detail-payload"]');
                 const agentRuntimeEventDetailWorks =
                   agentsPanel instanceof HTMLElement &&
-                  recentEventRows.length >= 2 &&
+                  recentEventRows.length >= 3 &&
                   agentRuntimeEventFilterWorks &&
+                  agentRuntimeIssueTriageWorks &&
                   selectedRecentEvent instanceof HTMLElement &&
                   eventDetail instanceof HTMLElement &&
                   eventPayload instanceof HTMLElement &&
@@ -6184,6 +6213,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   workbenchNewTabAgentsActionWorks,
                   agentRuntimeEventDetailWorks,
                   agentRuntimeEventFilterWorks,
+                  agentRuntimeIssueTriageWorks,
                   workbenchNewTabActionCount: newTabCards.length,
                   workbenchNewTabNoHorizontalOverflow:
                     rightPanelRect !== null &&
