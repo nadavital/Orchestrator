@@ -39,6 +39,7 @@ let codexSidebarRefreshAfterRunTimer: ReturnType<typeof setTimeout> | null = nul
 let codexSidebarRecurringRefreshTimer: ReturnType<typeof setInterval> | null = null
 let codexSidebarRecurringRefreshInFlight = false
 let codexSidebarLastRefreshAt: number | null = null
+const smokeSideQuestionFailures = new Set<string>()
 
 interface PendingFollowUp {
   id: string
@@ -1701,6 +1702,30 @@ export const sessionManager = {
     const trimmed = question.trim()
     if (!trimmed) return { ok: false, answer: '', error: 'Question is empty.' }
     if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT) {
+      if (trimmed.toLowerCase().includes('smoke retry failure')) {
+        const smokeFailureKey = `${sessionId}:${trimmed}`
+        if (!smokeSideQuestionFailures.has(smokeFailureKey)) {
+          smokeSideQuestionFailures.add(smokeFailureKey)
+          return {
+            ok: false,
+            answer: '',
+            error: `Smoke side question failed for: ${trimmed}`
+          }
+        }
+        return {
+          ok: true,
+          answer: `Smoke retry recovered for: ${trimmed}`,
+          usage: {
+            inputTokens: 12,
+            outputTokens: 8,
+            totalTokens: 20,
+            totalCostUsd: 0,
+            durationMs: 120,
+            apiDurationMs: 80,
+            turns: 1
+          }
+        }
+      }
       return {
         ok: true,
         answer: `Smoke side answer for: ${trimmed}`,

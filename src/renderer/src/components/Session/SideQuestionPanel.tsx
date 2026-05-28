@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { Session } from '../../types'
 import { useSessionStore } from '../../store/sessions'
-import { IconButton, InspectorCard } from '../shared/designSystem'
+import { Button, IconButton, InspectorCard } from '../shared/designSystem'
 
 interface Props {
   session: Session
@@ -54,6 +54,35 @@ export default function SideQuestionPanel({ session, chatId, embedded }: Props):
     }
   }
 
+  const retryAnswer = async (messageId: string, index: number): Promise<void> => {
+    if (pending) return
+    const previousUserMessage = [...messages.slice(0, index)]
+      .reverse()
+      .find((message) => message.role === 'user' && message.content.trim())
+    const retryQuestion = previousUserMessage?.content.trim()
+    if (!retryQuestion) return
+    const pendingPatch = { content: 'Thinking...', status: 'pending' as const }
+    if (chatId) updateSideChatMessage(session.id, chatId, messageId, pendingPatch)
+    else updateSideQuestion(session.id, messageId, pendingPatch)
+    try {
+      const result = await window.api.sessions.answerSideQuestion(session.id, retryQuestion)
+      const patch = {
+        content: result.ok ? result.answer : (result.error ?? 'Side question failed.'),
+        status: result.ok ? 'complete' : 'error',
+        usage: result.usage
+      } as const
+      if (chatId) updateSideChatMessage(session.id, chatId, messageId, patch)
+      else updateSideQuestion(session.id, messageId, patch)
+    } catch (error) {
+      const patch = {
+        content: error instanceof Error ? error.message : 'Side question failed.',
+        status: 'error'
+      } as const
+      if (chatId) updateSideChatMessage(session.id, chatId, messageId, patch)
+      else updateSideQuestion(session.id, messageId, patch)
+    }
+  }
+
   return (
     <div
       className={embedded ? 'h-full min-h-0 flex flex-col p-3' : 'flex flex-col'}
@@ -86,7 +115,7 @@ export default function SideQuestionPanel({ session, chatId, embedded }: Props):
             No side chat yet.
           </div>
         ) : (
-          messages.map((message) => (
+          messages.map((message, index) => (
             <InspectorCard
               key={message.id}
               className="p-3 text-sm"
@@ -103,6 +132,19 @@ export default function SideQuestionPanel({ session, chatId, embedded }: Props):
                 {message.role === 'user' ? 'You' : message.status === 'pending' ? 'Answering' : 'Side answer'}
               </div>
               <div style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{message.content}</div>
+              {message.role === 'assistant' && message.status === 'error' && (
+                <div className="mt-2 flex items-center gap-2">
+                  <Button
+                    variant="secondary"
+                    className="h-7 px-2 py-1"
+                    dataTestId={chatId ? 'side-chat-retry' : 'side-question-retry'}
+                    onClick={() => { void retryAnswer(message.id, index) }}
+                    disabled={pending}
+                  >
+                    Retry
+                  </Button>
+                </div>
+              )}
               {message.usage?.totalCostUsd !== undefined && (
                 <div className="mt-2 text-[10px]" style={{ color: 'var(--color-text-muted)' }}>
                   ${message.usage.totalCostUsd.toFixed(4)}

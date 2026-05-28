@@ -2395,6 +2395,7 @@ child.on('exit', async (code) => {
           sideChatComposerCompact: result.sideChatComposerCompactWorks === true,
           sideChatDraftPersistence: result.sideChatDraftPersistenceWorks === true,
           sideChatMessageLabelsCalm: result.sideChatMessageLabelsCalm === true,
+          sideChatErrorRetry: result.sideChatErrorRetryWorks === true,
           sideChatClose: result.sideChatCloseWorks === true
         }
     : captureView === 'terminal-visual'
@@ -2661,6 +2662,7 @@ child.on('exit', async (code) => {
         sideChatComposerCompact: captureView !== 'inspector' || result.sideChatComposerCompactWorks === true,
         sideChatDraftPersistence: captureView !== 'inspector' || result.sideChatDraftPersistenceWorks === true,
         sideChatMessageLabelsCalm: captureView !== 'inspector' || result.sideChatMessageLabelsCalm === true,
+        sideChatErrorRetry: captureView !== 'inspector' || result.sideChatErrorRetryWorks === true,
         sideChatClose: captureView !== 'inspector' || result.sideChatCloseWorks === true,
         terminalTabsPersist: captureView !== 'terminal' || result.terminalTabsPersistState === true,
         terminalShellOwnership: captureView !== 'terminal' || result.terminalShellOwnershipWorks === true,

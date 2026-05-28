@@ -7840,3 +7840,13 @@ Implemented: the Agents inspector now shows a compact `Transport log` section wh
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and `git diff --check` passed. Focused `node scripts/run-automated-ui-smoke.mjs --workbench-new-tab` first caught that raw JSON previews hid the useful content and redaction marker behind truncation; after extracting structured previews, the rerun passed with `agentTransportLog=true`, `agentRuntimeFailureGroups=true`, `agentRuntimeIssueTriage=true`, `agentRuntimeEventFacetFilters=true`, `agentRuntimeEventFilter=true`, `agentRuntimeEventDetail=true`, `agentSelectedTimeline=true`, `workbenchNewTabAgentsAction=true`, and the existing New Tab/right-panel gates. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-workbench-new-tab-1779934995630.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-workbench-new-tab-1779934995630.png`.
 
 Remaining: this closes first-pass raw provider transport visibility only. Richer provider-backed observability and live coding-session proof remain Phase 1 inspector work.
+
+### 2026-05-28 - Side Chat Error Recovery
+
+Product evidence: the Phase 1 side-panel/composer backlog calls out side-chat consistency and clear error handling. Before this slice, a failed side-chat answer rendered as a passive error card, so the right Workbench panel could dead-end without an obvious recovery action.
+
+Implemented: failed side-chat and legacy side-question assistant answers now render a compact `Retry` action. Retry finds the preceding user question, turns the same answer card back into a pending answer, and reruns through the existing side-question provider path so the panel recovers in place instead of creating duplicate context.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and `git diff --check` passed. Focused `node scripts/run-automated-ui-smoke.mjs --side-chat` first hit the expected sandbox `listen EPERM 127.0.0.1`; the elevated rerun passed with `sideChatErrorRetry=true`, `sideChatTabs=true`, `sideChatComposerCompact=true`, `sideChatDraftPersistence=true`, `sideChatMessageLabelsCalm=true`, and `sideChatClose=true`. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-side-chat-1779937900512.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-side-chat-1779937900512.png`.
+
+Remaining: this closes side-chat error retry only. Provider-backed side-chat proof, richer side-chat context/fork-turn metadata, and exact live Codex timing remain Phase 1 side-panel work.

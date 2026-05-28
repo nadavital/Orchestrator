@@ -4295,6 +4295,25 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                   text !== text.toUpperCase() &&
                   getComputedStyle(label).textTransform !== 'uppercase';
               });
+            await openSideChat('smoke retry failure');
+            var sideChatErrorRetryWorks = false;
+            for (let index = 0; index < 12; index += 1) {
+              if (document.querySelector('[data-testid="side-chat-retry"]')) break;
+              await sleep(120);
+            }
+            const sideChatRetry = document.querySelector('[data-testid="side-chat-retry"]');
+            if (sideChatRetry instanceof HTMLButtonElement) {
+              sideChatRetry.click();
+              for (let index = 0; index < 12; index += 1) {
+                const panel = document.querySelector('[data-testid="side-chat-panel"]');
+                const recovered = panel?.textContent?.includes('Smoke retry recovered for: smoke retry failure') === true;
+                if (recovered) {
+                  sideChatErrorRetryWorks = true;
+                  break;
+                }
+                await sleep(120);
+              }
+            }
             const sideChatTabsBeforeCloseForClose = document.querySelectorAll('[role="tab"][data-tab-id^="sidechat:"]').length;
             const closeSideChatButton = [...document.querySelectorAll('[role="tab"][data-tab-id^="sidechat:"]')]
               .at(-1)
@@ -5610,6 +5629,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             sideChatComposerCompactWorks: typeof sideChatComposerCompactWorks === 'boolean' ? sideChatComposerCompactWorks : null,
             sideChatDraftPersistenceWorks: typeof sideChatDraftPersistenceWorks === 'boolean' ? sideChatDraftPersistenceWorks : null,
             sideChatMessageLabelsCalm: typeof sideChatMessageLabelsCalm === 'boolean' ? sideChatMessageLabelsCalm : null,
+            sideChatErrorRetryWorks: typeof sideChatErrorRetryWorks === 'boolean' ? sideChatErrorRetryWorks : null,
             sideChatCloseWorks: typeof sideChatCloseWorks === 'boolean' ? sideChatCloseWorks : null,
             terminalTabsPersistState: typeof terminalTabsPersistState === 'boolean' ? terminalTabsPersistState : null,
             terminalShellOwnershipWorks: typeof terminalShellOwnershipWorks === 'boolean' ? terminalShellOwnershipWorks : null,
@@ -14353,6 +14373,25 @@ function runAutomatedFocusedSurfaceSmoke(
                     text !== text.toUpperCase() &&
                     getComputedStyle(label).textTransform !== 'uppercase';
                 });
+              await openSideChat('smoke retry failure');
+              let sideChatErrorRetryWorks = false;
+              for (let index = 0; index < 12; index += 1) {
+                if (document.querySelector('[data-testid="side-chat-retry"]')) break;
+                await sleep(120);
+              }
+              const retry = document.querySelector('[data-testid="side-chat-retry"]');
+              if (retry instanceof HTMLButtonElement) {
+                retry.click();
+                for (let index = 0; index < 12; index += 1) {
+                  const panel = document.querySelector('[data-testid="side-chat-panel"]');
+                  const recovered = panel?.textContent?.includes('Smoke retry recovered for: smoke retry failure') === true;
+                  if (recovered) {
+                    sideChatErrorRetryWorks = true;
+                    break;
+                  }
+                  await sleep(120);
+                }
+              }
               const beforeClose = document.querySelectorAll('[role="tab"][data-tab-id^="sidechat:"]').length;
               const lastSideChatTab = [...document.querySelectorAll('[role="tab"][data-tab-id^="sidechat:"]')].at(-1);
               const closeButton = lastSideChatTab?.querySelector('[aria-label^="Close "]');
@@ -14375,6 +14414,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 sideChatComposerCompactWorks,
                 sideChatDraftPersistenceWorks,
                 sideChatMessageLabelsCalm,
+                sideChatErrorRetryWorks,
                 sideChatCloseWorks:
                   sideChatTabsWork &&
                   document.querySelectorAll('[role="tab"][data-tab-id^="sidechat:"]').length === beforeClose - 1
