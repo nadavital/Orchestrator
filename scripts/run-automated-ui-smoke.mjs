@@ -2321,6 +2321,7 @@ child.on('exit', async (code) => {
           filesActionMenuMaterial: result.filesActionMenuMaterialWorks === true,
           filesActionMenuSharedSections: result.filesActionMenuSharedSectionsWorks === true,
           filesRowContextMenu: result.filesRowContextMenuWorks === true,
+          filesRowCopyPathClipboard: result.filesRowCopyPathClipboardWorks === true,
           filesRowContextMenuSharedSections: result.filesRowContextMenuSharedSectionsWorks === true,
           filesPreferredOpenTarget: result.filesPreferredOpenTargetWorks === true,
           workbenchFileTab: result.workbenchFileTabWorks === true,

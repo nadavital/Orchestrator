@@ -11,6 +11,15 @@ import ArtifactZoomControls from './ArtifactZoomControls'
 import StructuredDataPreview, { ArtifactOpenOptions, ArtifactPreviewHeader, stripArtifactExtension, type PreviewHeaderAction } from './StructuredDataPreview'
 import WorkbenchTree, { WorkbenchTreeMessage, type WorkbenchTreeRow } from './WorkbenchTree'
 
+async function writeFilesClipboardText(text: string): Promise<void> {
+  if (typeof window.api.clipboard?.writeText === 'function') {
+    const didWrite = await window.api.clipboard.writeText(text)
+    if (!didWrite) throw new Error('Clipboard write failed')
+    return
+  }
+  await navigator.clipboard.writeText(text)
+}
+
 interface Props {
   sessionId?: string
   workDir: string
@@ -26,6 +35,7 @@ export default function FilesPanel({ sessionId, workDir, embedded = false }: Pro
   const [expandedDirectories, setExpandedDirectories] = useState<string[]>([])
   const [actionMenuOpen, setActionMenuOpen] = useState(false)
   const [rowMenu, setRowMenu] = useState<{ path: string; x: number; y: number } | null>(null)
+  const [filesActionStatus, setFilesActionStatus] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const requestIdRef = useRef(0)
   const openRightPanelFileTab = useSessionStore((state) => state.openRightPanelFileTab)
@@ -189,7 +199,10 @@ export default function FilesPanel({ sessionId, workDir, embedded = false }: Pro
 
   const copyEntryPath = (entry: WorkspaceSearchEntry | null): void => {
     if (!entry) return
-    void navigator.clipboard.writeText(entry.path)
+    setFilesActionStatus({ text: 'Copying path', tone: 'info' })
+    void writeFilesClipboardText(entry.path)
+      .then(() => setFilesActionStatus({ text: 'Path copied', tone: 'info' }))
+      .catch(() => setFilesActionStatus({ text: 'Copy path failed', tone: 'danger' }))
   }
 
   const addEntryToChat = (entry: WorkspaceSearchEntry | null): void => {
@@ -262,6 +275,8 @@ export default function FilesPanel({ sessionId, workDir, embedded = false }: Pro
     <div
       className="files-panel-root flex min-h-0 min-w-0 flex-col overflow-hidden"
       data-embedded={embedded ? 'true' : 'false'}
+      data-files-action-status={filesActionStatus?.text ?? ''}
+      data-files-action-status-tone={filesActionStatus?.tone ?? ''}
       style={{
         width: embedded ? '100%' : 440,
         height: embedded ? '100%' : undefined,
@@ -287,6 +302,18 @@ export default function FilesPanel({ sessionId, workDir, embedded = false }: Pro
         >
           {entries.length}{searchResult?.truncated ? '+' : ''}
         </Badge>
+        {filesActionStatus && (
+          <span
+            className="files-panel-action-status"
+            data-testid="files-panel-action-status"
+            data-files-action-status-tone={filesActionStatus.tone}
+            role={filesActionStatus.tone === 'danger' ? 'alert' : 'status'}
+            aria-live={filesActionStatus.tone === 'danger' ? 'assertive' : 'polite'}
+            aria-atomic="true"
+          >
+            {filesActionStatus.text}
+          </span>
+        )}
         {embedded && fileActions}
       </PanelToolbar>
       <div
@@ -891,7 +918,7 @@ function artifactPreviewActions(
       id: 'copy-path',
       icon: 'copy',
       label: 'Copy path',
-      onClick: () => { void navigator.clipboard.writeText(entry.path) }
+      onClick: () => { void writeFilesClipboardText(entry.path) }
     }
   ]
   actions.push(...extraActions)
@@ -900,7 +927,7 @@ function artifactPreviewActions(
       id: 'copy-raw',
       icon: 'copy',
       label: 'Copy raw preview',
-      onClick: () => { void navigator.clipboard.writeText(preview.text ?? '') }
+      onClick: () => { void writeFilesClipboardText(preview.text ?? '') }
     })
   }
   actions.push(

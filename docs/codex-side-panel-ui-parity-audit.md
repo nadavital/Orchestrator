@@ -8262,3 +8262,13 @@ Implemented: source-tab `Copy path` and `Copy selected line reference` now write
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and focused `node scripts/run-automated-ui-smoke.mjs --files` passed. The first non-elevated smoke hit the expected sandbox localhost bind failure; the elevated rerun passed with `fileSourceActionStatus=true` and `fileSourceLineUtilities=true` alongside the existing source-tab, Files search, preview, and artifact gates. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779959694450.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779959694450.png`.
 
 Remaining: this closes local source-tab clipboard reliability for path and line-reference copy only. Broader Files tree row copy actions, artifact preview copy actions, provider/global indexed workspace search, provider-backed comments/blame, and deep artifact renderer fidelity remain open.
+
+### 2026-05-28 - Files Row Clipboard Bridge
+
+Product evidence: Files tree row copy actions are daily coding controls for moving workspace paths into chat, terminals, and external tools. The row context menu and artifact preview copy actions still used the renderer clipboard path directly, leaving them behind the app clipboard/status pattern now used by source tabs, chat, Review, Browser, Terminal, and the inspector.
+
+Implemented: Files row `Copy path` now writes through the app clipboard bridge, shows pending/success/failure status in the Files toolbar, and exposes that status through data attributes for smoke proof. Artifact preview `Copy path` and `Copy raw preview` actions now use the same app clipboard bridge with browser clipboard fallback.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and focused `node scripts/run-automated-ui-smoke.mjs --files` passed. The first non-elevated smoke hit the expected sandbox localhost bind failure; the elevated rerun passed with `filesRowCopyPathClipboard=true` alongside `filesRowContextMenu=true`, `filesRowContextMenuSharedSections=true`, `fileSourceActionStatus=true`, and the existing Files source/preview/artifact gates. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779960351909.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779960351909.png`.
+
+Remaining: this closes local Files row path copy and artifact preview clipboard bridge reliability only. Provider/global indexed workspace search, provider-backed comments/blame, and deep artifact renderer fidelity remain open.

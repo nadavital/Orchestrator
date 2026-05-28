@@ -12258,6 +12258,7 @@ function runAutomatedFocusedSurfaceSmoke(
               let filesActionMenuMaterialWorks = false;
               let filesActionMenuSharedSectionsWorks = false;
               let filesRowContextMenuWorks = false;
+              let filesRowCopyPathClipboardWorks = false;
               let filesRowContextMenuSharedSectionsWorks = false;
               let filesPreferredOpenTargetWorks = false;
               let workbenchFileTabWorks = false;
@@ -12385,6 +12386,22 @@ function runAutomatedFocusedSurfaceSmoke(
                 if (copyPathMenuItem instanceof HTMLElement) {
                   copyPathMenuItem.click();
                   await sleep(120);
+                  const filesRootAfterRowCopy = document.querySelector('.files-panel-root');
+                  const filesActionStatus = document.querySelector('[data-testid="files-panel-action-status"]');
+                  const copiedFilePath =
+                    await window.api?.clipboard?.readText?.().catch(() => '') ??
+                    await navigator.clipboard?.readText?.().catch(() => '') ??
+                    '';
+                  filesRowCopyPathClipboardWorks =
+                    filesRootAfterRowCopy instanceof HTMLElement &&
+                    filesRootAfterRowCopy.getAttribute('data-files-action-status') === 'Path copied' &&
+                    filesRootAfterRowCopy.getAttribute('data-files-action-status-tone') === 'info' &&
+                    filesActionStatus instanceof HTMLElement &&
+                    filesActionStatus.textContent?.includes('Path copied') === true &&
+                    filesActionStatus.getAttribute('role') === 'status' &&
+                    filesActionStatus.getAttribute('aria-live') === 'polite' &&
+                    filesActionStatus.getAttribute('aria-atomic') === 'true' &&
+                    copiedFilePath === 'Nested Folder/nested note.md';
                 }
               }
               const filesTabAttachWorks =
@@ -14999,6 +15016,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 filesActionMenuMaterialWorks,
                 filesActionMenuSharedSectionsWorks,
                 filesRowContextMenuWorks,
+                filesRowCopyPathClipboardWorks,
                 filesRowContextMenuSharedSectionsWorks,
                 filesPreferredOpenTargetWorks,
                 workbenchFileTabWorks,

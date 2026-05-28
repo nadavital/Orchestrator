@@ -4377,7 +4377,8 @@
     color: var(--state-warning);
   }
 
-  .file-tab-action-status {
+  .file-tab-action-status,
+  .files-panel-action-status {
     min-width: 0;
     max-width: 116px;
     flex: 0 1 auto;
@@ -4392,6 +4393,12 @@
     font-weight: 600;
     line-height: 12px;
     padding: 2px 7px;
+  }
+
+  .files-panel-action-status[data-files-action-status-tone="danger"] {
+    border-color: color-mix(in srgb, var(--state-danger) 28%, var(--border-subtle));
+    background: color-mix(in srgb, var(--state-danger) 9%, var(--surface-bg));
+    color: var(--state-danger);
   }
 
   .file-tab-blame {
@@ -4440,6 +4447,7 @@
 
     .file-tab-open-target,
     .file-tab-action-status,
+    .files-panel-action-status,
     .file-tab-blame {
       max-width: 86px;
     }
