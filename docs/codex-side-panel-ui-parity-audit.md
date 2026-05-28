@@ -201,7 +201,7 @@ Implemented: the composer now shows a compact send-status strip when a draft can
 
 Verification: `pnpm exec tsc --noEmit` passed. `node -c scripts/run-automated-ui-smoke.mjs` passed. `git diff --check` passed. Focused `node scripts/run-automated-ui-smoke.mjs --composer` passed with `composerSendStatusExplainsBlocked=true`, `composerSendStatusActionOpensPermissions=true`, and `composerSendStatusRecoveryClearsBlock=true` plus the existing composer active-thread settings, permission menu, queued cancel, draft, attachment, drag/drop, and toolbar responsive gates; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1779937500461.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1779937500461.png`. Focused `node scripts/run-automated-ui-smoke.mjs --streaming-typing` passed with `composerWillQueueStatus=true`, proving the same status strip appears before sending a queued follow-up while a run is active; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-streaming-typing-1779937027194.json`.
 
-Remaining: this closes the immediate blocked-send visibility gap. It does not implement provider-native permission adapters or live provider-backed model/permission switching proof.
+Remaining at this layer: this closes the immediate blocked-send visibility gap. Later live proof closes Codex provider-backed model switching; provider-native permission adapters and permission switching proof remain open.
 
 ### 2026-05-28 - Composer Active Thread Model Settings Slice
 
@@ -209,7 +209,7 @@ Implemented: existing-thread composer provider/model text is no longer a dead la
 
 Verification: `pnpm exec tsc --noEmit` passed. `node -c scripts/run-automated-ui-smoke.mjs` passed. `git diff --check` passed. Focused `node scripts/run-automated-ui-smoke.mjs --composer` passed with `composerActiveThreadSettings=true` plus the existing permission menu, agent menu, queued cancel, draft, attachment, drag/drop, and toolbar responsive composer gates; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1779936345825.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1779936345825.png`.
 
-Remaining: this improves active-thread model/control ergonomics. It does not add provider-native account/runtime adapters, live provider-backed model switching proof, or deeper context/permission workflow redesign.
+Remaining at this layer: this improves active-thread model/control ergonomics. A later live model-switch proof closes the Codex provider-backed resume path; provider-native account/runtime adapters and deeper context/permission workflow redesign remain open.
 
 ### 2026-05-28 - Chat Long-Thread History Control Slice
 
@@ -8341,7 +8341,7 @@ Implemented: selecting `/model` now opens the existing thread model/settings pop
 
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and `git diff --check` passed. Focused `node scripts/run-automated-ui-smoke.mjs --composer` first hit the expected sandbox localhost bind failure; the elevated rerun exposed a smoke-order issue where the existing permission roving-keyboard check tested ArrowDown after click-opening the menu. After correcting that focused assertion, the elevated rerun passed with `composerSlashModelOpensSettings=true` while keeping `composerPermissionRovingKeyboard=true`, `composerActiveThreadSettings=true`, `composerSideChatAttachmentGuard=true`, and the existing composer gates green. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1779963656800.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1779963656800.png`.
 
-Remaining: this closes local `/model` slash-command routing only. Live provider-backed model switching proof, provider-native runtime adapters, and broader context/permission workflow redesign remain Phase 1 work.
+Remaining at this layer: this closes local `/model` slash-command routing only. A later live Codex model-switch proof closes the provider-backed resume path; provider-native runtime adapters and broader context/permission workflow redesign remain Phase 1 work.
 
 ### 2026-05-28 - Composer Slash Menu Focus
 
@@ -8351,7 +8351,7 @@ Implemented: slash-opened composer dropdowns now reuse the existing dropdown foc
 
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and `git diff --check` passed. Focused `node scripts/run-automated-ui-smoke.mjs --composer` first hit the expected sandbox localhost bind failure; the elevated rerun passed with `composerSlashModelFocusesMenu=true`, `composerSlashPermissionsOpensMenu=true`, and `composerSlashPermissionsFocusesMenu=true` alongside `composerSlashModelOpensSettings=true`, `composerPermissionRovingKeyboard=true`, and the existing composer gates. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1779964006792.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1779964006792.png`.
 
-Remaining: this closes local slash-opened composer menu focus only. Whole-app keyboard traversal, live provider-backed model/permission switching proof, and broader context/permission workflow redesign remain Phase 1 work.
+Remaining at this layer: this closes local slash-opened composer menu focus only. Later live proof closes Codex provider-backed model switching; whole-app keyboard traversal, live provider-backed permission switching proof, and broader context/permission workflow redesign remain Phase 1 work.
 
 ### 2026-05-28 - Settings Automations Action Status
 
@@ -8531,7 +8531,7 @@ Implemented: composer settings chips now use real button semantics with `type="b
 
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and `git diff --check` passed. Focused `node scripts/run-automated-ui-smoke.mjs --composer` first hit the expected sandbox localhost bind failure; the elevated rerun passed with `composerAgentChoiceA11y=true` alongside `composerActiveThreadSettings=true`, `composerAgentTriggerAriaExpanded=true`, `composerAgentRowLabelsCalm=true`, permission menu/focus gates, blocked-send recovery, attachment, side-chat guard, and toolbar gates. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1779972508882.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1779972508882.png`.
 
-Remaining: this closes local composer choice-state semantics only. Real provider-backed model switching, permission execution behavior, and deeper context workflow proof remain Phase 1 work.
+Remaining at this layer: this closes local composer choice-state semantics only. A later live Codex model-switch proof closes provider-backed model switching for Codex; permission execution behavior and deeper context workflow proof remain Phase 1 work.
 
 ### 2026-05-28 - Inspector Runtime Event Selection Semantics
 
@@ -8591,7 +8591,7 @@ Implemented: the active-thread `Thread settings` popover now includes a provider
 
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and `git diff --check` passed. Focused `node scripts/run-automated-ui-smoke.mjs --composer` first hit the expected sandbox localhost bind failure. The first elevated run proved `composerActiveThreadProviderChoices=true` but failed an existing slash-permissions focus gate; an immediate elevated rerun passed with `composerActiveThreadProviderChoices=true`, `composerActiveThreadSettings=true`, `composerAgentChoiceA11y=true`, `composerSlashModelFocusesMenu=true`, `composerSlashPermissionsFocusesMenu=true`, `composerPermissionRovingKeyboard=true`, `composerSendStatusActionFocusesPermissions=true`, `composerAttachmentStatus=true`, `composerSideChatAttachmentGuard=true`, and `composerToolbarResponsive=true`. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1779974921572.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1779974921572.png`.
 
-Remaining: this closes local active-thread provider choice visibility only. Real provider-backed provider/model switching proof, permission execution behavior, and deeper context workflow proof remain Phase 1 work.
+Remaining at this layer: this closes local active-thread provider choice visibility only. A later live Codex model-switch proof closes provider-backed model switching for Codex; provider switching, permission execution behavior, and deeper context workflow proof remain Phase 1 work.
 
 ### 2026-05-28 - Composer Active-Thread Provider Switch Proof
 
@@ -8801,7 +8801,7 @@ Implemented: added `scripts/codex-composer-resume-live-proof.mjs` and `npm run l
 
 Verification: `node -c scripts/codex-composer-resume-live-proof.mjs`, elevated `npm run live:codex-composer-resume`, `pnpm exec tsc --noEmit`, and `git diff --check` passed. Artifact: `/Users/nadav/Desktop/Orchestrator/tmp/codex-composer-resume-live-proof/result.json`; raw JSONL: `/Users/nadav/Desktop/Orchestrator/tmp/codex-composer-resume-live-proof/start.raw.jsonl` and `/Users/nadav/Desktop/Orchestrator/tmp/codex-composer-resume-live-proof/resume.raw.jsonl`. The first stronger recall run failed only because Codex returned `CODEX_RESUME_SECOND_OK: ORCH_RESUME_MEMORY_741` with separator whitespace; the final validator accepts harmless whitespace while still requiring the prior-turn key.
 
-Remaining at this layer: this closes backend Codex app-server resume/context-continuity proof. Later slices close UI-level retry/continue and partial-response continuation against an existing live provider thread; model-switching across resumed provider threads, non-Codex provider adapters, and live Codex UI pixel/timing proof remain separate.
+Remaining at this layer: this closes backend Codex app-server resume/context-continuity proof. Later slices close UI-level retry/continue, partial-response continuation, and model-switching against an existing live provider thread; non-Codex provider adapters and live Codex UI pixel/timing proof remain separate.
 
 ### 2026-05-28 - Live Composer Runtime Lifecycle Proof
 
@@ -8811,7 +8811,7 @@ Implemented: added `scripts/codex-composer-runtime-lifecycle-live-proof.mjs` and
 
 Verification: `node -c scripts/codex-composer-runtime-lifecycle-live-proof.mjs` and elevated `npm run live:codex-composer-runtime-lifecycle` passed. Artifact: `/Users/nadav/Desktop/Orchestrator/tmp/codex-composer-runtime-lifecycle-live-proof/result.json`; raw JSONL: `/Users/nadav/Desktop/Orchestrator/tmp/codex-composer-runtime-lifecycle-live-proof/start.raw.jsonl` and `/Users/nadav/Desktop/Orchestrator/tmp/codex-composer-runtime-lifecycle-live-proof/continue.raw.jsonl`. The artifact records the same provider session id for start and resume (`019e6f6b-ebf9-79d2-a858-d65aabd26758`), start connection method `thread/start`, resume connection method `thread/resume`, and resumed text `CODEX_RUNTIME_LIFECYCLE_CONTINUE_OK: ORCH_RUNTIME_LIFECYCLE_MEMORY_913`.
 
-Remaining at this layer: this closes Orchestrator runtime-manager start/resume proof for Codex app-server. Later slices cover the `sessionManager` and renderer click paths; partial-response continuation through the UI, model-switching across resumed provider threads, non-Codex provider adapters, and live Codex UI pixel/timing proof remain separate.
+Remaining at this layer: this closes Orchestrator runtime-manager start/resume proof for Codex app-server. Later slices cover the `sessionManager`, renderer click, partial-response, and model-switch paths; non-Codex provider adapters and live Codex UI pixel/timing proof remain separate.
 
 ### 2026-05-28 - Live Composer Session Lifecycle Proof
 
@@ -8821,7 +8821,7 @@ Implemented: added `scripts/codex-composer-session-lifecycle-live-proof.mjs` and
 
 Verification: `node -c scripts/codex-composer-session-lifecycle-live-proof.mjs` and elevated `npm run live:codex-composer-session-lifecycle` passed. Artifact: `/Users/nadav/Desktop/Orchestrator/tmp/codex-composer-session-lifecycle-live-proof/result.json`. The artifact records session id `1b021cb4-4c84-446a-9777-5de99b5ed97c`, provider session id `019e6f70-134f-7a21-92c5-5c59c123f401`, start method count `2`, resume method count `4`, archived cleanup `ok=true`, and assistant messages `CODEX_SESSION_LIFECYCLE_FIRST_OK`, `CODEX_SESSION_LIFECYCLE_CONTINUE_OK:ORCH_SESSION_LIFECYCLE_MEMORY_427`, and `CODEX_SESSION_LIFECYCLE_RETRY_OK:ORCH_SESSION_LIFECYCLE_MEMORY_427`.
 
-Remaining at this layer: this closes the main-process `sessionManager` live Codex send/continue/retry lifecycle proof. The following renderer slices close the transcript-button and partial-response click paths; model-switching across resumed provider threads, non-command permission variants, non-Codex provider adapters, and live Codex UI pixel/timing proof remain separate.
+Remaining at this layer: this closes the main-process `sessionManager` live Codex send/continue/retry lifecycle proof. The following renderer slices close the transcript-button, partial-response, and model-switch paths; non-command permission variants, non-Codex provider adapters, and live Codex UI pixel/timing proof remain separate.
 
 ### 2026-05-28 - Live Composer Renderer Lifecycle Proof
 
@@ -8831,7 +8831,7 @@ Implemented: added the focused `--transcript-live-lifecycle` automated UI smoke 
 
 Verification: `node -c scripts/run-automated-ui-smoke.mjs`, `pnpm exec tsc --noEmit`, `git diff --check`, and elevated `npm run live:codex-composer-renderer-lifecycle` passed. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-transcript-live-lifecycle-1779986634530.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-transcript-live-lifecycle-1779986634530.png`. The first live run failed only because the check expected a transient `Continue` sent label after Codex completed too quickly; the final gate now checks the durable click plus live completion evidence.
 
-Remaining at this layer: this closes renderer click-to-live proof for Codex send/Continue/Retry. The following partial-response proof closes the interrupted-assistant Continue variant; model-switching across resumed provider threads, non-command permission variants, non-Codex provider adapters, and live Codex UI pixel/timing proof remain separate.
+Remaining at this layer: this closes renderer click-to-live proof for Codex send/Continue/Retry. The following partial-response and model-switch proofs close those Codex variants; non-command permission variants, non-Codex provider adapters, and live Codex UI pixel/timing proof remain separate.
 
 ### 2026-05-28 - Live Partial Response Continuation Proof
 
@@ -8841,4 +8841,14 @@ Implemented: added `--transcript-live-partial-continue` and `npm run live:codex-
 
 Verification: `node -c scripts/run-automated-ui-smoke.mjs`, `pnpm exec tsc --noEmit`, `git diff --check`, and elevated `npm run live:codex-composer-partial-continue` passed. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-transcript-live-partial-continue-1779987197970.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-transcript-live-partial-continue-1779987197970.png`. The artifact records provider session id `019e6f81-45ca-7a41-9c42-8f4d81aaf959`, `livePartialStatusVisible=true`, `livePartialContinueClicked=true`, `livePartialContinueCompleted=true`, `livePartialSameProviderSession=true`, `livePartialResumeMethodCount=2`, and assistant messages `CODEX_RENDERER_PARTIAL_FIRST_OK`, `PARTIAL_RESPONSE_VISIBLE_SMOKE ORCH_RENDERER_PARTIAL_MEMORY_529 stopped before the final answer.`, and `CODEX_RENDERER_PARTIAL_CONTINUE_OK:ORCH_RENDERER_PARTIAL_MEMORY_529`.
 
-Remaining: this closes live Codex partial-response continuation through the visible renderer path. It does not close model-switching across resumed provider threads, non-command permission variants, non-Codex provider adapters, live Codex UI pixel/timing proof, or richer continuation around tool boundaries.
+Remaining at this layer: this closes live Codex partial-response continuation through the visible renderer path. The following model-switch proof closes resumed-thread model changes; non-command permission variants, non-Codex provider adapters, live Codex UI pixel/timing proof, and richer continuation around tool boundaries remain separate.
+
+### 2026-05-28 - Live Model Switch Continuation Proof
+
+Product evidence: local composer smokes proved active-thread model settings persist, and earlier live lifecycle smokes proved Continue resumes the same Codex provider thread. The missing daily-use proof was whether changing the model on an existing Codex thread is actually used by the resumed provider call instead of only updating local UI/session state.
+
+Implemented: added noisy runtime diagnostics for the model/effort sent with Codex app-server `thread/start`, `thread/resume`, and `turn/start` requests, plus the focused `--transcript-live-model-switch` smoke and `npm run live:codex-composer-model-switch`. The smoke starts a live Codex app-server transcript with `gpt-5.4-mini`, updates the Orchestrator session model to `gpt-5.4`, clicks the real transcript Continue button, and verifies the resumed reply completes on the same provider session. It also requires diagnostics showing the initial `thread/start`/`turn/start` used `gpt-5.4-mini` and the resumed `thread/resume`/`turn/start` used `gpt-5.4`.
+
+Verification: `node -c scripts/run-automated-ui-smoke.mjs`, `pnpm exec tsc --noEmit`, `git diff --check`, and elevated `npm run live:codex-composer-model-switch` passed. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-transcript-live-model-switch-1779987672302.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-transcript-live-model-switch-1779987672302.png`. The artifact records provider session id `019e6f88-7fe8-7042-8714-78c205e98a9f`, first model `gpt-5.4-mini`, second model `gpt-5.4`, and diagnostic events for `thread/start`, `turn/start`, `thread/resume`, and resumed `turn/start` with the expected model values.
+
+Remaining: this closes live Codex model-switching across a resumed provider thread. It does not close non-command permission variants, non-Codex provider adapters, live Codex UI pixel/timing proof, or richer continuation around tool boundaries.

@@ -548,6 +548,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
     runAutomatedTranscriptLivePartialContinueSmoke(win, outputPath, screenshotPath)
     return
   }
+  if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-live-model-switch') {
+    runAutomatedTranscriptLiveModelSwitchSmoke(win, outputPath, screenshotPath)
+    return
+  }
   if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-user-input') {
     runAutomatedTranscriptUserInputSmoke(win, outputPath, screenshotPath)
     return
@@ -22269,6 +22273,143 @@ function runAutomatedTranscriptLivePartialContinueSmoke(win: BrowserWindow, outp
           sessionId: session.id,
           providerSessionId,
           continueClick,
+          assistantMessages: finalSession?.messages
+            .filter((message) => message.type === 'text' && message.role === 'assistant')
+            .map((message) => message.content) ?? []
+        }
+        if (screenshotPath) {
+          const image = await win.webContents.capturePage()
+          writeFileSync(screenshotPath, image.toPNG())
+        }
+        writeFileSync(outputPath, JSON.stringify({ ok: true, result, screenshotPath }, null, 2))
+        app.quit()
+      } catch (error) {
+        writeFileSync(outputPath, JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2))
+        app.quit()
+      }
+    }, 700)
+  })
+}
+
+function runAutomatedTranscriptLiveModelSwitchSmoke(win: BrowserWindow, outputPath: string, screenshotPath?: string): void {
+  win.webContents.once('did-finish-load', () => {
+    setTimeout(async () => {
+      try {
+        win.setMinimumSize(520, 600)
+        win.setSize(920, 760)
+        const profile = getAppProfile()
+        const session = sessionManager.list()[0]
+        if (!session) throw new Error('No smoke session was available for live model-switch proof.')
+        const now = Date.now()
+        const firstModel = 'gpt-5.4-mini'
+        const secondModel = 'gpt-5.4'
+        const firstToken = 'CODEX_RENDERER_MODEL_SWITCH_FIRST_OK'
+        const continueToken = 'CODEX_RENDERER_MODEL_SWITCH_CONTINUE_OK'
+        const memoryToken = 'ORCH_RENDERER_MODEL_SWITCH_MEMORY_286'
+        const firstPrompt = [
+          'This is a live Orchestrator model-switch continuation proof.',
+          'Do not run tools.',
+          `Remember this proof key: ${memoryToken}.`,
+          `If I ask "Continue from where you left off.", reply exactly ${continueToken}:${memoryToken}.`,
+          `For this turn, reply exactly ${firstToken}.`
+        ].join(' ')
+
+        sessionManager.save({
+          ...session,
+          name: 'Transcript live model switch smoke',
+          provider: 'codex',
+          runtime: 'app-server',
+          model: firstModel,
+          effort: 'low',
+          permissionMode: 'default',
+          providerSessionId: null,
+          claudeSessionId: null,
+          status: 'idle',
+          messages: [],
+          latestMessageAt: now
+        })
+        win.webContents.send('pet:navigate', session.id)
+        await new Promise((resolve) => setTimeout(resolve, 240))
+
+        const sendStarted = await sessionManager.sendMessage(session.id, firstPrompt)
+        if (!sendStarted) throw new Error('Live model-switch proof failed to start sendMessage.')
+        const afterSend = await waitForAutomatedSessionText(session.id, firstToken, { requireProviderSessionId: true })
+        const providerSessionId = afterSend.providerSessionId
+        if (!providerSessionId) throw new Error('Live model-switch proof did not record a provider session id.')
+
+        sessionManager.updateSettings(session.id, { model: secondModel })
+        await new Promise((resolve) => setTimeout(resolve, 240))
+        const switchedSession = sessionManager.get(session.id)
+
+        const continueClick = await win.webContents.executeJavaScript(`
+          (async () => {
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            const scroller = document.querySelector('[data-testid="transcript-scroll"]');
+            if (scroller instanceof HTMLElement) {
+              scroller.scrollTop = 0;
+              scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
+            }
+            for (let index = 0; index < 80; index += 1) {
+              const buttons = [...document.querySelectorAll('[data-testid="chat-continue-last-turn"]')];
+              const button = buttons.at(-1);
+              if (button instanceof HTMLButtonElement && !button.disabled) {
+                button.click();
+                for (let labelIndex = 0; labelIndex < 80; labelIndex += 1) {
+                  const labels = [...document.querySelectorAll('[data-testid="chat-continue-last-turn-label"]')];
+                  const label = labels.at(-1);
+                  if (label instanceof HTMLElement && label.textContent?.includes('Continue sent')) {
+                    return {
+                      clicked: true,
+                      label: label.textContent,
+                      state: label.getAttribute('data-continue-state'),
+                      ariaLive: label.getAttribute('aria-live')
+                    };
+                  }
+                  await sleep(100);
+                }
+                return { clicked: true, label: null, state: null, ariaLive: null };
+              }
+              await sleep(100);
+            }
+            return { clicked: false };
+          })()
+        `)
+        if (!continueClick?.clicked) throw new Error('Live model-switch proof could not click Continue.')
+        const afterContinue = await waitForAutomatedSessionText(
+          session.id,
+          new RegExp(`${escapeAutomatedRegExp(continueToken)}\\s*:\\s*${escapeAutomatedRegExp(memoryToken)}`),
+          { providerSessionId }
+        )
+        const finalSession = sessionManager.get(session.id)
+        const debugEvents = listProviderRuntimeDebugEvents({ sessionId: session.id, includeNoisy: true, limit: 1000 })
+        const startModelEvents = debugEvents.filter((event) =>
+          (event.method === 'thread/start' || event.method === 'turn/start') &&
+          event.message.includes(`model=${firstModel}`)
+        )
+        const resumeModelEvents = debugEvents.filter((event) =>
+          (event.method === 'thread/resume' || event.method === 'turn/start') &&
+          event.message.includes(`model=${secondModel}`)
+        )
+        const result = {
+          profile,
+          firstModel,
+          secondModel,
+          liveModelSwitchSeedCompleted: sendStarted && afterSend.transcript.includes(firstToken),
+          liveModelSwitchSettingsPersisted: switchedSession?.model === secondModel,
+          liveModelSwitchContinueClicked: continueClick.clicked === true,
+          liveModelSwitchContinueCompleted:
+            afterContinue.providerSessionId === providerSessionId &&
+            afterContinue.transcript.includes(continueToken) &&
+            afterContinue.transcript.includes(memoryToken),
+          liveModelSwitchSameProviderSession: afterSend.providerSessionId === providerSessionId && afterContinue.providerSessionId === providerSessionId,
+          liveModelSwitchStartModel: startModelEvents.some((event) => event.method === 'thread/start') && startModelEvents.some((event) => event.method === 'turn/start'),
+          liveModelSwitchResumeModel: resumeModelEvents.some((event) => event.method === 'thread/resume') && resumeModelEvents.some((event) => event.method === 'turn/start'),
+          sessionId: session.id,
+          providerSessionId,
+          continueClick,
+          modelDebugEvents: debugEvents
+            .filter((event) => event.message.includes('model='))
+            .map((event) => ({ method: event.method, message: event.message })),
           assistantMessages: finalSession?.messages
             .filter((message) => message.type === 'text' && message.role === 'assistant')
             .map((message) => message.content) ?? []

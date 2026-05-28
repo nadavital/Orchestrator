@@ -288,6 +288,12 @@ class CodexAppServerSession implements CodexAppServerRun {
           sessionStartSource: 'startup'
         }
 
+    this.record(`Codex app-server ${method} request: model=${String(threadConfig.model ?? '')}, effort=${String(configFromRequest(request).model_reasoning_effort ?? '')}.`, {
+      method,
+      hostId: request.providerSessionId,
+      severity: 'debug',
+      noisy: true
+    })
     this.sendRequest(method, params, (result) => {
       const thread = asRecord(result.thread)
       const threadId = stringValue(thread?.id)
@@ -320,11 +326,18 @@ class CodexAppServerSession implements CodexAppServerRun {
 
   private startTurn(threadId: string): void {
     const request = this.options.request
+    const turnConfig = turnConfigFromRequest(request)
+    this.record(`Codex app-server turn/start request: model=${String(turnConfig.model ?? '')}, effort=${String(turnConfig.effort ?? '')}.`, {
+      method: 'turn/start',
+      hostId: threadId,
+      severity: 'debug',
+      noisy: true
+    })
     this.sendRequest('turn/start', {
       threadId,
       input: inputFromRequest(request),
       cwd: request.cwd,
-      ...turnConfigFromRequest(request)
+      ...turnConfig
     }, (result) => {
       const turn = asRecord(result.turn)
       const turnId = stringValue(turn?.id)
