@@ -1,14 +1,7 @@
 import { randomUUID } from 'crypto'
-import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'http'
-import { mkdirSync, rmSync, writeFileSync } from 'fs'
-import { isAbsolute, join, relative, resolve } from 'path'
-import { homedir, tmpdir } from 'os'
+import { isAbsolute, relative, resolve } from 'path'
+import { homedir } from 'os'
 import type { RunEvent } from '../types'
-
-interface HookRegistration {
-  sessionId: string
-  settingsPath: string
-}
 
 interface PendingApproval {
   sessionId: string
@@ -22,12 +15,10 @@ interface ApprovalDecision {
   reason?: string
 }
 
-interface HookToolRequest {
+interface ClaudeToolPermissionRequest {
   tool_name?: string
   tool_use_id?: string
   tool_input?: Record<string, unknown>
-  session_id?: string
-  hook_event_name?: string
 }
 
 const SAFE_TOOLS = new Set([
@@ -43,19 +34,7 @@ const SAFE_TOOLS = new Set([
   'BashOutput'
 ])
 
-const CLAUDE_PERMISSION_MATCHER = '^(Bash|Edit|Write|MultiEdit|NotebookEdit|WebFetch|WebSearch|DeleteFile|mcp__.*)$'
 const APPROVAL_TIMEOUT_MS = 5 * 60 * 1000
-const MAX_HOOK_BODY_BYTES = 1024 * 1024
-
-function hookResponse(approved: boolean, reason?: string): Record<string, unknown> {
-  return {
-    hookSpecificOutput: {
-      hookEventName: 'PreToolUse',
-      permissionDecision: approved ? 'allow' : 'deny',
-      ...(reason ? { permissionDecisionReason: reason } : {})
-    }
-  }
-}
 
 function isClaudeNativePlanWrite(toolName: string, toolInput: Record<string, unknown> | undefined): boolean {
   if (toolName !== 'Write') return false
@@ -68,74 +47,13 @@ function isClaudeNativePlanWrite(toolName: string, toolInput: Record<string, unk
   return pathFromPlansDir !== '' && !pathFromPlansDir.startsWith('..') && !isAbsolute(pathFromPlansDir)
 }
 
-function sendJson(res: ServerResponse, status: number, payload: Record<string, unknown>): void {
-  res.writeHead(status, { 'Content-Type': 'application/json' })
-  res.end(JSON.stringify(payload))
-}
-
-export function buildClaudeHookSettings(port: number, secret: string, token: string): Record<string, unknown> {
-  return {
-    hooks: {
-      PreToolUse: [
-        {
-          matcher: CLAUDE_PERMISSION_MATCHER,
-          hooks: [
-            {
-              type: 'http',
-              url: `http://127.0.0.1:${port}/hook/claude/pre-tool-use/${secret}/${token}`,
-              timeout: 300
-            }
-          ]
-        }
-      ]
-    }
-  }
-}
-
-async function readJsonBody(req: IncomingMessage): Promise<HookToolRequest> {
-  let body = ''
-  let size = 0
-  for await (const chunk of req) {
-    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
-    size += buffer.length
-    if (size > MAX_HOOK_BODY_BYTES) throw new Error('Hook request too large')
-    body += buffer.toString('utf8')
-  }
-  return JSON.parse(body) as HookToolRequest
-}
-
 export class ApprovalBroker {
-  private server: Server | null = null
-  private port: number | null = null
-  private readonly secret = randomUUID()
-  private readonly registrations = new Map<string, HookRegistration>()
-  private readonly tokensBySession = new Map<string, string>()
   private readonly pending = new Map<string, PendingApproval>()
   private readonly grantedToolsBySession = new Map<string, Set<string>>()
   private onEvents: ((sessionId: string, events: RunEvent[]) => void) | null = null
 
   setEventSink(sink: (sessionId: string, events: RunEvent[]) => void): void {
     this.onEvents = sink
-  }
-
-  async prepareClaudeRun(sessionId: string, allowedTools: string[] = []): Promise<{ settingsPath: string; dispose: () => void }> {
-    await this.ensureServer()
-    const token = randomUUID()
-    const dir = join(tmpdir(), 'orchestrator-claude-hooks')
-    mkdirSync(dir, { recursive: true, mode: 0o700 })
-
-    const settingsPath = join(dir, `claude-hooks-${sessionId}-${token}.json`)
-    const settings = buildClaudeHookSettings(this.port ?? 0, this.secret, token)
-    writeFileSync(settingsPath, JSON.stringify(settings, null, 2), { mode: 0o600 })
-
-    this.registrations.set(token, { sessionId, settingsPath })
-    this.tokensBySession.set(sessionId, token)
-    this.grantedToolsBySession.set(sessionId, new Set(allowedTools))
-
-    return {
-      settingsPath,
-      dispose: () => this.disposeRegistration(sessionId, token)
-    }
   }
 
   hasPendingApproval(sessionId: string): boolean {
@@ -171,9 +89,29 @@ export class ApprovalBroker {
     this.grantedToolsBySession.set(sessionId, current)
   }
 
+  prepareClaudeSdkRun(sessionId: string, allowedTools: string[] = []): { dispose: () => void } {
+    this.grantedToolsBySession.set(sessionId, new Set(allowedTools))
+    return {
+      dispose: () => this.disposeSession(sessionId)
+    }
+  }
+
+  async handleClaudeSdkPermission(
+    sessionId: string,
+    input: {
+      toolName: string
+      toolUseId?: string
+      toolInput?: Record<string, unknown>
+    }
+  ): Promise<{ approved: boolean; reason?: string }> {
+    return await this.handleToolRequest(sessionId, {
+      tool_name: input.toolName,
+      tool_use_id: input.toolUseId,
+      tool_input: input.toolInput
+    })
+  }
+
   disposeSession(sessionId: string): void {
-    const token = this.tokensBySession.get(sessionId)
-    if (token) this.disposeRegistration(sessionId, token)
     this.grantedToolsBySession.delete(sessionId)
     for (const [requestId, approval] of this.pending) {
       if (approval.sessionId !== sessionId) continue
@@ -183,85 +121,14 @@ export class ApprovalBroker {
     }
   }
 
-  async handleClaudeHookForTest(sessionId: string, input: HookToolRequest): Promise<Record<string, unknown>> {
-    return await this.handleToolRequest({ sessionId, settingsPath: '' }, input)
-  }
-
-  private async ensureServer(): Promise<void> {
-    if (this.server && this.port) return
-
-    this.server = createServer((req, res) => {
-      void this.handleRequest(req, res)
-    })
-
-    await new Promise<void>((resolve, reject) => {
-      this.server?.once('error', reject)
-      this.server?.listen(0, '127.0.0.1', () => {
-        const address = this.server?.address()
-        if (!address || typeof address === 'string') {
-          reject(new Error('Approval broker failed to bind a local port'))
-          return
-        }
-        this.port = address.port
-        resolve()
-      })
-    })
-  }
-
-  private disposeRegistration(sessionId: string, token: string): void {
-    const registration = this.registrations.get(token)
-    this.registrations.delete(token)
-    if (this.tokensBySession.get(sessionId) === token) this.tokensBySession.delete(sessionId)
-    if (registration?.settingsPath) rmSync(registration.settingsPath, { force: true })
-  }
-
-  private async handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
-    if (req.method !== 'POST') {
-      sendJson(res, 404, hookResponse(false, 'Not found'))
-      return
-    }
-
-    const segments = (req.url ?? '').split('/').filter(Boolean)
-    if (segments.length !== 5 || segments[0] !== 'hook' || segments[1] !== 'claude' || segments[2] !== 'pre-tool-use') {
-      sendJson(res, 404, hookResponse(false, 'Invalid hook path'))
-      return
-    }
-    if (segments[3] !== this.secret) {
-      sendJson(res, 403, hookResponse(false, 'Invalid hook credentials'))
-      return
-    }
-
-    const registration = this.registrations.get(segments[4])
-    if (!registration) {
-      sendJson(res, 403, hookResponse(false, 'Unknown run'))
-      return
-    }
-
-    let input: HookToolRequest
-    try {
-      input = await readJsonBody(req)
-    } catch {
-      sendJson(res, 400, hookResponse(false, 'Invalid hook payload'))
-      return
-    }
-
-    if (input.hook_event_name && input.hook_event_name !== 'PreToolUse') {
-      sendJson(res, 400, hookResponse(false, 'Unexpected hook event'))
-      return
-    }
-
-    const decision = await this.handleToolRequest(registration, input)
-    sendJson(res, 200, decision)
-  }
-
   private async handleToolRequest(
-    registration: HookRegistration,
-    input: HookToolRequest
-  ): Promise<Record<string, unknown>> {
+    sessionId: string,
+    input: ClaudeToolPermissionRequest
+  ): Promise<ApprovalDecision> {
     const toolName = input.tool_name ?? 'tool'
-    if (SAFE_TOOLS.has(toolName)) return hookResponse(true)
-    if (this.grantedToolsBySession.get(registration.sessionId)?.has(toolName)) return hookResponse(true)
-    if (isClaudeNativePlanWrite(toolName, input.tool_input)) return hookResponse(true)
+    if (SAFE_TOOLS.has(toolName)) return { approved: true }
+    if (this.grantedToolsBySession.get(sessionId)?.has(toolName)) return { approved: true }
+    if (isClaudeNativePlanWrite(toolName, input.tool_input)) return { approved: true }
 
     const requestId = randomUUID()
     const decision = await new Promise<ApprovalDecision>((resolve) => {
@@ -270,13 +137,13 @@ export class ApprovalBroker {
         resolve({ approved: false, reason: 'Approval timed out.' })
       }, APPROVAL_TIMEOUT_MS)
       this.pending.set(requestId, {
-        sessionId: registration.sessionId,
+        sessionId,
         toolName,
         resolve,
         timeout
       })
 
-      this.onEvents?.(registration.sessionId, [{
+      this.onEvents?.(sessionId, [{
         type: 'permission.requested',
         content: `${toolName} needs approval.`,
         denials: [{
@@ -287,7 +154,7 @@ export class ApprovalBroker {
       }])
     })
 
-    return hookResponse(decision.approved, decision.reason)
+    return decision
   }
 }
 

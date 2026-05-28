@@ -47,7 +47,7 @@ function TerminalSurface({ terminalId, workDir, onNewTab, onOpenUrl, onOutputCha
   const [exited, setExited] = useState<{ code: number; signal: number | null } | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
   const [clipboardStatus, setClipboardStatus] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
-  const clipboardStatusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const clipboardStatusTimeoutRef = useRef<number | null>(null)
 
   useEffect(() => {
     onOutputChange?.(terminalId, plainOutput)

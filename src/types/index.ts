@@ -273,6 +273,9 @@ export const PROVIDER_DEFS: Record<string, ProviderDef> = {
     models: [
       // ── Default 5 ─────────────────────────────────────────────────────
       { id: 'auto', label: 'Auto' },
+      { id: 'composer-2.5', label: 'Composer 2.5',
+        cursorConfig: { fastModelId: 'composer-2.5-fast' } },
+      { id: 'composer-2.5-fast', label: 'Composer 2.5 Fast' },
       { id: 'composer-2', label: 'Composer 2',
         cursorConfig: { fastModelId: 'composer-2-fast' } },
       { id: 'claude-opus-4-7', label: 'Claude Opus 4.7',

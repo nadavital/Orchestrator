@@ -883,6 +883,19 @@ function ProviderSetupDetails({ providerDef }: { providerDef: typeof PROVIDER_DE
           <ClaudeEndpointField color={providerDef.color} />
         </div>
       )}
+      {providerDef.id === 'cursor' && (
+        <div className="provider-setup-row" data-testid="provider-setup-cursor-auth">
+          <div className="provider-setup-label">Auth</div>
+          <div style={{ display: 'grid', gap: 4, minWidth: 0 }}>
+            <div style={{ color: 'var(--color-text)', fontSize: 12, fontWeight: 650 }}>
+              User API Key
+            </div>
+            <div style={{ color: 'var(--color-text-muted)', fontSize: 11, lineHeight: 1.35 }}>
+              Cursor Dashboard → Integrations → User API Keys. Store as <code>CURSOR_API_KEY</code> in the config env block.
+            </div>
+          </div>
+        </div>
+      )}
       <div className="provider-setup-row" data-testid="provider-setup-config">
         <div className="provider-setup-label">Config</div>
         <ProviderConfigEditor providerId={providerDef.id} color={providerDef.color} />
@@ -1981,7 +1994,7 @@ function ProviderConfigEditor({ providerId, color }: { providerId: string; color
               setError('')
             }}
             spellCheck={false}
-            placeholder={providerId === 'cursor' ? '{\n  "network": {\n    "useHttp1ForAgent": true\n  }\n}' : ''}
+            placeholder={providerId === 'cursor' ? '{\n  "env": {\n    "CURSOR_API_KEY": "..."\n  },\n  "network": {\n    "useHttp1ForAgent": true\n  }\n}' : ''}
             className="provider-config-textarea"
           />
           <div className="provider-config-footer">
@@ -2757,7 +2770,7 @@ function ClaudeEndpointField({ color }: { color: string }): JSX.Element {
 
 function InstallCommand({ cmd }: { cmd: string }): JSX.Element {
   const [status, setStatus] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
-  const statusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const statusTimeoutRef = useRef<number | null>(null)
   useEffect(() => () => {
     if (statusTimeoutRef.current) window.clearTimeout(statusTimeoutRef.current)
   }, [])

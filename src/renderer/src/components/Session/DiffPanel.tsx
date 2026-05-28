@@ -735,11 +735,6 @@ export default function DiffPanel({ sessionId, workDir, embedded = false, focusP
     writeStoredReviewSourceRef(workDir, source, value)
   }
 
-  const openSelectedFile = (): void => {
-    if (!selectedFile || !selectedChange || selectedChange.status === 'D') return
-    void window.api.fs.openPath(joinPath(workDir, selectedFile))
-  }
-
   const openSelectedFileTab = (): void => {
     if (!selectedFile || !selectedChange || selectedChange.status === 'D') return
     openReviewFileTab(selectedFile)
@@ -2157,7 +2152,7 @@ function reviewMetadataSummary(metadata: ReviewMetadata): { pullRequest: string;
 }
 
 function reviewPullRequestMeta(pullRequest: NonNullable<ReviewMetadata['pullRequest']>): string {
-  const parts = [pullRequest.state ?? 'open']
+  const parts: string[] = [pullRequest.state ?? 'open']
   if (pullRequest.branch && pullRequest.baseBranch) parts.push(`${pullRequest.branch} -> ${pullRequest.baseBranch}`)
   else if (pullRequest.branch) parts.push(pullRequest.branch)
   else if (pullRequest.baseBranch) parts.push(`base ${pullRequest.baseBranch}`)
