@@ -1798,6 +1798,8 @@ child.on('exit', async (code) => {
         initialMountedRowsBounded: Number(result.initialMountedRows ?? Number.POSITIVE_INFINITY) <= 48,
         lazyMountedRowsBounded: Number(result.lazyMountedRows ?? Number.POSITIVE_INFINITY) <= 56,
         searchMountedRowsBounded: Number(result.searchMountedRows ?? Number.POSITIVE_INFINITY) <= 56,
+        longThreadLoadControl: result.longThreadLoadControlWorks === true,
+        longThreadVisibleCountIncreased: result.longThreadVisibleCountIncreased === true,
         lazyLoadedOlderChunk: result.lazyLoadedOlderChunk === true,
         searchJumpFound: result.searchJumpFound === true,
         stressReadyWithinBudget: Number(result.readyElapsedMs ?? Number.POSITIVE_INFINITY) <= 1400

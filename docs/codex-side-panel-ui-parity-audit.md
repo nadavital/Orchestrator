@@ -163,6 +163,14 @@ Current Review verification debt:
 
 ## Implementation Progress
 
+### 2026-05-28 - Chat Long-Thread History Control Slice
+
+Implemented: Orchestrator's transcript history affordance now exposes explicit visible/total message counts, distinguishes fetching older unloaded history from revealing already loaded history, and keeps a compact all-loaded status when a large transcript is fully present. Shared `SurfaceRow` now forwards stable `data-*` attributes so focused smokes can verify user-visible state without parsing button copy. Shared find jumps also seed the virtual scroller with an estimated target offset before calling `scrollIntoView`, so searching an early long-thread result lands on the matching row instead of staying near the bottom of the loaded page.
+
+Verification: `pnpm exec tsc --noEmit` passed. `node -c scripts/run-automated-ui-smoke.mjs` passed. `git diff --check` passed. Focused `node scripts/run-automated-ui-smoke.mjs --transcript-stress` passed with `longThreadLoadControl=true`, `longThreadVisibleCountIncreased=true`, `lazyLoadedOlderChunk=true`, and `searchJumpFound=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-transcript-stress-1779935886533.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-transcript-stress-1779935886533.png`. Focused `node scripts/run-automated-ui-smoke.mjs --session-switch` passed after updating the same long-history/shared-find contract; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-session-switch-1779936029719.json`.
+
+Remaining: this closes the first long-thread ergonomics gap for history visibility, lazy expansion, and shared-find jump behavior. It does not prove live provider-backed partial continuation, richer active-run queue actions, model/context/permission workflow polish, or exact live Codex long-thread focus timing.
+
 ### 2026-05-24 - Files PDF Artifact Header Slice
 
 Codex evidence: re-checked the current extracted Codex bundle at `/private/tmp/orchestrator-codex-app-asar-20260524`. `artifact-tab-content.electron-DayvYBGS.js` routes PDF artifacts through `PdfPreviewPanel` with artifact-owned header/right-content handling, and falls back to a header plus error state if the PDF data is unavailable. This confirms PDF artifacts are not meant to be a bare side-panel iframe.

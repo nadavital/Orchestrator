@@ -549,6 +549,7 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
       limit: TRANSCRIPT_RENDER_CHUNK
     })
     if (!page) return
+    const targetOffset = transcriptItemOffset(result.messageId, groupTranscriptMessages(page.messages), {})
     useSessionStore.getState().mergeTranscriptPage(session.id, page, 'replace')
     setRenderLimit(page.messages.length)
     recordRendererMetric('transcript.search.jump-ready', startedAt, {
@@ -557,9 +558,17 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
       messages: page.messages.length
     })
     window.requestAnimationFrame(() => {
-      document.querySelector(`[data-message-id="${CSS.escape(result.messageId)}"]`)?.scrollIntoView({ block: 'center' })
+      const scroller = scrollContainerRef.current
+      if (scroller && targetOffset !== null) {
+        scroller.scrollTop = Math.max(0, targetOffset - Math.round(scroller.clientHeight * 0.35))
+        updateScrollMetrics()
+      }
+      window.requestAnimationFrame(() => {
+        document.querySelector(`[data-message-id="${CSS.escape(result.messageId)}"]`)?.scrollIntoView({ block: 'center' })
+        updateScrollMetrics()
+      })
     })
-  }, [session.id])
+  }, [session.id, updateScrollMetrics])
 
   useEffect(() => {
     if (sharedSearchActiveResultIndex < searchResults.length) return
@@ -695,9 +704,19 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
           {hiddenMessageCount > 0 && (
             <LoadEarlierMessages
               hiddenCount={hiddenMessageCount}
+              visibleCount={visibleMessages.length}
+              totalCount={totalMessageCount}
+              loadedHiddenCount={loadedHiddenCount}
+              unloadedBeforeCount={unloadedBeforeCount}
               loading={loadingEarlier}
               onLoad={() => { void handleLoadEarlier('manual') }}
               onLoadAll={handleLoadAllLoaded}
+            />
+          )}
+          {hiddenMessageCount === 0 && totalMessageCount > TRANSCRIPT_RENDER_CHUNK && (
+            <TranscriptHistoryStatus
+              totalCount={totalMessageCount}
+              visibleCount={visibleMessages.length}
             />
           )}
           {unloadedBeforeCount > 0 && session.messages.length < Math.min(totalMessageCount, TRANSCRIPT_RENDER_CHUNK) && (
@@ -788,21 +807,19 @@ function TranscriptLoadingState(): JSX.Element {
   )
 }
 
-function LoadEarlierMessages({
-  hiddenCount,
-  loading,
-  onLoad,
-  onLoadAll
+function TranscriptHistoryStatus({
+  totalCount,
+  visibleCount
 }: {
-  hiddenCount: number
-  loading: boolean
-  onLoad: () => void
-  onLoadAll: () => void
+  totalCount: number
+  visibleCount: number
 }): JSX.Element {
   return (
     <div className="flex justify-center">
       <SurfaceRow
-        dataTestId="load-earlier-messages"
+        dataTestId="long-thread-message-status"
+        data-visible-message-count={visibleCount}
+        data-total-message-count={totalCount}
         className="items-center gap-2 rounded-full px-3 py-1.5 text-xs"
         style={{
           background: 'var(--surface-bg)',
@@ -810,11 +827,60 @@ function LoadEarlierMessages({
           color: 'var(--text-secondary)'
         }}
       >
-        <span>Earlier messages</span>
+        <span>{totalCount.toLocaleString()} messages loaded</span>
+      </SurfaceRow>
+    </div>
+  )
+}
+
+function LoadEarlierMessages({
+  hiddenCount,
+  visibleCount,
+  totalCount,
+  loadedHiddenCount,
+  unloadedBeforeCount,
+  loading,
+  onLoad,
+  onLoadAll
+}: {
+  hiddenCount: number
+  visibleCount: number
+  totalCount: number
+  loadedHiddenCount: number
+  unloadedBeforeCount: number
+  loading: boolean
+  onLoad: () => void
+  onLoadAll: () => void
+}): JSX.Element {
+  const nextBatchCount = Math.min(TRANSCRIPT_RENDER_CHUNK, hiddenCount)
+  const primaryLabel = loading
+    ? 'Loading'
+    : loadedHiddenCount > 0
+      ? `Show ${nextBatchCount.toLocaleString()} earlier`
+      : `Load ${nextBatchCount.toLocaleString()} earlier`
+  return (
+    <div className="flex justify-center">
+      <SurfaceRow
+        dataTestId="load-earlier-messages"
+        data-hidden-message-count={hiddenCount}
+        data-loaded-hidden-count={loadedHiddenCount}
+        data-unloaded-before-count={unloadedBeforeCount}
+        data-visible-message-count={visibleCount}
+        data-total-message-count={totalCount}
+        className="items-center gap-2 rounded-full px-3 py-1.5 text-xs"
+        style={{
+          background: 'var(--surface-bg)',
+          border: '1px solid var(--border-subtle)',
+          color: 'var(--text-secondary)'
+        }}
+      >
+        <span>{visibleCount.toLocaleString()} of {totalCount.toLocaleString()} messages shown</span>
         <Button variant="ghost" className="px-2 py-0.5" onClick={onLoad} disabled={loading}>
-          {loading ? 'Loading' : `Show ${hiddenCount.toLocaleString()}`}
+          {primaryLabel}
         </Button>
-        <Button variant="ghost" className="px-2 py-0.5" onClick={onLoadAll}>Show loaded</Button>
+        {loadedHiddenCount > 0 && (
+          <Button variant="ghost" className="px-2 py-0.5" onClick={onLoadAll}>Show all loaded</Button>
+        )}
       </SurfaceRow>
     </div>
   )

@@ -2281,6 +2281,8 @@ interface SurfaceRowProps {
   ariaLabel?: string
   dataTestId?: string
   dataReviewPath?: string
+  dataSidebarKey?: string
+  [key: `data-${string}`]: string | number | boolean | undefined
 }
 
 export function SurfaceRow({
@@ -2300,8 +2302,10 @@ export function SurfaceRow({
   dataTestId,
   dataReviewPath,
   dataSidebarKey,
+  ...dataAttributes
 }: SurfaceRowProps): JSX.Element {
   const shared = {
+    ...dataAttributes,
     'data-active': active ? 'true' : 'false',
     'data-testid': dataTestId,
     'data-review-path': dataReviewPath,

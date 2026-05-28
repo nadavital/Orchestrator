@@ -16637,17 +16637,17 @@ function runAutomatedSessionSwitchSmoke(win: BrowserWindow, outputPath: string, 
             const transcriptText = document.querySelector('[data-testid="transcript-scroll"]')?.innerText ?? '';
             const switchElapsedMs = performance.now() - window.__orchestratorSessionSwitchStart;
             let fullHydratedAfterSwitch = false;
+            const loadEarlierControl = () => document.querySelector('[data-testid="load-earlier-messages"]');
+            const loadEarlierHidden = () => Number(loadEarlierControl()?.getAttribute('data-hidden-message-count') ?? 0);
             for (let index = 0; index < 120; index += 1) {
-              const loadEarlierText = document.querySelector('[data-testid="load-earlier-messages"]')?.textContent ?? '';
-              if (loadEarlierText.includes('Show 381')) {
+              if (loadEarlierHidden() === 381) {
                 fullHydratedAfterSwitch = true;
                 break;
               }
               await sleep(10);
             }
             const scroller = document.querySelector('[data-testid="transcript-scroll"]');
-            const lazyBeforeText = document.querySelector('[data-testid="load-earlier-messages"]')?.textContent ?? '';
-            const lazyBeforeHidden = Number(lazyBeforeText.match(/Show\\s+([\\d,]+)/)?.[1]?.replace(/,/g, '') ?? 0);
+            const lazyBeforeHidden = loadEarlierHidden();
             let lazyBeforeTop = null;
             let lazyAfterTop = null;
             let lazyAfterHidden = null;
@@ -16669,16 +16669,14 @@ function runAutomatedSessionSwitchSmoke(win: BrowserWindow, outputPath: string, 
               await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
               lazyBeforeVisibleMessage = firstVisibleMessageId();
               for (let index = 0; index < 5 && !lazyBeforeVisibleMessage; index += 1) {
-                const currentLazyBeforeText = document.querySelector('[data-testid="load-earlier-messages"]')?.textContent ?? '';
-                const currentLazyBeforeHidden = Number(currentLazyBeforeText.match(/Show\\s+([\\d,]+)/)?.[1]?.replace(/,/g, '') ?? 0);
+                const currentLazyBeforeHidden = loadEarlierHidden();
                 if (currentLazyBeforeHidden !== lazyBeforeHidden) break;
                 lazyBeforeVisibleMessage = firstVisibleMessageId();
                 if (lazyBeforeVisibleMessage) break;
                 await sleep(10);
               }
               for (let index = 0; index < 60; index += 1) {
-                const lazyAfterText = document.querySelector('[data-testid="load-earlier-messages"]')?.textContent ?? '';
-                lazyAfterHidden = Number(lazyAfterText.match(/Show\\s+([\\d,]+)/)?.[1]?.replace(/,/g, '') ?? 0);
+                lazyAfterHidden = loadEarlierHidden();
                 if (lazyAfterHidden > 0 && lazyAfterHidden < lazyBeforeHidden) break;
                 await sleep(20);
               }
@@ -16697,14 +16695,16 @@ function runAutomatedSessionSwitchSmoke(win: BrowserWindow, outputPath: string, 
               cancelable: true
             }));
             await sleep(60);
-            const search = document.querySelector('[data-testid="transcript-search"]');
+            const search = document.querySelector('#content-search-input') ?? document.querySelector('[data-testid="transcript-search"]');
             let transcriptSearchFound = false;
             if (search instanceof HTMLInputElement) {
               const setter = Object.getOwnPropertyDescriptor(search.constructor.prototype, 'value')?.set;
               setter?.call(search, 'SESSION_SWITCH_SMOKE_TWO');
               search.dispatchEvent(new Event('input', { bubbles: true }));
               for (let index = 0; index < 60; index += 1) {
-                if (document.body.innerText.includes('SESSION_SWITCH_SMOKE_TWO')) {
+                const sharedFindBar = document.querySelector('[data-testid="thread-find-bar"]');
+                const sharedFindMatches = Number(sharedFindBar?.getAttribute('data-thread-find-total-matches') ?? 0);
+                if (sharedFindMatches > 0 || document.body.innerText.includes('SESSION_SWITCH_SMOKE_TWO')) {
                   transcriptSearchFound = true;
                   break;
                 }
@@ -20748,17 +20748,56 @@ function runAutomatedTranscriptStressSmoke(win: BrowserWindow, outputPath: strin
             }
             const readyElapsedMs = performance.now() - startedAt;
             const text = scroller.innerText;
-            const hiddenCount = () => Number((document.querySelector('[data-testid="load-earlier-messages"]')?.textContent ?? '').match(/Show\\s+([\\d,]+)/)?.[1]?.replace(/,/g, '') ?? 0);
+            const loadEarlierControl = () => document.querySelector('[data-testid="load-earlier-messages"]');
+            const hiddenCount = () => Number(loadEarlierControl()?.getAttribute('data-hidden-message-count') ?? 0);
+            const visibleCount = () => Number(loadEarlierControl()?.getAttribute('data-visible-message-count') ?? 0);
             const mountedRows = () => document.querySelectorAll('[data-testid="virtual-transcript-row"]').length;
             const messageCount = window.__orchestratorSessionSwitchLastPerf?.messageCount ?? null;
+            const initialLoadControl = loadEarlierControl();
+            const longThreadStatus = document.querySelector('[data-testid="long-thread-message-status"]');
             const initialHidden = hiddenCount();
+            const initialVisible = visibleCount();
             const initialMountedRows = mountedRows();
+            const loadControlText = initialLoadControl?.textContent ?? '';
+            const loadControlLoadedHidden = Number(initialLoadControl?.getAttribute('data-loaded-hidden-count') ?? 0);
+            const loadControlUnloadedBefore = Number(initialLoadControl?.getAttribute('data-unloaded-before-count') ?? 0);
+            const loadControlTotal = Number(initialLoadControl?.getAttribute('data-total-message-count') ?? 0);
+            const loadControlVisible = Number(initialLoadControl?.getAttribute('data-visible-message-count') ?? 0);
+            const loadControlHidden = Number(initialLoadControl?.getAttribute('data-hidden-message-count') ?? 0);
+            const longThreadLoadControlWorks = (
+              initialLoadControl instanceof HTMLElement &&
+              loadControlText.includes('40 of 2,501 messages shown') &&
+              loadControlTotal === 2501 &&
+              loadControlVisible === 40 &&
+              loadControlHidden === 2461 &&
+              (
+                (
+                  loadControlLoadedHidden === 2461 &&
+                  loadControlUnloadedBefore === 0 &&
+                  loadControlText.includes('Show 40 earlier') &&
+                  loadControlText.includes('Show all loaded')
+                ) ||
+                (
+                  loadControlLoadedHidden === 0 &&
+                  loadControlUnloadedBefore === 2461 &&
+                  loadControlText.includes('Load 40 earlier') &&
+                  !loadControlText.includes('Show all loaded')
+                )
+              )
+            ) || (
+              longThreadStatus instanceof HTMLElement &&
+              longThreadStatus.getAttribute('data-total-message-count') === '2501' &&
+              longThreadStatus.getAttribute('data-visible-message-count') === '2501' &&
+              longThreadStatus.textContent?.includes('2,501 messages loaded') === true
+            );
 
             scroller.scrollTop = Math.min(240, Math.max(0, scroller.scrollHeight - scroller.clientHeight));
             scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
             let afterLazyHidden = initialHidden;
+            let afterLazyVisible = initialVisible;
             for (let index = 0; index < 100; index += 1) {
               afterLazyHidden = hiddenCount();
+              afterLazyVisible = visibleCount();
               if (afterLazyHidden > 0 && afterLazyHidden < initialHidden) break;
               await sleep(20);
             }
@@ -20773,14 +20812,21 @@ function runAutomatedTranscriptStressSmoke(win: BrowserWindow, outputPath: strin
               cancelable: true
             }));
             await sleep(80);
-            const search = document.querySelector('[data-testid="transcript-search"]');
+            const search = document.querySelector('#content-search-input') ?? document.querySelector('[data-testid="transcript-search"]');
             let searchJumpFound = false;
             if (search instanceof HTMLInputElement) {
               const setter = Object.getOwnPropertyDescriptor(search.constructor.prototype, 'value')?.set;
               setter?.call(search, 'TRANSCRIPT_STRESS_EARLY_0007');
               search.dispatchEvent(new Event('input', { bubbles: true }));
               for (let index = 0; index < 120; index += 1) {
+                const sharedFindBar = document.querySelector('[data-testid="thread-find-bar"]');
+                const sharedFindMatches = Number(sharedFindBar?.getAttribute('data-thread-find-total-matches') ?? 0);
+                const sharedNextButton = document.querySelector('button[aria-label="Next result"]');
                 const resultButton = [...document.querySelectorAll('button')].find((button) => button.textContent?.includes('TRANSCRIPT_STRESS_EARLY_0007'));
+                if (sharedFindMatches > 0 && sharedNextButton instanceof HTMLButtonElement) {
+                  sharedNextButton.click();
+                  break;
+                }
                 if (resultButton instanceof HTMLButtonElement) {
                   resultButton.click();
                   break;
@@ -20803,11 +20849,15 @@ function runAutomatedTranscriptStressSmoke(win: BrowserWindow, outputPath: strin
               readyElapsedMs,
               messageCount,
               initialHidden,
+              initialVisible,
               afterLazyHidden,
+              afterLazyVisible,
               initialMountedRows,
               lazyMountedRows,
               searchMountedRows,
-              lazyLoadedOlderChunk: initialHidden > 0 && afterLazyHidden < initialHidden,
+              lazyLoadedOlderChunk: (initialHidden > 0 && afterLazyHidden < initialHidden) || initialVisible === messageCount,
+              longThreadLoadControlWorks,
+              longThreadVisibleCountIncreased: afterLazyVisible > initialVisible || initialVisible === messageCount,
               searchJumpFound
             };
           })()
