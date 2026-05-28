@@ -6611,6 +6611,8 @@ function runAutomatedFocusedSurfaceSmoke(
               let workbenchPanelTabCodexMetricsWorks = false;
               let workbenchPanelTabReadableSeparationWorks = false;
               let workbenchPanelTabReadableSeparationDebug = {};
+              let workbenchPanelActiveTabVisibleAfterResizeWorks = false;
+              let workbenchPanelActiveTabVisibleAfterResizeDebug = {};
               let workbenchPanelTabCloseStartEdgeWorks = false;
               let workbenchPanelTabCloseStartEdgeDebug = [];
               let workbenchPanelNewTabPageWorks = false;
@@ -7471,9 +7473,15 @@ function runAutomatedFocusedSurfaceSmoke(
                   window.dispatchEvent(new Event('resize'));
                   await sleep(220);
                   const overlayPanel = document.querySelector('[data-testid="session-right-panel"]');
+                  const overlayTabRow = document.querySelector('[data-testid="workbench-panel-tab-row"]');
+                  const overlayActiveTab = document.querySelector('[data-testid="workbench-panel-tabbar"] [role="tab"][data-active="true"]');
                   const overlayContainer = overlayPanel instanceof HTMLElement ? overlayPanel.closest('[data-motion-panel="right"]') : null;
                   const overlayRect = overlayPanel instanceof HTMLElement ? overlayPanel.getBoundingClientRect() : null;
                   const rowRect = mainRow.getBoundingClientRect();
+                  const overlayTabRowRect = overlayTabRow instanceof HTMLElement ? overlayTabRow.getBoundingClientRect() : null;
+                  const overlayActiveTabRect = overlayActiveTab instanceof HTMLElement ? overlayActiveTab.getBoundingClientRect() : null;
+                  const activeVisibleLeft = overlayTabRowRect ? overlayTabRowRect.left : 0;
+                  const activeVisibleRight = overlayTabRowRect ? overlayTabRowRect.right : 0;
                   rightPanelNarrowOverlayDebug = {
                     layout: overlayPanel instanceof HTMLElement ? overlayPanel.dataset.rightPanelLayout ?? null : null,
                     fullWidth: overlayPanel instanceof HTMLElement ? overlayPanel.dataset.rightPanelFullWidth ?? null : null,
@@ -7484,6 +7492,23 @@ function runAutomatedFocusedSurfaceSmoke(
                     rowWidth: rowRect.width,
                     rowRight: rowRect.right,
                     inlineWidth: mainRow.style.width
+                  };
+                  workbenchPanelActiveTabVisibleAfterResizeWorks =
+                    overlayTabRow instanceof HTMLElement &&
+                    overlayActiveTab instanceof HTMLElement &&
+                    overlayActiveTabRect !== null &&
+                    overlayTabRowRect !== null &&
+                    overlayActiveTabRect.left >= activeVisibleLeft - 1 &&
+                    overlayActiveTabRect.right <= activeVisibleRight + 1;
+                  workbenchPanelActiveTabVisibleAfterResizeDebug = {
+                    activeTabId: overlayActiveTab instanceof HTMLElement ? overlayActiveTab.getAttribute('data-tab-id') : null,
+                    activeLeft: overlayActiveTabRect?.left ?? null,
+                    activeRight: overlayActiveTabRect?.right ?? null,
+                    visibleLeft: activeVisibleLeft,
+                    visibleRight: activeVisibleRight,
+                    rowScrollLeft: overlayTabRow instanceof HTMLElement ? overlayTabRow.scrollLeft : null,
+                    rowScrollWidth: overlayTabRow instanceof HTMLElement ? overlayTabRow.scrollWidth : null,
+                    rowClientWidth: overlayTabRow instanceof HTMLElement ? overlayTabRow.clientWidth : null
                   };
                   rightPanelNarrowOverlayWorks =
                     overlayPanel instanceof HTMLElement &&
@@ -7586,6 +7611,8 @@ function runAutomatedFocusedSurfaceSmoke(
                 workbenchPanelTabCodexMetricsWorks,
                 workbenchPanelTabReadableSeparationWorks,
                 workbenchPanelTabReadableSeparationDebug,
+                workbenchPanelActiveTabVisibleAfterResizeWorks,
+                workbenchPanelActiveTabVisibleAfterResizeDebug,
                 workbenchPanelTabCloseStartEdgeWorks,
                 workbenchPanelTabCloseStartEdgeDebug,
                 workbenchPanelAddControlStableWorks:

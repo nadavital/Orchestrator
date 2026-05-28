@@ -1406,14 +1406,27 @@ export function PanelTabStrip<T extends string | number>({
     })
   }
 
-  useLayoutEffect(() => {
-    updateEdges()
+  const scrollActiveTabIntoView = useCallback((): void => {
     const row = rowRef.current
     if (!row) return
     const activeTab = panelId && activeTabId !== null
       ? row.querySelector<HTMLElement>(`[data-app-shell-tab-controller="${cssEscape(panelId)}"][data-tab-id="${cssEscape(String(activeTabId))}"]`)
       : row.querySelector<HTMLElement>('[data-active="true"]')
-    activeTab?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+    if (!activeTab) return
+    const rowRect = row.getBoundingClientRect()
+    const activeRect = activeTab.getBoundingClientRect()
+    const visibleLeft = rowRect.left
+    const visibleRight = rowRect.right
+    if (activeRect.left < visibleLeft) {
+      row.scrollLeft -= visibleLeft - activeRect.left
+    } else if (activeRect.right > visibleRight) {
+      row.scrollLeft += activeRect.right - visibleRight
+    }
+  }, [activeTabId, panelId])
+
+  useLayoutEffect(() => {
+    updateEdges()
+    scrollActiveTabIntoView()
     const activeChanged = previousActiveTabIdRef.current !== activeTabId
     previousActiveTabIdRef.current = activeTabId
     if (panelId && activeTabId !== null && activeChanged) {
@@ -1427,12 +1440,16 @@ export function PanelTabStrip<T extends string | number>({
       })
     }
     window.requestAnimationFrame(updateEdges)
-  }, [activeTabId, panelId, tabs.length])
+  }, [activeTabId, panelId, scrollActiveTabIntoView, tabs.length])
 
   useEffect(() => {
     const row = rowRef.current
     if (!row) return
-    const resizeObserver = new ResizeObserver(updateEdges)
+    const updateActiveTabVisibility = (): void => {
+      scrollActiveTabIntoView()
+      updateEdges()
+    }
+    const resizeObserver = new ResizeObserver(() => window.requestAnimationFrame(updateActiveTabVisibility))
     resizeObserver.observe(row)
     row.addEventListener('scroll', updateEdges, { passive: true })
     window.addEventListener('resize', updateEdges)
@@ -1441,7 +1458,7 @@ export function PanelTabStrip<T extends string | number>({
       row.removeEventListener('scroll', updateEdges)
       window.removeEventListener('resize', updateEdges)
     }
-  }, [])
+  }, [scrollActiveTabIntoView])
 
   useLayoutEffect(() => {
     const actionSlot = actionsRef.current
