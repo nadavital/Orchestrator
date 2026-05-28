@@ -6613,6 +6613,8 @@ function runAutomatedFocusedSurfaceSmoke(
               let workbenchPanelTabReadableSeparationDebug = {};
               let workbenchPanelActiveTabVisibleAfterResizeWorks = false;
               let workbenchPanelActiveTabVisibleAfterResizeDebug = {};
+              let workbenchPanelOverflowFadeMasksClippedTabsWorks = false;
+              let workbenchPanelOverflowFadeMasksClippedTabsDebug = {};
               let workbenchPanelTabCloseStartEdgeWorks = false;
               let workbenchPanelTabCloseStartEdgeDebug = [];
               let workbenchPanelNewTabPageWorks = false;
@@ -7473,6 +7475,8 @@ function runAutomatedFocusedSurfaceSmoke(
                   window.dispatchEvent(new Event('resize'));
                   await sleep(220);
                   const overlayPanel = document.querySelector('[data-testid="session-right-panel"]');
+                  const overlayTabbar = document.querySelector('[data-testid="workbench-panel-tabbar"]');
+                  const overlayScrollFrame = document.querySelector('[data-testid="workbench-panel-tabbar"] .panel-tab-scroll-frame');
                   const overlayTabRow = document.querySelector('[data-testid="workbench-panel-tab-row"]');
                   const overlayActiveTab = document.querySelector('[data-testid="workbench-panel-tabbar"] [role="tab"][data-active="true"]');
                   const overlayContainer = overlayPanel instanceof HTMLElement ? overlayPanel.closest('[data-motion-panel="right"]') : null;
@@ -7509,6 +7513,30 @@ function runAutomatedFocusedSurfaceSmoke(
                     rowScrollLeft: overlayTabRow instanceof HTMLElement ? overlayTabRow.scrollLeft : null,
                     rowScrollWidth: overlayTabRow instanceof HTMLElement ? overlayTabRow.scrollWidth : null,
                     rowClientWidth: overlayTabRow instanceof HTMLElement ? overlayTabRow.clientWidth : null
+                  };
+                  const overflowStartFadeStyle = overlayScrollFrame instanceof HTMLElement
+                    ? getComputedStyle(overlayScrollFrame, '::before')
+                    : null;
+                  const overlayHasStartOverflow =
+                    overlayTabbar instanceof HTMLElement &&
+                    overlayTabbar.getAttribute('data-overflow-start') === 'true' &&
+                    overlayTabRow instanceof HTMLElement &&
+                    overlayTabRow.scrollLeft > 0;
+                  workbenchPanelOverflowFadeMasksClippedTabsWorks =
+                    overlayHasStartOverflow &&
+                    overflowStartFadeStyle !== null &&
+                    overflowStartFadeStyle.content !== 'none' &&
+                    overflowStartFadeStyle.backgroundImage.includes('linear-gradient') &&
+                    Number.parseFloat(overflowStartFadeStyle.width || '0') >= 32 &&
+                    Number.parseFloat(overflowStartFadeStyle.zIndex || '0') >= 2 &&
+                    Number.parseFloat(overflowStartFadeStyle.opacity || '0') >= 0.95 &&
+                    overflowStartFadeStyle.pointerEvents === 'none';
+                  workbenchPanelOverflowFadeMasksClippedTabsDebug = {
+                    overflowStart: overlayTabbar instanceof HTMLElement ? overlayTabbar.getAttribute('data-overflow-start') : null,
+                    rowScrollLeft: overlayTabRow instanceof HTMLElement ? overlayTabRow.scrollLeft : null,
+                    fadeWidth: overflowStartFadeStyle?.width ?? null,
+                    fadeOpacity: overflowStartFadeStyle?.opacity ?? null,
+                    fadeZIndex: overflowStartFadeStyle?.zIndex ?? null
                   };
                   rightPanelNarrowOverlayWorks =
                     overlayPanel instanceof HTMLElement &&
@@ -7613,6 +7641,8 @@ function runAutomatedFocusedSurfaceSmoke(
                 workbenchPanelTabReadableSeparationDebug,
                 workbenchPanelActiveTabVisibleAfterResizeWorks,
                 workbenchPanelActiveTabVisibleAfterResizeDebug,
+                workbenchPanelOverflowFadeMasksClippedTabsWorks,
+                workbenchPanelOverflowFadeMasksClippedTabsDebug,
                 workbenchPanelTabCloseStartEdgeWorks,
                 workbenchPanelTabCloseStartEdgeDebug,
                 workbenchPanelAddControlStableWorks:

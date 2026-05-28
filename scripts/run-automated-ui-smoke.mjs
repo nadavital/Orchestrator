@@ -2242,6 +2242,7 @@ child.on('exit', async (code) => {
           workbenchPanelTabCodexMetrics: result.workbenchPanelTabCodexMetricsWorks === true,
           workbenchPanelTabReadableSeparation: result.workbenchPanelTabReadableSeparationWorks === true,
           workbenchPanelActiveTabVisibleAfterResize: result.workbenchPanelActiveTabVisibleAfterResizeWorks === true,
+          workbenchPanelOverflowFadeMasksClippedTabs: result.workbenchPanelOverflowFadeMasksClippedTabsWorks === true,
           rightPanelMenuCommandState: result.rightPanelMenuCommandStateWorks === true,
           rightPanelFindShortcutRouting: result.rightPanelFindShortcutRoutingWorks === true,
           rightPanelBrowserCommandRouting: result.rightPanelBrowserCommandRoutingWorks === true,
