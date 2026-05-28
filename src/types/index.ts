@@ -1788,6 +1788,10 @@ export function applyAutomationPermissionSnapshot(
 
 export type SessionForkMode = 'local' | 'same-worktree' | 'new-worktree'
 
+export interface SessionForkOptions {
+  throughMessageId?: string
+}
+
 export interface SessionListItem extends Session {
   messageCount: number
   messagesLoaded: boolean

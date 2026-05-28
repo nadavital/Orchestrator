@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 
-import type { Attachment, Automation, AutomationRun, AutomationUpsertRequest, CapabilityCreateRequest, CapabilityCreateResult, CapabilityDeleteRequest, CapabilityMutationResult, CapabilitySyncPlan, CapabilitySyncRequest, CapabilityUpdateRequest, CodexProjectImportResult, Project, Session, SessionForkMode, SessionListItem, ChatMessage, FileChange, GitLineBlameResult, GitPathActionResult, GitRefOption, OpenPathOptions, OpenPathResult, OpenTargetAvailability, OrchestratorDeepLinkNavigation, PerformanceMetric, PerformanceSnapshot, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderManifest, ProviderPermissionRuntimeContext, ProviderResourceSnapshot, ProviderRuntimeConnectionState, ProviderRuntimeDebugEvent, ProviderRuntimeInfo, ProviderSidebarSyncResult, ProviderSlashCommand, ReviewDiffSource, ReviewMetadata, SessionRunEventRecord, SideQuestionMessage, TerminalServiceSnapshot, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary, WorktreeInventoryItem, WorkspaceSearchRequest, WorkspaceSearchResult } from '../../types'
+import type { Attachment, Automation, AutomationRun, AutomationUpsertRequest, CapabilityCreateRequest, CapabilityCreateResult, CapabilityDeleteRequest, CapabilityMutationResult, CapabilitySyncPlan, CapabilitySyncRequest, CapabilityUpdateRequest, CodexProjectImportResult, Project, Session, SessionForkMode, SessionForkOptions, SessionListItem, ChatMessage, FileChange, GitLineBlameResult, GitPathActionResult, GitRefOption, OpenPathOptions, OpenPathResult, OpenTargetAvailability, OrchestratorDeepLinkNavigation, PerformanceMetric, PerformanceSnapshot, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderManifest, ProviderPermissionRuntimeContext, ProviderResourceSnapshot, ProviderRuntimeConnectionState, ProviderRuntimeDebugEvent, ProviderRuntimeInfo, ProviderSidebarSyncResult, ProviderSlashCommand, ReviewDiffSource, ReviewMetadata, SessionRunEventRecord, SideQuestionMessage, TerminalServiceSnapshot, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary, WorktreeInventoryItem, WorkspaceSearchRequest, WorkspaceSearchResult } from '../../types'
 import type { BrowserUsePolicy } from '../../types/browserUsePolicy'
 import type { AppCommandAvailability, AppMenuCommand, AppMenuCommandState, ShortcutOverrides, StableAppCommand } from '../../types/appCommands'
 
@@ -185,7 +185,7 @@ declare global {
           worktreeBaseRef?: string
           worktreeBranchName?: string
         }) => Promise<Session>
-        fork: (id: string, mode: SessionForkMode) => Promise<Session>
+        fork: (id: string, mode: SessionForkMode, options?: SessionForkOptions) => Promise<Session>
         retryPendingWorktree: (id: string) => Promise<Session>
         sendMessage: (sessionId: string, prompt: string, useWorktree?: boolean, attachments?: Attachment[]) => Promise<boolean>
         retryLastUserMessage: (sessionId: string) => Promise<boolean>

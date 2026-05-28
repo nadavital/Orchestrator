@@ -83,6 +83,12 @@ export default function ChatView({ sessionId }: Props): JSX.Element {
 
 function ChatViewContent({ session }: { session: Session }): JSX.Element {
   const projectName = useProjectStore((state) => state.projects.find((project) => project.id === session.projectId)?.name)
+  const addSession = useSessionStore((state) => state.addSession)
+  const setActiveSession = useSessionStore((state) => state.setActiveSession)
+  const transferBrowserWorkbench = useSessionStore((state) => state.transferBrowserWorkbench)
+  const setShowSettings = useSessionStore((state) => state.setShowSettings)
+  const setShowCapabilities = useSessionStore((state) => state.setShowCapabilities)
+  const addSessionToProject = useProjectStore((state) => state.addSessionToProject)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -193,6 +199,29 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
       composer?.focus()
     }, 0)
   }, [session.id])
+
+  const forkFromMessage = useCallback(async (messageId: string): Promise<void> => {
+    setTranscriptActionStatus({ text: 'Forking chat from selected message', tone: 'info' })
+    try {
+      const forked = await window.api.sessions.fork(session.id, 'local', { throughMessageId: messageId })
+      const testWindow = window as typeof window & { __orchestratorLastMessageForkedSession?: { id: string; sourceSessionId: string; sourceMessageId: string; messageCount: number } }
+      testWindow.__orchestratorLastMessageForkedSession = {
+        id: forked.id,
+        sourceSessionId: session.id,
+        sourceMessageId: messageId,
+        messageCount: forked.messages.length
+      }
+      addSession(forked)
+      transferBrowserWorkbench(session.id, forked.id)
+      addSessionToProject(forked.projectId, forked.id)
+      setActiveSession(forked.id)
+      setShowSettings(false)
+      setShowCapabilities(false)
+    } catch (error) {
+      setTranscriptActionStatus({ text: `Fork failed: ${errorText(error)}`, tone: 'danger' })
+      throw error
+    }
+  }, [addSession, addSessionToProject, session.id, setActiveSession, setShowCapabilities, setShowSettings, transferBrowserWorkbench])
 
   const updateScrollMetrics = useCallback(() => {
     const scroller = scrollContainerRef.current
@@ -830,6 +859,7 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
                         onSteerQueuedMessage={steerQueuedMessage}
                         onCancelQueuedMessage={cancelQueuedMessage}
                         onEditUserMessageAsDraft={editUserMessageAsDraft}
+                        onForkFromMessage={forkFromMessage}
                       />
                     )}
                 </MeasuredTranscriptRow>
@@ -1317,6 +1347,35 @@ function ContinueButton({ sessionId }: { sessionId: string }): JSX.Element {
   )
 }
 
+function ForkFromMessageButton({ onFork }: { onFork: () => void | Promise<void> }): JSX.Element {
+  const [state, setState] = useState<'idle' | 'forking' | 'error'>('idle')
+  const label = state === 'forking' ? 'Forking chat' : state === 'error' ? 'Fork failed' : 'Fork from here'
+
+  const handleFork = useCallback(async (event: React.MouseEvent) => {
+    event.preventDefault()
+    event.stopPropagation()
+    if (state === 'forking') return
+    setState('forking')
+    try {
+      await onFork()
+    } catch {
+      setState('error')
+    }
+  }, [onFork, state])
+
+  return (
+    <IconButton
+      icon={state === 'forking' ? 'refresh' : 'branch'}
+      label={label}
+      size="sm"
+      tone={state === 'error' ? 'danger' : 'neutral'}
+      dataTestId="chat-message-fork"
+      onClick={handleFork}
+      style={{ opacity: state === 'forking' ? 1 : 0.62 }}
+    />
+  )
+}
+
 function makeMarkdownComponents(isUser: boolean): Components {
   return {
     // Code blocks
@@ -1506,7 +1565,8 @@ function MessageRow({
   canContinue,
   onSteerQueuedMessage,
   onCancelQueuedMessage,
-  onEditUserMessageAsDraft
+  onEditUserMessageAsDraft,
+  onForkFromMessage
 }: {
   msg: ChatMessage
   session: Session
@@ -1517,6 +1577,7 @@ function MessageRow({
   onSteerQueuedMessage: (messageId: string) => Promise<void>
   onCancelQueuedMessage: (messageId: string, queueState: 'queued' | 'steer_next') => Promise<void>
   onEditUserMessageAsDraft: (content: string, attachments?: Attachment[]) => void
+  onForkFromMessage: (messageId: string) => Promise<void>
 }): JSX.Element | null {
   const [isUserMessageExpanded, setIsUserMessageExpanded] = useState(false)
 
@@ -1541,6 +1602,7 @@ function MessageRow({
       : content
     const queueState = isUser ? msg.queueState : undefined
     const canEditAsDraft = isUser && !queueState && (content.trim().length > 0 || (msg.attachments?.length ?? 0) > 0)
+    const canForkFromMessage = !queueState && !msg.isStreaming && content.trim().length > 0 && (isUser || canCopy || canContinue)
     const fileReferences = !isUser && !isSystem
       ? extractFileReferences(content, session.workDir).slice(0, 8)
       : []
@@ -1559,7 +1621,7 @@ function MessageRow({
           }}
         >
           <div
-            className={`min-w-0 break-words ${isUser ? 'px-4 py-3 pr-9' : canContinue ? 'pr-32 py-1' : 'pr-8 py-1'}`}
+            className={`min-w-0 break-words ${isUser ? (canForkFromMessage ? 'px-4 py-3 pr-16' : 'px-4 py-3 pr-9') : (canContinue || canForkFromMessage) ? 'pr-36 py-1' : 'pr-8 py-1'}`}
             style={{
               background: isUser ? 'var(--control-bg-active)' : 'transparent',
               color: 'var(--text-primary)',
@@ -1665,7 +1727,7 @@ function MessageRow({
               </div>
             )}
           </div>
-          {(canCopy || canContinue) && !isUser && (
+          {(canCopy || canContinue || canForkFromMessage) && !isUser && (
             <div
               className="flex items-center gap-1"
               style={{
@@ -1675,10 +1737,11 @@ function MessageRow({
               }}
             >
               {canContinue && <ContinueButton sessionId={session.id} />}
+              {canForkFromMessage && <ForkFromMessageButton onFork={() => onForkFromMessage(msg.id)} />}
               {canCopy && <CopyButton getText={() => content} />}
             </div>
           )}
-          {canEditAsDraft && (
+          {(canEditAsDraft || canForkFromMessage) && isUser && (
             <div
               className="flex items-center gap-1"
               style={{
@@ -1687,18 +1750,21 @@ function MessageRow({
                 right: 6
               }}
             >
-              <IconButton
-                icon="pencil"
-                label="Edit message as draft"
-                size="sm"
-                tone="neutral"
-                dataTestId="chat-user-message-edit"
-                onClick={(event) => {
-                  event.stopPropagation()
-                  onEditUserMessageAsDraft(content, msg.attachments ?? [])
-                }}
-                style={{ opacity: 0.62 }}
-              />
+              {canEditAsDraft && (
+                <IconButton
+                  icon="pencil"
+                  label="Edit message as draft"
+                  size="sm"
+                  tone="neutral"
+                  dataTestId="chat-user-message-edit"
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    onEditUserMessageAsDraft(content, msg.attachments ?? [])
+                  }}
+                  style={{ opacity: 0.62 }}
+                />
+              )}
+              {canForkFromMessage && <ForkFromMessageButton onFork={() => onForkFromMessage(msg.id)} />}
             </div>
           )}
         </div>

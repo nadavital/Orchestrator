@@ -5,7 +5,7 @@ import { execFile } from 'child_process'
 import { readFileSync } from 'fs'
 import { performance } from 'perf_hooks'
 import { promisify } from 'util'
-import type { Attachment, AutomationPermissionSnapshot, Session, SessionForkMode, SessionListItem, ChatMessage, TextMessage, ProviderRuntimeKind, ProviderSidebarSyncResult, ReviewMetadata, RunEvent, RunRequest, SessionStatus, SideQuestionMessage, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary, WorktreeInventoryItem } from '../types'
+import type { Attachment, AutomationPermissionSnapshot, Session, SessionForkMode, SessionForkOptions, SessionListItem, ChatMessage, TextMessage, ProviderRuntimeKind, ProviderSidebarSyncResult, ReviewMetadata, RunEvent, RunRequest, SessionStatus, SideQuestionMessage, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary, WorktreeInventoryItem } from '../types'
 import { PROVIDER_DEFS, applyAutomationPermissionSnapshot, finalizeInterruptedMessages, getDefaultPermissionMode } from '../types'
 import { gitManager } from './git'
 import { getProvider, PROVIDERS, providerSpawnEnv, resolveProviderBinary, resolveProviderCommand, runCodexAppServerCommandSurfaceRaw } from './providers'
@@ -98,6 +98,16 @@ function normalizeSession(session: Session): Session {
     providerSessionId: session.providerSessionId ?? session.claudeSessionId ?? null,
     runtime: sessionRuntimeForProvider(providerId, session.runtime)
   }
+}
+
+function cloneMessageForFork(message: ChatMessage): ChatMessage {
+  if (message.type === 'text') {
+    return {
+      ...message,
+      attachments: message.attachments?.map((attachment) => ({ ...attachment }))
+    }
+  }
+  return { ...message }
 }
 
 function automatedReviewSmokeMetadata(): ReviewMetadata | undefined {
@@ -781,7 +791,7 @@ export const sessionManager = {
     return session
   },
 
-  async fork(sessionId: string, mode: SessionForkMode): Promise<Session> {
+  async fork(sessionId: string, mode: SessionForkMode, options: SessionForkOptions = {}): Promise<Session> {
     const source = this.get(sessionId)
     if (!source) throw new Error(`Session ${sessionId} not found`)
 
@@ -808,13 +818,22 @@ export const sessionManager = {
       worktreeState = source.worktreeState
     }
 
+    const sourceMessages = options.throughMessageId
+      ? source.messages.slice(0, source.messages.findIndex((message) => message.id === options.throughMessageId) + 1)
+      : source.messages
+    if (options.throughMessageId && sourceMessages.length === 0) {
+      throw new Error(`Message ${options.throughMessageId} not found`)
+    }
+
     const messages: ChatMessage[] = [
-      ...source.messages.map((message) => ({ ...message })),
+      ...sourceMessages.map(cloneMessageForFork),
       {
         id: `forked-from-${source.id}-${now}`,
         role: 'system',
         type: 'text',
-        content: `Forked from "${source.name}".`,
+        content: options.throughMessageId
+          ? `Forked from "${source.name}" at a selected message.`
+          : `Forked from "${source.name}".`,
         timestamp: now
       }
     ]

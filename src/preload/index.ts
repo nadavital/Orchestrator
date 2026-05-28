@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { Attachment, Automation, AutomationRun, AutomationUpsertRequest, CapabilityCreateRequest, CapabilityCreateResult, CapabilityDeleteRequest, CapabilityMutationResult, CapabilitySyncPlan, CapabilitySyncRequest, CapabilityUpdateRequest, CodexProjectImportResult, Project, Session, SessionForkMode, SessionListItem, ChatMessage, FileChange, GitLineBlameResult, GitPathActionResult, GitRefOption, OpenPathOptions, OpenPathResult, OpenTargetAvailability, OrchestratorDeepLinkNavigation, PerformanceMetric, PerformanceSnapshot, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderManifest, ProviderPermissionRuntimeContext, ProviderResourceSnapshot, ProviderRuntimeConnectionState, ProviderRuntimeDebugEvent, ProviderRuntimeInfo, ProviderSidebarSyncResult, ProviderSlashCommand, ReviewDiffSource, ReviewMetadata, SessionRunEventRecord, SideQuestionMessage, TerminalServiceSnapshot, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary, WorktreeInventoryItem, WorkspaceSearchRequest, WorkspaceSearchResult } from '../types'
+import type { Attachment, Automation, AutomationRun, AutomationUpsertRequest, CapabilityCreateRequest, CapabilityCreateResult, CapabilityDeleteRequest, CapabilityMutationResult, CapabilitySyncPlan, CapabilitySyncRequest, CapabilityUpdateRequest, CodexProjectImportResult, Project, Session, SessionForkMode, SessionForkOptions, SessionListItem, ChatMessage, FileChange, GitLineBlameResult, GitPathActionResult, GitRefOption, OpenPathOptions, OpenPathResult, OpenTargetAvailability, OrchestratorDeepLinkNavigation, PerformanceMetric, PerformanceSnapshot, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderManifest, ProviderPermissionRuntimeContext, ProviderResourceSnapshot, ProviderRuntimeConnectionState, ProviderRuntimeDebugEvent, ProviderRuntimeInfo, ProviderSidebarSyncResult, ProviderSlashCommand, ReviewDiffSource, ReviewMetadata, SessionRunEventRecord, SideQuestionMessage, TerminalServiceSnapshot, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary, WorktreeInventoryItem, WorkspaceSearchRequest, WorkspaceSearchResult } from '../types'
 import type { BrowserUsePolicy } from '../types/browserUsePolicy'
 import type { AppCommandAvailability, AppMenuCommand, AppMenuCommandState, StableAppCommand } from '../types/appCommands'
 import type { ShortcutOverrides } from '../types/appCommands'
@@ -192,8 +192,8 @@ const api = {
       worktreeBaseRef?: string
       worktreeBranchName?: string
     }): Promise<Session> => ipcRenderer.invoke('sessions:create', opts),
-    fork: (id: string, mode: SessionForkMode): Promise<Session> =>
-      ipcRenderer.invoke('sessions:fork', id, mode),
+    fork: (id: string, mode: SessionForkMode, options?: SessionForkOptions): Promise<Session> =>
+      ipcRenderer.invoke('sessions:fork', id, mode, options),
     retryPendingWorktree: (id: string): Promise<Session> =>
       ipcRenderer.invoke('sessions:retryPendingWorktree', id),
     sendMessage: (sessionId: string, prompt: string, useWorktree?: boolean, attachments?: Attachment[]): Promise<boolean> =>

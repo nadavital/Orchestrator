@@ -540,6 +540,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
     runAutomatedTranscriptLayoutSmoke(win, outputPath, screenshotPath)
     return
   }
+  if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-fork') {
+    runAutomatedTranscriptForkSmoke(win, outputPath, screenshotPath)
+    return
+  }
   if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-live-lifecycle') {
     runAutomatedTranscriptLiveLifecycleSmoke(win, outputPath, screenshotPath)
     return
@@ -22755,6 +22759,64 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
   })
 }
 
+function runAutomatedTranscriptForkSmoke(win: BrowserWindow, outputPath: string, screenshotPath?: string): void {
+  win.webContents.once('did-finish-load', () => {
+    setTimeout(async () => {
+      try {
+        win.setMinimumSize(520, 600)
+        win.setSize(860, 720)
+        const profile = getAppProfile()
+        const session = sessionManager.list().find((candidate) => candidate.name === 'Transcript layout smoke')
+        if (session) {
+          win.webContents.send('pet:navigate', session.id)
+          await new Promise((resolve) => setTimeout(resolve, 220))
+        }
+        const result = await win.webContents.executeJavaScript(`
+          (async () => {
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            const scroller = document.querySelector('[data-testid="transcript-scroll"]');
+            if (!(scroller instanceof HTMLElement)) return { transcriptFound: false };
+            scroller.scrollTop = 0;
+            scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
+            await sleep(220);
+            const forkButton = document.querySelector('[data-message-id="transcript-layout-user"] [data-testid="chat-message-fork"]');
+            return {
+              transcriptFound: true,
+              chatMessageForkButtonVisible:
+                forkButton instanceof HTMLButtonElement &&
+                forkButton.getAttribute('aria-label') === 'Fork from here'
+            };
+          })()
+        `)
+        const forkedFromMessage = session
+          ? await sessionManager.fork(session.id, 'local', { throughMessageId: 'transcript-layout-user' })
+          : null
+        const forkedText = forkedFromMessage?.messages.map((message) => message.type === 'text' ? message.content : '').join('\n') ?? ''
+        const forkBackendResult = {
+          chatMessageForkFromHere:
+            forkedFromMessage?.messages.length === 2 &&
+            forkedText.includes('Please inspect this intentionally long input') &&
+            forkedText.includes('Forked from "Transcript layout smoke" at a selected message.'),
+          chatMessageForkTruncatesLaterTurns:
+            forkedFromMessage?.messages.length === 2 &&
+            !forkedText.includes('TRANSCRIPT_LAYOUT_SMOKE') &&
+            !forkedText.includes('Provider transport failed before completing this coding request.'),
+          chatMessageForkClearsProviderSession: forkedFromMessage?.providerSessionId === null
+        }
+        if (screenshotPath) {
+          const image = await win.webContents.capturePage()
+          writeFileSync(screenshotPath, image.toPNG())
+        }
+        writeFileSync(outputPath, JSON.stringify({ ok: true, result: { profile, ...result, ...forkBackendResult }, screenshotPath }, null, 2))
+        app.quit()
+      } catch (error) {
+        writeFileSync(outputPath, JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2))
+        app.quit()
+      }
+    }, 700)
+  })
+}
+
 function runAutomatedTranscriptLiveLifecycleSmoke(win: BrowserWindow, outputPath: string, screenshotPath?: string): void {
   win.webContents.once('did-finish-load', () => {
     setTimeout(async () => {
@@ -25358,7 +25420,10 @@ async function bootstrapAutomatedUiSmokeState(): Promise<void> {
     seedAutomatedScrollSmokeSession(session.id)
   } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'sidebar') {
     await seedAutomatedSidebarSmokeSessions(project.id, project.rootPath)
-  } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-layout') {
+  } else if (
+    process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-layout' ||
+    process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-fork'
+  ) {
     seedAutomatedTranscriptLayoutSmokeSession(session.id)
   } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-user-input') {
     seedAutomatedTranscriptUserInputSmokeSession(session.id)

@@ -76,6 +76,8 @@ const captureView = process.argv.includes('--settings-deeplink')
               ? 'transcript-live-model-switch'
             : process.argv.includes('--transcript-layout')
               ? 'transcript-layout'
+              : process.argv.includes('--transcript-fork')
+              ? 'transcript-fork'
               : process.argv.includes('--transcript-user-input')
                 ? 'transcript-user-input'
               : process.argv.includes('--transcript-permission')
@@ -2145,6 +2147,15 @@ child.on('exit', async (code) => {
         toolSummaryBounded: result.toolSummaryBounded === true,
         toolSummaryScrollable: result.toolSummaryScrollable === true,
         documentNoHorizontalOverflowAfterExpand: result.documentNoHorizontalOverflowAfterExpand === true
+      }
+    : captureView === 'transcript-fork'
+    ? {
+        isolatedProfile: result.profile?.isIsolated === true,
+        transcriptFound: result.transcriptFound === true,
+        chatMessageForkButtonVisible: result.chatMessageForkButtonVisible === true,
+        chatMessageForkFromHere: result.chatMessageForkFromHere === true,
+        chatMessageForkTruncatesLaterTurns: result.chatMessageForkTruncatesLaterTurns === true,
+        chatMessageForkClearsProviderSession: result.chatMessageForkClearsProviderSession === true
       }
     : captureView === 'transcript-user-input'
       ? {

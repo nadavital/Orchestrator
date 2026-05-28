@@ -6,7 +6,7 @@ import { closeSync, openSync, readFileSync, readSync, writeFileSync, mkdirSync, 
 import { tmpdir } from 'os'
 import { basename, dirname, extname, join } from 'path'
 import { inflateRawSync } from 'zlib'
-import type { Attachment, AutomationUpsertRequest, CapabilityCreateRequest, CapabilityDeleteRequest, CapabilitySyncRequest, CapabilityUpdateRequest, ChatMessage, GitLineBlameResult, GitPathActionResult, OpenPathMethod, OpenPathOptions, OpenPathResult, OpenTargetAvailability, PerformanceMetric, PreferredOpenTarget, ReviewDiffSource, Session, SessionForkMode, SideQuestionMessage, TranscriptPageRequest, WorkspaceSearchRequest } from '../types'
+import type { Attachment, AutomationUpsertRequest, CapabilityCreateRequest, CapabilityDeleteRequest, CapabilitySyncRequest, CapabilityUpdateRequest, ChatMessage, GitLineBlameResult, GitPathActionResult, OpenPathMethod, OpenPathOptions, OpenPathResult, OpenTargetAvailability, PerformanceMetric, PreferredOpenTarget, ReviewDiffSource, Session, SessionForkMode, SessionForkOptions, SideQuestionMessage, TranscriptPageRequest, WorkspaceSearchRequest } from '../types'
 import { browserWebviewPartitionForHost, isOrchestratorBrowserWebviewPartition } from '../types'
 import { projectStore } from './projects'
 import { sessionManager } from './sessions'
@@ -2804,11 +2804,11 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
     return deeplink
   })
   ipcMain.handle('sessions:create', (_, opts) => sessionManager.create(opts))
-  ipcMain.handle('sessions:fork', (_, id: string, mode: SessionForkMode) => {
+  ipcMain.handle('sessions:fork', (_, id: string, mode: SessionForkMode, options?: SessionForkOptions) => {
     if (!['local', 'same-worktree', 'new-worktree'].includes(mode)) {
       throw new Error(`Unsupported fork mode: ${mode}`)
     }
-    return sessionManager.fork(id, mode).then((forked) => {
+    return sessionManager.fork(id, mode, options ?? {}).then((forked) => {
       projectStore.addSession(forked.projectId, forked.id)
       return forked
     })
