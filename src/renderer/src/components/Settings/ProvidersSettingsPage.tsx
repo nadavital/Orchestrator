@@ -1597,9 +1597,9 @@ function ProviderConfigEditor({ providerId, color }: { providerId: string; color
             className="provider-config-textarea"
           />
           <div className="provider-config-footer">
-            <div className="provider-config-status" data-tone={statusTone}>
+            <ProviderConfigStatus tone={statusTone}>
               {error || (hasRedactions ? 'Secrets redacted; edit locally to change this file.' : saved ? 'Saved' : 'Local file override')}
-            </div>
+            </ProviderConfigStatus>
             <button
               type="button"
               onClick={save}
@@ -1612,10 +1612,31 @@ function ProviderConfigEditor({ providerId, color }: { providerId: string; color
         </>
       )}
       {!open && (
-        <div className="provider-config-status" data-tone={statusTone}>
+        <ProviderConfigStatus tone={statusTone}>
           {error || (hasRedactions ? 'Secrets redacted.' : saved ? 'Saved' : 'Local file override')}
-        </div>
+        </ProviderConfigStatus>
       )}
+    </div>
+  )
+}
+
+function ProviderConfigStatus({
+  tone,
+  children
+}: {
+  tone: 'error' | 'success' | 'warning' | 'muted'
+  children: ReactNode
+}): JSX.Element {
+  return (
+    <div
+      className="provider-config-status"
+      data-tone={tone}
+      data-provider-config-status-tone={tone}
+      role={tone === 'error' ? 'alert' : 'status'}
+      aria-live={tone === 'error' ? 'assertive' : 'polite'}
+      aria-atomic="true"
+    >
+      {children}
     </div>
   )
 }

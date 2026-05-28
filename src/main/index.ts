@@ -1039,6 +1039,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                   configFooter instanceof HTMLElement &&
                   configStatus instanceof HTMLElement &&
                   configStatus.getAttribute('data-tone') === 'muted' &&
+                  configStatus.getAttribute('data-provider-config-status-tone') === 'muted' &&
+                  configStatus.getAttribute('role') === 'status' &&
+                  configStatus.getAttribute('aria-live') === 'polite' &&
+                  configStatus.getAttribute('aria-atomic') === 'true' &&
                   configSave instanceof HTMLButtonElement &&
                   configSave.disabled === true;
                 const hideConfigButton = [...document.querySelectorAll('button')]
