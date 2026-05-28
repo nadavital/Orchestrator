@@ -9244,3 +9244,13 @@ Implemented: pending attachment chips now expose explicit `Cancel saving {file}`
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --composer` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1780006686832.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1780006686832.png`. The composer smoke adds `composerPendingAttachmentCancel=true`.
 
 Remaining: this closes local pending-save cancellation semantics and coverage. Richer context chips and provider-backed attachment/context behavior remain separate Phase 1 follow-ups; deep Office/PDF renderer fidelity remains Phase 2 unless it blocks coding workflows.
+
+### 2026-05-28 - File Source Open Outcome Diagnostics
+
+Product evidence: PP-048 tracks file search and open-file routing as a daily coding workflow. The main process already returned structured open results with target, method, line/column, fallback source, and opened-with detail, but file/source tabs discarded that outcome after the click. That made it hard to tell whether a source-line open used the intended editor target or fell back through another method.
+
+Implemented: File/source tabs now retain the last `fs.openPath` result, announce the resolved target/method/line/fallback in the tab action status, and expose smoke-readable attributes for the open result. The focused Files smoke exercises the source-line open path against a deterministic main-process smoke fixture for `review-base.txt:2` and gates the resolved target, method, line, fallback, opened-with detail, and live status text as `fileOpenTargetOutcomeDiagnostic=true`.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --files` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1780007258105.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1780007258105.png`. The focused run adds `fileOpenTargetOutcomeDiagnostic=true` while preserving file tab reset, source line utilities, add-to-chat, blame, source search, content-search line open, Office/artifact, notebook, and fallback gates.
+
+Remaining: this closes file-tab open outcome visibility only. Richer preview-mode/cwd semantics at call sites and optional custom open-target discovery remain PP-048 follow-ups.

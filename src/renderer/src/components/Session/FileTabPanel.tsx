@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { FilePreviewResult } from '../../env'
-import type { GitLineBlameResult, OpenTargetAvailability, PreferredOpenTarget } from '../../types'
+import type { GitLineBlameResult, OpenPathResult, OpenTargetAvailability, PreferredOpenTarget } from '../../types'
 import { artifactImportKindSupportsSource, artifactTabPresentationForPath } from '../../types'
 import type { RightPanelTabId, RightPanelTabState, SourceAnnotationState } from '../../store/sessions'
 import { Badge, IconButton, MenuItem, MenuSection, MenuSectionLabel, MenuSurface, PanelToolbar } from '../shared/designSystem'
@@ -59,6 +59,7 @@ export default function FileTabPanel({
   const [openTargets, setOpenTargets] = useState<OpenTargetAvailability[]>([])
   const [fileActionsOpen, setFileActionsOpen] = useState(false)
   const [fileActionStatus, setFileActionStatus] = useState('')
+  const [lastOpenResult, setLastOpenResult] = useState<OpenPathResult | null>(null)
   const absolutePath = joinPath(workDir, filePath)
   const name = basename(filePath)
   const sourceMode = fileViewMode === 'source'
@@ -68,6 +69,7 @@ export default function FileTabPanel({
     setPreview(null)
     setCopiedLineReference('')
     setFileActionStatus('')
+    setLastOpenResult(null)
     setLineBlame(null)
     setSourceBlameByLine(new Map())
     window.api.fs.previewFile(absolutePath)
@@ -193,11 +195,27 @@ export default function FileTabPanel({
     if (selectedSourceLine === null) return
     setFileActionStatus(`Opening line ${selectedSourceLine}`)
     void window.api.fs.openPath(absolutePath, { line: selectedSourceLine })
+      .then((result) => {
+        setLastOpenResult(result)
+        setFileActionStatus(openResultStatus(result))
+      })
+      .catch(() => {
+        setLastOpenResult(null)
+        setFileActionStatus('Open failed')
+      })
   }
 
   const openFile = (): void => {
     setFileActionStatus('Opening in editor')
     void window.api.fs.openPath(absolutePath)
+      .then((result) => {
+        setLastOpenResult(result)
+        setFileActionStatus(openResultStatus(result))
+      })
+      .catch(() => {
+        setLastOpenResult(null)
+        setFileActionStatus('Open failed')
+      })
   }
 
   const revealFile = (): void => {
@@ -484,6 +502,13 @@ export default function FileTabPanel({
       data-file-tab-artifact-source-supported={artifactSourceSupported ? 'true' : 'false'}
       data-file-tab-loading={preview === null ? 'true' : 'false'}
       data-file-tab-action-status={fileActionStatus}
+      data-file-tab-open-result-ok={lastOpenResult === null ? '' : lastOpenResult.ok ? 'true' : 'false'}
+      data-file-tab-open-result-target={lastOpenResult?.target ?? ''}
+      data-file-tab-open-result-method={lastOpenResult?.method ?? ''}
+      data-file-tab-open-result-line={lastOpenResult?.line ?? ''}
+      data-file-tab-open-result-column={lastOpenResult?.column ?? ''}
+      data-file-tab-open-result-fallback-from={lastOpenResult?.fallbackFrom ?? ''}
+      data-file-tab-open-result-opened-with={lastOpenResult?.openedWith ?? ''}
       data-file-tab-source-search-query={sourceSearchQuery.trim()}
       data-file-tab-source-search-count={sourceSearchMatches.length}
       data-file-tab-source-search-index={sourceSearchActiveIndex >= 0 ? sourceSearchActiveIndex + 1 : 0}
@@ -892,6 +917,14 @@ function openTargetShortLabel(editor: PreferredOpenTarget): string {
     case 'system':
       return 'System'
   }
+}
+
+function openResultStatus(result: OpenPathResult): string {
+  if (!result.ok) return result.message ? `Open failed: ${result.message}` : 'Open failed'
+  const target = openTargetShortLabel(result.target)
+  const location = result.line ? ` at line ${result.line}${result.column ? `:${result.column}` : ''}` : ''
+  const fallback = result.fallbackFrom ? ` via ${result.method}` : ''
+  return `Opened in ${target}${location}${fallback}`
 }
 
 function blameInfo(result: GitLineBlameResult | null): { label: string; source: 'unknown' | 'commit' | 'working-tree' | 'unavailable' } {

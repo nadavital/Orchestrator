@@ -13703,6 +13703,7 @@ function runAutomatedFocusedSurfaceSmoke(
               let fileSourceModeWorks = false;
               let fileSourceLineUtilitiesWorks = false;
               let fileSourceActionStatusWorks = false;
+              let fileOpenTargetOutcomeDiagnosticWorks = false;
               let fileSourceAddToChatWorks = false;
               let fileSourceLineBlameWorks = false;
               const fileActionMenuButton = findButton('File actions');
@@ -16183,6 +16184,25 @@ function runAutomatedFocusedSurfaceSmoke(
                 openSelectedLineButton instanceof HTMLButtonElement &&
                 copySelectedLineButton.disabled === false &&
                 openSelectedLineButton.disabled === false;
+              if (openSelectedLineButton instanceof HTMLButtonElement) {
+                openSelectedLineButton.click();
+                await sleep(180);
+                const sourceFileTabAfterOpen = document.querySelector('[data-testid="workbench-file-tab"]');
+                const sourceActionStatusAfterOpen = document.querySelector('[data-testid="workbench-file-tab-action-status"]');
+                fileOpenTargetOutcomeDiagnosticWorks =
+                  sourceFileTabAfterOpen instanceof HTMLElement &&
+                  sourceFileTabAfterOpen.getAttribute('data-file-tab-open-result-ok') === 'true' &&
+                  sourceFileTabAfterOpen.getAttribute('data-file-tab-open-result-target') === 'cursor' &&
+                  sourceFileTabAfterOpen.getAttribute('data-file-tab-open-result-method') === 'url-scheme' &&
+                  sourceFileTabAfterOpen.getAttribute('data-file-tab-open-result-line') === '2' &&
+                  sourceFileTabAfterOpen.getAttribute('data-file-tab-open-result-fallback-from') === 'cli' &&
+                  (sourceFileTabAfterOpen.getAttribute('data-file-tab-open-result-opened-with') ?? '').startsWith('cursor://file/') &&
+                  sourceFileTabAfterOpen.getAttribute('data-file-tab-action-status') === 'Opened in Cursor at line 2 via url-scheme' &&
+                  sourceActionStatusAfterOpen instanceof HTMLElement &&
+                  sourceActionStatusAfterOpen.getAttribute('role') === 'status' &&
+                  sourceActionStatusAfterOpen.getAttribute('aria-live') === 'polite' &&
+                  sourceActionStatusAfterOpen.textContent?.includes('Opened in Cursor at line 2 via url-scheme') === true;
+              }
               const sourceAddToChatButton = document.querySelector('[data-testid="workbench-file-tab"] button[aria-label="Add file to chat"]');
               if (sourceAddToChatButton instanceof HTMLButtonElement) {
                 sourceAddToChatButton.click();
@@ -16540,6 +16560,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 workbenchFileTabCodexActionClusterWorks,
                 workbenchFileTabResetWorks,
                 fileOpenTargetDiagnosticWorks: workbenchFileTabWorks,
+                fileOpenTargetOutcomeDiagnosticWorks,
                 fileSourceLineSelectionWorks,
                 fileSourceLineUtilitiesWorks,
                 fileSourceActionStatusWorks,
