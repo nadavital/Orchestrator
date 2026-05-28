@@ -5596,6 +5596,14 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                   button.textContent?.includes('Claude') === true &&
                   button.getAttribute('aria-pressed') === 'true'
                 );
+            const activeThreadCodexProviderChoice = activeThreadProviderChoiceGroup instanceof HTMLElement
+              ? [...activeThreadProviderChoiceGroup.querySelectorAll('button')]
+                  .find((button) =>
+                    button instanceof HTMLButtonElement &&
+                    button.textContent?.includes('Codex') === true &&
+                    !button.disabled
+                  )
+              : null;
             var composerAgentChoiceA11y =
               composerActiveThreadSettings &&
               agentChoiceGroups.length >= 3 &&
@@ -5618,6 +5626,27 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                   text !== text.toUpperCase() &&
                   getComputedStyle(label).textTransform !== 'uppercase';
             });
+            var composerActiveThreadProviderSwitch = false;
+            if (activeThreadCodexProviderChoice instanceof HTMLButtonElement) {
+              activeThreadCodexProviderChoice.click();
+              await sleep(360);
+              const switchedAgentButton = document.querySelector('[data-testid="composer-agent-menu"]');
+              const switchedSummary = document.querySelector('[data-testid="composer-active-agent-summary"]');
+              const switchedModelChoices = [...document.querySelectorAll('.motion-popover-surface [role="group"][aria-label="Model choices"] button')]
+                .filter((button) => button instanceof HTMLButtonElement);
+              composerActiveThreadProviderSwitch =
+                switchedAgentButton instanceof HTMLElement &&
+                switchedAgentButton.textContent?.includes('Codex') === true &&
+                switchedSummary instanceof HTMLElement &&
+                switchedSummary.textContent?.includes('Codex') === true &&
+                switchedModelChoices.some((button) =>
+                  button instanceof HTMLButtonElement &&
+                  button.textContent?.includes('GPT') === true &&
+                  button.getAttribute('aria-pressed') === 'true'
+                );
+            } else {
+              composerActiveThreadProviderSwitch = composerActiveThreadProviderChoices;
+            }
             document.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, clientX: 1, clientY: 1 }));
             await sleep(300);
             var composerAgentMenuClosedWithOutsideClick = !document.querySelector('.motion-popover-surface');
@@ -6256,11 +6285,12 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
           }
           const headerMetadataText = document.querySelector('[data-testid="session-header-metadata"]')?.textContent ?? '';
           const activeSessionTitle = document.querySelector('[data-testid="active-session-title"]');
+          const headerProviderIdentityWorks = /Claude|Codex|Cursor|Copilot/.test(headerMetadataText);
           const headerIdentityWorks =
             activeSessionTitle instanceof HTMLElement &&
             !document.querySelector('[data-testid="session-header-environment"]') &&
             headerMetadataText.includes('Automated UI Smoke') &&
-            headerMetadataText.includes('Claude') &&
+            headerProviderIdentityWorks &&
             headerMetadataText.length > 'Automated UI Smoke'.length;
           const headerTooltipIds = ['active-session-title', 'session-header-metadata', 'profile-badge'];
           if (document.querySelector('[data-testid="session-header-pinned"]')) headerTooltipIds.push('session-header-pinned');
@@ -6746,6 +6776,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             composerAgentTriggerExpandedOnOpen: typeof composerAgentTriggerExpandedOnOpen === 'boolean' ? composerAgentTriggerExpandedOnOpen : null,
             composerActiveThreadSettings: typeof composerActiveThreadSettings === 'boolean' ? composerActiveThreadSettings : null,
             composerActiveThreadProviderChoices: typeof composerActiveThreadProviderChoices === 'boolean' ? composerActiveThreadProviderChoices : null,
+            composerActiveThreadProviderSwitch: typeof composerActiveThreadProviderSwitch === 'boolean' ? composerActiveThreadProviderSwitch : null,
             composerAgentChoiceA11y: typeof composerAgentChoiceA11y === 'boolean' ? composerAgentChoiceA11y : null,
             composerAgentRowLabelsCalm: typeof composerAgentRowLabelsCalm === 'boolean' ? composerAgentRowLabelsCalm : null,
             composerAgentMenuClosedWithOutsideClick: typeof composerAgentMenuClosedWithOutsideClick === 'boolean' ? composerAgentMenuClosedWithOutsideClick : null,
@@ -6994,7 +7025,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   activeSessionTitle instanceof HTMLElement &&
                   !document.querySelector('[data-testid="session-header-environment"]') &&
                   headerMetadataText.includes('Automated UI Smoke') &&
-                  headerMetadataText.includes('Claude') &&
+                  /Claude|Codex|Cursor|Copilot/.test(headerMetadataText) &&
                   headerMetadataText.length > 'Automated UI Smoke'.length,
                 headerMetadataTooltipOnlyWorks:
                   headerMetadata instanceof HTMLElement &&
