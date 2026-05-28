@@ -6177,8 +6177,19 @@ function runAutomatedFocusedSurfaceSmoke(
                       }
                     },
                     {
-                      id: 'agent-inspector-smoke-run-failed',
+                      id: 'agent-inspector-smoke-tool-failed',
                       timestamp: now + 3,
+                      event: {
+                        type: 'tool.completed',
+                        id: 'agent-inspector-smoke-tool-result',
+                        toolUseId: 'agent-inspector-smoke-tool',
+                        content: 'Shell command failed while collecting diagnostics.',
+                        isError: true
+                      }
+                    },
+                    {
+                      id: 'agent-inspector-smoke-run-failed',
+                      timestamp: now + 4,
                       event: {
                         type: 'run.failed',
                         content: 'Runtime transport failed during diagnostics smoke.'
@@ -6186,7 +6197,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     },
                     {
                       id: 'agent-inspector-smoke-text-completed',
-                      timestamp: now + 4,
+                      timestamp: now + 5,
                       event: {
                         type: 'agent.text.completed',
                         agentId: 'agent-inspector-smoke',
@@ -6216,6 +6227,9 @@ function runAutomatedFocusedSurfaceSmoke(
                   .filter((row) => row instanceof HTMLButtonElement);
                 const runtimeIssues = document.querySelector('[data-testid="agent-runtime-issues"]');
                 const runtimeIssueSummary = document.querySelector('[data-testid="agent-runtime-issue-summary"]');
+                const failureGroups = document.querySelector('[data-testid="agent-runtime-failure-groups"]');
+                const failureGroupRows = [...document.querySelectorAll('[data-testid="agent-runtime-failure-group"]')]
+                  .filter((row) => row instanceof HTMLElement);
                 const runtimeIssueRows = [...document.querySelectorAll('[data-testid="agent-runtime-issue"]')]
                   .filter((row) => row instanceof HTMLButtonElement);
                 const failedRuntimeIssueRow = runtimeIssueRows.find((row) => row.textContent?.includes('Runtime transport failed'));
@@ -6224,13 +6238,21 @@ function runAutomatedFocusedSurfaceSmoke(
                   await sleep(100);
                 }
                 const failedIssueDetail = document.querySelector('[data-testid="agent-event-detail"]');
+                const agentRuntimeFailureGroupsWorks =
+                  failureGroups instanceof HTMLElement &&
+                  failureGroups.getAttribute('data-agent-runtime-failure-group-count') === '2' &&
+                  failureGroupRows.length === 2 &&
+                  failureGroups.textContent?.includes('Provider run') === true &&
+                  failureGroups.textContent?.includes('Tool: agent-inspector-smoke-tool') === true &&
+                  failureGroups.textContent?.includes('Shell command failed') === true;
                 const agentRuntimeIssueTriageWorks =
                   runtimeIssues instanceof HTMLElement &&
                   runtimeIssueSummary instanceof HTMLElement &&
-                  runtimeIssueSummary.getAttribute('data-agent-runtime-issue-count') === '2' &&
-                  runtimeIssueSummary.getAttribute('data-agent-runtime-failure-count') === '1' &&
+                  runtimeIssueSummary.getAttribute('data-agent-runtime-issue-count') === '3' &&
+                  runtimeIssueSummary.getAttribute('data-agent-runtime-failure-count') === '2' &&
                   runtimeIssueSummary.getAttribute('data-agent-runtime-waiting-count') === '1' &&
-                  runtimeIssueRows.length >= 2 &&
+                  agentRuntimeFailureGroupsWorks &&
+                  runtimeIssueRows.length >= 3 &&
                   failedRuntimeIssueRow instanceof HTMLButtonElement &&
                   failedIssueDetail instanceof HTMLElement &&
                   failedIssueDetail.textContent?.includes('run.failed') === true;
@@ -6325,9 +6347,10 @@ function runAutomatedFocusedSurfaceSmoke(
                     failureFilteredList instanceof HTMLElement &&
                     failureFilterSeverity === 'failures' &&
                     failureFilterSource === 'all' &&
-                    failureFilterCount === '1' &&
-                    failureFilteredRows.length === 1 &&
+                    failureFilterCount === '2' &&
+                    failureFilteredRows.length === 2 &&
                     failureFilterText.includes('Runtime transport failed') === true &&
+                    failureFilterText.includes('Tool failed') === true &&
                     approvalFilteredList instanceof HTMLElement &&
                     approvalFilteredList.getAttribute('data-agent-event-severity-filter') === 'waiting' &&
                     approvalFilteredList.getAttribute('data-agent-event-source-filter') === 'approvals' &&
@@ -6359,6 +6382,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     (activeNewTab.textContent ?? '').includes('New tab'),
                   workbenchNewTabAgentsActionWorks,
                   agentRuntimeEventDetailWorks,
+                  agentRuntimeFailureGroupsWorks,
                   agentSelectedTimelineWorks,
                   agentRuntimeEventFacetFiltersWork,
                   agentRuntimeEventFacetFilterError,

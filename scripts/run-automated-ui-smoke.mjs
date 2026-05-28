@@ -2237,6 +2237,7 @@ child.on('exit', async (code) => {
           agentSelectedTimeline: result.agentSelectedTimelineWorks === true,
           agentRuntimeEventFacetFilters: result.agentRuntimeEventFacetFiltersWork === true,
           agentRuntimeEventFilter: result.agentRuntimeEventFilterWorks === true,
+          agentRuntimeFailureGroups: result.agentRuntimeFailureGroupsWorks === true,
           agentRuntimeIssueTriage: result.agentRuntimeIssueTriageWorks === true,
           workbenchNewTabCards: Number(result.workbenchNewTabActionCount ?? 0) >= 5,
           workbenchNewTabNoHorizontalOverflow: result.workbenchNewTabNoHorizontalOverflow === true

@@ -181,6 +181,7 @@ function SessionContextSummary({
       return counts
     }, { failures: 0, waiting: 0 })
   }, [issueEvents])
+  const failureCauseGroups = useMemo(() => groupFailureCauses(issueEvents), [issueEvents])
 
   return (
     <div
@@ -223,6 +224,31 @@ function SessionContextSummary({
             <CompactMetric label="Failures" value={runtimeIssueCounts.failures} />
             <CompactMetric label="Waiting" value={runtimeIssueCounts.waiting} />
           </div>
+          {failureCauseGroups.length > 0 && (
+            <div
+              className="grid gap-1.5"
+              data-testid="agent-runtime-failure-groups"
+              data-agent-runtime-failure-group-count={failureCauseGroups.length}
+            >
+              {failureCauseGroups.map((group) => (
+                <InspectorRow
+                  key={group.cause}
+                  variant="muted"
+                  dataTestId="agent-runtime-failure-group"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-[11px] font-semibold" style={{ color: 'var(--color-text)' }}>
+                      {group.cause}
+                    </div>
+                    <div className="truncate text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
+                      {group.latest}
+                    </div>
+                  </div>
+                  <Badge tone="danger">{group.count}</Badge>
+                </InspectorRow>
+              ))}
+            </div>
+          )}
           <div className="grid gap-1.5">
             {issueEvents.map((record) => (
               <button
@@ -478,6 +504,7 @@ function sessionStatusTone(status: Session['status']): 'accent' | 'success' | 'w
 function eventTone(record: SessionRunEventRecord): 'accent' | 'success' | 'warning' | 'danger' | 'neutral' {
   const { type } = record.event
   if (type === 'run.failed' || type === 'agent.failed') return 'danger'
+  if (type === 'tool.completed' && record.event.isError) return 'danger'
   if (type === 'permission.requested' || type === 'user_input.requested' || type === 'connection.reconnecting' || type === 'connection.retrying') return 'warning'
   if (type === 'run.completed' || type === 'agent.completed' || type === 'tool.completed') return 'success'
   if (type.startsWith('assistant.') || type.startsWith('agent.')) return 'accent'
@@ -496,6 +523,42 @@ function isRuntimeIssueEvent(record: SessionRunEventRecord): boolean {
     event.type === 'user_input.requested' ||
     event.type === 'connection.reconnecting' ||
     event.type === 'connection.retrying'
+}
+
+function groupFailureCauses(records: SessionRunEventRecord[]): Array<{ cause: string; count: number; latest: string; timestamp: number }> {
+  const groups = new Map<string, { cause: string; count: number; latest: string; timestamp: number }>()
+  for (const record of records) {
+    if (eventTone(record) !== 'danger') continue
+    const cause = failureCause(record)
+    const previous = groups.get(cause)
+    if (!previous || record.timestamp > previous.timestamp) {
+      groups.set(cause, {
+        cause,
+        count: (previous?.count ?? 0) + 1,
+        latest: failureDetail(record),
+        timestamp: record.timestamp
+      })
+    } else {
+      previous.count += 1
+    }
+  }
+  return [...groups.values()].sort((a, b) => b.count - a.count || b.timestamp - a.timestamp)
+}
+
+function failureCause(record: SessionRunEventRecord): string {
+  const { event } = record
+  if (event.type === 'tool.completed' && event.isError) return `Tool: ${event.toolUseId}`
+  if (event.type === 'agent.failed') return 'Agent failed'
+  if (event.type === 'run.failed') return 'Provider run'
+  return 'Failure'
+}
+
+function failureDetail(record: SessionRunEventRecord): string {
+  const { event } = record
+  if (event.type === 'tool.completed' && event.isError) return compactText(event.content)
+  if (event.type === 'agent.failed') return event.agent.summary ?? event.agent.name ?? event.agent.id
+  if (event.type === 'run.failed') return event.content ?? 'Run failed'
+  return eventTitle(record)
 }
 
 function eventMatchesSeverityFilter(record: SessionRunEventRecord, filter: EventSeverityFilter): boolean {
