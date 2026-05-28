@@ -4333,6 +4333,23 @@
     color: var(--state-warning);
   }
 
+  .file-tab-action-status {
+    min-width: 0;
+    max-width: 116px;
+    flex: 0 1 auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border-subtle));
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--accent) 8%, var(--surface-bg));
+    color: var(--accent);
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 12px;
+    padding: 2px 7px;
+  }
+
   .file-tab-blame {
     max-width: 124px;
     flex: 1 1 auto;
@@ -4378,6 +4395,7 @@
     }
 
     .file-tab-open-target,
+    .file-tab-action-status,
     .file-tab-blame {
       max-width: 86px;
     }

@@ -510,6 +510,18 @@ Still needed:
 
 - Continue Extensions work only when real provider data or live Codex comparison reveals a workflow/functionality gap; the known local primitive migration item is closed for the current embedded panel.
 
+### P1: Files Source Tabs
+
+Why it matters: source tabs are a daily coding surface. File actions should behave like app controls with visible, announced results rather than silent clipboard/open/reveal side effects.
+
+Current verification:
+
+- `node scripts/run-automated-ui-smoke.mjs --files` now verifies `fileSourceActionStatus=true`, covering the compact file-tab action status live region for copy-line feedback and success/failure semantics.
+
+Still needed:
+
+- Provider-backed comments/blame, provider/global indexed workspace search, and exact live Codex source-find focus timing remain open. Deep Office/PDF renderer fidelity stays Phase 2 unless it blocks coding workflows.
+
 ### P1: Capabilities Edit/Sync Sheets
 
 Why it matters: the create flow and rows are partially migrated, but edit/sync still use local sheet/backdrop layout.

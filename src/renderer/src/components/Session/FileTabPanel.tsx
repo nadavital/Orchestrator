@@ -56,6 +56,7 @@ export default function FileTabPanel({
   const [preferredOpenTarget, setPreferredOpenTarget] = useState<PreferredOpenTarget>('system')
   const [openTargets, setOpenTargets] = useState<OpenTargetAvailability[]>([])
   const [fileActionsOpen, setFileActionsOpen] = useState(false)
+  const [fileActionStatus, setFileActionStatus] = useState('')
   const absolutePath = joinPath(workDir, filePath)
   const name = basename(filePath)
   const sourceMode = fileViewMode === 'source'
@@ -64,6 +65,7 @@ export default function FileTabPanel({
     let cancelled = false
     setPreview(null)
     setCopiedLineReference('')
+    setFileActionStatus('')
     setLineBlame(null)
     setSourceBlameByLine(new Map())
     window.api.fs.previewFile(absolutePath)
@@ -160,19 +162,36 @@ export default function FileTabPanel({
   }
 
   const copyPath = (): void => {
+    setFileActionStatus('Copying path')
     void navigator.clipboard.writeText(filePath)
+      .then(() => setFileActionStatus('Path copied'))
+      .catch(() => setFileActionStatus('Copy failed'))
   }
 
   const copySelectedLineReference = (): void => {
     if (selectedSourceLine === null) return
     const reference = `${filePath}:${selectedSourceLine}`
     setCopiedLineReference(reference)
+    setFileActionStatus('Copying line reference')
     void navigator.clipboard.writeText(reference)
+      .then(() => setFileActionStatus('Line reference copied'))
+      .catch(() => setFileActionStatus('Copy failed'))
   }
 
   const openSelectedLine = (): void => {
     if (selectedSourceLine === null) return
+    setFileActionStatus(`Opening line ${selectedSourceLine}`)
     void window.api.fs.openPath(absolutePath, { line: selectedSourceLine })
+  }
+
+  const openFile = (): void => {
+    setFileActionStatus('Opening in editor')
+    void window.api.fs.openPath(absolutePath)
+  }
+
+  const revealFile = (): void => {
+    setFileActionStatus('Revealing file')
+    void window.api.fs.showInFolder(absolutePath)
   }
 
   const revealSelectedLine = (): void => {
@@ -185,6 +204,7 @@ export default function FileTabPanel({
   }
 
   const addToChat = (): void => {
+    setFileActionStatus('Added file to chat')
     window.dispatchEvent(new CustomEvent('orchestrator:add-composer-attachment', {
       detail: {
         path: absolutePath,
@@ -362,12 +382,12 @@ export default function FileTabPanel({
             <MenuItem
               icon="external"
               label="Open in editor"
-              onClick={() => { void window.api.fs.openPath(absolutePath); setFileActionsOpen(false) }}
+              onClick={() => { openFile(); setFileActionsOpen(false) }}
             />
             <MenuItem
               icon="folder"
               label="Reveal file"
-              onClick={() => { void window.api.fs.showInFolder(absolutePath); setFileActionsOpen(false) }}
+              onClick={() => { revealFile(); setFileActionsOpen(false) }}
             />
           </MenuSection>
           <MenuSection dataTestId="file-tab-actions-view-section">
@@ -448,6 +468,7 @@ export default function FileTabPanel({
       data-file-tab-artifact-import-kind={artifactPresentation?.importKind ?? 'none'}
       data-file-tab-artifact-source-supported={artifactSourceSupported ? 'true' : 'false'}
       data-file-tab-loading={preview === null ? 'true' : 'false'}
+      data-file-tab-action-status={fileActionStatus}
       data-file-tab-source-search-query={sourceSearchQuery.trim()}
       data-file-tab-source-search-count={sourceSearchMatches.length}
       data-file-tab-source-search-index={sourceSearchActiveIndex >= 0 ? sourceSearchActiveIndex + 1 : 0}
@@ -488,6 +509,17 @@ export default function FileTabPanel({
               data-line-blame-source={blame.source}
             >
               L{selectedSourceLine}{blame.label ? ` · ${blame.label}` : lineBlame?.ok === false ? ' · Blame unavailable' : ''}
+            </span>
+          )}
+          {fileActionStatus && (
+            <span
+              className="file-tab-action-status"
+              data-testid="workbench-file-tab-action-status"
+              role={fileActionStatus.toLowerCase().includes('failed') ? 'alert' : 'status'}
+              aria-live={fileActionStatus.toLowerCase().includes('failed') ? 'assertive' : 'polite'}
+              aria-atomic="true"
+            >
+              {fileActionStatus}
             </span>
           )}
         </span>
@@ -576,9 +608,9 @@ export default function FileTabPanel({
             onClick={() => addSourceAnnotation(selectedSourceLine)}
           />
           <IconButton icon="copy" label="Copy path" size="sm" variant="toolbar" className="file-tab-secondary-action" onClick={copyPath} />
-          <IconButton icon="folder" label="Reveal file" size="sm" variant="toolbar" className="file-tab-secondary-action" onClick={() => { void window.api.fs.showInFolder(absolutePath) }} />
+          <IconButton icon="folder" label="Reveal file" size="sm" variant="toolbar" className="file-tab-secondary-action" onClick={revealFile} />
           {fileActionsMenu}
-          <IconButton icon="external" label="Open in editor" size="sm" variant="toolbar" dataTestId="workbench-file-tab-open-editor" onClick={() => { void window.api.fs.openPath(absolutePath) }} />
+          <IconButton icon="external" label="Open in editor" size="sm" variant="toolbar" dataTestId="workbench-file-tab-open-editor" onClick={openFile} />
         </span>
       </PanelToolbar>
       <div

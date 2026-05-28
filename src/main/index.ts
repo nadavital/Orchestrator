@@ -12063,6 +12063,7 @@ function runAutomatedFocusedSurfaceSmoke(
               let fileSourceWrapToggleWorks = false;
               let fileSourceModeWorks = false;
               let fileSourceLineUtilitiesWorks = false;
+              let fileSourceActionStatusWorks = false;
               let fileSourceLineBlameWorks = false;
               const fileActionMenuButton = findButton('File actions');
               if (fileActionMenuButton instanceof HTMLButtonElement) {
@@ -14399,6 +14400,19 @@ function runAutomatedFocusedSurfaceSmoke(
                 await sleep(120);
               }
               const sourceFileTabAfterCopy = document.querySelector('[data-testid="workbench-file-tab"]');
+              const sourceActionStatusAfterCopy = document.querySelector('[data-testid="workbench-file-tab-action-status"]');
+              const sourceActionStatus = sourceFileTabAfterCopy instanceof HTMLElement
+                ? sourceFileTabAfterCopy.getAttribute('data-file-tab-action-status') ?? ''
+                : '';
+              const sourceActionStatusIsFailure = sourceActionStatus.toLowerCase().includes('failed');
+              fileSourceActionStatusWorks =
+                sourceFileTabAfterCopy instanceof HTMLElement &&
+                ['Copying line reference', 'Line reference copied', 'Copy failed'].includes(sourceActionStatus) &&
+                sourceActionStatusAfterCopy instanceof HTMLElement &&
+                sourceActionStatusAfterCopy.getAttribute('role') === (sourceActionStatusIsFailure ? 'alert' : 'status') &&
+                sourceActionStatusAfterCopy.getAttribute('aria-live') === (sourceActionStatusIsFailure ? 'assertive' : 'polite') &&
+                sourceActionStatusAfterCopy.getAttribute('aria-atomic') === 'true' &&
+                sourceActionStatusAfterCopy.textContent?.includes(sourceActionStatus) === true;
               fileSourceLineUtilitiesWorks =
                 sourceFileTab instanceof HTMLElement &&
                 sourceFileTab.getAttribute('data-file-tab-selected-source-line') === '2' &&
@@ -14746,6 +14760,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 fileOpenTargetDiagnosticWorks: workbenchFileTabWorks,
                 fileSourceLineSelectionWorks,
                 fileSourceLineUtilitiesWorks,
+                fileSourceActionStatusWorks,
                 fileSourceLineBlameWorks,
                 fileSourceBlameDetailsWorks,
                 fileSourceGutterBlameWorks,
