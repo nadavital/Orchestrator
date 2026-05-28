@@ -223,7 +223,7 @@ declare global {
         writeToPty: (sessionId: string, data: string) => Promise<void>
         grantAndResume: (sessionId: string, toolNames: string[]) => Promise<void>
         allowOnceAndResume: (sessionId: string, toolNames: string[]) => Promise<void>
-        answerUserInput: (sessionId: string, answer: string) => Promise<void>
+        answerUserInput: (sessionId: string, answer: string) => Promise<{ ok: boolean; error?: string }>
         denyPermission: (sessionId: string) => Promise<void>
       }
       worktrees: {

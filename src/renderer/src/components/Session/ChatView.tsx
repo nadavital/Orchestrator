@@ -2455,17 +2455,19 @@ function UserInputCard({
 }): JSX.Element {
   const [answer, setAnswer] = useState('')
   const [questionAnswers, setQuestionAnswers] = useState<Record<string, string[]>>({})
-  const [submitted, setSubmitted] = useState(false)
+  const [submitState, setSubmitState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
+  const [submitError, setSubmitError] = useState<string | null>(null)
   const answerInputRef = useRef<HTMLTextAreaElement>(null)
   const questions = msg.userInputQuestions?.length ? msg.userInputQuestions : [{ question: msg.content }]
   const requestIsActive = sessionStatus === 'waiting_for_user'
-  const isAnswered = submitted || !requestIsActive
+  const isAnswered = submitState === 'sent' || !requestIsActive
+  const isSending = submitState === 'sending'
   const hasMultipleQuestions = questions.length > 1
 
   useEffect(() => {
-    if (!requestIsActive || submitted) return
+    if (!requestIsActive || submitState === 'sent') return
     answerInputRef.current?.focus({ preventScroll: true })
-  }, [requestIsActive, submitted])
+  }, [requestIsActive, submitState])
 
   const composeAnswer = (freeform: string): string => {
     const selectedAnswers = questions.flatMap((question, index) => {
@@ -2484,8 +2486,20 @@ function UserInputCard({
   const submitAnswer = async (value: string): Promise<void> => {
     const trimmed = value.trim()
     if (!trimmed) return
-    setSubmitted(true)
-    await window.api.sessions.answerUserInput(sessionId, trimmed)
+    setSubmitState('sending')
+    setSubmitError(null)
+    try {
+      const result = await window.api.sessions.answerUserInput(sessionId, trimmed)
+      if (result.ok) {
+        setSubmitState('sent')
+      } else {
+        setSubmitState('error')
+        setSubmitError(result.error ?? 'Could not resume the session.')
+      }
+    } catch (error) {
+      setSubmitState('error')
+      setSubmitError(error instanceof Error ? error.message : 'Could not resume the session.')
+    }
   }
 
   const selectQuestionAnswer = (question: UserInputQuestion, index: number, value: string): void => {
@@ -2527,7 +2541,7 @@ function UserInputCard({
               key={`${question.question}-${index}`}
               question={question}
               index={index}
-              disabled={isAnswered}
+              disabled={isAnswered || isSending}
               selectedAnswers={questionAnswers[questionInputKey(question, index)] ?? []}
               onSelectAnswer={(value) => {
                 if (hasMultipleQuestions) selectQuestionAnswer(question, index, value)
@@ -2553,6 +2567,7 @@ function UserInputCard({
               value={answer}
               onChange={(event) => setAnswer(event.target.value)}
               placeholder={hasMultipleQuestions ? 'Add details...' : 'Type an answer...'}
+              disabled={isSending}
               rows={1}
               className="min-h-9 min-w-0 flex-1 resize-none rounded-lg px-3 py-2 text-sm outline-none"
               style={{
@@ -2563,18 +2578,27 @@ function UserInputCard({
             />
             <Button
               type="submit"
-              disabled={!composedAnswer.trim()}
+              disabled={!composedAnswer.trim() || isSending}
               variant="primary"
               className="px-4 py-2"
               dataTestId="chat-user-input-send"
             >
-              Send
+              {isSending ? 'Sending...' : 'Send'}
             </Button>
           </form>
         )}
+        {submitState === 'error' && submitError && (
+          <div
+            className="mt-2 text-xs"
+            data-testid="chat-user-input-error"
+            style={{ color: 'var(--color-red)' }}
+          >
+            {submitError}
+          </div>
+        )}
         {isAnswered && (
           <div className="mt-2 text-xs" style={{ color: 'var(--color-green)' }}>
-            {submitted ? 'Answer sent - resuming...' : 'Answered'}
+            {submitState === 'sent' ? 'Answer sent - resuming...' : 'Answered'}
           </div>
         )}
       </SurfaceRow>

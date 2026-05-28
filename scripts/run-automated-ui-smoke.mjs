@@ -2073,7 +2073,8 @@ child.on('exit', async (code) => {
           userInputMultiQuestionCard: result.userInputMultiQuestionCardWorks === true,
           userInputOptionSelection: result.userInputOptionSelectionWorks === true,
           userInputMultiSelect: result.userInputMultiSelectWorks === true,
-          userInputStructuredSubmit: result.userInputStructuredSubmitWorks === true
+          userInputStructuredSubmit: result.userInputStructuredSubmitWorks === true,
+          userInputResumeError: result.userInputResumeErrorWorks === true
         }
     : captureView === 'design-system'
       ? {

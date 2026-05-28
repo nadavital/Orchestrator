@@ -1589,13 +1589,16 @@ export const sessionManager = {
     await this.startProviderRun(sessionId, currentSession, resumeProvider, runRequest, 'resume')
   },
 
-  async answerUserInput(sessionId: string, answer: string): Promise<void> {
+  async answerUserInput(sessionId: string, answer: string): Promise<{ ok: boolean; error?: string }> {
     const session = this.get(sessionId)
-    if (!session) return
+    if (!session) return { ok: false, error: `Session ${sessionId} not found.` }
     const trimmed = answer.trim()
-    if (!trimmed) return
+    if (!trimmed) return { ok: false, error: 'Answer is empty.' }
     if (session.status === 'waiting_for_permission') markLatestPermissionDecision(sessionId, 'kept_planning')
     if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT) {
+      if (trimmed.includes('SMOKE_MISSING_RESUME')) {
+        return { ok: false, error: 'No active provider session is available to resume.' }
+      }
       this.appendMessage(sessionId, [{
         id: uuidv4(),
         role: 'user',
@@ -1604,7 +1607,7 @@ export const sessionManager = {
         timestamp: Date.now()
       }])
       this.updateStatus(sessionId, 'running')
-      return
+      return { ok: true }
     }
 
     if (providerRuntime.answerUserInput(sessionId, trimmed)) {
@@ -1616,7 +1619,7 @@ export const sessionManager = {
         timestamp: Date.now()
       }])
       this.updateStatus(sessionId, 'running')
-      return
+      return { ok: true }
     }
 
     if (providerRuntime.hasActiveRun(sessionId) && session.runtime === 'interactive') {
@@ -1629,12 +1632,14 @@ export const sessionManager = {
       }])
       this.updateStatus(sessionId, 'running')
       providerRuntime.write(sessionId, `${trimmed}\r`)
-      return
+      return { ok: true }
     }
 
     if (providerRuntime.hasActiveRun(sessionId)) providerRuntime.stop(sessionId)
 
-    if (!session.providerSessionId) return
+    if (!session.providerSessionId) {
+      return { ok: false, error: 'No active provider session is available to resume.' }
+    }
 
     this.appendMessage(sessionId, [{
       id: uuidv4(),
@@ -1655,6 +1660,7 @@ export const sessionManager = {
       runtime: currentSession.runtime
     }
     await this.startProviderRun(sessionId, currentSession, resumeProvider, runRequest, 'resume')
+    return { ok: true }
   },
 
   denyPermission(sessionId: string): void {

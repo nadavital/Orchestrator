@@ -20083,11 +20083,44 @@ function runAutomatedTranscriptUserInputSmoke(win: BrowserWindow, outputPath: st
             };
           })()
         `)
+        const failureSession = sessionManager.list().find((candidate) => candidate.name === 'Transcript user input resume failure')
+        let failureResult = { userInputResumeErrorWorks: false }
+        if (failureSession) {
+          sessionManager.updateStatus(failureSession.id, 'waiting_for_user')
+          win.webContents.send('pet:navigate', failureSession.id)
+          await new Promise((resolve) => setTimeout(resolve, 260))
+          failureResult = await win.webContents.executeJavaScript(`
+            (async () => {
+              const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+              const failureInput = document.querySelector('[data-testid="chat-user-input-form"] textarea');
+              const failureSetter = failureInput instanceof HTMLTextAreaElement
+                ? Object.getOwnPropertyDescriptor(failureInput.constructor.prototype, 'value')?.set
+                : null;
+              if (failureInput instanceof HTMLTextAreaElement && failureSetter) {
+                failureSetter.call(failureInput, 'SMOKE_MISSING_RESUME');
+                failureInput.dispatchEvent(new Event('input', { bubbles: true }));
+                await sleep(80);
+              }
+              const failureSend = document.querySelector('[data-testid="chat-user-input-send"]');
+              if (failureSend instanceof HTMLButtonElement) {
+                failureSend.click();
+                await sleep(180);
+              }
+              const failureError = document.querySelector('[data-testid="chat-user-input-error"]');
+              return {
+                userInputResumeErrorWorks:
+                  failureError instanceof HTMLElement &&
+                  failureError.textContent?.includes('No active provider session') === true &&
+                  document.querySelector('[data-testid="chat-user-input-form"]') instanceof HTMLElement
+              };
+            })()
+          `)
+        }
         if (screenshotPath) {
           const image = await win.webContents.capturePage()
           writeFileSync(screenshotPath, image.toPNG())
         }
-        writeFileSync(outputPath, JSON.stringify({ ok: true, result: { profile, ...result }, screenshotPath }, null, 2))
+        writeFileSync(outputPath, JSON.stringify({ ok: true, result: { profile, ...result, ...failureResult }, screenshotPath }, null, 2))
         app.quit()
       } catch (error) {
         writeFileSync(outputPath, JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2))
@@ -22330,6 +22363,37 @@ function seedAutomatedTranscriptUserInputSmokeSession(sessionId: string): void {
     providerSessionId: 'transcript-user-input-provider-session',
     createdAt: baseTime,
     latestMessageAt: baseTime + messages.length
+  })
+
+  sessionManager.save({
+    ...session,
+    id: 'transcript-user-input-resume-failure-session',
+    name: 'Transcript user input resume failure',
+    status: 'waiting_for_user',
+    messages: [
+      {
+        id: 'transcript-user-input-failure-user',
+        role: 'user',
+        type: 'text',
+        content: 'TRANSCRIPT_USER_INPUT_FAILURE_SMOKE answer a prompt without resume metadata.',
+        timestamp: baseTime
+      },
+      {
+        id: 'transcript-user-input-failure-request',
+        role: 'system',
+        type: 'result',
+        content: 'Describe the answer that should fail to resume.',
+        subtype: 'waiting_for_user',
+        timestamp: baseTime + 1,
+        userInputQuestions: [{
+          id: 'transcript-user-input-failure-freeform',
+          question: 'Type a freeform answer.'
+        }]
+      }
+    ],
+    providerSessionId: null,
+    createdAt: baseTime,
+    latestMessageAt: baseTime + 2
   })
 }
 
