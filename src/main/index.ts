@@ -6190,6 +6190,73 @@ function runAutomatedFocusedSurfaceSmoke(
                   eventPayload instanceof HTMLElement &&
                   eventDetail.textContent?.includes('permission.requested') === true &&
                   eventPayload.textContent?.includes('git status --short') === true;
+                let agentRuntimeEventFacetFiltersWork = false;
+                let agentRuntimeEventFacetFilterError = null;
+                try {
+                  if (eventSearch instanceof HTMLInputElement) {
+                    const inputSetter = Object.getOwnPropertyDescriptor(eventSearch.constructor.prototype, 'value')?.set;
+                    inputSetter?.call(eventSearch, '');
+                    eventSearch.dispatchEvent(new Event('input', { bubbles: true }));
+                    eventSearch.dispatchEvent(new Event('change', { bubbles: true }));
+                    await sleep(180);
+                  }
+                  const severityFilter = document.querySelector('[data-testid="agent-event-severity-filter"]');
+                  const sourceFilter = document.querySelector('[data-testid="agent-event-source-filter"]');
+                  if (severityFilter instanceof HTMLSelectElement) {
+                    const selectSetter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set;
+                    selectSetter?.call(severityFilter, 'failures');
+                    severityFilter.dispatchEvent(new Event('input', { bubbles: true }));
+                    severityFilter.dispatchEvent(new Event('change', { bubbles: true }));
+                    await sleep(180);
+                  }
+                  const failureFilteredList = document.querySelector('[data-testid="agent-recent-event-list"]');
+                  const failureFilteredRows = [...document.querySelectorAll('[data-testid="agent-recent-event"]')]
+                    .filter((row) => row instanceof HTMLButtonElement);
+                  const failureFilterSeverity = failureFilteredList instanceof HTMLElement
+                    ? failureFilteredList.getAttribute('data-agent-event-severity-filter')
+                    : null;
+                  const failureFilterSource = failureFilteredList instanceof HTMLElement
+                    ? failureFilteredList.getAttribute('data-agent-event-source-filter')
+                    : null;
+                  const failureFilterCount = failureFilteredList instanceof HTMLElement
+                    ? failureFilteredList.getAttribute('data-agent-event-filtered-count')
+                    : null;
+                  const failureFilterText = failureFilteredRows.map((row) => row.textContent ?? '').join(String.fromCharCode(10));
+                  if (severityFilter instanceof HTMLSelectElement) {
+                    const selectSetter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set;
+                    selectSetter?.call(severityFilter, 'waiting');
+                    severityFilter.dispatchEvent(new Event('input', { bubbles: true }));
+                    severityFilter.dispatchEvent(new Event('change', { bubbles: true }));
+                    await sleep(160);
+                  }
+                  if (sourceFilter instanceof HTMLSelectElement) {
+                    const selectSetter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set;
+                    selectSetter?.call(sourceFilter, 'approvals');
+                    sourceFilter.dispatchEvent(new Event('input', { bubbles: true }));
+                    sourceFilter.dispatchEvent(new Event('change', { bubbles: true }));
+                    await sleep(180);
+                  }
+                  const approvalFilteredList = document.querySelector('[data-testid="agent-recent-event-list"]');
+                  const approvalFilteredRows = [...document.querySelectorAll('[data-testid="agent-recent-event"]')]
+                    .filter((row) => row instanceof HTMLButtonElement);
+                  agentRuntimeEventFacetFiltersWork =
+                    severityFilter instanceof HTMLSelectElement &&
+                    sourceFilter instanceof HTMLSelectElement &&
+                    failureFilteredList instanceof HTMLElement &&
+                    failureFilterSeverity === 'failures' &&
+                    failureFilterSource === 'all' &&
+                    failureFilterCount === '1' &&
+                    failureFilteredRows.length === 1 &&
+                    failureFilterText.includes('Runtime transport failed') === true &&
+                    approvalFilteredList instanceof HTMLElement &&
+                    approvalFilteredList.getAttribute('data-agent-event-severity-filter') === 'waiting' &&
+                    approvalFilteredList.getAttribute('data-agent-event-source-filter') === 'approvals' &&
+                    approvalFilteredList.getAttribute('data-agent-event-filtered-count') === '1' &&
+                    approvalFilteredRows.length === 1 &&
+                    approvalFilteredRows[0]?.textContent?.includes('Allow inspecting runtime diagnostics') === true;
+                } catch (error) {
+                  agentRuntimeEventFacetFilterError = error instanceof Error ? error.message : String(error);
+                }
                 return {
                   profile,
                   hasRightPanelState: rightPanel instanceof HTMLElement &&
@@ -6212,6 +6279,8 @@ function runAutomatedFocusedSurfaceSmoke(
                     (activeNewTab.textContent ?? '').includes('New tab'),
                   workbenchNewTabAgentsActionWorks,
                   agentRuntimeEventDetailWorks,
+                  agentRuntimeEventFacetFiltersWork,
+                  agentRuntimeEventFacetFilterError,
                   agentRuntimeEventFilterWorks,
                   agentRuntimeIssueTriageWorks,
                   workbenchNewTabActionCount: newTabCards.length,

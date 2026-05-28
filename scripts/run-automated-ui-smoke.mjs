@@ -2221,6 +2221,7 @@ child.on('exit', async (code) => {
           workbenchNewTabSingleAddAffordance: result.workbenchNewTabSingleAddAffordance === true,
           workbenchNewTabAgentsAction: result.workbenchNewTabAgentsActionWorks === true,
           agentRuntimeEventDetail: result.agentRuntimeEventDetailWorks === true,
+          agentRuntimeEventFacetFilters: result.agentRuntimeEventFacetFiltersWork === true,
           agentRuntimeEventFilter: result.agentRuntimeEventFilterWorks === true,
           agentRuntimeIssueTriage: result.agentRuntimeIssueTriageWorks === true,
           workbenchNewTabCards: Number(result.workbenchNewTabActionCount ?? 0) >= 5,

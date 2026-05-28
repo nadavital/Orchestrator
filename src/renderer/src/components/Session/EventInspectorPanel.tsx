@@ -10,6 +10,9 @@ interface Props {
   activeAgentId?: string | null
 }
 
+type EventSeverityFilter = 'all' | 'issues' | 'failures' | 'waiting'
+type EventSourceFilter = 'all' | 'agents' | 'tools' | 'approvals' | 'connection'
+
 export default function EventInspectorPanel({ session, embedded = false, activeAgentId = null }: Props): JSX.Element {
   const { eventBuffers, uiState, setActiveAgent, closeAgentTab } = useSessionStore()
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null)
@@ -148,17 +151,22 @@ function SessionContextSummary({
   embedded?: boolean
 }): JSX.Element {
   const [eventQuery, setEventQuery] = useState('')
+  const [eventSeverityFilter, setEventSeverityFilter] = useState<EventSeverityFilter>('all')
+  const [eventSourceFilter, setEventSourceFilter] = useState<EventSourceFilter>('all')
   const messageCount = session.messageCount ?? session.messages.length
   const workDirLabel = compactPath(session.workDir)
   const visibleEvents = useMemo(() => {
     const query = eventQuery.trim().toLowerCase()
-    if (!query) return recentEvents
-    return events
-      .slice()
-      .reverse()
-      .filter((record) => eventSearchText(record).includes(query))
-      .slice(0, 8)
-  }, [eventQuery, events, recentEvents])
+    const hasActiveFilter = eventSeverityFilter !== 'all' || eventSourceFilter !== 'all'
+    const candidates = query || hasActiveFilter
+      ? events.slice().reverse()
+      : recentEvents
+    return candidates
+      .filter((record) => eventMatchesSeverityFilter(record, eventSeverityFilter))
+      .filter((record) => eventMatchesSourceFilter(record, eventSourceFilter))
+      .filter((record) => !query || eventSearchText(record).includes(query))
+      .slice(0, query || hasActiveFilter ? 8 : 4)
+  }, [eventQuery, eventSeverityFilter, eventSourceFilter, events, recentEvents])
   const issueEvents = useMemo(() => (
     events
       .slice()
@@ -260,10 +268,44 @@ function SessionContextSummary({
             ariaLabel="Search runtime events"
           />
           <div
+            className="grid grid-cols-2 gap-1.5"
+            data-testid="agent-event-filter-controls"
+            data-agent-event-severity-filter={eventSeverityFilter}
+            data-agent-event-source-filter={eventSourceFilter}
+          >
+            <EventFilterSelect<EventSeverityFilter>
+              label="Severity"
+              value={eventSeverityFilter}
+              dataTestId="agent-event-severity-filter"
+              onChange={setEventSeverityFilter}
+              options={[
+                { value: 'all', label: 'All severities' },
+                { value: 'issues', label: 'Issues only' },
+                { value: 'failures', label: 'Failures' },
+                { value: 'waiting', label: 'Waiting' }
+              ]}
+            />
+            <EventFilterSelect<EventSourceFilter>
+              label="Source"
+              value={eventSourceFilter}
+              dataTestId="agent-event-source-filter"
+              onChange={setEventSourceFilter}
+              options={[
+                { value: 'all', label: 'All sources' },
+                { value: 'agents', label: 'Agents' },
+                { value: 'tools', label: 'Tools' },
+                { value: 'approvals', label: 'Approvals' },
+                { value: 'connection', label: 'Connection' }
+              ]}
+            />
+          </div>
+          <div
             className="grid gap-1.5"
             data-testid="agent-recent-event-list"
             data-agent-event-filtered-count={visibleEvents.length}
             data-agent-event-query-active={eventQuery.trim() ? 'true' : 'false'}
+            data-agent-event-severity-filter={eventSeverityFilter}
+            data-agent-event-source-filter={eventSourceFilter}
           >
             {visibleEvents.length > 0 ? visibleEvents.map((record) => (
               <button
@@ -356,6 +398,45 @@ function CompactMetric({ label, value }: { label: string; value: number }): JSX.
   )
 }
 
+function EventFilterSelect<T extends string>({
+  label,
+  value,
+  options,
+  dataTestId,
+  onChange
+}: {
+  label: string
+  value: T
+  options: Array<{ value: T; label: string }>
+  dataTestId: string
+  onChange: (value: T) => void
+}): JSX.Element {
+  return (
+    <label className="grid min-w-0 gap-1">
+      <span className="truncate text-[10.5px] font-semibold" style={{ color: 'var(--color-text-muted)' }}>
+        {label}
+      </span>
+      <select
+        value={value}
+        data-testid={dataTestId}
+        onChange={(event) => onChange(event.target.value as T)}
+        className="h-7 min-w-0 rounded-md px-2 text-[11px] font-medium outline-none"
+        style={{
+          background: 'var(--surface-bg)',
+          border: '1px solid var(--border-subtle)',
+          color: 'var(--color-text)'
+        }}
+      >
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  )
+}
+
 function EmptyState({
   providerId,
   embedded = false,
@@ -415,6 +496,23 @@ function isRuntimeIssueEvent(record: SessionRunEventRecord): boolean {
     event.type === 'user_input.requested' ||
     event.type === 'connection.reconnecting' ||
     event.type === 'connection.retrying'
+}
+
+function eventMatchesSeverityFilter(record: SessionRunEventRecord, filter: EventSeverityFilter): boolean {
+  if (filter === 'all') return true
+  if (filter === 'issues') return isRuntimeIssueEvent(record)
+  const tone = eventTone(record)
+  if (filter === 'failures') return tone === 'danger'
+  return tone === 'warning'
+}
+
+function eventMatchesSourceFilter(record: SessionRunEventRecord, filter: EventSourceFilter): boolean {
+  if (filter === 'all') return true
+  const { type } = record.event
+  if (filter === 'agents') return type.startsWith('agent.')
+  if (filter === 'tools') return type.startsWith('tool.')
+  if (filter === 'approvals') return type === 'permission.requested' || type === 'user_input.requested'
+  return type === 'connection.reconnecting' || type === 'connection.retrying'
 }
 
 function eventTitle(record: SessionRunEventRecord): string {
