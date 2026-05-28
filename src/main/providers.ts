@@ -93,11 +93,36 @@ function providerConfigEnv(providerId?: string): NodeJS.ProcessEnv {
   }
 }
 
+function orchestratorProviderEnvPath(): string {
+  if (process.env.ORCHESTRATOR_PROVIDER_ENV_PATH) return process.env.ORCHESTRATOR_PROVIDER_ENV_PATH
+  return process.platform === 'darwin'
+    ? join(homedir(), 'Library/Application Support/orchestrator/provider-env.json')
+    : join(homedir(), '.orchestrator/provider-env.json')
+}
+
+function orchestratorProviderEnv(providerId?: string): NodeJS.ProcessEnv {
+  if (!providerId) return {}
+  try {
+    const raw = readFileSync(orchestratorProviderEnvPath(), 'utf8')
+    const parsed = JSON.parse(raw) as Record<string, unknown>
+    const providers = asRecord(parsed.providers)
+    const entry = asRecord(providers?.[providerId]) ?? asRecord(parsed[providerId])
+    const env = asRecord(entry?.env) ?? entry
+    return Object.fromEntries(
+      Object.entries(env ?? {})
+        .filter((entry): entry is [string, string] => typeof entry[1] === 'string')
+    )
+  } catch {
+    return {}
+  }
+}
+
 export function providerSpawnEnv(providerId?: string): NodeJS.ProcessEnv {
   return {
     ...process.env,
     ...loadDotEnvFile(),
     ...providerConfigEnv(providerId),
+    ...orchestratorProviderEnv(providerId),
     PATH: providerSearchPath(),
     TERM: 'xterm-256color'
   }
