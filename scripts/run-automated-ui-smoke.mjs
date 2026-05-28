@@ -2155,7 +2155,10 @@ child.on('exit', async (code) => {
         chatMessageForkButtonVisible: result.chatMessageForkButtonVisible === true,
         chatMessageForkFromHere: result.chatMessageForkFromHere === true,
         chatMessageForkTruncatesLaterTurns: result.chatMessageForkTruncatesLaterTurns === true,
-        chatMessageForkClearsProviderSession: result.chatMessageForkClearsProviderSession === true
+        chatMessageForkClearsProviderSession: result.chatMessageForkClearsProviderSession === true,
+        chatMessageForkPersistsLineage: result.chatMessageForkPersistsLineage === true,
+        chatMessageForkSidebarLineage: result.chatMessageForkSidebarLineage === true,
+        chatMessageForkHoverLineage: result.chatMessageForkHoverLineage === true
       }
     : captureView === 'transcript-user-input'
       ? {

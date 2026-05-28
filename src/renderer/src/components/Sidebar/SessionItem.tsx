@@ -83,6 +83,9 @@ function SessionItem({ session }: Props): JSX.Element {
   const automationRun = automationRuns.find((run) => run.status === 'RUNNING') ?? null
   const automationLabel = automation ? automationStatusLabel(automation, automationRun) : null
   const branchLabel = branch ?? inferredWorktreeBranch(session)
+  const forkLabel = session.forkedFromSessionName
+    ? `Forked from ${session.forkedFromSessionName}`
+    : null
   const threadKind = sidebarThreadKind(session)
   const labelColor = sidebarLabelColor(session)
   const isPinned = isSidebarPinnedSession(session)
@@ -314,6 +317,10 @@ function SessionItem({ session }: Props): JSX.Element {
         data-sidebar-label-color={labelColor}
         data-sidebar-provider-pinned={session.providerPinned ? 'true' : undefined}
         data-sidebar-pinned-thread-key={session.providerPinnedThreadKey ?? undefined}
+        data-sidebar-forked-from-session-id={session.forkedFromSessionId ?? undefined}
+        data-sidebar-forked-from-session-name={session.forkedFromSessionName ?? undefined}
+        data-sidebar-forked-from-message-id={session.forkedFromMessageId ?? undefined}
+        data-sidebar-fork-mode={session.forkMode ?? undefined}
         data-sidebar-projectless={projectless ? 'true' : undefined}
         data-sidebar-projectless-thread-id={session.providerProjectlessThreadId ?? undefined}
         data-sidebar-selected-key={rowSelectedKey}
@@ -454,6 +461,7 @@ function SessionItem({ session }: Props): JSX.Element {
         >
           <div className="session-hover-card-title">{session.name}</div>
           <SessionHoverRow label="Project" value={project?.name ?? (projectless ? 'Chat' : 'No project')} />
+          {forkLabel && <SessionHoverRow label="Fork" value={forkLabel} />}
           {branchLabel && <SessionHoverRow label="Branch" value={branchLabel} />}
           {automationLabel && <SessionHoverRow label="Automation" value={automationLabel} />}
         </div>,

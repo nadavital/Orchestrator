@@ -1287,6 +1287,11 @@ export interface Session {
   messagesLoaded?: boolean
   previewText?: string
   latestMessageAt?: number
+  forkedFromSessionId?: string
+  forkedFromSessionName?: string
+  forkedFromMessageId?: string
+  forkedAt?: number
+  forkMode?: SessionForkMode
   archivedAt?: number
   createdAt: number
   provider: string

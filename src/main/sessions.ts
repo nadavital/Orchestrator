@@ -857,6 +857,11 @@ export const sessionManager = {
       messagesLoaded: true,
       previewText: undefined,
       latestMessageAt: now,
+      forkedFromSessionId: source.id,
+      forkedFromSessionName: source.name,
+      forkedFromMessageId: options.throughMessageId,
+      forkedAt: now,
+      forkMode: mode,
       archivedAt: undefined,
       createdAt: now
     }

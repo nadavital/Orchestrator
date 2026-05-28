@@ -22791,6 +22791,40 @@ function runAutomatedTranscriptForkSmoke(win: BrowserWindow, outputPath: string,
         const forkedFromMessage = session
           ? await sessionManager.fork(session.id, 'local', { throughMessageId: 'transcript-layout-user' })
           : null
+        if (forkedFromMessage) {
+          projectStore.addSession(forkedFromMessage.projectId, forkedFromMessage.id)
+          win.webContents.send('pet:navigate', forkedFromMessage.id)
+          await new Promise((resolve) => setTimeout(resolve, 260))
+        }
+        const sidebarLineageResult = forkedFromMessage
+          ? await win.webContents.executeJavaScript(`
+            (async () => {
+              const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+              for (let attempt = 0; attempt < 12; attempt += 1) {
+                const row = document.querySelector('[data-session-id="${forkedFromMessage.id}"]');
+                if (row instanceof HTMLElement) {
+                  row.focus();
+                  row.dispatchEvent(new FocusEvent('focusin', { bubbles: true, relatedTarget: null }));
+                  row.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+                  await sleep(180);
+                  const hoverCard = document.querySelector('[data-testid="session-hover-card"]');
+                  return {
+                    chatMessageForkSidebarLineage:
+                      row.getAttribute('data-sidebar-forked-from-session-name') === 'Transcript layout smoke' &&
+                      row.getAttribute('data-sidebar-forked-from-message-id') === 'transcript-layout-user' &&
+                      row.getAttribute('data-sidebar-fork-mode') === 'local',
+                    chatMessageForkHoverLineage:
+                      hoverCard instanceof HTMLElement &&
+                      hoverCard.textContent?.includes('Fork') === true &&
+                      hoverCard.textContent?.includes('Forked from Transcript layout smoke') === true
+                  };
+                }
+                await sleep(120);
+              }
+              return { chatMessageForkSidebarLineage: false, chatMessageForkHoverLineage: false };
+            })()
+          `)
+          : { chatMessageForkSidebarLineage: false, chatMessageForkHoverLineage: false }
         const forkedText = forkedFromMessage?.messages.map((message) => message.type === 'text' ? message.content : '').join('\n') ?? ''
         const forkBackendResult = {
           chatMessageForkFromHere:
@@ -22801,7 +22835,13 @@ function runAutomatedTranscriptForkSmoke(win: BrowserWindow, outputPath: string,
             forkedFromMessage?.messages.length === 2 &&
             !forkedText.includes('TRANSCRIPT_LAYOUT_SMOKE') &&
             !forkedText.includes('Provider transport failed before completing this coding request.'),
-          chatMessageForkClearsProviderSession: forkedFromMessage?.providerSessionId === null
+          chatMessageForkClearsProviderSession: forkedFromMessage?.providerSessionId === null,
+          chatMessageForkPersistsLineage:
+            forkedFromMessage?.forkedFromSessionId === session?.id &&
+            forkedFromMessage?.forkedFromSessionName === 'Transcript layout smoke' &&
+            forkedFromMessage?.forkedFromMessageId === 'transcript-layout-user' &&
+            forkedFromMessage?.forkMode === 'local',
+          ...sidebarLineageResult
         }
         if (screenshotPath) {
           const image = await win.webContents.capturePage()
