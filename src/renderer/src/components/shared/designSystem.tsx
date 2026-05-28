@@ -1399,6 +1399,7 @@ export function PanelTabStrip<T extends string | number>({
   tabRowTestId,
   actionsTestId,
   activeActionsHostTestId,
+  tabListLabel,
 }: {
   tabs: PanelTabItem<T>[]
   activeTabId: T | null
@@ -1413,6 +1414,7 @@ export function PanelTabStrip<T extends string | number>({
   tabRowTestId?: string
   actionsTestId?: string
   activeActionsHostTestId?: string
+  tabListLabel?: string
 }): JSX.Element {
   const rowRef = useRef<HTMLDivElement | null>(null)
   const actionsRef = useRef<HTMLDivElement | null>(null)
@@ -1614,6 +1616,7 @@ export function PanelTabStrip<T extends string | number>({
           ref={rowRef}
           className="panel-tab-row"
           role="tablist"
+          aria-label={tabListLabel}
           data-testid={tabRowTestId}
           data-app-shell-tab-controller
           onKeyDown={handleTabRowKeyDown}

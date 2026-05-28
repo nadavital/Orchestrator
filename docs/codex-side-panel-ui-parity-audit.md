@@ -8962,3 +8962,13 @@ Implemented: shared panel tabs now use roving tab focus. Only the active tab and
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and elevated `node scripts/run-automated-ui-smoke.mjs --right-panel` passed. The focused run added `rightPanelTabRovingFocus=true` while keeping right-panel resize, context menu, tab reorder/drag, close shortcuts, tab-panel a11y, find routing, Browser command routing, and transfer-boundary gates green. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779993058032.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779993058032.png`.
 
 Remaining: this closes a concrete keyboard traversal gap in shared app-shell tabs. It does not close broader screen-reader review, exact live Codex focus timing, or provider-backed right-panel functionality.
+
+### 2026-05-28 - Panel Tablist Labels
+
+Product evidence: after the shared panel tabs had roving focus, the tab buttons had good labels but the tablist container itself still had no accessible name. Screen-reader users would encounter a generic tablist instead of a named Workbench, Terminal, or Browser tab group.
+
+Implemented: `PanelTabStrip` now accepts a tab-list label, and the Workbench, Terminal, and Browser tab strips provide explicit names. The focused right-panel smoke verifies the Workbench tab row exposes `role="tablist"` with `aria-label="Workbench tabs"`.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and elevated `node scripts/run-automated-ui-smoke.mjs --right-panel` passed. The focused run added `rightPanelTabListLabel=true` and kept `rightPanelTabRovingFocus=true` plus the existing right-panel interaction gates green. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779993225902.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779993225902.png`.
+
+Remaining: this closes the shared app-shell tablist naming gap. Broader screen-reader traversal through every panel body and exact live Codex focus timing remain separate.

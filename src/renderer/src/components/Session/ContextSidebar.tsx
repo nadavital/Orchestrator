@@ -410,6 +410,7 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
           className="workbench-panel-tabbar"
           stripTestId="workbench-panel-tabbar"
           tabRowTestId="workbench-panel-tab-row"
+          tabListLabel="Workbench tabs"
           actionsTestId="workbench-panel-tab-actions"
           activeActionsHostTestId="right-panel-active-tab-actions"
           actions={(

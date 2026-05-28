@@ -1530,6 +1530,7 @@ export default function BrowserPanel({
           className="browser-shell-tab-strip"
           stripTestId="browser-tab-strip"
           tabRowTestId="browser-tab-row"
+          tabListLabel="Browser tabs"
           actionsTestId="browser-tab-actions"
           onActivate={selectTab}
           onClose={closeTab}

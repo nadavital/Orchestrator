@@ -8086,6 +8086,7 @@ function runAutomatedFocusedSurfaceSmoke(
               let rightPanelMiddleClickCloseWorks = false;
               let rightPanelCloseFallbackFromMainWorks = false;
               let rightPanelTabPanelA11yWorks = false;
+              let rightPanelTabListLabelWorks = false;
               let rightPanelTabRovingFocusWorks = false;
               let rightPanelTabWheelScrollWorks = false;
               let rightPanelFullscreenCleanupWorks = false;
@@ -8116,6 +8117,10 @@ function runAutomatedFocusedSurfaceSmoke(
               let rightPanelTransferUnsupportedBoundaryWorks = false;
               const activeWorkbenchTabForA11y = document.querySelector('[data-testid="workbench-panel-tabbar"] [role="tab"][data-active="true"]');
               const workbenchPanelForA11y = document.querySelector('[role="tabpanel"][data-app-shell-tab-panel-controller="right"]');
+              rightPanelTabListLabelWorks =
+                tabRow instanceof HTMLElement &&
+                tabRow.getAttribute('role') === 'tablist' &&
+                tabRow.getAttribute('aria-label') === 'Workbench tabs';
               if (activeWorkbenchTabForA11y instanceof HTMLElement && workbenchPanelForA11y instanceof HTMLElement && rightPanel instanceof HTMLElement) {
                 const controls = activeWorkbenchTabForA11y.getAttribute('aria-controls') ?? '';
                 rightPanelTabPanelA11yWorks =
@@ -9220,6 +9225,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 rightPanelMiddleClickCloseWorks,
                 rightPanelCloseFallbackFromMainWorks,
                 rightPanelTabPanelA11yWorks,
+                rightPanelTabListLabelWorks,
                 rightPanelTabRovingFocusWorks,
                 rightPanelTabWheelScrollWorks,
                 rightPanelFullscreenCleanupWorks,

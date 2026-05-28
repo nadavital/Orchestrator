@@ -211,6 +211,7 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
               onMove={(tabId, direction) => moveTab(tabId, direction)}
               stripTestId="terminal-panel-tabstrip"
               tabRowTestId="terminal-panel-tab-row"
+              tabListLabel="Terminal tabs"
               actions={(
                 <>
                   {terminalActionStatus && (
