@@ -7598,6 +7598,7 @@ function runAutomatedFocusedSurfaceSmoke(
               let rightPanelFindShortcutRoutingWorks = false;
               let rightPanelFindStatusA11yWorks = false;
               let rightPanelFindScopeLabelA11yWorks = false;
+              let rightPanelFindCloseFocusRestoredWorks = false;
               let rightPanelFindShortcutRoutingDebug = {};
               let rightPanelBrowserCommandRoutingWorks = false;
               let rightPanelBrowserVisualResetWorks = false;
@@ -8117,8 +8118,15 @@ function runAutomatedFocusedSurfaceSmoke(
                   reviewFindDiffInputLabelWorks &&
                   reviewSharedFindChatInputLabelWorks &&
                   reviewSharedFindDiffInputLabelAfterToggleWorks;
-                document.querySelector('[data-testid="thread-find-bar"] button[aria-label="Close find"]')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-                await sleep(120);
+                const closeFindButton = document.querySelector('[data-testid="thread-find-bar"] button[aria-label="Close find"]');
+                if (closeFindButton instanceof HTMLButtonElement) {
+                  closeFindButton.click();
+                  await sleep(160);
+                }
+                rightPanelFindCloseFocusRestoredWorks =
+                  reviewPanel instanceof HTMLElement &&
+                  document.activeElement === reviewPanel &&
+                  !(document.querySelector('[data-testid="thread-find-bar"]') instanceof HTMLElement);
                 await openPanelTab('files', 'Files');
                 await waitForElement('[data-testid="workspace-file-search"]');
                 const filesPanel = focusActiveRightPanel();
@@ -8699,6 +8707,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 rightPanelFindShortcutRoutingWorks,
                 rightPanelFindStatusA11yWorks,
                 rightPanelFindScopeLabelA11yWorks,
+                rightPanelFindCloseFocusRestoredWorks,
                 rightPanelFindShortcutRoutingDebug,
                 rightPanelBrowserCommandRoutingWorks,
                 rightPanelBrowserVisualResetWorks,

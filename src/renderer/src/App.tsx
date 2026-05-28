@@ -142,6 +142,7 @@ export default function App(): JSX.Element {
   const waitingNotificationKeysRef = useRef(new Set<string>())
   const shellFocusAreaRef = useRef<ShellFocusArea>('main')
   const threadFindInputRef = useRef<HTMLInputElement | null>(null)
+  const threadFindReturnFocusRef = useRef<HTMLElement | null>(null)
   const deferredActiveSessionId = useDeferredValue(activeSessionId)
 
   useEffect(() => {
@@ -331,6 +332,10 @@ export default function App(): JSX.Element {
   }, [])
 
   const openThreadFind = useCallback((domain: ThreadFindDomain): void => {
+    const activeElement = document.activeElement
+    if (activeElement instanceof HTMLElement && !activeElement.closest('[data-testid="thread-find-bar"]')) {
+      threadFindReturnFocusRef.current = activeElement
+    }
     setThreadFindDomain(domain)
     setThreadFindVisible(true)
     window.requestAnimationFrame(() => {
@@ -340,11 +345,18 @@ export default function App(): JSX.Element {
   }, [])
 
   const closeThreadFind = useCallback((): void => {
+    const returnFocusTarget = threadFindReturnFocusRef.current
+    threadFindReturnFocusRef.current = null
     setThreadFindVisible(false)
     setThreadFindQuery('')
     window.dispatchEvent(new CustomEvent('orchestrator:thread-find-close', {
       detail: { sessionId: useSessionStore.getState().activeSessionId }
     }))
+    window.requestAnimationFrame(() => {
+      if (returnFocusTarget && document.contains(returnFocusTarget)) {
+        returnFocusTarget.focus({ preventScroll: true })
+      }
+    })
   }, [])
 
   const openFileSearch = useCallback((): void => {

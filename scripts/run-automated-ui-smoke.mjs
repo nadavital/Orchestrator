@@ -2274,6 +2274,7 @@ child.on('exit', async (code) => {
           rightPanelFindShortcutRouting: result.rightPanelFindShortcutRoutingWorks === true,
           rightPanelFindStatusA11y: result.rightPanelFindStatusA11yWorks === true,
           rightPanelFindScopeLabelA11y: result.rightPanelFindScopeLabelA11yWorks === true,
+          rightPanelFindCloseFocusRestored: result.rightPanelFindCloseFocusRestoredWorks === true,
           rightPanelBrowserCommandRouting: result.rightPanelBrowserCommandRoutingWorks === true,
           rightPanelBrowserVisualReset: result.rightPanelBrowserVisualResetWorks === true,
           rightPanelTransferUnsupportedBoundary: result.rightPanelTransferUnsupportedBoundaryWorks === true
