@@ -7597,6 +7597,7 @@ function runAutomatedFocusedSurfaceSmoke(
               let workbenchPanelNewTabPageWorks = false;
               let rightPanelFindShortcutRoutingWorks = false;
               let rightPanelFindStatusA11yWorks = false;
+              let rightPanelFindScopeLabelA11yWorks = false;
               let rightPanelFindShortcutRoutingDebug = {};
               let rightPanelBrowserCommandRoutingWorks = false;
               let rightPanelBrowserVisualResetWorks = false;
@@ -8044,7 +8045,16 @@ function runAutomatedFocusedSurfaceSmoke(
                 const reviewFindFocused = await waitForActiveElementId('content-search-input');
                 const reviewFindBar = document.querySelector('[data-testid="thread-find-bar"]');
                 const reviewSharedFindDiffScope = reviewFindBar?.getAttribute('data-thread-find-domain') === 'diff';
+                const reviewFindLabel = document.querySelector('label[for="content-search-input"]');
+                const reviewFindDiffInputLabelWorks =
+                  reviewSharedFindInput instanceof HTMLInputElement &&
+                  reviewFindLabel instanceof HTMLLabelElement &&
+                  reviewFindLabel.textContent?.trim() === 'Find in diffs' &&
+                  reviewSharedFindInput.getAttribute('aria-label') === 'Find in diffs' &&
+                  reviewSharedFindInput.getAttribute('placeholder') === 'Search diffs...';
                 let reviewSharedFindScopeToggle = false;
+                let reviewSharedFindChatInputLabelWorks = false;
+                let reviewSharedFindDiffInputLabelAfterToggleWorks = false;
                 if (reviewSharedFindInput instanceof HTMLInputElement) {
                   setInputValue(reviewSharedFindInput, 'review tree grouping');
                   await sleep(360);
@@ -8055,9 +8065,27 @@ function runAutomatedFocusedSurfaceSmoke(
                   chatScopeButton.click();
                   await sleep(160);
                   const chatScopeActive = document.querySelector('[data-testid="thread-find-bar"]')?.getAttribute('data-thread-find-domain') === 'conversation';
+                  const chatScopeInput = document.querySelector('#content-search-input');
+                  const chatScopeLabel = document.querySelector('label[for="content-search-input"]');
+                  reviewSharedFindChatInputLabelWorks =
+                    chatScopeActive &&
+                    chatScopeInput instanceof HTMLInputElement &&
+                    chatScopeLabel instanceof HTMLLabelElement &&
+                    chatScopeLabel.textContent?.trim() === 'Find in chat' &&
+                    chatScopeInput.getAttribute('aria-label') === 'Find in chat' &&
+                    chatScopeInput.getAttribute('placeholder') === 'Search chat...';
                   diffScopeButton.click();
                   await sleep(240);
                   const diffScopeActive = document.querySelector('[data-testid="thread-find-bar"]')?.getAttribute('data-thread-find-domain') === 'diff';
+                  const diffScopeInput = document.querySelector('#content-search-input');
+                  const diffScopeLabel = document.querySelector('label[for="content-search-input"]');
+                  reviewSharedFindDiffInputLabelAfterToggleWorks =
+                    diffScopeActive &&
+                    diffScopeInput instanceof HTMLInputElement &&
+                    diffScopeLabel instanceof HTMLLabelElement &&
+                    diffScopeLabel.textContent?.trim() === 'Find in diffs' &&
+                    diffScopeInput.getAttribute('aria-label') === 'Find in diffs' &&
+                    diffScopeInput.getAttribute('placeholder') === 'Search diffs...';
                   reviewSharedFindScopeToggle = chatScopeActive && diffScopeActive;
                 }
                 let reviewSharedFindDrivesDiff = false;
@@ -8085,6 +8113,10 @@ function runAutomatedFocusedSurfaceSmoke(
                   threadFindStatus.getAttribute('aria-live') === 'polite' &&
                   threadFindStatus.getAttribute('aria-atomic') === 'true' &&
                   reviewSharedFindInput.getAttribute('aria-describedby') === threadFindStatus.id;
+                rightPanelFindScopeLabelA11yWorks =
+                  reviewFindDiffInputLabelWorks &&
+                  reviewSharedFindChatInputLabelWorks &&
+                  reviewSharedFindDiffInputLabelAfterToggleWorks;
                 document.querySelector('[data-testid="thread-find-bar"] button[aria-label="Close find"]')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
                 await sleep(120);
                 await openPanelTab('files', 'Files');
@@ -8666,6 +8698,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 rightPanelMenuCommandStateDebug,
                 rightPanelFindShortcutRoutingWorks,
                 rightPanelFindStatusA11yWorks,
+                rightPanelFindScopeLabelA11yWorks,
                 rightPanelFindShortcutRoutingDebug,
                 rightPanelBrowserCommandRoutingWorks,
                 rightPanelBrowserVisualResetWorks,

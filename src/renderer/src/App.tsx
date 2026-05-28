@@ -1309,6 +1309,8 @@ function ThreadFindBar({
       : '0 results'
     : ''
   const statusId = 'thread-find-status'
+  const inputLabel = domain === 'diff' ? 'Find in diffs' : 'Find in chat'
+  const inputPlaceholder = domain === 'diff' ? 'Search diffs...' : 'Search chat...'
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>): void => {
     if (event.key === 'Enter') {
@@ -1335,15 +1337,15 @@ function ThreadFindBar({
     >
       <div className="thread-find-input-cell">
         <Icon name="search" size={14} />
-        <label className="sr-only" htmlFor="content-search-input">Find in chat</label>
+        <label className="sr-only" htmlFor="content-search-input">{inputLabel}</label>
         <input
           id="content-search-input"
           ref={inputRef}
           type="text"
           value={query}
-          aria-label="Find in chat"
+          aria-label={inputLabel}
           aria-describedby={countLabel ? statusId : undefined}
-          placeholder={domain === 'diff' ? 'Search diff...' : 'Search chat...'}
+          placeholder={inputPlaceholder}
           className="thread-find-input"
           onChange={(event) => onQueryChange(event.target.value)}
           onKeyDown={handleKeyDown}
