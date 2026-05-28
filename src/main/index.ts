@@ -1348,6 +1348,32 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               var settingsGeneralModuleWorks =
                 generalSection instanceof HTMLElement &&
                 generalSection.closest('[data-settings-page-module="general"]') instanceof HTMLElement;
+              var settingsGeneralActionStatusWorks = false;
+              var settingsGeneralPreferredEditorPersistenceWorks = false;
+              const systemEditorChoice = document.querySelector('[data-testid="settings-general-preferred-editor-system"]');
+              if (systemEditorChoice instanceof HTMLButtonElement) {
+                systemEditorChoice.click();
+                for (let index = 0; index < 40; index += 1) {
+                  const generalStatus = document.querySelector('[data-testid="settings-general-action-status"]');
+                  const generalModuleRoot = document.querySelector('[data-settings-page-module="general"]');
+                  const currentSettings = await window.api.settings.get();
+                  if (generalStatus instanceof HTMLElement && generalStatus.textContent?.includes('System default saved') === true) {
+                    settingsGeneralActionStatusWorks =
+                      generalModuleRoot instanceof HTMLElement &&
+                      generalModuleRoot.getAttribute('data-settings-general-preferred-editor') === 'system' &&
+                      generalModuleRoot.getAttribute('data-settings-general-action-status') === 'System default saved' &&
+                      generalModuleRoot.getAttribute('data-settings-general-action-status-tone') === 'info' &&
+                      generalStatus.getAttribute('role') === 'status' &&
+                      generalStatus.getAttribute('aria-live') === 'polite' &&
+                      generalStatus.getAttribute('aria-atomic') === 'true' &&
+                      systemEditorChoice.getAttribute('aria-pressed') === 'true';
+                    settingsGeneralPreferredEditorPersistenceWorks =
+                      currentSettings.preferredEditor === 'system';
+                    break;
+                  }
+                  await sleep(50);
+                }
+              }
               const appearanceButton = [...document.querySelectorAll('button')]
                 .find((button) => button.textContent?.includes('Appearance'));
               appearanceButton?.click();
@@ -6852,6 +6878,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             settingsAppearanceModuleWorks: typeof settingsAppearanceModuleWorks === 'boolean' ? settingsAppearanceModuleWorks : null,
             settingsGeneralSurfaceWorks: typeof settingsGeneralSurfaceWorks === 'boolean' ? settingsGeneralSurfaceWorks : null,
             settingsGeneralModuleWorks: typeof settingsGeneralModuleWorks === 'boolean' ? settingsGeneralModuleWorks : null,
+            settingsGeneralActionStatusWorks: typeof settingsGeneralActionStatusWorks === 'boolean' ? settingsGeneralActionStatusWorks : null,
+            settingsGeneralPreferredEditorPersistenceWorks: typeof settingsGeneralPreferredEditorPersistenceWorks === 'boolean' ? settingsGeneralPreferredEditorPersistenceWorks : null,
             settingsTopbarSharedWorks: typeof settingsTopbarSharedWorks === 'boolean' ? settingsTopbarSharedWorks : null,
             settingsContentLayoutWorks: typeof settingsContentLayoutWorks === 'boolean' ? settingsContentLayoutWorks : null,
             settingsRouteOwnedWorks: typeof settingsRouteOwnedWorks === 'boolean' ? settingsRouteOwnedWorks : null,

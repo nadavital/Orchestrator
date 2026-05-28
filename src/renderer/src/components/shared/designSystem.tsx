@@ -1955,6 +1955,7 @@ export function SettingChoiceCard({
   onClick,
   leading,
   disabled = false,
+  dataTestId,
 }: {
   label: ReactNode
   description?: ReactNode
@@ -1962,11 +1963,14 @@ export function SettingChoiceCard({
   onClick: () => void
   leading?: ReactNode
   disabled?: boolean
+  dataTestId?: string
 }): JSX.Element {
   return (
     <button
       type="button"
       data-active={active ? 'true' : 'false'}
+      data-testid={dataTestId}
+      aria-pressed={active}
       disabled={disabled}
       className="setting-choice-card"
       onClick={onClick}

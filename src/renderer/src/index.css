@@ -9430,6 +9430,18 @@
     color: var(--state-danger);
   }
 
+  .general-settings-action-status {
+    border-top: 1px solid color-mix(in srgb, var(--border-subtle) 72%, transparent);
+    color: var(--text-secondary);
+    font-size: 12px;
+    line-height: 1.35;
+    padding: 9px 12px;
+  }
+
+  .general-settings-action-status[data-settings-general-action-status-tone='danger'] {
+    color: var(--state-danger);
+  }
+
   .browser-settings-status {
     color: var(--text-secondary);
     font-size: 12px;

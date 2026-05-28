@@ -10,15 +10,20 @@ import {
 } from '../shared/designSystem'
 
 type PreferredEditor = PreferredOpenTarget
+type GeneralActionStatus = {
+  text: string
+  tone: 'info' | 'danger'
+}
 
 export default function GeneralSettingsPage({
   preferredEditor,
   onSetPreferredEditor,
 }: {
   preferredEditor: PreferredEditor
-  onSetPreferredEditor: (value: PreferredEditor) => void
+  onSetPreferredEditor: (value: PreferredEditor) => Promise<void>
 }): JSX.Element {
   const [openTargets, setOpenTargets] = useState<OpenTargetAvailability[]>([])
+  const [actionStatus, setActionStatus] = useState<GeneralActionStatus | null>(null)
   useEffect(() => {
     let cancelled = false
     window.api.fs.listOpenTargets()
@@ -39,8 +44,22 @@ export default function GeneralSettingsPage({
     { id: 'zed', label: 'Zed', desc: 'Open file cards in Zed' }
   ]
 
+  const selectPreferredEditor = async (option: { id: PreferredEditor; label: string }): Promise<void> => {
+    try {
+      await onSetPreferredEditor(option.id)
+      setActionStatus({ text: `${option.label} saved`, tone: 'info' })
+    } catch {
+      setActionStatus({ text: `Unable to save ${option.label}`, tone: 'danger' })
+    }
+  }
+
   return (
-    <div data-settings-page-module="general">
+    <div
+      data-settings-page-module="general"
+      data-settings-general-preferred-editor={preferredEditor}
+      data-settings-general-action-status={actionStatus?.text ?? ''}
+      data-settings-general-action-status-tone={actionStatus?.tone ?? ''}
+    >
       <SettingsPageSection dataTestId="general-settings-section" className="general-settings-page">
         <SettingsContentLayout
           title="General"
@@ -68,12 +87,25 @@ export default function GeneralSettingsPage({
                         label={option.label}
                         description={description}
                         active={active}
-                        onClick={() => onSetPreferredEditor(option.id)}
+                        onClick={() => { void selectPreferredEditor(option) }}
                         disabled={unavailable}
+                        dataTestId={`settings-general-preferred-editor-${option.id}`}
                       />
                     )
                   })}
                 </div>
+                {actionStatus && (
+                  <div
+                    className="general-settings-action-status"
+                    data-testid="settings-general-action-status"
+                    data-settings-general-action-status-tone={actionStatus.tone}
+                    role={actionStatus.tone === 'danger' ? 'alert' : 'status'}
+                    aria-live={actionStatus.tone === 'danger' ? 'assertive' : 'polite'}
+                    aria-atomic="true"
+                  >
+                    {actionStatus.text}
+                  </div>
+                )}
               </SettingsSurface>
             </SettingsGroupContent>
           </SettingsContentGroup>

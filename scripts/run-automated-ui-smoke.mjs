@@ -2840,6 +2840,8 @@ child.on('exit', async (code) => {
         settingsAppearanceModule: captureView !== 'settings' || result.settingsAppearanceModuleWorks === true,
         settingsGeneralSurface: captureView !== 'settings' || result.settingsGeneralSurfaceWorks === true,
         settingsGeneralModule: captureView !== 'settings' || result.settingsGeneralModuleWorks === true,
+        settingsGeneralActionStatus: captureView !== 'settings' || result.settingsGeneralActionStatusWorks === true,
+        settingsGeneralPreferredEditorPersistence: captureView !== 'settings' || result.settingsGeneralPreferredEditorPersistenceWorks === true,
         settingsTopbarShared: captureView !== 'settings' || result.settingsTopbarSharedWorks === true,
         settingsContentLayout: captureView !== 'settings' || result.settingsContentLayoutWorks === true,
         settingsRouteOwned: !['settings', 'settings-providers'].includes(captureView) || result.settingsRouteOwnedWorks === true,

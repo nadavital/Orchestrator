@@ -187,9 +187,15 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
     window.api.settings.set('providerModels', next)
   }
 
-  const savePreferredEditor = (value: PreferredEditor): void => {
+  const savePreferredEditor = async (value: PreferredEditor): Promise<void> => {
+    const previous = preferredEditor
     setPreferredEditor(value)
-    window.api.settings.set('preferredEditor', value)
+    try {
+      await window.api.settings.set('preferredEditor', value)
+    } catch (error) {
+      setPreferredEditor(previous)
+      throw error
+    }
   }
 
   const buildAppearanceModel = (overrides: Partial<{
