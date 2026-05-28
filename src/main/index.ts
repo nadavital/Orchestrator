@@ -1185,6 +1185,44 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 (window.location.protocol === 'file:'
                   ? window.location.hash.startsWith('#/settings/general')
                   : window.location.pathname === '/settings/general');
+              var settingsSectionHistoryNavigationWorks = false;
+              const appearanceNavForHistory = [...document.querySelectorAll('[data-testid="sidebar-nav-item"]')]
+                .find((row) => row.textContent?.replace(/\\s+/g, ' ').trim() === 'Appearance');
+              if (appearanceNavForHistory instanceof HTMLButtonElement) {
+                appearanceNavForHistory.click();
+                for (let index = 0; index < 20; index += 1) {
+                  const shell = document.querySelector('.settings-shell');
+                  const routeMatches = window.location.protocol === 'file:'
+                    ? window.location.hash.startsWith('#/settings/appearance')
+                    : window.location.pathname === '/settings/appearance';
+                  if (
+                    shell instanceof HTMLElement &&
+                    shell.getAttribute('data-settings-active-section') === 'appearance' &&
+                    shell.getAttribute('data-settings-route') === '/settings/appearance' &&
+                    routeMatches
+                  ) {
+                    break;
+                  }
+                  await sleep(50);
+                }
+                window.history.back();
+                for (let index = 0; index < 30; index += 1) {
+                  const shell = document.querySelector('.settings-shell');
+                  const routeMatches = window.location.protocol === 'file:'
+                    ? window.location.hash.startsWith('#/settings/general')
+                    : window.location.pathname === '/settings/general';
+                  if (
+                    shell instanceof HTMLElement &&
+                    shell.getAttribute('data-settings-active-section') === 'general' &&
+                    shell.getAttribute('data-settings-route') === '/settings/general' &&
+                    routeMatches
+                  ) {
+                    settingsSectionHistoryNavigationWorks = true;
+                    break;
+                  }
+                  await sleep(80);
+                }
+              }
               const settingsContentLayoutMatches = (testId, title, subtitleIncludes) => {
                 const layout = document.querySelector('[data-testid="' + testId + '"]');
                 const titleNode = layout?.querySelector('.settings-content-layout-title');
@@ -7348,6 +7386,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             settingsContentFocusOnOpenWorks: typeof settingsContentFocusOnOpenWorks === 'boolean' ? settingsContentFocusOnOpenWorks : null,
             settingsCloseFocusRestoredWorks: typeof settingsCloseFocusRestoredWorks === 'boolean' ? settingsCloseFocusRestoredWorks : null,
             settingsRouteOwnedWorks: typeof settingsRouteOwnedWorks === 'boolean' ? settingsRouteOwnedWorks : null,
+            settingsSectionHistoryNavigationWorks: typeof settingsSectionHistoryNavigationWorks === 'boolean' ? settingsSectionHistoryNavigationWorks : null,
             settingsDeepLinkRouteWorks: typeof settingsDeepLinkRouteWorks === 'boolean' ? settingsDeepLinkRouteWorks : null,
             settingsDeepLinkRouteDebug: typeof settingsDeepLinkRouteDebug === 'object' ? settingsDeepLinkRouteDebug : null,
             settingsHostContextWorks: typeof settingsHostContextWorks === 'boolean' ? settingsHostContextWorks : null,

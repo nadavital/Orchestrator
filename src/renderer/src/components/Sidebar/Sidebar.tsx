@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import type { DragEvent as ReactDragEvent, ReactNode } from 'react'
 import type { Project, Session, SidebarConnectionGroupIdentity } from '../../types'
-import { comparePinnedSessions, compareSidebarSessions, isSidebarPinnedSession, isSidebarProjectlessSession, normalizeSettingsHostId, normalizeSettingsSectionForHostKind, settingsHostOptionsFromSessions, settingsNavigationGroupsForHostKind, sidebarConnectionGroupIdentity } from '../../types'
+import { comparePinnedSessions, compareSidebarSessions, isSidebarPinnedSession, isSidebarProjectlessSession, normalizeSettingsHostId, normalizeSettingsSectionForHostKind, settingsHostOptionsFromSessions, settingsNavigationGroupsForHostKind, settingsRouteUrlForLocation, sidebarConnectionGroupIdentity } from '../../types'
 import { useProjectStore } from '../../store/projects'
 import type { SidebarCustomSection } from '../../store/sidebar'
 import { sidebarSessionSelectedKey, sidebarSettingsSelectedKey, useSidebarStore } from '../../store/sidebar'
@@ -162,10 +162,21 @@ export default function Sidebar({
     setSelectedSidebarKey(nextSelectedKey)
   }, [activeSessionId, setSelectedSidebarKey, settingsSection, showCapabilities, showSettings])
 
+  const pushSettingsRoute = (section: SettingsSection, hostId: string | null): void => {
+    const nextUrl = settingsRouteUrlForLocation(section, hostId, window.location)
+    const currentUrl = nextUrl.startsWith('#')
+      ? window.location.hash
+      : `${window.location.pathname}${window.location.search}`
+    if (currentUrl !== nextUrl) {
+      window.history.pushState(window.history.state, '', nextUrl)
+    }
+  }
+
   const saveSettingsHostId = (value: string): void => {
     const normalized = normalizeSettingsHostId(value, settingsHostOptions)
     const nextHost = settingsHostOptions.find((host) => host.id === normalized) ?? settingsHostOptions[0]
     const nextSettingsSection = normalizeSettingsSectionForHostKind(settingsSection, nextHost.kind)
+    pushSettingsRoute(nextSettingsSection, normalized)
     setSettingsHostId(normalized)
     window.api.settings.set('settingsHostId', normalized)
     if (nextSettingsSection !== settingsSection) {
@@ -884,6 +895,7 @@ export default function Sidebar({
                       active={effectiveSettingsSection === section}
                       sidebarKey={sidebarSettingsSelectedKey(section)}
                       onClick={() => {
+                        pushSettingsRoute(section, selectedSettingsHost.id)
                         setSelectedSidebarKey(sidebarSettingsSelectedKey(section))
                         setSettingsSection(section)
                       }}

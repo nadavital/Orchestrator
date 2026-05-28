@@ -9315,6 +9315,16 @@ Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.
 
 Remaining: this closes local Browser zoom preset polish. Browser lifecycle/screenshot comparison, live provider-emitted Codex/browser-use proof, richer provider-produced annotation/design-change workflows, and actual provider application of design tweaks remain separate.
 
+### 2026-05-28 - Settings Section History Navigation
+
+Product evidence: PP-046 tracks Settings parity and Codex treats Settings as routed full-page surfaces. Orchestrator already owned `/settings/{section}` and `#/settings/{section}` routes, but Settings sidebar section clicks only updated state; the app then replaced the URL. That meant browser/app Back could leave Settings instead of returning to the previous Settings section.
+
+Implemented: Settings sidebar section clicks and host changes now push the target settings route using the shared `settingsRouteUrlForLocation` helper before updating section state. The App-level route sync still replaces stale route state, but no longer erases user-initiated Settings section history. The renderer type barrel now exports the shared route helper for Sidebar.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --settings` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1780011427313.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1780011427313.png`. The focused Settings smoke now gates `settingsSectionHistoryNavigation=true` by clicking Appearance, verifying the Settings route, calling `history.back()`, and verifying the UI and route return to General. An earlier smoke run caught a blank-render regression from the missing route-helper export before this proof.
+
+Remaining: this closes local Settings section history behavior only. Deeper settings page/window structure, provider-host adapters, and exact live Codex Settings pixel/timing proof remain separate.
+
 ### 2026-05-28 - Composer Prompt History Recall
 
 Product evidence: PP-040 tracks composer ergonomics as a Phase 1 coding workflow. Codex keeps prompt history in composer atoms, while Orchestrator required users to manually retype or copy prior prompts even when they had just sent them in the same chat.

@@ -2929,6 +2929,7 @@ child.on('exit', async (code) => {
         settingsContentFocusOnOpen: captureView !== 'settings' || result.settingsContentFocusOnOpenWorks === true,
         settingsCloseFocusRestored: captureView !== 'settings' || result.settingsCloseFocusRestoredWorks === true,
         settingsRouteOwned: !['settings', 'settings-providers'].includes(captureView) || result.settingsRouteOwnedWorks === true,
+        settingsSectionHistoryNavigation: captureView !== 'settings' || result.settingsSectionHistoryNavigationWorks === true,
         settingsDeepLinkRoute: captureView !== 'settings-deeplink' || result.settingsDeepLinkRouteWorks === true,
         settingsHostContext: captureView !== 'settings' || result.settingsHostContextWorks === true,
         settingsHostSectionFiltering: captureView !== 'settings' || result.settingsHostSectionFilteringWorks === true,
