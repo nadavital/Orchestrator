@@ -5198,6 +5198,20 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             activeSettingsRow?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
             await sleep(220);
 
+            setTextareaValue('/model');
+            await sleep(120);
+            window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+            await sleep(180);
+            const slashModelMenu = document.querySelector('.motion-popover-surface');
+            const slashModelSummary = document.querySelector('[data-testid="composer-active-agent-summary"]');
+            var composerSlashModelOpensSettings =
+              slashModelMenu instanceof HTMLElement &&
+              slashModelSummary instanceof HTMLElement &&
+              slashModelSummary.textContent?.includes('Thread settings') === true &&
+              textareaValue() === '';
+            window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+            await sleep(260);
+
             const permissionButton = document.querySelector('[data-testid="composer-permission-menu"]');
             let permissionContextBadge = document.querySelector('[data-testid="composer-permission-context-badge"]');
             for (let index = 0; index < 10 && !(permissionContextBadge instanceof HTMLElement); index += 1) {
@@ -5233,24 +5247,28 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               [...permissionMenu.querySelectorAll('button')]
                 .filter((button) => button.getAttribute('data-tooltip-label'))
                 .every((button) => button.getAttribute('title') === null && button.getAttribute('data-native-title-free') === 'true');
+            window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+            await sleep(260);
             if (permissionButton instanceof HTMLElement) {
+              permissionButton.focus({ preventScroll: true });
               permissionButton.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }));
-              await sleep(80);
+              await sleep(120);
             }
+            const permissionKeyboardMenu = document.querySelector('.motion-popover-surface');
             const permissionKeyboardFirstFocus = document.activeElement;
             if (permissionKeyboardFirstFocus instanceof HTMLElement) {
               permissionKeyboardFirstFocus.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }));
               await sleep(80);
             }
             var composerPermissionRovingKeyboard =
-              permissionMenu instanceof HTMLElement &&
+              permissionKeyboardMenu instanceof HTMLElement &&
               permissionKeyboardFirstFocus instanceof HTMLButtonElement &&
-              permissionMenu.contains(permissionKeyboardFirstFocus) &&
+              permissionKeyboardMenu.contains(permissionKeyboardFirstFocus) &&
               document.activeElement instanceof HTMLButtonElement &&
               document.activeElement !== permissionKeyboardFirstFocus &&
-              permissionMenu.contains(document.activeElement);
-            const advancedPermissionsButton = permissionMenu instanceof HTMLElement
-              ? [...permissionMenu.querySelectorAll('button')]
+              permissionKeyboardMenu.contains(document.activeElement);
+            const advancedPermissionsButton = permissionKeyboardMenu instanceof HTMLElement
+              ? [...permissionKeyboardMenu.querySelectorAll('button')]
                   .find((button) => button.textContent?.includes('Advanced permissions'))
               : null;
             if (advancedPermissionsButton instanceof HTMLButtonElement) {
@@ -6432,6 +6450,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             composerPermissionNativeTooltipsWork: typeof composerPermissionNativeTooltipsWork === 'boolean' ? composerPermissionNativeTooltipsWork : null,
             composerPermissionLabelsCalm: typeof composerPermissionLabelsCalm === 'boolean' ? composerPermissionLabelsCalm : null,
             composerPermissionRuleStatus: typeof composerPermissionRuleStatus === 'boolean' ? composerPermissionRuleStatus : null,
+            composerSlashModelOpensSettings: typeof composerSlashModelOpensSettings === 'boolean' ? composerSlashModelOpensSettings : null,
             composerPermissionTriggerExpandedOnOpen: typeof composerPermissionTriggerExpandedOnOpen === 'boolean' ? composerPermissionTriggerExpandedOnOpen : null,
             composerPermissionRovingKeyboard: typeof composerPermissionRovingKeyboard === 'boolean' ? composerPermissionRovingKeyboard : null,
             composerPermissionMenuClosedWithEscape: typeof composerPermissionMenuClosedWithEscape === 'boolean' ? composerPermissionMenuClosedWithEscape : null,

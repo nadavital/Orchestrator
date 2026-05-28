@@ -633,8 +633,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
           .catch(() => window.api.pet.setOpen(true))
       }
       if (command.id === 'model') {
-        if (isNew) setShowAgentMenu(true)
-        else setTextareaText('/model ')
+        setShowAgentMenu(true)
       }
       if (command.id === 'permissions') setShowPermMenu(true)
       return
