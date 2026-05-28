@@ -7879,11 +7879,33 @@ function runAutomatedFocusedSurfaceSmoke(
                 const environmentCard = document.querySelector('[data-testid="codex-environment-card"]');
                 const environmentCommitRow = document.querySelector('[data-testid="codex-environment-commit"]');
                 const environmentCreatePrRow = document.querySelector('[data-testid="codex-environment-create-pr"]');
+                const environmentSettingsButton = document.querySelector('[data-testid="codex-environment-settings"]');
                 const environmentSourcesCard = document.querySelector('[data-testid="codex-environment-sources-card"]');
                 const environmentRect = environmentPanel instanceof HTMLElement ? environmentPanel.getBoundingClientRect() : null;
                 const environmentScroll = environmentPanel instanceof HTMLElement
                   ? environmentPanel.querySelector('.environment-panel-scroll')
                   : null;
+                let environmentSettingsOpensProvidersWorks = false;
+                if (environmentSettingsButton instanceof HTMLButtonElement) {
+                  environmentSettingsButton.click();
+                  for (let attempt = 0; attempt < 12; attempt += 1) {
+                    const settingsShell = document.querySelector('.settings-shell');
+                    if (
+                      settingsShell instanceof HTMLElement &&
+                      settingsShell.getAttribute('data-settings-active-section') === 'providers'
+                    ) {
+                      break;
+                    }
+                    await sleep(100);
+                  }
+                  const settingsShell = document.querySelector('.settings-shell');
+                  const providerSettingsSection = document.querySelector('[data-testid="provider-settings-section"]');
+                  environmentSettingsOpensProvidersWorks =
+                    settingsShell instanceof HTMLElement &&
+                    settingsShell.getAttribute('data-settings-active-section') === 'providers' &&
+                    providerSettingsSection instanceof HTMLElement &&
+                    environmentSettingsButton.getAttribute('aria-label') === 'Open provider settings';
+                }
                 return {
                   profile,
                   hasRightPanelState: rightPanel instanceof HTMLElement &&
@@ -7913,7 +7935,8 @@ function runAutomatedFocusedSurfaceSmoke(
                   environmentSourcesWork:
                     environmentSourcesCard instanceof HTMLElement &&
                     environmentSourcesCard.textContent?.includes('Sources') === true &&
-                    environmentSourcesCard.textContent?.includes('Web search') === true
+                    environmentSourcesCard.textContent?.includes('Web search') === true,
+                  environmentSettingsOpensProviders: environmentSettingsOpensProvidersWorks
                 };
               }
               const rightPanelShellLayoutMode = rightPanelShell instanceof HTMLElement

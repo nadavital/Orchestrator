@@ -8872,3 +8872,13 @@ Implemented: permission decision targets now derive from the normalized permissi
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --transcript-permission` passed. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-transcript-permission-1779988770839.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-transcript-permission-1779988770839.png`. The run kept `permissionVariantCards=true` and added `permissionProfileDecisionLabels=true`.
 
 Remaining: this closes local decision-label polish for single permission-profile cards. It does not change live provider forcing for file/profile approval methods, non-Codex adapters, or auto-review/guardian behavior.
+
+### 2026-05-28 - Environment Settings Action
+
+Product evidence: Environment is a Phase 1 inspector/context surface for daily coding state. Its header rendered a settings icon with an accessible label, but the button did not perform any action. That made the panel feel unfinished and violated the same action-status discipline applied across Settings, Review, Browser, Terminal, Files, and transcript controls.
+
+Implemented: the Environment settings icon now opens Providers settings through the existing Settings surface. The label is explicit (`Open provider settings`) and the focused Environment smoke clicks the control and verifies the app lands on the Providers settings section.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --environment` passed. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-environment-1779989046068.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-environment-1779989046068.png`. The run adds `environmentSettingsOpensProviders=true` while keeping Environment visual/action/source checks green.
+
+Remaining: this closes the local dead Environment settings control only. Full provider-backed Environment commit/PR creation, hosted PR metadata, and richer provider runtime settings adapters remain separate.

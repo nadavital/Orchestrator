@@ -2360,7 +2360,8 @@ child.on('exit', async (code) => {
           rightPanelShellOwnership: result.rightPanelShellOwnershipWorks === true,
           environmentPanelVisual: result.environmentPanelVisualWorks === true,
           environmentActionRows: result.environmentActionRowsWork === true,
-          environmentSources: result.environmentSourcesWork === true
+          environmentSources: result.environmentSourcesWork === true,
+          environmentSettingsOpensProviders: result.environmentSettingsOpensProviders === true
         }
     : captureView === 'workbench-perf'
       ? {

@@ -3,6 +3,7 @@ import type { FileChange, GitRefOption, Session } from '../../types'
 import Icon from '../shared/Icon'
 import type { IconName } from '../shared/Icon'
 import { IconButton } from '../shared/designSystem'
+import { useSessionStore } from '../../store/sessions'
 
 interface Props {
   session: Session
@@ -13,6 +14,9 @@ interface Props {
 export default function EnvironmentPanel({ session, embedded = false, onOpenReview }: Props): JSX.Element {
   const [changes, setChanges] = useState<FileChange[]>([])
   const [branches, setBranches] = useState<GitRefOption[]>([])
+  const setShowSettings = useSessionStore((state) => state.setShowSettings)
+  const setShowCapabilities = useSessionStore((state) => state.setShowCapabilities)
+  const setSettingsSection = useSessionStore((state) => state.setSettingsSection)
 
   useEffect(() => {
     let cancelled = false
@@ -62,6 +66,12 @@ export default function EnvironmentPanel({ session, embedded = false, onOpenRevi
     void window.api.browser.openExternal(pullRequestUrl)
   }
 
+  const openProviderSettings = (): void => {
+    setSettingsSection('providers')
+    setShowCapabilities(false)
+    setShowSettings(true)
+  }
+
   return (
     <section
       className="environment-panel"
@@ -78,7 +88,14 @@ export default function EnvironmentPanel({ session, embedded = false, onOpenRevi
         <div className="environment-card" data-testid="codex-environment-card">
           <div className="environment-card-header">
             <span>Environment</span>
-            <IconButton icon="settings" label="Environment settings" size="xs" variant="ghost" dataTestId="codex-environment-settings" />
+            <IconButton
+              icon="settings"
+              label="Open provider settings"
+              size="xs"
+              variant="ghost"
+              dataTestId="codex-environment-settings"
+              onClick={openProviderSettings}
+            />
           </div>
           <EnvironmentRow
             icon="diff"
