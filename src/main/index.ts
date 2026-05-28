@@ -17808,6 +17808,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
             const browserToolbarHistoryWorks = !(browserToolbarHistoryButton instanceof HTMLButtonElement);
             const browserActionsButton = findButton('Browser actions');
             let browserHistoryMenuWorks = false;
+            let browserHistoryClearWorks = false;
             let browserActionsMenuMaterialWorks = false;
             let browserActionsMenuTriggerStateWorks = false;
             if (browserActionsButton instanceof HTMLButtonElement) {
@@ -17820,6 +17821,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               const browserActionsMenuId = browserActionsButton.getAttribute('aria-controls') ?? '';
               const historyMenu = document.querySelector('[data-testid="browser-history-menu"]');
               const historyItems = [...document.querySelectorAll('[data-testid="browser-history-item"]')];
+              const clearHistoryItem = document.querySelector('[data-testid="browser-clear-history"]');
               const browserActionsMenu = document.querySelector('.browser-actions-menu');
               const browserActionsMenuStyle = browserActionsMenu instanceof HTMLElement ? getComputedStyle(browserActionsMenu) : null;
               const browserPageActions = document.querySelector('[data-testid="browser-page-actions"]');
@@ -17881,6 +17883,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                 historyMenu instanceof HTMLElement &&
                 historyItems.length > 0 &&
                 historyItems.some((item) => item.textContent?.includes('127.0.0.1')) &&
+                clearHistoryItem instanceof HTMLElement &&
                 copyUrlItem instanceof HTMLElement &&
                 clearDataItem instanceof HTMLElement &&
                 clearCacheItem instanceof HTMLElement &&
@@ -17928,6 +17931,23 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                 ((browserActionsMenuStyle.backdropFilter || browserActionsMenuStyle.webkitBackdropFilter || '').includes('blur')) &&
                 browserActionsMenuStyle.boxShadow !== 'none' &&
                 Number.parseFloat(browserActionsMenuStyle.borderTopWidth || '0') <= 1;
+              if (clearHistoryItem instanceof HTMLButtonElement) {
+                clearHistoryItem.click();
+                for (let index = 0; index < 20; index += 1) {
+                  const historySectionGone = !(document.querySelector('[data-testid="browser-history-menu"]') instanceof HTMLElement);
+                  const actionStatus = document.querySelector('[data-testid="browser-copy-url-status"]');
+                  if (historySectionGone && actionStatus?.textContent?.includes('History cleared')) break;
+                  await sleep(80);
+                }
+                const actionStatus = document.querySelector('[data-testid="browser-copy-url-status"]');
+                browserHistoryClearWorks =
+                  !(document.querySelector('[data-testid="browser-history-menu"]') instanceof HTMLElement) &&
+                  actionStatus instanceof HTMLElement &&
+                  actionStatus.textContent?.includes('History cleared') === true &&
+                  actionStatus.getAttribute('role') === 'status' &&
+                  actionStatus.getAttribute('aria-live') === 'polite' &&
+                  actionStatus.getAttribute('aria-atomic') === 'true';
+              }
               var browserClearDataWorks = false;
               const clearDataTargets = [
                 { testId: 'browser-clear-cache', kind: 'cache' },
@@ -19233,6 +19253,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserStopLoadingWorks,
               browserToolbarHistoryWorks,
               browserHistoryMenuWorks,
+              browserHistoryClearWorks,
               browserActionsMenuCompactWorks: typeof browserActionsMenuCompactWorks === 'boolean' ? browserActionsMenuCompactWorks : null,
               browserActionsMenuTriggerStateWorks,
               browserActionsMenuMaterialWorks,

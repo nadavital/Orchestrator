@@ -9294,3 +9294,13 @@ Implemented: the renderer now inspects unknown thread-route ids through `session
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --session-switch` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-session-switch-1780009198894.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-session-switch-1780009198895.png`. The focused session-switch run now gates `archivedRouteRecoveryVisible=true`, `archivedRouteRestoreWorks=true`, `missingRouteRecoveryVisible=true`, and `missingRouteReturnWorks=true` alongside the existing route startup, route update, transcript search, virtualization, and timing checks.
 
 Remaining: this closes local missing/archived route states. Provider-native remote and hotkey route semantics remain separate.
+
+### 2026-05-28 - Browser Clear History
+
+Product evidence: PP-058 tracks Browser action/history/zoom polish as part of day-to-day coding usability. The Browser actions menu already exposed recent history rows, but it had no first-class way to clear that local Browser workbench history without resetting the whole tab.
+
+Implemented: the Browser actions menu History section now includes `Clear history`. The action clears the persisted Browser workbench history array, closes the menu, and announces `History cleared` through the Browser status row. This keeps history cleanup local to the Browser surface instead of stretching browser data clearing or tab reset into a broader destructive action.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --browser` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1780009556512.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1780009556512.png`. The focused Browser smoke now gates `browserHistoryClear=true` while preserving existing history-menu, zoom, lifecycle, webview, local-target, inspector, security-policy, and fork-transfer checks.
+
+Remaining: this closes local Browser history cleanup only. Richer Browser zoom row/preset polish and exact screenshot comparison remain separate.

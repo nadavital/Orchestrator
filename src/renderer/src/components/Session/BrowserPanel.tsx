@@ -655,6 +655,17 @@ export default function BrowserPanel({
     })
   }
 
+  const clearHistory = (): void => {
+    if (copyUrlStatusTimeoutRef.current) window.clearTimeout(copyUrlStatusTimeoutRef.current)
+    patchWorkbench({ history: [] })
+    setBrowserMenuOpen(false)
+    setCopyUrlStatus({ text: 'History cleared', tone: 'info' })
+    copyUrlStatusTimeoutRef.current = window.setTimeout(() => {
+      setCopyUrlStatus(null)
+      copyUrlStatusTimeoutRef.current = null
+    }, 2200)
+  }
+
   const navigate = (raw: string): void => {
     const nextUrl = normalizeUrl(raw)
     if (!nextUrl) return
@@ -1785,6 +1796,13 @@ export default function BrowserPanel({
                       <span className="browser-history-url min-w-0 truncate">{shortUrl(item.url)}</span>
                     </MenuRow>
                   ))}
+                  <MenuItem
+                    icon="eraser"
+                    label="Clear history"
+                    ariaLabel="Clear browser history"
+                    dataTestId="browser-clear-history"
+                    onClick={clearHistory}
+                  />
                 </MenuSection>
               )}
               <MenuSection className="browser-action-section">

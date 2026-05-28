@@ -2251,6 +2251,7 @@ child.on('exit', async (code) => {
           browserStopLoading: result.browserStopLoadingWorks === true,
           browserToolbarHistory: result.browserToolbarHistoryWorks === true,
           browserHistoryMenu: result.browserHistoryMenuWorks === true,
+          browserHistoryClear: result.browserHistoryClearWorks === true,
           browserActionsMenuCompact: result.browserActionsMenuCompactWorks === true,
           browserActionsMenuTriggerState: result.browserActionsMenuTriggerStateWorks === true,
           browserActionsMenuMaterial: result.browserActionsMenuMaterialWorks === true,
