@@ -1201,11 +1201,14 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 setter?.call(personalizationCoding, 'Run only targeted validators for each slice.');
                 personalizationCoding.dispatchEvent(new Event('input', { bubbles: true }));
               }
+              await sleep(120);
               if (personalizationEnabled instanceof HTMLInputElement && !personalizationEnabled.checked) {
                 personalizationEnabled.click();
               }
               await sleep(180);
               const personalizationSettings = await window.api.settings.get();
+              const personalizationModule = document.querySelector('[data-settings-page-module="personalization"]');
+              const personalizationStatus = document.querySelector('[data-testid="settings-personalization-action-status"]');
               var settingsPersonalizationLocalWorks =
                 localPersonalizationNav instanceof HTMLButtonElement &&
                 settingsShell instanceof HTMLElement &&
@@ -1221,6 +1224,15 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 personalizationSettings.personalizationCustomInstructions === 'Be concise and cite changed files.' &&
                 personalizationSettings.personalizationCodingPreferences === 'Run only targeted validators for each slice.' &&
                 !(document.querySelector('[data-testid="settings-host-adapter-unavailable"]') instanceof HTMLElement);
+              var settingsPersonalizationActionStatusWorks =
+                personalizationModule instanceof HTMLElement &&
+                personalizationModule.getAttribute('data-settings-personalization-action-status') === 'Personalization enabled' &&
+                personalizationModule.getAttribute('data-settings-personalization-action-status-tone') === 'info' &&
+                personalizationStatus instanceof HTMLElement &&
+                personalizationStatus.textContent?.trim() === 'Personalization enabled' &&
+                personalizationStatus.getAttribute('role') === 'status' &&
+                personalizationStatus.getAttribute('aria-live') === 'polite' &&
+                personalizationStatus.getAttribute('aria-atomic') === 'true';
               if (localWorktreesNav instanceof HTMLButtonElement) {
                 localWorktreesNav.click();
                 await sleep(140);
@@ -6542,6 +6554,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             settingsHostSectionFilteringWorks: typeof settingsHostSectionFilteringWorks === 'boolean' ? settingsHostSectionFilteringWorks : null,
             settingsHostAdapterBoundaryWorks: typeof settingsHostAdapterBoundaryWorks === 'boolean' ? settingsHostAdapterBoundaryWorks : null,
             settingsPersonalizationLocalWorks: typeof settingsPersonalizationLocalWorks === 'boolean' ? settingsPersonalizationLocalWorks : null,
+            settingsPersonalizationActionStatusWorks: typeof settingsPersonalizationActionStatusWorks === 'boolean' ? settingsPersonalizationActionStatusWorks : null,
             settingsPersonalizationHostBoundaryWorks: typeof settingsPersonalizationHostBoundaryWorks === 'boolean' ? settingsPersonalizationHostBoundaryWorks : null,
             settingsSidebarNavCompactWorks: typeof settingsSidebarNavCompactWorks === 'boolean' ? settingsSidebarNavCompactWorks : null,
             settingsSidebarNavPrimitiveWorks: typeof settingsSidebarNavPrimitiveWorks === 'boolean' ? settingsSidebarNavPrimitiveWorks : null,

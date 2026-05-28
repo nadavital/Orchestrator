@@ -275,19 +275,19 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
     window.dispatchEvent(new CustomEvent('orchestrator:shortcut-overrides-changed', { detail: next }))
   }
 
-  const savePersonalizationEnabled = (value: boolean): void => {
+  const savePersonalizationEnabled = async (value: boolean): Promise<void> => {
     setPersonalizationEnabled(value)
-    window.api.settings.set('personalizationEnabled', value)
+    await window.api.settings.set('personalizationEnabled', value)
   }
 
-  const savePersonalizationCustomInstructions = (value: string): void => {
+  const savePersonalizationCustomInstructions = async (value: string): Promise<void> => {
     setPersonalizationCustomInstructions(value)
-    window.api.settings.set('personalizationCustomInstructions', value)
+    await window.api.settings.set('personalizationCustomInstructions', value)
   }
 
-  const savePersonalizationCodingPreferences = (value: string): void => {
+  const savePersonalizationCodingPreferences = async (value: string): Promise<void> => {
     setPersonalizationCodingPreferences(value)
-    window.api.settings.set('personalizationCodingPreferences', value)
+    await window.api.settings.set('personalizationCodingPreferences', value)
   }
 
   const importPortableTheme = (raw: string): { ok: boolean; error?: string } => {

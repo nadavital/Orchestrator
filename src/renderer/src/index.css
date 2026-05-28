@@ -9376,6 +9376,18 @@
     border-top: 1px solid color-mix(in srgb, var(--border-subtle) 72%, transparent);
   }
 
+  .personalization-action-status {
+    border-top: 1px solid color-mix(in srgb, var(--border-subtle) 72%, transparent);
+    color: var(--text-secondary);
+    font-size: 12px;
+    line-height: 1.35;
+    padding: 9px 12px;
+  }
+
+  .personalization-action-status[data-settings-personalization-action-status-tone='danger'] {
+    color: var(--state-danger);
+  }
+
   .browser-settings-status {
     color: var(--text-secondary);
     font-size: 12px;
