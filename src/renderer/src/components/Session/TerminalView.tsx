@@ -1,4 +1,4 @@
-import { Component, useCallback, useEffect, useRef, useState } from 'react'
+import { Component, useCallback, useEffect, useId, useRef, useState } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
@@ -523,15 +523,28 @@ function TerminalFailureState({
   actionLabel: string
   onAction: () => void
 }): JSX.Element {
+  const titleId = useId()
+  const descriptionId = useId()
+
   return (
-    <div className="terminal-failure-state" data-testid="terminal-failure-state" role="status">
+    <div
+      className="terminal-failure-state"
+      data-testid="terminal-failure-state"
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+      aria-labelledby={titleId}
+      aria-describedby={descriptionId}
+    >
       <div className="terminal-failure-copy">
-        <div className="terminal-failure-title">{title}</div>
-        <div className="terminal-failure-description">{description}</div>
+        <div className="terminal-failure-title" id={titleId}>{title}</div>
+        <div className="terminal-failure-description" id={descriptionId}>{description}</div>
       </div>
-      <button type="button" className="terminal-failure-action" onClick={onAction}>
-        {actionLabel}
-      </button>
+      <div role="group" aria-label="Terminal recovery actions">
+        <button type="button" className="terminal-failure-action" aria-label={`${actionLabel} terminal`} onClick={onAction}>
+          {actionLabel}
+        </button>
+      </div>
     </div>
   )
 }

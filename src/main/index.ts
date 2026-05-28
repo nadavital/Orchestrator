@@ -2278,6 +2278,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             var terminalCloseActiveShortcutWorks = false;
             var terminalNewTabShortcutWorks = false;
             var terminalTabPanelA11yWorks = false;
+            var terminalFailureStateA11yWorks = false;
             var terminalFullscreenCleanupWorks = false;
             var terminalTabTelemetryWorks = false;
             var terminalTabLifecycleTelemetryWorks = false;
@@ -2531,6 +2532,35 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 visibleTerminalSessionSnapshot.hasBuffer === true &&
                 visibleTerminalSessionSnapshot.bufferLength > 0 &&
                 visibleTerminalSessionSnapshot.workDir === expectedTerminalWorkDir;
+              if (visibleTerminalId.length > 0) {
+                await window.api.terminal.write(visibleTerminalId, 'exit 19' + String.fromCharCode(13));
+                for (let index = 0; index < 30; index += 1) {
+                  const terminalFailureState = document.querySelector('[data-testid="terminal-failure-state"]');
+                  if (terminalFailureState instanceof HTMLElement) {
+                    const labelledBy = terminalFailureState.getAttribute('aria-labelledby') ?? '';
+                    const describedBy = terminalFailureState.getAttribute('aria-describedby') ?? '';
+                    const recoveryGroup = terminalFailureState.querySelector('[role="group"][aria-label="Terminal recovery actions"]');
+                    const recoveryButton = recoveryGroup instanceof HTMLElement
+                      ? recoveryGroup.querySelector('button[aria-label="Restart terminal"], button[aria-label="Reload terminal"]')
+                      : null;
+                    terminalFailureStateA11yWorks =
+                      terminalFailureState.getAttribute('role') === 'status' &&
+                      terminalFailureState.getAttribute('aria-live') === 'polite' &&
+                      terminalFailureState.getAttribute('aria-atomic') === 'true' &&
+                      labelledBy.length > 0 &&
+                      describedBy.length > 0 &&
+                      terminalFailureState.querySelector('#' + CSS.escape(labelledBy)) instanceof HTMLElement &&
+                      terminalFailureState.querySelector('#' + CSS.escape(describedBy)) instanceof HTMLElement &&
+                      recoveryButton instanceof HTMLButtonElement;
+                    if (recoveryButton instanceof HTMLButtonElement) {
+                      recoveryButton.click();
+                      await sleep(700);
+                    }
+                    break;
+                  }
+                  await sleep(120);
+                }
+              }
               const rootStyle = document.documentElement.style;
               const previousTerminalFont = rootStyle.getPropertyValue('--font-mono-custom');
               const previousTerminalFontSize = rootStyle.getPropertyValue('--font-code-size');
@@ -5938,6 +5968,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             terminalCloseActiveShortcutWorks: typeof terminalCloseActiveShortcutWorks === 'boolean' ? terminalCloseActiveShortcutWorks : null,
             terminalNewTabShortcutWorks: typeof terminalNewTabShortcutWorks === 'boolean' ? terminalNewTabShortcutWorks : null,
             terminalTabPanelA11yWorks: typeof terminalTabPanelA11yWorks === 'boolean' ? terminalTabPanelA11yWorks : null,
+            terminalFailureStateA11yWorks: typeof terminalFailureStateA11yWorks === 'boolean' ? terminalFailureStateA11yWorks : null,
             terminalFullscreenCleanupWorks: typeof terminalFullscreenCleanupWorks === 'boolean' ? terminalFullscreenCleanupWorks : null,
             terminalTabTelemetryWorks: typeof terminalTabTelemetryWorks === 'boolean' ? terminalTabTelemetryWorks : null,
             terminalTabLifecycleTelemetryWorks: typeof terminalTabLifecycleTelemetryWorks === 'boolean' ? terminalTabLifecycleTelemetryWorks : null,

@@ -531,6 +531,7 @@ Why it matters: Codex's motion is polished partly because reduced-motion behavio
 Current verification:
 
 - `npm run smoke:ui:auto -- --motion-reduced` verifies forced reduced-motion propagation, zeroed main-renderer motion durations, disabled pet-overlay badge/row/resize-grip transitions, collapsed tray behavior, reply form behavior, and main-app screenshot-region assertions for the right panel, bottom terminal panel, shared sheet, and shared popover.
+- `node scripts/run-automated-ui-smoke.mjs --terminal` now verifies `terminalFailureStateA11y=true`, covering terminal shell-ended recovery as a polite atomic status region with labelled copy and a named recovery action group.
 
 Still needed:
 
