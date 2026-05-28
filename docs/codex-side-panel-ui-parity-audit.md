@@ -9112,3 +9112,13 @@ Implemented: the Settings content scroll region is now a named focusable region 
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and `git diff --check` passed before the focused run. The first sandboxed `node scripts/run-automated-ui-smoke.mjs --settings` hit the expected localhost bind denial; the elevated rerun passed with `settingsContentFocusOnOpen=true` while preserving existing Settings, theme, provider, shortcut, browser, worktree, automation, and personalization gates. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779997741401.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779997741401.png`.
 
 Remaining: this closes local Settings route content focus only. Provider-native Settings adapters, remote-host adapters, and whole-app keyboard traversal remain separate.
+
+### 2026-05-28 - Settings Back To Chat Focus Restoration
+
+Product evidence: Settings is a full-route coding surface, and its primary close action is labelled `Back to chat`. Closing Settings removed the focused route without deliberately returning focus to the chat composer, which made the route transition feel less usable for keyboard-driven coding sessions.
+
+Implemented: the Settings route close handler now focuses the main composer textarea after Settings unmounts, with a next-frame retry for the route transition. Nested Settings exits that use the same `onClose` path inherit the same focus restoration.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --settings` passed. The focused run added `settingsCloseFocusRestored=true` while preserving the existing Settings gates, including `settingsContentFocusOnOpen=true`. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779998018822.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779998018822.png`.
+
+Remaining: this closes local Settings-to-chat focus restoration only. Whole-app keyboard traversal, provider-native Settings adapters, and remote-host Settings adapters remain separate.

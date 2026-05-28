@@ -497,6 +497,19 @@ export default function App(): JSX.Element {
     setShowSettings(true)
   }, [setSettingsSection, setShowCapabilities, setShowSettings])
 
+  const closeSettings = useCallback((): void => {
+    setShowSettings(false)
+    const focusComposer = (): boolean => {
+      const composer = document.querySelector<HTMLTextAreaElement>('[data-testid="composer-textarea"]')
+      if (!(composer instanceof HTMLTextAreaElement) || composer.disabled) return false
+      composer.focus({ preventScroll: true })
+      return document.activeElement === composer
+    }
+    window.requestAnimationFrame(() => {
+      if (!focusComposer()) window.setTimeout(focusComposer, 0)
+    })
+  }, [setShowSettings])
+
   const handleSidebarNewChat = useCallback((): void => {
     void createNewChat()
   }, [createNewChat])
@@ -1276,7 +1289,7 @@ export default function App(): JSX.Element {
           <MotionView viewKey={`settings:${settingsSection}`} className="flex flex-col overflow-hidden">
             <SettingsPage
               section={settingsSection}
-              onClose={() => setShowSettings(false)}
+              onClose={closeSettings}
             />
           </MotionView>
         ) : showCapabilities ? (

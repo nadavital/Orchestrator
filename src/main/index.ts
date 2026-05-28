@@ -2380,6 +2380,23 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                   activeSessionTitle.textContent?.includes('Settings worktree smoke') === true &&
                   document.querySelector('[data-testid="settings-topbar"]') === null;
               }
+              const reopenSettingsButton = [...document.querySelectorAll('button')]
+                .find((button) => button.textContent?.trim() === 'Settings' || buttonLabel(button) === 'Settings');
+              if (reopenSettingsButton instanceof HTMLElement) {
+                reopenSettingsButton.click();
+                await sleep(320);
+              }
+              const backToChatButton = [...document.querySelectorAll('button')]
+                .find((button) => button.textContent?.trim() === 'Chat' || buttonLabel(button) === 'Back to chat');
+              if (backToChatButton instanceof HTMLElement) {
+                backToChatButton.click();
+                await sleep(360);
+              }
+              const composerAfterSettingsClose = document.querySelector('[data-testid="composer-textarea"]');
+              var settingsCloseFocusRestoredWorks =
+                composerAfterSettingsClose instanceof HTMLTextAreaElement &&
+                document.activeElement === composerAfterSettingsClose &&
+                document.querySelector('[data-testid="settings-topbar"]') === null;
             }
           }
           if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'resources' || ${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'capabilities') {
@@ -6986,6 +7003,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             settingsTopbarSharedWorks: typeof settingsTopbarSharedWorks === 'boolean' ? settingsTopbarSharedWorks : null,
             settingsContentLayoutWorks: typeof settingsContentLayoutWorks === 'boolean' ? settingsContentLayoutWorks : null,
             settingsContentFocusOnOpenWorks: typeof settingsContentFocusOnOpenWorks === 'boolean' ? settingsContentFocusOnOpenWorks : null,
+            settingsCloseFocusRestoredWorks: typeof settingsCloseFocusRestoredWorks === 'boolean' ? settingsCloseFocusRestoredWorks : null,
             settingsRouteOwnedWorks: typeof settingsRouteOwnedWorks === 'boolean' ? settingsRouteOwnedWorks : null,
             settingsDeepLinkRouteWorks: typeof settingsDeepLinkRouteWorks === 'boolean' ? settingsDeepLinkRouteWorks : null,
             settingsDeepLinkRouteDebug: typeof settingsDeepLinkRouteDebug === 'object' ? settingsDeepLinkRouteDebug : null,

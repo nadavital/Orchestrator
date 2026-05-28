@@ -2875,6 +2875,7 @@ child.on('exit', async (code) => {
         settingsTopbarShared: captureView !== 'settings' || result.settingsTopbarSharedWorks === true,
         settingsContentLayout: captureView !== 'settings' || result.settingsContentLayoutWorks === true,
         settingsContentFocusOnOpen: captureView !== 'settings' || result.settingsContentFocusOnOpenWorks === true,
+        settingsCloseFocusRestored: captureView !== 'settings' || result.settingsCloseFocusRestoredWorks === true,
         settingsRouteOwned: !['settings', 'settings-providers'].includes(captureView) || result.settingsRouteOwnedWorks === true,
         settingsDeepLinkRoute: captureView !== 'settings-deeplink' || result.settingsDeepLinkRouteWorks === true,
         settingsHostContext: captureView !== 'settings' || result.settingsHostContextWorks === true,
