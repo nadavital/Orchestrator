@@ -2454,22 +2454,43 @@ function UserInputCard({
   sessionStatus: Session['status']
 }): JSX.Element {
   const [answer, setAnswer] = useState('')
+  const [questionAnswers, setQuestionAnswers] = useState<Record<string, string>>({})
   const [submitted, setSubmitted] = useState(false)
-  const answerInputRef = useRef<HTMLInputElement>(null)
+  const answerInputRef = useRef<HTMLTextAreaElement>(null)
   const questions = msg.userInputQuestions?.length ? msg.userInputQuestions : [{ question: msg.content }]
   const requestIsActive = sessionStatus === 'waiting_for_user'
   const isAnswered = submitted || !requestIsActive
+  const hasMultipleQuestions = questions.length > 1
 
   useEffect(() => {
     if (!requestIsActive || submitted) return
     answerInputRef.current?.focus({ preventScroll: true })
   }, [requestIsActive, submitted])
 
+  const composeAnswer = (freeform: string): string => {
+    const selectedAnswers = questions.flatMap((question, index) => {
+      const selected = questionAnswers[questionInputKey(question, index)]?.trim()
+      if (!selected) return []
+      const label = question.header ? `${question.header}: ${question.question}` : question.question
+      return [`${label}\nAnswer: ${selected}`]
+    })
+    const trimmedFreeform = freeform.trim()
+    if (selectedAnswers.length === 0) return trimmedFreeform
+    return [...selectedAnswers, ...(trimmedFreeform ? [`Additional details:\n${trimmedFreeform}`] : [])].join('\n\n')
+  }
+
+  const composedAnswer = composeAnswer(answer)
+
   const submitAnswer = async (value: string): Promise<void> => {
     const trimmed = value.trim()
     if (!trimmed) return
     setSubmitted(true)
     await window.api.sessions.answerUserInput(sessionId, trimmed)
+  }
+
+  const selectQuestionAnswer = (question: UserInputQuestion, index: number, value: string): void => {
+    const key = questionInputKey(question, index)
+    setQuestionAnswers((current) => ({ ...current, [key]: value }))
   }
 
   return (
@@ -2498,8 +2519,13 @@ function UserInputCard({
             <QuestionBlock
               key={`${question.question}-${index}`}
               question={question}
+              index={index}
               disabled={isAnswered}
-              onAnswer={submitAnswer}
+              selectedAnswer={questionAnswers[questionInputKey(question, index)]}
+              onSelectAnswer={(value) => {
+                if (hasMultipleQuestions) selectQuestionAnswer(question, index, value)
+                else void submitAnswer(value)
+              }}
             />
           ))}
         </div>
@@ -2507,17 +2533,20 @@ function UserInputCard({
           <form
             className="mt-3 flex flex-wrap gap-2"
             data-testid="chat-user-input-form"
+            data-user-input-question-count={questions.length}
+            data-user-input-selected-count={Object.values(questionAnswers).filter((value) => value.trim()).length}
             onSubmit={(event) => {
               event.preventDefault()
-              void submitAnswer(answer)
+              void submitAnswer(composedAnswer)
             }}
           >
-            <input
+            <textarea
               ref={answerInputRef}
               value={answer}
               onChange={(event) => setAnswer(event.target.value)}
-              placeholder="Type an answer..."
-              className="min-w-0 flex-1 rounded-lg px-3 py-2 text-sm outline-none"
+              placeholder={hasMultipleQuestions ? 'Add details...' : 'Type an answer...'}
+              rows={1}
+              className="min-h-9 min-w-0 flex-1 resize-none rounded-lg px-3 py-2 text-sm outline-none"
               style={{
                 background: 'var(--color-surface)',
                 color: 'var(--color-text)',
@@ -2526,9 +2555,10 @@ function UserInputCard({
             />
             <Button
               type="submit"
-              disabled={!answer.trim()}
+              disabled={!composedAnswer.trim()}
               variant="primary"
               className="px-4 py-2"
+              dataTestId="chat-user-input-send"
             >
               Send
             </Button>
@@ -2546,15 +2576,19 @@ function UserInputCard({
 
 function QuestionBlock({
   question,
+  index,
   disabled,
-  onAnswer
+  selectedAnswer,
+  onSelectAnswer
 }: {
   question: UserInputQuestion
+  index: number
   disabled: boolean
-  onAnswer: (answer: string) => Promise<void>
+  selectedAnswer?: string
+  onSelectAnswer: (answer: string) => void
 }): JSX.Element {
   return (
-    <div>
+    <div data-testid="chat-user-input-question" data-question-index={index}>
       {question.header && (
         <div className="mb-1 text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>
           {question.header}
@@ -2571,12 +2605,14 @@ function QuestionBlock({
               key={option.label}
               disabled={disabled}
               className="rounded-lg px-3 py-2 text-left disabled:opacity-50"
+              dataTestId="chat-user-input-option"
+              data-selected={selectedAnswer === option.label ? 'true' : 'false'}
               style={{
-                background: 'var(--color-surface)',
+                background: selectedAnswer === option.label ? 'color-mix(in srgb, var(--accent) 14%, var(--color-surface))' : 'var(--color-surface)',
                 color: 'var(--color-text)',
-                border: '1px solid var(--color-border)'
+                border: selectedAnswer === option.label ? '1px solid color-mix(in srgb, var(--accent) 45%, var(--color-border))' : '1px solid var(--color-border)'
               }}
-              onClick={() => { if (!disabled) void onAnswer(option.label) }}
+              onClick={() => { if (!disabled) onSelectAnswer(option.label) }}
             >
               <div className="text-sm">{option.label}</div>
               {option.description && (
@@ -2590,6 +2626,10 @@ function QuestionBlock({
       )}
     </div>
   )
+}
+
+function questionInputKey(question: UserInputQuestion, index: number): string {
+  return question.id ?? `${index}:${question.question}`
 }
 
 function PermissionCard({ msg, sessionId, sessionStatus }: { msg: ResultMessage; sessionId: string; sessionStatus: Session['status'] }): JSX.Element {

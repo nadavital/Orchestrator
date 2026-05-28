@@ -1595,6 +1595,17 @@ export const sessionManager = {
     const trimmed = answer.trim()
     if (!trimmed) return
     if (session.status === 'waiting_for_permission') markLatestPermissionDecision(sessionId, 'kept_planning')
+    if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT) {
+      this.appendMessage(sessionId, [{
+        id: uuidv4(),
+        role: 'user',
+        type: 'text',
+        content: trimmed,
+        timestamp: Date.now()
+      }])
+      this.updateStatus(sessionId, 'running')
+      return
+    }
 
     if (providerRuntime.answerUserInput(sessionId, trimmed)) {
       this.appendMessage(sessionId, [{

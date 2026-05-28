@@ -70,6 +70,8 @@ const captureView = process.argv.includes('--settings-deeplink')
             ? 'sidebar'
             : process.argv.includes('--transcript-layout')
               ? 'transcript-layout'
+              : process.argv.includes('--transcript-user-input')
+                ? 'transcript-user-input'
               : process.argv.includes('--transcript-tool-failure')
                 ? 'transcript-tool-failure'
               : process.argv.includes('--transcript-stress')
@@ -2065,6 +2067,13 @@ child.on('exit', async (code) => {
         toolSummaryScrollable: result.toolSummaryScrollable === true,
         documentNoHorizontalOverflowAfterExpand: result.documentNoHorizontalOverflowAfterExpand === true
       }
+    : captureView === 'transcript-user-input'
+      ? {
+          isolatedProfile: result.profile?.isIsolated === true,
+          userInputMultiQuestionCard: result.userInputMultiQuestionCardWorks === true,
+          userInputOptionSelection: result.userInputOptionSelectionWorks === true,
+          userInputStructuredSubmit: result.userInputStructuredSubmitWorks === true
+        }
     : captureView === 'design-system'
       ? {
           isolatedProfile: result.profile?.isIsolated === true,

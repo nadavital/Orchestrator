@@ -524,6 +524,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
     runAutomatedTranscriptLayoutSmoke(win, outputPath, screenshotPath)
     return
   }
+  if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-user-input') {
+    runAutomatedTranscriptUserInputSmoke(win, outputPath, screenshotPath)
+    return
+  }
   if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-tool-failure') {
     runAutomatedTranscriptToolFailureSmoke(win, outputPath, screenshotPath)
     return
@@ -20006,6 +20010,77 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
   })
 }
 
+function runAutomatedTranscriptUserInputSmoke(win: BrowserWindow, outputPath: string, screenshotPath?: string): void {
+  win.webContents.once('did-finish-load', () => {
+    setTimeout(async () => {
+      try {
+        win.setMinimumSize(520, 600)
+        win.setSize(760, 680)
+        const profile = getAppProfile()
+        const session = sessionManager.list().find((candidate) => candidate.name === 'Transcript user input smoke')
+        if (session) {
+          win.webContents.send('pet:navigate', session.id)
+          await new Promise((resolve) => setTimeout(resolve, 240))
+          sessionManager.updateStatus(session.id, 'waiting_for_user')
+          await new Promise((resolve) => setTimeout(resolve, 180))
+        }
+        const result = await win.webContents.executeJavaScript(`
+          (async () => {
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            const card = document.querySelector('[data-testid="chat-user-input-card"]');
+            const form = document.querySelector('[data-testid="chat-user-input-form"]');
+            const questions = [...document.querySelectorAll('[data-testid="chat-user-input-question"]')];
+            const options = [...document.querySelectorAll('[data-testid="chat-user-input-option"]')];
+            const userInputMultiQuestionCardWorks =
+              card instanceof HTMLElement &&
+              form instanceof HTMLElement &&
+              form.getAttribute('data-user-input-question-count') === '2' &&
+              questions.length === 2 &&
+              options.length >= 4;
+            const composerOption = options.find((option) => option.textContent?.includes('Composer'));
+            const reviewOption = options.find((option) => option.textContent?.includes('Review'));
+            if (composerOption instanceof HTMLElement) {
+              composerOption.click();
+              await sleep(80);
+            }
+            if (reviewOption instanceof HTMLElement) {
+              reviewOption.click();
+              await sleep(80);
+            }
+            const selectedOptions = [...document.querySelectorAll('[data-testid="chat-user-input-option"][data-selected="true"]')];
+            const updatedForm = document.querySelector('[data-testid="chat-user-input-form"]');
+            const userInputOptionSelectionWorks =
+              selectedOptions.length === 2 &&
+              updatedForm?.getAttribute('data-user-input-selected-count') === '2';
+            const send = document.querySelector('[data-testid="chat-user-input-send"]');
+            if (send instanceof HTMLButtonElement) {
+              send.click();
+              await sleep(160);
+            }
+            const userInputStructuredSubmitWorks =
+              document.body.innerText.includes('Answer sent') &&
+              document.body.innerText.includes('resuming');
+            return {
+              userInputMultiQuestionCardWorks,
+              userInputOptionSelectionWorks,
+              userInputStructuredSubmitWorks
+            };
+          })()
+        `)
+        if (screenshotPath) {
+          const image = await win.webContents.capturePage()
+          writeFileSync(screenshotPath, image.toPNG())
+        }
+        writeFileSync(outputPath, JSON.stringify({ ok: true, result: { profile, ...result }, screenshotPath }, null, 2))
+        app.quit()
+      } catch (error) {
+        writeFileSync(outputPath, JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2))
+        app.quit()
+      }
+    }, 700)
+  })
+}
+
 function runAutomatedTranscriptToolFailureSmoke(win: BrowserWindow, outputPath: string, screenshotPath?: string): void {
   win.webContents.once('did-finish-load', () => {
     setTimeout(async () => {
@@ -21602,6 +21677,8 @@ async function bootstrapAutomatedUiSmokeState(): Promise<void> {
     await seedAutomatedSidebarSmokeSessions(project.id, project.rootPath)
   } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-layout') {
     seedAutomatedTranscriptLayoutSmokeSession(session.id)
+  } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-user-input') {
+    seedAutomatedTranscriptUserInputSmokeSession(session.id)
   } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-tool-failure') {
     seedAutomatedTranscriptToolFailureSmokeSession(session.id)
     pendingNavigation = { kind: 'session', sessionId: session.id }
@@ -22170,6 +22247,60 @@ function seedAutomatedTranscriptLayoutSmokeSession(sessionId: string): void {
     name: 'Transcript layout smoke',
     status: 'idle',
     messages,
+    createdAt: baseTime,
+    latestMessageAt: baseTime + messages.length
+  })
+}
+
+function seedAutomatedTranscriptUserInputSmokeSession(sessionId: string): void {
+  const session = sessionManager.get(sessionId)
+  if (!session) return
+
+  const baseTime = Date.now()
+  const messages: ChatMessage[] = [
+    {
+      id: 'transcript-user-input-user',
+      role: 'user',
+      type: 'text',
+      content: 'TRANSCRIPT_USER_INPUT_SMOKE choose the next coding workflow.',
+      timestamp: baseTime
+    },
+    {
+      id: 'transcript-user-input-request',
+      role: 'system',
+      type: 'result',
+      content: 'Pick the next coding workflow and the validation surface.',
+      subtype: 'waiting_for_user',
+      timestamp: baseTime + 1,
+      userInputQuestions: [
+        {
+          id: 'transcript-user-input-direction',
+          header: 'Direction',
+          question: 'Pick the next bounded coding slice.',
+          options: [
+            { label: 'Composer', description: 'Improve prompt entry and handoff flow.' },
+            { label: 'Inspector', description: 'Improve runtime context and diagnostics.' }
+          ]
+        },
+        {
+          id: 'transcript-user-input-validation',
+          header: 'Validation',
+          question: 'Pick the focused validation surface.',
+          options: [
+            { label: 'Review', description: 'Verify code-review and diff behavior.' },
+            { label: 'Settings', description: 'Verify settings and provider boundaries.' }
+          ]
+        }
+      ]
+    }
+  ]
+
+  sessionManager.save({
+    ...session,
+    name: 'Transcript user input smoke',
+    status: 'waiting_for_user',
+    messages,
+    providerSessionId: 'transcript-user-input-provider-session',
     createdAt: baseTime,
     latestMessageAt: baseTime + messages.length
   })
