@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useState } from 'react'
 import type { Project, WorktreeInventoryItem } from '../../types'
 import { useSessionStore } from '../../store/sessions'
 import { useProjectStore } from '../../store/projects'
@@ -225,7 +225,17 @@ export default function WorktreesSettingsPage({ onClose }: WorktreesSettingsPage
             </SettingsContentGroup>
           ))}
 
-          {status && <div className="worktrees-status">{status}</div>}
+          {status && (
+            <div
+              className="worktrees-status"
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+              data-testid="worktrees-status"
+            >
+              {status}
+            </div>
+          )}
         </SettingsContentLayout>
         {pendingDeleteWorktree && (
           <ConfirmDialog
@@ -253,9 +263,13 @@ function WorktreeRow({
   onDeleteRequest: (worktree: WorktreeInventoryItem) => void
   onOpenConversation: (conversationId: string) => void
 }): JSX.Element {
+  const conversationsLabelId = useId()
+
   return (
     <div
       className="worktrees-row"
+      role="group"
+      aria-label={`${worktreeStateLabel(worktree.state)} worktree at ${worktree.workDir}`}
       data-testid="worktree-settings-row"
       data-worktree-state={worktree.state}
       data-worktree-managed={String(worktree.managed)}
@@ -272,21 +286,23 @@ function WorktreeRow({
           type="button"
           className="settings-action-button settings-action-button-danger"
           disabled={!worktree.managed || busy}
+          aria-label={`Delete worktree at ${worktree.workDir}`}
           onClick={() => onDeleteRequest(worktree)}
         >
           {busy ? 'Deleting...' : 'Delete'}
         </button>
       </div>
       <div className="worktrees-conversation-block">
-        <div className="worktrees-conversation-label">Conversations</div>
-        <div className="worktrees-conversation-list">
+        <div id={conversationsLabelId} className="worktrees-conversation-label">Conversations</div>
+        <div className="worktrees-conversation-list" role="list" aria-labelledby={conversationsLabelId}>
           {worktree.conversations.map((conversation) => (
-            <div key={conversation.id} className="worktrees-conversation-row" data-testid="worktree-conversation-row">
+            <div key={conversation.id} className="worktrees-conversation-row" role="listitem" data-testid="worktree-conversation-row">
               <span className="worktrees-conversation-title">{conversation.name}</span>
               <span className="worktrees-conversation-meta">{conversation.provider} · {formatRelativeTime(conversation.updatedAt)}</span>
               <button
                 type="button"
                 className="settings-action-button worktrees-open-chat-button"
+                aria-label={`Open ${conversation.name}`}
                 onClick={() => onOpenConversation(conversation.id)}
                 data-testid="worktree-open-conversation"
               >

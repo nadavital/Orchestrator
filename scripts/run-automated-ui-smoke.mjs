@@ -2786,6 +2786,7 @@ child.on('exit', async (code) => {
         settingsWorktreesCreate: captureView !== 'settings' || result.settingsWorktreesCreateWorks === true,
         settingsWorktreesDelete: captureView !== 'settings' || result.settingsWorktreesDeleteWorks === true,
         settingsWorktreesOpen: captureView !== 'settings' || result.settingsWorktreesOpenWorks === true,
+        settingsWorktreesActionA11y: captureView !== 'settings' || result.settingsWorktreesActionA11yWorks === true,
         settingsShortcutsSurface: captureView !== 'settings' || result.settingsShortcutsSurfaceWorks === true,
         settingsShortcutsCompact: captureView !== 'settings' || result.settingsShortcutsCompactWorks === true,
         settingsShortcutsEditable: captureView !== 'settings' || result.settingsShortcutsEditableWorks === true,

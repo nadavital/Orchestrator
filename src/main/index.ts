@@ -1726,6 +1726,31 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 row.getAttribute('data-worktree-managed') === 'true' &&
                 row.textContent?.includes('Settings worktree smoke')
               );
+              const worktreeConversationLists = [...document.querySelectorAll('.worktrees-conversation-list')]
+                .filter((row) => row instanceof HTMLElement);
+              const worktreeRowsHaveA11y =
+                worktreeRowsBeforeDelete.length >= 1 &&
+                worktreeRowsBeforeDelete.every((row) =>
+                  row.getAttribute('role') === 'group' &&
+                  (row.getAttribute('aria-label') ?? '').includes('worktree at ')
+                ) &&
+                worktreeConversationLists.length >= 1 &&
+                worktreeConversationLists.every((list) =>
+                  list.getAttribute('role') === 'list' &&
+                  list.getAttribute('aria-labelledby')
+                ) &&
+                worktreeConversationRows.every((row) => row.getAttribute('role') === 'listitem') &&
+                [...document.querySelectorAll('[data-testid="worktree-open-conversation"]')]
+                  .every((button) =>
+                    button instanceof HTMLButtonElement &&
+                    (button.getAttribute('aria-label') ?? '').startsWith('Open ')
+                  ) &&
+                [...document.querySelectorAll('.settings-action-button-danger')]
+                  .filter((button) => button.textContent?.includes('Delete'))
+                  .every((button) =>
+                    button instanceof HTMLButtonElement &&
+                    (button.getAttribute('aria-label') ?? '').startsWith('Delete worktree at ')
+                  );
               var settingsWorktreesPageWorks =
                 worktreesSection instanceof HTMLElement &&
                 worktreesSection.classList.contains('settings-page-section') &&
@@ -1746,6 +1771,9 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 worktreesSection.querySelector('.settings-panel') === null &&
                 worktreesSection.querySelector('.compact-setting') === null;
               var settingsWorktreesCreateWorks = false;
+              var settingsWorktreesActionA11yWorks = false;
+              var worktreesCreateStatusA11y = false;
+              var worktreesDeleteStatusA11y = false;
               const smokeWorktreeBranch = 'orchestrator/settings-smoke-created-' + Date.now();
               const smokeWorktreeName = 'Worktree: ' + smokeWorktreeBranch;
               if (
@@ -1772,6 +1800,13 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                       item.conversations.some((conversation) => conversation.name === smokeWorktreeName)
                     )
                   ) {
+                    const createStatus = document.querySelector('[data-testid="worktrees-status"]');
+                    worktreesCreateStatusA11y =
+                      createStatus instanceof HTMLElement &&
+                      createStatus.getAttribute('role') === 'status' &&
+                      createStatus.getAttribute('aria-live') === 'polite' &&
+                      createStatus.getAttribute('aria-atomic') === 'true' &&
+                      createStatus.textContent?.includes('Created ' + smokeWorktreeName) === true;
                     settingsWorktreesCreateWorks = true;
                     break;
                   }
@@ -1813,6 +1848,13 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                         !remainingRows.some((row) => row.textContent?.includes(smokeWorktreeName)) &&
                         inventory.every((item) => !item.conversations.some((conversation) => conversation.name === smokeWorktreeName))
                       ) {
+                        const deleteStatus = document.querySelector('[data-testid="worktrees-status"]');
+                        worktreesDeleteStatusA11y =
+                          deleteStatus instanceof HTMLElement &&
+                          deleteStatus.getAttribute('role') === 'status' &&
+                          deleteStatus.getAttribute('aria-live') === 'polite' &&
+                          deleteStatus.getAttribute('aria-atomic') === 'true' &&
+                          deleteStatus.textContent?.includes('Deleted worktree for ') === true;
                         settingsWorktreesDeleteWorks = deleteDialogShared;
                         break;
                       }
@@ -1821,6 +1863,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                   }
                 }
               }
+              settingsWorktreesActionA11yWorks =
+                worktreeRowsHaveA11y &&
+                worktreesCreateStatusA11y &&
+                worktreesDeleteStatusA11y;
               const shortcutsButton = [...document.querySelectorAll('button')]
                 .find((button) => button.textContent?.includes('Shortcuts'));
               shortcutsButton?.click();
@@ -6087,6 +6133,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             settingsWorktreesCreateWorks: typeof settingsWorktreesCreateWorks === 'boolean' ? settingsWorktreesCreateWorks : null,
             settingsWorktreesDeleteWorks: typeof settingsWorktreesDeleteWorks === 'boolean' ? settingsWorktreesDeleteWorks : null,
             settingsWorktreesOpenWorks: typeof settingsWorktreesOpenWorks === 'boolean' ? settingsWorktreesOpenWorks : null,
+            settingsWorktreesActionA11yWorks: typeof settingsWorktreesActionA11yWorks === 'boolean' ? settingsWorktreesActionA11yWorks : null,
             settingsShortcutsSurfaceWorks: typeof settingsShortcutsSurfaceWorks === 'boolean' ? settingsShortcutsSurfaceWorks : null,
             settingsShortcutsCompactWorks: typeof settingsShortcutsCompactWorks === 'boolean' ? settingsShortcutsCompactWorks : null,
             settingsShortcutsEditableWorks: typeof settingsShortcutsEditableWorks === 'boolean' ? settingsShortcutsEditableWorks : null,
