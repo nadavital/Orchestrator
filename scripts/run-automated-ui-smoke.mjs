@@ -2394,6 +2394,7 @@ child.on('exit', async (code) => {
           sideChatTabs: result.sideChatTabsWork === true,
           sideChatComposerCompact: result.sideChatComposerCompactWorks === true,
           sideChatDraftPersistence: result.sideChatDraftPersistenceWorks === true,
+          sideChatMultilineDraft: result.sideChatMultilineDraftWorks === true,
           sideChatMessageLabelsCalm: result.sideChatMessageLabelsCalm === true,
           sideChatErrorRetry: result.sideChatErrorRetryWorks === true,
           sideChatClose: result.sideChatCloseWorks === true
@@ -2661,6 +2662,7 @@ child.on('exit', async (code) => {
         sideChatTabs: captureView !== 'inspector' || result.sideChatTabsWork === true,
         sideChatComposerCompact: captureView !== 'inspector' || result.sideChatComposerCompactWorks === true,
         sideChatDraftPersistence: captureView !== 'inspector' || result.sideChatDraftPersistenceWorks === true,
+        sideChatMultilineDraft: captureView !== 'inspector' || result.sideChatMultilineDraftWorks === true,
         sideChatMessageLabelsCalm: captureView !== 'inspector' || result.sideChatMessageLabelsCalm === true,
         sideChatErrorRetry: captureView !== 'inspector' || result.sideChatErrorRetryWorks === true,
         sideChatClose: captureView !== 'inspector' || result.sideChatCloseWorks === true,

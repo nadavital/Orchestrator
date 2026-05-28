@@ -4132,10 +4132,12 @@
   }
 
   .side-chat-input {
-    height: 24px;
+    min-height: 24px;
+    max-height: 72px;
     border: 0;
     background: transparent;
     color: var(--text-primary);
+    line-height: 20px;
   }
 
   .side-chat-input::placeholder {

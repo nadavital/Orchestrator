@@ -162,13 +162,19 @@ export default function SideQuestionPanel({ session, chatId, embedded }: Props):
           void submit()
         }}
       >
-        <input
+        <textarea
           data-testid={chatId ? 'side-chat-input' : 'side-question-input'}
           value={question}
           onChange={(event) => setQuestion(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key !== 'Enter' || event.shiftKey) return
+            event.preventDefault()
+            void submit()
+          }}
           placeholder="Ask in side chat"
           disabled={pending}
-          className="side-chat-input min-w-0 flex-1 text-sm outline-none"
+          rows={1}
+          className="side-chat-input min-w-0 flex-1 resize-none text-sm outline-none"
         />
         <IconButton
           icon="send"

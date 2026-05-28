@@ -7850,3 +7850,13 @@ Implemented: failed side-chat and legacy side-question assistant answers now ren
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and `git diff --check` passed. Focused `node scripts/run-automated-ui-smoke.mjs --side-chat` first hit the expected sandbox `listen EPERM 127.0.0.1`; the elevated rerun passed with `sideChatErrorRetry=true`, `sideChatTabs=true`, `sideChatComposerCompact=true`, `sideChatDraftPersistence=true`, `sideChatMessageLabelsCalm=true`, and `sideChatClose=true`. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-side-chat-1779937900512.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-side-chat-1779937900512.png`.
 
 Remaining: this closes side-chat error retry only. Provider-backed side-chat proof, richer side-chat context/fork-turn metadata, and exact live Codex timing remain Phase 1 side-panel work.
+
+### 2026-05-28 - Side Chat Multiline Composer
+
+Product evidence: the Phase 1 composer backlog calls out side-chat consistency. After the retry slice, side chat still used a single-line input, which made longer coding questions awkward and unlike the main composer workflow.
+
+Implemented: the side-chat composer now uses a compact textarea. Enter submits the side question, Shift+Enter keeps a newline in the draft, and the existing per-side-chat draft persistence now covers multiline text without changing the compact right-panel footprint.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and `git diff --check` passed. Focused `node scripts/run-automated-ui-smoke.mjs --side-chat` passed with `sideChatMultilineDraft=true`, `sideChatErrorRetry=true`, `sideChatTabs=true`, `sideChatComposerCompact=true`, `sideChatDraftPersistence=true`, `sideChatMessageLabelsCalm=true`, and `sideChatClose=true`. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-side-chat-1779938212984.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-side-chat-1779938212984.png`.
+
+Remaining: this closes multiline side-chat draft/composer consistency only. Provider-backed side-chat proof, richer side-chat context/fork-turn metadata, and exact live Codex timing remain Phase 1 side-panel work.
