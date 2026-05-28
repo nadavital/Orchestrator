@@ -2794,6 +2794,7 @@ function QuestionBlock({
               className="rounded-lg px-3 py-2 text-left disabled:opacity-50"
               dataTestId="chat-user-input-option"
               data-selected={selected ? 'true' : 'false'}
+              ariaPressed={selected}
               ariaLabel={`${selected ? 'Selected' : 'Select'} ${option.label}`}
               style={{
                 background: selected ? 'color-mix(in srgb, var(--accent) 14%, var(--color-surface))' : 'var(--color-surface)',

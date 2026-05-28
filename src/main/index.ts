@@ -21558,11 +21558,25 @@ function runAutomatedTranscriptUserInputSmoke(win: BrowserWindow, outputPath: st
               await sleep(80);
             }
             const selectedOptions = [...document.querySelectorAll('[data-testid="chat-user-input-option"][data-selected="true"]')];
+            const allOptionStates = [...document.querySelectorAll('[data-testid="chat-user-input-option"]')]
+              .filter((option) => option instanceof HTMLButtonElement)
+              .map((option) => ({
+                text: option.textContent ?? '',
+                selected: option.getAttribute('data-selected'),
+                pressed: option.getAttribute('aria-pressed'),
+                label: option.getAttribute('aria-label') ?? ''
+              }));
             const updatedForm = document.querySelector('[data-testid="chat-user-input-form"]');
             const userInputOptionSelectionWorks =
               selectedOptions.length === 4 &&
               updatedForm?.getAttribute('data-user-input-selected-count') === '3' &&
-              updatedForm?.getAttribute('data-user-input-selected-option-count') === '4';
+              updatedForm?.getAttribute('data-user-input-selected-option-count') === '4' &&
+              allOptionStates.length >= 7 &&
+              allOptionStates.every((option) =>
+                (option.pressed === 'true' || option.pressed === 'false') &&
+                option.selected === option.pressed &&
+                option.label.startsWith(option.pressed === 'true' ? 'Selected ' : 'Select ')
+              );
             const multiQuestion = questions.find((question) => question.textContent?.includes('Pick all validators'));
             const userInputMultiSelectWorks =
               multiQuestion instanceof HTMLElement &&

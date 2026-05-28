@@ -214,6 +214,7 @@ interface ButtonProps {
   style?: CSSProperties
   title?: string
   ariaLabel?: string
+  ariaPressed?: boolean
   dataTestId?: string
   dataReviewPath?: string
   dataSidebarKey?: string
@@ -2342,6 +2343,7 @@ export function SurfaceRow({
   style,
   title,
   ariaLabel,
+  ariaPressed,
   dataTestId,
   dataReviewPath,
   dataSidebarKey,
@@ -2361,6 +2363,7 @@ export function SurfaceRow({
     onMouseEnter,
     onDoubleClick: (event: React.MouseEvent) => { void onDoubleClick?.(event) },
     'aria-label': ariaLabel ?? title,
+    'aria-pressed': ariaPressed,
   }
 
   if (as === 'button') {
