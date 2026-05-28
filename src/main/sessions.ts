@@ -5,7 +5,7 @@ import { execFile } from 'child_process'
 import { readFileSync } from 'fs'
 import { performance } from 'perf_hooks'
 import { promisify } from 'util'
-import type { Attachment, AutomationPermissionSnapshot, Session, SessionForkMode, SessionListItem, ChatMessage, TextMessage, ProviderRuntimeKind, ProviderSidebarSyncResult, ReviewMetadata, RunEvent, RunRequest, SessionStatus, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary, WorktreeInventoryItem } from '../types'
+import type { Attachment, AutomationPermissionSnapshot, Session, SessionForkMode, SessionListItem, ChatMessage, TextMessage, ProviderRuntimeKind, ProviderSidebarSyncResult, ReviewMetadata, RunEvent, RunRequest, SessionStatus, SideQuestionMessage, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary, WorktreeInventoryItem } from '../types'
 import { PROVIDER_DEFS, applyAutomationPermissionSnapshot, finalizeInterruptedMessages, getDefaultPermissionMode } from '../types'
 import { gitManager } from './git'
 import { getProvider, PROVIDERS, providerSpawnEnv, resolveProviderBinary, resolveProviderCommand, runCodexAppServerCommandSurfaceRaw } from './providers'
@@ -313,7 +313,7 @@ function mergeUsageSummary(current: UsageSummary | undefined, next: UsageSummary
   }
 }
 
-function sideQuestionPrompt(session: Session, question: string): string {
+function sideQuestionPrompt(session: Session, question: string, sideChatMessages: SideQuestionMessage[] = []): string {
   const transcript = session.messages
     .slice(-16)
     .flatMap((message) => {
@@ -323,10 +323,18 @@ function sideQuestionPrompt(session: Session, question: string): string {
       return []
     })
     .join('\n\n')
+  const sideChatContext = sideChatMessages
+    .filter((message) => message.status !== 'pending' && message.content.trim())
+    .slice(-10)
+    .map((message) => `${message.role}: ${message.content.replace(/\s+/g, ' ').trim().slice(0, 1600)}`)
+    .join('\n\n')
 
   return [
     'You are answering a side question about an active Orchestrator coding-agent session.',
-    'Answer directly and do not edit files. Use the transcript context below when it is relevant.',
+    'Answer directly and do not edit files. Use the side-chat context first for follow-ups, then the transcript when it is relevant.',
+    '',
+    'Side-chat context:',
+    sideChatContext || '(No side-chat messages yet.)',
     '',
     'Transcript context:',
     transcript || '(No transcript yet.)',
@@ -1894,13 +1902,33 @@ export const sessionManager = {
     return { ok: true }
   },
 
-  async answerSideQuestion(sessionId: string, question: string): Promise<{ ok: boolean; answer: string; error?: string; usage?: UsageSummary }> {
+  async answerSideQuestion(sessionId: string, question: string, sideChatMessages: SideQuestionMessage[] = []): Promise<{ ok: boolean; answer: string; error?: string; usage?: UsageSummary }> {
     const session = this.get(sessionId)
     if (!session) return { ok: false, answer: '', error: `Session ${sessionId} not found.` }
     const trimmed = question.trim()
     if (!trimmed) return { ok: false, answer: '', error: 'Question is empty.' }
-    const effectivePrompt = promptWithPersonalization(sideQuestionPrompt(session, trimmed))
+    const effectivePrompt = promptWithPersonalization(sideQuestionPrompt(session, trimmed, sideChatMessages))
     if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT) {
+      if (trimmed.toLowerCase().includes('smoke follow-up context check')) {
+        const hasPriorUser = effectivePrompt.includes('user: smoke threaded context seed')
+        const hasPriorAssistant = effectivePrompt.includes('assistant: Smoke side answer for: smoke threaded context seed')
+        return {
+          ok: hasPriorUser && hasPriorAssistant,
+          answer: hasPriorUser && hasPriorAssistant
+            ? 'Smoke side follow-up retained prior side-chat context'
+            : '',
+          error: hasPriorUser && hasPriorAssistant ? undefined : 'Smoke side follow-up context missing.',
+          usage: {
+            inputTokens: 18,
+            outputTokens: 9,
+            totalTokens: 27,
+            totalCostUsd: 0,
+            durationMs: 120,
+            apiDurationMs: 80,
+            turns: 1
+          }
+        }
+      }
       if (trimmed.toLowerCase().includes('smoke personalization check')) {
         const hasCustomInstructions = effectivePrompt.includes('SMOKE_SIDE_CUSTOM_INSTRUCTIONS')
         const hasCodingPreferences = effectivePrompt.includes('SMOKE_SIDE_CODING_PREFS')

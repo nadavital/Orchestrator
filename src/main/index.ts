@@ -16121,6 +16121,27 @@ function runAutomatedFocusedSurfaceSmoke(
                     text !== text.toUpperCase() &&
                     getComputedStyle(label).textTransform !== 'uppercase';
                 });
+              await openSideChat('smoke threaded context seed');
+              let sideChatFollowupContextWorks = false;
+              for (let index = 0; index < 12; index += 1) {
+                const panel = document.querySelector('[data-testid="side-chat-panel"]');
+                if (panel?.textContent?.includes('Smoke side answer for: smoke threaded context seed') === true) break;
+                await sleep(120);
+              }
+              const followupInput = document.querySelector('[data-testid="side-chat-input"]');
+              const followupSend = document.querySelector('[data-testid="side-chat-send"]');
+              if (followupInput instanceof HTMLTextAreaElement && followupSend instanceof HTMLButtonElement) {
+                await fillSideChatInput(followupInput, 'smoke follow-up context check');
+                followupSend.click();
+                for (let index = 0; index < 12; index += 1) {
+                  const panel = document.querySelector('[data-testid="side-chat-panel"]');
+                  sideChatFollowupContextWorks =
+                    panel?.textContent?.includes('Smoke side follow-up retained prior side-chat context') === true &&
+                    panel?.getAttribute('data-side-chat-message-count') === '4';
+                  if (sideChatFollowupContextWorks) break;
+                  await sleep(120);
+                }
+              }
               await openSideChat('smoke retry failure');
               let sideChatErrorRetryWorks = false;
               let sideChatRetryStatusA11yWorks = false;
@@ -16195,6 +16216,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 sideChatContextMetadataWorks,
                 sideChatMessageLabelsCalm,
                 sideChatActionStatusA11yWorks,
+                sideChatFollowupContextWorks,
                 sideChatErrorRetryWorks,
                 sideChatRetryStatusA11yWorks,
                 sideChatPersonalizationContextWorks,

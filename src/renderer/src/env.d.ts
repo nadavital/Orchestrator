@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 
-import type { Attachment, Automation, AutomationRun, AutomationUpsertRequest, CapabilityCreateRequest, CapabilityCreateResult, CapabilityDeleteRequest, CapabilityMutationResult, CapabilitySyncPlan, CapabilitySyncRequest, CapabilityUpdateRequest, CodexProjectImportResult, Project, Session, SessionForkMode, SessionListItem, ChatMessage, FileChange, GitLineBlameResult, GitPathActionResult, GitRefOption, OpenPathOptions, OpenPathResult, OpenTargetAvailability, OrchestratorDeepLinkNavigation, PerformanceMetric, PerformanceSnapshot, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderManifest, ProviderPermissionRuntimeContext, ProviderResourceSnapshot, ProviderRuntimeConnectionState, ProviderRuntimeDebugEvent, ProviderRuntimeInfo, ProviderSidebarSyncResult, ProviderSlashCommand, ReviewDiffSource, ReviewMetadata, SessionRunEventRecord, TerminalServiceSnapshot, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary, WorktreeInventoryItem, WorkspaceSearchRequest, WorkspaceSearchResult } from '../../types'
+import type { Attachment, Automation, AutomationRun, AutomationUpsertRequest, CapabilityCreateRequest, CapabilityCreateResult, CapabilityDeleteRequest, CapabilityMutationResult, CapabilitySyncPlan, CapabilitySyncRequest, CapabilityUpdateRequest, CodexProjectImportResult, Project, Session, SessionForkMode, SessionListItem, ChatMessage, FileChange, GitLineBlameResult, GitPathActionResult, GitRefOption, OpenPathOptions, OpenPathResult, OpenTargetAvailability, OrchestratorDeepLinkNavigation, PerformanceMetric, PerformanceSnapshot, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderManifest, ProviderPermissionRuntimeContext, ProviderResourceSnapshot, ProviderRuntimeConnectionState, ProviderRuntimeDebugEvent, ProviderRuntimeInfo, ProviderSidebarSyncResult, ProviderSlashCommand, ReviewDiffSource, ReviewMetadata, SessionRunEventRecord, SideQuestionMessage, TerminalServiceSnapshot, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary, WorktreeInventoryItem, WorkspaceSearchRequest, WorkspaceSearchResult } from '../../types'
 import type { BrowserUsePolicy } from '../../types/browserUsePolicy'
 import type { AppCommandAvailability, AppMenuCommand, AppMenuCommandState, ShortcutOverrides, StableAppCommand } from '../../types/appCommands'
 
@@ -190,7 +190,7 @@ declare global {
         sendMessage: (sessionId: string, prompt: string, useWorktree?: boolean, attachments?: Attachment[]) => Promise<boolean>
         retryLastUserMessage: (sessionId: string) => Promise<boolean>
         continueLastTurn: (sessionId: string) => Promise<boolean>
-        answerSideQuestion: (sessionId: string, question: string) => Promise<{ ok: boolean; answer: string; error?: string; usage?: UsageSummary }>
+        answerSideQuestion: (sessionId: string, question: string, sideChatMessages?: SideQuestionMessage[]) => Promise<{ ok: boolean; answer: string; error?: string; usage?: UsageSummary }>
         updateName: (id: string, name: string) => Promise<void>
         updatePinned: (id: string, pinned: boolean) => Promise<void>
         reorderPinned: (orderedPinnedSessionIds: string[]) => Promise<void>

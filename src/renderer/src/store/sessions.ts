@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Attachment, Session, SessionListItem, ChatMessage, SessionEffort, SessionPermissionMode, SessionRunEventRecord, TranscriptPage, UsageSummary } from '../types'
+import type { Attachment, Session, SessionListItem, ChatMessage, SessionEffort, SessionPermissionMode, SessionRunEventRecord, SideQuestionMessage, TranscriptPage } from '../types'
 import { closePanelTab, DEFAULT_BROWSER_USE_POLICY, filePanelTabId, movePanelTabByDirection, nextPinOrder, parseFilePanelTabId, reorderPinnedSessions, resetPanelTabSet, resolvePanelTabTransferAvailability, transferPanelTab, upsertPanelTab } from '../types'
 import type { SettingsSectionId } from '../../../types'
 
@@ -141,14 +141,6 @@ export interface BrowserTabState {
   title: string
   url: string
   lastOpened: number
-}
-
-export interface SideQuestionMessage {
-  id: string
-  role: 'user' | 'assistant' | 'system'
-  content: string
-  status?: 'pending' | 'complete' | 'error'
-  usage?: UsageSummary
 }
 
 export interface SideChatContextSnapshot {

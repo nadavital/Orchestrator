@@ -2512,6 +2512,7 @@ child.on('exit', async (code) => {
           sideChatContextMetadata: result.sideChatContextMetadataWorks === true,
           sideChatMessageLabelsCalm: result.sideChatMessageLabelsCalm === true,
           sideChatActionStatusA11y: result.sideChatActionStatusA11yWorks === true,
+          sideChatFollowupContext: result.sideChatFollowupContextWorks === true,
           sideChatErrorRetry: result.sideChatErrorRetryWorks === true,
           sideChatRetryStatusA11y: result.sideChatRetryStatusA11yWorks === true,
           sideChatPersonalizationContext: result.sideChatPersonalizationContextWorks === true,

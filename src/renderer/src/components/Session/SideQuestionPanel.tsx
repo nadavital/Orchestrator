@@ -46,7 +46,7 @@ export default function SideQuestionPanel({ session, chatId, embedded }: Props):
     append({ id: userId, role: 'user', content: trimmed, status: 'complete' })
     append({ id: answerId, role: 'assistant', content: 'Thinking...', status: 'pending' })
     try {
-      const result = await window.api.sessions.answerSideQuestion(session.id, trimmed)
+      const result = await window.api.sessions.answerSideQuestion(session.id, trimmed, messages)
       const patch = {
         content: result.ok ? result.answer : (result.error ?? 'Side question failed.'),
         status: result.ok ? 'complete' : 'error',
@@ -78,7 +78,7 @@ export default function SideQuestionPanel({ session, chatId, embedded }: Props):
     if (chatId) updateSideChatMessage(session.id, chatId, messageId, pendingPatch)
     else updateSideQuestion(session.id, messageId, pendingPatch)
     try {
-      const result = await window.api.sessions.answerSideQuestion(session.id, retryQuestion)
+      const result = await window.api.sessions.answerSideQuestion(session.id, retryQuestion, messages.slice(0, index))
       const patch = {
         content: result.ok ? result.answer : (result.error ?? 'Side question failed.'),
         status: result.ok ? 'complete' : 'error',

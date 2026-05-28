@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { Attachment, Automation, AutomationRun, AutomationUpsertRequest, CapabilityCreateRequest, CapabilityCreateResult, CapabilityDeleteRequest, CapabilityMutationResult, CapabilitySyncPlan, CapabilitySyncRequest, CapabilityUpdateRequest, CodexProjectImportResult, Project, Session, SessionForkMode, SessionListItem, ChatMessage, FileChange, GitLineBlameResult, GitPathActionResult, GitRefOption, OpenPathOptions, OpenPathResult, OpenTargetAvailability, OrchestratorDeepLinkNavigation, PerformanceMetric, PerformanceSnapshot, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderManifest, ProviderPermissionRuntimeContext, ProviderResourceSnapshot, ProviderRuntimeConnectionState, ProviderRuntimeDebugEvent, ProviderRuntimeInfo, ProviderSidebarSyncResult, ProviderSlashCommand, ReviewDiffSource, ReviewMetadata, SessionRunEventRecord, TerminalServiceSnapshot, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary, WorktreeInventoryItem, WorkspaceSearchRequest, WorkspaceSearchResult } from '../types'
+import type { Attachment, Automation, AutomationRun, AutomationUpsertRequest, CapabilityCreateRequest, CapabilityCreateResult, CapabilityDeleteRequest, CapabilityMutationResult, CapabilitySyncPlan, CapabilitySyncRequest, CapabilityUpdateRequest, CodexProjectImportResult, Project, Session, SessionForkMode, SessionListItem, ChatMessage, FileChange, GitLineBlameResult, GitPathActionResult, GitRefOption, OpenPathOptions, OpenPathResult, OpenTargetAvailability, OrchestratorDeepLinkNavigation, PerformanceMetric, PerformanceSnapshot, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderManifest, ProviderPermissionRuntimeContext, ProviderResourceSnapshot, ProviderRuntimeConnectionState, ProviderRuntimeDebugEvent, ProviderRuntimeInfo, ProviderSidebarSyncResult, ProviderSlashCommand, ReviewDiffSource, ReviewMetadata, SessionRunEventRecord, SideQuestionMessage, TerminalServiceSnapshot, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary, WorktreeInventoryItem, WorkspaceSearchRequest, WorkspaceSearchResult } from '../types'
 import type { BrowserUsePolicy } from '../types/browserUsePolicy'
 import type { AppCommandAvailability, AppMenuCommand, AppMenuCommandState, StableAppCommand } from '../types/appCommands'
 import type { ShortcutOverrides } from '../types/appCommands'
@@ -202,8 +202,8 @@ const api = {
       ipcRenderer.invoke('sessions:retryLastUserMessage', sessionId),
     continueLastTurn: (sessionId: string): Promise<boolean> =>
       ipcRenderer.invoke('sessions:continueLastTurn', sessionId),
-    answerSideQuestion: (sessionId: string, question: string): Promise<{ ok: boolean; answer: string; error?: string; usage?: UsageSummary }> =>
-      ipcRenderer.invoke('sessions:answerSideQuestion', sessionId, question),
+    answerSideQuestion: (sessionId: string, question: string, sideChatMessages?: SideQuestionMessage[]): Promise<{ ok: boolean; answer: string; error?: string; usage?: UsageSummary }> =>
+      ipcRenderer.invoke('sessions:answerSideQuestion', sessionId, question, sideChatMessages ?? []),
     updateName: (id: string, name: string): Promise<void> =>
       ipcRenderer.invoke('sessions:updateName', id, name),
     updatePinned: (id: string, pinned: boolean): Promise<void> =>

@@ -6,7 +6,7 @@ import { closeSync, openSync, readFileSync, readSync, writeFileSync, mkdirSync, 
 import { tmpdir } from 'os'
 import { basename, dirname, extname, join } from 'path'
 import { inflateRawSync } from 'zlib'
-import type { Attachment, AutomationUpsertRequest, CapabilityCreateRequest, CapabilityDeleteRequest, CapabilitySyncRequest, CapabilityUpdateRequest, ChatMessage, GitLineBlameResult, GitPathActionResult, OpenPathMethod, OpenPathOptions, OpenPathResult, OpenTargetAvailability, PerformanceMetric, PreferredOpenTarget, ReviewDiffSource, Session, SessionForkMode, TranscriptPageRequest, WorkspaceSearchRequest } from '../types'
+import type { Attachment, AutomationUpsertRequest, CapabilityCreateRequest, CapabilityDeleteRequest, CapabilitySyncRequest, CapabilityUpdateRequest, ChatMessage, GitLineBlameResult, GitPathActionResult, OpenPathMethod, OpenPathOptions, OpenPathResult, OpenTargetAvailability, PerformanceMetric, PreferredOpenTarget, ReviewDiffSource, Session, SessionForkMode, SideQuestionMessage, TranscriptPageRequest, WorkspaceSearchRequest } from '../types'
 import { browserWebviewPartitionForHost, isOrchestratorBrowserWebviewPartition } from '../types'
 import { projectStore } from './projects'
 import { sessionManager } from './sessions'
@@ -2845,8 +2845,8 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('sessions:continueLastTurn', (_, sessionId: string) =>
     sessionManager.continueLastTurn(sessionId)
   )
-  ipcMain.handle('sessions:answerSideQuestion', (_, sessionId: string, question: string) =>
-    sessionManager.answerSideQuestion(sessionId, question)
+  ipcMain.handle('sessions:answerSideQuestion', (_, sessionId: string, question: string, sideChatMessages?: SideQuestionMessage[]) =>
+    sessionManager.answerSideQuestion(sessionId, question, sideChatMessages ?? [])
   )
   ipcMain.handle('sessions:updateName', (_, id: string, name: string) =>
     sessionManager.updateName(id, name)

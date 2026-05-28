@@ -950,6 +950,14 @@ export interface UsageSummary {
   }>
 }
 
+export interface SideQuestionMessage {
+  id: string
+  role: 'user' | 'assistant' | 'system'
+  content: string
+  status?: 'pending' | 'complete' | 'error'
+  usage?: UsageSummary
+}
+
 export type TerminalServiceSessionStatus = 'starting' | 'running' | 'exited' | 'buffered'
 
 export interface TerminalServiceSessionSnapshot {
