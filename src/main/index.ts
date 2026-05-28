@@ -6609,6 +6609,8 @@ function runAutomatedFocusedSurfaceSmoke(
               let workbenchPanelTabOverflowControllerWorks = false;
               let workbenchPanelTabCodexWidthCapWorks = false;
               let workbenchPanelTabCodexMetricsWorks = false;
+              let workbenchPanelTabReadableSeparationWorks = false;
+              let workbenchPanelTabReadableSeparationDebug = {};
               let workbenchPanelTabCloseStartEdgeWorks = false;
               let workbenchPanelTabCloseStartEdgeDebug = [];
               let workbenchPanelNewTabPageWorks = false;
@@ -6645,6 +6647,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 const activeTabButton = tabButtons.find((button) => button.getAttribute('data-active') === 'true') ?? null;
                 const tabRects = tabButtons.map((button) => button.getBoundingClientRect());
                 const tabStyles = tabButtons.map((button) => getComputedStyle(button));
+                const adjacentTabGaps = tabRects.slice(0, -1).map((rect, index) => Math.round((tabRects[index + 1]?.left ?? rect.right) - rect.right));
                 const tabWidthsStable = tabRects.length >= 3 &&
                   tabRects.every((rect) => rect.width >= 38 && rect.height >= 24) &&
                   tabStyles.every((style) => style.flexShrink === '0') &&
@@ -6657,6 +6660,13 @@ function runAutomatedFocusedSurfaceSmoke(
                 const rowCanScrollOverflow = tabRow.scrollWidth > tabRow.clientWidth + 2
                   ? tabbar.getAttribute('data-overflow-end') === 'true' || tabRow.scrollLeft > 0
                   : true;
+                workbenchPanelTabReadableSeparationWorks =
+                  adjacentTabGaps.length >= 2 &&
+                  adjacentTabGaps.every((gap) => gap >= 5);
+                workbenchPanelTabReadableSeparationDebug = {
+                  adjacentTabGaps,
+                  tabIds: tabButtons.map((button) => button.getAttribute('data-tab-id') ?? '')
+                };
                 const tabWidthCapWorks =
                   tabRects.length >= 3 &&
                   tabRects.every((rect) => rect.width <= 162) &&
@@ -6676,6 +6686,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 workbenchPanelTabOverflowControllerWorks =
                   tabWidthsStable &&
                   tabsDoNotOverlap &&
+                  workbenchPanelTabReadableSeparationWorks &&
                   rowCanScrollOverflow &&
                   tabRow.scrollHeight <= tabRow.clientHeight + 2;
                 workbenchPanelTabCodexWidthCapWorks =
@@ -7573,6 +7584,8 @@ function runAutomatedFocusedSurfaceSmoke(
                 workbenchPanelTabOverflowControllerWorks,
                 workbenchPanelTabCodexWidthCapWorks,
                 workbenchPanelTabCodexMetricsWorks,
+                workbenchPanelTabReadableSeparationWorks,
+                workbenchPanelTabReadableSeparationDebug,
                 workbenchPanelTabCloseStartEdgeWorks,
                 workbenchPanelTabCloseStartEdgeDebug,
                 workbenchPanelAddControlStableWorks:

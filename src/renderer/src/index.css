@@ -1336,6 +1336,10 @@
     display: none;
   }
 
+  .workbench-panel-tabbar .panel-tab-row {
+    gap: 6px;
+  }
+
   .workbench-panel-tabbar .motion-tab-button {
     flex: 0 0 auto;
     min-height: var(--app-shell-tab-height);
