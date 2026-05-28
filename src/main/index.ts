@@ -5579,6 +5579,24 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               activeAgentSummary.textContent?.includes('Thread settings') === true &&
               [...document.querySelectorAll('.motion-popover-surface button')]
                 .some((button) => button.textContent?.includes('Sonnet'));
+            const agentChoiceGroups = [...document.querySelectorAll('.motion-popover-surface [role="group"][aria-label$=" choices"]')]
+              .filter((group) => group instanceof HTMLElement);
+            const agentChoiceButtons = [...document.querySelectorAll('.motion-popover-surface button[aria-pressed]')]
+              .filter((button) => button instanceof HTMLButtonElement);
+            var composerAgentChoiceA11y =
+              composerActiveThreadSettings &&
+              agentChoiceGroups.length >= 2 &&
+              agentChoiceGroups.every((group) =>
+                group instanceof HTMLElement &&
+                group.getAttribute('aria-label')?.endsWith(' choices') === true &&
+                [...group.querySelectorAll('button[aria-pressed]')].some((button) => button.getAttribute('aria-pressed') === 'true')
+              ) &&
+              agentChoiceButtons.length >= 3 &&
+              agentChoiceButtons.every((button) =>
+                button instanceof HTMLButtonElement &&
+                (button.getAttribute('aria-pressed') === 'true' || button.getAttribute('aria-pressed') === 'false') &&
+                button.getAttribute('data-composer-choice-active') === button.getAttribute('aria-pressed')
+              );
             var composerAgentRowLabelsCalm =
               agentRowLabels.length >= 2 &&
               agentRowLabels.every((label) => {
@@ -6714,6 +6732,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             composerAgentMenuOpened: typeof composerAgentMenuOpened === 'boolean' ? composerAgentMenuOpened : null,
             composerAgentTriggerExpandedOnOpen: typeof composerAgentTriggerExpandedOnOpen === 'boolean' ? composerAgentTriggerExpandedOnOpen : null,
             composerActiveThreadSettings: typeof composerActiveThreadSettings === 'boolean' ? composerActiveThreadSettings : null,
+            composerAgentChoiceA11y: typeof composerAgentChoiceA11y === 'boolean' ? composerAgentChoiceA11y : null,
             composerAgentRowLabelsCalm: typeof composerAgentRowLabelsCalm === 'boolean' ? composerAgentRowLabelsCalm : null,
             composerAgentMenuClosedWithOutsideClick: typeof composerAgentMenuClosedWithOutsideClick === 'boolean' ? composerAgentMenuClosedWithOutsideClick : null,
             composerAgentFocusReturned: typeof composerAgentFocusReturned === 'boolean' ? composerAgentFocusReturned : null,

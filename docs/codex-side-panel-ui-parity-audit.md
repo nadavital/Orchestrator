@@ -8522,3 +8522,13 @@ Implemented: each transcript Review-card file row now exposes an `aria-label` co
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and `git diff --check` passed. Focused `node scripts/run-automated-ui-smoke.mjs --diff-entry` passed with `reviewTranscriptCard=true` and `reviewTranscriptCardUndo=true` alongside the Review toolbar/source header, metadata flyout, and environment-panel gates. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-entry-1779972254064.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-entry-1779972254064.png`.
 
 Remaining: this closes local transcript Review-card file-row labels only. Provider-backed source rows, richer PR metadata, and live Codex Review spacing remain Phase 1 work.
+
+### 2026-05-28 - Composer Thread Settings Choice Semantics
+
+Product evidence: the active-thread model/settings popover is a daily coding control for model, agent, and reasoning settings. The selected choices were visually clear, but the selectable chips did not expose pressed state, and the tier rows were not explicit choice groups.
+
+Implemented: composer settings chips now use real button semantics with `type="button"`, `aria-pressed`, and stable active-state metadata. Tiered model/agent/thinking rows now expose `role="group"` with contextual `aria-label` values such as `Model choices`, so assistive technology can identify both the setting group and the selected choice.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and `git diff --check` passed. Focused `node scripts/run-automated-ui-smoke.mjs --composer` first hit the expected sandbox localhost bind failure; the elevated rerun passed with `composerAgentChoiceA11y=true` alongside `composerActiveThreadSettings=true`, `composerAgentTriggerAriaExpanded=true`, `composerAgentRowLabelsCalm=true`, permission menu/focus gates, blocked-send recovery, attachment, side-chat guard, and toolbar gates. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1779972508882.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1779972508882.png`.
+
+Remaining: this closes local composer choice-state semantics only. Real provider-backed model switching, permission execution behavior, and deeper context workflow proof remain Phase 1 work.

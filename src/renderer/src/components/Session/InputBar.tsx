@@ -1904,6 +1904,8 @@ function TieredRow({ label, children }: { label: string; children: React.ReactNo
   return (
     <div
       className="flex items-start gap-3 px-3 py-2"
+      role="group"
+      aria-label={`${label} choices`}
       style={{ borderBottom: '1px solid var(--color-border)' }}
     >
       <span
@@ -2049,10 +2051,13 @@ function Chip({
 }): JSX.Element {
   const button = (
     <button
+      type="button"
       onClick={onClick}
       disabled={disabled}
+      aria-pressed={active}
       data-tooltip-label={title}
       data-native-title-free="true"
+      data-composer-choice-active={active ? 'true' : 'false'}
       className="flex items-center gap-1.5 text-xs transition-colors"
       style={{
         background: active ? 'var(--control-bg-active)' : 'var(--control-bg)',
