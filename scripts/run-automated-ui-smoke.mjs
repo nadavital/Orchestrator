@@ -74,6 +74,8 @@ const captureView = process.argv.includes('--settings-deeplink')
               ? 'transcript-live-partial-continue'
             : process.argv.includes('--transcript-live-model-switch')
               ? 'transcript-live-model-switch'
+            : process.argv.includes('--transcript-reserve')
+              ? 'transcript-reserve'
             : process.argv.includes('--transcript-layout')
               ? 'transcript-layout'
               : process.argv.includes('--transcript-fork')
@@ -2118,6 +2120,7 @@ child.on('exit', async (code) => {
         searchShortcutOpens: result.searchShortcutOpens === true,
         transcriptSearchField: result.transcriptSearchFieldWorks === true,
         sessionHeaderInPrimaryColumn: result.sessionHeaderInPrimaryColumn === true,
+        composerReserveContract: result.composerReserveContractWorks === true,
         keyboardShortcutsShortcutOpens: result.keyboardShortcutsShortcutOpens === true,
         hiddenMessageCopyQuiet: result.hiddenMessageCopyQuiet === true,
         documentNoHorizontalOverflow: result.documentNoHorizontalOverflow === true,
@@ -2159,6 +2162,13 @@ child.on('exit', async (code) => {
         toolSummaryBounded: result.toolSummaryBounded === true,
         toolSummaryScrollable: result.toolSummaryScrollable === true,
         documentNoHorizontalOverflowAfterExpand: result.documentNoHorizontalOverflowAfterExpand === true
+      }
+    : captureView === 'transcript-reserve'
+    ? {
+        isolatedProfile: result.profile?.isIsolated === true,
+        transcriptFound: result.transcriptFound === true,
+        composerReserveContract: result.composerReserveContractWorks === true,
+        composerReserveFollowBottom: result.composerReserveFollowBottomWorks === true
       }
     : captureView === 'transcript-fork'
     ? {

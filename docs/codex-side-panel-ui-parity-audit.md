@@ -163,6 +163,16 @@ Current Review verification debt:
 
 ## Implementation Progress
 
+### 2026-05-28 - Transcript Composer Reserve Slice
+
+Product evidence: the main chat thread is a Phase 1 daily coding surface. Codex has explicit composer/footer reserve layout state so bottom-follow and scroll targeting remain predictable as the composer changes height. Orchestrator kept the composer outside the transcript scroll container, but it did not expose a shared reserve contract or verify that bottom-follow survives composer expansion.
+
+Implemented: `SessionPane` now measures the live composer/footer area, exposes the height as `--composer-reserve-height` plus stable reserve data attributes on the primary chat column, and wraps the composer in a named reserve node. `ChatView` marks the transcript as reserve-aware, uses the reserve as scroll padding, and re-follows bottom when the composer reserve changes while the user is already at the latest message.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and `git diff --check` passed. The broad `node scripts/run-automated-ui-smoke.mjs --transcript-layout` timed out before producing JSON, so the reserve assertion was split into focused `node scripts/run-automated-ui-smoke.mjs --transcript-reserve`; the elevated focused run passed with `composerReserveContract=true` and `composerReserveFollowBottom=true`. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-transcript-reserve-1780012376261.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-transcript-reserve-1780012376261.png`.
+
+Remaining: this closes the local composer reserve/bottom-follow contract only. A fuller shared `ThreadScrollController`, pending worktree launch state, stable transcript item keys, exact live Codex scroll timing, and broader transcript-layout smoke runtime cleanup remain separate.
+
 ### 2026-05-28 - Review Toolbar File Navigation Slice
 
 Product evidence: Review is a Phase 1 daily coding surface. Orchestrator already supported changed-file tree keyboard movement and a jump menu, but the toolbar still lacked direct previous/next changed-file controls for stepping through a review without returning focus to the tree.

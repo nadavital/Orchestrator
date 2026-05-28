@@ -374,6 +374,17 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
     })
   }, [setFollowingBottom, updateScrollMetrics])
 
+  useEffect(() => {
+    const onComposerReserveChanged = (event: Event): void => {
+      const detail = (event as CustomEvent<{ sessionId?: string; height?: number }>).detail
+      if (detail?.sessionId !== session.id) return
+      updateScrollMetrics()
+      if (shouldFollowBottomRef.current) scrollToBottom()
+    }
+    window.addEventListener('orchestrator:composer-reserve-changed', onComposerReserveChanged)
+    return () => window.removeEventListener('orchestrator:composer-reserve-changed', onComposerReserveChanged)
+  }, [scrollToBottom, session.id, updateScrollMetrics])
+
   const handleVirtualRowHeight = useCallback((id: string, height: number) => {
     const previous = measuredRowHeightsRef.current[id]
     if (previous && Math.abs(previous - height) < 1) return
@@ -789,7 +800,11 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
         onWheel={handleWheel}
         onTouchStart={handleTouchStart}
         className="h-full min-w-0 overflow-y-auto overflow-x-hidden px-6 py-5"
-        style={{ userSelect: 'text' }}
+        data-composer-reserve-aware="true"
+        style={{
+          userSelect: 'text',
+          scrollPaddingBlockEnd: 'var(--composer-reserve-height, 0px)'
+        }}
       >
         <div
           className="mx-auto flex min-w-0 flex-col"

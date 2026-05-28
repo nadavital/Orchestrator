@@ -542,6 +542,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
     runAutomatedTranscriptLayoutSmoke(win, outputPath, screenshotPath)
     return
   }
+  if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-reserve') {
+    runAutomatedTranscriptReserveSmoke(win, outputPath, screenshotPath)
+    return
+  }
   if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-fork') {
     runAutomatedTranscriptForkSmoke(win, outputPath, screenshotPath)
     return
@@ -22884,6 +22888,47 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
             const chatUserMessageEditAttachments =
               chatUserMessageEditToDraft &&
               document.querySelector('[data-testid="composer-shell"]')?.textContent?.includes('AGENTS.md') === true;
+            let composerReserveContractWorks = false;
+            let composerReserveDebug = {};
+            for (let index = 0; index < 10; index += 1) {
+              const composerReserve = document.querySelector('[data-testid="composer-reserve"]');
+              const primaryContent = document.querySelector('[data-testid="session-primary-content"]');
+              const reserveScroller = document.querySelector('[data-testid="transcript-scroll"]');
+              const composerReserveRect = composerReserve instanceof HTMLElement
+                ? composerReserve.getBoundingClientRect()
+                : null;
+              const primaryStyle = primaryContent instanceof HTMLElement ? getComputedStyle(primaryContent) : null;
+              const scrollerStyle = reserveScroller instanceof HTMLElement ? getComputedStyle(reserveScroller) : null;
+              const reserveAttr = Number(primaryContent?.getAttribute('data-composer-reserve-height') ?? '0');
+              const wrapperReserveAttr = Number(composerReserve?.getAttribute('data-composer-reserve-height') ?? '0');
+              const cssReserve = Number.parseFloat(primaryStyle?.getPropertyValue('--composer-reserve-height') ?? '0');
+              const scrollPaddingBottom = Number.parseFloat(
+                scrollerStyle?.getPropertyValue('scroll-padding-block-end') ||
+                scrollerStyle?.scrollPaddingBottom ||
+                '0'
+              );
+              const reserveRectHeight = composerReserveRect?.height ?? 0;
+              composerReserveDebug = {
+                reserveAttr,
+                wrapperReserveAttr,
+                cssReserve,
+                scrollPaddingBottom,
+                reserveRectHeight
+              };
+              composerReserveContractWorks =
+                composerReserve instanceof HTMLElement &&
+                primaryContent instanceof HTMLElement &&
+                reserveScroller instanceof HTMLElement &&
+                primaryContent.getAttribute('data-composer-reserve-ready') === 'true' &&
+                reserveScroller.getAttribute('data-composer-reserve-aware') === 'true' &&
+                reserveRectHeight > 80 &&
+                Math.abs(reserveAttr - reserveRectHeight) <= 2 &&
+                Math.abs(wrapperReserveAttr - reserveAttr) <= 1 &&
+                Math.abs(cssReserve - reserveAttr) <= 1 &&
+                scrollPaddingBottom >= reserveAttr - 2;
+              if (composerReserveContractWorks) break;
+              await sleep(80);
+            }
             let toolSummary = document.querySelector('[data-testid="tool-activity-summary"]');
             for (let index = 0; index < 10 && !toolSummary; index += 1) {
               scroller.scrollTop = Math.max(scroller.scrollHeight, scroller.clientHeight) * ((index + 1) / 10);
@@ -22946,6 +22991,8 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
               transcriptSearchFieldWorks,
               sessionHeaderInPrimaryColumn,
               sessionHeaderInPrimaryColumnDebug,
+              composerReserveContractWorks,
+              composerReserveDebug,
               hiddenMessageCopyQuiet: !document.body.innerText.includes('hidden for faster chat switching'),
               documentNoHorizontalOverflow,
               transcriptNoHorizontalOverflow,
@@ -23334,6 +23381,120 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
           writeFileSync(screenshotPath, image.toPNG())
         }
         writeFileSync(outputPath, JSON.stringify({ ok: true, result: { profile, ...result, ...narrowResult, ...retryResult, ...retryPreparationFailureResult, ...regenerateResult, ...continueResult, ...continueFailureResult, ...shortcutResult }, screenshotPath }, null, 2))
+        app.quit()
+      } catch (error) {
+        writeFileSync(outputPath, JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2))
+        app.quit()
+      }
+    }, 700)
+  })
+}
+
+function runAutomatedTranscriptReserveSmoke(win: BrowserWindow, outputPath: string, screenshotPath?: string): void {
+  win.webContents.once('did-finish-load', () => {
+    setTimeout(async () => {
+      try {
+        win.setMinimumSize(520, 600)
+        win.setSize(860, 720)
+        const profile = getAppProfile()
+        const session = sessionManager.list().find((candidate) => candidate.name === 'Transcript layout smoke')
+        if (session) {
+          win.webContents.send('pet:navigate', session.id)
+          await new Promise((resolve) => setTimeout(resolve, 220))
+        }
+        const result = await win.webContents.executeJavaScript(`
+          (async () => {
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            const sessionId = ${JSON.stringify(session?.id ?? '')};
+            const readReserve = () => {
+              const scroller = document.querySelector('[data-testid="transcript-scroll"]');
+              const composerReserve = document.querySelector('[data-testid="composer-reserve"]');
+              const primaryContent = document.querySelector('[data-testid="session-primary-content"]');
+              const composerShell = document.querySelector('[data-testid="composer-shell"]');
+              const primaryStyle = primaryContent instanceof HTMLElement ? getComputedStyle(primaryContent) : null;
+              const scrollerStyle = scroller instanceof HTMLElement ? getComputedStyle(scroller) : null;
+              const reserveRect = composerReserve instanceof HTMLElement ? composerReserve.getBoundingClientRect() : null;
+              const reserveAttr = Number(primaryContent?.getAttribute('data-composer-reserve-height') ?? '0');
+              const wrapperReserveAttr = Number(composerReserve?.getAttribute('data-composer-reserve-height') ?? '0');
+              const cssReserve = Number.parseFloat(primaryStyle?.getPropertyValue('--composer-reserve-height') ?? '0');
+              const scrollPaddingBottom = Number.parseFloat(
+                scrollerStyle?.getPropertyValue('scroll-padding-block-end') ||
+                scrollerStyle?.scrollPaddingBottom ||
+                '0'
+              );
+              const bottomDistance = scroller instanceof HTMLElement
+                ? scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight
+                : Number.POSITIVE_INFINITY;
+              return {
+                transcriptFound: scroller instanceof HTMLElement,
+                composerReserveFound: composerReserve instanceof HTMLElement,
+                composerShellFound: composerShell instanceof HTMLElement,
+                reserveReady: primaryContent?.getAttribute('data-composer-reserve-ready') === 'true',
+                reserveAware: scroller?.getAttribute('data-composer-reserve-aware') === 'true',
+                reserveAttr,
+                wrapperReserveAttr,
+                cssReserve,
+                scrollPaddingBottom,
+                reserveRectHeight: reserveRect?.height ?? 0,
+                bottomDistance
+              };
+            };
+            const scroller = document.querySelector('[data-testid="transcript-scroll"]');
+            if (!(scroller instanceof HTMLElement)) return { transcriptFound: false };
+            scroller.scrollTop = scroller.scrollHeight;
+            scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
+            await sleep(120);
+            const before = readReserve();
+            window.dispatchEvent(new CustomEvent('orchestrator:set-composer-text', {
+              detail: {
+                sessionId,
+                text: [
+                  'Composer reserve smoke line 1',
+                  'Composer reserve smoke line 2',
+                  'Composer reserve smoke line 3',
+                  'Composer reserve smoke line 4',
+                  'Composer reserve smoke line 5',
+                  'Composer reserve smoke line 6',
+                  'Composer reserve smoke line 7',
+                  'Composer reserve smoke line 8'
+                ].join('\\n')
+              }
+            }));
+            let after = readReserve();
+            for (let index = 0; index < 20; index += 1) {
+              await sleep(80);
+              after = readReserve();
+              if (after.reserveRectHeight > before.reserveRectHeight + 16 && Math.abs(after.reserveAttr - after.reserveRectHeight) <= 2) break;
+            }
+            const composerReserveContractWorks =
+              after.transcriptFound &&
+              after.composerReserveFound &&
+              after.composerShellFound &&
+              after.reserveReady &&
+              after.reserveAware &&
+              after.reserveRectHeight > 80 &&
+              after.reserveAttr > before.reserveAttr &&
+              Math.abs(after.reserveAttr - after.reserveRectHeight) <= 2 &&
+              Math.abs(after.wrapperReserveAttr - after.reserveAttr) <= 1 &&
+              Math.abs(after.cssReserve - after.reserveAttr) <= 1 &&
+              after.scrollPaddingBottom >= after.reserveAttr - 2;
+            const composerReserveFollowBottomWorks =
+              before.bottomDistance <= 90 &&
+              after.bottomDistance <= 90;
+            return {
+              transcriptFound: true,
+              composerReserveContractWorks,
+              composerReserveFollowBottomWorks,
+              composerReserveDebug: { before, after },
+              bodyText: document.body.innerText
+            };
+          })()
+        `)
+        if (screenshotPath) {
+          const image = await win.webContents.capturePage()
+          writeFileSync(screenshotPath, image.toPNG())
+        }
+        writeFileSync(outputPath, JSON.stringify({ ok: true, result: { profile, ...result }, screenshotPath }, null, 2))
         app.quit()
       } catch (error) {
         writeFileSync(outputPath, JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2))
@@ -26173,6 +26334,7 @@ async function bootstrapAutomatedUiSmokeState(): Promise<void> {
     await seedAutomatedSidebarSmokeSessions(project.id, project.rootPath)
   } else if (
     process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-layout' ||
+    process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-reserve' ||
     process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-fork'
   ) {
     seedAutomatedTranscriptLayoutSmokeSession(session.id)
