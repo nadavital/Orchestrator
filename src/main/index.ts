@@ -21111,6 +21111,9 @@ function runAutomatedReducedMotionSmoke(win: BrowserWindow, outputPath: string, 
       try {
         const profile = getAppProfile()
         const session = sessionManager.list()[0] ?? null
+        const mainScreenshotPath = screenshotPath
+          ? screenshotPath.replace(/\.png$/i, '-main.png')
+          : undefined
 
         const mainResult = await win.webContents.executeJavaScript(`
           (async () => {
@@ -21162,24 +21165,49 @@ function runAutomatedReducedMotionSmoke(win: BrowserWindow, outputPath: string, 
             await sleep(120);
             const rightPanel = document.querySelector('[data-motion-panel="right"]');
             const rightPanelDurations = rightPanel ? getComputedStyle(rightPanel).transitionDuration.split(',').map((value) => value.trim()) : [];
+            const rightPanelRect = rightPanel instanceof HTMLElement ? rightPanel.getBoundingClientRect() : null;
 
             const terminalButton = findButton('Toggle terminal');
             terminalButton?.click();
             await sleep(120);
             const bottomPanel = document.querySelector('[data-motion-panel="bottom"]');
             const bottomPanelDurations = bottomPanel ? getComputedStyle(bottomPanel).transitionDuration.split(',').map((value) => value.trim()) : [];
+            const bottomPanelRect = bottomPanel instanceof HTMLElement ? bottomPanel.getBoundingClientRect() : null;
 
             const popover = document.createElement('div');
             popover.className = 'motion-popover-surface';
+            popover.dataset.motionReducedScreenshotFixture = 'popover';
+            popover.textContent = 'Reduced motion popover fixture';
+            Object.assign(popover.style, {
+              position: 'fixed',
+              zIndex: '9998',
+              top: '88px',
+              right: '380px',
+              width: '220px',
+              padding: '10px 12px',
+              borderRadius: '10px'
+            });
             document.body.appendChild(popover);
             const popoverDurations = getComputedStyle(popover).animationDuration.split(',').map((value) => value.trim());
-            popover.remove();
+            const popoverRect = popover.getBoundingClientRect();
 
             const sheet = document.createElement('section');
             sheet.className = 'motion-sheet';
+            sheet.dataset.motionReducedScreenshotFixture = 'sheet';
+            sheet.innerHTML = '<div class="motion-sheet-header"><strong>Reduced motion sheet fixture</strong></div><div class="motion-sheet-body">Sheet fixture for reduced-motion screenshot assertions.</div><div class="motion-sheet-footer"><button type="button">Done</button></div>';
+            Object.assign(sheet.style, {
+              position: 'fixed',
+              zIndex: '9997',
+              top: '72px',
+              right: '16px',
+              bottom: '80px',
+              width: '320px',
+              display: 'flex',
+              flexDirection: 'column'
+            });
             document.body.appendChild(sheet);
             const sheetDurations = getComputedStyle(sheet).animationDuration.split(',').map((value) => value.trim());
-            sheet.remove();
+            const sheetRect = sheet.getBoundingClientRect();
             return {
               mainReducedDataset: root.dataset.reducedMotion === 'true',
               mainMotionDurationPanel: duration,
@@ -21189,10 +21217,28 @@ function runAutomatedReducedMotionSmoke(win: BrowserWindow, outputPath: string, 
               mainRightPanelReduced: rightPanel?.getAttribute('data-open') === 'true' && allZero(rightPanelDurations),
               mainBottomPanelReduced: bottomPanel?.getAttribute('data-open') === 'true' && allZero(bottomPanelDurations),
               mainPopoverReduced: allZero(popoverDurations),
-              mainSheetReduced: allZero(sheetDurations)
+              mainSheetReduced: allZero(sheetDurations),
+              mainRightPanelScreenshotRegion: Boolean(rightPanelRect && rightPanelRect.width >= 280 && rightPanelRect.height >= 320 && rightPanelRect.right <= window.innerWidth + 1),
+              mainBottomPanelScreenshotRegion: Boolean(bottomPanelRect && bottomPanelRect.width >= 520 && bottomPanelRect.height >= 160 && bottomPanelRect.bottom <= window.innerHeight + 1),
+              mainPopoverScreenshotRegion: popoverRect.width >= 180 && popoverRect.height >= 24 && popoverRect.top >= 0 && popoverRect.right <= window.innerWidth,
+              mainSheetScreenshotRegion: sheetRect.width >= 280 && sheetRect.height >= 260 && sheetRect.top >= 0 && sheetRect.right <= window.innerWidth,
+              mainReducedMotionFixtureMounted: Boolean(document.querySelector('[data-motion-reduced-screenshot-fixture="popover"]') && document.querySelector('[data-motion-reduced-screenshot-fixture="sheet"]'))
             };
           })()
         `)
+
+        let mainScreenshotCaptured = false
+        let mainScreenshotBytes = 0
+        if (mainScreenshotPath) {
+          const mainImage = await win.webContents.capturePage()
+          const mainPng = mainImage.toPNG()
+          mainScreenshotBytes = mainPng.length
+          writeFileSync(mainScreenshotPath, mainPng)
+          mainScreenshotCaptured = mainScreenshotBytes > 0
+          await win.webContents.executeJavaScript(`
+            document.querySelectorAll('[data-motion-reduced-screenshot-fixture]').forEach((node) => node.remove())
+          `)
+        }
 
         let overlayWindow: BrowserWindow | null = null
         for (let attempt = 0; attempt < 30; attempt += 1) {
@@ -21272,7 +21318,18 @@ function runAutomatedReducedMotionSmoke(win: BrowserWindow, outputPath: string, 
           writeFileSync(screenshotPath, image.toPNG())
         }
 
-        writeFileSync(outputPath, JSON.stringify({ ok: true, result: { profile, ...mainResult, ...overlayResult }, screenshotPath }, null, 2))
+        writeFileSync(outputPath, JSON.stringify({
+          ok: true,
+          result: {
+            profile,
+            ...mainResult,
+            mainScreenshotPath,
+            mainScreenshotCaptured,
+            mainScreenshotBytes,
+            ...overlayResult
+          },
+          screenshotPath
+        }, null, 2))
         app.quit()
       } catch (error) {
         writeFileSync(outputPath, JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2))

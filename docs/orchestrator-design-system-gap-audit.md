@@ -530,11 +530,10 @@ Why it matters: Codex's motion is polished partly because reduced-motion behavio
 
 Current verification:
 
-- `npm run smoke:ui:auto -- --motion-reduced` verifies forced reduced-motion propagation, zeroed main-renderer motion durations, disabled pet-overlay badge/row/resize-grip transitions, collapsed tray behavior, and reply form behavior.
+- `npm run smoke:ui:auto -- --motion-reduced` verifies forced reduced-motion propagation, zeroed main-renderer motion durations, disabled pet-overlay badge/row/resize-grip transitions, collapsed tray behavior, reply form behavior, and main-app screenshot-region assertions for the right panel, bottom terminal panel, shared sheet, and shared popover.
 
 Still needed:
 
-- Add reduced-motion screenshot assertions for right panel, terminal panel, shared sheet, and shared popover.
 - Continue replacing feature-local transition strings with shared motion helpers as each surface migrates.
 
 ### P2: App-Shell Maturity
@@ -1318,5 +1317,4 @@ The biggest remaining pieces are:
 
 1. Composer and transcript workflow polish beyond the implemented shared primitives, especially deeper context/permission flows and provider-backed retry/continue proof.
 2. Exit animation retention for menus/sheets/dialogs rather than immediate unmount.
-3. Reduced-motion screenshot assertions for the right panel, terminal panel, sheets, and popovers.
-4. Deeper visual comparison baselines against Codex for badges, banners, panels, menus, tabs, sheets, and navigation.
+3. Deeper visual comparison baselines against Codex for badges, banners, panels, menus, tabs, sheets, and navigation.
