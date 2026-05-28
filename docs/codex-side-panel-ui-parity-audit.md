@@ -8322,3 +8322,13 @@ Implemented: transcript thinking feedback now appears when the session is active
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and `git diff --check` passed. Focused `node scripts/run-automated-ui-smoke.mjs --scroll` first hit the expected sandbox localhost bind failure; the elevated rerun passed with `thinkingIndicatorDuringUpdate=true` and `thinkingIndicatorHiddenAfterComplete=true` alongside the existing scroll lock, streaming cursor, dedupe, and jump-to-latest gates. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-scroll-1779962918884.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-scroll-1779962918884.png`.
 
 Remaining: this closes local transcript thinking/status semantics for streamed assistant updates only. Real provider-backed streaming timing, broader keyboard/screen-reader traversal, and exact live Codex transcript spacing remain Phase 1 work.
+
+### 2026-05-28 - Composer Side Chat Attachment Guard
+
+Product evidence: `/btw` side chat is a daily coding shortcut for branching a question without derailing the main run. The main composer already supports attachments, but side-chat answers do not carry those attachments. Before this slice, typing `/btw ...` with attached files would clear the composer and drop the attached context silently.
+
+Implemented: the composer now blocks `/btw` sends while local attachments are present. It shows a polite atomic send-status guard explaining that side chat cannot include attachments, disables send, and offers a direct `Clear` recovery action that removes the attachments with the existing attachment-status feedback.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and `git diff --check` passed. Focused `node scripts/run-automated-ui-smoke.mjs --composer` first hit the expected sandbox localhost bind failure; the elevated rerun passed with `composerSideChatAttachmentGuard=true` alongside the existing composer permission, draft, attachment, drag/drop, queued, and responsive-toolbar gates. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1779963265449.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1779963265449.png`.
+
+Remaining: this closes local side-chat attachment loss prevention only. Real provider-backed side-chat attachment support, richer side-chat context transfer, and deeper model/context/permission workflow polish remain Phase 1 work.

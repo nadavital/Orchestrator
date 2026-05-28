@@ -5069,6 +5069,38 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 : null,
               labelsAfterRemove: attachmentLabels()
             };
+            addComposerAttachment('side-chat-context.txt', '/tmp/orchestrator-side-chat-context.txt');
+            await sleep(120);
+            setTextareaValue('/btw use this attached context');
+            await sleep(160);
+            const sideChatAttachmentStatus = document.querySelector('[data-testid="composer-send-status"]');
+            const sideChatAttachmentAction = document.querySelector('[data-testid="composer-send-status-action"]');
+            const sideChatAttachmentSendButton = [...document.querySelectorAll('button')]
+              .find((button) => button.getAttribute('aria-label')?.startsWith('Send'));
+            const sideChatAttachmentGuardVisible =
+              sideChatAttachmentStatus instanceof HTMLElement &&
+              sideChatAttachmentStatus.getAttribute('data-composer-send-state') === 'side-chat-attachments' &&
+              sideChatAttachmentStatus.getAttribute('role') === 'status' &&
+              sideChatAttachmentStatus.getAttribute('aria-live') === 'polite' &&
+              sideChatAttachmentStatus.getAttribute('aria-atomic') === 'true' &&
+              sideChatAttachmentStatus.textContent?.includes('Side chat cannot include attachments') === true &&
+              sideChatAttachmentAction instanceof HTMLButtonElement &&
+              sideChatAttachmentAction.getAttribute('aria-label') === 'Clear attachments for side chat' &&
+              sideChatAttachmentSendButton instanceof HTMLButtonElement &&
+              sideChatAttachmentSendButton.disabled === true;
+            if (sideChatAttachmentAction instanceof HTMLButtonElement) {
+              sideChatAttachmentAction.click();
+              await sleep(180);
+            }
+            const sideChatAttachmentClearStatus = composerAttachmentStatus();
+            var composerSideChatAttachmentGuard =
+              sideChatAttachmentGuardVisible &&
+              sideChatAttachmentClearStatus instanceof HTMLElement &&
+              sideChatAttachmentClearStatus.textContent?.includes('Removed side chat attachments') === true &&
+              !attachmentLabels().some((label) => label.includes('side-chat-context.txt')) &&
+              !(document.querySelector('[data-testid="composer-send-status"]') instanceof HTMLElement);
+            setTextareaValue('');
+            await sleep(80);
             const attachmentOnlyRow = rowForTitle('Attachment only smoke');
             attachmentOnlyRow?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
             await sleep(220);
@@ -6429,6 +6461,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             composerSecondAttachmentRestored: typeof composerSecondAttachmentRestored === 'boolean' ? composerSecondAttachmentRestored : null,
             composerAttachmentOnlySessionPreserved: typeof composerAttachmentOnlySessionPreserved === 'boolean' ? composerAttachmentOnlySessionPreserved : null,
             composerAttachmentStatusWorks: typeof composerAttachmentStatusWorks === 'boolean' ? composerAttachmentStatusWorks : null,
+            composerSideChatAttachmentGuard: typeof composerSideChatAttachmentGuard === 'boolean' ? composerSideChatAttachmentGuard : null,
             composerAttachmentStatusDebug: typeof composerAttachmentStatusDebug === 'object' ? composerAttachmentStatusDebug : null,
             composerDropOverlayWorks,
             composerDragDropAttachmentWorks,

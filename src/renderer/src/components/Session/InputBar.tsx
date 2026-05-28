@@ -308,9 +308,10 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     status: session.status,
     canUsePermission
   })
-  const canSend = sendState.canSend && !isSavingPastedFiles
   const canStop = canStopSession(session.status)
   const hasDraftText = text.trim().length > 0
+  const sideChatWithAttachments = /^\/btw(?:\s|$)/.test(text.trim()) && attachments.length > 0
+  const canSend = sendState.canSend && !isSavingPastedFiles && !sideChatWithAttachments
   const composerSendNotice = hasDraftText && !canUsePermission
     ? {
         state: 'unsupported-permission' as const,
@@ -318,6 +319,13 @@ function InputBar({ session, isNew }: Props): JSX.Element {
         title: 'Permission mode unavailable',
         detail: resolvedPermission?.description ?? 'Choose a supported permission mode before sending.'
       }
+    : hasDraftText && sideChatWithAttachments
+      ? {
+          state: 'side-chat-attachments' as const,
+          tone: 'danger' as const,
+          title: 'Side chat cannot include attachments',
+          detail: 'Remove attachments or send this request in the main thread.'
+        }
     : hasDraftText && isSavingPastedFiles
       ? {
           state: 'saving-attachments' as const,
@@ -486,6 +494,12 @@ function InputBar({ session, isNew }: Props): JSX.Element {
       : attachment.name ?? attachment.relativePath
     setComposerAttachments(session.id, (current) => current.filter((item) => item.id !== attachment.id))
     setAttachmentStatus({ text: `Removed ${label}`, tone: 'info' })
+  }
+
+  const clearAttachments = (statusText = 'Removed all attachments'): void => {
+    setComposerAttachments(session.id, [])
+    setAttachmentStatus({ text: statusText, tone: 'info' })
+    textareaRef.current?.focus()
   }
 
   const slashQuery = getSlashQuery(text)
@@ -780,6 +794,22 @@ function InputBar({ session, isNew }: Props): JSX.Element {
                 }}
               >
                 Change
+              </button>
+            )}
+            {composerSendNotice.state === 'side-chat-attachments' && (
+              <button
+                type="button"
+                className="shrink-0 rounded-md px-1.5 py-0.5 font-semibold"
+                data-testid="composer-send-status-action"
+                aria-label="Clear attachments for side chat"
+                onClick={() => clearAttachments('Removed side chat attachments')}
+                style={{
+                  background: 'var(--surface-bg)',
+                  border: '1px solid var(--border-subtle)',
+                  color: 'var(--text-primary)'
+                }}
+              >
+                Clear
               </button>
             )}
           </div>

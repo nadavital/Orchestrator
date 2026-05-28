@@ -478,6 +478,7 @@ Why it matters: Codex's interaction feel depends heavily on the composer and tra
 Current verification:
 
 - Focused `node scripts/run-automated-ui-smoke.mjs --scroll` verifies streamed assistant updates expose a polite atomic thinking indicator under `thinkingIndicatorDuringUpdate=true`, hide it after completion under `thinkingIndicatorHiddenAfterComplete=true`, and keep scroll lock, streaming cursor, dedupe, and jump-to-latest gates green.
+- Focused `node scripts/run-automated-ui-smoke.mjs --composer` verifies `/btw` side-chat sends with attachments are blocked by a recoverable polite status guard under `composerSideChatAttachmentGuard=true`, preventing local attachment context from being silently dropped.
 
 Still needed:
 
