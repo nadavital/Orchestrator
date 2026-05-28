@@ -462,6 +462,7 @@ Why it matters: settings is still the biggest non-system surface and carries pro
 Current verification:
 
 - Focused `node scripts/run-automated-ui-smoke.mjs --settings` verifies Automations settings row grouping, action labels, and pause-result live status under `settingsAutomationsActionA11y=true`.
+- Focused `node scripts/run-automated-ui-smoke.mjs --settings` verifies Appearance theme sharing copy/import status semantics and app clipboard bridge usage under `themeSharingStatusA11y=true` and `themeCopyClipboard=true`.
 
 Still needed:
 

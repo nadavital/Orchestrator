@@ -12,6 +12,11 @@ import {
   SwitchControl
 } from '../shared/designSystem'
 
+type ThemeSharingStatus = {
+  text: string
+  tone: 'success' | 'error'
+}
+
 export const defaultLightChromeTheme: ChromeTheme = {
   accent: '#0a7cff',
   surface: '#ffffff',
@@ -202,10 +207,7 @@ export default function AppearanceSettingsPage({
   onImportPortableTheme: (raw: string) => { ok: boolean; error?: string }
 }): JSX.Element {
   const [themeImportText, setThemeImportText] = useState('')
-  const [themeImportStatus, setThemeImportStatus] = useState<string | null>(null)
-  const themeImportTone = themeImportStatus?.includes('imported') || themeImportStatus?.includes('copied')
-    ? 'success'
-    : themeImportStatus ? 'error' : 'muted'
+  const [themeSharingStatus, setThemeSharingStatus] = useState<ThemeSharingStatus | null>(null)
   const accentOptions: Array<{ id: Accent; label: string; color: string }> = [
     { id: 'blue', label: 'Blue', color: '#0a7cff' },
     { id: 'teal', label: 'Teal', color: '#14a6a1' },
@@ -240,21 +242,32 @@ export default function AppearanceSettingsPage({
     const current = variant === 'light' ? lightChromeTheme : darkChromeTheme
     onSetChromeTheme(variant, { ...current, ...patch })
   }
-  const copyTheme = (variant: 'light' | 'dark'): void => {
+  const copyTheme = async (variant: 'light' | 'dark'): Promise<void> => {
     const value = serializePortableTheme(
       variant,
       variant === 'light' ? lightChromeTheme : darkChromeTheme,
       variant === 'light' ? lightCodeThemeId : darkCodeThemeId
     )
-    void navigator.clipboard.writeText(value)
-    setThemeImportStatus(`${variant === 'light' ? 'Light' : 'Dark'} theme copied`)
+    try {
+      await writeClipboardText(value)
+      setThemeSharingStatus({ text: `${variant === 'light' ? 'Light' : 'Dark'} theme copied`, tone: 'success' })
+    } catch {
+      setThemeSharingStatus({ text: `Unable to copy ${variant} theme`, tone: 'error' })
+    }
   }
   const importTheme = (): void => {
     const result = onImportPortableTheme(themeImportText)
-    setThemeImportStatus(result.ok ? 'Theme imported' : result.error ?? 'Invalid theme')
+    setThemeSharingStatus({
+      text: result.ok ? 'Theme imported' : result.error ?? 'Invalid theme',
+      tone: result.ok ? 'success' : 'error'
+    })
   }
   return (
-    <div data-settings-page-module="appearance">
+    <div
+      data-settings-page-module="appearance"
+      data-appearance-sharing-status={themeSharingStatus?.text ?? ''}
+      data-appearance-sharing-status-tone={themeSharingStatus?.tone ?? ''}
+    >
       <SettingsPageSection dataTestId="appearance-settings-section" className="appearance-settings-page">
         <SettingsContentLayout
           title="Appearance"
@@ -345,7 +358,7 @@ export default function AppearanceSettingsPage({
                     type="button"
                     data-testid="copy-light-theme"
                     className="settings-action-button"
-                    onClick={() => copyTheme('light')}
+                    onClick={() => { void copyTheme('light') }}
                   >
                     Copy light theme
                   </button>
@@ -353,7 +366,7 @@ export default function AppearanceSettingsPage({
                     type="button"
                     data-testid="copy-dark-theme"
                     className="settings-action-button"
-                    onClick={() => copyTheme('dark')}
+                    onClick={() => { void copyTheme('dark') }}
                   >
                     Copy dark theme
                   </button>
@@ -375,13 +388,16 @@ export default function AppearanceSettingsPage({
                   >
                     Import theme
                   </button>
-                  {themeImportStatus && (
+                  {themeSharingStatus && (
                     <span
                       data-testid="theme-import-status"
                       className="appearance-theme-import-status"
-                      data-tone={themeImportTone}
+                      data-tone={themeSharingStatus.tone}
+                      role={themeSharingStatus.tone === 'error' ? 'alert' : 'status'}
+                      aria-live={themeSharingStatus.tone === 'error' ? 'assertive' : 'polite'}
+                      aria-atomic="true"
                     >
-                      {themeImportStatus}
+                      {themeSharingStatus.text}
                     </span>
                   )}
                 </div>
@@ -535,6 +551,14 @@ export default function AppearanceSettingsPage({
       </SettingsPageSection>
     </div>
   )
+}
+
+async function writeClipboardText(text: string): Promise<void> {
+  if (typeof window.api.clipboard?.writeText === 'function') {
+    const didWrite = await window.api.clipboard.writeText(text)
+    if (didWrite) return
+  }
+  await navigator.clipboard.writeText(text)
 }
 
 function SettingsSectionHeading({ title, description }: { title: string; description: string }): JSX.Element {

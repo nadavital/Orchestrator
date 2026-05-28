@@ -2761,6 +2761,8 @@ child.on('exit', async (code) => {
         terminalThemeTokenMatrix: captureView !== 'terminal' || result.terminalThemeTokenMatrixWorks === true,
         themeImport: captureView !== 'settings' || result.themeImportWorks === true,
         themeSharingControls: captureView !== 'settings' || result.themeSharingControls === true,
+        themeSharingStatusA11y: captureView !== 'settings' || result.themeSharingStatusA11yWorks === true,
+        themeCopyClipboard: captureView !== 'settings' || result.themeCopyClipboardWorks === true,
         themePresetPreview: captureView !== 'settings' || result.themePresetPreviewWorks === true,
         settingsTaxonomy: captureView !== 'settings' || result.settingsTaxonomyWorks === true,
         settingsRowsCalm: captureView !== 'settings' || result.settingsRowsCalmWorks === true,

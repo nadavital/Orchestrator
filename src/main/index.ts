@@ -1298,6 +1298,14 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               const themeImportControls = document.querySelector('.appearance-sharing-controls');
               const themeImportStatus = document.querySelector('[data-testid="theme-import-status"]');
               const themeImportButton = document.querySelector('[data-testid="theme-import-button"]');
+              var themeSharingStatusA11yWorks =
+                themeImportStatus instanceof HTMLElement &&
+                themeImportStatus.getAttribute('role') === 'status' &&
+                themeImportStatus.getAttribute('aria-live') === 'polite' &&
+                themeImportStatus.getAttribute('aria-atomic') === 'true' &&
+                themeImportStatus.getAttribute('data-tone') === 'success' &&
+                document.querySelector('[data-settings-page-module="appearance"]')?.getAttribute('data-appearance-sharing-status') === 'Theme imported' &&
+                document.querySelector('[data-settings-page-module="appearance"]')?.getAttribute('data-appearance-sharing-status-tone') === 'success';
               var settingsAppearanceImportControlsSharedWorks =
                 themeImportControls instanceof HTMLElement &&
                 themeImportControls.getAttribute('data-import-controls-surface') === 'shared' &&
@@ -1311,6 +1319,36 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 themeImportStatus instanceof HTMLElement &&
                 themeImportStatus.getAttribute('data-tone') === 'success' &&
                 themeImportStatus.textContent?.includes('Theme imported');
+              var themeCopyClipboardWorks = false;
+              const copyDarkThemeButton = document.querySelector('[data-testid="copy-dark-theme"]');
+              if (copyDarkThemeButton instanceof HTMLButtonElement) {
+                copyDarkThemeButton.click();
+                for (let index = 0; index < 40; index += 1) {
+                  const copiedStatus = document.querySelector('[data-testid="theme-import-status"]');
+                  const appearanceModuleRoot = document.querySelector('[data-settings-page-module="appearance"]');
+                  const copiedClipboardText =
+                    await window.api?.clipboard?.readText?.().catch(() => '') ??
+                    await navigator.clipboard?.readText?.().catch(() => '') ??
+                    '';
+                  if (
+                    copiedStatus instanceof HTMLElement &&
+                    appearanceModuleRoot instanceof HTMLElement &&
+                    copiedStatus.textContent?.includes('Dark theme copied') === true
+                  ) {
+                    themeCopyClipboardWorks =
+                      copiedClipboardText.includes('codex-theme-v1:') &&
+                      copiedClipboardText.includes('"variant":"dark"') &&
+                      appearanceModuleRoot.getAttribute('data-appearance-sharing-status') === 'Dark theme copied' &&
+                      appearanceModuleRoot.getAttribute('data-appearance-sharing-status-tone') === 'success' &&
+                      copiedStatus.getAttribute('role') === 'status' &&
+                      copiedStatus.getAttribute('aria-live') === 'polite' &&
+                      copiedStatus.getAttribute('aria-atomic') === 'true' &&
+                      copiedStatus.getAttribute('data-tone') === 'success';
+                    break;
+                  }
+                  await sleep(50);
+                }
+              }
               const oceanPreset = document.querySelector('[data-testid="appearance-preset-ocean"]');
               if (oceanPreset instanceof HTMLButtonElement) {
                 oceanPreset.click();
@@ -6382,6 +6420,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             terminalVisualHealthyContentWorks: typeof terminalVisualHealthyContentWorks === 'boolean' ? terminalVisualHealthyContentWorks : null,
             themeImportWorks: typeof themeImportWorks === 'boolean' ? themeImportWorks : null,
             themeSharingControls: typeof themeSharingControls === 'boolean' ? themeSharingControls : null,
+            themeSharingStatusA11yWorks: typeof themeSharingStatusA11yWorks === 'boolean' ? themeSharingStatusA11yWorks : null,
+            themeCopyClipboardWorks: typeof themeCopyClipboardWorks === 'boolean' ? themeCopyClipboardWorks : null,
             themePresetPreviewWorks: typeof themePresetPreviewWorks === 'boolean' ? themePresetPreviewWorks : null,
             settingsTaxonomyWorks: typeof settingsTaxonomyWorks === 'boolean' ? settingsTaxonomyWorks : null,
             settingsRowsCalmWorks: typeof settingsRowsCalmWorks === 'boolean' ? settingsRowsCalmWorks : null,

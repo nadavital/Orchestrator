@@ -8362,3 +8362,13 @@ Implemented: Automations Settings now stores action feedback as typed info/error
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and `git diff --check` passed. Focused `node scripts/run-automated-ui-smoke.mjs --settings` first hit the expected sandbox localhost bind failure; the elevated rerun passed with `settingsAutomationsActionA11y=true` alongside the existing Settings route, provider, browser, worktrees, shortcuts, and shared-surface gates. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779964469282.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779964469282.png`.
 
 Remaining: this closes local Automations Settings action-status and row/action labelling only. Provider-native automation sync, remote-host Settings adapters, broader keyboard-only traversal, and live Codex Settings pixel/timing evidence remain Phase 1 work.
+
+### 2026-05-28 - Appearance Theme Sharing Status
+
+Product evidence: Appearance Settings theme sharing is an app-owned settings workflow for moving tuned Codex-compatible theme strings between environments. The copy buttons still used the renderer clipboard path directly, and copy/import feedback was passive text instead of the visible and announced status pattern used by the newer coding surfaces.
+
+Implemented: Appearance theme copy now writes through the app clipboard bridge with browser clipboard fallback. Theme sharing feedback is typed as success/error, mirrored on the Appearance module root for smoke proof, and rendered as a polite `status` for success or assertive `alert` for errors. Import status keeps the existing compact visual chip while gaining live-region semantics.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and `git diff --check` passed. Focused `node scripts/run-automated-ui-smoke.mjs --settings` first hit the expected sandbox localhost bind failure; the elevated rerun passed with `themeSharingStatusA11y=true` and `themeCopyClipboard=true` alongside the existing Settings route, provider, browser, automations, worktrees, shortcuts, and shared-surface gates. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779964879956.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779964879956.png`.
+
+Remaining: this closes local Appearance theme sharing clipboard/status semantics only. Provider-native Settings sync, remote-host adapters, broader keyboard-only traversal, and live Codex Settings pixel/timing evidence remain Phase 1 work.
