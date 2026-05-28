@@ -12214,7 +12214,8 @@ function runAutomatedFocusedSurfaceSmoke(
                 reviewTranscriptCard.getAttribute('data-review-card-undo-available') === 'true' &&
                 reviewTranscriptCard.getAttribute('data-review-card-undo-state') === 'idle' &&
                 reviewTranscriptCardUndoButton.disabled === false &&
-                (reviewTranscriptCardUndoButton.getAttribute('title') ?? '').startsWith('Undo ');
+                (reviewTranscriptCardUndoButton.getAttribute('title') ?? '').startsWith('Undo ') &&
+                (reviewTranscriptCardUndoButton.getAttribute('aria-label') ?? '').startsWith('Undo ');
               let reviewTranscriptInlineDiffWorks = false;
               const reviewTranscriptFirstFile = reviewTranscriptCardFiles[0];
               if (reviewTranscriptFirstFile instanceof HTMLButtonElement) {

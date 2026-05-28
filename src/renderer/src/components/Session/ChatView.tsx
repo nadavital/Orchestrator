@@ -2017,6 +2017,7 @@ function ChangesReviewCard({ content, session, hideWhenEmpty = false }: { conten
               data-testid="codex-review-card-undo"
               disabled={!canUndo}
               title={undoTitle}
+              aria-label={undoTitle}
               onClick={() => { void undoReviewChanges() }}
             >
               {undoState === 'undoing' ? 'Undoing...' : 'Undo'}
