@@ -961,6 +961,30 @@ function InputBar({ session, isNew }: Props): JSX.Element {
                     </div>
                   </div>
 
+                  <TieredRow label="Provider">
+                    {Object.values(PROVIDER_DEFS).sort((a, b) => {
+                      const aOk = providerAvailability[a.id] !== false
+                      const bOk = providerAvailability[b.id] !== false
+                      return aOk === bOk ? 0 : aOk ? -1 : 1
+                    }).map((opt) => {
+                      const available = providerAvailability[opt.id] !== false
+                      const isActive = provider.id === opt.id
+                      return (
+                        <Chip
+                          key={opt.id}
+                          active={isActive}
+                          disabled={!available}
+                          onClick={() => { if (available) switchProvider(opt.id) }}
+                          title={!available ? 'not installed' : undefined}
+                          activeColor={opt.color}
+                        >
+                          <ProviderIcon providerId={opt.id} size={10} color={available ? opt.color : 'var(--color-text-muted)'} />
+                          {opt.name}
+                        </Chip>
+                      )
+                    })}
+                  </TieredRow>
+
                   <TieredRow label="Model">
                     {getVisibleModels(provider, providerModels).map((opt) => (
                       <Chip

@@ -2891,6 +2891,7 @@ child.on('exit', async (code) => {
         composerAgentMenu: captureView !== 'composer' || result.composerAgentMenuOpened === true,
         composerAgentTriggerAriaExpanded: captureView !== 'composer' || result.composerAgentTriggerExpandedOnOpen === true,
         composerActiveThreadSettings: captureView !== 'composer' || result.composerActiveThreadSettings === true,
+        composerActiveThreadProviderChoices: captureView !== 'composer' || result.composerActiveThreadProviderChoices === true,
         composerAgentChoiceA11y: captureView !== 'composer' || result.composerAgentChoiceA11y === true,
         composerAgentRowLabelsCalm: captureView !== 'composer' || result.composerAgentRowLabelsCalm === true,
         composerAgentOutsideClick: captureView !== 'composer' || result.composerAgentMenuClosedWithOutsideClick === true,
