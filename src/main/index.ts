@@ -917,7 +917,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 diagnosticsSection.classList.contains('settings-page-section') &&
                 providerControlSurfaces.length === 1 &&
                 providerControlSurfaceText.includes('Default') &&
-                providerControlSurfaceText.includes('Mode') &&
+                providerControlSurfaceText.includes('Permissions') &&
                 providerControlSurfaceText.includes('Models') &&
                 providerControlSurfaceText.includes('Capabilities') &&
                 providerControlSurfaceText.includes('Boundaries') &&
@@ -5518,26 +5518,26 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             var composerSendStatusActionOpensPermissions =
               sendStatusAction instanceof HTMLButtonElement &&
               sendStatusPermissionMenu instanceof HTMLElement &&
-              sendStatusPermissionMenu.textContent?.includes('Codex') === true &&
+              sendStatusPermissionMenu.textContent?.includes('Permissions') === true &&
               [...sendStatusPermissionMenu.querySelectorAll('button')]
-                .some((button) => button.textContent?.includes('Ask'));
+                .some((button) => button.textContent?.includes('Default permissions'));
             const sendStatusPermissionActiveElement = document.activeElement;
             var composerSendStatusActionFocusesPermissions =
               composerSendStatusActionOpensPermissions &&
               sendStatusPermissionActiveElement instanceof HTMLButtonElement &&
               sendStatusPermissionMenu instanceof HTMLElement &&
               sendStatusPermissionMenu.contains(sendStatusPermissionActiveElement);
-            const askPermissionButton = sendStatusPermissionMenu instanceof HTMLElement
+            const defaultPermissionButton = sendStatusPermissionMenu instanceof HTMLElement
               ? [...sendStatusPermissionMenu.querySelectorAll('button')]
-                  .find((button) => button.textContent?.includes('Ask'))
+                  .find((button) => button.textContent?.includes('Default permissions'))
               : null;
-            if (askPermissionButton instanceof HTMLButtonElement) {
-              askPermissionButton.click();
+            if (defaultPermissionButton instanceof HTMLButtonElement) {
+              defaultPermissionButton.click();
               await sleep(260);
             }
             var composerSendStatusRecoveryClearsBlock =
               composerSendStatusActionOpensPermissions &&
-              askPermissionButton instanceof HTMLButtonElement &&
+              defaultPermissionButton instanceof HTMLButtonElement &&
               !document.querySelector('.motion-popover-surface') &&
               !(document.querySelector('[data-testid="composer-send-status"]') instanceof HTMLElement);
             if (document.querySelector('.motion-popover-surface')) {
@@ -5589,7 +5589,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             const slashPermissionsActiveElement = document.activeElement;
             var composerSlashPermissionsOpensMenu =
               slashPermissionsMenu instanceof HTMLElement &&
-              slashPermissionsMenu.textContent?.includes('Claude') === true &&
+              slashPermissionsMenu.textContent?.includes('Permissions') === true &&
               textareaValue() === '';
             var composerSlashPermissionsFocusesMenu =
               slashPermissionsMenu instanceof HTMLElement &&
@@ -5599,19 +5599,14 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             await sleep(260);
 
             const permissionButton = document.querySelector('[data-testid="composer-permission-menu"]');
-            let permissionContextBadge = document.querySelector('[data-testid="composer-permission-context-badge"]');
-            for (let index = 0; index < 10 && !(permissionContextBadge instanceof HTMLElement); index += 1) {
-              await sleep(80);
-              permissionContextBadge = document.querySelector('[data-testid="composer-permission-context-badge"]');
-            }
+            const permissionContextBadge = document.querySelector('[data-testid="composer-permission-context-badge"]');
             var composerPermissionContextSignal =
               permissionButton instanceof HTMLElement &&
-              permissionButton.getAttribute('aria-label')?.includes('Permission mode:') === true &&
-              permissionButton.getAttribute('aria-label')?.includes('permission config') === true &&
-              permissionContextBadge instanceof HTMLElement &&
-              ['static', 'ok', 'unavailable', 'error'].includes(permissionContextBadge.getAttribute('data-permission-context-status') ?? '') &&
-              ['static', 'app-server'].includes(permissionContextBadge.getAttribute('data-permission-context-source') ?? '') &&
-              ['Static', 'Live', 'Fallback'].includes(permissionContextBadge.textContent?.trim() ?? '');
+              permissionButton.getAttribute('aria-label')?.includes('Permissions:') === true &&
+              !(permissionContextBadge instanceof HTMLElement) &&
+              permissionButton.textContent?.includes('Static') !== true &&
+              permissionButton.textContent?.includes('Live') !== true &&
+              permissionButton.textContent?.includes('Fallback') !== true;
             permissionButton?.click();
             await sleep(140);
             const permissionMenu = document.querySelector('.motion-popover-surface');
@@ -5653,14 +5648,6 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               document.activeElement instanceof HTMLButtonElement &&
               document.activeElement !== permissionKeyboardFirstFocus &&
               permissionKeyboardMenu.contains(document.activeElement);
-            const advancedPermissionsButton = permissionKeyboardMenu instanceof HTMLElement
-              ? [...permissionKeyboardMenu.querySelectorAll('button')]
-                  .find((button) => button.textContent?.includes('Advanced permissions'))
-              : null;
-            if (advancedPermissionsButton instanceof HTMLButtonElement) {
-              advancedPermissionsButton.click();
-              await sleep(100);
-            }
             const permissionRulesPanel = document.querySelector('[data-testid="composer-permission-rules"]');
             const allowToolsInput = document.querySelector('[data-testid="composer-permission-allow-tools"]');
             const denyToolsInput = document.querySelector('[data-testid="composer-permission-deny-tools"]');
@@ -5676,28 +5663,19 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             }
             const permissionRulesStatus = document.querySelector('[data-testid="composer-permission-rules-status"]');
             var composerPermissionRuleStatus =
-              permissionRulesPanel instanceof HTMLElement &&
-              allowToolsInput instanceof HTMLInputElement &&
-              denyToolsInput instanceof HTMLInputElement &&
-              availableToolsInput instanceof HTMLInputElement &&
-              additionalDirsInput instanceof HTMLInputElement &&
-              document.querySelector('label[for="composer-permission-allow-tools"]') instanceof HTMLLabelElement &&
-              document.querySelector('label[for="composer-permission-deny-tools"]') instanceof HTMLLabelElement &&
-              document.querySelector('label[for="composer-permission-available-tools"]') instanceof HTMLLabelElement &&
-              document.querySelector('label[for="composer-permission-additional-dirs"]') instanceof HTMLLabelElement &&
-              permissionRulesStatus instanceof HTMLElement &&
-              permissionRulesStatus.getAttribute('role') === 'status' &&
-              permissionRulesStatus.getAttribute('aria-live') === 'polite' &&
-              permissionRulesStatus.getAttribute('aria-atomic') === 'true' &&
-              permissionRulesStatus.textContent?.includes('Allowed tools saved') === true &&
-              allowToolsInput.value.includes('Bash(git status)');
+              permissionKeyboardMenu instanceof HTMLElement &&
+              !(permissionRulesPanel instanceof HTMLElement) &&
+              !(allowToolsInput instanceof HTMLInputElement) &&
+              !(denyToolsInput instanceof HTMLInputElement) &&
+              !(availableToolsInput instanceof HTMLInputElement) &&
+              !(additionalDirsInput instanceof HTMLInputElement) &&
+              !(permissionRulesStatus instanceof HTMLElement) &&
+              !permissionKeyboardMenu.textContent?.includes('Advanced permissions');
             const permissionDangerLabel = document.querySelector('[data-testid="composer-permission-danger-label"]');
             var composerPermissionLabelsCalm =
-              !(permissionDangerLabel instanceof HTMLElement) ||
-              (
-                permissionDangerLabel.textContent?.trim() === 'Isolated only' &&
-                getComputedStyle(permissionDangerLabel).textTransform !== 'uppercase'
-            );
+              !(permissionDangerLabel instanceof HTMLElement) &&
+              permissionKeyboardMenu instanceof HTMLElement &&
+              !permissionKeyboardMenu.textContent?.includes('Isolated only');
             window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
             await sleep(300);
             var composerPermissionMenuClosedWithEscape = !document.querySelector('.motion-popover-surface');

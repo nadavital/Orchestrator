@@ -4,7 +4,7 @@ import { chmodSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import type { RunEvent, RunRequest } from '../../types'
-import { PROVIDER_DEFS, deriveAgentNodes, derivePlanStatesFromMessages, getDefaultPermissionMode, getPrimaryPermissionModes, parseClaudeAgentsOutput, permissionRequestDetail } from '../../types'
+import { PROVIDER_DEFS, deriveAgentNodes, derivePlanStatesFromMessages, getDefaultPermissionMode, getPrimaryPermissionModes, getProviderPermissionPresets, parseClaudeAgentsOutput, permissionRequestDetail } from '../../types'
 import { buildProviderCommandForRuntime, claudeMcpServerNames, codexRuntimePolicyConfig, getProviderDiagnostics, getProviderDiagnosticsAsync, getProviderRuntimeInfo, PROVIDERS, providerSpawnEnv, resolveProviderBinary, resolveProviderPermissionRuntimeContext, runProviderCommandSurface, runProviderCommandSurfaceAsync } from '../providers'
 import { eventsToMessages } from '../runEvents'
 
@@ -491,6 +491,26 @@ test('claude product default permission modes are preserved for SDK mapping', ()
   assert.equal(PROVIDERS.claude.resolveExecutionPolicy('auto').execution?.nativeMode, 'auto')
   assert.equal(PROVIDERS.claude.resolveExecutionPolicy('acceptEdits').execution?.nativeMode, 'acceptEdits')
   assert.equal(PROVIDERS.claude.resolveExecutionPolicy('bypassPermissions').execution?.nativeMode, 'bypassPermissions')
+})
+
+test('product permission presets expose simple provider-aware controls', () => {
+  assert.deepEqual(getProviderPermissionPresets(PROVIDER_DEFS.codex).map((preset) => [preset.id, preset.modeId]), [
+    ['default', 'default'],
+    ['autoReview', 'autoReview'],
+    ['fullAccess', 'fullAccess']
+  ])
+  assert.deepEqual(getProviderPermissionPresets(PROVIDER_DEFS.claude).map((preset) => [preset.id, preset.modeId]), [
+    ['default', 'auto'],
+    ['fullAccess', 'bypassPermissions']
+  ])
+  assert.deepEqual(getProviderPermissionPresets(PROVIDER_DEFS.cursor).map((preset) => [preset.id, preset.modeId]), [
+    ['default', 'default'],
+    ['fullAccess', 'yolo']
+  ])
+  assert.deepEqual(getProviderPermissionPresets(PROVIDER_DEFS.copilot).map((preset) => [preset.id, preset.modeId]), [
+    ['default', 'allowEdits'],
+    ['fullAccess', 'yolo']
+  ])
 })
 
 test('claude agents output parses configured launch agents', () => {

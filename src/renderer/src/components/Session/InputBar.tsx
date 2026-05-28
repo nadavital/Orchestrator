@@ -1,8 +1,8 @@
 import { memo, useState, useRef, useEffect } from 'react'
 import type { Ref } from 'react'
-import type { Attachment, ChatMessage, PermissionExecutionContract, ProviderAgentDef, ProviderPermissionMode, ProviderPermissionRuntimeContext, ProviderRuntimeInfo, ProviderSlashCommand, ResolvedExecutionPolicy, Session, TextMessage } from '../../types'
+import type { Attachment, ChatMessage, ProviderAgentDef, ProviderPermissionPreset, ProviderPermissionRuntimeContext, ProviderRuntimeInfo, ProviderSlashCommand, ResolvedExecutionPolicy, Session, TextMessage } from '../../types'
 import type { SlashPaletteCommand } from '../../types'
-import { PROVIDER_DEFS, canStopSession, expandSlashCommandPrompt, getAdvancedPermissionModes, getComposerSendState, getDangerPermissionModes, getDefaultPermissionMode, getPrimaryPermissionModes, getVisibleModels, parseClaudeAgentsOutput } from '../../types'
+import { PROVIDER_DEFS, canStopSession, expandSlashCommandPrompt, getComposerSendState, getDefaultPermissionMode, getProviderPermissionPresetForMode, getProviderPermissionPresets, getVisibleModels, parseClaudeAgentsOutput } from '../../types'
 import { defaultUI, sideChatContextSnapshot, useSessionStore } from '../../store/sessions'
 import SlashCommandPalette, { getSlashQuery } from './SlashCommandPalette'
 import ProviderIcon from '../shared/ProviderIcon'
@@ -54,7 +54,6 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   const [showModeMenu, setShowModeMenu] = useState(false)
   const [showAgentMenu, setShowAgentMenu] = useState(false)
   const [showPermMenu, setShowPermMenu] = useState(false)
-  const [showAdvancedPerms, setShowAdvancedPerms] = useState(false)
   const [slashIndex, setSlashIndex] = useState(0)
   const [dismissedSlashQuery, setDismissedSlashQuery] = useState<string | null>(null)
   const [runtimeInfo, setRuntimeInfo] = useState<Record<string, ProviderRuntimeInfo>>({})
@@ -66,7 +65,6 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   const [dragActive, setDragActive] = useState(false)
   const [attachmentStatus, setAttachmentStatus] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
   const [runActionStatus, setRunActionStatus] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
-  const [permissionRulesStatus, setPermissionRulesStatus] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const agentButtonRef = useRef<HTMLButtonElement>(null)
   const permissionButtonRef = useRef<HTMLButtonElement>(null)
@@ -155,7 +153,6 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     setDragActive(false)
     setAttachmentStatus(null)
     setRunActionStatus(null)
-    setPermissionRulesStatus(null)
     pendingSettingsUpdateRef.current = Promise.resolve()
     setSlashIndex(0)
     setDismissedSlashQuery(null)
@@ -188,10 +185,6 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     return () => window.removeEventListener('orchestrator:add-composer-attachment', onAddComposerAttachment)
   }, [session.id, setComposerAttachments])
 
-  useEffect(() => {
-    if (!showPermMenu) setShowAdvancedPerms(false)
-  }, [showPermMenu])
-
   const provider = PROVIDER_DEFS[session.provider ?? 'claude'] ?? PROVIDER_DEFS.claude
   const model = session.model || provider.models[0]?.id || ''
   const effort = session.effort ?? provider.effortLevels[0]?.id ?? ''
@@ -213,9 +206,8 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   const modelLabel = provider.models.find((m) => m.id === model)?.label ?? model
   const effortLabel = provider.effortLevels.find((e) => e.id === effort)?.label ?? ''
   const selectedAgentName = provider.id === 'claude' ? session.agentName ?? null : null
-  const selectedPermissionMode = provider.permissionModes.find((p) => p.id === permissionMode)
-  const permLabel = selectedPermissionMode?.label ?? 'Mode'
-  const permissionSourceLabel = permissionContext ? permissionSourceBadgeLabel(permissionContext) : null
+  const selectedPermissionPreset = getProviderPermissionPresetForMode(provider, permissionMode)
+  const permLabel = selectedPermissionPreset?.label ?? 'Custom'
   const contextDisabledPermissionReason = permissionContext?.status === 'ok'
     ? permissionContext.disabledPolicies?.[permissionMode]
     : undefined
@@ -226,18 +218,12 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     return undefined
   }
   const permissionTriggerLabel = [
-    `Permission mode: ${permLabel}`,
-    permissionSourceLabel ? `${permissionSourceLabel} permission config` : null,
+    `Permissions: ${permLabel}`,
     resolvedPermission?.support === 'unsupported' ? 'unsupported by this runtime' : null,
     contextDisabledPermissionReason ? `disabled by live config: ${contextDisabledPermissionReason}` : null
   ].filter(Boolean).join('. ')
-  const permissionTriggerTitle = [
-    permissionTriggerLabel,
-    permissionContext?.summary
-  ].filter(Boolean).join('. ')
-  const primaryPermissionModes = filterPermissionModes(getPrimaryPermissionModes(provider), permissionContext, permissionMode)
-  const advancedPermissionModes = filterPermissionModes(getAdvancedPermissionModes(provider), permissionContext, permissionMode)
-  const dangerPermissionModes = filterPermissionModes(getDangerPermissionModes(provider), permissionContext, permissionMode)
+  const permissionTriggerTitle = permissionTriggerLabel
+  const permissionPresets = filterPermissionPresets(getProviderPermissionPresets(provider), permissionContext, permissionMode)
   const canUsePermission = resolvedPermission?.support !== 'unsupported' && !contextDisabledPermissionReason
   const queuedFollowUpCount = queuedFollowUpSummary.queued
   const steeringFollowUpCount = queuedFollowUpSummary.steering
@@ -319,26 +305,12 @@ function InputBar({ session, isNew }: Props): JSX.Element {
 
   const selectPermissionMode = (modeId: string): void => {
     update({ permissionMode: modeId })
-    setPermissionRulesStatus(null)
     setShowPermMenu(false)
   }
 
   const openPermissionMenuAndFocus = (): void => {
     setShowPermMenu(true)
     if (permissionButtonRef.current) queueFocusComposerDropdownButton(permissionButtonRef.current, 'first')
-  }
-
-  const updatePermissionRules = (
-    label: string,
-    patch: {
-      allowedTools?: string[]
-      disallowedTools?: string[]
-      availableTools?: string[]
-      additionalDirs?: string[]
-    }
-  ): void => {
-    update(patch)
-    setPermissionRulesStatus(`${label} saved`)
   }
 
   const sendState = getComposerSendState({
@@ -1301,127 +1273,44 @@ function InputBar({ session, isNew }: Props): JSX.Element {
             >
               <ProviderIcon providerId={provider.id} size={11} color={provider.color} />
               <span className="composer-control-label composer-control-label-xs">{permLabel}</span>
-              {permissionContext && (
-                <span
-                  className="composer-permission-source-badge"
-                  data-testid="composer-permission-context-badge"
-                  data-permission-context-status={permissionContext.status}
-                  data-permission-context-source={permissionContext.source}
-                >
-                  {permissionSourceBadgeLabel(permissionContext)}
-                </span>
-              )}
               {resolvedPermission?.support === 'unsupported' && <PolicyBadge policy={resolvedPermission} compact />}
               <Chevron />
             </ToolbarBtn>
             {showPermMenu && (
-              <DropdownPanel onClose={() => setShowPermMenu(false)} style={{ bottom: '100%', marginBottom: 8, right: 0, minWidth: provider.id === 'claude' ? 260 : 190 }}>
+              <DropdownPanel onClose={() => setShowPermMenu(false)} style={{ bottom: '100%', marginBottom: 8, right: 0, minWidth: 230 }}>
                 <div className="px-3 py-2" style={{ borderBottom: '1px solid var(--color-border)' }}>
                   <div className="flex items-center gap-2">
                     <ProviderIcon providerId={provider.id} size={12} color={provider.color} />
                     <div className="text-xs font-semibold" style={{ color: 'var(--color-text)' }}>
-                      {providerShortName(provider.id)}
+                      Permissions
                     </div>
                   </div>
                 </div>
 
-                <div className="px-3 py-2" style={{ borderBottom: provider.id === 'claude' ? '1px solid var(--color-border)' : undefined }}>
+                <div className="px-3 py-2">
                   <div className="flex flex-wrap gap-1.5">
-                    {primaryPermissionModes.map((opt) => (
+                    {permissionPresets.map((opt) => (
                       <PermissionModeChip
                         key={opt.id}
                         opt={opt}
-                        active={permissionMode === opt.id}
-                        providerColor={provider.color}
-                        unsupportedReason={permissionUnavailableReason(opt.id)}
-                        onSelect={() => selectPermissionMode(opt.id)}
+                        active={permissionMode === opt.modeId}
+                        providerColor={opt.intent === 'fullAccess' || opt.intent === 'bypass' ? 'var(--color-red)' : provider.color}
+                        unsupportedReason={permissionUnavailableReason(opt.modeId)}
+                        onSelect={() => selectPermissionMode(opt.modeId)}
                       />
                     ))}
                   </div>
-                  {(advancedPermissionModes.length > 0 || dangerPermissionModes.length > 0) && (
-                    <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--color-border)' }}>
-                      <button
-                        onClick={() => setShowAdvancedPerms((open) => !open)}
-                        className="w-full text-xs font-semibold"
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          color: 'var(--color-text-muted)',
-                          background: 'transparent',
-                          border: 'none',
-                          padding: 0,
-                          cursor: 'pointer'
-                        }}
-                      >
-                        Advanced permissions
-                        <span>{showAdvancedPerms ? 'Hide' : 'Show'}</span>
-                      </button>
-                      {showAdvancedPerms && (
-                        <div style={{ marginTop: 8 }}>
-                          {advancedPermissionModes.length > 0 && (
-                            <div className="flex flex-wrap gap-1.5">
-                              {advancedPermissionModes.map((opt) => (
-                                <PermissionModeChip
-                                  key={opt.id}
-                                  opt={opt}
-                                  active={permissionMode === opt.id}
-                                  providerColor={provider.color}
-                                  unsupportedReason={permissionUnavailableReason(opt.id)}
-                                  onSelect={() => selectPermissionMode(opt.id)}
-                                />
-                              ))}
-                            </div>
-                          )}
-                          {dangerPermissionModes.length > 0 && (
-                            <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--color-border)' }}>
-                              <div
-                                className="mb-1.5 text-[11px] font-semibold tracking-normal"
-                                data-testid="composer-permission-danger-label"
-                                style={{ color: 'var(--color-red)' }}
-                              >
-                                Isolated only
-                              </div>
-                              <div className="flex flex-wrap gap-1.5">
-                                {dangerPermissionModes.map((opt) => (
-                                  <PermissionModeChip
-                                    key={opt.id}
-                                    opt={opt}
-                                    active={permissionMode === opt.id}
-                                    providerColor="var(--color-red)"
-                                    unsupportedReason={permissionUnavailableReason(opt.id)}
-                                    onSelect={() => selectPermissionMode(opt.id)}
-                                  />
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  {selectedPermissionMode?.desc && (
+                  {!selectedPermissionPreset && (
                     <div style={{ marginTop: 8, color: 'var(--color-text-muted)', fontSize: 11, lineHeight: 1.35 }}>
-                      {selectedPermissionMode.desc}
+                      A provider-specific permission setting is active. Choose one of these options to return to the standard controls.
                     </div>
                   )}
-                  {resolvedPermission?.execution && (
-                    <PermissionExecutionChips execution={resolvedPermission.execution} />
-                  )}
-                  {permissionContext && permissionContext.source !== 'static' && (
-                    <PermissionContextNote context={permissionContext} />
+                  {selectedPermissionPreset?.desc && (
+                    <div style={{ marginTop: 8, color: 'var(--color-text-muted)', fontSize: 11, lineHeight: 1.35 }}>
+                      {selectedPermissionPreset.desc}
+                    </div>
                   )}
                 </div>
-                {provider.id === 'claude' && showAdvancedPerms && (
-                  <ClaudePermissionRules
-                    allowedTools={session.allowedTools ?? []}
-                    disallowedTools={session.disallowedTools ?? []}
-                    availableTools={session.availableTools ?? []}
-                    additionalDirs={session.additionalDirs ?? []}
-                    status={permissionRulesStatus}
-                    onChange={updatePermissionRules}
-                  />
-                )}
               </DropdownPanel>
             )}
           </div>
@@ -1842,116 +1731,6 @@ function DropdownRow({
   )
 }
 
-function parseListInput(value: string): string[] {
-  return value
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean)
-}
-
-function ClaudePermissionRules({
-  allowedTools,
-  disallowedTools,
-  availableTools,
-  additionalDirs,
-  status,
-  onChange
-}: {
-  allowedTools: string[]
-  disallowedTools: string[]
-  availableTools: string[]
-  additionalDirs: string[]
-  status: string | null
-  onChange: (label: string, patch: {
-    allowedTools?: string[]
-    disallowedTools?: string[]
-    availableTools?: string[]
-    additionalDirs?: string[]
-  }) => void
-}): JSX.Element {
-  const inputStyle: React.CSSProperties = {
-    width: '100%',
-    background: 'var(--color-surface2)',
-    border: '1px solid var(--color-border)',
-    color: 'var(--color-text)',
-    borderRadius: 7,
-    padding: '5px 7px',
-    fontSize: 11,
-    outline: 'none'
-  }
-  const rowStyle: React.CSSProperties = { display: 'grid', gridTemplateColumns: '48px 1fr', gap: 8, alignItems: 'center' }
-  const labelStyle: React.CSSProperties = { color: 'var(--color-text-muted)', fontSize: 11 }
-
-  return (
-    <div
-      className="px-3 py-2 space-y-1.5"
-      data-testid="composer-permission-rules"
-      style={{ borderTop: '1px solid var(--color-border)' }}
-    >
-      <div style={rowStyle}>
-        <label htmlFor="composer-permission-allow-tools" style={labelStyle}>Allow</label>
-        <input
-          id="composer-permission-allow-tools"
-          data-testid="composer-permission-allow-tools"
-          defaultValue={allowedTools.join(', ')}
-          placeholder="Read, Edit"
-          onBlur={(event) => onChange('Allowed tools', { allowedTools: parseListInput(event.currentTarget.value) })}
-          style={inputStyle}
-        />
-      </div>
-      <div style={rowStyle}>
-        <label htmlFor="composer-permission-deny-tools" style={labelStyle}>Deny</label>
-        <input
-          id="composer-permission-deny-tools"
-          data-testid="composer-permission-deny-tools"
-          defaultValue={disallowedTools.join(', ')}
-          placeholder="Bash(git push)"
-          onBlur={(event) => onChange('Denied tools', { disallowedTools: parseListInput(event.currentTarget.value) })}
-          style={inputStyle}
-        />
-      </div>
-      <div style={rowStyle}>
-        <label htmlFor="composer-permission-available-tools" style={labelStyle}>Tools</label>
-        <input
-          id="composer-permission-available-tools"
-          data-testid="composer-permission-available-tools"
-          defaultValue={availableTools.join(', ')}
-          placeholder="default"
-          onBlur={(event) => onChange('Available tools', { availableTools: parseListInput(event.currentTarget.value) })}
-          style={inputStyle}
-        />
-      </div>
-      <div style={rowStyle}>
-        <label htmlFor="composer-permission-additional-dirs" style={labelStyle}>Dirs</label>
-        <input
-          id="composer-permission-additional-dirs"
-          data-testid="composer-permission-additional-dirs"
-          defaultValue={additionalDirs.join(', ')}
-          placeholder="/tmp/shared"
-          onBlur={(event) => onChange('Additional dirs', { additionalDirs: parseListInput(event.currentTarget.value) })}
-          style={inputStyle}
-        />
-      </div>
-      {status && (
-        <div
-          className="rounded-md px-1.5 py-1 text-[10.5px]"
-          data-testid="composer-permission-rules-status"
-          role="status"
-          aria-live="polite"
-          aria-atomic="true"
-          style={{
-            color: 'var(--accent)',
-            background: 'color-mix(in srgb, var(--accent) 8%, var(--surface-bg))',
-            border: '1px solid color-mix(in srgb, var(--accent) 20%, var(--border-subtle))'
-          }}
-        >
-          {status}
-        </div>
-      )}
-    </div>
-  )
-}
-
 function PolicyBadge({
   policy,
   compact
@@ -2021,92 +1800,14 @@ function InlineHint({ children }: { children: React.ReactNode }): JSX.Element {
   )
 }
 
-function PermissionExecutionChips({ execution }: { execution: PermissionExecutionContract }): JSX.Element {
-  const chips = permissionExecutionLabels(execution)
-  if (chips.length === 0) return <></>
-  return (
-    <div
-      data-testid="composer-permission-execution-contract"
-      style={{
-        display: 'flex',
-        flexWrap: 'wrap',
-        gap: 5,
-        marginTop: 8
-      }}
-    >
-      {chips.map((chip) => (
-        <span
-          key={`${chip.label}:${chip.value}`}
-          style={{
-            minWidth: 0,
-            maxWidth: 170,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-            border: '1px solid var(--color-border)',
-            borderRadius: 7,
-            padding: '3px 6px',
-            fontSize: 10,
-            color: 'var(--color-text-muted)',
-            background: 'var(--color-surface)'
-          }}
-          title={`${chip.label}: ${chip.value}`}
-        >
-          {chip.label} {chip.value}
-        </span>
-      ))}
-    </div>
-  )
-}
-
-function PermissionContextNote({ context }: { context: ProviderPermissionRuntimeContext }): JSX.Element {
-  const tone = context.status === 'ok'
-    ? 'var(--color-green)'
-    : context.status === 'error'
-      ? 'var(--color-red)'
-      : 'var(--color-text-muted)'
-  return (
-    <div
-      data-testid="composer-permission-runtime-context"
-      style={{
-        marginTop: 7,
-        fontSize: 10.5,
-        lineHeight: 1.35,
-        color: tone,
-        maxWidth: 280
-      }}
-      title={context.cwd ? `${context.summary ?? ''} ${context.cwd}` : context.summary}
-    >
-      {context.status === 'ok' ? 'Live config' : 'Config fallback'} · {context.summary ?? 'Permission config checked.'}
-    </div>
-  )
-}
-
-function permissionSourceBadgeLabel(context: ProviderPermissionRuntimeContext): string {
-  if (context.status === 'ok') return 'Live'
-  if (context.source === 'app-server') return 'Fallback'
-  return 'Static'
-}
-
-function permissionExecutionLabels(execution: PermissionExecutionContract): Array<{ label: string; value: string }> {
-  return [
-    execution.nativeMode ? { label: 'Mode', value: execution.nativeMode } : null,
-    execution.approvalPolicy ? { label: 'Approval', value: execution.approvalPolicy } : null,
-    execution.approvalsReviewer && execution.approvalsReviewer !== 'user' ? { label: 'Reviewer', value: execution.approvalsReviewer } : null,
-    execution.sandboxMode ? { label: 'Sandbox', value: execution.sandboxMode } : null,
-    execution.toolPolicy ? { label: 'Tools', value: execution.toolPolicy } : null,
-    execution.configSource ? { label: 'Source', value: execution.configSource } : null
-  ].filter((chip): chip is { label: string; value: string } => Boolean(chip))
-}
-
-function filterPermissionModes(
-  modes: ProviderPermissionMode[],
+function filterPermissionPresets(
+  presets: ProviderPermissionPreset[],
   context: ProviderPermissionRuntimeContext | null,
   selectedPolicy: string
-): ProviderPermissionMode[] {
-  if (!context || context.status !== 'ok' || !context.visiblePolicies || context.visiblePolicies.length === 0) return modes
+): ProviderPermissionPreset[] {
+  if (!context || context.status !== 'ok' || !context.visiblePolicies || context.visiblePolicies.length === 0) return presets
   const visible = new Set(context.visiblePolicies)
-  return modes.filter((mode) => visible.has(mode.id) || mode.id === selectedPolicy)
+  return presets.filter((preset) => visible.has(preset.modeId) || preset.modeId === selectedPolicy)
 }
 
 function providerShortName(providerId: string): string {
