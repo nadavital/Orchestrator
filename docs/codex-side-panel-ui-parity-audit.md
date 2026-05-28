@@ -8172,3 +8172,13 @@ Implemented: Files content-hit rows now advertise a line-aware Workbench open ta
 Verification: `pnpm exec tsc --noEmit` and `node -c scripts/run-automated-ui-smoke.mjs` passed. Focused `node scripts/run-automated-ui-smoke.mjs --files` first hit the expected sandbox localhost bind failure; the elevated final rerun passed with `filesContentSearchOpenLine=true` alongside `filesContentSearch=true`, `fileSourceSearch=true`, `fileSourceActionStatus=true`, `fileSourceAddToChat=true`, and the existing source-tab/artifact gates. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779955742571.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779955742571.png`.
 
 Remaining: this closes the local content-search-to-source-line workflow gap only. Provider/global indexed workspace search, provider-backed comments/blame, live Codex focus/timing proof, and deep artifact renderer fidelity remain open.
+
+### 2026-05-28 - Review Local Git Action Status
+
+Product evidence: local Review Stage all, Unstage all, and Revert all are daily coding controls. The floating local-git pill already exposed Codex-like actions and destructive confirmation, but successful or failed action results were only implicit in the refreshed diff state.
+
+Implemented: the Review floating local-git action pill now exposes a compact live status region for pending, success, and failure states. Stage, unstage, and revert actions set a visible message, expose the message/tone/status through data attributes, and announce failure as an assertive alert while normal action progress/results use a polite status.
+
+Verification: `pnpm exec tsc --noEmit` and `node -c scripts/run-automated-ui-smoke.mjs` passed. Focused `node scripts/run-automated-ui-smoke.mjs --diff-core` first hit the expected sandbox localhost bind failure; the elevated final rerun passed with `reviewFloatingGitActionStatus=true` alongside `reviewFloatingGitActions=true`, `reviewRevertAllConfirmation=true`, `reviewGitApplyCommandCoversAll=true`, and the existing Review core gates. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-core-1779956104059.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-core-1779956104059.png`.
+
+Remaining: this closes local Review git-action status feedback only. Provider checkpoint Undo, provider-native hosted/cloud Review sources, real PR/check/reviewer metadata adapters, provider-backed comments/blame, and live Codex side-by-side Review spacing remain open.

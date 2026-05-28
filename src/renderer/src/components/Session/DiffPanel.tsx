@@ -96,6 +96,7 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
   const [reviewMetadataOpen, setReviewMetadataOpen] = useState<ReviewMetadataPanel | null>(null)
   const [loadedReviewMetadata, setLoadedReviewMetadata] = useState<ReviewMetadata | undefined>(undefined)
   const [reviewGitActionStatus, setReviewGitActionStatus] = useState<'idle' | 'staging' | 'unstaging' | 'reverting'>('idle')
+  const [reviewGitActionMessage, setReviewGitActionMessage] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
   const [reviewRevertConfirmOpen, setReviewRevertConfirmOpen] = useState(false)
   const [reviewRevertSkipConfirm, setReviewRevertSkipConfirm] = useState(() => readStoredReviewRevertConfirmSkip())
   const rootRef = useRef<HTMLDivElement | null>(null)
@@ -710,7 +711,16 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
         ? reviewUnstageablePaths
         : reviewRevertPaths
     if (paths.length === 0 || reviewGitActionStatus !== 'idle') return
+    const countLabel = `${paths.length} ${paths.length === 1 ? 'file' : 'files'}`
     setReviewGitActionStatus(action === 'stage' ? 'staging' : action === 'unstage' ? 'unstaging' : 'reverting')
+    setReviewGitActionMessage({
+      text: action === 'stage'
+        ? `Staging ${countLabel}`
+        : action === 'unstage'
+          ? `Unstaging ${countLabel}`
+          : `Reverting ${countLabel}`,
+      tone: 'info'
+    })
     try {
       const result = action === 'stage'
         ? await window.api.git.stagePaths(workDir, paths)
@@ -718,6 +728,14 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
           ? await window.api.git.unstagePaths(workDir, paths)
           : await window.api.sessions.undoChangedFiles(sessionId, paths)
       if (result.ok) {
+        setReviewGitActionMessage({
+          text: action === 'stage'
+            ? `Staged ${countLabel}`
+            : action === 'unstage'
+              ? `Unstaged ${countLabel}`
+              : `Reverted ${countLabel}`,
+          tone: 'info'
+        })
         setLocalReviewFiles(result.changedFiles)
         const refreshed = await window.api.sessions.getChangedFiles(sessionId, reviewApiSource, activeReviewRef || undefined)
         setFiles(refreshed)
@@ -726,7 +744,21 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
             ? current
             : refreshed[0]?.path ?? null
         ))
+      } else {
+        setReviewGitActionMessage({
+          text: result.error || (action === 'stage'
+            ? `Stage failed for ${countLabel}`
+            : action === 'unstage'
+              ? `Unstage failed for ${countLabel}`
+              : `Revert failed for ${countLabel}`),
+          tone: 'danger'
+        })
       }
+    } catch (error) {
+      setReviewGitActionMessage({
+        text: error instanceof Error ? error.message : 'Review git action failed',
+        tone: 'danger'
+      })
     } finally {
       setReviewGitActionStatus('idle')
     }
@@ -1231,6 +1263,9 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
       data-review-revertable-count={reviewRevertPaths.length}
       data-review-stageable-count={reviewStageablePaths.length}
       data-review-unstageable-count={reviewUnstageablePaths.length}
+      data-review-git-action-status={reviewGitActionStatus}
+      data-review-git-action-message={reviewGitActionMessage?.text ?? ''}
+      data-review-git-action-tone={reviewGitActionMessage?.tone ?? ''}
     >
       {reviewRevertPaths.length > 0 && (
         <Button
@@ -1267,6 +1302,18 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
           <Icon name="eraser" size={12} />
           <span>Unstage all</span>
         </Button>
+      )}
+      {reviewGitActionMessage && (
+        <span
+          className="review-floating-action-status"
+          data-testid="review-floating-action-status"
+          role={reviewGitActionMessage.tone === 'danger' ? 'alert' : 'status'}
+          aria-live={reviewGitActionMessage.tone === 'danger' ? 'assertive' : 'polite'}
+          aria-atomic="true"
+          data-review-floating-action-status-tone={reviewGitActionMessage.tone}
+        >
+          {reviewGitActionMessage.text}
+        </span>
       )}
     </div>
   ) : null

@@ -8470,6 +8470,7 @@ function runAutomatedFocusedSurfaceSmoke(
               let diffActionMenuMaterialWorks = false;
               let reviewGitApplyCommandCoversAllWorks = false;
               let reviewFloatingGitActionsWork = false;
+              let reviewFloatingGitActionStatusWorks = false;
               let reviewRevertAllConfirmationWorks = false;
               const actionMenuButton = [...document.querySelectorAll('button')]
                 .find((button) => button.getAttribute('aria-label') === 'Review options');
@@ -8708,6 +8709,28 @@ function runAutomatedFocusedSurfaceSmoke(
                       document.querySelector('[data-testid="review-revert-confirm-dialog"]') === null &&
                       document.querySelector('[data-testid="review-floating-action-pill"]') instanceof HTMLElement;
                   }
+                }
+                if (reviewFloatingStageButton instanceof HTMLButtonElement) {
+                  reviewFloatingStageButton.click();
+                  await sleep(420);
+                  const reviewFloatingActionPillAfterStage = document.querySelector('[data-testid="review-floating-action-pill"]');
+                  const reviewFloatingActionStatus = document.querySelector('[data-testid="review-floating-action-status"]');
+                  const reviewFloatingActionMessage = reviewFloatingActionPillAfterStage instanceof HTMLElement
+                    ? reviewFloatingActionPillAfterStage.getAttribute('data-review-git-action-message') ?? ''
+                    : '';
+                  const reviewFloatingActionTone = reviewFloatingActionPillAfterStage instanceof HTMLElement
+                    ? reviewFloatingActionPillAfterStage.getAttribute('data-review-git-action-tone') ?? ''
+                    : '';
+                  reviewFloatingGitActionStatusWorks =
+                    reviewFloatingActionPillAfterStage instanceof HTMLElement &&
+                    reviewFloatingActionPillAfterStage.getAttribute('data-review-git-action-status') === 'idle' &&
+                    reviewFloatingActionMessage.includes('Staged ') &&
+                    reviewFloatingActionTone === 'info' &&
+                    reviewFloatingActionStatus instanceof HTMLElement &&
+                    reviewFloatingActionStatus.getAttribute('role') === 'status' &&
+                    reviewFloatingActionStatus.getAttribute('aria-live') === 'polite' &&
+                    reviewFloatingActionStatus.getAttribute('aria-atomic') === 'true' &&
+                    reviewFloatingActionStatus.textContent?.includes('Staged ') === true;
                 }
                 const reviewDiffMetricCells = [...document.querySelectorAll('[data-testid="review-unified-diff"] .review-diff-line-cell')]
                   .filter((cell) => cell instanceof HTMLElement)
@@ -9136,6 +9159,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   diffActionMenuMaterialWorks,
                   reviewGitApplyCommandCoversAllWorks,
                   reviewFloatingGitActionsWork,
+                  reviewFloatingGitActionStatusWorks,
                   reviewRevertAllConfirmationWorks
                 };
               }

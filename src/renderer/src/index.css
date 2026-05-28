@@ -3266,6 +3266,28 @@
     white-space: nowrap;
   }
 
+  .review-floating-action-status {
+    min-width: 0;
+    max-width: 160px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border-subtle));
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
+    color: var(--accent);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 14px;
+    padding: 4px 9px;
+  }
+
+  .review-floating-action-status[data-review-floating-action-status-tone="danger"] {
+    border-color: color-mix(in srgb, var(--state-danger) 32%, var(--border-subtle));
+    background: color-mix(in srgb, var(--state-danger) 9%, transparent);
+    color: var(--state-danger);
+  }
+
   .review-floating-action-button-danger {
     color: color-mix(in srgb, var(--state-danger) 82%, var(--text-secondary)) !important;
   }
