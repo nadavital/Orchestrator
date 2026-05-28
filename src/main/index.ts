@@ -22768,6 +22768,22 @@ function runAutomatedTranscriptForkSmoke(win: BrowserWindow, outputPath: string,
         const profile = getAppProfile()
         const session = sessionManager.list().find((candidate) => candidate.name === 'Transcript layout smoke')
         if (session) {
+          sessionManager.save({
+            ...session,
+            providerSessionId: 'transcript-layout-provider-thread',
+            providerThreadSource: 'cloud',
+            providerHostId: 'transcript-layout-host',
+            providerHostLabel: 'Transcript Layout Host',
+            providerWorktreeSourceRoot: '/tmp/transcript-layout-source',
+            providerWorktreeRoot: '/tmp/transcript-layout-worktree',
+            providerWorktreeHostId: 'transcript-layout-worktree-host',
+            providerWorktreeHostLabel: 'Transcript Layout Worktree Host',
+            providerPinned: true,
+            providerPinOrder: 1,
+            providerPinnedThreadKey: 'remote:transcript-layout-provider-thread',
+            providerProjectless: true,
+            providerProjectlessThreadId: 'transcript-layout-provider-thread'
+          })
           win.webContents.send('pet:navigate', session.id)
           await new Promise((resolve) => setTimeout(resolve, 220))
         }
@@ -22812,7 +22828,11 @@ function runAutomatedTranscriptForkSmoke(win: BrowserWindow, outputPath: string,
                     chatMessageForkSidebarLineage:
                       row.getAttribute('data-sidebar-forked-from-session-name') === 'Transcript layout smoke' &&
                       row.getAttribute('data-sidebar-forked-from-message-id') === 'transcript-layout-user' &&
-                      row.getAttribute('data-sidebar-fork-mode') === 'local',
+                      row.getAttribute('data-sidebar-fork-mode') === 'local' &&
+                      row.getAttribute('data-sidebar-provider-thread-source') === 'local' &&
+                      !row.hasAttribute('data-sidebar-provider-pinned') &&
+                      !row.hasAttribute('data-sidebar-provider-host-id') &&
+                      !row.hasAttribute('data-sidebar-worktree-host-id'),
                     chatMessageForkHoverLineage:
                       hoverCard instanceof HTMLElement &&
                       hoverCard.textContent?.includes('Fork') === true &&
@@ -22836,6 +22856,14 @@ function runAutomatedTranscriptForkSmoke(win: BrowserWindow, outputPath: string,
             !forkedText.includes('TRANSCRIPT_LAYOUT_SMOKE') &&
             !forkedText.includes('Provider transport failed before completing this coding request.'),
           chatMessageForkClearsProviderSession: forkedFromMessage?.providerSessionId === null,
+          chatMessageForkClearsProviderSidebarMetadata:
+            forkedFromMessage?.providerThreadSource == null &&
+            forkedFromMessage?.providerHostId == null &&
+            forkedFromMessage?.providerWorktreeHostId == null &&
+            forkedFromMessage?.providerPinned !== true &&
+            forkedFromMessage?.providerPinnedThreadKey == null &&
+            forkedFromMessage?.providerProjectless !== true &&
+            forkedFromMessage?.providerProjectlessThreadId == null,
           chatMessageForkPersistsLineage:
             forkedFromMessage?.forkedFromSessionId === session?.id &&
             forkedFromMessage?.forkedFromSessionName === 'Transcript layout smoke' &&
