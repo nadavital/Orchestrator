@@ -11,12 +11,13 @@ import { CSS } from '@dnd-kit/utilities'
 import {
   PROVIDER_DEFS,
   getDefaultPermissionMode,
-  getPrimaryPermissionModes,
+  getProviderPermissionPresetForMode,
+  getProviderPermissionPresets,
   getVisibleModels,
   type PermissionExecutionContract,
   type ProviderCapabilityGap,
   type ProviderAuthSecretStatus,
-  type ProviderPermissionMode,
+  type ProviderPermissionPreset,
   type ProviderPermissionRuntimeContext,
   type ProviderCommandSurface,
   type ProviderCommandSurfaceResult,
@@ -88,7 +89,9 @@ export default function ProvidersSettingsPage({
   const contextDefaultPermissionMode = permissionContext?.providerId === selectedId ? permissionContext.defaultPolicy : undefined
   const currentPermissionMode = getDefaultPermissionMode(providerDef, defaultPermissionModes[selectedId] ?? contextDefaultPermissionMode)
   const visibleModels = getVisibleModels(providerDef, providerModels)
-  const primaryPermissionModes = filterPermissionModes(getPrimaryPermissionModes(providerDef), permissionContext, currentPermissionMode)
+  const permissionPresets = filterPermissionPresets(getProviderPermissionPresets(providerDef), permissionContext, currentPermissionMode)
+  const selectedPermissionPreset = getProviderPermissionPresetForMode(providerDef, currentPermissionMode)
+  const permissionPickerMode = selectedPermissionPreset?.modeId ?? permissionPresets[0]?.modeId ?? currentPermissionMode
   const visibleIds = visibleModels.map((m) => m.id)
   const runtime = providerRuntime[selectedId]
   const diagnostics = providerDiagnostics[selectedId]
@@ -257,27 +260,32 @@ export default function ProvidersSettingsPage({
                   />
                 )}
 
-                {primaryPermissionModes.length > 0 && (
+                {permissionPresets.length > 0 && (
                   <SettingsRow
-                    label="Mode"
+                    label="Permissions"
                     className="provider-settings-row provider-settings-row-stacked"
                     control={(
                       <div className="provider-settings-row-stack">
                         <SegmentedControl
-                          items={primaryPermissionModes}
-                          value={currentPermissionMode}
+                          items={permissionPresets.map((preset) => ({ id: preset.modeId, label: preset.label }))}
+                          value={permissionPickerMode}
                           color={providerDef.color}
                           ariaLabel={`${providerDef.name} permission mode`}
                           onChange={(id) => onSetDefaultPermissionMode(selectedId, id)}
                         />
                         <ProviderPermissionContract
-                          policy={runtime?.policies[currentPermissionMode]}
+                          policy={runtime?.policies[permissionPickerMode]}
                           context={permissionContext}
                           color={providerDef.color}
                           refreshing={permissionContextLoading}
                           refreshStatus={permissionContextRefreshStatus}
                           onRefresh={() => { void loadPermissionContext({ announce: true }) }}
                         />
+                        {!selectedPermissionPreset && (
+                          <InlineMutedText>
+                            A provider-specific default is active. Choose one of these options to use the standard permission controls.
+                          </InlineMutedText>
+                        )}
                       </div>
                     )}
                   />
@@ -622,14 +630,14 @@ function permissionExecutionLabels(execution: PermissionExecutionContract): Arra
   ].filter((chip): chip is { label: string; value: string; strong?: boolean } => Boolean(chip))
 }
 
-function filterPermissionModes(
-  modes: ProviderPermissionMode[],
+function filterPermissionPresets(
+  presets: ProviderPermissionPreset[],
   context: ProviderPermissionRuntimeContext | undefined,
   selectedPolicy: string
-): ProviderPermissionMode[] {
-  if (!context || context.status !== 'ok' || !context.visiblePolicies || context.visiblePolicies.length === 0) return modes
+): ProviderPermissionPreset[] {
+  if (!context || context.status !== 'ok' || !context.visiblePolicies || context.visiblePolicies.length === 0) return presets
   const visible = new Set(context.visiblePolicies)
-  return modes.filter((mode) => visible.has(mode.id) || mode.id === selectedPolicy)
+  return presets.filter((preset) => visible.has(preset.modeId) || preset.modeId === selectedPolicy)
 }
 
 function ProviderRuntimeEventsCard({
@@ -642,7 +650,7 @@ function ProviderRuntimeEventsCard({
   color: string
 }): JSX.Element {
   const [actionStatus, setActionStatus] = useState<{ text: string; tone: 'info' | 'danger'; action: 'copy' | 'chat' } | null>(null)
-  const statusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const statusTimeoutRef = useRef<number | null>(null)
   const activeSessionId = useSessionStore((state) => state.activeSessionId)
   const setComposerDraft = useSessionStore((state) => state.setComposerDraft)
   const visibleEvents = events.slice(-4).reverse()
@@ -1167,7 +1175,7 @@ function ProviderCommandSurfaces({
   const [loading, setLoading] = useState<Record<string, boolean>>({})
   const [openId, setOpenId] = useState<string | null>(null)
   const [terminalStatus, setTerminalStatus] = useState<{ surfaceId: string; text: string; tone: 'info' | 'danger' } | null>(null)
-  const statusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const statusTimeoutRef = useRef<number | null>(null)
   const activeSessionId = useSessionStore((state) => state.activeSessionId)
   const setActiveSession = useSessionStore((state) => state.setActiveSession)
   const setShowTerminal = useSessionStore((state) => state.setShowTerminal)
