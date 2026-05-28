@@ -2815,6 +2815,7 @@ child.on('exit', async (code) => {
         settingsShortcutsPunctuationCapture: captureView !== 'settings' || result.settingsShortcutsPunctuationCaptureWorks === true,
         settingsShortcutActionsShared: captureView !== 'settings' || result.settingsShortcutActionsSharedWorks === true,
         settingsShortcutCaptureFieldShared: captureView !== 'settings' || result.settingsShortcutCaptureFieldSharedWorks === true,
+        settingsShortcutActionStatusA11y: captureView !== 'settings' || result.settingsShortcutActionStatusA11yWorks === true,
         settingsShortcutsPerBindingClear: captureView !== 'settings' || result.settingsShortcutsPerBindingClearWorks === true,
         settingsShortcutsModule: captureView !== 'settings' || result.settingsShortcutsModuleWorks === true,
         petsSettingsSurface: captureView !== 'pets' || result.petsSettingsSurfaceWorks === true,

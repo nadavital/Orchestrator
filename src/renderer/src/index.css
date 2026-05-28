@@ -10397,6 +10397,29 @@
     text-align: center;
   }
 
+  .settings-shortcut-action-status {
+    width: fit-content;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border-subtle));
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--accent) 8%, var(--surface-bg));
+    color: var(--accent);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 14px;
+    margin-top: 8px;
+    padding: 3px 8px;
+  }
+
+  .settings-shortcut-action-status[data-settings-shortcut-action-status-tone='danger'] {
+    border-color: color-mix(in srgb, var(--state-danger) 28%, var(--border-subtle));
+    background: color-mix(in srgb, var(--state-danger) 9%, var(--surface-bg));
+    color: var(--state-danger);
+  }
+
   .settings-shortcut-recording-error {
     margin-top: 8px;
     color: var(--color-yellow);

@@ -1917,9 +1917,17 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                   }));
                   await sleep(120);
                   const conflictError = document.querySelector('[data-testid="settings-shortcut-recording-error"]');
+                  const conflictStatus = document.querySelector('[data-testid="settings-shortcut-action-status"]');
                   var settingsShortcutsConflictWorks =
                     conflictError instanceof HTMLElement &&
-                    conflictError.textContent?.includes('Conflicts with Command Palette');
+                    conflictError.textContent?.includes('Conflicts with Command Palette') &&
+                    conflictError.getAttribute('role') === 'alert' &&
+                    conflictError.getAttribute('aria-live') === 'assertive' &&
+                    conflictStatus instanceof HTMLElement &&
+                    conflictStatus.textContent?.includes('Shortcut conflict') === true &&
+                    conflictStatus.getAttribute('role') === 'alert' &&
+                    conflictStatus.getAttribute('aria-live') === 'assertive' &&
+                    conflictStatus.getAttribute('aria-atomic') === 'true';
                   recorder.dispatchEvent(new KeyboardEvent('keydown', {
                     key: '?',
                     code: 'Slash',
@@ -1943,6 +1951,17 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                   await sleep(140);
                 }
               }
+              const shortcutSavedStatus = document.querySelector('[data-testid="settings-shortcut-action-status"]');
+              const shortcutModuleRoot = document.querySelector('[data-settings-page-module="shortcuts"]');
+              var settingsShortcutActionStatusA11yWorks =
+                shortcutModuleRoot instanceof HTMLElement &&
+                shortcutModuleRoot.getAttribute('data-settings-shortcut-action-status') === 'Shortcut saved' &&
+                shortcutModuleRoot.getAttribute('data-settings-shortcut-action-status-tone') === 'info' &&
+                shortcutSavedStatus instanceof HTMLElement &&
+                shortcutSavedStatus.textContent?.includes('Shortcut saved') === true &&
+                shortcutSavedStatus.getAttribute('role') === 'status' &&
+                shortcutSavedStatus.getAttribute('aria-live') === 'polite' &&
+                shortcutSavedStatus.getAttribute('aria-atomic') === 'true';
               const shortcutText = shortcutsSection instanceof HTMLElement ? shortcutsSection.innerText : '';
               const shortcutHeader = shortcutsSection instanceof HTMLElement
                 ? shortcutsSection.querySelector('.settings-shortcuts-head')
@@ -1997,6 +2016,17 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 openFileSearchDefaultClear.click();
                 await sleep(140);
               }
+              const shortcutClearStatus = document.querySelector('[data-testid="settings-shortcut-action-status"]');
+              settingsShortcutActionStatusA11yWorks =
+                settingsShortcutActionStatusA11yWorks &&
+                shortcutModuleRoot instanceof HTMLElement &&
+                shortcutModuleRoot.getAttribute('data-settings-shortcut-action-status') === 'Default shortcut disabled' &&
+                shortcutModuleRoot.getAttribute('data-settings-shortcut-action-status-tone') === 'info' &&
+                shortcutClearStatus instanceof HTMLElement &&
+                shortcutClearStatus.textContent?.includes('Default shortcut disabled') === true &&
+                shortcutClearStatus.getAttribute('role') === 'status' &&
+                shortcutClearStatus.getAttribute('aria-live') === 'polite' &&
+                shortcutClearStatus.getAttribute('aria-atomic') === 'true';
               const openFileSearchShortcutRowAfterClear = [...document.querySelectorAll('[data-testid="shortcuts-settings-section"] .settings-shortcut-row')]
                 .find((row) => row instanceof HTMLElement && row.textContent?.includes('Open File Search'));
               const openFileSearchBindingsAfterClear = openFileSearchShortcutRowAfterClear instanceof HTMLElement
@@ -6294,6 +6324,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             settingsShortcutsPunctuationCaptureWorks: typeof settingsShortcutsPunctuationCaptureWorks === 'boolean' ? settingsShortcutsPunctuationCaptureWorks : null,
             settingsShortcutActionsSharedWorks: typeof settingsShortcutActionsSharedWorks === 'boolean' ? settingsShortcutActionsSharedWorks : null,
             settingsShortcutCaptureFieldSharedWorks: typeof settingsShortcutCaptureFieldSharedWorks === 'boolean' ? settingsShortcutCaptureFieldSharedWorks : null,
+            settingsShortcutActionStatusA11yWorks: typeof settingsShortcutActionStatusA11yWorks === 'boolean' ? settingsShortcutActionStatusA11yWorks : null,
             settingsShortcutsPerBindingClearWorks: typeof settingsShortcutsPerBindingClearWorks === 'boolean' ? settingsShortcutsPerBindingClearWorks : null,
             settingsShortcutsModuleWorks: typeof settingsShortcutsModuleWorks === 'boolean' ? settingsShortcutsModuleWorks : null,
             petsSettingsSurfaceWorks: typeof petsSettingsSurfaceWorks === 'boolean' ? petsSettingsSurfaceWorks : null,

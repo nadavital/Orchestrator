@@ -1331,6 +1331,7 @@ Completed in the latest implementation pass:
 - Composer smoke now verifies `composerPermissionRuleStatus=true`, covering labelled advanced permission-rule inputs and polite saved feedback for Allow/Deny/Tools/Dirs edits.
 - Composer smoke now verifies `composerAttachmentStatus=true`, covering visible and announced add/remove attachment feedback mirrored on the composer shell.
 - Side Chat smoke now verifies `sideChatActionStatusA11y=true` and `sideChatRetryStatusA11y=true`, covering visible and announced answer status plus log/article semantics for side-chat messages opened from both `/btw` and in-panel retry paths.
+- Settings smoke now verifies `settingsShortcutActionStatusA11y=true`, covering visible and announced shortcut save/conflict/clear status on the Shortcuts page.
 - Workbench New tab smoke now verifies `agentRuntimeEventCopy=true`, covering selected Agents event-detail payload copy through the app clipboard bridge with visible status feedback.
 - Transcript layout smoke now verifies `chatMessageCopy=true` and `chatMessageCopyA11y=true`, covering assistant-message copy through the same app clipboard bridge plus copied/error live status semantics.
 - Diff core smoke now verifies `reviewGitApplyCopyStatus=true`, covering Review `Copy git apply command` through the app clipboard bridge plus copied/failure status semantics on the floating Review action pill.
