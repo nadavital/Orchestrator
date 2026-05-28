@@ -243,6 +243,9 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
                     onClick={() => {
                       setTerminalMenu(null)
                       setShowTerminal(session.id, false)
+                      window.requestAnimationFrame(() => {
+                        document.querySelector<HTMLButtonElement>('[data-testid="titlebar-toggle-terminal"]')?.focus({ preventScroll: true })
+                      })
                     }}
                   />
                 </>

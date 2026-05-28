@@ -9082,3 +9082,13 @@ Implemented: the shared `MotionPanel` now sets the browser `inert` property when
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and `git diff --check` passed. The first sandboxed `node scripts/run-automated-ui-smoke.mjs --header` hit the expected localhost bind denial; the elevated rerun passed with `headerClosedPanelInert=true` while preserving header identity, metadata tooltip-only state, compact action chrome, controlled panel state, empty-panel fallback, and Chat actions menu gates. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-header-1779996867925.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-header-1779996867925.png`.
 
 Remaining: this closes local closed-panel keyboard containment for the shared right/bottom app-shell panels. Exact live Codex header/panel animation timing and whole-app keyboard traversal remain separate.
+
+### 2026-05-28 - Terminal Hide Focus Restoration
+
+Product evidence: the bottom Terminal panel is a Phase 1 coding surface. Its internal `Hide terminal` control removed the focused panel, but focus was not deliberately returned to the matching header terminal toggle. That left keyboard users without a stable location after hiding the bottom panel from inside the panel.
+
+Implemented: hiding the Terminal from the bottom panel now restores focus to `titlebar-toggle-terminal` on the next animation frame.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and `git diff --check` passed. The first sandboxed `node scripts/run-automated-ui-smoke.mjs --terminal` hit the expected localhost bind denial; the elevated rerun passed with `terminalHideFocusRestored=true` while preserving terminal tab persistence, shared shell ownership, animation/layout, tab menu/reorder/drag, resize, clipboard/status, fullscreen cleanup, right-panel transfer, link routing, and theme/font gates. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779997133443.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779997133443.png`.
+
+Remaining: this closes local Terminal hide focus restoration only. Whole-app keyboard traversal and live Codex bottom-panel animation timing remain separate.

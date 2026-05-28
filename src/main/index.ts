@@ -2538,9 +2538,12 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               bottomPanelWithTabs.dataset.bottomPanelTabs?.includes(',') === true &&
               bottomPanelWithTabs.dataset.bottomPanelActiveTab !== '0';
             const hideTerminalButton = findButton('Hide terminal');
+            var terminalHideFocusRestoredWorks = false;
             if (hideTerminalButton instanceof HTMLButtonElement) {
               hideTerminalButton.click();
               await sleep(180);
+              terminalHideFocusRestoredWorks =
+                document.activeElement?.getAttribute('data-testid') === 'titlebar-toggle-terminal';
             }
             terminalButton?.click();
             await sleep(260);
@@ -6941,6 +6944,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             terminalClipboardStatusWorks: typeof terminalClipboardStatusWorks === 'boolean' ? terminalClipboardStatusWorks : null,
             terminalClearActionStatusWorks: typeof terminalClearActionStatusWorks === 'boolean' ? terminalClearActionStatusWorks : null,
             terminalTabActionStatusWorks: typeof terminalTabActionStatusWorks === 'boolean' ? terminalTabActionStatusWorks : null,
+            terminalHideFocusRestoredWorks: typeof terminalHideFocusRestoredWorks === 'boolean' ? terminalHideFocusRestoredWorks : null,
             terminalFullscreenCleanupWorks: typeof terminalFullscreenCleanupWorks === 'boolean' ? terminalFullscreenCleanupWorks : null,
             terminalTabTelemetryWorks: typeof terminalTabTelemetryWorks === 'boolean' ? terminalTabTelemetryWorks : null,
             terminalTabLifecycleTelemetryWorks: typeof terminalTabLifecycleTelemetryWorks === 'boolean' ? terminalTabLifecycleTelemetryWorks : null,
