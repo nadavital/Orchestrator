@@ -2072,6 +2072,7 @@ child.on('exit', async (code) => {
           isolatedProfile: result.profile?.isIsolated === true,
           userInputMultiQuestionCard: result.userInputMultiQuestionCardWorks === true,
           userInputOptionSelection: result.userInputOptionSelectionWorks === true,
+          userInputMultiSelect: result.userInputMultiSelectWorks === true,
           userInputStructuredSubmit: result.userInputStructuredSubmitWorks === true
         }
     : captureView === 'design-system'

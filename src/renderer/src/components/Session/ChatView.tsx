@@ -2454,7 +2454,7 @@ function UserInputCard({
   sessionStatus: Session['status']
 }): JSX.Element {
   const [answer, setAnswer] = useState('')
-  const [questionAnswers, setQuestionAnswers] = useState<Record<string, string>>({})
+  const [questionAnswers, setQuestionAnswers] = useState<Record<string, string[]>>({})
   const [submitted, setSubmitted] = useState(false)
   const answerInputRef = useRef<HTMLTextAreaElement>(null)
   const questions = msg.userInputQuestions?.length ? msg.userInputQuestions : [{ question: msg.content }]
@@ -2469,10 +2469,10 @@ function UserInputCard({
 
   const composeAnswer = (freeform: string): string => {
     const selectedAnswers = questions.flatMap((question, index) => {
-      const selected = questionAnswers[questionInputKey(question, index)]?.trim()
-      if (!selected) return []
+      const selected = questionAnswers[questionInputKey(question, index)]?.map((value) => value.trim()).filter(Boolean) ?? []
+      if (selected.length === 0) return []
       const label = question.header ? `${question.header}: ${question.question}` : question.question
-      return [`${label}\nAnswer: ${selected}`]
+      return [`${label}\nAnswer: ${selected.join(', ')}`]
     })
     const trimmedFreeform = freeform.trim()
     if (selectedAnswers.length === 0) return trimmedFreeform
@@ -2490,7 +2490,14 @@ function UserInputCard({
 
   const selectQuestionAnswer = (question: UserInputQuestion, index: number, value: string): void => {
     const key = questionInputKey(question, index)
-    setQuestionAnswers((current) => ({ ...current, [key]: value }))
+    setQuestionAnswers((current) => {
+      const currentValues = current[key] ?? []
+      if (!question.multiSelect) return { ...current, [key]: [value] }
+      const nextValues = currentValues.includes(value)
+        ? currentValues.filter((candidate) => candidate !== value)
+        : [...currentValues, value]
+      return { ...current, [key]: nextValues }
+    })
   }
 
   return (
@@ -2521,7 +2528,7 @@ function UserInputCard({
               question={question}
               index={index}
               disabled={isAnswered}
-              selectedAnswer={questionAnswers[questionInputKey(question, index)]}
+              selectedAnswers={questionAnswers[questionInputKey(question, index)] ?? []}
               onSelectAnswer={(value) => {
                 if (hasMultipleQuestions) selectQuestionAnswer(question, index, value)
                 else void submitAnswer(value)
@@ -2534,7 +2541,8 @@ function UserInputCard({
             className="mt-3 flex flex-wrap gap-2"
             data-testid="chat-user-input-form"
             data-user-input-question-count={questions.length}
-            data-user-input-selected-count={Object.values(questionAnswers).filter((value) => value.trim()).length}
+            data-user-input-selected-count={Object.values(questionAnswers).filter((values) => values.some((value) => value.trim())).length}
+            data-user-input-selected-option-count={Object.values(questionAnswers).reduce((count, values) => count + values.filter((value) => value.trim()).length, 0)}
             onSubmit={(event) => {
               event.preventDefault()
               void submitAnswer(composedAnswer)
@@ -2578,13 +2586,13 @@ function QuestionBlock({
   question,
   index,
   disabled,
-  selectedAnswer,
+  selectedAnswers,
   onSelectAnswer
 }: {
   question: UserInputQuestion
   index: number
   disabled: boolean
-  selectedAnswer?: string
+  selectedAnswers: string[]
   onSelectAnswer: (answer: string) => void
 }): JSX.Element {
   return (
@@ -2600,17 +2608,21 @@ function QuestionBlock({
       {question.options && question.options.length > 0 && (
         <div className="mt-2 grid gap-1.5">
           {question.options.map((option) => (
+            (() => {
+              const selected = selectedAnswers.includes(option.label)
+              return (
             <SurfaceRow
               as="button"
               key={option.label}
               disabled={disabled}
               className="rounded-lg px-3 py-2 text-left disabled:opacity-50"
               dataTestId="chat-user-input-option"
-              data-selected={selectedAnswer === option.label ? 'true' : 'false'}
+              data-selected={selected ? 'true' : 'false'}
+              ariaLabel={`${selected ? 'Selected' : 'Select'} ${option.label}`}
               style={{
-                background: selectedAnswer === option.label ? 'color-mix(in srgb, var(--accent) 14%, var(--color-surface))' : 'var(--color-surface)',
+                background: selected ? 'color-mix(in srgb, var(--accent) 14%, var(--color-surface))' : 'var(--color-surface)',
                 color: 'var(--color-text)',
-                border: selectedAnswer === option.label ? '1px solid color-mix(in srgb, var(--accent) 45%, var(--color-border))' : '1px solid var(--color-border)'
+                border: selected ? '1px solid color-mix(in srgb, var(--accent) 45%, var(--color-border))' : '1px solid var(--color-border)'
               }}
               onClick={() => { if (!disabled) onSelectAnswer(option.label) }}
             >
@@ -2621,6 +2633,8 @@ function QuestionBlock({
                 </div>
               )}
             </SurfaceRow>
+              )
+            })()
           ))}
         </div>
       )}

@@ -20034,11 +20034,13 @@ function runAutomatedTranscriptUserInputSmoke(win: BrowserWindow, outputPath: st
             const userInputMultiQuestionCardWorks =
               card instanceof HTMLElement &&
               form instanceof HTMLElement &&
-              form.getAttribute('data-user-input-question-count') === '2' &&
-              questions.length === 2 &&
-              options.length >= 4;
+              form.getAttribute('data-user-input-question-count') === '3' &&
+              questions.length === 3 &&
+              options.length >= 7;
             const composerOption = options.find((option) => option.textContent?.includes('Composer'));
             const reviewOption = options.find((option) => option.textContent?.includes('Review'));
+            const targetedSmokeOption = options.find((option) => option.textContent?.includes('Targeted smoke'));
+            const typecheckOption = options.find((option) => option.textContent?.includes('Typecheck'));
             if (composerOption instanceof HTMLElement) {
               composerOption.click();
               await sleep(80);
@@ -20047,11 +20049,24 @@ function runAutomatedTranscriptUserInputSmoke(win: BrowserWindow, outputPath: st
               reviewOption.click();
               await sleep(80);
             }
+            if (targetedSmokeOption instanceof HTMLElement) {
+              targetedSmokeOption.click();
+              await sleep(80);
+            }
+            if (typecheckOption instanceof HTMLElement) {
+              typecheckOption.click();
+              await sleep(80);
+            }
             const selectedOptions = [...document.querySelectorAll('[data-testid="chat-user-input-option"][data-selected="true"]')];
             const updatedForm = document.querySelector('[data-testid="chat-user-input-form"]');
             const userInputOptionSelectionWorks =
-              selectedOptions.length === 2 &&
-              updatedForm?.getAttribute('data-user-input-selected-count') === '2';
+              selectedOptions.length === 4 &&
+              updatedForm?.getAttribute('data-user-input-selected-count') === '3' &&
+              updatedForm?.getAttribute('data-user-input-selected-option-count') === '4';
+            const multiQuestion = questions.find((question) => question.textContent?.includes('Pick all validators'));
+            const userInputMultiSelectWorks =
+              multiQuestion instanceof HTMLElement &&
+              multiQuestion.querySelectorAll('[data-testid="chat-user-input-option"][data-selected="true"]').length === 2;
             const send = document.querySelector('[data-testid="chat-user-input-send"]');
             if (send instanceof HTMLButtonElement) {
               send.click();
@@ -20063,6 +20078,7 @@ function runAutomatedTranscriptUserInputSmoke(win: BrowserWindow, outputPath: st
             return {
               userInputMultiQuestionCardWorks,
               userInputOptionSelectionWorks,
+              userInputMultiSelectWorks,
               userInputStructuredSubmitWorks
             };
           })()
@@ -22289,6 +22305,17 @@ function seedAutomatedTranscriptUserInputSmokeSession(sessionId: string): void {
           options: [
             { label: 'Review', description: 'Verify code-review and diff behavior.' },
             { label: 'Settings', description: 'Verify settings and provider boundaries.' }
+          ]
+        },
+        {
+          id: 'transcript-user-input-validators',
+          header: 'Checks',
+          question: 'Pick all validators to run.',
+          multiSelect: true,
+          options: [
+            { label: 'Targeted smoke', description: 'Run the focused smoke for the touched surface.' },
+            { label: 'Typecheck', description: 'Run the TypeScript checker.' },
+            { label: 'Full build', description: 'Use only when the touched surface warrants it.' }
           ]
         }
       ]
