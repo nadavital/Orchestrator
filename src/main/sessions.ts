@@ -1319,10 +1319,16 @@ export const sessionManager = {
     )
     if (!lastUserMessage) return false
     if (providerRuntime.hasActiveRun(sessionId)) return false
+    const simulateRetryPreparationFailure =
+      process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT &&
+      (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-layout' ||
+        process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-tool-failure') &&
+      lastUserMessage.content.includes('RETRY_PREPARE_THROW_SMOKE')
     if (
       process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT &&
       (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-layout' ||
-        process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-tool-failure')
+        process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-tool-failure') &&
+      !simulateRetryPreparationFailure
     ) {
       return true
     }
@@ -1340,7 +1346,22 @@ export const sessionManager = {
       runtime: currentSession.runtime,
       attachments: runtimeAttachments
     }
-    return this.startProviderRun(sessionId, currentSession, provider, runRequest, mode)
+    try {
+      if (simulateRetryPreparationFailure) throw new Error('Smoke retry request preparation failed.')
+      return await this.startProviderRun(sessionId, currentSession, provider, runRequest, mode)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      this.appendMessage(sessionId, [{
+        id: uuidv4(),
+        role: 'system',
+        type: 'result',
+        content: message,
+        subtype: 'error_during_execution',
+        timestamp: Date.now()
+      }])
+      this.updateStatus(sessionId, 'error')
+      return false
+    }
   },
 
   async continueLastTurn(sessionId: string): Promise<boolean> {

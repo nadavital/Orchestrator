@@ -2068,6 +2068,7 @@ child.on('exit', async (code) => {
         permissionActionsWrap: result.permissionActionsWrap === true,
         errorRecoveryRetry: result.errorRecoveryRetryWorks === true,
         errorRecoveryRetryA11y: result.errorRecoveryRetryA11yWorks === true,
+        errorRecoveryRetryPrepareFailure: result.errorRecoveryRetryPrepareFailure === true,
         partialResponseStatus: result.partialResponseStatusWorks === true,
         chatMessageCopy: result.chatMessageCopyWorks === true,
         chatMessageCopyA11y: result.chatMessageCopyA11yWorks === true,

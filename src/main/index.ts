@@ -21678,6 +21678,56 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
             };
           })()
         `)
+        if (session) {
+          sessionManager.appendMessage(session.id, [
+            {
+              id: 'transcript-layout-retry-prepare-fail-user',
+              role: 'user',
+              type: 'text',
+              content: 'RETRY_PREPARE_THROW_SMOKE retry request preparation failure.',
+              timestamp: Date.now()
+            },
+            {
+              id: 'transcript-layout-retry-prepare-fail-result',
+              role: 'system',
+              type: 'result',
+              content: 'Retry preparation failure fixture.',
+              subtype: 'error_during_execution',
+              timestamp: Date.now() + 1
+            }
+          ])
+          sessionManager.updateStatus(session.id, 'idle')
+          await new Promise((resolve) => setTimeout(resolve, 180))
+        }
+        const failedRetryStarted = session ? await sessionManager.retryLastUserMessage(session.id) : null
+        const failedRetrySession = session ? sessionManager.get(session.id) : null
+        const failedRetryErrorMessage = failedRetrySession?.messages.some((message) =>
+          message.type === 'result' &&
+          message.subtype === 'error_during_execution' &&
+          message.content.includes('Smoke retry request preparation failed.')
+        ) ?? false
+        const failedRetryStatus = failedRetrySession?.status ?? null
+        const retryPreparationFailureResult = await win.webContents.executeJavaScript(`
+          (async () => {
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            const scroller = document.querySelector('[data-testid="transcript-scroll"]');
+            if (!(scroller instanceof HTMLElement)) return { errorRecoveryRetryPrepareFailure: false };
+            scroller.scrollTop = scroller.scrollHeight;
+            scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
+            for (let index = 0; index < 20; index += 1) {
+              if (scroller.innerText.includes('Smoke retry request preparation failed.')) break;
+              await sleep(80);
+            }
+            const transcriptText = scroller.innerText;
+            return {
+              errorRecoveryRetryPrepareFailure:
+                ${JSON.stringify(failedRetryStarted)} === false &&
+                ${JSON.stringify(failedRetryStatus)} === 'error' &&
+                ${JSON.stringify(failedRetryErrorMessage)} === true &&
+                transcriptText.includes('Smoke retry request preparation failed.')
+            };
+          })()
+        `)
         const continueResult = await win.webContents.executeJavaScript(`
           (async () => {
             const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -21787,7 +21837,7 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
           const image = await win.webContents.capturePage()
           writeFileSync(screenshotPath, image.toPNG())
         }
-        writeFileSync(outputPath, JSON.stringify({ ok: true, result: { profile, ...result, ...narrowResult, ...retryResult, ...continueResult, ...continueFailureResult, ...shortcutResult }, screenshotPath }, null, 2))
+        writeFileSync(outputPath, JSON.stringify({ ok: true, result: { profile, ...result, ...narrowResult, ...retryResult, ...retryPreparationFailureResult, ...continueResult, ...continueFailureResult, ...shortcutResult }, screenshotPath }, null, 2))
         app.quit()
       } catch (error) {
         writeFileSync(outputPath, JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2))
