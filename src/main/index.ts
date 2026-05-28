@@ -16031,6 +16031,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
             ) ?? browserLocalTargets[0];
             var browserLocalServerRoutesWork = false;
             var browserLocalServerRouteNormalizationWorks = false;
+            var browserLocalRouteActionStatusWorks = false;
             if (firstLocalTarget instanceof HTMLElement && firstLocalTarget.dataset.localTargetUrl) {
               const serverUrl = firstLocalTarget.dataset.localTargetUrl;
               const routeUrl = new URL('/orchestrator-route-smoke?view=1', serverUrl).toString();
@@ -16094,6 +16095,14 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                   await sleep(80);
                 }
               }
+              const routeActionStatus = document.querySelector('[data-testid="browser-local-target-action-status"]');
+              browserLocalRouteActionStatusWorks =
+                routeActionStatus instanceof HTMLElement &&
+                routeActionStatus.textContent?.includes('Route hidden') === true &&
+                routeActionStatus.getAttribute('role') === 'status' &&
+                routeActionStatus.getAttribute('aria-live') === 'polite' &&
+                routeActionStatus.getAttribute('aria-atomic') === 'true' &&
+                routeActionStatus.getAttribute('data-browser-local-target-action-status-tone') === 'info';
               browserLocalServerRoutesWork =
                 routeCountBeforeRemove >= 1 &&
                 routeRows.some((route) =>
@@ -16106,6 +16115,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                 Number(document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-hidden-local-route-count') ?? '0') >= 1;
             }
             var browserLocalTargetHideWorks = false;
+            var browserLocalTargetActionStatusWorks = false;
             if (firstLocalTarget instanceof HTMLElement) {
               const hiddenUrl = firstLocalTarget.dataset.localTargetUrl;
               const hideButton = firstLocalTarget.querySelector('[data-testid="browser-local-target-hide"]');
@@ -16139,11 +16149,19 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                       await sleep(80);
                     }
                   }
+                  const localTargetActionStatus = document.querySelector('[data-testid="browser-local-target-action-status"]');
                   const restoredTargets = [...document.querySelectorAll('[data-testid="browser-local-target"]')];
                   browserLocalTargetHideWorks =
                     onlineTargetsAfterHide.every((target) => !(target instanceof HTMLElement) || target.dataset.localTargetUrl !== hiddenUrl) &&
                     hiddenTargets.some((target) => target instanceof HTMLElement && target.dataset.localTargetUrl === hiddenUrl && target.dataset.localTargetStatus === 'hidden') &&
                     restoredTargets.some((target) => target instanceof HTMLElement && target.dataset.localTargetUrl === hiddenUrl && target.dataset.localTargetStatus === 'running');
+                  browserLocalTargetActionStatusWorks =
+                    localTargetActionStatus instanceof HTMLElement &&
+                    localTargetActionStatus.textContent?.includes('Restored') === true &&
+                    localTargetActionStatus.getAttribute('role') === 'status' &&
+                    localTargetActionStatus.getAttribute('aria-live') === 'polite' &&
+                    localTargetActionStatus.getAttribute('aria-atomic') === 'true' &&
+                    localTargetActionStatus.getAttribute('data-browser-local-target-action-status-tone') === 'info';
                 }
               }
             }
@@ -17956,8 +17974,10 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserEmptyStateWorks,
               browserLocalTargetsWorks,
               browserLocalTargetHideWorks,
+              browserLocalTargetActionStatusWorks,
               browserLocalServerRoutesWork,
               browserLocalServerRouteNormalizationWorks,
+              browserLocalRouteActionStatusWorks,
               browserLocalTargetsListChromeWorks,
               browserLocalTargetsCompactChooserWorks,
               browserAddressSearchWorks,

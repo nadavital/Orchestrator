@@ -8109,6 +8109,22 @@
     min-width: 0;
   }
 
+  .browser-local-target-action-status {
+    display: block;
+    min-height: 16px;
+    overflow: hidden;
+    padding: 0 6px 3px;
+    color: var(--text-tertiary);
+    font-size: 11px;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .browser-local-target-action-status[data-browser-local-target-action-status-tone='danger'] {
+    color: var(--state-danger);
+  }
+
   .browser-local-targets-empty {
     min-height: 30px;
   }

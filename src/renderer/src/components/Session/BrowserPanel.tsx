@@ -198,6 +198,8 @@ export default function BrowserPanel({
   const [assetBundlePath, setAssetBundlePath] = useState<string | null>(null)
   const [localTargets, setLocalTargets] = useState<LocalBrowserTarget[]>([])
   const [localTargetsLoading, setLocalTargetsLoading] = useState(false)
+  const [localTargetActionStatus, setLocalTargetActionStatus] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
+  const localTargetActionStatusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [selectedTargetId, setSelectedTargetId] = useState('')
   const [actionText, setActionText] = useState('')
   const [targetReadResult, setTargetReadResult] = useState<BrowserTargetReadResult | null>(null)
@@ -345,9 +347,13 @@ export default function BrowserPanel({
 
   const refreshLocalTargets = async (): Promise<void> => {
     setLocalTargetsLoading(true)
+    setBrowserLocalTargetStatus({ text: 'Checking local servers', tone: 'info' })
     try {
       const targets = await window.api.browser.discoverLocalTargets(workbenchRef.current.history.map((item) => item.url))
       setLocalTargets(targets)
+      setBrowserLocalTargetStatus({ text: `${targets.length} local ${targets.length === 1 ? 'server' : 'servers'} found`, tone: 'info' })
+    } catch {
+      setBrowserLocalTargetStatus({ text: 'Local server refresh failed', tone: 'danger' })
     } finally {
       setLocalTargetsLoading(false)
     }
@@ -562,10 +568,12 @@ export default function BrowserPanel({
 
   const hideLocalTarget = (url: string): void => {
     patchWorkbench({ hiddenLocalTargets: Array.from(new Set([...workbenchRef.current.hiddenLocalTargets, url])) })
+    setBrowserLocalTargetStatus({ text: `Hidden ${shortUrl(url)}`, tone: 'info' })
   }
 
   const unhideLocalTarget = (url: string): void => {
     patchWorkbench({ hiddenLocalTargets: workbenchRef.current.hiddenLocalTargets.filter((targetUrl) => targetUrl !== url) })
+    setBrowserLocalTargetStatus({ text: `Restored ${shortUrl(url)}`, tone: 'info' })
   }
 
   const removeLocalServerRoute = (routeUrl: string): void => {
@@ -574,6 +582,7 @@ export default function BrowserPanel({
       hiddenLocalServerRoutes: Array.from(new Set([...current.hiddenLocalServerRoutes, routeUrl])),
       localServerRoutes: current.localServerRoutes.filter((route) => route.url !== routeUrl)
     })
+    setBrowserLocalTargetStatus({ text: `Route hidden: ${routePathLabel(routeUrl)}`, tone: 'info' })
   }
 
   const patchActiveTab = (patch: Partial<BrowserTabState>): void => {
@@ -783,7 +792,17 @@ export default function BrowserPanel({
 
   useEffect(() => () => {
     if (copyUrlStatusTimeoutRef.current) window.clearTimeout(copyUrlStatusTimeoutRef.current)
+    if (localTargetActionStatusTimeoutRef.current) window.clearTimeout(localTargetActionStatusTimeoutRef.current)
   }, [])
+
+  const setBrowserLocalTargetStatus = (status: { text: string; tone: 'info' | 'danger' }): void => {
+    if (localTargetActionStatusTimeoutRef.current) window.clearTimeout(localTargetActionStatusTimeoutRef.current)
+    setLocalTargetActionStatus(status)
+    localTargetActionStatusTimeoutRef.current = window.setTimeout(() => {
+      setLocalTargetActionStatus(null)
+      localTargetActionStatusTimeoutRef.current = null
+    }, 2200)
+  }
 
   const writeBrowserClipboardText = async (text: string): Promise<void> => {
     if (typeof window.api.clipboard?.writeText === 'function') {
@@ -2189,6 +2208,18 @@ export default function BrowserPanel({
                     </button>
                   </div>
                 </div>
+                {localTargetActionStatus && (
+                  <span
+                    className="browser-local-target-action-status"
+                    data-testid="browser-local-target-action-status"
+                    data-browser-local-target-action-status-tone={localTargetActionStatus.tone}
+                    role={localTargetActionStatus.tone === 'danger' ? 'alert' : 'status'}
+                    aria-live={localTargetActionStatus.tone === 'danger' ? 'assertive' : 'polite'}
+                    aria-atomic="true"
+                  >
+                    {localTargetActionStatus.text}
+                  </span>
+                )}
                 <div className="browser-local-targets-list" aria-live="polite">
                   {shownLocalTargets.length > 0 ? shownLocalTargets.map((target) => {
                     const targetRoutes = localServerRoutesByTarget.get(target.url) ?? []
