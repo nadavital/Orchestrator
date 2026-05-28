@@ -9093,6 +9093,16 @@ Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.
 
 Remaining: this closes local Terminal hide focus restoration only. Whole-app keyboard traversal and live Codex bottom-panel animation timing remain separate.
 
+### 2026-05-28 - Terminal Final Close Focus Restoration
+
+Product evidence: the bottom Terminal panel is a Phase 1 coding surface, and `Close active panel tab` is the keyboard/menu equivalent of closing the focused panel tab. Closing the final bottom-terminal tab removed the panel without returning focus to the header terminal toggle, unlike the in-panel Hide control.
+
+Implemented: closing the final bottom-terminal tab through the app-level close-active-panel command now restores focus to `titlebar-toggle-terminal` after the panel state update. Non-final terminal tab close behavior is unchanged.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --terminal` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779999921910.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779999921910.png`. The run adds `terminalFinalCloseFocusRestored=true` while preserving Terminal tab persistence, shared shell ownership, animation/layout, tab menu/reorder/drag, resize, shortcut, clipboard/status, fullscreen cleanup, right-panel transfer, link routing, and theme/font gates.
+
+Remaining: this closes local final bottom-terminal command-close focus restoration only. Whole-app keyboard traversal and live Codex bottom-panel animation timing remain separate.
+
 ### 2026-05-28 - Workbench Final Tab Close Focus Restoration
 
 Product evidence: the right Workbench is the primary side panel for Phase 1 coding workflows. Closing the final Workbench tab from inside the panel removes the focused panel, but focus was not deliberately returned to the matching header side-panel toggle.

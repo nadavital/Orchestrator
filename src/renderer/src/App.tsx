@@ -540,6 +540,18 @@ export default function App(): JSX.Element {
     return target !== null
   }, [])
 
+  const restoreTerminalToggleFocus = useCallback((): void => {
+    const focusToggle = (): boolean => {
+      const toggle = document.querySelector<HTMLButtonElement>('[data-testid="titlebar-toggle-terminal"]')
+      if (!(toggle instanceof HTMLButtonElement)) return false
+      toggle.focus({ preventScroll: true })
+      return document.activeElement === toggle
+    }
+    window.requestAnimationFrame(() => {
+      if (!focusToggle()) window.setTimeout(focusToggle, 0)
+    })
+  }, [])
+
   const closeActivePanelTab = useCallback((): void => {
     const { activeSessionId, uiState, closeRightPanelTab, closeSideChat, closeTerminalTab } = useSessionStore.getState()
     if (!activeSessionId) return
@@ -565,11 +577,13 @@ export default function App(): JSX.Element {
     if (closeTarget === 'bottom-panel') {
       const terminalPanel = ui?.terminalPanel
       if (!ui?.showTerminal || terminalPanel?.activeTabId === undefined) return
+      const closingFinalTerminalTab = terminalPanel.tabs.length <= 1
       exitFullscreenForPanelTab('bottom', terminalPanel.activeTabId)
       window.api.terminal.kill(`${activeSessionId}-${terminalPanel.activeTabId}`)
       closeTerminalTab(activeSessionId, terminalPanel.activeTabId)
+      if (closingFinalTerminalTab) restoreTerminalToggleFocus()
     }
-  }, [])
+  }, [restoreTerminalToggleFocus])
 
   const updateShellFocusArea = useCallback((target: EventTarget | null): void => {
     const next = shellFocusAreaFromTarget(target)

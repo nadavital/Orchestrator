@@ -2540,6 +2540,25 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             const terminalButton = findButton('Toggle terminal');
             terminalButton?.click();
             await sleep(700);
+            var terminalFinalCloseFocusRestoredWorks = false;
+            const singleTerminalTabForFinalClose = document.querySelector('[data-testid="session-bottom-panel"] [role="tab"][data-active="true"]');
+            if (singleTerminalTabForFinalClose instanceof HTMLElement) {
+              singleTerminalTabForFinalClose.focus({ preventScroll: true });
+              await sleep(80);
+              singleTerminalTabForFinalClose.dispatchEvent(new KeyboardEvent('keydown', {
+                key: 'w',
+                code: 'KeyW',
+                metaKey: true,
+                bubbles: true,
+                cancelable: true
+              }));
+              await sleep(260);
+              terminalFinalCloseFocusRestoredWorks =
+                !(document.querySelector('[data-testid="session-bottom-panel"]') instanceof HTMLElement) &&
+                document.activeElement?.getAttribute('data-testid') === 'titlebar-toggle-terminal';
+              terminalButton?.click();
+              await sleep(700);
+            }
             const newTerminalButton = findButton('New terminal');
             if (newTerminalButton instanceof HTMLButtonElement) {
               newTerminalButton.click();
@@ -7021,6 +7040,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             terminalResizeKeyboardWorks: typeof terminalResizeKeyboardWorks === 'boolean' ? terminalResizeKeyboardWorks : null,
             terminalResizeResetDebug: typeof terminalResizeResetDebug === 'object' ? terminalResizeResetDebug : null,
             terminalCloseActiveShortcutWorks: typeof terminalCloseActiveShortcutWorks === 'boolean' ? terminalCloseActiveShortcutWorks : null,
+            terminalFinalCloseFocusRestoredWorks: typeof terminalFinalCloseFocusRestoredWorks === 'boolean' ? terminalFinalCloseFocusRestoredWorks : null,
             terminalNewTabShortcutWorks: typeof terminalNewTabShortcutWorks === 'boolean' ? terminalNewTabShortcutWorks : null,
             terminalTabPanelA11yWorks: typeof terminalTabPanelA11yWorks === 'boolean' ? terminalTabPanelA11yWorks : null,
             terminalFailureStateA11yWorks: typeof terminalFailureStateA11yWorks === 'boolean' ? terminalFailureStateA11yWorks : null,
