@@ -41,6 +41,7 @@ let failed = false
 const pending = new Map()
 const methods = []
 const unsupportedMethods = []
+const requestFailures = []
 const rawLines = []
 const createdThreadIds = []
 let beforePinnedThreadIds = []
@@ -185,7 +186,13 @@ function handleLine(line) {
   pending.delete(message.id)
   if (message.error) {
     const messageText = JSON.stringify(message.error)
-    if (messageText.includes('unknown variant')) unsupportedMethods.push(waiter.method)
+    requestFailures.push({
+      id: message.id,
+      method: waiter.method,
+      error: message.error,
+      message: messageText
+    })
+    if (isUnsupportedMethodError(messageText)) unsupportedMethods.push(waiter.method)
     waiter.reject(new Error(messageText))
   } else {
     waiter.resolve(message.result)
@@ -217,19 +224,33 @@ function disposableOrder(ids, first, second) {
   return ids.filter((threadId) => threadId === first || threadId === second)
 }
 
+function isUnsupportedMethodError(messageText) {
+  const lower = messageText.toLowerCase()
+  return lower.includes('unknown variant') ||
+    lower.includes('method not found') ||
+    lower.includes('unknown method') ||
+    lower.includes('unsupported') ||
+    lower.includes('not supported')
+}
+
 function finish(ok, message) {
   if (finished) return
   finished = true
   failed = !ok
   clearTimeout(timeout)
+  const requestFailureMethods = [...new Set(requestFailures.map((failure) => failure.method))]
   const result = {
     ok,
     message,
+    reason: message,
     createdAt: new Date().toISOString(),
     model,
     workspaceRoot,
     methods,
     unsupportedMethods: [...new Set(unsupportedMethods)],
+    failedMethod: requestFailureMethods[0] ?? null,
+    requestFailureMethods,
+    requestFailures,
     createdThreadIds,
     beforePinnedThreadIds,
     afterPinThreadIds,

@@ -591,14 +591,17 @@ function buildContracts() {
           path: 'tmp/codex-pinned-threads-live-proof/result.json',
           checks: [
             { path: 'ok', equals: false },
+            { path: 'failedMethod', equals: 'list-pinned-threads' },
+            { path: 'requestFailureMethods', includes: 'list-pinned-threads' },
             { path: 'unsupportedMethods', includes: 'list-pinned-threads' },
+            { path: 'reason', includes: 'unknown variant' },
             { path: 'methods', includes: 'list-pinned-threads' }
           ]
         }
       ],
       smokeChecks: ['providerPinnedMetadata', 'sidebarProviderPinBoundary', 'providerWorktreeMetadata', 'sidebarConnectionGrouping', 'sidebarPinnedDragReorder', 'sidebarProviderPinnedOrderPreserved', 'sidebarRowDensityCodexLike', 'sessionRowsTextFirst', 'sidebarPinnedRowsTextFirst', 'chatsHeaderTextFirst', 'sidebarFooterCollapseAffordance'],
       statusWhenCovered: 'fixture-covered',
-      caveat: 'Provider thread-list projection, local provider-pinned ordering preservation, local pin order, Codex-compact row density, text-first session rows, text-first top-level Chats section header, and the footer collapse affordance are covered. Codex bundle chunks expose list-pinned-threads, set-thread-pinned, and set-pinned-threads-order, but the current live stdio app-server rejects list-pinned-threads as an unknown variant, so Orchestrator keeps provider-projected pin actions read-only instead of exposing a broken mutation path.',
+      caveat: 'Provider thread-list projection, local provider-pinned ordering preservation, local pin order, Codex-compact row density, text-first session rows, text-first top-level Chats section header, and the footer collapse affordance are covered. Codex bundle chunks expose list-pinned-threads, set-thread-pinned, and set-pinned-threads-order, but the current live stdio app-server proof records list-pinned-threads as the failed JSON-RPC method with an unknown-variant error, so Orchestrator keeps provider-projected pin actions read-only instead of exposing a broken mutation path.',
       next: 'Re-enable Codex provider pin mutations only when the live app-server exposes a safe list/set/order boundary, then add non-Codex provider pin adapters when those providers expose comparable state.',
       openIssues: [
         {
