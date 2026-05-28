@@ -37,6 +37,7 @@ interface Props {
   isUnread?: boolean
   projectRoot?: string
   branch?: string | null
+  menuId?: string
 }
 
 export default function SessionActionsMenu({
@@ -50,7 +51,8 @@ export default function SessionActionsMenu({
   onForked,
   isUnread = false,
   projectRoot,
-  branch
+  branch,
+  menuId
 }: Props): JSX.Element {
   const [renaming, setRenaming] = useState(false)
   const [confirmingArchive, setConfirmingArchive] = useState(false)
@@ -277,6 +279,7 @@ export default function SessionActionsMenu({
     <>
     {!renaming && !confirmingArchive && !automationDialogOpen && (
       <MenuSurface
+        id={menuId}
         className="fixed p-[5px]"
         onClose={onClose}
         style={{

@@ -2275,6 +2275,7 @@ child.on('exit', async (code) => {
           titlebarSidebarToggle: result.titlebarSidebarToggleWorks === true,
           titlebarPanelToggleState: result.titlebarPanelToggleStateWorks === true,
           headerPanelEmptyFallback: result.headerPanelEmptyFallbackWorks === true,
+          headerActionMenuState: result.headerActionMenuStateWorks === true,
           headerActionMenu: result.headerActionMenuWorks === true
         }
     : captureView === 'right-panel'

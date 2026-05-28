@@ -7338,6 +7338,11 @@ function runAutomatedFocusedSurfaceSmoke(
                 profileBadgeRect !== null &&
                 profileBadgeRect.width <= 26 &&
                 profileBadgeRect.height <= 26;
+              let headerActionMenuStateWorks =
+                chatActionsButton instanceof HTMLButtonElement &&
+                chatActionsButton.getAttribute('aria-haspopup') === 'menu' &&
+                chatActionsButton.getAttribute('aria-controls') === 'titlebar-chat-actions-menu' &&
+                chatActionsButton.getAttribute('aria-expanded') === 'false';
               let headerActionMenuWorks =
                 headerActions.includes('folder') &&
                 headerActions.includes('project') &&
@@ -7346,6 +7351,12 @@ function runAutomatedFocusedSurfaceSmoke(
               if (chatActionsButton instanceof HTMLElement) {
                 chatActionsButton.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
                 await sleep(120);
+                const chatActionsMenu = document.getElementById('titlebar-chat-actions-menu');
+                headerActionMenuStateWorks =
+                  headerActionMenuStateWorks &&
+                  chatActionsButton.getAttribute('aria-expanded') === 'true' &&
+                  chatActionsMenu instanceof HTMLElement &&
+                  chatActionsMenu.querySelector('[role="menu"]') instanceof HTMLElement;
                 headerActionMenuWorks = headerActionMenuWorks ||
                   document.body.innerText.includes('Copy folder path') &&
                   document.body.innerText.includes('Copy project path') &&
@@ -7437,6 +7448,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 titlebarPanelToggleStateWorks,
                 headerPanelEmptyFallbackWorks,
                 headerActionChromeCompactWorks,
+                headerActionMenuStateWorks,
                 headerActionMenuWorks
               };
             };

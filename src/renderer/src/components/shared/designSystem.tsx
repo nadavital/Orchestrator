@@ -294,6 +294,7 @@ interface IconButtonProps {
   dataTestId?: string
   ariaExpanded?: boolean
   ariaControls?: string
+  ariaHasPopup?: boolean | 'menu' | 'listbox' | 'tree' | 'grid' | 'dialog'
 }
 
 export function IconButton({
@@ -311,6 +312,7 @@ export function IconButton({
   dataTestId,
   ariaExpanded,
   ariaControls,
+  ariaHasPopup,
 }: IconButtonProps): JSX.Element {
   const buttonSize = size === 'xs' ? 18 : size === 'sm' ? 24 : 30
   const iconSize = size === 'xs' ? 11 : size === 'sm' ? 13 : 15
@@ -322,6 +324,7 @@ export function IconButton({
       aria-label={label}
       aria-expanded={ariaExpanded}
       aria-controls={ariaControls}
+      aria-haspopup={ariaHasPopup}
       data-tooltip-label={label}
       data-icon={icon}
       data-native-title-free="true"
@@ -358,6 +361,7 @@ export function ToolbarButton({
   variant = 'default',
   ariaExpanded,
   ariaControls,
+  ariaHasPopup,
 }: {
   icon: IconName
   label: string
@@ -370,6 +374,7 @@ export function ToolbarButton({
   variant?: 'default' | 'toolbar'
   ariaExpanded?: boolean
   ariaControls?: string
+  ariaHasPopup?: boolean | 'menu' | 'listbox' | 'tree' | 'grid' | 'dialog'
 }): JSX.Element {
   return (
     <IconButton
@@ -384,6 +389,7 @@ export function ToolbarButton({
       variant={variant}
       ariaExpanded={ariaExpanded}
       ariaControls={ariaControls}
+      ariaHasPopup={ariaHasPopup}
       className="toolbar-button"
       style={variant === 'toolbar'
         ? undefined

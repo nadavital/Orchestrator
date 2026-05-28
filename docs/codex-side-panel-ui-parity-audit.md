@@ -9002,3 +9002,13 @@ Implemented: shared toolbar icon buttons now support `aria-expanded` and `aria-c
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and elevated `node scripts/run-automated-ui-smoke.mjs --header` passed. The focused run added `titlebarPanelToggleState=true` while keeping header identity, tooltip, compact action chrome, side-panel toggle, empty-panel fallback, and action-menu gates green. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-header-1779994218641.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-header-1779994218641.png`.
 
 Remaining: this closes local header toggle ownership/state semantics for the right Workbench and bottom Terminal panels. Exact live Codex header/panel pixel timing and installed-app replacement proof remain separate.
+
+### 2026-05-28 - Header Chat Actions Menu State
+
+Product evidence: the header Chat actions button opens the session action menu and restores focus, but the trigger did not declare that it opens a menu or identify the controlled menu surface. That left the header command cluster less explicit than the composer and other popover/menu controls that expose open/closed state.
+
+Implemented: shared toolbar icon buttons now support `aria-haspopup`. The header Chat actions trigger exposes `aria-haspopup="menu"`, `aria-expanded`, and `aria-controls="titlebar-chat-actions-menu"`, and the session action menu receives that stable id when opened from the titlebar.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and elevated `node scripts/run-automated-ui-smoke.mjs --header` passed. The focused run added `headerActionMenuState=true` while keeping header identity, tooltip, compact action chrome, side-panel toggle, controlled-panel state, empty-panel fallback, and action-menu content gates green. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-header-1779994409505.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-header-1779994409505.png`.
+
+Remaining: this closes local header menu-trigger state semantics only. Exact live Codex header/panel timing, installed-app replacement proof, and broader whole-app menu-trigger audit remain separate.

@@ -249,6 +249,9 @@ function Titlebar(): JSX.Element {
               icon="ellipsis"
               label="Chat actions"
               active={menuPoint !== null}
+              ariaExpanded={menuPoint !== null}
+              ariaControls="titlebar-chat-actions-menu"
+              ariaHasPopup="menu"
               dataTestId="titlebar-chat-actions"
               size="sm"
               variant="toolbar"
@@ -289,6 +292,7 @@ function Titlebar(): JSX.Element {
           y={menuPoint.y}
           projectRoot={project?.rootPath}
           branch={branchLabel}
+          menuId="titlebar-chat-actions-menu"
           onClose={() => setMenuPoint(null)}
           onRemove={removeActiveSession}
           isUnread={sessionUnread}
