@@ -14636,15 +14636,20 @@ function runAutomatedFocusedSurfaceSmoke(
               const sourceActionStatus = sourceFileTabAfterCopy instanceof HTMLElement
                 ? sourceFileTabAfterCopy.getAttribute('data-file-tab-action-status') ?? ''
                 : '';
+              const copiedSourceLineReference =
+                await window.api?.clipboard?.readText?.().catch(() => '') ??
+                await navigator.clipboard?.readText?.().catch(() => '') ??
+                '';
               const sourceActionStatusIsFailure = sourceActionStatus.toLowerCase().includes('failed');
               fileSourceActionStatusWorks =
                 sourceFileTabAfterCopy instanceof HTMLElement &&
-                ['Copying line reference', 'Line reference copied', 'Copy failed'].includes(sourceActionStatus) &&
+                sourceActionStatus === 'Line reference copied' &&
                 sourceActionStatusAfterCopy instanceof HTMLElement &&
                 sourceActionStatusAfterCopy.getAttribute('role') === (sourceActionStatusIsFailure ? 'alert' : 'status') &&
                 sourceActionStatusAfterCopy.getAttribute('aria-live') === (sourceActionStatusIsFailure ? 'assertive' : 'polite') &&
                 sourceActionStatusAfterCopy.getAttribute('aria-atomic') === 'true' &&
-                sourceActionStatusAfterCopy.textContent?.includes(sourceActionStatus) === true;
+                sourceActionStatusAfterCopy.textContent?.includes(sourceActionStatus) === true &&
+                copiedSourceLineReference === 'review-base.txt:2';
               fileSourceLineUtilitiesWorks =
                 sourceFileTab instanceof HTMLElement &&
                 sourceFileTab.getAttribute('data-file-tab-selected-source-line') === '2' &&

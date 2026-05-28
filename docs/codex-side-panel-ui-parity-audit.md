@@ -8252,3 +8252,13 @@ Implemented: Terminal copy and paste now use the app clipboard bridge with brows
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and focused `node scripts/run-automated-ui-smoke.mjs --terminal` passed. The first non-elevated smoke hit the expected sandbox localhost bind failure; the elevated rerun passed with `terminalClipboardStatus=true` alongside `terminalFailureStateA11y=true`, `terminalServiceSnapshot=true`, `terminalMoveToRightPanel=true`, and the existing terminal tab/resize/theme/link-routing gates. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779959401399.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779959401399.png`.
 
 Remaining: this closes local Terminal clipboard reliability and status semantics only. Broader keyboard-only traversal, provider-driven terminal orchestration, and live Codex side-by-side terminal timing/pixel proof remain open Phase 1 work.
+
+### 2026-05-28 - Files Source Clipboard Bridge
+
+Product evidence: source-tab copy actions are daily coding controls. The source tab already showed visible and announced status for copying file paths and selected line references, but those copy actions still used the renderer clipboard path directly instead of the app clipboard bridge used by the newer chat, Review, Browser, Terminal, and inspector copy paths.
+
+Implemented: source-tab `Copy path` and `Copy selected line reference` now write through the app clipboard bridge with browser clipboard fallback. The existing source action status remains visible and announced, and the focused Files smoke now verifies the app clipboard contains the selected line reference after the action succeeds.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and focused `node scripts/run-automated-ui-smoke.mjs --files` passed. The first non-elevated smoke hit the expected sandbox localhost bind failure; the elevated rerun passed with `fileSourceActionStatus=true` and `fileSourceLineUtilities=true` alongside the existing source-tab, Files search, preview, and artifact gates. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779959694450.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779959694450.png`.
+
+Remaining: this closes local source-tab clipboard reliability for path and line-reference copy only. Broader Files tree row copy actions, artifact preview copy actions, provider/global indexed workspace search, provider-backed comments/blame, and deep artifact renderer fidelity remain open.

@@ -161,9 +161,18 @@ export default function FileTabPanel({
     onFileTabStateChange(tabId, patch)
   }
 
+  const writeFileTabClipboardText = async (text: string): Promise<void> => {
+    if (typeof window.api.clipboard?.writeText === 'function') {
+      const didWrite = await window.api.clipboard.writeText(text)
+      if (!didWrite) throw new Error('Clipboard write failed')
+      return
+    }
+    await navigator.clipboard.writeText(text)
+  }
+
   const copyPath = (): void => {
     setFileActionStatus('Copying path')
-    void navigator.clipboard.writeText(filePath)
+    void writeFileTabClipboardText(filePath)
       .then(() => setFileActionStatus('Path copied'))
       .catch(() => setFileActionStatus('Copy failed'))
   }
@@ -173,7 +182,7 @@ export default function FileTabPanel({
     const reference = `${filePath}:${selectedSourceLine}`
     setCopiedLineReference(reference)
     setFileActionStatus('Copying line reference')
-    void navigator.clipboard.writeText(reference)
+    void writeFileTabClipboardText(reference)
       .then(() => setFileActionStatus('Line reference copied'))
       .catch(() => setFileActionStatus('Copy failed'))
   }
