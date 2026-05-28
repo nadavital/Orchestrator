@@ -8162,3 +8162,13 @@ Implemented: file tabs now keep a compact action-status pill in the toolbar info
 Verification: `pnpm exec tsc --noEmit` and `node -c scripts/run-automated-ui-smoke.mjs` passed. Focused `node scripts/run-automated-ui-smoke.mjs --files` first hit the expected sandbox localhost bind failure; the elevated rerun passed with `fileSourceActionStatus=true`. After adding the source-tab attach gate, the elevated final rerun passed with `fileSourceActionStatus=true` and `fileSourceAddToChat=true` alongside the existing file-source line selection, line utilities, blame, annotations, search, virtualization, overflow, artifact, and preview gates. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779955377413.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779955377413.png`.
 
 Remaining: this closes local file-source action feedback only. Provider-backed comments/blame, provider/global indexed workspace search, live Codex focus/timing proof, and deep artifact renderer fidelity remain open.
+
+### 2026-05-28 - Files Content Search Opens Matched Line
+
+Product evidence: content search is a daily coding workflow. Finding a text hit in Files should not only identify the file and line metadata; opening that result should land the user on the matched line in a source tab, using the same selected/revealed-line behavior already proven from Review.
+
+Implemented: Files content-hit rows now advertise a line-aware Workbench open target and pass their `matchLine` into `openRightPanelFileTab`. Opening a content result switches the file tab to source mode, selects the matched line, and reveals it in the source preview. The focused Files smoke now gates this as `filesContentSearchOpenLine=true`.
+
+Verification: `pnpm exec tsc --noEmit` and `node -c scripts/run-automated-ui-smoke.mjs` passed. Focused `node scripts/run-automated-ui-smoke.mjs --files` first hit the expected sandbox localhost bind failure; the elevated final rerun passed with `filesContentSearchOpenLine=true` alongside `filesContentSearch=true`, `fileSourceSearch=true`, `fileSourceActionStatus=true`, `fileSourceAddToChat=true`, and the existing source-tab/artifact gates. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779955742571.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779955742571.png`.
+
+Remaining: this closes the local content-search-to-source-line workflow gap only. Provider/global indexed workspace search, provider-backed comments/blame, live Codex focus/timing proof, and deep artifact renderer fidelity remain open.

@@ -58,10 +58,10 @@ export default function FilesPanel({ sessionId, workDir, embedded = false }: Pro
     className: 'files-entry-row',
     dataSearchMatchKind: entry.matchKind,
     dataSearchMatchLine: entry.matchLine,
-    dataOpenTarget: entry.kind === 'file' && sessionId ? 'workbench-preview' : 'select',
+    dataOpenTarget: entry.kind === 'file' && sessionId ? contentMatchLine(entry) !== undefined ? 'workbench-preview-line' : 'workbench-preview' : 'select',
     onSelect: () => setSelectedPath(entry.path),
     onOpen: entry.kind === 'file' && sessionId
-      ? () => openRightPanelFileTab(sessionId, entry.path, { preview: true })
+      ? () => openRightPanelFileTab(sessionId, entry.path, { preview: true, line: contentMatchLine(entry) })
       : entry.kind === 'directory' && entry.hasChildren
         ? () => toggleDirectory(entry.path)
         : undefined,
@@ -179,7 +179,7 @@ export default function FilesPanel({ sessionId, workDir, embedded = false }: Pro
 
   const openEntryInWorkbench = (entry: WorkspaceSearchEntry | null): void => {
     if (!sessionId || !entry || entry.kind !== 'file') return
-    openRightPanelFileTab(sessionId, entry.path, { preview: true })
+    openRightPanelFileTab(sessionId, entry.path, { preview: true, line: contentMatchLine(entry) })
   }
 
   const revealEntry = (entry: WorkspaceSearchEntry | null): void => {
@@ -3496,6 +3496,12 @@ function projectSearchEntries(entries: WorkspaceSearchEntry[], query: string): W
     projected.set(entry.path, entry)
   }
   return [...projected.values()]
+}
+
+function contentMatchLine(entry: WorkspaceSearchEntry | null): number | undefined {
+  if (entry?.matchKind !== 'content' || typeof entry.matchLine !== 'number') return undefined
+  if (!Number.isFinite(entry.matchLine) || entry.matchLine <= 0) return undefined
+  return Math.floor(entry.matchLine)
 }
 
 function directoryAncestors(filePath: string): WorkspaceSearchEntry[] {

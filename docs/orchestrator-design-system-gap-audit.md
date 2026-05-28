@@ -518,6 +518,7 @@ Current verification:
 
 - `node scripts/run-automated-ui-smoke.mjs --files` now verifies `fileSourceActionStatus=true`, covering the compact file-tab action status live region for copy-line feedback and success/failure semantics.
 - The same focused smoke verifies `fileSourceAddToChat=true`, covering source-tab Add file to chat creating a visible composer attachment rather than only dispatching an unobserved event.
+- The same focused smoke verifies `filesContentSearchOpenLine=true`, covering content-search hits opening matched files in source mode with the matched line selected and revealed.
 
 Still needed:
 

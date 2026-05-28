@@ -12059,6 +12059,7 @@ function runAutomatedFocusedSurfaceSmoke(
               let workbenchFileTabCodexActionLabelsWorks = false;
               let workbenchFileTabCodexActionClusterWorks = false;
               let filesContentSearchWorks = false;
+              let filesContentSearchOpenLineWorks = false;
               let fileSourceLineSelectionWorks = false;
               let fileSourceWrapToggleWorks = false;
               let fileSourceModeWorks = false;
@@ -14054,9 +14055,32 @@ function runAutomatedFocusedSurfaceSmoke(
                 contentSearchRow instanceof HTMLElement &&
                 contentSearchRow.getAttribute('data-search-match-kind') === 'content' &&
                 contentSearchRow.getAttribute('data-search-match-line') === '3' &&
+                contentSearchRow.getAttribute('data-open-target') === 'workbench-preview-line' &&
                 contentSearchRow.textContent?.includes('L3') === true &&
                 contentSearch instanceof HTMLInputElement &&
                 contentSearch.value === 'content-only sentinel phrase';
+              if (contentSearchRow instanceof HTMLElement) {
+                contentSearchRow.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }));
+                await sleep(420);
+              }
+              const contentSearchFileTab = document.querySelector('[data-testid="workbench-file-tab"]');
+              const contentSearchSourcePreview = document.querySelector('[data-testid="workbench-file-tab"] [data-testid="workspace-text-preview"]');
+              const contentSearchSelectedLine = document.querySelector('[data-testid="workbench-file-tab"] [data-source-line-selected="true"]');
+              const contentSearchRevealedLine = document.querySelector('[data-testid="workbench-file-tab"] [data-source-line-revealed="true"]');
+              filesContentSearchOpenLineWorks =
+                contentSearchRow instanceof HTMLElement &&
+                contentSearchFileTab instanceof HTMLElement &&
+                contentSearchFileTab.getAttribute('data-file-tab-path') === 'reference.md' &&
+                contentSearchFileTab.getAttribute('data-file-tab-view-mode') === 'source' &&
+                contentSearchFileTab.getAttribute('data-file-tab-selected-source-line') === '3' &&
+                contentSearchFileTab.getAttribute('data-file-tab-source-reveal-line') === '3' &&
+                contentSearchSourcePreview instanceof HTMLElement &&
+                contentSearchSourcePreview.getAttribute('data-source-selected-line') === '3' &&
+                contentSearchSourcePreview.getAttribute('data-source-revealed-line') === '3' &&
+                contentSearchSelectedLine instanceof HTMLElement &&
+                contentSearchSelectedLine.getAttribute('data-source-line-number') === '3' &&
+                contentSearchRevealedLine instanceof HTMLElement &&
+                contentSearchRevealedLine.getAttribute('data-source-line-number') === '3';
               await openPanelTab('files', 'Files');
               await sleep(160);
               const noResultsSearch = document.querySelector('[data-testid="workspace-file-search"]');
@@ -14791,6 +14815,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 fileSourceModeWorks,
                 filesTabSearchWorks,
                 filesContentSearchWorks,
+                filesContentSearchOpenLineWorks,
                 filesTabAttachWorks,
                 ...previewChecks,
                 filesPreviewHeaderSharedWorks:
