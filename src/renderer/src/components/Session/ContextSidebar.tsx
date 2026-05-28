@@ -605,27 +605,29 @@ interface WorkbenchNewTabAction {
 
 function WorkbenchNewTabPanel({ actions }: { actions: WorkbenchNewTabAction[] }): JSX.Element {
   return (
-    <div className="workbench-new-tab-panel" data-testid="workbench-new-tab-panel">
+    <div className="workbench-new-tab-panel" data-testid="workbench-new-tab-panel" aria-label="Workbench tab actions">
       <div className="workbench-new-tab-content">
-        <div className="workbench-new-tab-grid" data-testid="workbench-new-tab-action-grid">
+        <div className="workbench-new-tab-list" data-testid="workbench-new-tab-action-grid" role="list">
           {actions.map((action) => (
-            <button
-              key={action.id}
-              type="button"
-              className="workbench-new-tab-card"
-              disabled={action.disabled}
-              data-testid={`workbench-new-tab-action-${action.id}`}
-              data-workbench-new-tab-action={action.id}
-              onClick={action.onSelect}
-            >
-              <span className="workbench-new-tab-card-icon">
-                <Icon name={action.icon} size={18} />
-              </span>
-              <span className="workbench-new-tab-card-copy">
-                <span className="workbench-new-tab-card-title">{action.title}</span>
-                <span className="workbench-new-tab-card-description">{action.description}</span>
-              </span>
-            </button>
+            <div key={action.id} className="workbench-new-tab-action-item" role="listitem">
+              <button
+                type="button"
+                className="workbench-new-tab-action"
+                disabled={action.disabled}
+                data-testid={`workbench-new-tab-action-${action.id}`}
+                data-workbench-new-tab-action={action.id}
+                aria-label={`${action.title}: ${action.description}`}
+                onClick={action.onSelect}
+              >
+                <span className="workbench-new-tab-action-icon">
+                  <Icon name={action.icon} size={18} />
+                </span>
+                <span className="workbench-new-tab-action-copy">
+                  <span className="workbench-new-tab-action-title">{action.title}</span>
+                  <span className="workbench-new-tab-action-description">{action.description}</span>
+                </span>
+              </button>
+            </div>
           ))}
         </div>
       </div>

@@ -316,9 +316,9 @@ function buildContracts() {
           imageNonBlank: true
         }
       ],
-      smokeChecks: ['rightPanelSharedAnimationController', 'rightPanelSharedLayoutController', 'rightPanelHeaderSeam', 'rightPanelMaterialSolid', 'rightPanelContextMenuSharedSections', 'rightPanelTransferUnsupportedBoundary', 'rightPanelPanelOpenCloseTelemetry', 'workbenchPanelTabOverflowController', 'workbenchPanelTabCodexWidthCap', 'workbenchPanelTabCodexMetrics', 'workbenchPanelTabReadableSeparation', 'workbenchPanelActiveTabVisibleAfterResize', 'workbenchPanelOverflowFadeMasksClippedTabs', 'workbenchPanelTabCloseStartEdge', 'workbenchPanelNewTabPage', 'workbenchNewTabSingleAddAffordance'],
+      smokeChecks: ['rightPanelSharedAnimationController', 'rightPanelSharedLayoutController', 'rightPanelHeaderSeam', 'rightPanelMaterialSolid', 'rightPanelContextMenuSharedSections', 'rightPanelTransferUnsupportedBoundary', 'rightPanelPanelOpenCloseTelemetry', 'workbenchPanelTabOverflowController', 'workbenchPanelTabCodexWidthCap', 'workbenchPanelTabCodexMetrics', 'workbenchPanelTabReadableSeparation', 'workbenchPanelActiveTabVisibleAfterResize', 'workbenchPanelOverflowFadeMasksClippedTabs', 'workbenchPanelTabCloseStartEdge', 'workbenchPanelNewTabPage', 'workbenchNewTabSingleAddAffordance', 'workbenchNewTabListLauncher'],
       statusWhenCovered: 'fixture-covered',
-      caveat: 'Smoke covers Orchestrator shell behavior, tab overflow/no-collapse behavior, start-edge tab close chrome, shared context-menu sections, explicit unsupported transfer boundaries for Review/Files/Browser, and app-shell tab controller structure; exact live Codex spacing and animation timing still need live UI evidence.',
+      caveat: 'Smoke covers Orchestrator shell behavior, tab overflow/no-collapse behavior, start-edge tab close chrome, compact New tab command-list layout, shared context-menu sections, explicit unsupported transfer boundaries for Review/Files/Browser, and app-shell tab controller structure; exact live Codex spacing and animation timing still need live UI evidence.',
       next: 'Use focused right-panel smoke for regressions; do not call exact timing complete without live Codex comparison.',
       openIssues: [
         {

@@ -1451,7 +1451,7 @@
     min-height: 0;
     overflow: auto;
     background: var(--surface-bg);
-    padding: 16px;
+    padding: 8px;
   }
 
   .workbench-new-tab-content {
@@ -1462,25 +1462,30 @@
     justify-content: flex-start;
   }
 
-  .workbench-new-tab-grid {
+  .workbench-new-tab-list {
     display: grid;
     width: 100%;
-    max-width: 720px;
-    grid-template-columns: repeat(auto-fit, minmax(136px, 1fr));
-    gap: 8px;
+    grid-template-columns: minmax(0, 1fr);
+    align-content: start;
+    gap: 2px;
   }
 
-  .workbench-new-tab-card {
-    display: flex;
-    min-height: 68px;
+  .workbench-new-tab-action-item {
     min-width: 0;
-    align-items: flex-start;
-    gap: 10px;
-    border: 1px solid var(--border-subtle);
-    border-radius: 8px;
-    background: color-mix(in srgb, var(--surface-elevated) 58%, transparent);
+  }
+
+  .workbench-new-tab-action {
+    display: flex;
+    width: 100%;
+    min-height: 42px;
+    min-width: 0;
+    align-items: center;
+    gap: 9px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background: transparent;
     color: var(--text-secondary);
-    padding: 12px;
+    padding: 6px 8px;
     text-align: left;
     transition:
       background var(--motion-duration-fast) var(--motion-ease-standard),
@@ -1488,47 +1493,46 @@
       color var(--motion-duration-fast) var(--motion-ease-standard);
   }
 
-  .workbench-new-tab-card:not(:disabled):hover,
-  .workbench-new-tab-card:not(:disabled):focus-visible {
-    border-color: var(--border-strong);
-    background: color-mix(in srgb, var(--control-bg) 70%, transparent);
+  .workbench-new-tab-action:not(:disabled):hover,
+  .workbench-new-tab-action:not(:disabled):focus-visible {
+    border-color: var(--border-subtle);
+    background: var(--control-bg);
     color: var(--text-primary);
   }
 
-  .workbench-new-tab-card:disabled {
+  .workbench-new-tab-action:disabled {
     cursor: default;
-    opacity: 0.54;
+    opacity: 0.45;
   }
 
-  .workbench-new-tab-card-icon {
+  .workbench-new-tab-action-icon {
     display: inline-flex;
-    width: 28px;
-    height: 28px;
-    flex: 0 0 28px;
+    width: 24px;
+    height: 24px;
+    flex: 0 0 24px;
     align-items: center;
     justify-content: center;
-    border-radius: 7px;
     color: var(--text-secondary);
   }
 
-  .workbench-new-tab-card-copy {
+  .workbench-new-tab-action-copy {
     display: flex;
     min-width: 0;
     flex-direction: column;
-    gap: 4px;
+    gap: 1px;
   }
 
-  .workbench-new-tab-card-title {
+  .workbench-new-tab-action-title {
     color: var(--text-primary);
     font-size: 13px;
     font-weight: 520;
     line-height: 1.25;
   }
 
-  .workbench-new-tab-card-description {
+  .workbench-new-tab-action-description {
     color: var(--text-tertiary);
     font-size: 12px;
-    line-height: 1.35;
+    line-height: 1.25;
   }
 
   .terminal-failure-state {

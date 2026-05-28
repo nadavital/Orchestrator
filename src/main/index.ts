@@ -7256,6 +7256,16 @@ function runAutomatedFocusedSurfaceSmoke(
                 const gridRect = newTabGrid instanceof HTMLElement ? newTabGrid.getBoundingClientRect() : null;
                 const rightPanelRect = rightPanel instanceof HTMLElement ? rightPanel.getBoundingClientRect() : null;
                 const newTabCardRects = newTabCards.map((card) => card.getBoundingClientRect());
+                const newTabActionListLauncher =
+                  newTabGrid instanceof HTMLElement &&
+                  newTabGrid.classList.contains('workbench-new-tab-list') &&
+                  newTabGrid.getAttribute('role') === 'list' &&
+                  newTabCards.length >= 6 &&
+                  newTabCards.every((card) =>
+                    card instanceof HTMLElement &&
+                    card.closest('[role="listitem"]') instanceof HTMLElement &&
+                    card.getAttribute('aria-label')?.includes(':') === true
+                  );
                 const workbenchPanelNewTabPageWorks =
                   rightPanel instanceof HTMLElement &&
                   rightPanel.getAttribute('data-right-panel-active-tab') === 'new-tab' &&
@@ -7634,7 +7644,8 @@ function runAutomatedFocusedSurfaceSmoke(
                     gridRect !== null &&
                     gridRect.top - panelRect.top <= 24 &&
                     newTabCardRects.length >= 6 &&
-                    newTabCardRects.every((rect) => rect.height <= 90),
+                    newTabCardRects.every((rect) => rect.height <= 56),
+                  workbenchNewTabListLauncher: newTabActionListLauncher,
                   workbenchNewTabFinalCapture:
                     finalNewTabPanel instanceof HTMLElement &&
                     finalNewTabGrid instanceof HTMLElement &&
