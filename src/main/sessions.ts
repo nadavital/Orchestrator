@@ -26,6 +26,8 @@ interface SessionStore {
   sessions: Session[]
 }
 
+type SessionActionResult = { ok: boolean; error?: string }
+
 migrateLegacyUserData()
 
 const store = new Store<SessionStore>({ defaults: { sessions: [] } })
@@ -1522,18 +1524,17 @@ export const sessionManager = {
     await this.startProviderRun(sessionId, session, provider, runRequest, mode)
   },
 
-  async grantAndResume(sessionId: string, toolNames: string[]): Promise<void> {
-    await this.resumeAfterPermission(sessionId, toolNames, true)
+  async grantAndResume(sessionId: string, toolNames: string[]): Promise<SessionActionResult> {
+    return this.resumeAfterPermission(sessionId, toolNames, true)
   },
 
-  async allowOnceAndResume(sessionId: string, toolNames: string[]): Promise<void> {
-    await this.resumeAfterPermission(sessionId, toolNames, false)
+  async allowOnceAndResume(sessionId: string, toolNames: string[]): Promise<SessionActionResult> {
+    return this.resumeAfterPermission(sessionId, toolNames, false)
   },
 
-  async resumeAfterPermission(sessionId: string, toolNames: string[], persistGrant: boolean): Promise<void> {
+  async resumeAfterPermission(sessionId: string, toolNames: string[], persistGrant: boolean): Promise<SessionActionResult> {
     const session = this.get(sessionId)
-    if (!session) return
-    markLatestPermissionDecision(sessionId, persistGrant ? 'allowed_session' : 'allowed_once')
+    if (!session) return { ok: false, error: `Session ${sessionId} not found.` }
 
     if (approvalBroker.hasPendingApproval(sessionId)) {
       const sessions = store.get('sessions', [])
@@ -1548,8 +1549,9 @@ export const sessionManager = {
       } else {
         approvalBroker.resolveSessionApproval(sessionId, true)
       }
+      markLatestPermissionDecision(sessionId, persistGrant ? 'allowed_session' : 'allowed_once')
       this.updateStatus(sessionId, 'running')
-      return
+      return { ok: true }
     }
 
     if (providerRuntime.resolvePermission(sessionId, true, persistGrant)) {
@@ -1561,11 +1563,14 @@ export const sessionManager = {
           store.set('sessions', sessions)
         }
       }
+      markLatestPermissionDecision(sessionId, persistGrant ? 'allowed_session' : 'allowed_once')
       this.updateStatus(sessionId, 'running')
-      return
+      return { ok: true }
     }
 
-    if (!session.providerSessionId) return
+    if (!session.providerSessionId) {
+      return { ok: false, error: 'No active provider session is available to resume.' }
+    }
     if (providerRuntime.hasActiveRun(sessionId)) providerRuntime.stop(sessionId)
 
     const sessions = store.get('sessions', [])
@@ -1586,15 +1591,17 @@ export const sessionManager = {
         : mergeToolNames(currentSession.allowedTools, toolNames),
       runtime: currentSession.runtime
     }
-    await this.startProviderRun(sessionId, currentSession, resumeProvider, runRequest, 'resume')
+    const started = await this.startProviderRun(sessionId, currentSession, resumeProvider, runRequest, 'resume')
+    if (!started) return { ok: false, error: 'Provider runtime failed to resume after permission approval.' }
+    markLatestPermissionDecision(sessionId, persistGrant ? 'allowed_session' : 'allowed_once')
+    return { ok: true }
   },
 
-  async answerUserInput(sessionId: string, answer: string): Promise<{ ok: boolean; error?: string }> {
+  async answerUserInput(sessionId: string, answer: string): Promise<SessionActionResult> {
     const session = this.get(sessionId)
     if (!session) return { ok: false, error: `Session ${sessionId} not found.` }
     const trimmed = answer.trim()
     if (!trimmed) return { ok: false, error: 'Answer is empty.' }
-    if (session.status === 'waiting_for_permission') markLatestPermissionDecision(sessionId, 'kept_planning')
     if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT) {
       if (trimmed.includes('SMOKE_MISSING_RESUME')) {
         return { ok: false, error: 'No active provider session is available to resume.' }
@@ -1606,6 +1613,7 @@ export const sessionManager = {
         content: trimmed,
         timestamp: Date.now()
       }])
+      if (session.status === 'waiting_for_permission') markLatestPermissionDecision(sessionId, 'kept_planning')
       this.updateStatus(sessionId, 'running')
       return { ok: true }
     }
@@ -1618,6 +1626,7 @@ export const sessionManager = {
         content: trimmed,
         timestamp: Date.now()
       }])
+      if (session.status === 'waiting_for_permission') markLatestPermissionDecision(sessionId, 'kept_planning')
       this.updateStatus(sessionId, 'running')
       return { ok: true }
     }
@@ -1630,6 +1639,7 @@ export const sessionManager = {
         content: trimmed,
         timestamp: Date.now()
       }])
+      if (session.status === 'waiting_for_permission') markLatestPermissionDecision(sessionId, 'kept_planning')
       this.updateStatus(sessionId, 'running')
       providerRuntime.write(sessionId, `${trimmed}\r`)
       return { ok: true }
@@ -1659,17 +1669,22 @@ export const sessionManager = {
       ),
       runtime: currentSession.runtime
     }
-    await this.startProviderRun(sessionId, currentSession, resumeProvider, runRequest, 'resume')
+    const started = await this.startProviderRun(sessionId, currentSession, resumeProvider, runRequest, 'resume')
+    if (!started) return { ok: false, error: 'Provider runtime failed to resume after user input.' }
+    if (session.status === 'waiting_for_permission') markLatestPermissionDecision(sessionId, 'kept_planning')
     return { ok: true }
   },
 
-  denyPermission(sessionId: string): void {
-    markLatestPermissionDecision(sessionId, 'denied')
+  denyPermission(sessionId: string): SessionActionResult {
+    const session = this.get(sessionId)
+    if (!session) return { ok: false, error: `Session ${sessionId} not found.` }
     if (providerRuntime.resolvePermission(sessionId, false, false)) {
+      markLatestPermissionDecision(sessionId, 'denied')
       this.updateStatus(sessionId, 'running')
-      return
+      return { ok: true }
     }
     if (approvalBroker.hasPendingApproval(sessionId)) {
+      markLatestPermissionDecision(sessionId, 'denied')
       approvalBroker.resolveSessionApprovals(sessionId, false, 'Denied by user.')
       this.updateStatus(sessionId, 'running')
       setTimeout(() => {
@@ -1690,7 +1705,7 @@ export const sessionManager = {
         }])
         this.updateStatus(sessionId, 'idle')
       }, 150)
-      return
+      return { ok: true }
     }
 
     if (providerRuntime.hasActiveRun(sessionId)) {
@@ -1702,6 +1717,7 @@ export const sessionManager = {
       clearRuntimeState(sessionId)
       providerRuntime.stop(sessionId)
     }
+    markLatestPermissionDecision(sessionId, 'denied')
     this.appendMessage(sessionId, [{
       id: uuidv4(),
       role: 'system',
@@ -1711,6 +1727,7 @@ export const sessionManager = {
       timestamp: Date.now()
     }])
     this.updateStatus(sessionId, 'idle')
+    return { ok: true }
   },
 
   async answerSideQuestion(sessionId: string, question: string): Promise<{ ok: boolean; answer: string; error?: string; usage?: UsageSummary }> {

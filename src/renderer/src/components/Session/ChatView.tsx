@@ -2672,6 +2672,8 @@ function questionInputKey(question: UserInputQuestion, index: number): string {
 
 function PermissionCard({ msg, sessionId, sessionStatus }: { msg: ResultMessage; sessionId: string; sessionStatus: Session['status'] }): JSX.Element {
   const [decision, setDecision] = useState<'pending' | 'allowed_once' | 'allowed_session' | 'denied'>('pending')
+  const [submittingDecision, setSubmittingDecision] = useState<'allowed_once' | 'allowed_session' | 'denied' | null>(null)
+  const [submitError, setSubmitError] = useState<string | null>(null)
   const denials = msg.permissionDenials ?? []
   const requestDetails = denials.map(permissionRequestDetail)
   const toolNames = [...new Set(denials.map((d) => d.tool_name))]
@@ -2679,27 +2681,44 @@ function PermissionCard({ msg, sessionId, sessionStatus }: { msg: ResultMessage;
   const requestIsActive = sessionStatus === 'waiting_for_permission'
   const displayDecision = msg.permissionDecision ?? decision
 
-  const handleAllowOnce = async (): Promise<void> => {
-    setDecision('allowed_once')
-    if (isPlanApproval) {
-      await window.api.sessions.grantAndResume(sessionId, toolNames)
-    } else {
-      await window.api.sessions.allowOnceAndResume(sessionId, toolNames)
+  const submitPermissionDecision = async (
+    nextDecision: 'allowed_once' | 'allowed_session' | 'denied',
+    action: () => Promise<{ ok: boolean; error?: string }>
+  ): Promise<void> => {
+    setSubmittingDecision(nextDecision)
+    setSubmitError(null)
+    try {
+      const result = await action()
+      if (result.ok) {
+        setDecision(nextDecision)
+      } else {
+        setSubmitError(result.error ?? 'The session could not resume from this approval.')
+      }
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : 'The session could not resume from this approval.')
+    } finally {
+      setSubmittingDecision(null)
     }
+  }
+
+  const handleAllowOnce = async (): Promise<void> => {
+    await submitPermissionDecision('allowed_once', () =>
+      isPlanApproval
+        ? window.api.sessions.grantAndResume(sessionId, toolNames)
+        : window.api.sessions.allowOnceAndResume(sessionId, toolNames)
+    )
   }
 
   const handleAllowSession = async (): Promise<void> => {
-    setDecision('allowed_session')
-    await window.api.sessions.grantAndResume(sessionId, toolNames)
+    await submitPermissionDecision('allowed_session', () => window.api.sessions.grantAndResume(sessionId, toolNames))
   }
 
   const handleDeny = async (): Promise<void> => {
-    setDecision('denied')
-    if (isPlanApproval) {
-      await window.api.sessions.answerUserInput(sessionId, 'Keep planning. Do not exit plan mode yet.')
-    } else {
-      await window.api.sessions.denyPermission(sessionId)
-    }
+    await submitPermissionDecision('denied', () =>
+      isPlanApproval
+        ? window.api.sessions.answerUserInput(sessionId, 'Keep planning. Do not exit plan mode yet.')
+        : window.api.sessions.denyPermission(sessionId)
+    )
   }
 
   return (
@@ -2795,18 +2814,20 @@ function PermissionCard({ msg, sessionId, sessionStatus }: { msg: ResultMessage;
               <Button
                 onClick={handleAllowOnce}
                 variant="primary"
+                disabled={submittingDecision !== null}
                 className="min-w-[132px] flex-1"
                 dataTestId="chat-permission-allow-once"
               >
-                Approve Plan
+                {submittingDecision === 'allowed_once' ? 'Approving...' : 'Approve Plan'}
               </Button>
               <Button
                 onClick={handleDeny}
                 variant="secondary"
+                disabled={submittingDecision !== null}
                 className="min-w-[120px] px-4"
                 dataTestId="chat-permission-deny"
               >
-                Keep Planning
+                {submittingDecision === 'denied' ? 'Sending...' : 'Keep Planning'}
               </Button>
             </div>
           ) : (
@@ -2814,26 +2835,29 @@ function PermissionCard({ msg, sessionId, sessionStatus }: { msg: ResultMessage;
               <Button
                 onClick={handleAllowOnce}
                 variant="primary"
+                disabled={submittingDecision !== null}
                 className="min-w-[112px] flex-1"
                 dataTestId="chat-permission-allow-once"
               >
-                Allow Once
+                {submittingDecision === 'allowed_once' ? 'Allowing...' : 'Allow Once'}
               </Button>
               <Button
                 onClick={handleAllowSession}
                 variant="secondary"
+                disabled={submittingDecision !== null}
                 className="min-w-[124px] flex-1"
                 dataTestId="chat-permission-allow-session"
               >
-                Allow Session
+                {submittingDecision === 'allowed_session' ? 'Allowing...' : 'Allow Session'}
               </Button>
               <Button
                 onClick={handleDeny}
                 variant="secondary"
+                disabled={submittingDecision !== null}
                 className="min-w-[76px] px-4"
                 dataTestId="chat-permission-deny"
               >
-                Deny
+                {submittingDecision === 'denied' ? 'Denying...' : 'Deny'}
               </Button>
             </div>
           )
@@ -2847,7 +2871,20 @@ function PermissionCard({ msg, sessionId, sessionStatus }: { msg: ResultMessage;
                   ? isPlanApproval ? 'Kept planning' : 'Denied'
                   : displayDecision === 'kept_planning'
                     ? 'Kept planning'
-                    : 'Handled'}
+                  : 'Handled'}
+          </div>
+        )}
+        {submitError && (
+          <div
+            className="mt-2 rounded-lg px-3 py-2 text-xs"
+            data-testid="chat-permission-error"
+            style={{
+              color: 'var(--color-red)',
+              background: 'color-mix(in srgb, var(--color-red) 10%, transparent)',
+              border: '1px solid color-mix(in srgb, var(--color-red) 28%, transparent)'
+            }}
+          >
+            {submitError}
           </div>
         )}
       </SurfaceRow>

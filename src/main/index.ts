@@ -528,6 +528,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
     runAutomatedTranscriptUserInputSmoke(win, outputPath, screenshotPath)
     return
   }
+  if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-permission') {
+    runAutomatedTranscriptPermissionSmoke(win, outputPath, screenshotPath)
+    return
+  }
   if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-tool-failure') {
     runAutomatedTranscriptToolFailureSmoke(win, outputPath, screenshotPath)
     return
@@ -20130,6 +20134,58 @@ function runAutomatedTranscriptUserInputSmoke(win: BrowserWindow, outputPath: st
   })
 }
 
+function runAutomatedTranscriptPermissionSmoke(win: BrowserWindow, outputPath: string, screenshotPath?: string): void {
+  win.webContents.once('did-finish-load', () => {
+    setTimeout(async () => {
+      try {
+        win.setMinimumSize(520, 600)
+        win.setSize(760, 680)
+        const profile = getAppProfile()
+        const session = sessionManager.list().find((candidate) => candidate.name === 'Transcript permission resume failure')
+        if (session) {
+          win.webContents.send('pet:navigate', session.id)
+          sessionManager.updateStatus(session.id, 'waiting_for_permission')
+          await new Promise((resolve) => setTimeout(resolve, 280))
+        }
+        const result = await win.webContents.executeJavaScript(`
+          (async () => {
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            const card = document.querySelector('[data-testid="chat-permission-card"]');
+            const allowOnce = document.querySelector('[data-testid="chat-permission-allow-once"]');
+            if (allowOnce instanceof HTMLButtonElement) {
+              allowOnce.click();
+              await sleep(220);
+            }
+            const error = document.querySelector('[data-testid="chat-permission-error"]');
+            const actions = document.querySelector('[data-testid="chat-permission-actions"]');
+            const buttons = [...document.querySelectorAll('[data-testid="chat-permission-actions"] button')];
+            return {
+              permissionResumeErrorWorks:
+                card instanceof HTMLElement &&
+                error instanceof HTMLElement &&
+                error.textContent?.includes('No active provider session') === true &&
+                document.body.innerText.includes('Allowed once - resuming') === false,
+              permissionActionsRecoverableWorks:
+                actions instanceof HTMLElement &&
+                buttons.length >= 3 &&
+                buttons.every((button) => button instanceof HTMLButtonElement && !button.disabled)
+            };
+          })()
+        `)
+        if (screenshotPath) {
+          const image = await win.webContents.capturePage()
+          writeFileSync(screenshotPath, image.toPNG())
+        }
+        writeFileSync(outputPath, JSON.stringify({ ok: true, result: { profile, ...result }, screenshotPath }, null, 2))
+        app.quit()
+      } catch (error) {
+        writeFileSync(outputPath, JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2))
+        app.quit()
+      }
+    }, 700)
+  })
+}
+
 function runAutomatedTranscriptToolFailureSmoke(win: BrowserWindow, outputPath: string, screenshotPath?: string): void {
   win.webContents.once('did-finish-load', () => {
     setTimeout(async () => {
@@ -21728,6 +21784,8 @@ async function bootstrapAutomatedUiSmokeState(): Promise<void> {
     seedAutomatedTranscriptLayoutSmokeSession(session.id)
   } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-user-input') {
     seedAutomatedTranscriptUserInputSmokeSession(session.id)
+  } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-permission') {
+    seedAutomatedTranscriptPermissionSmokeSession(session.id)
   } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-tool-failure') {
     seedAutomatedTranscriptToolFailureSmokeSession(session.id)
     pendingNavigation = { kind: 'session', sessionId: session.id }
@@ -22394,6 +22452,48 @@ function seedAutomatedTranscriptUserInputSmokeSession(sessionId: string): void {
     providerSessionId: null,
     createdAt: baseTime,
     latestMessageAt: baseTime + 2
+  })
+}
+
+function seedAutomatedTranscriptPermissionSmokeSession(sessionId: string): void {
+  const session = sessionManager.get(sessionId)
+  if (!session) return
+
+  const baseTime = Date.now()
+  const messages: ChatMessage[] = [
+    {
+      id: 'transcript-permission-failure-user',
+      role: 'user',
+      type: 'text',
+      content: 'TRANSCRIPT_PERMISSION_FAILURE_SMOKE approve a permission without resume metadata.',
+      timestamp: baseTime
+    },
+    {
+      id: 'transcript-permission-failure-request',
+      role: 'system',
+      type: 'result',
+      content: 'Allow this command to inspect the workspace?',
+      subtype: 'error_during_execution',
+      timestamp: baseTime + 1,
+      permissionDenials: [{
+        tool_name: 'Bash',
+        tool_use_id: 'transcript-permission-failure',
+        tool_input: {
+          command: 'git status --short',
+          cwd: process.env.ORCHESTRATOR_SMOKE_WORKSPACE_DIR ?? '/tmp/orchestrator-automated-ui-workspace'
+        }
+      }]
+    }
+  ]
+
+  sessionManager.save({
+    ...session,
+    name: 'Transcript permission resume failure',
+    status: 'waiting_for_permission',
+    messages,
+    providerSessionId: null,
+    createdAt: baseTime,
+    latestMessageAt: baseTime + messages.length
   })
 }
 

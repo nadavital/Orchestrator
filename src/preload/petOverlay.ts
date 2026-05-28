@@ -44,13 +44,13 @@ const petApi = {
   sessions: {
     sendMessage: (sessionId: string, prompt: string): Promise<void> =>
       ipcRenderer.invoke('sessions:sendMessage', sessionId, prompt),
-    grantAndResume: (sessionId: string, toolNames: string[]): Promise<void> =>
+    grantAndResume: (sessionId: string, toolNames: string[]): Promise<{ ok: boolean; error?: string }> =>
       ipcRenderer.invoke('sessions:grantAndResume', sessionId, toolNames),
-    allowOnceAndResume: (sessionId: string, toolNames: string[]): Promise<void> =>
+    allowOnceAndResume: (sessionId: string, toolNames: string[]): Promise<{ ok: boolean; error?: string }> =>
       ipcRenderer.invoke('sessions:allowOnceAndResume', sessionId, toolNames),
-    answerUserInput: (sessionId: string, answer: string): Promise<void> =>
+    answerUserInput: (sessionId: string, answer: string): Promise<{ ok: boolean; error?: string }> =>
       ipcRenderer.invoke('sessions:answerUserInput', sessionId, answer),
-    denyPermission: (sessionId: string): Promise<void> =>
+    denyPermission: (sessionId: string): Promise<{ ok: boolean; error?: string }> =>
       ipcRenderer.invoke('sessions:denyPermission', sessionId),
   },
 

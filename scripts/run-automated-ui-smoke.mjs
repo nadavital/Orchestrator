@@ -72,6 +72,8 @@ const captureView = process.argv.includes('--settings-deeplink')
               ? 'transcript-layout'
               : process.argv.includes('--transcript-user-input')
                 ? 'transcript-user-input'
+              : process.argv.includes('--transcript-permission')
+                ? 'transcript-permission'
               : process.argv.includes('--transcript-tool-failure')
                 ? 'transcript-tool-failure'
               : process.argv.includes('--transcript-stress')
@@ -2075,6 +2077,12 @@ child.on('exit', async (code) => {
           userInputMultiSelect: result.userInputMultiSelectWorks === true,
           userInputStructuredSubmit: result.userInputStructuredSubmitWorks === true,
           userInputResumeError: result.userInputResumeErrorWorks === true
+        }
+    : captureView === 'transcript-permission'
+      ? {
+          isolatedProfile: result.profile?.isIsolated === true,
+          permissionResumeError: result.permissionResumeErrorWorks === true,
+          permissionActionsRecoverable: result.permissionActionsRecoverableWorks === true
         }
     : captureView === 'design-system'
       ? {

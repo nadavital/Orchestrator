@@ -221,10 +221,10 @@ declare global {
         getDiffForFile: (sessionId: string, filePath: string, source?: ReviewDiffSource, ref?: string) => Promise<string>
         undoChangedFiles: (sessionId: string, paths: string[]) => Promise<GitPathActionResult>
         writeToPty: (sessionId: string, data: string) => Promise<void>
-        grantAndResume: (sessionId: string, toolNames: string[]) => Promise<void>
-        allowOnceAndResume: (sessionId: string, toolNames: string[]) => Promise<void>
+        grantAndResume: (sessionId: string, toolNames: string[]) => Promise<{ ok: boolean; error?: string }>
+        allowOnceAndResume: (sessionId: string, toolNames: string[]) => Promise<{ ok: boolean; error?: string }>
         answerUserInput: (sessionId: string, answer: string) => Promise<{ ok: boolean; error?: string }>
-        denyPermission: (sessionId: string) => Promise<void>
+        denyPermission: (sessionId: string) => Promise<{ ok: boolean; error?: string }>
       }
       worktrees: {
         list: () => Promise<WorktreeInventoryItem[]>

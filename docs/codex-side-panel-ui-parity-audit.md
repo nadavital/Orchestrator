@@ -163,6 +163,14 @@ Current Review verification debt:
 
 ## Implementation Progress
 
+### 2026-05-28 - Chat Permission Resume Error Slice
+
+Implemented: permission approval actions now wait for an explicit backend result before changing the card to an allowed/denied state. If the runtime has no active approval or provider session to resume, the permission card stays actionable and shows an inline error instead of optimistically saying it is resuming.
+
+Verification: `pnpm exec tsc --noEmit` passed. `node -c scripts/run-automated-ui-smoke.mjs` passed. `git diff --check` passed. Focused `node scripts/run-automated-ui-smoke.mjs --transcript-permission` passed with `permissionResumeError=true` and `permissionActionsRecoverable=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-transcript-permission-1779940005892.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-transcript-permission-1779940005892.png`. Adjacent focused `node scripts/run-automated-ui-smoke.mjs --transcript-layout` passed with `permissionCard=true`, `permissionActionsWrap=true`, and `narrowPermissionActionsWrap=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-transcript-layout-1779940019059.json`.
+
+Remaining: this closes the local missing-resume approval recovery gap. It does not implement provider-native approval adapters or prove live non-Codex provider approval behavior.
+
 ### 2026-05-28 - Composer Blocked Send Status Slice
 
 Implemented: the composer now shows a compact send-status strip when a draft cannot send because the selected permission policy is unsupported, when attachments are still saving, or when Enter will queue a follow-up behind a running turn. Unsupported permission states include a direct `Change` action that opens the permission menu, so the disabled send arrow is no longer the only signal.
