@@ -2802,6 +2802,8 @@ child.on('exit', async (code) => {
         settingsDataControls: captureView !== 'settings' || result.settingsDataControlsWorks === true,
         settingsDataControlsSurface: captureView !== 'settings' || result.settingsDataControlsSurfaceWorks === true,
         settingsDataControlsModule: captureView !== 'settings' || result.settingsDataControlsModuleWorks === true,
+        settingsDataControlsActionA11y: captureView !== 'settings' || result.settingsDataControlsActionA11yWorks === true,
+        settingsDataControlsCopyPathClipboard: captureView !== 'settings' || result.settingsDataControlsCopyPathClipboardWorks === true,
         settingsBrowserPage: captureView !== 'settings' || result.settingsBrowserPageWorks === true,
         settingsBrowserSurface: captureView !== 'settings' || result.settingsBrowserSurfaceWorks === true,
         settingsBrowserModule: captureView !== 'settings' || result.settingsBrowserModuleWorks === true,

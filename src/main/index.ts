@@ -1699,6 +1699,38 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               var settingsDataControlsModuleWorks =
                 dataSection instanceof HTMLElement &&
                 dataSection.closest('[data-settings-page-module="data-controls"]') instanceof HTMLElement;
+              var settingsDataControlsActionA11yWorks = false;
+              var settingsDataControlsCopyPathClipboardWorks = false;
+              const dataControlsModuleRoot = document.querySelector('[data-settings-page-module="data-controls"]');
+              const copyDataPathButton = dataSection instanceof HTMLElement
+                ? [...dataSection.querySelectorAll('button')].find((button) => button.textContent?.trim() === 'Copy path')
+                : null;
+              if (copyDataPathButton instanceof HTMLButtonElement) {
+                copyDataPathButton.click();
+                for (let index = 0; index < 60; index += 1) {
+                  const dataControlsStatus = document.querySelector('[data-testid="data-controls-action-status"]');
+                  const copiedDataPath =
+                    await window.api?.clipboard?.readText?.().catch(() => '') ??
+                    await navigator.clipboard?.readText?.().catch(() => '') ??
+                    '';
+                  if (dataControlsStatus instanceof HTMLElement && dataControlsStatus.textContent?.includes('Data path copied') === true) {
+                    settingsDataControlsActionA11yWorks =
+                      dataControlsModuleRoot instanceof HTMLElement &&
+                      dataControlsModuleRoot.getAttribute('data-settings-data-controls-action-status') === 'Data path copied' &&
+                      dataControlsModuleRoot.getAttribute('data-settings-data-controls-action-status-tone') === 'info' &&
+                      dataControlsStatus.getAttribute('role') === 'status' &&
+                      dataControlsStatus.getAttribute('aria-live') === 'polite' &&
+                      dataControlsStatus.getAttribute('aria-atomic') === 'true' &&
+                      dataControlsStatus.getAttribute('data-data-controls-action-status-tone') === 'info';
+                    settingsDataControlsCopyPathClipboardWorks =
+                      copiedDataPath.length > 0 &&
+                      dataPath instanceof HTMLElement &&
+                      copiedDataPath === dataPath.textContent?.trim();
+                    break;
+                  }
+                  await sleep(50);
+                }
+              }
               if (sessions[0]) {
                 const existingAutomations = await window.api.automations.list();
                 const existingSmokeAutomation = existingAutomations.find((automation) => automation.name === 'Settings automation smoke');
@@ -6462,6 +6494,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             settingsDataControlsWorks: typeof settingsDataControlsWorks === 'boolean' ? settingsDataControlsWorks : null,
             settingsDataControlsSurfaceWorks: typeof settingsDataControlsSurfaceWorks === 'boolean' ? settingsDataControlsSurfaceWorks : null,
             settingsDataControlsModuleWorks: typeof settingsDataControlsModuleWorks === 'boolean' ? settingsDataControlsModuleWorks : null,
+            settingsDataControlsActionA11yWorks: typeof settingsDataControlsActionA11yWorks === 'boolean' ? settingsDataControlsActionA11yWorks : null,
+            settingsDataControlsCopyPathClipboardWorks: typeof settingsDataControlsCopyPathClipboardWorks === 'boolean' ? settingsDataControlsCopyPathClipboardWorks : null,
             settingsBrowserPageWorks: typeof settingsBrowserPageWorks === 'boolean' ? settingsBrowserPageWorks : null,
             settingsBrowserSurfaceWorks: typeof settingsBrowserSurfaceWorks === 'boolean' ? settingsBrowserSurfaceWorks : null,
             settingsBrowserModuleWorks: typeof settingsBrowserModuleWorks === 'boolean' ? settingsBrowserModuleWorks : null,
