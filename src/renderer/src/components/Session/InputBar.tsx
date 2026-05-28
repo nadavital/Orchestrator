@@ -486,6 +486,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   const attachPastedFiles = async (files: File[]): Promise<void> => {
     if (files.length === 0) return
     const targetSessionId = session.id
+    const targetSessionIsActive = (): boolean => useSessionStore.getState().activeSessionId === targetSessionId
     const pending = files.map((file): PendingAttachment => ({
       id: crypto.randomUUID(),
       name: file.name || 'Pasted file',
@@ -530,26 +531,28 @@ function InputBar({ session, isNew }: Props): JSX.Element {
       const next = saved.flatMap((result) => result.attachment ? [result.attachment] : [])
       if (next.length > 0) {
         setComposerAttachments(targetSessionId, (current) => dedupeAttachments([...current, ...next]))
-        setAttachmentStatus({ text: `Attached ${next.length} ${next.length === 1 ? 'file' : 'files'}`, tone: 'info' })
-        if (useSessionStore.getState().activeSessionId === targetSessionId) {
+        if (targetSessionIsActive()) {
+          setAttachmentStatus({ text: `Attached ${next.length} ${next.length === 1 ? 'file' : 'files'}`, tone: 'info' })
           textareaRef.current?.focus()
         }
       }
       const completedIds = new Set(saved.filter((result) => result.attachment || !result.error).map((result) => result.pendingId))
       const failed = new Map(saved.filter((result) => result.error).map((result) => [result.pendingId, result.error!]))
-      setPendingAttachments((current) => current
-        .map((item): PendingAttachment => failed.has(item.id) ? { ...item, status: 'error', error: failed.get(item.id) } : item)
-        .filter((item) => !completedIds.has(item.id))
-      )
-      if (failed.size > 0) {
-        setAttachmentStatus({ text: `${failed.size} ${failed.size === 1 ? 'attachment' : 'attachments'} failed`, tone: 'danger' })
+      if (targetSessionIsActive()) {
+        setPendingAttachments((current) => current
+          .map((item): PendingAttachment => failed.has(item.id) ? { ...item, status: 'error', error: failed.get(item.id) } : item)
+          .filter((item) => !completedIds.has(item.id))
+        )
+        if (failed.size > 0) {
+          setAttachmentStatus({ text: `${failed.size} ${failed.size === 1 ? 'attachment' : 'attachments'} failed`, tone: 'danger' })
+        }
       }
     } finally {
       for (const item of pending) {
         cancelledPendingAttachments.current.delete(item.id)
         activeAttachmentSaves.current.delete(item.id)
       }
-      setIsSavingPastedFiles(activeAttachmentSaves.current.size > 0)
+      if (targetSessionIsActive()) setIsSavingPastedFiles(activeAttachmentSaves.current.size > 0)
     }
   }
 

@@ -3023,6 +3023,7 @@ child.on('exit', async (code) => {
         composerDraftsPerChat: captureView !== 'composer' || result.composerDraftsPerChat === true,
         composerAttachmentsPerChat: captureView !== 'composer' || result.composerAttachmentsPerChat === true,
         composerAttachmentsClearedOnSwitch: captureView !== 'composer' || result.composerAttachmentsClearedOnSwitch === true,
+        composerAsyncAttachmentSwitchIsolation: captureView !== 'composer' || result.composerAsyncAttachmentSwitchIsolation === true,
         composerAttachmentOnlySessionPreserved: captureView !== 'composer' || result.composerAttachmentOnlySessionPreserved === true,
         composerAttachmentStatus: captureView !== 'composer' || result.composerAttachmentStatusWorks === true,
         composerSideChatAttachmentGuard: captureView !== 'composer' || result.composerSideChatAttachmentGuard === true,

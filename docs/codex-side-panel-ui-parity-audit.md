@@ -9162,3 +9162,13 @@ Implemented: Browser Security add-origin actions now remove the current origin f
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --browser` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779999461705.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779999461705.png`. The run adds `browserSecurityPolicyMutualExclusion=true` while preserving the existing Browser Security origin-controls and broader Browser gates.
 
 Remaining: this closes local Browser Security policy consistency only. Provider-emitted Browser/browser-use proof and non-Codex browser/local-server adapters remain separate.
+
+### 2026-05-28 - Composer Async Attachment Switch Isolation
+
+Product evidence: composer attachments are daily coding controls. Pasted or dropped files save asynchronously, so switching chats before a save completes should not show attachment completion status or pending-state residue in the newly active chat while the saved attachment belongs to the original chat.
+
+Implemented: pasted/dropped attachment saves now keep their target session for persistence, but only update pending chips, success/failure status, focus, and saving state while that target session is still active. If the user switches chats mid-save, the attachment is still added to the original session and the active composer remains clean.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --composer` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1780000193007.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1780000193007.png`. The run adds `composerAsyncAttachmentSwitchIsolation=true` while preserving draft isolation, attachment isolation, side-chat attachment guard, send-failure recovery, provider/model settings, permission controls, and broader composer gates.
+
+Remaining: this closes local async attachment switch isolation only. Deeper context/permission workflow polish and provider-backed lifecycle proof remain separate.

@@ -5440,6 +5440,48 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               composerSecondAttachmentRestored &&
               attachmentLabels().some((label) => label.includes('draft-one.txt')) &&
               !attachmentLabels().some((label) => label.includes('draft-two.txt'));
+            var composerAsyncAttachmentSwitchIsolation = false;
+            const asyncAttachmentOriginalSave = window.api.attachments.savePastedFile;
+            if (
+              typeof asyncAttachmentOriginalSave === 'function' &&
+              typeof File === 'function' &&
+              typeof DataTransfer === 'function'
+            ) {
+              try {
+                window.api.attachments.savePastedFile = async (...args) => {
+                  await sleep(260);
+                  return asyncAttachmentOriginalSave(...args);
+                };
+                const asyncAttachmentFirstSelected = await selectThreadByTitle('Draft smoke one');
+                await sleep(160);
+                const asyncDropShell = document.querySelector('[data-testid="composer-shell"]');
+                if (asyncDropShell instanceof HTMLElement) {
+                  const asyncTransfer = new DataTransfer();
+                  asyncTransfer.items.add(new File(['async switch smoke'], 'async-switch.txt', { type: 'text/plain' }));
+                  const asyncDropEvent = new Event('drop', { bubbles: true, cancelable: true });
+                  Object.defineProperty(asyncDropEvent, 'dataTransfer', { value: asyncTransfer });
+                  asyncDropShell.dispatchEvent(asyncDropEvent);
+                  await sleep(40);
+                  const asyncAttachmentSecondSelected = await selectThreadByTitle('Draft smoke two');
+                  await sleep(560);
+                  const activeSecondLabels = attachmentLabels();
+                  const activeSecondStatus = composerAttachmentStatus();
+                  const asyncAttachmentFirstReselected = await selectThreadByTitle('Draft smoke one');
+                  await sleep(220);
+                  composerAsyncAttachmentSwitchIsolation =
+                    asyncAttachmentFirstSelected &&
+                    asyncAttachmentSecondSelected &&
+                    asyncAttachmentFirstReselected &&
+                    !activeSecondLabels.some((label) => label.includes('async-switch.txt')) &&
+                    !(activeSecondStatus instanceof HTMLElement && activeSecondStatus.textContent?.includes('async-switch.txt') === true) &&
+                    attachmentLabels().some((label) => label.includes('async-switch.txt'));
+                }
+              } catch {
+                composerAsyncAttachmentSwitchIsolation = false;
+              } finally {
+                window.api.attachments.savePastedFile = asyncAttachmentOriginalSave;
+              }
+            }
             addComposerAttachment('status-remove.txt', '/tmp/orchestrator-status-remove.txt');
             const {
               shell: composerShellAfterAttachmentAdd,
@@ -7262,6 +7304,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             composerSecondDraftRestored: typeof composerSecondDraftRestored === 'boolean' ? composerSecondDraftRestored : null,
             composerAttachmentsPerChat: typeof composerAttachmentsPerChat === 'boolean' ? composerAttachmentsPerChat : null,
             composerAttachmentsClearedOnSwitch: typeof composerAttachmentsClearedOnSwitch === 'boolean' ? composerAttachmentsClearedOnSwitch : null,
+            composerAsyncAttachmentSwitchIsolation: typeof composerAsyncAttachmentSwitchIsolation === 'boolean' ? composerAsyncAttachmentSwitchIsolation : null,
             composerFirstAttachmentRestored: typeof composerFirstAttachmentRestored === 'boolean' ? composerFirstAttachmentRestored : null,
             composerSecondAttachmentRestored: typeof composerSecondAttachmentRestored === 'boolean' ? composerSecondAttachmentRestored : null,
             composerAttachmentOnlySessionPreserved: typeof composerAttachmentOnlySessionPreserved === 'boolean' ? composerAttachmentOnlySessionPreserved : null,
