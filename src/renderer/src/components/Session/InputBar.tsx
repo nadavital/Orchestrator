@@ -683,11 +683,15 @@ function InputBar({ session, isNew }: Props): JSX.Element {
 
   useEffect(() => {
     const onSetComposerText = (event: Event): void => {
-      const detail = (event as CustomEvent<{ sessionId?: string; text?: string }>).detail
+      const detail = (event as CustomEvent<{ sessionId?: string; text?: string; attachments?: Attachment[] }>).detail
       if (detail?.sessionId && detail.sessionId !== session.id) return
       const nextText = typeof detail?.text === 'string' ? detail.text : ''
-      if (!nextText.trim()) return
+      const nextAttachments = Array.isArray(detail?.attachments)
+        ? dedupeAttachments(detail.attachments.map(cloneAttachmentForDraft))
+        : null
+      if (!nextText.trim() && (!nextAttachments || nextAttachments.length === 0)) return
       setComposerText(nextText)
+      if (nextAttachments) setComposerAttachments(session.id, nextAttachments)
       setSlashIndex(0)
       setDismissedSlashQuery(null)
       textareaRef.current?.focus()
@@ -699,7 +703,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     }
     window.addEventListener('orchestrator:set-composer-text', onSetComposerText)
     return () => window.removeEventListener('orchestrator:set-composer-text', onSetComposerText)
-  }, [session.id])
+  }, [session.id, setComposerAttachments])
 
   const expandedCommandPrompt = (value: string): string | null => {
     const match = value.match(/^(\/\S+)(?:\s+([\s\S]*))?$/)
@@ -1612,6 +1616,10 @@ function dedupeAttachments(attachments: Attachment[]): Attachment[] {
     seen.add(key)
     return true
   })
+}
+
+function cloneAttachmentForDraft(attachment: Attachment): Attachment {
+  return { ...attachment, id: crypto.randomUUID() }
 }
 
 function getClipboardFiles(clipboardData: DataTransfer): File[] {

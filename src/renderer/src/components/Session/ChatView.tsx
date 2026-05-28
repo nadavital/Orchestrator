@@ -176,13 +176,18 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
     }
   }, [session.id])
 
-  const editUserMessageAsDraft = useCallback((content: string): void => {
+  const editUserMessageAsDraft = useCallback((content: string, attachments: Attachment[] = []): void => {
     const text = content.trim()
-    if (!text) return
+    if (!text && attachments.length === 0) return
     window.dispatchEvent(new CustomEvent('orchestrator:set-composer-text', {
-      detail: { sessionId: session.id, text }
+      detail: { sessionId: session.id, text, attachments }
     }))
-    setTranscriptActionStatus({ text: 'Copied message into composer draft', tone: 'info' })
+    setTranscriptActionStatus({
+      text: attachments.length > 0
+        ? 'Copied message and attachments into composer draft'
+        : 'Copied message into composer draft',
+      tone: 'info'
+    })
     window.setTimeout(() => {
       const composer = document.querySelector<HTMLTextAreaElement>('[data-testid="composer-textarea"]')
       composer?.focus()
@@ -1511,7 +1516,7 @@ function MessageRow({
   canContinue: boolean
   onSteerQueuedMessage: (messageId: string) => Promise<void>
   onCancelQueuedMessage: (messageId: string, queueState: 'queued' | 'steer_next') => Promise<void>
-  onEditUserMessageAsDraft: (content: string) => void
+  onEditUserMessageAsDraft: (content: string, attachments?: Attachment[]) => void
 }): JSX.Element | null {
   const [isUserMessageExpanded, setIsUserMessageExpanded] = useState(false)
 
@@ -1535,7 +1540,7 @@ function MessageRow({
       ? collapsedUserMessageContent(content)
       : content
     const queueState = isUser ? msg.queueState : undefined
-    const canEditAsDraft = isUser && !queueState && content.trim().length > 0
+    const canEditAsDraft = isUser && !queueState && (content.trim().length > 0 || (msg.attachments?.length ?? 0) > 0)
     const fileReferences = !isUser && !isSystem
       ? extractFileReferences(content, session.workDir).slice(0, 8)
       : []
@@ -1690,7 +1695,7 @@ function MessageRow({
                 dataTestId="chat-user-message-edit"
                 onClick={(event) => {
                   event.stopPropagation()
-                  onEditUserMessageAsDraft(content)
+                  onEditUserMessageAsDraft(content, msg.attachments ?? [])
                 }}
                 style={{ opacity: 0.62 }}
               />

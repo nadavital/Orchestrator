@@ -22333,7 +22333,10 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
               composerTextarea.value.includes('Please inspect this intentionally long input') &&
               composerTextarea.value.includes('input-fragment-') &&
               editDraftStatus instanceof HTMLElement &&
-              editDraftStatus.textContent?.includes('Copied message into composer draft') === true;
+              editDraftStatus.textContent?.includes('Copied message and attachments into composer draft') === true;
+            const chatUserMessageEditAttachments =
+              chatUserMessageEditToDraft &&
+              document.querySelector('[data-testid="composer-shell"]')?.textContent?.includes('AGENTS.md') === true;
             let toolSummary = document.querySelector('[data-testid="tool-activity-summary"]');
             for (let index = 0; index < 10 && !toolSummary; index += 1) {
               scroller.scrollTop = Math.max(scroller.scrollHeight, scroller.clientHeight) * ((index + 1) / 10);
@@ -22409,6 +22412,7 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
               permissionCardWorks,
               permissionActionsWrap,
               chatUserMessageEditToDraft,
+              chatUserMessageEditAttachments,
               relativeProseCardSuppressed,
               absoluteMissingFileCardDisabled,
               partialResponseStatusWorks,
@@ -25872,6 +25876,14 @@ function seedAutomatedTranscriptLayoutSmokeSession(sessionId: string): void {
       role: 'user',
       type: 'text',
       content: `Please inspect this intentionally long input without stretching the transcript.\n\n${'input-fragment-'.repeat(80)}`,
+      attachments: [{
+        id: 'transcript-layout-user-attachment',
+        kind: 'local_file',
+        path: `${process.env.ORCHESTRATOR_SMOKE_WORKSPACE_DIR ?? '/tmp/orchestrator-automated-ui-workspace'}/AGENTS.md`,
+        name: 'AGENTS.md',
+        size: 48,
+        mimeType: 'text/markdown'
+      }],
       timestamp: baseTime
     },
     {
