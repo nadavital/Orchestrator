@@ -2411,6 +2411,10 @@ function BrowserLoadErrorPane({
 
   return (
     <PanelNotice
+      actionsAttrs={{
+        role: 'group',
+        'aria-label': 'Browser load error recovery actions'
+      }}
       actions={(
         <>
           <Button className="browser-load-error-action" dataTestId="browser-load-error-retry" onClick={onRetry} variant="primary">Retry</Button>
@@ -2424,6 +2428,11 @@ function BrowserLoadErrorPane({
       dataTestId="browser-load-error"
       description={loadErrorSummary(error, host)}
       icon={<Icon name="browser" size={22} />}
+      rootAttrs={{
+        role: 'alert',
+        'aria-live': 'assertive',
+        'aria-atomic': 'true'
+      }}
       state="load-error"
       title="Page unavailable"
       tone="danger"

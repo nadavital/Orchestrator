@@ -16155,6 +16155,14 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                 action.classList.contains('motion-button') &&
                 action.classList.contains('browser-load-error-action')
               );
+            var browserLoadErrorA11yLiveWorks =
+              browserLoadError instanceof HTMLElement &&
+              browserLoadError.getAttribute('role') === 'alert' &&
+              browserLoadError.getAttribute('aria-live') === 'assertive' &&
+              browserLoadError.getAttribute('aria-atomic') === 'true' &&
+              browserLoadError.querySelector('.orchestrator-panel-notice-actions')?.getAttribute('role') === 'group' &&
+              browserLoadError.querySelector('.orchestrator-panel-notice-actions')?.getAttribute('aria-label') === 'Browser load error recovery actions' &&
+              browserLoadErrorActions.every((action) => action instanceof HTMLButtonElement && !action.disabled);
             var browserCommentUnavailableWorks = false;
             if (browserActionsButton instanceof HTMLButtonElement) {
               browserActionsButton.click();
@@ -17008,6 +17016,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserErrorRecoveryWorks,
               browserLoadErrorPanelWorks,
               browserLoadErrorSharedStateWorks,
+              browserLoadErrorA11yLiveWorks,
               browserSingleTabStripHidden,
               browserTabShellControllerWorks,
               browserTabChromeCalmWorks,

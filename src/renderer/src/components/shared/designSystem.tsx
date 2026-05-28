@@ -2979,6 +2979,7 @@ export function PanelNotice({
   description,
   code,
   actions,
+  actionsAttrs,
   children,
   tone = 'muted',
   className = '',
@@ -2991,6 +2992,7 @@ export function PanelNotice({
   description?: ReactNode
   code?: ReactNode
   actions?: ReactNode
+  actionsAttrs?: Omit<HTMLAttributes<HTMLDivElement>, 'children' | 'className'>
   children?: ReactNode
   tone?: PanelMessageTone
   className?: string
@@ -3017,7 +3019,7 @@ export function PanelNotice({
         )}
         {code && <div className="orchestrator-panel-notice-code">{code}</div>}
       </div>
-      {actions && <div className="orchestrator-panel-notice-actions">{actions}</div>}
+      {actions && <div {...actionsAttrs} className="orchestrator-panel-notice-actions">{actions}</div>}
       {children}
     </div>
   )
