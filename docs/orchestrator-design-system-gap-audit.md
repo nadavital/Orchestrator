@@ -1334,6 +1334,7 @@ Completed in the latest implementation pass:
 - Transcript layout smoke now verifies `chatMessageCopy=true` and `chatMessageCopyA11y=true`, covering assistant-message copy through the same app clipboard bridge plus copied/error live status semantics.
 - Diff core smoke now verifies `reviewGitApplyCopyStatus=true`, covering Review `Copy git apply command` through the app clipboard bridge plus copied/failure status semantics on the floating Review action pill.
 - Browser smoke now verifies `browserCopyUrlStatus=true`, covering Browser `Copy URL` through the app clipboard bridge plus copied/failure status semantics in the load-error recovery panel.
+- Terminal smoke now verifies `terminalClipboardStatus=true`, covering terminal paste through the app clipboard bridge plus visible and announced paste/failure status semantics.
 - Transcript layout/tool-failure smokes now verify `errorRecoveryRetryA11y=true`, `chatContinueLastTurnA11y=true`, and `transcriptToolFailureRetryA11y=true`, covering announced retry/continue state changes for the main recovery paths.
 - Composer blocked-send notices now render as polite atomic status regions, and transcript user-input/permission recovery states now expose assertive error alerts, polite sent/decision statuses, and named approval action groups.
 - Browser load-error recovery notices now render as assertive atomic alerts with named recovery action groups while preserving shared `PanelNotice` chrome.

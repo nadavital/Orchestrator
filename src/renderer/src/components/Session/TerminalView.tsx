@@ -41,6 +41,8 @@ function TerminalSurface({ terminalId, workDir, onNewTab, onOpenUrl }: Props): J
   const [error, setError] = useState<string | null>(null)
   const [exited, setExited] = useState<{ code: number; signal: number | null } | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
+  const [clipboardStatus, setClipboardStatus] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
+  const clipboardStatusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     setPlainOutput('')
@@ -220,6 +222,35 @@ function TerminalSurface({ terminalId, workDir, onNewTab, onOpenUrl }: Props): J
     setReloadKey((current) => current + 1)
   }, [])
 
+  useEffect(() => () => {
+    if (clipboardStatusTimeoutRef.current) window.clearTimeout(clipboardStatusTimeoutRef.current)
+  }, [])
+
+  const setTerminalClipboardStatus = useCallback((text: string, tone: 'info' | 'danger' = 'info') => {
+    if (clipboardStatusTimeoutRef.current) window.clearTimeout(clipboardStatusTimeoutRef.current)
+    setClipboardStatus({ text, tone })
+    clipboardStatusTimeoutRef.current = window.setTimeout(() => {
+      setClipboardStatus(null)
+      clipboardStatusTimeoutRef.current = null
+    }, 2200)
+  }, [])
+
+  const writeClipboardText = useCallback(async (text: string): Promise<void> => {
+    if (typeof window.api.clipboard?.writeText === 'function') {
+      const didWrite = await window.api.clipboard.writeText(text)
+      if (!didWrite) throw new Error('Clipboard write failed')
+      return
+    }
+    await navigator.clipboard.writeText(text)
+  }, [])
+
+  const readClipboardText = useCallback(async (): Promise<string> => {
+    if (typeof window.api.clipboard?.readText === 'function') {
+      return window.api.clipboard.readText()
+    }
+    return navigator.clipboard?.readText ? navigator.clipboard.readText() : ''
+  }, [])
+
   const handleKeyDownCapture = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
     const term = termRef.current
     if (!term) return
@@ -233,23 +264,29 @@ function TerminalSurface({ terminalId, workDir, onNewTab, onOpenUrl }: Props): J
     if (isCopyShortcut(event) && term.hasSelection()) {
       event.preventDefault()
       event.stopPropagation()
-      void navigator.clipboard?.writeText(term.getSelection()).catch(() => undefined)
+      void writeClipboardText(term.getSelection())
+        .then(() => setTerminalClipboardStatus('Selection copied'))
+        .catch(() => setTerminalClipboardStatus('Copy failed', 'danger'))
       return
     }
     if (isPasteShortcut(event)) {
       event.preventDefault()
       event.stopPropagation()
-      void navigator.clipboard?.readText().then((text) => {
-        if (!text) return
+      void readClipboardText().then((text) => {
+        if (!text) {
+          setTerminalClipboardStatus('Clipboard empty')
+          return
+        }
         const terminalWithPaste = term as Terminal & { paste?: (value: string) => void }
         if (terminalWithPaste.paste) {
           terminalWithPaste.paste(text)
         } else {
           void window.api.terminal.write(terminalId, text.replace(/\r?\n/g, '\r'))
         }
-      }).catch(() => undefined)
+        setTerminalClipboardStatus('Pasted into terminal')
+      }).catch(() => setTerminalClipboardStatus('Paste failed', 'danger'))
     }
-  }, [onNewTab, terminalId])
+  }, [onNewTab, readClipboardText, setTerminalClipboardStatus, terminalId, writeClipboardText])
 
   return (
     <div
@@ -266,6 +303,8 @@ function TerminalSurface({ terminalId, workDir, onNewTab, onOpenUrl }: Props): J
       data-terminal-line-height={CODEX_TERMINAL_LINE_HEIGHT}
       data-terminal-content-padding={CODEX_TERMINAL_CONTENT_PADDING}
       data-terminal-surface-background="vscode-terminal-token"
+      data-terminal-clipboard-status={clipboardStatus?.text ?? ''}
+      data-terminal-clipboard-status-tone={clipboardStatus?.tone ?? ''}
       onKeyDownCapture={handleKeyDownCapture}
       style={{
         height: '100%',
@@ -335,6 +374,32 @@ function TerminalSurface({ terminalId, workDir, onNewTab, onOpenUrl }: Props): J
       >
         {plainOutput}
       </pre>
+      {clipboardStatus && (
+        <span
+          data-testid="terminal-clipboard-status"
+          role={clipboardStatus.tone === 'danger' ? 'alert' : 'status'}
+          aria-live={clipboardStatus.tone === 'danger' ? 'assertive' : 'polite'}
+          aria-atomic="true"
+          style={{
+            position: 'absolute',
+            top: 8,
+            right: 12,
+            maxWidth: 220,
+            padding: '3px 7px',
+            borderRadius: 6,
+            border: '1px solid var(--border-subtle)',
+            background: clipboardStatus.tone === 'danger'
+              ? 'color-mix(in srgb, var(--state-danger) 12%, var(--surface-bg))'
+              : 'color-mix(in srgb, var(--accent) 10%, var(--surface-bg))',
+            color: clipboardStatus.tone === 'danger' ? 'var(--state-danger)' : 'var(--accent)',
+            fontSize: 11,
+            fontWeight: 600,
+            pointerEvents: 'none'
+          }}
+        >
+          {clipboardStatus.text}
+        </span>
+      )}
     </div>
   )
 }

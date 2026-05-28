@@ -8242,3 +8242,13 @@ Implemented: Browser `Copy URL` now writes through the app clipboard bridge with
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and focused `node scripts/run-automated-ui-smoke.mjs --browser` passed. The first non-elevated smoke hit the expected sandbox localhost bind failure; the elevated rerun passed with `browserCopyUrlStatus=true` alongside `browserLoadErrorA11yLive=true`, `browserLoadErrorSharedState=true`, `browserErrorRecovery=true`, and the existing Browser tool/action/inspector gates. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779959006682.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779959006682.png`.
 
 Remaining: this closes local Browser URL copy reliability and copied-status semantics only. Live provider-emitted Browser/browser-use proof and non-Codex browser/local-server adapters remain Phase 1 work where real provider evidence is available.
+
+### 2026-05-28 - Terminal Clipboard Status
+
+Product evidence: Terminal copy/paste is a daily coding workflow. The terminal still used the renderer clipboard path directly for selected-text copy and paste, and it gave no visible or announced feedback when a paste succeeded, failed, or found an empty clipboard. Other coding surfaces now use the app clipboard bridge with explicit status.
+
+Implemented: Terminal copy and paste now use the app clipboard bridge with browser clipboard fallback. Copying a terminal selection announces copied/failure status, paste announces empty/success/failure status, and the terminal root exposes the current clipboard status/tone for smoke coverage.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and focused `node scripts/run-automated-ui-smoke.mjs --terminal` passed. The first non-elevated smoke hit the expected sandbox localhost bind failure; the elevated rerun passed with `terminalClipboardStatus=true` alongside `terminalFailureStateA11y=true`, `terminalServiceSnapshot=true`, `terminalMoveToRightPanel=true`, and the existing terminal tab/resize/theme/link-routing gates. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779959401399.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779959401399.png`.
+
+Remaining: this closes local Terminal clipboard reliability and status semantics only. Broader keyboard-only traversal, provider-driven terminal orchestration, and live Codex side-by-side terminal timing/pixel proof remain open Phase 1 work.

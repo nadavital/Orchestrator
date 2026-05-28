@@ -2374,6 +2374,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             var terminalNewTabShortcutWorks = false;
             var terminalTabPanelA11yWorks = false;
             var terminalFailureStateA11yWorks = false;
+            var terminalClipboardStatusWorks = false;
             var terminalFullscreenCleanupWorks = false;
             var terminalTabTelemetryWorks = false;
             var terminalTabLifecycleTelemetryWorks = false;
@@ -2603,6 +2604,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               const terminalThemeBackground = resolveTerminalSmokeColor(terminalView.getAttribute('data-terminal-theme-background') ?? '');
               const terminalThemeForeground = resolveTerminalSmokeColor(terminalView.getAttribute('data-terminal-theme-foreground') ?? '');
               terminalColorProbe.remove();
+              const visibleTerminalId = terminalView.getAttribute('data-terminal-id') ?? '';
               terminalContentSpacingWorks =
                 terminalView.getAttribute('data-terminal-line-height') === '1.2' &&
                 terminalView.getAttribute('data-terminal-content-padding') === '0 16px 12px' &&
@@ -2613,7 +2615,28 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 terminalXtermContainerStyle?.paddingRight === '16px' &&
                 terminalXtermContainerStyle?.paddingBottom === '12px' &&
                 terminalXtermContainerStyle?.paddingLeft === '16px';
-              const visibleTerminalId = terminalView.getAttribute('data-terminal-id') ?? '';
+              await window.api.clipboard?.writeText?.('TERMINAL_CLIPBOARD_SMOKE');
+              terminalView.dispatchEvent(new KeyboardEvent('keydown', {
+                bubbles: true,
+                cancelable: true,
+                key: 'v',
+                code: 'KeyV',
+                metaKey: true
+              }));
+              await sleep(180);
+              const terminalClipboardStatus = document.querySelector('[data-testid="terminal-clipboard-status"]');
+              terminalClipboardStatusWorks =
+                terminalClipboardStatus instanceof HTMLElement &&
+                terminalClipboardStatus.textContent?.includes('Pasted into terminal') === true &&
+                terminalClipboardStatus.getAttribute('role') === 'status' &&
+                terminalClipboardStatus.getAttribute('aria-live') === 'polite' &&
+                terminalClipboardStatus.getAttribute('aria-atomic') === 'true' &&
+                terminalView.getAttribute('data-terminal-clipboard-status') === 'Pasted into terminal' &&
+                terminalView.getAttribute('data-terminal-clipboard-status-tone') === 'info';
+              if (visibleTerminalId.length > 0) {
+                await window.api.terminal.write(visibleTerminalId, String.fromCharCode(3));
+                await sleep(120);
+              }
               const terminalServiceSnapshot = await window.api.terminal.getServiceSnapshot();
               terminalServiceSnapshotBeforeMove = terminalServiceSnapshot;
               const visibleTerminalSessionSnapshot = terminalServiceSnapshot.sessions.find((session) => session.terminalId === visibleTerminalId);
@@ -6193,6 +6216,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             terminalNewTabShortcutWorks: typeof terminalNewTabShortcutWorks === 'boolean' ? terminalNewTabShortcutWorks : null,
             terminalTabPanelA11yWorks: typeof terminalTabPanelA11yWorks === 'boolean' ? terminalTabPanelA11yWorks : null,
             terminalFailureStateA11yWorks: typeof terminalFailureStateA11yWorks === 'boolean' ? terminalFailureStateA11yWorks : null,
+            terminalClipboardStatusWorks: typeof terminalClipboardStatusWorks === 'boolean' ? terminalClipboardStatusWorks : null,
             terminalFullscreenCleanupWorks: typeof terminalFullscreenCleanupWorks === 'boolean' ? terminalFullscreenCleanupWorks : null,
             terminalTabTelemetryWorks: typeof terminalTabTelemetryWorks === 'boolean' ? terminalTabTelemetryWorks : null,
             terminalTabLifecycleTelemetryWorks: typeof terminalTabLifecycleTelemetryWorks === 'boolean' ? terminalTabLifecycleTelemetryWorks : null,

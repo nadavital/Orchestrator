@@ -2485,6 +2485,7 @@ child.on('exit', async (code) => {
           terminalNewTabShortcut: result.terminalNewTabShortcutWorks === true,
           terminalTabPanelA11y: result.terminalTabPanelA11yWorks === true,
           terminalFailureStateA11y: result.terminalFailureStateA11yWorks === true,
+          terminalClipboardStatus: result.terminalClipboardStatusWorks === true,
           terminalFullscreenCleanup: result.terminalFullscreenCleanupWorks === true,
           terminalTabTelemetry: result.terminalTabTelemetryWorks === true,
           terminalTabLifecycleTelemetry: result.terminalTabLifecycleTelemetryWorks === true,
