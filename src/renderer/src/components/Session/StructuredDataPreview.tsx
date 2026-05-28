@@ -1043,6 +1043,7 @@ export function ArtifactOpenOptions({
     action.onClick()
     closeMenu()
   }
+  const menuId = `${testId}-open-options-menu`
 
   return (
     <span
@@ -1065,10 +1066,14 @@ export function ArtifactOpenOptions({
         variant="toolbar"
         active={menuStyle !== null}
         dataTestId={`${testId}-action-open-options`}
+        ariaExpanded={menuStyle !== null}
+        ariaControls={menuId}
+        ariaHasPopup="menu"
         onClick={openMenu}
       />
       {menuStyle && (
         <MenuSurface
+          id={menuId}
           data-testid={`${testId}-open-options-menu`}
           onClose={closeMenu}
           style={menuStyle}

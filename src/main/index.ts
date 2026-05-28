@@ -13515,6 +13515,7 @@ function runAutomatedFocusedSurfaceSmoke(
               const previewControlChecks = {};
               const previewArtifactTabChecks = {};
               const previewOpenOptionsChecks = {};
+              const previewOpenOptionsTriggerStateChecks = {};
               const pdfPreviewControlChecks = {};
               const pdfAnnotationChecks = {};
               const notebookReadOnlyControlChecks = {};
@@ -13672,6 +13673,14 @@ function runAutomatedFocusedSurfaceSmoke(
                       button.getBoundingClientRect().height === 24
                   );
                   const openOptionsButton = document.querySelector('[data-testid="' + testId + '-action-open-options"]');
+                  const openOptionsMenuId = openOptionsButton instanceof HTMLElement
+                    ? openOptionsButton.getAttribute('aria-controls') ?? ''
+                    : '';
+                  let openOptionsTriggerStateWorks =
+                    openOptionsButton instanceof HTMLButtonElement &&
+                    openOptionsButton.getAttribute('aria-haspopup') === 'menu' &&
+                    openOptionsButton.getAttribute('aria-expanded') === 'false' &&
+                    openOptionsMenuId === testId + '-open-options-menu';
                   if (openOptionsButton instanceof HTMLButtonElement) {
                     openOptionsButton.click();
                     await sleep(120);
@@ -13687,10 +13696,23 @@ function runAutomatedFocusedSurfaceSmoke(
                     openOptionsOpenFile.textContent?.trim() === 'Open' &&
                     openOptionsRevealFile instanceof HTMLButtonElement &&
                     openOptionsRevealFile.textContent?.includes('Open in folder') === true;
+                  openOptionsTriggerStateWorks =
+                    openOptionsTriggerStateWorks &&
+                    openOptionsButton instanceof HTMLButtonElement &&
+                    openOptionsButton.getAttribute('aria-expanded') === 'true' &&
+                    openOptionsMenu instanceof HTMLElement &&
+                    openOptionsMenu.id === openOptionsMenuId &&
+                    document.getElementById(openOptionsMenuId) instanceof HTMLElement;
                   if (openOptionsMenu instanceof HTMLElement) {
                     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
-                    await sleep(80);
+                    await sleep(320);
                   }
+                  const closingOpenOptionsMenu = document.getElementById(openOptionsMenuId);
+                  previewOpenOptionsTriggerStateChecks[testId] =
+                    openOptionsTriggerStateWorks &&
+                    openOptionsButton instanceof HTMLButtonElement &&
+                    openOptionsButton.getAttribute('aria-expanded') === 'false' &&
+                    closingOpenOptionsMenu === null;
                   const artifactTab = document.querySelector('[data-testid="workbench-file-tab"]');
                   const controls = actions instanceof HTMLElement
                     ? actions.getAttribute('data-preview-controls') ?? ''
@@ -16191,6 +16213,14 @@ function runAutomatedFocusedSurfaceSmoke(
                   Boolean(previewOpenOptionsChecks['workspace-spreadsheet-preview']) &&
                   Boolean(previewOpenOptionsChecks['workspace-slides-preview']) &&
                   Boolean(previewOpenOptionsChecks['workspace-notebook-preview']),
+                filesArtifactOpenOptionsTriggerStateWorks:
+                  Boolean(previewOpenOptionsTriggerStateChecks['workspace-json-preview']) &&
+                  Boolean(previewOpenOptionsTriggerStateChecks['workspace-csv-preview']) &&
+                  Boolean(previewOpenOptionsTriggerStateChecks['workspace-pdf-preview']) &&
+                  Boolean(previewOpenOptionsTriggerStateChecks['workspace-document-preview']) &&
+                  Boolean(previewOpenOptionsTriggerStateChecks['workspace-spreadsheet-preview']) &&
+                  Boolean(previewOpenOptionsTriggerStateChecks['workspace-slides-preview']) &&
+                  Boolean(previewOpenOptionsTriggerStateChecks['workspace-notebook-preview']),
                 filesArtifactHeaderTitleTypeWorks:
                   Boolean(previewArtifactHeaderChecks['workspace-pdf-preview']) &&
                   Boolean(previewArtifactHeaderChecks['workspace-document-preview']) &&

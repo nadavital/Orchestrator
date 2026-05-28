@@ -9062,3 +9062,13 @@ Implemented: the Browser `Browser actions` trigger now exposes `aria-haspopup="m
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and `git diff --check` passed. Elevated `node scripts/run-automated-ui-smoke.mjs --browser` passed with `browserActionsMenuTriggerState=true` while preserving Browser history, action menu, comment mode, inspector, local target, error recovery, and webview gates. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779995962765.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779995962765.png`.
 
 Remaining: this closes local Browser actions menu-trigger state only. Live provider-emitted Browser/browser-use proof and non-Codex browser/local-server adapters remain separate.
+
+### 2026-05-28 - Artifact Open Options Menu Trigger State
+
+Product evidence: artifact preview open options are file-workflow controls for opening the current file or revealing it in the system file browser. This is a generic Files/workbench control used across JSON, CSV, PDF, document, spreadsheet, slides, and notebook previews, not a deep renderer-fidelity change.
+
+Implemented: the shared artifact `Open options` trigger now exposes `aria-haspopup="menu"`, `aria-expanded`, and a stable `aria-controls` id that matches the mounted open-options menu surface.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and `git diff --check` passed. The first elevated `node scripts/run-automated-ui-smoke.mjs --files` exposed that the smoke checked close state before the shared retained-exit animation completed; after aligning the assertion with the 240 ms retained-exit timing, the focused Files smoke passed with `filesArtifactOpenOptionsTriggerState=true` while preserving all existing Files/source-tab/artifact preview gates. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779996440366.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779996440366.png`.
+
+Remaining: this closes local artifact open-options menu-trigger state only. Deep Office/PDF renderer fidelity remains Phase 2 unless it blocks coding workflows.
