@@ -32,7 +32,7 @@ export interface ToolActivity {
   result?: ToolResultMessage
 }
 
-export type PermissionRequestKind = 'command' | 'file' | 'network' | 'mcp' | 'plan' | 'tool'
+export type PermissionRequestKind = 'command' | 'file' | 'network' | 'mcp' | 'plan' | 'profile' | 'tool'
 
 export interface PermissionRequestField {
   label: string
@@ -255,6 +255,7 @@ function permissionKindForTool(
   input: Record<string, unknown>
 ): PermissionRequestKind {
   const normalized = normalizeToolName(toolName)
+  if (normalized === 'permissions' || hasRecordField(input, ['permissions'])) return 'profile'
   if (action.kind === 'mcp' || normalized.startsWith('mcp')) return 'mcp'
   if (action.kind === 'shell') return 'command'
   if (action.kind === 'web' || stringField(input, ['url', 'uri'])) return 'network'
@@ -268,6 +269,7 @@ function permissionTitleForKind(kind: PermissionRequestKind): string {
   if (kind === 'network') return 'Network Approval'
   if (kind === 'mcp') return 'MCP Approval'
   if (kind === 'plan') return 'Plan Review'
+  if (kind === 'profile') return 'Permission Profile'
   return 'Tool Approval'
 }
 
@@ -284,8 +286,11 @@ function permissionFieldsForKind(
   if (kind === 'command') {
     push('Command', stringField(input, ['command', 'cmd', 'script', 'description']), true)
     push('Working dir', stringField(input, ['cwd', 'workdir', 'workingDirectory']), true)
+    push('Reason', stringField(input, ['reason']))
   } else if (kind === 'file') {
     push('Path', stringField(input, ['file_path', 'path', 'target_file', 'targetFile', 'absolutePath', 'relativePath']), true)
+    push('Root', stringField(input, ['grantRoot', 'root', 'cwd', 'workdir', 'workingDirectory']), true)
+    push('Reason', stringField(input, ['reason']))
     push('Operation', toolName)
   } else if (kind === 'network') {
     push('URL', stringField(input, ['url', 'uri']), true)
@@ -295,6 +300,12 @@ function permissionFieldsForKind(
     push('Server', server)
     push('Tool', nativeTool || toolName)
     push('Target', stringField(input, ['title', 'name', 'url', 'uri', 'query', 'path', 'description']))
+  } else if (kind === 'profile') {
+    const permissions = recordField(input, ['permissions'])
+    push('Filesystem', permissions ? summarizeFileSystemPermissions(permissions) : undefined, true)
+    push('Network', permissions ? summarizeNetworkPermissions(permissions) : undefined)
+    push('Working dir', stringField(input, ['cwd', 'workdir', 'workingDirectory']), true)
+    push('Reason', stringField(input, ['reason']))
   } else {
     push('Tool', toolName)
     push('Target', stringField(input, ['path', 'file_path', 'url', 'query', 'pattern', 'prompt', 'description', 'command']), kind === 'tool')
@@ -307,4 +318,75 @@ function pluralizeToolUnit(unit: string, count: number): string {
   if (count === 1) return unit
   if (unit === 'query') return 'queries'
   return `${unit}s`
+}
+
+function hasRecordField(input: Record<string, unknown>, keys: string[]): boolean {
+  return recordField(input, keys) !== undefined
+}
+
+function recordField(input: Record<string, unknown>, keys: string[]): Record<string, unknown> | undefined {
+  for (const key of keys) {
+    const value = input[key]
+    if (value && typeof value === 'object' && !Array.isArray(value)) return value as Record<string, unknown>
+  }
+  return undefined
+}
+
+function summarizeFileSystemPermissions(permissions: Record<string, unknown>): string | undefined {
+  const fileSystem = recordField(permissions, ['fileSystem', 'filesystem'])
+  if (!fileSystem) return undefined
+
+  const entrySummary = summarizeFileSystemEntries(fileSystem.entries)
+  const legacyRead = summarizeStringArray(fileSystem.read, 'read')
+  const legacyWrite = summarizeStringArray(fileSystem.write, 'write')
+  const maxDepth = typeof fileSystem.globScanMaxDepth === 'number' ? `glob depth ${fileSystem.globScanMaxDepth}` : undefined
+  return [entrySummary, legacyRead, legacyWrite, maxDepth].filter(Boolean).join('; ') || summarizeFlatObject(fileSystem)
+}
+
+function summarizeFileSystemEntries(value: unknown): string | undefined {
+  if (!Array.isArray(value) || value.length === 0) return undefined
+  const entries = value.slice(0, 3).map((entry) => {
+    if (!entry || typeof entry !== 'object') return String(entry)
+    const record = entry as Record<string, unknown>
+    const access = typeof record.access === 'string' ? record.access : 'access'
+    const path = summarizeFileSystemPath(record.path)
+    return path ? `${access} ${path}` : access
+  })
+  return `${entries.join(', ')}${value.length > entries.length ? `, +${value.length - entries.length} more` : ''}`
+}
+
+function summarizeFileSystemPath(value: unknown): string | undefined {
+  if (typeof value === 'string') return value
+  if (!value || typeof value !== 'object') return undefined
+  const record = value as Record<string, unknown>
+  if (typeof record.path === 'string') return record.path
+  if (typeof record.pattern === 'string') return record.pattern
+  if (typeof record.value === 'string') return record.value
+  const special = record.value && typeof record.value === 'object' ? record.value as Record<string, unknown> : undefined
+  if (special && typeof special.kind === 'string') return special.subpath ? `${special.kind}/${special.subpath}` : special.kind
+  if (typeof record.kind === 'string') return record.subpath ? `${record.kind}/${record.subpath}` : record.kind
+  if (typeof record.type === 'string') return record.type
+  return undefined
+}
+
+function summarizeNetworkPermissions(permissions: Record<string, unknown>): string | undefined {
+  const network = recordField(permissions, ['network'])
+  if (!network) return undefined
+  if (typeof network.enabled === 'boolean') return network.enabled ? 'enabled' : 'disabled'
+  return summarizeFlatObject(network)
+}
+
+function summarizeStringArray(value: unknown, label: string): string | undefined {
+  if (!Array.isArray(value) || value.length === 0) return undefined
+  const values = value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0).slice(0, 3)
+  if (values.length === 0) return undefined
+  return `${label} ${values.join(', ')}${value.length > values.length ? `, +${value.length - values.length} more` : ''}`
+}
+
+function summarizeFlatObject(value: Record<string, unknown>): string | undefined {
+  const pairs = Object.entries(value)
+    .filter(([, entryValue]) => entryValue !== undefined && entryValue !== null)
+    .slice(0, 3)
+    .map(([key, entryValue]) => `${key}: ${typeof entryValue === 'object' ? JSON.stringify(entryValue) : String(entryValue)}`)
+  return pairs.length > 0 ? pairs.join('; ') : undefined
 }

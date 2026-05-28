@@ -290,7 +290,7 @@ class CodexAppServerSession implements CodexAppServerRun {
 
     this.record(`Codex app-server ${method} request: model=${String(threadConfig.model ?? '')}, effort=${String(configFromRequest(request).model_reasoning_effort ?? '')}.`, {
       method,
-      hostId: request.providerSessionId,
+      hostId: request.providerSessionId ?? undefined,
       severity: 'debug',
       noisy: true
     })

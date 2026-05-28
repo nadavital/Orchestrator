@@ -1145,6 +1145,29 @@ test('permission request details classify command file network and MCP approvals
   assert.equal(mcp.kind, 'mcp')
   assert.equal(mcp.title, 'MCP Approval')
   assert.equal(mcp.fields.some((field) => field.label === 'Server' && field.value === 'linear'), true)
+
+  const profile = permissionRequestDetail({
+    tool_name: 'permissions',
+    tool_use_id: 'tool-profile',
+    tool_input: {
+      cwd: '/tmp/project',
+      reason: 'Need temporary network and write access.',
+      permissions: {
+        fileSystem: {
+          entries: [{
+            access: 'write',
+            path: { type: 'path', path: '/tmp/project/generated' }
+          }]
+        },
+        network: { enabled: true }
+      }
+    }
+  })
+  assert.equal(profile.kind, 'profile')
+  assert.equal(profile.title, 'Permission Profile')
+  assert.equal(profile.fields.find((field) => field.label === 'Filesystem')?.value, 'write /tmp/project/generated')
+  assert.equal(profile.fields.find((field) => field.label === 'Network')?.value, 'enabled')
+  assert.equal(profile.fields.find((field) => field.label === 'Working dir')?.value, '/tmp/project')
 })
 
 test('permission request details stay stable across provider fixtures', () => {
@@ -1182,6 +1205,61 @@ test('codex app-server protocol messages normalize approval and question semanti
   assert.equal(questions[0]?.questions?.[0]?.options?.[1]?.label, 'production')
   assert.equal(questions[1]?.content, 'Confirm the deploy window')
   assert.equal(questions[1]?.questions?.[0]?.header, 'deploy')
+})
+
+test('codex app-server protocol messages normalize file and permission profile approvals', () => {
+  const provider = PROVIDERS.codex
+  const events = [
+    ...provider.parseOutputLine(JSON.stringify({
+      jsonrpc: '2.0',
+      id: 'file-approval-1',
+      method: 'item/fileChange/requestApproval',
+      params: {
+        threadId: 'codex-app-thread-file-profile',
+        turnId: 'turn-1',
+        itemId: 'item-file-1',
+        reason: 'Need write access for generated files.',
+        grantRoot: '/private/tmp/orchestrator-codex-generated'
+      }
+    })),
+    ...provider.parseOutputLine(JSON.stringify({
+      jsonrpc: '2.0',
+      id: 'profile-approval-1',
+      method: 'item/permissions/requestApproval',
+      params: {
+        threadId: 'codex-app-thread-file-profile',
+        turnId: 'turn-1',
+        itemId: 'item-profile-1',
+        cwd: '/private/tmp/orchestrator-codex-generated',
+        reason: 'Need temporary network access.',
+        permissions: {
+          fileSystem: {
+            entries: [{
+              access: 'write',
+              path: { type: 'path', path: '/private/tmp/orchestrator-codex-generated' }
+            }]
+          },
+          network: { enabled: true }
+        }
+      }
+    }))
+  ]
+
+  const approvals = events.filter((event): event is Extract<RunEvent, { type: 'permission.requested' }> => event.type === 'permission.requested')
+  assert.equal(approvals.length, 2)
+
+  const file = permissionRequestDetail(approvals[0]!.denials[0]!)
+  assert.equal(file.kind, 'file')
+  assert.equal(file.title, 'File Approval')
+  assert.equal(file.fields.find((field) => field.label === 'Root')?.value, '/private/tmp/orchestrator-codex-generated')
+  assert.equal(file.fields.find((field) => field.label === 'Reason')?.value, 'Need write access for generated files.')
+
+  const profile = permissionRequestDetail(approvals[1]!.denials[0]!)
+  assert.equal(profile.kind, 'profile')
+  assert.equal(profile.title, 'Permission Profile')
+  assert.equal(profile.fields.find((field) => field.label === 'Filesystem')?.value, 'write /private/tmp/orchestrator-codex-generated')
+  assert.equal(profile.fields.find((field) => field.label === 'Network')?.value, 'enabled')
+  assert.equal(profile.fields.find((field) => field.label === 'Working dir')?.value, '/private/tmp/orchestrator-codex-generated')
 })
 
 test('codex app-server protocol messages normalize plan, goal, and subagent semantics', () => {

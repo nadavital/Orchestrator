@@ -22135,8 +22135,7 @@ function runAutomatedTranscriptLiveLifecycleSmoke(win: BrowserWindow, outputPath
           continueClick,
           retryClick,
           assistantMessages: finalSession?.messages
-            .filter((message) => message.type === 'text' && message.role === 'assistant')
-            .map((message) => message.content) ?? []
+            .flatMap((message) => message.type === 'text' && message.role === 'assistant' ? [message.content] : []) ?? []
         }
         if (screenshotPath) {
           const image = await win.webContents.capturePage()
@@ -22274,8 +22273,7 @@ function runAutomatedTranscriptLivePartialContinueSmoke(win: BrowserWindow, outp
           providerSessionId,
           continueClick,
           assistantMessages: finalSession?.messages
-            .filter((message) => message.type === 'text' && message.role === 'assistant')
-            .map((message) => message.content) ?? []
+            .flatMap((message) => message.type === 'text' && message.role === 'assistant' ? [message.content] : []) ?? []
         }
         if (screenshotPath) {
           const image = await win.webContents.capturePage()
@@ -22411,8 +22409,7 @@ function runAutomatedTranscriptLiveModelSwitchSmoke(win: BrowserWindow, outputPa
             .filter((event) => event.message.includes('model='))
             .map((event) => ({ method: event.method, message: event.message })),
           assistantMessages: finalSession?.messages
-            .filter((message) => message.type === 'text' && message.role === 'assistant')
-            .map((message) => message.content) ?? []
+            .flatMap((message) => message.type === 'text' && message.role === 'assistant' ? [message.content] : []) ?? []
         }
         if (screenshotPath) {
           const image = await win.webContents.capturePage()
@@ -22723,11 +22720,43 @@ function runAutomatedTranscriptPermissionSmoke(win: BrowserWindow, outputPath: s
             })()
           `)
         }
+        const variantsSession = sessionManager.list().find((candidate) => candidate.name === 'Transcript permission variants')
+        let variantsResult = { permissionVariantCardsWork: false }
+        if (variantsSession) {
+          win.webContents.send('pet:navigate', variantsSession.id)
+          sessionManager.updateStatus(variantsSession.id, 'waiting_for_permission')
+          await new Promise((resolve) => setTimeout(resolve, 280))
+          variantsResult = await win.webContents.executeJavaScript(`
+            (() => {
+              const cards = [...document.querySelectorAll('[data-testid="chat-permission-card"]')];
+              const text = document.body.innerText;
+              const actions = document.querySelector('[data-testid="chat-permission-actions"]');
+              const buttons = [...document.querySelectorAll('[data-testid="chat-permission-actions"] button')];
+              return {
+                permissionVariantCardsWork:
+                  cards.length === 1 &&
+                  text.includes('File Approval') &&
+                  text.includes('Permission Profile') &&
+                  text.includes('/tmp/orchestrator-permission-generated') &&
+                  text.includes('write /tmp/orchestrator-permission-generated') &&
+                  text.includes('Network') &&
+                  text.includes('enabled') &&
+                  actions instanceof HTMLElement &&
+                  actions.getAttribute('aria-label') === 'Permission decision actions' &&
+                  buttons.length >= 3 &&
+                  buttons.every((button) =>
+                    button instanceof HTMLButtonElement &&
+                    (button.getAttribute('aria-label') ?? '').includes('permission')
+                  )
+              };
+            })()
+          `)
+        }
         if (screenshotPath) {
           const image = await win.webContents.capturePage()
           writeFileSync(screenshotPath, image.toPNG())
         }
-        writeFileSync(outputPath, JSON.stringify({ ok: true, result: { profile, ...result, ...throwResult }, screenshotPath }, null, 2))
+        writeFileSync(outputPath, JSON.stringify({ ok: true, result: { profile, ...result, ...throwResult, ...variantsResult }, screenshotPath }, null, 2))
         app.quit()
       } catch (error) {
         writeFileSync(outputPath, JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2))
@@ -25319,6 +25348,65 @@ function seedAutomatedTranscriptPermissionSmokeSession(sessionId: string): void 
       }
     ],
     providerSessionId: 'transcript-permission-throw-provider-session',
+    createdAt: baseTime,
+    latestMessageAt: baseTime + 2
+  })
+
+  sessionManager.save({
+    ...session,
+    id: 'transcript-permission-variants-session',
+    name: 'Transcript permission variants',
+    status: 'waiting_for_permission',
+    messages: [
+      {
+        id: 'transcript-permission-variants-user',
+        role: 'user',
+        type: 'text',
+        content: 'TRANSCRIPT_PERMISSION_VARIANTS_SMOKE show non-command permission requests.',
+        timestamp: baseTime
+      },
+      {
+        id: 'transcript-permission-variants-request',
+        role: 'system',
+        type: 'result',
+        content: 'Approve file and permission profile changes?',
+        subtype: 'error_during_execution',
+        timestamp: baseTime + 1,
+        permissionDenials: [
+          {
+            tool_name: 'write',
+            tool_use_id: 'transcript-permission-file',
+            tool_input: {
+              reason: 'Need write access for generated files.',
+              grantRoot: '/tmp/orchestrator-permission-generated'
+            }
+          },
+          {
+            tool_name: 'permissions',
+            tool_use_id: 'transcript-permission-profile',
+            tool_input: {
+              cwd: process.env.ORCHESTRATOR_SMOKE_WORKSPACE_DIR ?? '/tmp/orchestrator-automated-ui-workspace',
+              reason: 'Need temporary file and network access.',
+              permissions: {
+                fileSystem: {
+                  entries: [{
+                    access: 'write',
+                    path: {
+                      type: 'path',
+                      path: '/tmp/orchestrator-permission-generated'
+                    }
+                  }]
+                },
+                network: {
+                  enabled: true
+                }
+              }
+            }
+          }
+        ]
+      }
+    ],
+    providerSessionId: 'transcript-permission-variants-provider-session',
     createdAt: baseTime,
     latestMessageAt: baseTime + 2
   })
