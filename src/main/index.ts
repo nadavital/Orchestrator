@@ -5361,6 +5361,25 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               element.dispatchEvent(new Event('input', { bubbles: true }));
               return true;
             };
+            const pressComposerKey = (key) => {
+              const element = document.querySelector('textarea');
+              if (!(element instanceof HTMLTextAreaElement)) return false;
+              element.focus();
+              element.setSelectionRange(element.value.length, element.value.length);
+              element.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+              return true;
+            };
+            const sendComposerPrompt = async (value) => {
+              const typed = setTextareaValue(value);
+              await sleep(80);
+              const sendButton = [...document.querySelectorAll('button')]
+                .find((button) => button.getAttribute('aria-label')?.startsWith('Send'));
+              if (sendButton instanceof HTMLButtonElement) {
+                sendButton.click();
+                await sleep(220);
+              }
+              return typed && sendButton instanceof HTMLButtonElement && textareaValue() === '';
+            };
             const unsupportedPermissionRow = rowForTitle('Unsupported permission smoke');
             const firstDraftInitiallySelected = await selectThreadByTitle('Draft smoke one');
             await sleep(180);
@@ -5387,6 +5406,54 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               composerDraftClearedOnSwitch &&
               composerFirstDraftRestored &&
               composerSecondDraftRestored;
+            const promptHistorySession = project
+              ? await window.api.sessions.create({
+                  projectId: project.id,
+                  workDir: project.rootPath,
+                  useWorktree: false,
+                  repoRoot: project.rootPath
+                })
+              : null;
+            if (project && promptHistorySession) {
+              await window.api.projects.addSession(project.id, promptHistorySession.id);
+              await window.api.sessions.updateName(promptHistorySession.id, 'Prompt history smoke');
+              await sleep(220);
+            }
+            const promptHistorySelected = await selectThreadByTitle('Prompt history smoke');
+            await sleep(220);
+            const promptHistoryFirstSent = await sendComposerPrompt('COMPOSER_PROMPT_HISTORY_SMOKE_ONE');
+            const promptHistoryCountAfterFirst = document.querySelector('[data-testid="composer-textarea"]')?.getAttribute('data-composer-prompt-history-count') ?? null;
+            const promptHistorySecondSent = await sendComposerPrompt('COMPOSER_PROMPT_HISTORY_SMOKE_TWO');
+            const promptHistoryTextarea = document.querySelector('[data-testid="composer-textarea"]');
+            const promptHistoryCountAfterSecond = promptHistoryTextarea?.getAttribute('data-composer-prompt-history-count') ?? null;
+            const promptHistoryUpOne = pressComposerKey('ArrowUp');
+            await sleep(120);
+            const promptHistoryLatest = textareaValue();
+            const promptHistoryActiveAfterUp = document.querySelector('[data-testid="composer-textarea"]')?.getAttribute('data-composer-prompt-history-active') ?? null;
+            const promptHistoryUpTwo = pressComposerKey('ArrowUp');
+            await sleep(120);
+            const promptHistoryPrevious = textareaValue();
+            const promptHistoryDownOne = pressComposerKey('ArrowDown');
+            await sleep(120);
+            const promptHistoryForward = textareaValue();
+            const promptHistoryDownTwo = pressComposerKey('ArrowDown');
+            await sleep(120);
+            var composerPromptHistoryRecall =
+              promptHistorySelected &&
+              promptHistoryFirstSent &&
+              promptHistorySecondSent &&
+              promptHistoryCountAfterFirst === '1' &&
+              promptHistoryCountAfterSecond === '2' &&
+              promptHistoryUpOne &&
+              promptHistoryUpTwo &&
+              promptHistoryDownOne &&
+              promptHistoryDownTwo &&
+              promptHistoryLatest === 'COMPOSER_PROMPT_HISTORY_SMOKE_TWO' &&
+              promptHistoryPrevious === 'COMPOSER_PROMPT_HISTORY_SMOKE_ONE' &&
+              promptHistoryForward === 'COMPOSER_PROMPT_HISTORY_SMOKE_TWO' &&
+              textareaValue() === '' &&
+              promptHistoryActiveAfterUp === 'true' &&
+              document.querySelector('[data-testid="composer-textarea"]')?.getAttribute('data-composer-prompt-history-active') === 'false';
             const queuedCancelSelected = await selectThreadByTitle('Queued cancel smoke');
             const queuedCancelButton = document.querySelector('[data-testid="queued-message-cancel"]');
             const queuedMessageElement = document.querySelector('[data-message-id^="composer-queued-cancel-smoke-"]');
@@ -7392,6 +7459,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             composerQueuedCancel: typeof composerQueuedCancel === 'boolean' ? composerQueuedCancel : null,
             composerQueuedCancelStatusWorks: typeof composerQueuedCancelStatusWorks === 'boolean' ? composerQueuedCancelStatusWorks : null,
             composerEmptySuggestionFillsDraft: typeof composerEmptySuggestionFillsDraft === 'boolean' ? composerEmptySuggestionFillsDraft : null,
+            composerPromptHistoryRecall: typeof composerPromptHistoryRecall === 'boolean' ? composerPromptHistoryRecall : null,
             composerDraftsPerChat: typeof composerDraftsPerChat === 'boolean' ? composerDraftsPerChat : null,
             composerDraftClearedOnSwitch: typeof composerDraftClearedOnSwitch === 'boolean' ? composerDraftClearedOnSwitch : null,
             composerFirstDraftRestored: typeof composerFirstDraftRestored === 'boolean' ? composerFirstDraftRestored : null,

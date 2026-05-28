@@ -9304,3 +9304,13 @@ Implemented: the Browser actions menu History section now includes `Clear histor
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --browser` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1780009556512.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1780009556512.png`. The focused Browser smoke now gates `browserHistoryClear=true` while preserving existing history-menu, zoom, lifecycle, webview, local-target, inspector, security-policy, and fork-transfer checks.
 
 Remaining: this closes local Browser history cleanup only. Richer Browser zoom row/preset polish and exact screenshot comparison remain separate.
+
+### 2026-05-28 - Composer Prompt History Recall
+
+Product evidence: PP-040 tracks composer ergonomics as a Phase 1 coding workflow. Codex keeps prompt history in composer atoms, while Orchestrator required users to manually retype or copy prior prompts even when they had just sent them in the same chat.
+
+Implemented: successful sends now append to per-session composer prompt history, deduplicated and capped to the latest 50 prompts. `ArrowUp` recalls prior prompts, `ArrowDown` moves forward, and leaving the history restores the unsent draft that was present before recall. Slash-palette arrow navigation and normal multiline editing remain guarded from the history handler.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --composer` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1780010082730.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1780010082730.png`. The focused Composer smoke now gates `composerPromptHistoryRecall=true` while preserving draft isolation, attachment isolation, async attachment switching, pending cancel, manual attachment switching, permission, provider/model, slash, and toolbar checks.
+
+Remaining: this closes local per-session prompt recall only. Configurable Enter behavior, provider-backed context sources, and deeper attachment/context behavior remain separate Phase 1 follow-ups.

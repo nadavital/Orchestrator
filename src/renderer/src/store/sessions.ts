@@ -197,6 +197,7 @@ export interface SessionUIState {
   hasUnread: boolean
   composerDraft?: string
   composerAttachments?: Attachment[]
+  composerPromptHistory?: string[]
   activeAgentId?: string | null
   agentTabIds?: string[]
   sideQuestions?: SideQuestionMessage[]
@@ -287,6 +288,7 @@ interface SessionState {
   setHasUnread: (id: string, v: boolean) => void
   setComposerDraft: (id: string, draft: string) => void
   setComposerAttachments: (id: string, attachments: Attachment[] | ((current: Attachment[]) => Attachment[])) => void
+  addComposerPromptHistory: (id: string, prompt: string) => void
   setProviderAvailability: (availability: Record<string, boolean>) => void
   setProviderModels: (v: Record<string, string[]>) => void
   setShowSettings: (v: boolean) => void
@@ -314,6 +316,7 @@ export const defaultUI: SessionUIState = {
   hasUnread: false,
   composerDraft: '',
   composerAttachments: [],
+  composerPromptHistory: [],
   activeAgentId: null,
   agentTabIds: [],
   sideQuestions: [],
@@ -1383,6 +1386,25 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           [id]: {
             ...current,
             composerAttachments: nextAttachments
+          }
+        }
+      }
+    }),
+
+  addComposerPromptHistory: (id, prompt) =>
+    set((s) => {
+      const normalized = prompt.trim()
+      if (!normalized) return {}
+      const current = s.uiState[id] ?? defaultUI
+      const existing = current.composerPromptHistory ?? []
+      const withoutDuplicate = existing.filter((entry) => entry !== normalized)
+      const nextHistory = [...withoutDuplicate, normalized].slice(-50)
+      return {
+        uiState: {
+          ...s.uiState,
+          [id]: {
+            ...current,
+            composerPromptHistory: nextHistory
           }
         }
       }

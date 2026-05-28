@@ -25,6 +25,15 @@ interface PendingAttachment {
 
 const cancelledComposerAttachmentSaves = new Set<string>()
 
+function shouldNavigatePromptHistory(textarea: HTMLTextAreaElement, direction: 'previous' | 'next'): boolean {
+  if (textarea.selectionStart !== textarea.selectionEnd) return false
+  const cursor = textarea.selectionStart
+  if (!textarea.value.includes('\n')) return true
+  return direction === 'previous'
+    ? cursor === 0
+    : cursor === textarea.value.length
+}
+
 function InputBar({ session, isNew }: Props): JSX.Element {
   const providerAvailability = useSessionStore((state) => state.providerAvailability)
   const providerModels = useSessionStore((state) => state.providerModels)
@@ -40,6 +49,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   const currentUi = useSessionStore((state) => state.uiState[session.id] ?? defaultUI)
   const setComposerDraft = useSessionStore((state) => state.setComposerDraft)
   const setComposerAttachments = useSessionStore((state) => state.setComposerAttachments)
+  const addComposerPromptHistory = useSessionStore((state) => state.addComposerPromptHistory)
   const setShowDiff = useSessionStore((state) => state.setShowDiff)
   const setShowEvents = useSessionStore((state) => state.setShowEvents)
   const setShowPlan = useSessionStore((state) => state.setShowPlan)
@@ -52,6 +62,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   const updateSideChatMessage = useSessionStore((state) => state.updateSideChatMessage)
   const [text, setText] = useState(() => currentUi.composerDraft ?? '')
   const attachments = currentUi.composerAttachments ?? []
+  const composerPromptHistory = currentUi.composerPromptHistory ?? []
   const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([])
   const [useWorktree, setUseWorktree] = useState(false)
   const [isGitRepo, setIsGitRepo] = useState(false)
@@ -71,12 +82,14 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   const [attachmentStatus, setAttachmentStatus] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
   const [runActionStatus, setRunActionStatus] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
   const [permissionRulesStatus, setPermissionRulesStatus] = useState<string | null>(null)
+  const [historyCursor, setHistoryCursor] = useState<number | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const agentButtonRef = useRef<HTMLButtonElement>(null)
   const permissionButtonRef = useRef<HTMLButtonElement>(null)
   const cancelledPendingAttachments = useRef<Set<string>>(new Set())
   const activeAttachmentSaves = useRef<Set<string>>(new Set())
   const pendingSettingsUpdateRef = useRef<Promise<void>>(Promise.resolve())
+  const draftBeforeHistoryRef = useRef('')
 
   useEffect(() => {
     const globals = window as typeof window & { __orchestratorInputBarCommitCount?: number }
@@ -160,6 +173,8 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     setAttachmentStatus(null)
     setRunActionStatus(null)
     setPermissionRulesStatus(null)
+    setHistoryCursor(null)
+    draftBeforeHistoryRef.current = ''
     pendingSettingsUpdateRef.current = Promise.resolve()
     setSlashIndex(0)
     setDismissedSlashQuery(null)
@@ -453,6 +468,8 @@ function InputBar({ session, isNew }: Props): JSX.Element {
       if (!started) {
         restoreDraftAfterFailedSend()
         setRunActionStatus({ text: 'Run failed to start', tone: 'danger' })
+      } else {
+        addComposerPromptHistory(session.id, rawPrompt)
       }
     } catch (error) {
       restoreDraftAfterFailedSend()
@@ -593,9 +610,54 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   const slashQuery = getSlashQuery(text)
   const showSlash = slashQuery !== null && slashQuery !== dismissedSlashQuery
 
+  const applyPromptHistoryText = (nextText: string, nextCursor: number | null): void => {
+    setComposerText(nextText)
+    setHistoryCursor(nextCursor)
+    setSlashIndex(0)
+    setDismissedSlashQuery(null)
+    window.setTimeout(() => {
+      if (!textareaRef.current) return
+      resizeTextarea(textareaRef.current)
+      moveTextareaCursorToEnd(textareaRef.current)
+    }, 0)
+  }
+
+  const navigatePromptHistory = (direction: 'previous' | 'next'): boolean => {
+    if (composerPromptHistory.length === 0) return false
+    if (direction === 'previous') {
+      const nextCursor = historyCursor === null
+        ? composerPromptHistory.length - 1
+        : Math.max(0, historyCursor - 1)
+      if (historyCursor === null) draftBeforeHistoryRef.current = text
+      applyPromptHistoryText(composerPromptHistory[nextCursor] ?? '', nextCursor)
+      return true
+    }
+    if (historyCursor === null) return false
+    if (historyCursor >= composerPromptHistory.length - 1) {
+      applyPromptHistoryText(draftBeforeHistoryRef.current, null)
+      draftBeforeHistoryRef.current = ''
+      return true
+    }
+    const nextCursor = historyCursor + 1
+    applyPromptHistoryText(composerPromptHistory[nextCursor] ?? '', nextCursor)
+    return true
+  }
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>): void => {
     if (showSlash && (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Tab')) return
     if (showSlash && e.key === 'Enter') return
+    if (
+      (e.key === 'ArrowUp' || e.key === 'ArrowDown') &&
+      !e.altKey &&
+      !e.ctrlKey &&
+      !e.metaKey &&
+      !e.shiftKey &&
+      shouldNavigatePromptHistory(e.currentTarget, e.key === 'ArrowUp' ? 'previous' : 'next') &&
+      navigatePromptHistory(e.key === 'ArrowUp' ? 'previous' : 'next')
+    ) {
+      e.preventDefault()
+      return
+    }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       send()
@@ -604,6 +666,8 @@ function InputBar({ session, isNew }: Props): JSX.Element {
 
   const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>): void => {
     setComposerText(e.target.value)
+    setHistoryCursor(null)
+    draftBeforeHistoryRef.current = ''
     setSlashIndex(0)
     setDismissedSlashQuery(null)
     resizeTextarea(e.target)
@@ -659,6 +723,8 @@ function InputBar({ session, isNew }: Props): JSX.Element {
 
   const setTextareaText = (next: string): void => {
     setComposerText(next)
+    setHistoryCursor(null)
+    draftBeforeHistoryRef.current = ''
     setSlashIndex(0)
     setDismissedSlashQuery(null)
     textareaRef.current?.focus()
@@ -862,6 +928,8 @@ function InputBar({ session, isNew }: Props): JSX.Element {
             onKeyDown={handleKeyDown}
             aria-label="Message composer"
             placeholder={isNew ? 'What do you want to build?' : 'Message…'}
+            data-composer-prompt-history-count={composerPromptHistory.length}
+            data-composer-prompt-history-active={historyCursor !== null ? 'true' : 'false'}
             rows={1}
             autoFocus={isNew}
             className="flex-1 resize-none bg-transparent outline-none"

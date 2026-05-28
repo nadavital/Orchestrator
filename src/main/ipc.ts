@@ -2818,6 +2818,13 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
     if (
       process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT &&
       process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'composer' &&
+      prompt.startsWith('COMPOSER_PROMPT_HISTORY_SMOKE_')
+    ) {
+      return true
+    }
+    if (
+      process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT &&
+      process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'composer' &&
       prompt === 'SEND_AFTER_SETTINGS_FLUSH_SMOKE'
     ) {
       const session = sessionManager.get(sessionId)

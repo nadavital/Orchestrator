@@ -3063,6 +3063,7 @@ child.on('exit', async (code) => {
         composerQueuedCancel: captureView !== 'composer' || result.composerQueuedCancel === true,
         composerQueuedCancelStatus: captureView !== 'composer' || result.composerQueuedCancelStatusWorks === true,
         composerEmptySuggestionFillsDraft: captureView !== 'composer' || result.composerEmptySuggestionFillsDraft === true,
+        composerPromptHistoryRecall: captureView !== 'composer' || result.composerPromptHistoryRecall === true,
         composerDraftsPerChat: captureView !== 'composer' || result.composerDraftsPerChat === true,
         composerAttachmentsPerChat: captureView !== 'composer' || result.composerAttachmentsPerChat === true,
         composerAttachmentsClearedOnSwitch: captureView !== 'composer' || result.composerAttachmentsClearedOnSwitch === true,
