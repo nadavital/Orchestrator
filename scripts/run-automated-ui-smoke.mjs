@@ -2083,12 +2083,15 @@ child.on('exit', async (code) => {
           userInputOptionSelection: result.userInputOptionSelectionWorks === true,
           userInputMultiSelect: result.userInputMultiSelectWorks === true,
           userInputStructuredSubmit: result.userInputStructuredSubmitWorks === true,
-          userInputResumeError: result.userInputResumeErrorWorks === true
+          userInputStructuredStatusLive: result.userInputStructuredStatusLive === true,
+          userInputResumeError: result.userInputResumeErrorWorks === true,
+          userInputResumeErrorA11yLive: result.userInputResumeErrorA11yLive === true
         }
     : captureView === 'transcript-permission'
       ? {
           isolatedProfile: result.profile?.isIsolated === true,
           permissionResumeError: result.permissionResumeErrorWorks === true,
+          permissionResumeErrorA11yLive: result.permissionResumeErrorA11yLive === true,
           permissionActionsRecoverable: result.permissionActionsRecoverableWorks === true
         }
     : captureView === 'design-system'
@@ -2835,6 +2838,7 @@ child.on('exit', async (code) => {
         composerAgentFocusReturned: captureView !== 'composer' || result.composerAgentFocusReturned === true,
         composerAgentTriggerAriaCollapsed: captureView !== 'composer' || result.composerAgentTriggerCollapsedOnClose === true,
         composerSendStatusExplainsBlocked: captureView !== 'composer' || result.composerSendStatusExplainsBlocked === true,
+        composerSendStatusA11yLive: captureView !== 'composer' || result.composerSendStatusA11yLive === true,
         composerSendStatusActionOpensPermissions: captureView !== 'composer' || result.composerSendStatusActionOpensPermissions === true,
         composerSendStatusRecoveryClearsBlock: captureView !== 'composer' || result.composerSendStatusRecoveryClearsBlock === true,
         composerQueuedCancel: captureView !== 'composer' || result.composerQueuedCancel === true,

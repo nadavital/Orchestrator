@@ -4865,6 +4865,13 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               sendStatus.getAttribute('data-composer-send-state') === 'unsupported-permission' &&
               sendStatus.textContent?.includes('Permission mode unavailable') === true &&
               sendStatusAction instanceof HTMLButtonElement;
+            var composerSendStatusA11yLive =
+              sendStatus instanceof HTMLElement &&
+              sendStatus.getAttribute('role') === 'status' &&
+              sendStatus.getAttribute('aria-live') === 'polite' &&
+              sendStatus.getAttribute('aria-atomic') === 'true' &&
+              sendStatusAction instanceof HTMLButtonElement &&
+              sendStatusAction.getAttribute('aria-label') === 'Change permission mode';
             if (sendStatusAction instanceof HTMLButtonElement) {
               sendStatusAction.click();
               await sleep(140);
@@ -6092,6 +6099,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             composerAgentTriggerCollapsedOnClose: typeof composerAgentTriggerCollapsedOnClose === 'boolean' ? composerAgentTriggerCollapsedOnClose : null,
             composerToolbarResponsiveWorks: typeof composerToolbarResponsiveWorks === 'boolean' ? composerToolbarResponsiveWorks : null,
             composerSendStatusExplainsBlocked: typeof composerSendStatusExplainsBlocked === 'boolean' ? composerSendStatusExplainsBlocked : null,
+            composerSendStatusA11yLive: typeof composerSendStatusA11yLive === 'boolean' ? composerSendStatusA11yLive : null,
             composerSendStatusActionOpensPermissions: typeof composerSendStatusActionOpensPermissions === 'boolean' ? composerSendStatusActionOpensPermissions : null,
             composerSendStatusRecoveryClearsBlock: typeof composerSendStatusRecoveryClearsBlock === 'boolean' ? composerSendStatusRecoveryClearsBlock : null,
             composerQueuedCancel: typeof composerQueuedCancel === 'boolean' ? composerQueuedCancel : null,
@@ -20515,11 +20523,19 @@ function runAutomatedTranscriptUserInputSmoke(win: BrowserWindow, outputPath: st
             const userInputStructuredSubmitWorks =
               document.body.innerText.includes('Answer sent') &&
               document.body.innerText.includes('resuming');
+            const userInputStructuredStatusLive = [...document.querySelectorAll('[role="status"]')]
+              .some((status) =>
+                status instanceof HTMLElement &&
+                status.getAttribute('aria-live') === 'polite' &&
+                status.getAttribute('aria-atomic') === 'true' &&
+                status.textContent?.includes('Answer sent') === true
+              );
             return {
               userInputMultiQuestionCardWorks,
               userInputOptionSelectionWorks,
               userInputMultiSelectWorks,
-              userInputStructuredSubmitWorks
+              userInputStructuredSubmitWorks,
+              userInputStructuredStatusLive
             };
           })()
         `)
@@ -20551,7 +20567,11 @@ function runAutomatedTranscriptUserInputSmoke(win: BrowserWindow, outputPath: st
                 userInputResumeErrorWorks:
                   failureError instanceof HTMLElement &&
                   failureError.textContent?.includes('No active provider session') === true &&
-                  document.querySelector('[data-testid="chat-user-input-form"]') instanceof HTMLElement
+                  document.querySelector('[data-testid="chat-user-input-form"]') instanceof HTMLElement,
+                userInputResumeErrorA11yLive:
+                  failureError instanceof HTMLElement &&
+                  failureError.getAttribute('role') === 'alert' &&
+                  failureError.getAttribute('aria-live') === 'assertive'
               };
             })()
           `)
@@ -20601,8 +20621,14 @@ function runAutomatedTranscriptPermissionSmoke(win: BrowserWindow, outputPath: s
                 error instanceof HTMLElement &&
                 error.textContent?.includes('No active provider session') === true &&
                 document.body.innerText.includes('Allowed once - resuming') === false,
+              permissionResumeErrorA11yLive:
+                error instanceof HTMLElement &&
+                error.getAttribute('role') === 'alert' &&
+                error.getAttribute('aria-live') === 'assertive',
               permissionActionsRecoverableWorks:
                 actions instanceof HTMLElement &&
+                actions.getAttribute('role') === 'group' &&
+                actions.getAttribute('aria-label') === 'Permission decision actions' &&
                 buttons.length >= 3 &&
                 buttons.every((button) => button instanceof HTMLButtonElement && !button.disabled)
             };

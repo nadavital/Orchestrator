@@ -2590,13 +2590,15 @@ function UserInputCard({
           <div
             className="mt-2 text-xs"
             data-testid="chat-user-input-error"
+            role="alert"
+            aria-live="assertive"
             style={{ color: 'var(--color-red)' }}
           >
             {submitError}
           </div>
         )}
         {isAnswered && (
-          <div className="mt-2 text-xs" style={{ color: 'var(--color-green)' }}>
+          <div className="mt-2 text-xs" role="status" aria-live="polite" aria-atomic="true" style={{ color: 'var(--color-green)' }}>
             {submitState === 'sent' ? 'Answer sent - resuming...' : 'Answered'}
           </div>
         )}
@@ -2809,7 +2811,7 @@ function PermissionCard({ msg, sessionId, sessionStatus }: { msg: ResultMessage;
         </div>
         {decision === 'pending' && requestIsActive ? (
           isPlanApproval ? (
-            <div className="flex flex-wrap gap-2" data-testid="chat-permission-actions">
+            <div className="flex flex-wrap gap-2" data-testid="chat-permission-actions" role="group" aria-label="Plan approval actions">
               <Button
                 onClick={handleAllowOnce}
                 variant="primary"
@@ -2830,7 +2832,7 @@ function PermissionCard({ msg, sessionId, sessionStatus }: { msg: ResultMessage;
               </Button>
             </div>
           ) : (
-            <div className="flex flex-wrap gap-2" data-testid="chat-permission-actions">
+            <div className="flex flex-wrap gap-2" data-testid="chat-permission-actions" role="group" aria-label="Permission decision actions">
               <Button
                 onClick={handleAllowOnce}
                 variant="primary"
@@ -2861,7 +2863,7 @@ function PermissionCard({ msg, sessionId, sessionStatus }: { msg: ResultMessage;
             </div>
           )
         ) : (
-          <div className="text-xs font-medium" style={{ color: permissionDecisionColor(displayDecision) }}>
+          <div className="text-xs font-medium" role="status" aria-live="polite" aria-atomic="true" style={{ color: permissionDecisionColor(displayDecision) }}>
             {displayDecision === 'allowed_session'
               ? isPlanApproval ? 'Plan approved' : requestIsActive ? 'Allowed for session - resuming...' : 'Allowed for session'
               : displayDecision === 'allowed_once'
@@ -2877,6 +2879,8 @@ function PermissionCard({ msg, sessionId, sessionStatus }: { msg: ResultMessage;
           <div
             className="mt-2 rounded-lg px-3 py-2 text-xs"
             data-testid="chat-permission-error"
+            role="alert"
+            aria-live="assertive"
             style={{
               color: 'var(--color-red)',
               background: 'color-mix(in srgb, var(--color-red) 10%, transparent)',

@@ -691,6 +691,9 @@ function InputBar({ session, isNew }: Props): JSX.Element {
             className="mx-3 mb-2 flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs"
             data-testid="composer-send-status"
             data-composer-send-state={composerSendNotice.state}
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
             style={{
               borderColor: composerSendNotice.tone === 'danger'
                 ? 'color-mix(in srgb, var(--color-red) 45%, var(--border-subtle))'
@@ -710,6 +713,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
                 type="button"
                 className="shrink-0 rounded-md px-1.5 py-0.5 font-semibold"
                 data-testid="composer-send-status-action"
+                aria-label="Change permission mode"
                 onClick={() => setShowPermMenu(true)}
                 style={{
                   background: 'var(--surface-bg)',
