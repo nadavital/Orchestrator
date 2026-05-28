@@ -4462,6 +4462,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             let browserTargetFillWorks = false;
             let browserTargetTypeWorks = false;
             let browserTargetStateWorks = false;
+            let browserTargetActionStatusWorks = false;
             const browserTargetSelectForText = document.querySelector('[data-testid="browser-target-select"]');
             const browserTargetActionInputForText = document.querySelector('.browser-targets-pane input[placeholder="Text or key"]');
             if (browserTargetSelectForText instanceof HTMLSelectElement && browserTargetActionInputForText instanceof HTMLInputElement) {
@@ -4519,6 +4520,17 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                       rect.height <= 48
                     ) {
                       browserTargetStateWorks = true;
+                      const targetActionStatus = document.querySelector('[data-testid="browser-target-action-status"]');
+                      const targetActionPanel = document.querySelector('[data-testid="browser-panel"]');
+                      browserTargetActionStatusWorks =
+                        targetActionStatus instanceof HTMLElement &&
+                        targetActionStatus.textContent?.includes('Target state read') === true &&
+                        targetActionStatus.getAttribute('role') === 'status' &&
+                        targetActionStatus.getAttribute('aria-live') === 'polite' &&
+                        targetActionStatus.getAttribute('aria-atomic') === 'true' &&
+                        targetActionStatus.getAttribute('data-browser-target-action-status-tone') === 'info' &&
+                        targetActionPanel?.getAttribute('data-browser-target-action-status') === 'Target state read' &&
+                        targetActionPanel?.getAttribute('data-browser-target-action-status-tone') === 'info';
                       break;
                     }
                     await sleep(100);
@@ -17919,6 +17931,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
             let browserTargetFillWorks = false;
             let browserTargetTypeWorks = false;
             let browserTargetStateWorks = false;
+            let browserTargetActionStatusWorks = false;
             const browserTargetSelectForText = document.querySelector('[data-testid="browser-target-select"]');
             const browserTargetActionInputForText = document.querySelector('.browser-targets-pane input[placeholder="Text or key"]');
             if (browserTargetSelectForText instanceof HTMLSelectElement && browserTargetActionInputForText instanceof HTMLInputElement) {
@@ -17976,6 +17989,17 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                       rect.height <= 64
                     ) {
                       browserTargetStateWorks = true;
+                      const targetActionStatus = document.querySelector('[data-testid="browser-target-action-status"]');
+                      const targetActionPanel = document.querySelector('[data-testid="browser-panel"]');
+                      browserTargetActionStatusWorks =
+                        targetActionStatus instanceof HTMLElement &&
+                        targetActionStatus.textContent?.includes('Target state read') === true &&
+                        targetActionStatus.getAttribute('role') === 'status' &&
+                        targetActionStatus.getAttribute('aria-live') === 'polite' &&
+                        targetActionStatus.getAttribute('aria-atomic') === 'true' &&
+                        targetActionStatus.getAttribute('data-browser-target-action-status-tone') === 'info' &&
+                        targetActionPanel?.getAttribute('data-browser-target-action-status') === 'Target state read' &&
+                        targetActionPanel?.getAttribute('data-browser-target-action-status-tone') === 'info';
                       break;
                     }
                     await sleep(100);
@@ -18422,6 +18446,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserTargetFillWorks,
               browserTargetTypeWorks,
               browserTargetStateWorks,
+              browserTargetActionStatusWorks,
               browserTargetSelectWorks,
               browserTargetCheckWorks,
               browserTargetsPaneNoHorizontalOverflowWorks,

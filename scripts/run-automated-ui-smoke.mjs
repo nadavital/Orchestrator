@@ -2227,6 +2227,7 @@ child.on('exit', async (code) => {
           browserTargetFill: result.browserTargetFillWorks === true,
           browserTargetType: result.browserTargetTypeWorks === true,
           browserTargetState: result.browserTargetStateWorks === true,
+          browserTargetActionStatus: result.browserTargetActionStatusWorks === true,
           browserTargetSelect: result.browserTargetSelectWorks === true,
           browserTargetCheck: result.browserTargetCheckWorks === true,
           browserTargetsPaneNoHorizontalOverflow: result.browserTargetsPaneNoHorizontalOverflowWorks === true,

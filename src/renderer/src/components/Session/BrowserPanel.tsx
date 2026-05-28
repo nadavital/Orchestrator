@@ -94,6 +94,10 @@ interface BrowserCommentRegion {
 type BrowserCommentIntent = 'comment' | 'design-tweak'
 
 type BrowserTargetAction = 'click' | 'double_click' | 'type' | 'fill' | 'key' | 'select' | 'check' | 'read' | 'scroll'
+type BrowserTargetActionStatus = {
+  text: string
+  tone: 'info' | 'danger'
+}
 type BrowserClientToolAction = 'click' | 'type' | 'fill' | 'key' | 'select' | 'check' | 'scroll'
 interface BrowserClientToolActionResult {
   ok: boolean
@@ -203,6 +207,7 @@ export default function BrowserPanel({
   const [selectedTargetId, setSelectedTargetId] = useState('')
   const [actionText, setActionText] = useState('')
   const [targetReadResult, setTargetReadResult] = useState<BrowserTargetReadResult | null>(null)
+  const [targetActionStatus, setTargetActionStatus] = useState<BrowserTargetActionStatus | null>(null)
   const [clipboardText, setClipboardText] = useState('')
   const [copyUrlStatus, setCopyUrlStatus] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
   const copyUrlStatusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -1352,35 +1357,55 @@ export default function BrowserPanel({
 
   const runTargetAction = async (action: BrowserTargetAction): Promise<void> => {
     if (!selectedTargetId || !webviewRef.current) return
-    const result = await webviewRef.current.executeJavaScript<BrowserTargetReadResult | boolean>(
-      `window.__orchestratorBrowserAction(${JSON.stringify({ action, nodeId: selectedTargetId, text: actionText, x: 0, y: coordinateAction.scrollY })})`,
-      true
-    )
-    setTargetReadResult(action === 'read' && result && typeof result === 'object' ? result : null)
-    await runInspection()
+    try {
+      const result = await webviewRef.current.executeJavaScript<BrowserTargetReadResult | boolean>(
+        `window.__orchestratorBrowserAction(${JSON.stringify({ action, nodeId: selectedTargetId, text: actionText, x: 0, y: coordinateAction.scrollY })})`,
+        true
+      )
+      setTargetReadResult(action === 'read' && result && typeof result === 'object' ? result : null)
+      setTargetActionStatus({ text: targetActionStatusText(action), tone: 'info' })
+      await runInspection()
+    } catch {
+      setTargetActionStatus({ text: `${targetActionStatusText(action)} failed`, tone: 'danger' })
+    }
   }
 
   const runCoordinateAction = async (action: 'click' | 'scroll'): Promise<void> => {
     if (!webviewRef.current) return
-    await webviewRef.current.executeJavaScript(
-      `window.__orchestratorBrowserAction(${JSON.stringify({
-        action,
-        x: coordinateAction.x,
-        y: coordinateAction.y,
-        scrollY: coordinateAction.scrollY
-      })})`,
-      true
-    )
-    await runInspection()
+    try {
+      await webviewRef.current.executeJavaScript(
+        `window.__orchestratorBrowserAction(${JSON.stringify({
+          action,
+          x: coordinateAction.x,
+          y: coordinateAction.y,
+          scrollY: coordinateAction.scrollY
+        })})`,
+        true
+      )
+      setTargetActionStatus({ text: action === 'click' ? 'Coordinate click ran' : 'Coordinate scroll ran', tone: 'info' })
+      await runInspection()
+    } catch {
+      setTargetActionStatus({ text: action === 'click' ? 'Coordinate click failed' : 'Coordinate scroll failed', tone: 'danger' })
+    }
   }
 
   const readClipboard = async (): Promise<void> => {
-    const text = await webviewRef.current?.executeJavaScript<string>('navigator.clipboard.readText().catch(() => "")', true)
-    setClipboardText(text ?? '')
+    try {
+      const text = await webviewRef.current?.executeJavaScript<string>('navigator.clipboard.readText().catch(() => "")', true)
+      setClipboardText(text ?? '')
+      setTargetActionStatus({ text: 'Page clipboard read', tone: 'info' })
+    } catch {
+      setTargetActionStatus({ text: 'Page clipboard read failed', tone: 'danger' })
+    }
   }
 
   const writeClipboard = async (): Promise<void> => {
-    await webviewRef.current?.executeJavaScript(`navigator.clipboard.writeText(${JSON.stringify(clipboardText)}).catch(() => undefined)`, true)
+    try {
+      await webviewRef.current?.executeJavaScript(`navigator.clipboard.writeText(${JSON.stringify(clipboardText)}).catch(() => undefined)`, true)
+      setTargetActionStatus({ text: 'Page clipboard written', tone: 'info' })
+    } catch {
+      setTargetActionStatus({ text: 'Page clipboard write failed', tone: 'danger' })
+    }
   }
 
   const bundleAssets = async (): Promise<void> => {
@@ -1481,6 +1506,8 @@ export default function BrowserPanel({
       data-browser-error={error ?? ''}
       data-browser-current-url={currentUrl}
       data-browser-dom-targets={visibleTargets.length}
+      data-browser-target-action-status={targetActionStatus?.text ?? ''}
+      data-browser-target-action-status-tone={targetActionStatus?.tone ?? ''}
       data-browser-asset-count={assetInventory?.summary.totalCount ?? 0}
       data-browser-inline-svg-count={assetInventory?.summary.inlineSvgCount ?? 0}
       data-browser-log-count={logs.length}
@@ -2426,6 +2453,7 @@ export default function BrowserPanel({
                   selectedTargetId={selectedTargetId}
                   actionText={actionText}
                   targetReadResult={targetReadResult}
+                  targetActionStatus={targetActionStatus}
                   coordinateAction={coordinateAction}
                   clipboardText={clipboardText}
                   onActionTextChange={setActionText}
@@ -2607,6 +2635,7 @@ function TargetsPane({
   selectedTargetId,
   actionText,
   targetReadResult,
+  targetActionStatus,
   coordinateAction,
   clipboardText,
   onActionTextChange,
@@ -2622,6 +2651,7 @@ function TargetsPane({
   selectedTargetId: string
   actionText: string
   targetReadResult: BrowserTargetReadResult | null
+  targetActionStatus: BrowserTargetActionStatus | null
   coordinateAction: { x: number; y: number; scrollY: number }
   clipboardText: string
   onActionTextChange: (value: string) => void
@@ -2708,6 +2738,18 @@ function TargetsPane({
             <span className="truncate">{targetReadResult.selector || 'none'}</span>
           </div>
         )}
+        {targetActionStatus && (
+          <div
+            data-testid="browser-target-action-status"
+            className="browser-target-action-status"
+            data-browser-target-action-status-tone={targetActionStatus.tone}
+            role={targetActionStatus.tone === 'danger' ? 'alert' : 'status'}
+            aria-live={targetActionStatus.tone === 'danger' ? 'assertive' : 'polite'}
+            aria-atomic="true"
+          >
+            {targetActionStatus.text}
+          </div>
+        )}
       </InspectorSection>
       <div className="browser-target-side-stack">
         <InspectorDisclosure title="Pointer" className="browser-target-secondary-panel" dataTestId="browser-target-pointer-panel">
@@ -2741,6 +2783,12 @@ function TargetsPane({
 
 function targetActionNeedsText(action: BrowserTargetAction): boolean {
   return action === 'type' || action === 'fill' || action === 'key' || action === 'select'
+}
+
+function targetActionStatusText(action: BrowserTargetAction): string {
+  if (action === 'read') return 'Target state read'
+  if (action === 'double_click') return 'Target double click ran'
+  return `Target ${action.replace('_', ' ')} ran`
 }
 
 function AssetsPane({ inventory, bundlePath, onBundle }: { inventory: PageAssetInventory | null; bundlePath: string | null; onBundle: () => void }): JSX.Element {

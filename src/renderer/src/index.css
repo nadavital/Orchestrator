@@ -8694,6 +8694,16 @@
     white-space: nowrap;
   }
 
+  .browser-target-action-status {
+    color: var(--text-secondary);
+    font-size: 11px;
+    line-height: 1.35;
+  }
+
+  .browser-target-action-status[data-browser-target-action-status-tone='danger'] {
+    color: var(--state-danger);
+  }
+
   .browser-target-secondary-panel {
     min-width: 0;
   }
