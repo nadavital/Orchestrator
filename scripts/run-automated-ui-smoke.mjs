@@ -2032,6 +2032,7 @@ child.on('exit', async (code) => {
         permissionCard: result.permissionCardWorks === true,
         permissionActionsWrap: result.permissionActionsWrap === true,
         errorRecoveryRetry: result.errorRecoveryRetryWorks === true,
+        chatContinueLastTurn: result.chatContinueLastTurnWorks === true,
         rawEventsHiddenFromTranscript: result.rawEventsHiddenFromTranscript === true,
         narrowDocumentNoHorizontalOverflow: result.narrowDocumentNoHorizontalOverflow === true,
         narrowTranscriptNoHorizontalOverflow: result.narrowTranscriptNoHorizontalOverflow === true,

@@ -1260,6 +1260,40 @@ export const sessionManager = {
     return this.startProviderRun(sessionId, currentSession, provider, runRequest, mode)
   },
 
+  async continueLastTurn(sessionId: string): Promise<boolean> {
+    const session = this.get(sessionId)
+    if (!session) throw new Error(`Session ${sessionId} not found`)
+    if (providerRuntime.hasActiveRun(sessionId)) return false
+    const hasAssistantText = session.messages.some((message) =>
+      message.type === 'text' && message.role === 'assistant' && message.content.trim().length > 0
+    )
+    if (!hasAssistantText) return false
+    if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT && process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-layout') {
+      return true
+    }
+
+    const prompt = 'Continue from where you left off.'
+    const effectivePrompt = promptWithPersonalization(prompt)
+    this.updateStatus(sessionId, 'running')
+    this.appendMessage(sessionId, [{
+      id: uuidv4(),
+      role: 'user',
+      type: 'text',
+      content: prompt,
+      timestamp: Date.now()
+    }])
+
+    const currentSession = this.get(sessionId)!
+    const provider = getProvider(currentSession.provider ?? 'claude')
+    const mode = currentSession.providerSessionId ? 'resume' : 'start'
+    const runRequest: RunRequest = {
+      ...requestFromSession(currentSession, effectivePrompt),
+      runtime: currentSession.runtime,
+      attachments: []
+    }
+    return this.startProviderRun(sessionId, currentSession, provider, runRequest, mode)
+  },
+
   applyRunEvents(sessionId: string, events: RunEvent[]): void {
     if (events.length === 0) return
 

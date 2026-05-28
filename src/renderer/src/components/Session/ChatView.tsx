@@ -745,6 +745,7 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
                         fileReferenceRoots={fileReferenceRoots}
                         preferredEditor={preferredEditor}
                         canCopy={item.message.id === lastAssistantTextId}
+                        canContinue={item.message.id === lastAssistantTextId && !isActiveSessionStatus(session.status)}
                       />
                     )}
                 </MeasuredTranscriptRow>
@@ -1076,6 +1077,39 @@ function CopyButton({ getText }: { getText: () => string }): JSX.Element {
   )
 }
 
+function ContinueButton({ sessionId }: { sessionId: string }): JSX.Element {
+  const [state, setState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
+  const label = state === 'sending' ? 'Continuing' : state === 'sent' ? 'Continue sent' : state === 'error' ? 'Continue failed' : 'Continue'
+
+  const handleContinue = useCallback(async (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (state === 'sending') return
+    setState('sending')
+    try {
+      const ok = await window.api.sessions.continueLastTurn(sessionId)
+      setState(ok ? 'sent' : 'error')
+    } catch {
+      setState('error')
+    }
+  }, [sessionId, state])
+
+  return (
+    <Button
+      variant="ghost"
+      className="h-7 px-2 text-[11px]"
+      dataTestId="chat-continue-last-turn"
+      disabled={state === 'sending'}
+      title={label}
+      aria-label={label}
+      onClick={handleContinue}
+    >
+      {state === 'sending' ? <ThinkingDots /> : <Icon name="arrowRight" size={13} />}
+      <span data-testid="chat-continue-last-turn-label">{label}</span>
+    </Button>
+  )
+}
+
 function makeMarkdownComponents(isUser: boolean): Components {
   return {
     // Code blocks
@@ -1261,13 +1295,15 @@ function MessageRow({
   session,
   fileReferenceRoots,
   preferredEditor,
-  canCopy
+  canCopy,
+  canContinue
 }: {
   msg: ChatMessage
   session: Session
   fileReferenceRoots: string[]
   preferredEditor: PreferredEditor
   canCopy: boolean
+  canContinue: boolean
 }): JSX.Element | null {
   const [isUserMessageExpanded, setIsUserMessageExpanded] = useState(false)
 
@@ -1309,7 +1345,7 @@ function MessageRow({
           }}
         >
           <div
-            className={`min-w-0 break-words ${isUser ? 'px-4 py-3 pr-9' : 'pr-8 py-1'}`}
+            className={`min-w-0 break-words ${isUser ? 'px-4 py-3 pr-9' : canContinue ? 'pr-32 py-1' : 'pr-8 py-1'}`}
             style={{
               background: isUser ? 'var(--control-bg-active)' : 'transparent',
               color: 'var(--text-primary)',
@@ -1387,15 +1423,17 @@ function MessageRow({
               </div>
             )}
           </div>
-          {canCopy && (
+          {(canCopy || canContinue) && !isUser && (
             <div
+              className="flex items-center gap-1"
               style={{
                 position: 'absolute',
                 top: 2,
                 right: 0
               }}
             >
-              <CopyButton getText={() => content} />
+              {canContinue && <ContinueButton sessionId={session.id} />}
+              {canCopy && <CopyButton getText={() => content} />}
             </div>
           )}
         </div>

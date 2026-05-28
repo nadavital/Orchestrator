@@ -199,6 +199,8 @@ const api = {
       ipcRenderer.invoke('sessions:sendMessage', sessionId, prompt, useWorktree, attachments ?? []),
     retryLastUserMessage: (sessionId: string): Promise<boolean> =>
       ipcRenderer.invoke('sessions:retryLastUserMessage', sessionId),
+    continueLastTurn: (sessionId: string): Promise<boolean> =>
+      ipcRenderer.invoke('sessions:continueLastTurn', sessionId),
     answerSideQuestion: (sessionId: string, question: string): Promise<{ ok: boolean; answer: string; error?: string; usage?: UsageSummary }> =>
       ipcRenderer.invoke('sessions:answerSideQuestion', sessionId, question),
     updateName: (id: string, name: string): Promise<void> =>

@@ -2815,6 +2815,9 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('sessions:retryLastUserMessage', (_, sessionId: string) =>
     sessionManager.retryLastUserMessage(sessionId)
   )
+  ipcMain.handle('sessions:continueLastTurn', (_, sessionId: string) =>
+    sessionManager.continueLastTurn(sessionId)
+  )
   ipcMain.handle('sessions:answerSideQuestion', (_, sessionId: string, question: string) =>
     sessionManager.answerSideQuestion(sessionId, question)
   )

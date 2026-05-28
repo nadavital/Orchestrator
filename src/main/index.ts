@@ -19711,6 +19711,36 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
             };
           })()
         `)
+        const continueResult = await win.webContents.executeJavaScript(`
+          (async () => {
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            const scroller = document.querySelector('[data-testid="transcript-scroll"]');
+            if (!(scroller instanceof HTMLElement)) return { chatContinueLastTurnWorks: false };
+            scroller.scrollTop = 0;
+            scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
+            await sleep(260);
+            const button = document.querySelector('[data-testid="chat-continue-last-turn"]');
+            const label = document.querySelector('[data-testid="chat-continue-last-turn-label"]');
+            const scrollerRect = scroller.getBoundingClientRect();
+            const buttonRect = button instanceof HTMLElement ? button.getBoundingClientRect() : null;
+            const buttonBounded = buttonRect !== null &&
+              buttonRect.left >= scrollerRect.left - 2 &&
+              buttonRect.right <= scrollerRect.right + 2 &&
+              buttonRect.width > 0 &&
+              buttonRect.height > 0;
+            if (button instanceof HTMLButtonElement && !button.disabled) {
+              button.click();
+              await sleep(220);
+            }
+            return {
+              chatContinueLastTurnWorks:
+                button instanceof HTMLButtonElement &&
+                label instanceof HTMLElement &&
+                buttonBounded &&
+                label.textContent?.includes('Continue sent') === true
+            };
+          })()
+        `)
         const shortcutResult = await win.webContents.executeJavaScript(`
           (async () => {
             const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -19733,7 +19763,7 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
           const image = await win.webContents.capturePage()
           writeFileSync(screenshotPath, image.toPNG())
         }
-        writeFileSync(outputPath, JSON.stringify({ ok: true, result: { profile, ...result, ...narrowResult, ...retryResult, ...shortcutResult }, screenshotPath }, null, 2))
+        writeFileSync(outputPath, JSON.stringify({ ok: true, result: { profile, ...result, ...narrowResult, ...retryResult, ...continueResult, ...shortcutResult }, screenshotPath }, null, 2))
         app.quit()
       } catch (error) {
         writeFileSync(outputPath, JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2))
