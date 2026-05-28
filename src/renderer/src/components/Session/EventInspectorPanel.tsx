@@ -14,9 +14,10 @@ type EventSeverityFilter = 'all' | 'issues' | 'failures' | 'waiting'
 type EventSourceFilter = 'all' | 'agents' | 'tools' | 'approvals' | 'connection'
 
 export default function EventInspectorPanel({ session, embedded = false, activeAgentId = null }: Props): JSX.Element {
-  const { eventBuffers, uiState, setActiveAgent, closeAgentTab } = useSessionStore()
+  const { eventBuffers, rawBuffers, uiState, setActiveAgent, closeAgentTab } = useSessionStore()
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null)
   const events = eventBuffers[session.id] ?? []
+  const rawLog = rawBuffers[session.id] ?? ''
   const agents = useMemo(() => deriveSessionAgentNodes(session, events), [events, session])
   const openAgentIds = uiState[session.id]?.agentTabIds ?? (activeAgentId ? [activeAgentId] : [])
   const pinnedAgents = openAgentIds
@@ -58,6 +59,7 @@ export default function EventInspectorPanel({ session, embedded = false, activeA
         stats={stats}
         events={events}
         recentEvents={recentEvents}
+        rawLog={rawLog}
         selectedEventId={selectedEvent?.id ?? null}
         selectedEvent={selectedEvent}
         embedded={embedded}
@@ -136,6 +138,7 @@ function SessionContextSummary({
   stats,
   events,
   recentEvents,
+  rawLog,
   selectedEventId,
   selectedEvent,
   onSelectEvent,
@@ -145,6 +148,7 @@ function SessionContextSummary({
   stats: ReturnType<typeof agentStats>
   events: SessionRunEventRecord[]
   recentEvents: SessionRunEventRecord[]
+  rawLog: string
   selectedEventId: string | null
   selectedEvent: SessionRunEventRecord | null
   onSelectEvent: (id: string) => void
@@ -155,6 +159,7 @@ function SessionContextSummary({
   const [eventSourceFilter, setEventSourceFilter] = useState<EventSourceFilter>('all')
   const messageCount = session.messageCount ?? session.messages.length
   const workDirLabel = compactPath(session.workDir)
+  const transportLines = useMemo(() => transportLogLines(rawLog), [rawLog])
   const visibleEvents = useMemo(() => {
     const query = eventQuery.trim().toLowerCase()
     const hasActiveFilter = eventSeverityFilter !== 'all' || eventSourceFilter !== 'all'
@@ -271,6 +276,39 @@ function SessionContextSummary({
                 </div>
                 <Badge tone={eventTone(record)}>{eventBadge(record)}</Badge>
               </button>
+            ))}
+          </div>
+        </InspectorSection>
+      )}
+
+      {transportLines.length > 0 && (
+        <InspectorSection
+          title="Transport log"
+          dataTestId="agent-transport-log"
+          className="gap-1.5"
+        >
+          <div
+            className="grid gap-1.5"
+            data-testid="agent-transport-log-list"
+            data-agent-transport-log-bytes={rawLog.length}
+            data-agent-transport-log-lines={transportLines.length}
+          >
+            {transportLines.map((line, index) => (
+              <InspectorRow
+                key={`${line.label}-${index}`}
+                variant="muted"
+                dataTestId="agent-transport-log-line"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[11px] font-semibold" style={{ color: 'var(--color-text)' }}>
+                    {line.label}
+                  </div>
+                  <div className="truncate text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
+                    {line.preview}
+                  </div>
+                </div>
+                <Badge tone="neutral">raw</Badge>
+              </InspectorRow>
             ))}
           </div>
         </InspectorSection>
@@ -409,6 +447,65 @@ function EventDetailCard({ record }: { record: SessionRunEventRecord }): JSX.Ele
       </pre>
     </InspectorSection>
   )
+}
+
+function transportLogLines(rawLog: string): Array<{ label: string; preview: string }> {
+  return rawLog
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .slice(-4)
+    .map((line) => ({
+      label: transportLogLabel(line),
+      preview: compactText(transportLogPreview(line))
+    }))
+}
+
+function transportLogLabel(line: string): string {
+  try {
+    const parsed = JSON.parse(line) as unknown
+    if (!parsed || typeof parsed !== 'object') return 'Provider output'
+    const record = parsed as Record<string, unknown>
+    const type = typeof record.type === 'string' ? record.type : null
+    const subtype = typeof record.subtype === 'string' ? record.subtype : null
+    if (type && subtype) return `${type}.${subtype}`
+    if (type) return type
+  } catch {
+    // Non-JSON stdout/stderr remains useful as raw transport context.
+  }
+  return 'Provider output'
+}
+
+function transportLogPreview(line: string): string {
+  try {
+    const parsed = JSON.parse(line) as unknown
+    if (parsed && typeof parsed === 'object') {
+      const record = parsed as Record<string, unknown>
+      if (typeof record.content === 'string') return redactTransportLogLine(record.content)
+      const message = record.message
+      if (message && typeof message === 'object') {
+        const content = (message as Record<string, unknown>).content
+        if (typeof content === 'string') return redactTransportLogLine(content)
+      }
+      const sessionId = typeof record.session_id === 'string' ? record.session_id : null
+      const redacted = redactTransportLogLine(line)
+      if (sessionId) {
+        return redacted.includes('[redacted]')
+          ? `session ${sessionId} · [redacted]`
+          : `session ${sessionId}`
+      }
+      return redacted
+    }
+  } catch {
+    // Fall through to redacted raw text.
+  }
+  return redactTransportLogLine(line)
+}
+
+function redactTransportLogLine(line: string): string {
+  return line
+    .replace(/(api[_-]?key|token|secret|password)(["'\s:=]+)([^"',\s}]+)/gi, '$1$2[redacted]')
+    .replace(/sk-[A-Za-z0-9_-]{12,}/g, 'sk-[redacted]')
 }
 
 function CompactMetric({ label, value }: { label: string; value: number }): JSX.Element {

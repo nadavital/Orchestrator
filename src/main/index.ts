@@ -6129,6 +6129,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   agentEmptyState.textContent?.includes('No agents yet') === true;
                 const activeSmokeSession = (await window.api.sessions.list())[0];
                 const appendEventsForSmoke = window.__orchestratorAppendSessionEventsForSmoke;
+                const appendRawForSmoke = window.__orchestratorAppendSessionRawForSmoke;
                 if (activeSmokeSession && typeof appendEventsForSmoke === 'function') {
                   const now = Date.now();
                   appendEventsForSmoke(activeSmokeSession.id, [
@@ -6205,6 +6206,12 @@ function runAutomatedFocusedSurfaceSmoke(
                       }
                     }
                   ]);
+                  if (typeof appendRawForSmoke === 'function') {
+                    appendRawForSmoke(activeSmokeSession.id, [
+                      JSON.stringify({ type: 'system', subtype: 'init', session_id: 'transport-smoke-session', token: 'secret-token-smoke' }),
+                      JSON.stringify({ type: 'assistant', message: { role: 'assistant', content: 'Transport diagnostics ready.' } })
+                    ].join('\\n') + '\\n');
+                  }
                   await sleep(220);
                 }
                 const selectedAgentConversation = document.querySelector('[data-testid="agent-selected-conversation"]');
@@ -6256,6 +6263,21 @@ function runAutomatedFocusedSurfaceSmoke(
                   failedRuntimeIssueRow instanceof HTMLButtonElement &&
                   failedIssueDetail instanceof HTMLElement &&
                   failedIssueDetail.textContent?.includes('run.failed') === true;
+                const transportLog = document.querySelector('[data-testid="agent-transport-log"]');
+                const transportLogList = document.querySelector('[data-testid="agent-transport-log-list"]');
+                const transportLogRows = [...document.querySelectorAll('[data-testid="agent-transport-log-line"]')]
+                  .filter((row) => row instanceof HTMLElement);
+                const agentTransportLogWorks =
+                  transportLog instanceof HTMLElement &&
+                  transportLogList instanceof HTMLElement &&
+                  Number(transportLogList.getAttribute('data-agent-transport-log-bytes') ?? '0') > 0 &&
+                  transportLogList.getAttribute('data-agent-transport-log-lines') === '2' &&
+                  transportLogRows.length === 2 &&
+                  transportLog.textContent?.includes('system.init') === true &&
+                  transportLog.textContent?.includes('assistant') === true &&
+                  transportLog.textContent?.includes('Transport diagnostics ready') === true &&
+                  transportLog.textContent?.includes('secret-token-smoke') === false &&
+                  transportLog.textContent?.includes('[redacted]') === true;
                 const eventSearch = document.querySelector('[data-testid="agent-event-search"]');
                 if (eventSearch instanceof HTMLInputElement) {
                   const setter = Object.getOwnPropertyDescriptor(eventSearch.constructor.prototype, 'value')?.set;
@@ -6383,6 +6405,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   workbenchNewTabAgentsActionWorks,
                   agentRuntimeEventDetailWorks,
                   agentRuntimeFailureGroupsWorks,
+                  agentTransportLogWorks,
                   agentSelectedTimelineWorks,
                   agentRuntimeEventFacetFiltersWork,
                   agentRuntimeEventFacetFilterError,

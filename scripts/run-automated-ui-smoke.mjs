@@ -2239,6 +2239,7 @@ child.on('exit', async (code) => {
           agentRuntimeEventFilter: result.agentRuntimeEventFilterWorks === true,
           agentRuntimeFailureGroups: result.agentRuntimeFailureGroupsWorks === true,
           agentRuntimeIssueTriage: result.agentRuntimeIssueTriageWorks === true,
+          agentTransportLog: result.agentTransportLogWorks === true,
           workbenchNewTabCards: Number(result.workbenchNewTabActionCount ?? 0) >= 5,
           workbenchNewTabNoHorizontalOverflow: result.workbenchNewTabNoHorizontalOverflow === true
         }

@@ -1420,7 +1420,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   appendRaw: (id, data) =>
     set((s) => ({
-      rawBuffers: { ...s.rawBuffers, [id]: (s.rawBuffers[id] ?? '') + data }
+      rawBuffers: { ...s.rawBuffers, [id]: `${s.rawBuffers[id] ?? ''}${data}`.slice(-20000) }
     }))
 }))
 

@@ -191,11 +191,16 @@ export default function App(): JSX.Element {
   useEffect(() => {
     const globals = window as typeof window & {
       __orchestratorAppendSessionEventsForSmoke?: (sessionId: string, events: SessionRunEventRecord[]) => boolean
+      __orchestratorAppendSessionRawForSmoke?: (sessionId: string, data: string) => boolean
       __orchestratorSetActiveSessionForSmoke?: (sessionId: string) => boolean
     }
     globals.__orchestratorAppendSessionEventsForSmoke = (sessionId, events) => {
       appendEvents(sessionId, events)
       applyBrowserManagerRunEvents(sessionId, events)
+      return true
+    }
+    globals.__orchestratorAppendSessionRawForSmoke = (sessionId, data) => {
+      appendRaw(sessionId, data)
       return true
     }
     globals.__orchestratorSetActiveSessionForSmoke = (sessionId) => {
@@ -209,9 +214,10 @@ export default function App(): JSX.Element {
     }
     return () => {
       delete globals.__orchestratorAppendSessionEventsForSmoke
+      delete globals.__orchestratorAppendSessionRawForSmoke
       delete globals.__orchestratorSetActiveSessionForSmoke
     }
-  }, [appendEvents])
+  }, [appendEvents, appendRaw])
 
   const createNewChat = useCallback(async (): Promise<void> => {
     const sessionState = useSessionStore.getState()
