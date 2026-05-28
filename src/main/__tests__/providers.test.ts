@@ -371,9 +371,11 @@ test('resolved permission policies expose GUI metadata for adaptive controls', (
     configSource: 'mixed'
   })
 
-  assert.equal(runtimeInfo.cursor.policies.sandbox.intent, 'workspaceSandbox')
-  assert.ok(runtimeInfo.cursor.policies.sandbox.controls?.some((control) => control.kind === 'config'))
-  assert.equal(runtimeInfo.cursor.policies.sandbox.execution?.sandboxMode, 'enabled')
+  assert.equal(runtimeInfo.cursor.policies.default.intent, 'workspaceSandbox')
+  assert.ok(runtimeInfo.cursor.policies.default.controls?.some((control) => control.kind === 'config'))
+  assert.equal(runtimeInfo.cursor.policies.default.execution?.sandboxMode, 'enabled')
+  assert.equal(runtimeInfo.cursor.policies.ask.intent, 'ask')
+  assert.equal(runtimeInfo.cursor.policies.ask.execution?.sandboxMode, 'read-only')
 })
 
 test('runtime info distinguishes interactive permission support from forced unattended modes', () => {
@@ -1678,17 +1680,27 @@ test('cursor fixture normalizes anthropic-style and cursor tool-call events', ()
   assert.equal(completed.content, 'README contents')
 })
 
-test('cursor default policy uses read-only ask mode', () => {
+test('cursor default policy uses edit-capable sandbox mode', () => {
   const resolved = PROVIDERS.cursor.resolveExecutionPolicy('default')
   const command = PROVIDERS.cursor.buildStartCommand!(request({ model: 'auto' }))
 
   assert.equal(resolved.support, 'exact')
-  assert.equal(resolved.intent, 'ask')
+  assert.equal(resolved.intent, 'workspaceSandbox')
   assert.equal(command.args.includes('--print'), true)
-  assert.equal(command.args[command.args.indexOf('--mode') + 1], 'ask')
+  assert.equal(command.args[command.args.indexOf('--sandbox') + 1], 'enabled')
   assert.equal(command.args.includes('--force'), false)
   assert.equal(command.args.includes('--trust'), true)
   assert.equal(command.args[command.args.indexOf('--workspace') + 1], '/tmp/orchestrator-test')
+})
+
+test('cursor ask policy is explicitly read-only', () => {
+  const resolved = PROVIDERS.cursor.resolveExecutionPolicy('ask')
+  const command = PROVIDERS.cursor.buildStartCommand!(request({ model: 'auto', executionPolicy: 'ask' }))
+
+  assert.equal(resolved.support, 'exact')
+  assert.equal(resolved.intent, 'ask')
+  assert.equal(command.args[command.args.indexOf('--mode') + 1], 'ask')
+  assert.equal(command.args.includes('--force'), false)
 })
 
 test('cursor sandbox policy requests sandbox without forced all-tools mode', () => {
