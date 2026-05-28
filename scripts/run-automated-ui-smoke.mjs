@@ -2865,6 +2865,7 @@ child.on('exit', async (code) => {
         composerAttachmentsPerChat: captureView !== 'composer' || result.composerAttachmentsPerChat === true,
         composerAttachmentsClearedOnSwitch: captureView !== 'composer' || result.composerAttachmentsClearedOnSwitch === true,
         composerAttachmentOnlySessionPreserved: captureView !== 'composer' || result.composerAttachmentOnlySessionPreserved === true,
+        composerAttachmentStatus: captureView !== 'composer' || result.composerAttachmentStatusWorks === true,
         composerDropOverlay: captureView !== 'composer' || result.composerDropOverlayWorks === true,
         composerDragDropAttachment: captureView !== 'composer' || result.composerDragDropAttachmentWorks === true,
         composerToolbarResponsive: captureView !== 'composer' || result.composerToolbarResponsiveWorks === true,

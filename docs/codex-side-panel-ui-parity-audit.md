@@ -8182,3 +8182,13 @@ Implemented: the Review floating local-git action pill now exposes a compact liv
 Verification: `pnpm exec tsc --noEmit` and `node -c scripts/run-automated-ui-smoke.mjs` passed. Focused `node scripts/run-automated-ui-smoke.mjs --diff-core` first hit the expected sandbox localhost bind failure; the elevated final rerun passed with `reviewFloatingGitActionStatus=true` alongside `reviewFloatingGitActions=true`, `reviewRevertAllConfirmation=true`, `reviewGitApplyCommandCoversAll=true`, and the existing Review core gates. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-core-1779956104059.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-core-1779956104059.png`.
 
 Remaining: this closes local Review git-action status feedback only. Provider checkpoint Undo, provider-native hosted/cloud Review sources, real PR/check/reviewer metadata adapters, provider-backed comments/blame, and live Codex side-by-side Review spacing remain open.
+
+### 2026-05-28 - Composer Attachment Status
+
+Product evidence: composer attachments are daily coding controls. Adding a file from Files/source tabs, drag/drop, paste/save, or the attach picker should leave visible and announced feedback; removing an attachment should be equally explicit instead of only making a chip disappear.
+
+Implemented: the main composer now exposes a compact attachment-status pill as a polite live region for add, save, cancel, remove, and failure states. The composer shell mirrors the latest attachment status and tone through data attributes so smoke coverage can verify the user-visible state, not just hidden store mutation. The focused composer smoke now gates add/remove status with `composerAttachmentStatus=true`.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and focused `node scripts/run-automated-ui-smoke.mjs --composer` passed. The first non-elevated smoke hit the expected sandbox localhost bind failure; the elevated final rerun passed with `composerAttachmentStatus=true` alongside the existing composer permission, agent, blocked-send, queued-cancel, draft, attachment-preservation, drag/drop, and responsive-toolbar gates. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1779956869196.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1779956869196.png`.
+
+Remaining: this closes local attachment add/remove/save/cancel/failure feedback only. Deeper context/permission workflow polish and real provider-backed retry/continue/model/permission proof remain Phase 1 work.

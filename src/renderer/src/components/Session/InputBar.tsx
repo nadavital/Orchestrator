@@ -64,6 +64,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   const [claudeAgentsStatus, setClaudeAgentsStatus] = useState<'idle' | 'loading' | 'loaded' | 'error'>('idle')
   const [isSavingPastedFiles, setIsSavingPastedFiles] = useState(false)
   const [dragActive, setDragActive] = useState(false)
+  const [attachmentStatus, setAttachmentStatus] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const cancelledPendingAttachments = useRef<Set<string>>(new Set())
   const activeAttachmentSaves = useRef<Set<string>>(new Set())
@@ -147,6 +148,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     setPendingAttachments([])
     setIsSavingPastedFiles(false)
     setDragActive(false)
+    setAttachmentStatus(null)
     setSlashIndex(0)
     window.setTimeout(() => {
       if (textareaRef.current) resizeTextarea(textareaRef.current)
@@ -170,6 +172,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
           size: detail.size
         }
       ]))
+      setAttachmentStatus({ text: `Attached ${name}`, tone: 'info' })
       textareaRef.current?.focus()
     }
     window.addEventListener('orchestrator:add-composer-attachment', onAddComposerAttachment)
@@ -379,6 +382,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
       size: file.size
     }))
     setComposerAttachments(session.id, (current) => dedupeAttachments([...current, ...next]))
+    setAttachmentStatus({ text: `Attached ${next.length} ${next.length === 1 ? 'file' : 'files'}`, tone: 'info' })
     textareaRef.current?.focus()
   }
 
@@ -394,6 +398,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     for (const item of pending) activeAttachmentSaves.current.add(item.id)
     setPendingAttachments((current) => [...current, ...pending])
     setIsSavingPastedFiles(true)
+    setAttachmentStatus({ text: `Saving ${files.length} ${files.length === 1 ? 'attachment' : 'attachments'}`, tone: 'info' })
     try {
       const saved = await Promise.all(files.map(async (file, index): Promise<{ pendingId: string; attachment?: Attachment; error?: string }> => {
         const pendingId = pending[index].id
@@ -428,6 +433,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
       const next = saved.flatMap((result) => result.attachment ? [result.attachment] : [])
       if (next.length > 0) {
         setComposerAttachments(targetSessionId, (current) => dedupeAttachments([...current, ...next]))
+        setAttachmentStatus({ text: `Attached ${next.length} ${next.length === 1 ? 'file' : 'files'}`, tone: 'info' })
         if (useSessionStore.getState().activeSessionId === targetSessionId) {
           textareaRef.current?.focus()
         }
@@ -438,6 +444,9 @@ function InputBar({ session, isNew }: Props): JSX.Element {
         .map((item): PendingAttachment => failed.has(item.id) ? { ...item, status: 'error', error: failed.get(item.id) } : item)
         .filter((item) => !completedIds.has(item.id))
       )
+      if (failed.size > 0) {
+        setAttachmentStatus({ text: `${failed.size} ${failed.size === 1 ? 'attachment' : 'attachments'} failed`, tone: 'danger' })
+      }
     } finally {
       for (const item of pending) {
         cancelledPendingAttachments.current.delete(item.id)
@@ -452,6 +461,15 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     activeAttachmentSaves.current.delete(id)
     setIsSavingPastedFiles(activeAttachmentSaves.current.size > 0)
     setPendingAttachments((current) => current.filter((item) => item.id !== id))
+    setAttachmentStatus({ text: 'Attachment canceled', tone: 'info' })
+  }
+
+  const removeAttachment = (attachment: Attachment): void => {
+    const label = attachment.kind === 'local_file'
+      ? attachment.name
+      : attachment.name ?? attachment.relativePath
+    setComposerAttachments(session.id, (current) => current.filter((item) => item.id !== attachment.id))
+    setAttachmentStatus({ text: `Removed ${label}`, tone: 'info' })
   }
 
   const slashQuery = getSlashQuery(text)
@@ -624,6 +642,8 @@ function InputBar({ session, isNew }: Props): JSX.Element {
         className="composer-shell overflow-visible mx-auto"
         data-testid="composer-shell"
         data-drag-active={dragActive ? 'true' : 'false'}
+        data-composer-attachment-status={attachmentStatus?.text ?? ''}
+        data-composer-attachment-status-tone={attachmentStatus?.tone ?? ''}
         onDragEnter={handleDragEvent}
         onDragOver={handleDragEvent}
         onDragLeave={handleDragEvent}
@@ -684,7 +704,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
               <AttachmentChip
                 key={attachment.id}
                 attachment={attachment}
-                onRemove={() => setComposerAttachments(session.id, (current) => current.filter((item) => item.id !== attachment.id))}
+                onRemove={() => removeAttachment(attachment)}
               />
             ))}
             {pendingAttachments.map((attachment) => (
@@ -694,6 +714,18 @@ function InputBar({ session, isNew }: Props): JSX.Element {
                 onRemove={() => cancelPendingAttachment(attachment.id)}
               />
             ))}
+          </div>
+        )}
+        {attachmentStatus && (
+          <div
+            className="composer-attachment-status mx-4 mb-2"
+            data-testid="composer-attachment-status"
+            data-composer-attachment-status-tone={attachmentStatus.tone}
+            role={attachmentStatus.tone === 'danger' ? 'alert' : 'status'}
+            aria-live={attachmentStatus.tone === 'danger' ? 'assertive' : 'polite'}
+            aria-atomic="true"
+          >
+            {attachmentStatus.text}
           </div>
         )}
         {composerSendNotice && (

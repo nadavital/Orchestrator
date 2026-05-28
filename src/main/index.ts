@@ -4844,6 +4844,39 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               [...document.querySelectorAll('[aria-label="Attachments"] .attachment-pill')]
                 .map((element) => element.textContent?.trim() ?? '')
                 .filter(Boolean);
+            const composerAttachmentStatus = () => document.querySelector('[data-testid="composer-attachment-status"]');
+            const waitForComposerAttachmentStatus = async (text) => {
+              for (let attempt = 0; attempt < 12; attempt += 1) {
+                const status = composerAttachmentStatus();
+                const shell = document.querySelector('[data-testid="composer-shell"]');
+                if (
+                  status instanceof HTMLElement &&
+                  status.textContent?.includes(text) === true &&
+                  shell instanceof HTMLElement &&
+                  shell.getAttribute('data-composer-attachment-status')?.includes(text) === true
+                ) {
+                  return { shell, status };
+                }
+                await sleep(80);
+              }
+              return {
+                shell: document.querySelector('[data-testid="composer-shell"]'),
+                status: composerAttachmentStatus()
+              };
+            };
+            const waitForAttachmentRemoveButton = async (name) => {
+              const label = 'Remove ' + String(name);
+              const findButton = () =>
+                [...document.querySelectorAll('[aria-label]')]
+                  .find((element) => element.getAttribute('aria-label') === label);
+              for (let attempt = 0; attempt < 12; attempt += 1) {
+                const button = findButton();
+                if (button instanceof HTMLButtonElement) return button;
+                await sleep(80);
+              }
+              const button = findButton();
+              return button instanceof HTMLButtonElement ? button : null;
+            };
             const addComposerAttachment = (name, path) => {
               window.dispatchEvent(new CustomEvent('orchestrator:add-composer-attachment', {
                 detail: { name, path, size: 32 }
@@ -4931,6 +4964,58 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               composerSecondAttachmentRestored &&
               attachmentLabels().some((label) => label.includes('draft-one.txt')) &&
               !attachmentLabels().some((label) => label.includes('draft-two.txt'));
+            addComposerAttachment('status-remove.txt', '/tmp/orchestrator-status-remove.txt');
+            const {
+              shell: composerShellAfterAttachmentAdd,
+              status: attachmentStatusAfterAdd
+            } = await waitForComposerAttachmentStatus('Attached status-remove.txt');
+            const attachmentStatusAfterAddSnapshot = {
+              text: attachmentStatusAfterAdd instanceof HTMLElement ? attachmentStatusAfterAdd.textContent : null,
+              role: attachmentStatusAfterAdd instanceof HTMLElement ? attachmentStatusAfterAdd.getAttribute('role') : null,
+              live: attachmentStatusAfterAdd instanceof HTMLElement ? attachmentStatusAfterAdd.getAttribute('aria-live') : null,
+              atomic: attachmentStatusAfterAdd instanceof HTMLElement ? attachmentStatusAfterAdd.getAttribute('aria-atomic') : null,
+              shellStatus: composerShellAfterAttachmentAdd instanceof HTMLElement
+                ? composerShellAfterAttachmentAdd.getAttribute('data-composer-attachment-status')
+                : null,
+              shellTone: composerShellAfterAttachmentAdd instanceof HTMLElement
+                ? composerShellAfterAttachmentAdd.getAttribute('data-composer-attachment-status-tone')
+                : null
+            };
+            const attachmentRemoveButton = await waitForAttachmentRemoveButton('status-remove.txt');
+            if (attachmentRemoveButton instanceof HTMLButtonElement) {
+              attachmentRemoveButton.click();
+            }
+            const {
+              shell: composerShellAfterAttachmentRemove,
+              status: attachmentStatusAfterRemove
+            } = await waitForComposerAttachmentStatus('Removed status-remove.txt');
+            var composerAttachmentStatusWorks =
+              attachmentStatusAfterAddSnapshot.role === 'status' &&
+              attachmentStatusAfterAddSnapshot.live === 'polite' &&
+              attachmentStatusAfterAddSnapshot.atomic === 'true' &&
+              attachmentStatusAfterAddSnapshot.text?.includes('Attached status-remove.txt') === true &&
+              attachmentStatusAfterAddSnapshot.shellStatus === 'Attached status-remove.txt' &&
+              attachmentStatusAfterAddSnapshot.shellTone === 'info' &&
+              attachmentRemoveButton instanceof HTMLButtonElement &&
+              attachmentStatusAfterRemove instanceof HTMLElement &&
+              attachmentStatusAfterRemove.textContent?.includes('Removed status-remove.txt') === true &&
+              composerShellAfterAttachmentRemove instanceof HTMLElement &&
+              composerShellAfterAttachmentRemove.getAttribute('data-composer-attachment-status') === 'Removed status-remove.txt' &&
+              !attachmentLabels().some((label) => label.includes('status-remove.txt'));
+            var composerAttachmentStatusDebug = {
+              addText: attachmentStatusAfterAddSnapshot.text,
+              addRole: attachmentStatusAfterAddSnapshot.role,
+              addLive: attachmentStatusAfterAddSnapshot.live,
+              addAtomic: attachmentStatusAfterAddSnapshot.atomic,
+              addShellStatus: attachmentStatusAfterAddSnapshot.shellStatus,
+              addShellTone: attachmentStatusAfterAddSnapshot.shellTone,
+              removeButtonFound: attachmentRemoveButton instanceof HTMLButtonElement,
+              removeText: attachmentStatusAfterRemove instanceof HTMLElement ? attachmentStatusAfterRemove.textContent : null,
+              removeShellStatus: composerShellAfterAttachmentRemove instanceof HTMLElement
+                ? composerShellAfterAttachmentRemove.getAttribute('data-composer-attachment-status')
+                : null,
+              labelsAfterRemove: attachmentLabels()
+            };
             const attachmentOnlyRow = rowForTitle('Attachment only smoke');
             attachmentOnlyRow?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
             await sleep(220);
@@ -6256,6 +6341,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             composerFirstAttachmentRestored: typeof composerFirstAttachmentRestored === 'boolean' ? composerFirstAttachmentRestored : null,
             composerSecondAttachmentRestored: typeof composerSecondAttachmentRestored === 'boolean' ? composerSecondAttachmentRestored : null,
             composerAttachmentOnlySessionPreserved: typeof composerAttachmentOnlySessionPreserved === 'boolean' ? composerAttachmentOnlySessionPreserved : null,
+            composerAttachmentStatusWorks: typeof composerAttachmentStatusWorks === 'boolean' ? composerAttachmentStatusWorks : null,
+            composerAttachmentStatusDebug: typeof composerAttachmentStatusDebug === 'object' ? composerAttachmentStatusDebug : null,
             composerDropOverlayWorks,
             composerDragDropAttachmentWorks,
             buttonCount: buttons.length,
