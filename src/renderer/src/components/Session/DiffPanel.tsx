@@ -61,6 +61,9 @@ const REVIEW_SIDE_PANE_DEFAULT_WIDTH = 220
 const REVIEW_SIDE_PANE_MAX_RATIO = 0.6
 const REVIEW_REVERT_CONFIRM_SKIP_STORAGE_KEY = 'orchestrator.review.revert.confirm.skip'
 const REVIEW_SEARCH_MATCH_CAP = 250
+const REVIEW_OPTIONS_MENU_ID = 'review-options-menu-surface'
+const REVIEW_FILE_JUMP_MENU_ID = 'review-file-jump-menu-surface'
+const REVIEW_METADATA_MENU_ID = 'review-metadata-menu-surface'
 
 export default function DiffPanel({ sessionId, workDir, embedded = false }: Props): JSX.Element {
   const [files, setFiles] = useState<FileChange[]>([])
@@ -877,6 +880,8 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
         className="review-file-jump-button"
         aria-label="Jump to file"
         aria-expanded={fileJumpOpen}
+        aria-controls={REVIEW_FILE_JUMP_MENU_ID}
+        aria-haspopup="menu"
         data-testid="review-file-jump"
         onClick={() => {
           setFileJumpOpen((open) => !open)
@@ -888,6 +893,7 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
       </button>
       {fileJumpOpen && (
         <MenuSurface
+          id={REVIEW_FILE_JUMP_MENU_ID}
           className="review-file-jump-menu"
           onClose={() => setFileJumpOpen(false)}
           style={{ position: 'absolute', right: 0, top: 34, width: 300, zIndex: 92 }}
@@ -939,6 +945,9 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
         variant="toolbar"
         active={reviewOptionsOpen}
         dataTestId="review-options-menu"
+        ariaExpanded={reviewOptionsOpen}
+        ariaControls={REVIEW_OPTIONS_MENU_ID}
+        ariaHasPopup="menu"
         onClick={() => {
           setReviewOptionsOpen((open) => !open)
           setFileJumpOpen(false)
@@ -947,6 +956,7 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
       />
       {reviewOptionsOpen && (
         <MenuSurface
+          id={REVIEW_OPTIONS_MENU_ID}
           className="review-options-menu-surface"
           onClose={() => setReviewOptionsOpen(false)}
           style={{ position: 'absolute', right: 0, top: 34, width: 244, zIndex: 92 }}
@@ -1589,10 +1599,14 @@ function ReviewMetadataStrip({
         variant="toolbar"
         active={openPanel !== null}
         dataTestId="review-metadata-menu"
+        ariaExpanded={openPanel !== null}
+        ariaControls={REVIEW_METADATA_MENU_ID}
+        ariaHasPopup="menu"
         onClick={() => onOpenPanelChange(openPanel === null ? 'pull-request' : null)}
       />
       {openPanel !== null && (
         <MenuSurface
+          id={REVIEW_METADATA_MENU_ID}
           className="review-metadata-menu"
           onClose={() => onOpenPanelChange(null)}
           style={{ position: 'absolute', right: 0, top: 34, width: 278, zIndex: 92 }}
@@ -1939,6 +1953,7 @@ function ReviewRefPicker({
   onOpenChange: (open: boolean) => void
   onQueryChange: (value: string) => void
 }): JSX.Element {
+  const menuId = `${buttonTestId}-menu`
   return (
     <div className="review-source-ref-row">
       <span>{label}</span>
@@ -1956,6 +1971,8 @@ function ReviewRefPicker({
           className="review-source-ref-picker-button"
           aria-label={`Choose ${label.toLowerCase()}`}
           aria-expanded={open}
+          aria-controls={menuId}
+          aria-haspopup="menu"
           data-testid={buttonTestId}
           onClick={() => onOpenChange(!open)}
         >
@@ -1963,6 +1980,7 @@ function ReviewRefPicker({
         </button>
         {open && (
           <MenuSurface
+            id={menuId}
             className="review-source-ref-menu"
             onClose={() => onOpenChange(false)}
             style={{ position: 'absolute', right: 0, top: 28, width: 290, zIndex: 94 }}

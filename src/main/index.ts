@@ -10657,8 +10657,15 @@ function runAutomatedFocusedSurfaceSmoke(
                   reviewOptionsButton.click();
                   await sleep(120);
                 }
+                const reviewOptionsMenuId = reviewOptionsButton.getAttribute('aria-controls') ?? '';
+                reviewOptionsMenuStateWorks =
+                  reviewOptionsButton.getAttribute('aria-haspopup') === 'menu' &&
+                  reviewOptionsButton.getAttribute('aria-expanded') === 'true' &&
+                  reviewOptionsMenuId === 'review-options-menu-surface' &&
+                  document.getElementById(reviewOptionsMenuId) instanceof HTMLElement;
                 return document.querySelector('[data-testid="review-source-mode"]') instanceof HTMLElement;
               };
+              let reviewOptionsMenuStateWorks = false;
               const clickReviewSource = async (source) => {
                 if (!(await openReviewOptions())) return false;
                 const sourceButton = document.querySelector('[data-testid="review-source-' + source + '"]');
@@ -10991,12 +10998,20 @@ function runAutomatedFocusedSurfaceSmoke(
               const allStagedSourceText = activeReviewPanelText();
               const allSourceText = allPaneText + ' ' + allUnstagedSourceText + ' ' + allStagedSourceText;
               const allSourceActive = document.querySelector('.diff-panel-root')?.getAttribute('data-review-source') ?? '';
+              let branchPickerMenuStateWorks = false;
+              let branchPickerClosedStateWorks = false;
               if (await clickReviewSource('branch')) {
                 await sleep(120);
                 const branchPickerButton = document.querySelector('[data-testid="review-source-branch-picker"]');
                 if (branchPickerButton instanceof HTMLButtonElement) {
                   branchPickerButton.click();
                   await sleep(140);
+                  const branchPickerMenuId = branchPickerButton.getAttribute('aria-controls') ?? '';
+                  branchPickerMenuStateWorks =
+                    branchPickerButton.getAttribute('aria-haspopup') === 'menu' &&
+                    branchPickerButton.getAttribute('aria-expanded') === 'true' &&
+                    branchPickerMenuId === 'review-source-branch-picker-menu' &&
+                    document.getElementById(branchPickerMenuId) instanceof HTMLElement;
                   const branchPickerSearch = document.querySelector('[data-testid="review-source-branch-picker-search"]');
                   if (branchPickerSearch instanceof HTMLInputElement) {
                     setNativeValue(branchPickerSearch, 'review-base-branch');
@@ -11009,6 +11024,9 @@ function runAutomatedFocusedSurfaceSmoke(
                     branchPickerItem.click();
                     await sleep(260);
                   }
+                  branchPickerClosedStateWorks =
+                    branchPickerButton.getAttribute('aria-expanded') === 'false' &&
+                    document.getElementById(branchPickerMenuId) === null;
                 }
                 const branchRefInput = document.querySelector('[data-testid="review-source-branch-ref"]');
                 if (branchRefInput instanceof HTMLInputElement && branchRefInput.value !== 'review-base-branch') {
@@ -11033,17 +11051,28 @@ function runAutomatedFocusedSurfaceSmoke(
               const branchSourcePersisted = Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index))
                 .filter((key) => typeof key === 'string' && key.startsWith('orchestrator.review.sourceRef:branch:'))
                 .some((key) => key !== null && localStorage.getItem(key) === 'review-base-branch');
+              let commitPickerMenuStateWorks = false;
+              let commitPickerClosedStateWorks = false;
               if (await clickReviewSource('commit')) {
                 await sleep(120);
                 const commitPickerButton = document.querySelector('[data-testid="review-source-commit-picker"]');
                 if (commitPickerButton instanceof HTMLButtonElement) {
                   commitPickerButton.click();
                   await sleep(140);
+                  const commitPickerMenuId = commitPickerButton.getAttribute('aria-controls') ?? '';
+                  commitPickerMenuStateWorks =
+                    commitPickerButton.getAttribute('aria-haspopup') === 'menu' &&
+                    commitPickerButton.getAttribute('aria-expanded') === 'true' &&
+                    commitPickerMenuId === 'review-source-commit-picker-menu' &&
+                    document.getElementById(commitPickerMenuId) instanceof HTMLElement;
                   const commitPickerItem = document.querySelector('[data-testid="review-source-commit-picker-item"]');
                   if (commitPickerItem instanceof HTMLButtonElement) {
                     commitPickerItem.click();
                     await sleep(300);
                   }
+                  commitPickerClosedStateWorks =
+                    commitPickerButton.getAttribute('aria-expanded') === 'false' &&
+                    document.getElementById(commitPickerMenuId) === null;
                 }
                 const commitRefInput = document.querySelector('[data-testid="review-source-commit-ref"]');
                 if (commitRefInput instanceof HTMLInputElement && !commitRefInput.value.trim()) {
@@ -11110,6 +11139,7 @@ function runAutomatedFocusedSurfaceSmoke(
 	                commitSourceText.includes('branch source committed');
               const reviewSourceModesDebug = {
                 sourceButtonsAvailable,
+                reviewOptionsMenuStateWorks,
                 providerNativeSourceRowsWork,
                 reviewProviderSourceUnavailableReasonsWork,
 	                localProviderSourceAvailable,
@@ -11138,6 +11168,8 @@ function runAutomatedFocusedSurfaceSmoke(
 	                allHasStagedFile: allPaneText.includes('staged-source-smoke.txt'),
 	                branchSourceActive,
 	                branchPickerWorks,
+	                branchPickerMenuStateWorks,
+	                branchPickerClosedStateWorks,
 	                branchSourcePersisted,
 	                branchFileSelected,
 	                branchHasBranchFile: branchSourceText.includes('branch-source-smoke.txt'),
@@ -11145,6 +11177,8 @@ function runAutomatedFocusedSurfaceSmoke(
 	                branchLeaksUnstagedFile: branchPaneText.includes('review-base.txt'),
 	                commitSourceActive,
 	                commitPickerWorks,
+	                commitPickerMenuStateWorks,
+	                commitPickerClosedStateWorks,
 	                commitFileSelected,
 	                commitHasBranchFile: commitSourceText.includes('branch-source-smoke.txt'),
 	                commitHasBranchContent: commitSourceText.includes('branch source committed'),
@@ -12331,9 +12365,17 @@ function runAutomatedFocusedSurfaceSmoke(
                 .find((button) => button instanceof HTMLElement && button.getBoundingClientRect().width > 0);
               const activeReviewRoot = document.querySelector('.diff-panel-root[data-embedded="true"]');
               const reviewJumpButton = visibleReviewJumpButton;
+              let reviewFileJumpMenuStateWorks = false;
+              let reviewJumpMenuId = '';
               if (reviewJumpButton instanceof HTMLButtonElement) {
                 reviewJumpButton.click();
                 await sleep(120);
+                reviewJumpMenuId = reviewJumpButton.getAttribute('aria-controls') ?? '';
+                reviewFileJumpMenuStateWorks =
+                  reviewJumpButton.getAttribute('aria-haspopup') === 'menu' &&
+                  reviewJumpButton.getAttribute('aria-expanded') === 'true' &&
+                  reviewJumpMenuId === 'review-file-jump-menu-surface' &&
+                  document.getElementById(reviewJumpMenuId) instanceof HTMLElement;
               }
               const reviewJumpSearch = document.querySelector('[data-testid="review-file-jump-search"]');
               let reviewMenuMessageWorks = false;
@@ -12363,6 +12405,11 @@ function runAutomatedFocusedSurfaceSmoke(
                 reviewJumpItem.click();
                 await sleep(180);
               }
+              reviewFileJumpMenuStateWorks =
+                reviewFileJumpMenuStateWorks &&
+                reviewJumpButton instanceof HTMLButtonElement &&
+                reviewJumpButton.getAttribute('aria-expanded') === 'false' &&
+                document.getElementById(reviewJumpMenuId) === null;
               const reviewJumpActiveRow = currentDiffPanelList()?.getAttribute('data-active-row-id') ?? '';
               const reviewJumpSelectedFile = activeReviewRoot?.getAttribute('data-review-selected-file') ?? '';
               const reviewFileJumpWorks =
@@ -12707,9 +12754,15 @@ function runAutomatedFocusedSurfaceSmoke(
 	                  reviewSearchWorks,
 	                  reviewSearchProjectionWorks,
                     reviewSearchContentWorks,
-                    reviewSourceModesWork,
-                    reviewSourceModesDebug,
-                    reviewProviderSourceUnavailableReasonsWork,
+                  reviewSourceModesWork,
+                  reviewSourceModesDebug,
+                  reviewOptionsMenuStateWorks,
+                  reviewSourceRefMenuStateWorks:
+                    branchPickerMenuStateWorks &&
+                    branchPickerClosedStateWorks &&
+                    commitPickerMenuStateWorks &&
+                    commitPickerClosedStateWorks,
+                  reviewProviderSourceUnavailableReasonsWork,
 	                  reviewTranscriptCardLastTurnWorks,
 	                  reviewLastTurnGitApplyCommandWorks,
 	                  reviewLastTurnGitApplyCommandDebug,
@@ -12726,6 +12779,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   reviewGutterBlameSummaryWork,
                   reviewGutterActionPopoverWork,
                   reviewMenuMessageWorks,
+                  reviewFileJumpMenuStateWorks,
                   reviewFileJumpWorks,
                   reviewSidePaneChromeWorks,
                   reviewSidePaneChromeDebug,
@@ -12929,10 +12983,12 @@ function runAutomatedFocusedSurfaceSmoke(
               const reviewMetadataMenuButton = document.querySelector('[data-testid="review-metadata-menu"]');
               let reviewMetadataToolbarWorks = false;
               let reviewMetadataFlyoutSharedWorks = false;
+              let reviewMetadataMenuStateWorks = false;
               if (reviewMetadataMenuButton instanceof HTMLButtonElement) {
                 reviewMetadataMenuButton.click();
                 for (let attempt = 0; attempt < 10; attempt += 1) {
                   await sleep(80);
+                  const reviewMetadataMenuId = reviewMetadataMenuButton.getAttribute('aria-controls') ?? '';
                   const reviewMetadataSection = document.querySelector('[data-testid="review-metadata-section"]');
                   const reviewMetadataSectionLabel = reviewMetadataSection?.querySelector('[data-menu-section-label="true"]');
                   const reviewMetadataPr = document.querySelector('[data-testid="review-metadata-pr"]');
@@ -12945,6 +13001,10 @@ function runAutomatedFocusedSurfaceSmoke(
                   const reviewMetadataCommentsRow = document.querySelector('[data-testid="review-metadata-comments-row"]');
                   if (
                     reviewMetadataStrip instanceof HTMLElement &&
+                    reviewMetadataMenuButton.getAttribute('aria-haspopup') === 'menu' &&
+                    reviewMetadataMenuButton.getAttribute('aria-expanded') === 'true' &&
+                    reviewMetadataMenuId === 'review-metadata-menu-surface' &&
+                    document.getElementById(reviewMetadataMenuId) instanceof HTMLElement &&
                     reviewMetadataStrip.getAttribute('data-review-metadata-pr') === 'true' &&
                     reviewMetadataStrip.getAttribute('data-review-metadata-checks') === 'failing' &&
                     reviewMetadataStrip.getAttribute('data-review-metadata-reviewers') === '4' &&
@@ -12961,6 +13021,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     (reviewMetadataComments.textContent ?? '').includes('5 comments') &&
                     (reviewMetadataComments.textContent ?? '').includes('1 unresolved')
                   ) {
+                    reviewMetadataMenuStateWorks = true;
                     reviewMetadataToolbarWorks = true;
                     reviewMetadataFlyoutSharedWorks =
                       reviewMetadataSection instanceof HTMLElement &&
@@ -12979,6 +13040,10 @@ function runAutomatedFocusedSurfaceSmoke(
                 }
                 reviewMetadataMenuButton.click();
                 await sleep(80);
+                reviewMetadataMenuStateWorks =
+                  reviewMetadataMenuStateWorks &&
+                  reviewMetadataMenuButton.getAttribute('aria-expanded') === 'false' &&
+                  document.getElementById('review-metadata-menu-surface') === null;
               }
               const reviewVisualCheckpointResetWorks =
                 finalDiffToolbar instanceof HTMLElement &&
@@ -13093,6 +13158,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 reviewSourceSummaryHeaderWorks,
                 reviewMetadataToolbarWorks,
 	                reviewMetadataFlyoutSharedWorks,
+	                reviewMetadataMenuStateWorks,
 	                reviewTranscriptCardLastTurnWorks,
 	                reviewLastTurnGitApplyCommandWorks,
 	                reviewTranscriptCardWorks: reviewTranscriptCardWorks && reviewTranscriptCardActionWorks,
