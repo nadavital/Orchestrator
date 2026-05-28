@@ -2750,6 +2750,7 @@ child.on('exit', async (code) => {
         settingsProviderCatalogLabelCalm: captureView !== 'settings-providers' || result.settingsProviderCatalogLabelCalm === true,
         settingsDiagnosticsDisclosureCompact: captureView !== 'settings-providers' || result.settingsDiagnosticsDisclosureCompactWorks === true,
         settingsProviderSidebarRefresh: captureView !== 'settings-providers' || result.settingsProviderSidebarRefreshWorks === true,
+        settingsProviderContentAnchored: captureView !== 'settings-providers' || result.settingsProviderContentAnchoredWorks === true,
         settingsDataControls: captureView !== 'settings' || result.settingsDataControlsWorks === true,
         settingsDataControlsSurface: captureView !== 'settings' || result.settingsDataControlsSurfaceWorks === true,
         settingsDataControlsModule: captureView !== 'settings' || result.settingsDataControlsModuleWorks === true,

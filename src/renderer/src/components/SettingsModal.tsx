@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
   type ProviderPermissionRuntimeContext,
   type ProviderDiagnosticInfo,
@@ -89,6 +89,7 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
   const effectiveSection = normalizeSettingsSectionForHostKind(section, selectedSettingsHost.kind)
   const contentScope = settingsSectionScope(effectiveSection)
   const hostAdapterState = settingsHostAdapterState(effectiveSection, selectedSettingsHost.kind)
+  const settingsScrollRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     window.api.settings.get().then((s) => {
@@ -141,6 +142,10 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
     if (effectiveSection === section) return
     setSettingsSection(effectiveSection)
   }, [effectiveSection, section, setSettingsSection])
+
+  useLayoutEffect(() => {
+    settingsScrollRef.current?.scrollTo({ top: 0, left: 0 })
+  }, [effectiveSection, selectedSettingsHost.id])
 
   const loadProviderDiagnostics = useCallback((providerId: string): void => {
     if (providerDiagnostics[providerId] || diagnosticsLoading[providerId]) return
@@ -423,6 +428,7 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
       <div className="settings-body">
         <div
           key={selectedSettingsHost.id}
+          ref={settingsScrollRef}
           className="settings-scroll"
           data-settings-content-host-id={selectedSettingsHost.id}
           data-settings-content-host-kind={selectedSettingsHost.kind}

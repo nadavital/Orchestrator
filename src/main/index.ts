@@ -934,6 +934,32 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 sidebarMetadataRefreshButton.textContent?.trim() === 'Refresh chats' &&
                 sidebarMetadataRefreshButton.disabled === false &&
                 codexStatusCard instanceof HTMLElement;
+              const providerSettingsScroll = document.querySelector('.settings-scroll');
+              if (providerSettingsScroll instanceof HTMLElement) {
+                providerSettingsScroll.scrollTo({ top: 0, left: 0 });
+                await sleep(180);
+              }
+              const providerSettingsTopbar = document.querySelector('[data-testid="settings-topbar"]');
+              const providerSettingsLayout = document.querySelector('[data-testid="settings-content-layout-providers"]');
+              const providerSettingsTitle = providerSettingsLayout?.querySelector('.settings-content-layout-title');
+              const providerSettingsSubtitle = providerSettingsLayout?.querySelector('.settings-content-layout-subtitle');
+              const providerScrollTop = providerSettingsScroll instanceof HTMLElement ? providerSettingsScroll.scrollTop : Number.NaN;
+              const providerTopbarBottom = providerSettingsTopbar instanceof HTMLElement
+                ? providerSettingsTopbar.getBoundingClientRect().bottom
+                : Number.NaN;
+              const providerTitleTop = providerSettingsTitle instanceof HTMLElement
+                ? providerSettingsTitle.getBoundingClientRect().top
+                : Number.NaN;
+              var settingsProviderContentAnchoredWorks =
+                providerSettingsScroll instanceof HTMLElement &&
+                providerSettingsTopbar instanceof HTMLElement &&
+                providerSettingsLayout instanceof HTMLElement &&
+                providerSettingsTitle instanceof HTMLElement &&
+                providerSettingsTitle.textContent?.trim() === 'Providers' &&
+                providerSettingsSubtitle instanceof HTMLElement &&
+                providerSettingsSubtitle.textContent?.includes('default agent provider') === true &&
+                providerScrollTop <= 1 &&
+                providerTitleTop >= providerTopbarBottom + 8;
             }
             if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'settings') {
               const settingsTopbar = document.querySelector('[data-testid="settings-topbar"]');
@@ -5714,6 +5740,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             settingsProviderCatalogLabelCalm: typeof settingsProviderCatalogLabelCalm === 'boolean' ? settingsProviderCatalogLabelCalm : null,
             settingsDiagnosticsDisclosureCompactWorks: typeof settingsDiagnosticsDisclosureCompactWorks === 'boolean' ? settingsDiagnosticsDisclosureCompactWorks : null,
             settingsProviderSidebarRefreshWorks: typeof settingsProviderSidebarRefreshWorks === 'boolean' ? settingsProviderSidebarRefreshWorks : null,
+            settingsProviderContentAnchoredWorks: typeof settingsProviderContentAnchoredWorks === 'boolean' ? settingsProviderContentAnchoredWorks : null,
             settingsDataControlsWorks: typeof settingsDataControlsWorks === 'boolean' ? settingsDataControlsWorks : null,
             settingsDataControlsSurfaceWorks: typeof settingsDataControlsSurfaceWorks === 'boolean' ? settingsDataControlsSurfaceWorks : null,
             settingsDataControlsModuleWorks: typeof settingsDataControlsModuleWorks === 'boolean' ? settingsDataControlsModuleWorks : null,
