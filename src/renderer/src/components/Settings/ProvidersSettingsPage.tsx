@@ -2187,12 +2187,15 @@ function ModelListManager({
     <div
       data-testid="provider-model-list"
       data-expanded={editing ? 'true' : 'false'}
-      style={{ display: 'flex', flexDirection: 'column', gap: 8 }}
+      data-model-list-surface="shared"
+      data-model-list-mode={editing ? 'editing' : 'collapsed'}
+      className="provider-model-list"
+      style={{ '--provider-color': providerDef.color } as CSSProperties}
     >
       {editing ? (
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={visibleIds} strategy={verticalListSortingStrategy}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <div className="provider-model-list-stack">
               {visibleIds.map((id) => {
                 const meta = providerDef.models.find((m) => m.id === id)
                 return (
@@ -2206,7 +2209,7 @@ function ModelListManager({
                 )
               })}
               {visibleIds.length === 0 && (
-                <div style={{ fontSize: 11, color: 'var(--color-text-muted)', padding: '8px 0' }}>
+                <div className="provider-model-list-empty">
                   No models selected. The catalog defaults are used.
                 </div>
               )}
@@ -2215,45 +2218,24 @@ function ModelListManager({
         </DndContext>
       ) : (
         <div className="provider-model-list-collapsed">
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              minWidth: 0,
-              minHeight: 28,
-              overflow: 'hidden'
-            }}
-          >
+          <div className="provider-model-list-preview">
             {visibleIds.length > 0 ? (
               visibleIds.slice(0, 4).map((id) => {
                 const meta = providerDef.models.find((m) => m.id === id)
                 return (
                   <span
                     key={id}
-                    style={{
-                      maxWidth: 160,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                      padding: '5px 8px',
-                      borderRadius: 999,
-                      border: '1px solid var(--color-border)',
-                      background: 'var(--color-surface)',
-                      color: 'var(--color-text)',
-                      fontSize: 11,
-                      fontWeight: 650
-                    }}
+                    className="provider-model-chip"
                   >
                     {meta?.label ?? id}
                   </span>
                 )
               })
             ) : (
-              <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>Catalog defaults</span>
+              <span className="provider-model-list-muted">Catalog defaults</span>
             )}
             {visibleIds.length > 4 && (
-              <span style={{ fontSize: 11, fontWeight: 650, color: 'var(--color-text-muted)' }}>
+              <span className="provider-model-list-overflow-count">
                 +{visibleIds.length - 4}
               </span>
             )}
@@ -2278,29 +2260,23 @@ function ModelListManager({
 
       {/* Catalog toggle chips */}
       {editing && providerDef.models.length > 0 && (
-        <div>
-          <div
-            data-testid="provider-model-catalog-label"
-            style={{ fontSize: 11, fontWeight: 650, color: 'var(--color-text-muted)', marginBottom: 5 }}
-          >
+        <div className="provider-model-catalog">
+          <div data-testid="provider-model-catalog-label" className="provider-model-catalog-label">
             Catalog
           </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+          <div className="provider-model-catalog-grid">
             {providerDef.models.map((m) => {
               const included = visibleIds.includes(m.id)
               return (
                 <button
+                  type="button"
                   key={m.id}
                   onClick={() => addCatalog(m.id)}
-                  style={{
-                    padding: '3px 8px', borderRadius: 6, fontSize: 11,
-                    background: included ? `${providerDef.color}10` : 'var(--color-surface)',
-                    border: `1px solid ${included ? providerDef.color : 'var(--color-border)'}`,
-                    color: included ? providerDef.color : 'var(--color-text)',
-                    cursor: 'pointer'
-                  }}
+                  className="provider-model-catalog-chip"
+                  data-selected={included ? 'true' : 'false'}
                 >
-                  {included ? '✓ ' : ''}{m.label}
+                  {included && <Icon name="check" size={11} />}
+                  <span>{m.label}</span>
                 </button>
               )
             })}
@@ -2310,28 +2286,19 @@ function ModelListManager({
 
       {/* Custom model ID input */}
       {editing && (
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div className="provider-model-custom-row">
           <input
             value={customInput}
             onChange={(e) => setCustomInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') addCustom() }}
             placeholder="Custom model ID"
-            style={{
-              flex: 1, padding: '6px 10px', borderRadius: 6, fontSize: 11, fontFamily: 'monospace',
-              background: 'var(--color-surface2)', border: '1px solid var(--color-border)',
-              color: 'var(--color-text)', outline: 'none'
-            }}
+            className="provider-model-custom-input"
           />
           <button
+            type="button"
             onClick={addCustom}
             disabled={!customInput.trim()}
-            style={{
-              padding: '6px 14px', borderRadius: 6, fontSize: 11, fontWeight: 500, flexShrink: 0,
-              background: customInput.trim() ? 'var(--color-accent)' : 'var(--color-surface2)',
-              border: `1px solid ${customInput.trim() ? 'var(--color-accent)' : 'var(--color-border)'}`,
-              color: customInput.trim() ? '#fff' : 'var(--color-text-muted)',
-              cursor: customInput.trim() ? 'pointer' : 'default'
-            }}
+            className="settings-action-button provider-model-custom-add"
           >
             Add
           </button>
@@ -2350,36 +2317,31 @@ function SortableModelRow({ id, label, modelId, onRemove }: {
   return (
     <div
       ref={setNodeRef}
+      className="provider-model-sortable-row"
+      data-dragging={isDragging ? 'true' : 'false'}
       style={{
         transform: CSS.Transform.toString(transform),
-        transition,
-        opacity: isDragging ? 0.5 : 1,
-        display: 'flex', alignItems: 'center', gap: 8,
-        minHeight: 30,
-        padding: '4px 9px', borderRadius: 7,
-        background: 'var(--color-surface)', border: '1px solid var(--color-border)'
+        transition
       }}
     >
-      {/* Drag handle */}
-      <span
+      <button
+        type="button"
+        aria-label={`Reorder ${label}`}
+        className="provider-model-row-grip"
         {...attributes}
         {...listeners}
-        style={{ cursor: 'grab', color: 'var(--color-text-muted)', fontSize: 14, lineHeight: 1, userSelect: 'none' }}
       >
-        ⠿
-      </span>
-      <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12 }}>{label}</span>
-      <span style={{ minWidth: 0, maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 10, fontFamily: 'monospace', color: 'var(--color-text-muted)' }}>{modelId}</span>
+        <Icon name="menu" size={13} />
+      </button>
+      <span className="provider-model-row-label">{label}</span>
+      <span className="provider-model-row-id">{modelId}</span>
       <button
+        type="button"
+        aria-label={`Remove ${label}`}
         onClick={onRemove}
-        style={{
-          background: 'transparent', border: 'none', cursor: 'pointer',
-          color: 'var(--color-text-muted)', fontSize: 14, lineHeight: 1, padding: '0 2px'
-        }}
-        onMouseEnter={(e) => (e.currentTarget.style.color = '#F87171')}
-        onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--color-text-muted)')}
+        className="provider-model-row-remove"
       >
-        ×
+        <Icon name="close" size={13} />
       </button>
     </div>
   )

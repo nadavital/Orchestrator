@@ -777,6 +777,12 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               const providerSelectorSelect = providerSelectorCard instanceof HTMLElement
                 ? providerSelectorCard.querySelector('.provider-selector-select')
                 : null;
+              const providerModelListPreview = providerModelList instanceof HTMLElement
+                ? providerModelList.querySelector('.provider-model-list-preview')
+                : null;
+              const providerModelListEditAction = providerModelList instanceof HTMLElement
+                ? providerModelList.querySelector('.provider-model-list-edit')
+                : null;
               const permissionExecutionContract = document.querySelector('[data-testid="settings-permission-execution-contract"]');
               const providerControlSurfaceText = providerControlSurfaces[0] instanceof HTMLElement
                 ? providerControlSurfaces[0].innerText
@@ -860,7 +866,12 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 diagnosticsSection.innerText.indexOf('Models') < diagnosticsSection.innerText.indexOf('Details') &&
                 providerModelList instanceof HTMLElement &&
                 providerModelList.dataset.expanded === 'false' &&
+                providerModelList.getAttribute('data-model-list-surface') === 'shared' &&
+                providerModelList.getAttribute('data-model-list-mode') === 'collapsed' &&
+                providerModelListPreview instanceof HTMLElement &&
+                providerModelListEditAction instanceof HTMLButtonElement &&
                 providerModelList.getBoundingClientRect().height <= 76 &&
+                providerModelList.scrollWidth <= providerModelList.clientWidth + 2 &&
                 configEditor instanceof HTMLElement &&
                 configEditor.dataset.expanded === 'false' &&
                 configEditor.querySelector('textarea') === null;
@@ -937,16 +948,46 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 .find((button) => button.textContent?.includes('Edit model list'));
               editModelListButton?.scrollIntoView({ block: 'center' });
               var settingsProviderCatalogLabelCalm = false;
+              var settingsProviderModelListSharedWorks = false;
               if (editModelListButton instanceof HTMLButtonElement) {
                 editModelListButton.click();
                 await sleep(160);
                 const catalogLabel = document.querySelector('[data-testid="provider-model-catalog-label"]');
+                const modelListEditing = document.querySelector('[data-testid="provider-model-list"]');
+                const catalogGrid = modelListEditing?.querySelector('.provider-model-catalog-grid');
+                const catalogChips = modelListEditing instanceof HTMLElement
+                  ? [...modelListEditing.querySelectorAll('.provider-model-catalog-chip')]
+                  : [];
+                const customModelRow = modelListEditing?.querySelector('.provider-model-custom-row');
+                const customModelInputEditing = modelListEditing?.querySelector('.provider-model-custom-input');
+                const customModelAdd = modelListEditing?.querySelector('.provider-model-custom-add');
+                const sortableRows = modelListEditing instanceof HTMLElement
+                  ? [...modelListEditing.querySelectorAll('.provider-model-sortable-row')]
+                  : [];
                 const catalogText = catalogLabel?.textContent?.trim() ?? '';
                 settingsProviderCatalogLabelCalm =
                   catalogLabel instanceof HTMLElement &&
                   catalogText === 'Catalog' &&
                   catalogText !== catalogText.toUpperCase() &&
                   getComputedStyle(catalogLabel).textTransform !== 'uppercase';
+                settingsProviderModelListSharedWorks =
+                  settingsProviderCatalogLabelCalm &&
+                  modelListEditing instanceof HTMLElement &&
+                  modelListEditing.getAttribute('data-model-list-surface') === 'shared' &&
+                  modelListEditing.getAttribute('data-model-list-mode') === 'editing' &&
+                  modelListEditing.scrollWidth <= modelListEditing.clientWidth + 2 &&
+                  catalogGrid instanceof HTMLElement &&
+                  catalogChips.length >= 2 &&
+                  catalogChips.every((chip) => chip instanceof HTMLElement && chip.getBoundingClientRect().height <= 28) &&
+                  catalogChips.some((chip) => chip instanceof HTMLElement && chip.getAttribute('data-selected') === 'true' && chip.querySelector('svg') instanceof SVGElement) &&
+                  customModelRow instanceof HTMLElement &&
+                  customModelInputEditing instanceof HTMLInputElement &&
+                  customModelAdd instanceof HTMLButtonElement &&
+                  customModelAdd.disabled === true &&
+                  sortableRows.length >= 1 &&
+                  sortableRows.every((row) => row instanceof HTMLElement && row.scrollWidth <= row.clientWidth + 2) &&
+                  sortableRows.every((row) => row.querySelector('.provider-model-row-grip') instanceof HTMLButtonElement) &&
+                  sortableRows.every((row) => row.querySelector('.provider-model-row-remove') instanceof HTMLButtonElement);
                 const doneModelListButton = [...document.querySelectorAll('button')]
                   .find((button) => button.textContent?.trim() === 'Done');
                 if (doneModelListButton instanceof HTMLButtonElement) {
@@ -5812,6 +5853,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             settingsProviderStatusUnifiedWorks: typeof settingsProviderStatusUnifiedWorks === 'boolean' ? settingsProviderStatusUnifiedWorks : null,
             settingsUsageDiagnosticsWorks: typeof settingsUsageDiagnosticsWorks === 'boolean' ? settingsUsageDiagnosticsWorks : null,
             settingsProviderModelsCollapsedWorks: typeof settingsProviderModelsCollapsedWorks === 'boolean' ? settingsProviderModelsCollapsedWorks : null,
+            settingsProviderModelListSharedWorks: typeof settingsProviderModelListSharedWorks === 'boolean' ? settingsProviderModelListSharedWorks : null,
             settingsProviderControlSurfaceUnifiedWorks: typeof settingsProviderControlSurfaceUnifiedWorks === 'boolean' ? settingsProviderControlSurfaceUnifiedWorks : null,
             settingsProviderBoundariesWorks: typeof settingsProviderBoundariesWorks === 'boolean' ? settingsProviderBoundariesWorks : null,
             settingsProvidersModuleWorks: typeof settingsProvidersModuleWorks === 'boolean' ? settingsProvidersModuleWorks : null,
