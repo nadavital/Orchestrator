@@ -7326,6 +7326,11 @@ function runAutomatedFocusedSurfaceSmoke(
                   runtimeIssueSummary.getAttribute('data-agent-runtime-waiting-count') === '1' &&
                   agentRuntimeFailureGroupsWorks &&
                   runtimeIssueRows.length >= 3 &&
+                  runtimeIssueRows.every((row) =>
+                    row.getAttribute('aria-label')?.includes(' event, ') === true &&
+                    (row.getAttribute('aria-pressed') === 'true' || row.getAttribute('aria-pressed') === 'false') &&
+                    row.getAttribute('data-agent-event-selected') === row.getAttribute('aria-pressed')
+                  ) &&
                   failedRuntimeIssueRow instanceof HTMLButtonElement &&
                   failedIssueDetail instanceof HTMLElement &&
                   failedIssueDetail.textContent?.includes('run.failed') === true;
@@ -7361,6 +7366,9 @@ function runAutomatedFocusedSurfaceSmoke(
                   filteredEventList.getAttribute('data-agent-event-filtered-count') === '1' &&
                   filteredEventRows.length === 1 &&
                   filteredEventRows[0]?.textContent?.includes('Allow inspecting runtime diagnostics') === true &&
+                  filteredEventRows[0]?.getAttribute('aria-label')?.includes('Allow inspecting runtime diagnostics') === true &&
+                  filteredEventRows[0]?.getAttribute('aria-label')?.includes('permission event') === true &&
+                  filteredEventRows[0]?.getAttribute('aria-pressed') === 'false' &&
                   filteredEventRows.every((row) => !row.textContent?.includes('Runtime inspector smoke'));
                 const permissionEventRow = filteredEventRows.find((row) => row.textContent?.includes('Allow inspecting runtime diagnostics'));
                 if (permissionEventRow instanceof HTMLButtonElement) {
@@ -7418,6 +7426,8 @@ function runAutomatedFocusedSurfaceSmoke(
                   agentRuntimeEventFilterWorks &&
                   agentRuntimeIssueTriageWorks &&
                   selectedRecentEvent instanceof HTMLElement &&
+                  selectedRecentEvent.getAttribute('aria-pressed') === 'true' &&
+                  selectedRecentEvent.getAttribute('aria-label')?.includes('permission event') === true &&
                   eventDetail instanceof HTMLElement &&
                   eventPayload instanceof HTMLElement &&
                   eventDetail.textContent?.includes('permission.requested') === true &&

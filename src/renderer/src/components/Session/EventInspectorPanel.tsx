@@ -264,6 +264,8 @@ function SessionContextSummary({
                 data-inspector-row-variant="muted"
                 data-testid="agent-runtime-issue"
                 data-agent-event-selected={selectedEventId === record.id ? 'true' : 'false'}
+                aria-pressed={selectedEventId === record.id}
+                aria-label={eventActionLabel(record)}
                 onClick={() => onSelectEvent(record.id)}
               >
                 <div className="min-w-0 flex-1">
@@ -380,6 +382,8 @@ function SessionContextSummary({
                 data-inspector-row-variant="muted"
                 data-testid="agent-recent-event"
                 data-agent-event-selected={selectedEventId === record.id ? 'true' : 'false'}
+                aria-pressed={selectedEventId === record.id}
+                aria-label={eventActionLabel(record)}
                 onClick={() => onSelectEvent(record.id)}
               >
                 <div className="min-w-0 flex-1">
@@ -680,6 +684,10 @@ function eventTone(record: SessionRunEventRecord): 'accent' | 'success' | 'warni
 
 function eventBadge(record: SessionRunEventRecord): string {
   return record.event.type.split('.')[0]
+}
+
+function eventActionLabel(record: SessionRunEventRecord): string {
+  return `${eventTitle(record)}, ${eventBadge(record)} event, ${formatClockTime(record.timestamp)}`
 }
 
 function isRuntimeIssueEvent(record: SessionRunEventRecord): boolean {
