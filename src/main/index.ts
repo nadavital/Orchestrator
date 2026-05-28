@@ -18323,14 +18323,20 @@ function runAutomatedMultiWindowFocusSmoke(win: BrowserWindow, outputPath: strin
               browserTab.click();
               await sleep(140);
             } else {
-              const addButton = findButton('Add Workbench tab');
-              if (addButton instanceof HTMLElement) {
-                addButton.click();
-                await sleep(140);
-                const browserAction = document.querySelector('[data-testid="workbench-new-tab-action-browser"]');
-                if (browserAction instanceof HTMLElement && browserAction.getAttribute('aria-disabled') !== 'true') {
-                  browserAction.click();
-                  await sleep(260);
+              let browserAction = document.querySelector('[data-testid="workbench-new-tab-action-browser"]');
+              if (browserAction instanceof HTMLElement && browserAction.getAttribute('aria-disabled') !== 'true') {
+                browserAction.click();
+                await sleep(260);
+              } else {
+                const addButton = findButton('Add Workbench tab');
+                if (addButton instanceof HTMLElement) {
+                  addButton.click();
+                  await sleep(140);
+                  browserAction = document.querySelector('[data-testid="workbench-new-tab-action-browser"]');
+                  if (browserAction instanceof HTMLElement && browserAction.getAttribute('aria-disabled') !== 'true') {
+                    browserAction.click();
+                    await sleep(260);
+                  }
                 }
               }
             }
