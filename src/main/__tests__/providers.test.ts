@@ -272,12 +272,15 @@ test('provider spawn env keeps desktop CLI directories available to provider hel
 
 test('provider spawn env merges generic env overrides from provider settings', () => {
   const originalHome = process.env.HOME
+  const originalProviderEnvPath = process.env.ORCHESTRATOR_PROVIDER_ENV_PATH
   const tmpRoot = join(tmpdir(), `orchestrator-provider-env-${Date.now()}`)
   const claudeDir = join(tmpRoot, '.claude')
   const cursorDir = join(tmpRoot, '.cursor')
+  const orchestratorEnvPath = join(tmpRoot, 'orchestrator-provider-env.json')
 
   try {
     process.env.HOME = tmpRoot
+    process.env.ORCHESTRATOR_PROVIDER_ENV_PATH = orchestratorEnvPath
     mkdirSync(claudeDir, { recursive: true })
     mkdirSync(cursorDir, { recursive: true })
     writeFileSync(join(claudeDir, 'settings.json'), JSON.stringify({
@@ -289,7 +292,15 @@ test('provider spawn env merges generic env overrides from provider settings', (
     }))
     writeFileSync(join(cursorDir, 'cli-config.json'), JSON.stringify({
       env: {
-        CURSOR_API_BASE_URL: 'https://example.invalid/cursor/'
+        CURSOR_API_BASE_URL: 'https://example.invalid/cursor/',
+        CURSOR_API_KEY: 'provider-config-key'
+      }
+    }))
+    writeFileSync(orchestratorEnvPath, JSON.stringify({
+      cursor: {
+        env: {
+          CURSOR_API_KEY: 'orchestrator-managed-key'
+        }
       }
     }))
 
@@ -300,9 +311,12 @@ test('provider spawn env merges generic env overrides from provider settings', (
     assert.equal(claudeEnv.ANTHROPIC_BASE_URL, 'https://example.invalid/anthropic/')
     assert.equal(claudeEnv.IGNORED_NON_STRING, undefined)
     assert.equal(cursorEnv.CURSOR_API_BASE_URL, 'https://example.invalid/cursor/')
+    assert.equal(cursorEnv.CURSOR_API_KEY, 'orchestrator-managed-key')
     assert.equal(codexEnv.NPM_CONFIG_REGISTRY, undefined)
   } finally {
     process.env.HOME = originalHome
+    if (originalProviderEnvPath === undefined) delete process.env.ORCHESTRATOR_PROVIDER_ENV_PATH
+    else process.env.ORCHESTRATOR_PROVIDER_ENV_PATH = originalProviderEnvPath
     rmSync(tmpRoot, { recursive: true, force: true })
   }
 })
