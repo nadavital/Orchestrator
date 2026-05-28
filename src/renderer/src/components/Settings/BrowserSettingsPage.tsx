@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import type { BrowserUsePolicy } from '../../types'
 import { browserWebviewPartitionForHost, normalizeBrowserUseOrigin, normalizeBrowserUsePolicy } from '../../types'
+import Icon from '../shared/Icon'
 import {
   SettingsContentGroup,
   SettingsContentLayout,
@@ -121,7 +122,13 @@ export default function BrowserSettingsPage({ hostId, hostLabel }: BrowserSettin
                 />
               </SettingsSurface>
               {status && (
-                <div className="browser-settings-status" data-testid="settings-browser-clear-status">
+                <div
+                  className="browser-settings-status"
+                  data-testid="settings-browser-clear-status"
+                  role="status"
+                  aria-live="polite"
+                  aria-atomic="true"
+                >
                   {status}
                 </div>
               )}
@@ -157,7 +164,13 @@ export default function BrowserSettingsPage({ hostId, hostLabel }: BrowserSettin
                 />
               </SettingsSurface>
               {policyStatus && (
-                <div className="browser-settings-status" data-testid="settings-browser-policy-status">
+                <div
+                  className="browser-settings-status"
+                  data-testid="settings-browser-policy-status"
+                  role="status"
+                  aria-live="polite"
+                  aria-atomic="true"
+                >
                   {policyStatus}
                 </div>
               )}
@@ -222,6 +235,8 @@ function DomainPolicyRow({
   onSave: (patch: Partial<BrowserUsePolicy>) => Promise<void>
 }): JSX.Element {
   const [draft, setDraft] = useState('')
+  const titleId = useId()
+  const inputId = useId()
 
   const addDomain = (): void => {
     const normalized = normalizeBrowserUseOrigin(draft)
@@ -237,25 +252,34 @@ function DomainPolicyRow({
   return (
     <div className="browser-domain-policy-row" data-testid="settings-browser-domain-policy-row" data-browser-policy-list={listKey}>
       <div className="browser-domain-policy-copy">
-        <div className="settings-row-label">{title}</div>
+        <div className="settings-row-label" id={titleId}>{title}</div>
         <div className="settings-row-description">{description}</div>
-        <div className="browser-domain-policy-values" data-testid="settings-browser-domain-policy-values">
+        <div
+          className="browser-domain-policy-values"
+          data-testid="settings-browser-domain-policy-values"
+          role="list"
+          aria-label={`${title} entries`}
+        >
           {values.length === 0 ? (
-            <span className="browser-domain-empty">None</span>
+            <span className="browser-domain-empty" role="listitem">None</span>
           ) : values.map((value) => (
-            <span key={value} className="browser-domain-pill">
-              {value}
-              <button type="button" aria-label={`Remove ${value}`} onClick={() => removeDomain(value)}>Remove</button>
+            <span key={value} className="browser-domain-pill" role="listitem">
+              <span className="browser-domain-pill-label">{value}</span>
+              <button type="button" className="browser-domain-pill-remove" aria-label={`Remove ${value}`} onClick={() => removeDomain(value)}>
+                <Icon name="close" size={12} />
+              </button>
             </span>
           ))}
         </div>
       </div>
       <div className="browser-domain-policy-control">
         <input
+          id={inputId}
           value={draft}
           className="browser-domain-input"
           data-testid={`settings-browser-${listKey}-input`}
           placeholder="example.com"
+          aria-labelledby={titleId}
           onChange={(event) => setDraft(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === 'Enter') {
@@ -269,6 +293,7 @@ function DomainPolicyRow({
           className="settings-action-button"
           disabled={!draft.trim()}
           data-testid={`settings-browser-${listKey}-add`}
+          aria-label={`Add ${title.toLowerCase()}`}
           onClick={addDomain}
         >
           Add

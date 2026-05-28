@@ -1538,6 +1538,18 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               const browserDomainRows = browserSettingsSection instanceof HTMLElement
                 ? [...browserSettingsSection.querySelectorAll('[data-testid="settings-browser-domain-policy-row"]')]
                 : [];
+              const browserDomainInputs = browserSettingsSection instanceof HTMLElement
+                ? [...browserSettingsSection.querySelectorAll('[data-testid^="settings-browser-"][data-testid$="-input"]')]
+                : [];
+              const browserDomainAddButtons = browserSettingsSection instanceof HTMLElement
+                ? [...browserSettingsSection.querySelectorAll('[data-testid^="settings-browser-"][data-testid$="-add"]')]
+                : [];
+              const browserDomainValues = browserSettingsSection instanceof HTMLElement
+                ? [...browserSettingsSection.querySelectorAll('[data-testid="settings-browser-domain-policy-values"]')]
+                : [];
+              const browserDomainRemoveButtons = browserSettingsSection instanceof HTMLElement
+                ? [...browserSettingsSection.querySelectorAll('.browser-domain-pill-remove')]
+                : [];
               var settingsBrowserPageWorks =
                 browserSettingsSection instanceof HTMLElement &&
                 browserSettingsSection.innerText.includes('Data') &&
@@ -1551,6 +1563,15 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 browserSettingsSection.innerText.includes('example.com') &&
                 browserSettingsStatus instanceof HTMLElement &&
                 browserSettingsStatus.textContent?.includes('Browser cache cleared') === true;
+              var settingsBrowserStatusA11yWorks =
+                browserSettingsStatus instanceof HTMLElement &&
+                browserSettingsStatus.getAttribute('role') === 'status' &&
+                browserSettingsStatus.getAttribute('aria-live') === 'polite' &&
+                browserSettingsStatus.getAttribute('aria-atomic') === 'true' &&
+                browserPolicyStatus instanceof HTMLElement &&
+                browserPolicyStatus.getAttribute('role') === 'status' &&
+                browserPolicyStatus.getAttribute('aria-live') === 'polite' &&
+                browserPolicyStatus.getAttribute('aria-atomic') === 'true';
               var settingsBrowserSurfaceWorks =
                 browserSettingsSection instanceof HTMLElement &&
                 browserSettingsSection.classList.contains('settings-page-section') &&
@@ -1561,6 +1582,34 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 browserDomainRows.length >= 6 &&
                 browserSettingsSection.querySelector('.settings-panel') === null &&
                 browserSettingsSection.querySelector('.compact-setting') === null;
+              var settingsBrowserDomainControlsA11yWorks =
+                browserDomainInputs.length >= 6 &&
+                browserDomainInputs.every((input) => {
+                  if (!(input instanceof HTMLInputElement)) return false;
+                  const labelledBy = input.getAttribute('aria-labelledby') ?? '';
+                  return labelledBy.length > 0 && browserSettingsSection?.querySelector('#' + CSS.escape(labelledBy)) instanceof HTMLElement;
+                }) &&
+                browserDomainAddButtons.length >= 6 &&
+                browserDomainAddButtons.every((button) =>
+                  button instanceof HTMLButtonElement &&
+                  (button.getAttribute('aria-label') ?? '').startsWith('Add ')
+                ) &&
+                browserDomainValues.length >= 6 &&
+                browserDomainValues.every((valuesList) =>
+                  valuesList instanceof HTMLElement &&
+                  valuesList.getAttribute('role') === 'list' &&
+                  (valuesList.getAttribute('aria-label') ?? '').endsWith(' entries')
+                ) &&
+                browserDomainRemoveButtons.length >= 1 &&
+                browserDomainRemoveButtons.every((button) =>
+                  button instanceof HTMLButtonElement &&
+                  (button.getAttribute('aria-label') ?? '').startsWith('Remove ') &&
+                  (button.textContent ?? '').trim() === ''
+                ) &&
+                browserDomainRemoveButtons.some((button) =>
+                  button instanceof HTMLButtonElement &&
+                  (button.getAttribute('aria-label') ?? '').includes('example.com')
+                );
               var settingsBrowserModuleWorks =
                 browserSettingsSection instanceof HTMLElement &&
                 browserSettingsSection.closest('[data-settings-page-module="browser"]') instanceof HTMLElement;
@@ -6031,6 +6080,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             settingsBrowserSurfaceWorks: typeof settingsBrowserSurfaceWorks === 'boolean' ? settingsBrowserSurfaceWorks : null,
             settingsBrowserModuleWorks: typeof settingsBrowserModuleWorks === 'boolean' ? settingsBrowserModuleWorks : null,
             settingsBrowserPolicyPersistenceWorks: typeof settingsBrowserPolicyPersistenceWorks === 'boolean' ? settingsBrowserPolicyPersistenceWorks : null,
+            settingsBrowserStatusA11yWorks: typeof settingsBrowserStatusA11yWorks === 'boolean' ? settingsBrowserStatusA11yWorks : null,
+            settingsBrowserDomainControlsA11yWorks: typeof settingsBrowserDomainControlsA11yWorks === 'boolean' ? settingsBrowserDomainControlsA11yWorks : null,
             settingsAutomationsPageWorks: typeof settingsAutomationsPageWorks === 'boolean' ? settingsAutomationsPageWorks : null,
             settingsWorktreesPageWorks: typeof settingsWorktreesPageWorks === 'boolean' ? settingsWorktreesPageWorks : null,
             settingsWorktreesCreateWorks: typeof settingsWorktreesCreateWorks === 'boolean' ? settingsWorktreesCreateWorks : null,

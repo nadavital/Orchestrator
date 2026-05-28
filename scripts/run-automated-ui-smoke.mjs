@@ -2779,6 +2779,8 @@ child.on('exit', async (code) => {
         settingsBrowserSurface: captureView !== 'settings' || result.settingsBrowserSurfaceWorks === true,
         settingsBrowserModule: captureView !== 'settings' || result.settingsBrowserModuleWorks === true,
         settingsBrowserPolicyPersistence: captureView !== 'settings' || result.settingsBrowserPolicyPersistenceWorks === true,
+        settingsBrowserStatusA11y: captureView !== 'settings' || result.settingsBrowserStatusA11yWorks === true,
+        settingsBrowserDomainControlsA11y: captureView !== 'settings' || result.settingsBrowserDomainControlsA11yWorks === true,
         settingsAutomationsPage: captureView !== 'settings' || result.settingsAutomationsPageWorks === true,
         settingsWorktreesPage: captureView !== 'settings' || result.settingsWorktreesPageWorks === true,
         settingsWorktreesCreate: captureView !== 'settings' || result.settingsWorktreesCreateWorks === true,

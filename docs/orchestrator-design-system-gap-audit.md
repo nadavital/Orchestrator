@@ -532,6 +532,7 @@ Current verification:
 
 - `npm run smoke:ui:auto -- --motion-reduced` verifies forced reduced-motion propagation, zeroed main-renderer motion durations, disabled pet-overlay badge/row/resize-grip transitions, collapsed tray behavior, reply form behavior, and main-app screenshot-region assertions for the right panel, bottom terminal panel, shared sheet, and shared popover.
 - `node scripts/run-automated-ui-smoke.mjs --terminal` now verifies `terminalFailureStateA11y=true`, covering terminal shell-ended recovery as a polite atomic status region with labelled copy and a named recovery action group.
+- `node scripts/run-automated-ui-smoke.mjs --settings` now verifies `settingsBrowserStatusA11y=true` and `settingsBrowserDomainControlsA11y=true`, covering Browser Settings clear/save status announcements, labelled domain inputs, list semantics, and icon-only remove controls with accessible names.
 
 Still needed:
 

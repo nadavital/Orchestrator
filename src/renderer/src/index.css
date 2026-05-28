@@ -9329,17 +9329,30 @@
     padding: 3px 6px;
   }
 
-  .browser-domain-pill button {
+  .browser-domain-pill-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .browser-domain-pill-remove {
+    display: inline-flex;
+    width: 14px;
+    height: 14px;
+    flex: 0 0 14px;
+    align-items: center;
+    justify-content: center;
     border: 0;
+    border-radius: 4px;
     background: transparent;
     color: var(--text-tertiary);
     cursor: pointer;
-    font-size: 11px;
     padding: 0;
   }
 
-  .browser-domain-pill button:hover,
-  .browser-domain-pill button:focus-visible {
+  .browser-domain-pill-remove:hover,
+  .browser-domain-pill-remove:focus-visible {
+    background: color-mix(in srgb, var(--control-bg-hover) 72%, transparent);
     color: var(--text-primary);
     outline: none;
   }
