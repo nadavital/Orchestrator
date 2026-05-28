@@ -19491,6 +19491,7 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
             const pre = document.querySelector('pre');
             const table = document.querySelector('table');
             const fileCards = [...document.querySelectorAll('[data-testid="file-reference-card"]')];
+            const partialResponseStatus = document.querySelector('[data-testid="chat-partial-response-status"]');
             const messageRowsBounded = messageRows.length > 0 && messageRows.every(isInsideScroller);
             const codeBlockBounded = wideLayout.codeBlockBounded;
             const codeBlockInternallyScrollable = wideLayout.codeBlockInternallyScrollable;
@@ -19524,6 +19525,10 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
                 buttons.length >= 2 &&
                 buttons.every((button) => button.disabled);
             });
+            const partialResponseStatusWorks =
+              partialResponseStatus instanceof HTMLElement &&
+              partialResponseStatus.textContent?.includes('Partial response stopped') === true &&
+              isInsideScroller(partialResponseStatus);
             let toolSummary = document.querySelector('[data-testid="tool-activity-summary"]');
             for (let index = 0; index < 10 && !toolSummary; index += 1) {
               scroller.scrollTop = Math.max(scroller.scrollHeight, scroller.clientHeight) * ((index + 1) / 10);
@@ -19600,6 +19605,7 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
               permissionActionsWrap,
               relativeProseCardSuppressed,
               absoluteMissingFileCardDisabled,
+              partialResponseStatusWorks,
               toolSummaryExpanded,
               toolSummaryBounded,
               toolSummaryScrollable,
@@ -21802,6 +21808,7 @@ function seedAutomatedTranscriptLayoutSmokeSession(sessionId: string): void {
         `Explicit missing fixture: \`${explicitMissingPath}\``,
         'Review prose should not create a card for `DefinitelyMissingRelativeReviewFile.java`.'
       ].join('\n'),
+      interrupted: true,
       timestamp: baseTime + 1
     },
     {

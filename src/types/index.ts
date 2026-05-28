@@ -1921,6 +1921,7 @@ export interface TextMessage extends BaseMessage {
   type: 'text'
   content: string
   isStreaming?: boolean
+  interrupted?: boolean
   queueState?: 'queued' | 'steer_next'
   attachments?: Attachment[]
 }
@@ -1929,11 +1930,15 @@ export function finalizeInterruptedMessages(messages: ChatMessage[]): ChatMessag
   return messages.map((message) => {
     if (message.type !== 'text') return message
     if (!message.isStreaming && !message.queueState) return message
-    return {
+    const settledMessage: TextMessage = {
       ...message,
       isStreaming: false,
       queueState: undefined
     }
+    if (message.role === 'assistant' && message.isStreaming) {
+      settledMessage.interrupted = true
+    }
+    return settledMessage
   })
 }
 

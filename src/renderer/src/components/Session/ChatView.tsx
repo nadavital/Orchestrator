@@ -1379,6 +1379,20 @@ function MessageRow({
                 |
               </span>
             )}
+            {!isUser && msg.interrupted && !msg.isStreaming && (
+              <div
+                className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-full px-2 py-1 text-[11px] font-medium"
+                data-testid="chat-partial-response-status"
+                style={{
+                  background: 'color-mix(in srgb, var(--color-yellow) 12%, var(--color-surface2))',
+                  border: '1px solid color-mix(in srgb, var(--color-yellow) 34%, var(--color-border))',
+                  color: 'var(--color-text-muted)'
+                }}
+              >
+                <span className="shrink-0" style={{ color: 'var(--color-yellow)' }}>{iconPath('warning')}</span>
+                <span className="min-w-0 truncate">Partial response stopped</span>
+              </div>
+            )}
             {fileReferences.length > 0 && <FileReferenceList files={fileReferences} cwd={session.workDir} searchRoots={fileReferenceRoots} preferredEditor={preferredEditor} />}
             {isUser && msg.attachments && msg.attachments.length > 0 && <MessageAttachmentList attachments={msg.attachments} />}
             {shouldCollapseUserMessage && (

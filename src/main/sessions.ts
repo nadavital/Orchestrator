@@ -1117,7 +1117,12 @@ export const sessionManager = {
         if (followUp) {
           for (const message of this.get(sessionId)?.messages ?? []) {
             if (message.type === 'text' && message.isStreaming) {
-              this.upsertMessage(sessionId, { ...message, isStreaming: false })
+              const settledMessage: TextMessage = {
+                ...message,
+                isStreaming: false
+              }
+              if (message.role === 'assistant') settledMessage.interrupted = true
+              this.upsertMessage(sessionId, settledMessage)
             }
           }
           void this.runQueuedFollowUp(sessionId, followUp)
@@ -1295,15 +1300,17 @@ export const sessionManager = {
     const session = this.get(sessionId)
     if (!session) throw new Error(`Session ${sessionId} not found`)
     if (providerRuntime.hasActiveRun(sessionId)) return false
-    const hasAssistantText = session.messages.some((message) =>
+    const lastAssistantText = [...session.messages].reverse().find((message): message is TextMessage =>
       message.type === 'text' && message.role === 'assistant' && message.content.trim().length > 0
     )
-    if (!hasAssistantText) return false
+    if (!lastAssistantText) return false
     if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT && process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-layout') {
       return true
     }
 
-    const prompt = 'Continue from where you left off.'
+    const prompt = lastAssistantText.interrupted
+      ? 'Continue from where you left off. The previous assistant response stopped mid-stream; do not repeat completed content unless necessary.'
+      : 'Continue from where you left off.'
     const effectivePrompt = promptWithPersonalization(prompt)
     this.updateStatus(sessionId, 'running')
     this.appendMessage(sessionId, [{
@@ -1453,7 +1460,13 @@ export const sessionManager = {
           continue
         }
         if (message.type === 'text' && (message.queueState || message.isStreaming)) {
-          this.upsertMessage(sessionId, { ...message, queueState: undefined, isStreaming: false })
+          const settledMessage: TextMessage = {
+            ...message,
+            queueState: undefined,
+            isStreaming: false
+          }
+          if (message.role === 'assistant' && message.isStreaming) settledMessage.interrupted = true
+          this.upsertMessage(sessionId, settledMessage)
         }
       }
       clearRuntimeState(sessionId)
