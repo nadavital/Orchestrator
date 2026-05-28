@@ -1167,11 +1167,18 @@ function ContinueButton({ sessionId }: { sessionId: string }): JSX.Element {
       dataTestId="chat-continue-last-turn"
       disabled={state === 'sending'}
       title={label}
-      aria-label={label}
+      ariaLabel={label}
       onClick={handleContinue}
     >
       {state === 'sending' ? <ThinkingDots /> : <Icon name="arrowRight" size={13} />}
-      <span data-testid="chat-continue-last-turn-label">{label}</span>
+      <span
+        data-testid="chat-continue-last-turn-label"
+        data-continue-state={state}
+        aria-live="polite"
+        aria-atomic="true"
+      >
+        {label}
+      </span>
     </Button>
   )
 }
@@ -1582,7 +1589,7 @@ function ErrorRecoveryCard({ msg, session }: { msg: ResultMessage; session: Sess
   }
 
   return (
-    <div className="flex justify-start min-w-0 w-full">
+    <div className="flex justify-start min-w-0 w-full" role="group" aria-label="Run failure recovery">
       <SurfaceRow
         className="flex min-w-0 items-start gap-2 rounded-xl px-3 py-2 text-xs"
         dataTestId="chat-error-recovery-card"
@@ -1610,6 +1617,9 @@ function ErrorRecoveryCard({ msg, session }: { msg: ResultMessage; session: Sess
             <div
               className="mt-1 text-[11px]"
               data-testid="chat-error-retry-status"
+              role={retryState === 'error' ? 'alert' : 'status'}
+              aria-live={retryState === 'error' ? 'assertive' : 'polite'}
+              aria-atomic="true"
               style={{ color: retryState === 'error' ? 'var(--color-red)' : 'var(--color-green)' }}
             >
               {retryState === 'error' ? retryError : 'Retry sent'}
@@ -1621,6 +1631,7 @@ function ErrorRecoveryCard({ msg, session }: { msg: ResultMessage; session: Sess
           className="shrink-0 px-3 py-1"
           dataTestId="chat-error-retry-last"
           disabled={!canRetry || retryState === 'retrying'}
+          ariaLabel={actionLabel}
           onClick={() => { void retryLastMessage() }}
         >
           {retryState === 'retrying' ? 'Retrying...' : actionLabel}
@@ -2404,6 +2415,8 @@ function ToolFailureRecovery({ session }: { session: Session }): JSX.Element {
     <div
       className="mb-2 flex min-w-0 flex-wrap items-center gap-2 rounded-lg px-2 py-1.5"
       data-testid="tool-failure-recovery"
+      role="group"
+      aria-label="Tool failure recovery"
       style={{
         background: 'color-mix(in srgb, var(--color-red) 8%, var(--color-surface2))',
         border: '1px solid color-mix(in srgb, var(--color-red) 24%, var(--color-border))',
@@ -2418,6 +2431,9 @@ function ToolFailureRecovery({ session }: { session: Session }): JSX.Element {
           <div
             className="truncate text-[11px]"
             data-testid="tool-failure-retry-status"
+            role={retryState === 'error' ? 'alert' : 'status'}
+            aria-live={retryState === 'error' ? 'assertive' : 'polite'}
+            aria-atomic="true"
             style={{ color: retryState === 'error' ? 'var(--color-red)' : 'var(--color-green)' }}
           >
             {retryState === 'error' ? retryError : 'Retry sent'}
@@ -2429,6 +2445,7 @@ function ToolFailureRecovery({ session }: { session: Session }): JSX.Element {
         className="h-7 shrink-0 px-2 text-[11px]"
         dataTestId="tool-failure-retry-last"
         disabled={!canRetry || retryState === 'retrying'}
+        ariaLabel={actionLabel}
         onClick={() => { void retryLastMessage() }}
       >
         {retryState === 'retrying' ? 'Retrying...' : actionLabel}

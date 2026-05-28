@@ -20544,7 +20544,15 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
                 ${JSON.stringify(Boolean(retryTarget?.recoveryCardBounded))} &&
                 retryLastButton instanceof HTMLButtonElement &&
                 retryStatus instanceof HTMLElement &&
-                retryStatus.textContent?.includes('Retry sent') === true
+                retryStatus.textContent?.includes('Retry sent') === true,
+              errorRecoveryRetryA11yWorks:
+                ${JSON.stringify(Boolean(retryTarget?.recoveryCardBounded))} &&
+                retryLastButton instanceof HTMLButtonElement &&
+                retryLastButton.getAttribute('aria-label') === retryLastButton.textContent?.trim() &&
+                retryStatus instanceof HTMLElement &&
+                retryStatus.getAttribute('role') === 'status' &&
+                retryStatus.getAttribute('aria-live') === 'polite' &&
+                retryStatus.getAttribute('aria-atomic') === 'true'
             };
           })()
         `)
@@ -20574,7 +20582,14 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
                 button instanceof HTMLButtonElement &&
                 label instanceof HTMLElement &&
                 buttonBounded &&
-                label.textContent?.includes('Continue sent') === true
+                label.textContent?.includes('Continue sent') === true,
+              chatContinueLastTurnA11yWorks:
+                button instanceof HTMLButtonElement &&
+                label instanceof HTMLElement &&
+                button.getAttribute('aria-label') === 'Continue sent' &&
+                label.getAttribute('aria-live') === 'polite' &&
+                label.getAttribute('aria-atomic') === 'true' &&
+                label.getAttribute('data-continue-state') === 'sent'
             };
           })()
         `)
@@ -20874,6 +20889,15 @@ function runAutomatedTranscriptToolFailureSmoke(win: BrowserWindow, outputPath: 
               transcriptToolFailureRecovery: recoveryWorks,
               transcriptToolFailureRetry: retryStatus instanceof HTMLElement &&
                 retryStatus.textContent?.includes('Retry sent') === true,
+              transcriptToolFailureRetryA11y: retryButton instanceof HTMLButtonElement &&
+                retryButton.getAttribute('aria-label') === retryButton.textContent?.trim() &&
+                retryStatus instanceof HTMLElement &&
+                retryStatus.getAttribute('role') === 'status' &&
+                retryStatus.getAttribute('aria-live') === 'polite' &&
+                retryStatus.getAttribute('aria-atomic') === 'true' &&
+                recovery instanceof HTMLElement &&
+                recovery.getAttribute('role') === 'group' &&
+                recovery.getAttribute('aria-label') === 'Tool failure recovery',
               bodyText: document.body.innerText
             };
           })()

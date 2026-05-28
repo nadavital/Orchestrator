@@ -1792,7 +1792,8 @@ child.on('exit', async (code) => {
         transcriptToolFailureVisible: result.transcriptToolFailureVisible === true,
         transcriptToolFailureSummary: result.transcriptToolFailureSummary === true,
         transcriptToolFailureRecovery: result.transcriptToolFailureRecovery === true,
-        transcriptToolFailureRetry: result.transcriptToolFailureRetry === true
+        transcriptToolFailureRetry: result.transcriptToolFailureRetry === true,
+        transcriptToolFailureRetryA11y: result.transcriptToolFailureRetryA11y === true
       }
     : captureView === 'transcript-stress'
     ? {
@@ -2057,8 +2058,10 @@ child.on('exit', async (code) => {
         permissionCard: result.permissionCardWorks === true,
         permissionActionsWrap: result.permissionActionsWrap === true,
         errorRecoveryRetry: result.errorRecoveryRetryWorks === true,
+        errorRecoveryRetryA11y: result.errorRecoveryRetryA11yWorks === true,
         partialResponseStatus: result.partialResponseStatusWorks === true,
         chatContinueLastTurn: result.chatContinueLastTurnWorks === true,
+        chatContinueLastTurnA11y: result.chatContinueLastTurnA11yWorks === true,
         rawEventsHiddenFromTranscript: result.rawEventsHiddenFromTranscript === true,
         narrowDocumentNoHorizontalOverflow: result.narrowDocumentNoHorizontalOverflow === true,
         narrowTranscriptNoHorizontalOverflow: result.narrowTranscriptNoHorizontalOverflow === true,
