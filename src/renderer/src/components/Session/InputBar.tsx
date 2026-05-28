@@ -295,6 +295,11 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     setShowPermMenu(false)
   }
 
+  const openPermissionMenuAndFocus = (): void => {
+    setShowPermMenu(true)
+    if (permissionButtonRef.current) queueFocusComposerDropdownButton(permissionButtonRef.current, 'first')
+  }
+
   const updatePermissionRules = (
     label: string,
     patch: {
@@ -810,7 +815,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
                 className="shrink-0 rounded-md px-1.5 py-0.5 font-semibold"
                 data-testid="composer-send-status-action"
                 aria-label="Change permission mode"
-                onClick={() => setShowPermMenu(true)}
+                onClick={openPermissionMenuAndFocus}
                 style={{
                   background: 'var(--surface-bg)',
                   border: '1px solid var(--border-subtle)',

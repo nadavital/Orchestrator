@@ -5393,6 +5393,12 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               sendStatusPermissionMenu.textContent?.includes('Codex') === true &&
               [...sendStatusPermissionMenu.querySelectorAll('button')]
                 .some((button) => button.textContent?.includes('Ask'));
+            const sendStatusPermissionActiveElement = document.activeElement;
+            var composerSendStatusActionFocusesPermissions =
+              composerSendStatusActionOpensPermissions &&
+              sendStatusPermissionActiveElement instanceof HTMLButtonElement &&
+              sendStatusPermissionMenu instanceof HTMLElement &&
+              sendStatusPermissionMenu.contains(sendStatusPermissionActiveElement);
             const askPermissionButton = sendStatusPermissionMenu instanceof HTMLElement
               ? [...sendStatusPermissionMenu.querySelectorAll('button')]
                   .find((button) => button.textContent?.includes('Ask'))
@@ -6716,6 +6722,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             composerSendStatusExplainsBlocked: typeof composerSendStatusExplainsBlocked === 'boolean' ? composerSendStatusExplainsBlocked : null,
             composerSendStatusA11yLive: typeof composerSendStatusA11yLive === 'boolean' ? composerSendStatusA11yLive : null,
             composerSendStatusActionOpensPermissions: typeof composerSendStatusActionOpensPermissions === 'boolean' ? composerSendStatusActionOpensPermissions : null,
+            composerSendStatusActionFocusesPermissions: typeof composerSendStatusActionFocusesPermissions === 'boolean' ? composerSendStatusActionFocusesPermissions : null,
             composerSendStatusRecoveryClearsBlock: typeof composerSendStatusRecoveryClearsBlock === 'boolean' ? composerSendStatusRecoveryClearsBlock : null,
             composerQueuedCancel: typeof composerQueuedCancel === 'boolean' ? composerQueuedCancel : null,
             composerQueuedCancelStatusWorks: typeof composerQueuedCancelStatusWorks === 'boolean' ? composerQueuedCancelStatusWorks : null,
