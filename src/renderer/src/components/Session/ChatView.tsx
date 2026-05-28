@@ -1117,29 +1117,67 @@ function groupTranscriptMessages(messages: ChatMessage[]): TranscriptItem[] {
 
 function CopyButton({ getText }: { getText: () => string }): JSX.Element {
   const [copied, setCopied] = useState(false)
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'error'>('idle')
+  const copyStatusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => () => {
+    if (copyStatusTimeoutRef.current) window.clearTimeout(copyStatusTimeoutRef.current)
+  }, [])
 
   const handleCopy = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation()
+    if (copyStatusTimeoutRef.current) window.clearTimeout(copyStatusTimeoutRef.current)
     try {
-      await navigator.clipboard.writeText(getText())
+      const text = getText()
+      if (typeof window.api.clipboard?.writeText === 'function') {
+        const didWrite = await window.api.clipboard.writeText(text)
+        if (!didWrite) throw new Error('Clipboard write failed')
+      } else {
+        await navigator.clipboard.writeText(text)
+      }
       setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
+      setCopyStatus('copied')
+      copyStatusTimeoutRef.current = window.setTimeout(() => {
+        setCopied(false)
+        setCopyStatus('idle')
+        copyStatusTimeoutRef.current = null
+      }, 1500)
     } catch {
-      // clipboard unavailable
+      setCopied(false)
+      setCopyStatus('error')
+      copyStatusTimeoutRef.current = window.setTimeout(() => {
+        setCopyStatus('idle')
+        copyStatusTimeoutRef.current = null
+      }, 2200)
     }
   }, [getText])
 
   return (
-    <IconButton
-      icon={copied ? 'check' : 'copy'}
-      label={copied ? 'Copied' : 'Copy'}
-      size="sm"
-      tone={copied ? 'success' : 'neutral'}
-      onClick={handleCopy}
-      style={{
-        opacity: copied ? 1 : 0.55
-      }}
-    />
+    <>
+      <IconButton
+        icon={copied ? 'check' : 'copy'}
+        label={copyStatus === 'error' ? 'Copy failed' : copied ? 'Copied message' : 'Copy message'}
+        size="sm"
+        tone={copied ? 'success' : copyStatus === 'error' ? 'danger' : 'neutral'}
+        dataTestId="chat-message-copy"
+        onClick={handleCopy}
+        style={{
+          opacity: copied ? 1 : 0.55
+        }}
+      />
+      {copyStatus !== 'idle' && (
+        <span
+          className="sr-only"
+          data-testid="chat-message-copy-status"
+          data-copy-state={copyStatus}
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          {copyStatus === 'copied' ? 'Copied message' : 'Unable to copy message'}
+        </span>
+      )}
+    </>
   )
 }
 

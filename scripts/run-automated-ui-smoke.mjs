@@ -2062,6 +2062,8 @@ child.on('exit', async (code) => {
         errorRecoveryRetry: result.errorRecoveryRetryWorks === true,
         errorRecoveryRetryA11y: result.errorRecoveryRetryA11yWorks === true,
         partialResponseStatus: result.partialResponseStatusWorks === true,
+        chatMessageCopy: result.chatMessageCopyWorks === true,
+        chatMessageCopyA11y: result.chatMessageCopyA11yWorks === true,
         chatContinueLastTurn: result.chatContinueLastTurnWorks === true,
         chatContinueLastTurnA11y: result.chatContinueLastTurnA11yWorks === true,
         rawEventsHiddenFromTranscript: result.rawEventsHiddenFromTranscript === true,

@@ -20541,6 +20541,36 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
               partialResponseStatus instanceof HTMLElement &&
               partialResponseStatus.textContent?.includes('Partial response stopped') === true &&
               isInsideScroller(partialResponseStatus);
+            const chatCopyButton = document.querySelector('[data-testid="chat-message-copy"]');
+            if (chatCopyButton instanceof HTMLButtonElement) {
+              chatCopyButton.click();
+              await sleep(180);
+            }
+            const chatCopyStatus = document.querySelector('[data-testid="chat-message-copy-status"]');
+            let copiedMessageText = '';
+            try {
+              if (typeof window.api?.clipboard?.readText === 'function') {
+                copiedMessageText = await window.api.clipboard.readText();
+              } else if (typeof navigator.clipboard?.readText === 'function') {
+                copiedMessageText = await navigator.clipboard.readText();
+              }
+            } catch {
+              copiedMessageText = '';
+            }
+            const chatMessageCopyWorks =
+              chatCopyButton instanceof HTMLButtonElement &&
+              chatCopyButton.getAttribute('aria-label') === 'Copied message' &&
+              chatCopyStatus instanceof HTMLElement &&
+              chatCopyStatus.textContent?.includes('Copied message') === true &&
+              copiedMessageText.includes('TRANSCRIPT_LAYOUT_SMOKE') &&
+              copiedMessageText.includes('Referenced fixture:');
+            const chatMessageCopyA11yWorks =
+              chatCopyButton instanceof HTMLButtonElement &&
+              chatCopyStatus instanceof HTMLElement &&
+              chatCopyStatus.getAttribute('role') === 'status' &&
+              chatCopyStatus.getAttribute('aria-live') === 'polite' &&
+              chatCopyStatus.getAttribute('aria-atomic') === 'true' &&
+              chatCopyStatus.getAttribute('data-copy-state') === 'copied';
             let toolSummary = document.querySelector('[data-testid="tool-activity-summary"]');
             for (let index = 0; index < 10 && !toolSummary; index += 1) {
               scroller.scrollTop = Math.max(scroller.scrollHeight, scroller.clientHeight) * ((index + 1) / 10);
@@ -20618,6 +20648,8 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
               relativeProseCardSuppressed,
               absoluteMissingFileCardDisabled,
               partialResponseStatusWorks,
+              chatMessageCopyWorks,
+              chatMessageCopyA11yWorks,
               toolSummaryExpanded,
               toolSummaryBounded,
               toolSummaryScrollable,
