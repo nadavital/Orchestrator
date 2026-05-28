@@ -896,6 +896,33 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 !diagnosticsToggle.textContent?.includes('Advanced') &&
                 !diagnosticsToggle.textContent?.includes('Shown') &&
                 !diagnosticsToggle.textContent?.includes('Hidden');
+              var settingsProviderCommandOutputSharedWorks = false;
+              if (providerCapabilitySelect instanceof HTMLSelectElement) {
+                const firstCapabilityOption = [...providerCapabilitySelect.options]
+                  .find((option) => option.value.length > 0);
+                if (firstCapabilityOption) {
+                  providerCapabilitySelect.value = firstCapabilityOption.value;
+                  providerCapabilitySelect.dispatchEvent(new Event('change', { bubbles: true }));
+                  await sleep(120);
+                  const commandOutput = document.querySelector('[data-testid="provider-capability-output"]');
+                  const commandHeader = commandOutput?.querySelector('.provider-command-output-header');
+                  const commandAction = commandOutput?.querySelector('.provider-command-output-action');
+                  const commandChips = commandOutput instanceof HTMLElement
+                    ? [...commandOutput.querySelectorAll('.provider-command-output-chip')]
+                    : [];
+                  settingsProviderCommandOutputSharedWorks =
+                    commandOutput instanceof HTMLElement &&
+                    commandOutput.getAttribute('data-provider-command-output-surface') === 'shared' &&
+                    commandOutput.scrollWidth <= commandOutput.clientWidth + 2 &&
+                    commandHeader instanceof HTMLElement &&
+                    commandAction instanceof HTMLButtonElement &&
+                    commandChips.length >= 3 &&
+                    commandChips.every((chip) => chip instanceof HTMLElement && chip.getBoundingClientRect().height <= 22);
+                  providerCapabilitySelect.value = '';
+                  providerCapabilitySelect.dispatchEvent(new Event('change', { bubbles: true }));
+                  await sleep(80);
+                }
+              }
               const editModelListButton = [...document.querySelectorAll('button')]
                 .find((button) => button.textContent?.includes('Edit model list'));
               editModelListButton?.scrollIntoView({ block: 'center' });
@@ -5780,6 +5807,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             settingsProvidersModuleWorks: typeof settingsProvidersModuleWorks === 'boolean' ? settingsProvidersModuleWorks : null,
             settingsProviderCatalogLabelCalm: typeof settingsProviderCatalogLabelCalm === 'boolean' ? settingsProviderCatalogLabelCalm : null,
             settingsDiagnosticsDisclosureCompactWorks: typeof settingsDiagnosticsDisclosureCompactWorks === 'boolean' ? settingsDiagnosticsDisclosureCompactWorks : null,
+            settingsProviderCommandOutputSharedWorks: typeof settingsProviderCommandOutputSharedWorks === 'boolean' ? settingsProviderCommandOutputSharedWorks : null,
             settingsProviderSidebarRefreshWorks: typeof settingsProviderSidebarRefreshWorks === 'boolean' ? settingsProviderSidebarRefreshWorks : null,
             settingsProviderContentAnchoredWorks: typeof settingsProviderContentAnchoredWorks === 'boolean' ? settingsProviderContentAnchoredWorks : null,
             settingsDataControlsWorks: typeof settingsDataControlsWorks === 'boolean' ? settingsDataControlsWorks : null,

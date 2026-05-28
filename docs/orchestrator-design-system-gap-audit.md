@@ -1307,7 +1307,7 @@ Completed in the latest implementation pass:
 - Capabilities create/row menus, edit/sync sheets, and delete confirmation now use shared primitives.
 - Session action rename/delete and project removal no longer use native browser prompt/confirm UI.
 - Capabilities smoke now verifies create-menu open, menu Escape dismissal, create-sheet open, and sheet Escape dismissal.
-- Settings now shares design-system primitives for intro text, groups, panels, compact rows, choice cards, status pills, and diagnostic pills.
+- Settings now shares design-system primitives for intro text, groups, panels, compact rows, choice cards, status pills, diagnostic pills, and provider command-output cards.
 - Composer provider/agent/permission dropdown panels now use shared dismissable popover behavior with focus return.
 - Composer smoke now verifies permission-menu Escape dismissal/focus return, agent-menu outside-click dismissal/focus return, expanded/collapsed ARIA state on Agent/Permission popover triggers, and Arrow-key roving focus inside composer popovers.
 - Pet overlay smoke now verifies custom provider state mapping, permission actions, running/review/failed buckets, tray collapse/reopen, row expansion, reply focus, and resize-handle hover/focus visibility.

@@ -7823,6 +7823,16 @@ Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.
 
 Remaining: this closes the provider boundary visibility gap only. Real remote-host Settings adapters, provider-native account management, provider-backed Browser Use adapters, and Codex-native memory/personality/custom-instruction sync remain Phase 1 provider Settings work.
 
+### 2026-05-28 - Provider Settings Command Output Surface
+
+Product evidence: the Phase 1 Settings backlog calls out provider command output cards as one of the remaining local controls. The Providers page already had a capability selector, but selecting a capability rendered a bespoke inline-styled card for metadata, action state, and fallback copy, which made the provider settings surface less consistent than the rest of the shared Settings rows.
+
+Implemented: provider capability output now uses named `provider-command-output` classes for the card, header, metadata chips, action button, and message body. The focused provider Settings smoke selects a capability without running it and verifies the compact shared output surface, chips, action button, and horizontal containment under `settingsProviderCommandOutputShared=true`.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and `git diff --check` passed. Focused `node scripts/run-automated-ui-smoke.mjs --settings-providers` first hit the expected sandbox localhost bind failure; the elevated rerun passed with `settingsProviderCommandOutputShared=true` alongside the existing provider dropdown, diagnostics, usage, model-list, control-surface, boundaries, sidebar-refresh, top-anchor, and route-owned Settings gates. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-providers-1779946686257.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-providers-1779946686257.png`.
+
+Remaining: this closes the local provider command-output card cleanup only. Real remote-host Settings adapters, provider-native account/runtime management, provider-backed Browser Use adapters, and Codex-native memory/personality/custom-instruction sync remain Phase 1 provider Settings work.
+
 ### 2026-05-28 - Composer Active-Run Queue Summary
 
 Product evidence: the Phase 1 composer/main-chat backlog calls out richer active-run queue states. After queued follow-up cancellation, queued messages were visible in the transcript, but the composer itself did not show whether a follow-up was still queued while the user was typing during an active streaming run.

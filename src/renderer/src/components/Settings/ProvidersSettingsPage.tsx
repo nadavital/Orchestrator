@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type Dispatch, type ReactNode, type SetStateAction } from 'react'
 import {
   DndContext, closestCenter, type DragEndEvent,
   KeyboardSensor, PointerSensor, useSensor, useSensors
@@ -835,20 +835,9 @@ function ProviderCommandSurfaces({
       </div>
       <select
         data-testid="provider-capability-select"
+        className="provider-capability-select"
         value={openId ?? ''}
         onChange={(event) => setOpenId(event.target.value || null)}
-        style={{
-          width: 'min(340px, 100%)',
-          height: 32,
-          borderRadius: 7,
-          border: '1px solid var(--color-border)',
-          background: 'var(--color-surface2)',
-          color: 'var(--color-text)',
-          padding: '0 10px',
-          fontSize: 12,
-          fontWeight: 650,
-          outline: 'none',
-        }}
       >
         <option value="">Choose a check</option>
         {surfaces.map((surface) => (
@@ -899,39 +888,21 @@ function CommandSurfaceOutput({
   return (
     <div
       data-testid="provider-capability-output"
-      style={{
-        border: '1px solid var(--color-border)',
-        borderRadius: 8,
-        overflow: 'hidden',
-        background: 'var(--color-surface2)',
-      }}
+      data-provider-command-output-surface="shared"
+      data-provider-command-runnable={runnable ? 'true' : 'false'}
+      className="provider-command-output"
     >
       <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 12,
-          padding: '9px 10px',
-          borderBottom: output || loading || !runnable ? '1px solid var(--color-border)' : 'none',
-        }}
+        className="provider-command-output-header"
+        data-has-body={output || loading || !runnable ? 'true' : 'false'}
       >
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text)' }}>{surface.label}</div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 4 }}>
+        <div className="provider-command-output-copy">
+          <div className="provider-command-output-title">{surface.label}</div>
+          <div className="provider-command-output-meta">
             {meta.map((item) => (
               <span
                 key={item}
-                style={{
-                  minHeight: 20,
-                  padding: '2px 6px',
-                  borderRadius: 999,
-                  border: '1px solid var(--color-border)',
-                  background: 'var(--color-surface)',
-                  color: 'var(--color-text-muted)',
-                  fontSize: 10,
-                  fontWeight: 700
-                }}
+                className="provider-command-output-chip"
               >
                 {item}
               </span>
@@ -939,36 +910,30 @@ function CommandSurfaceOutput({
           </div>
         </div>
         <button
+          className="provider-command-output-action"
+          data-runnable={runnable ? 'true' : 'false'}
           disabled={!runnable || loading}
           onClick={() => onRun(surface)}
-          style={{
-            padding: '6px 10px',
-            borderRadius: 7,
-            border: `1px solid ${runnable ? color : 'var(--color-border)'}`,
-            background: runnable ? color : 'var(--color-surface)',
-            color: runnable ? '#fff' : 'var(--color-text-muted)',
-            cursor: runnable && !loading ? 'pointer' : 'default',
-            fontSize: 11,
-            fontWeight: 700,
-            flexShrink: 0,
-            opacity: loading ? 0.65 : 1,
-          }}
+          style={{ '--provider-accent': color } as CSSProperties}
         >
           {loading ? 'Running' : runnable ? 'Refresh' : surface.quota === 'none' ? 'Manual' : 'Quota'}
         </button>
       </div>
 
       {!runnable ? (
-        <div style={{ padding: 10, fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.45 }}>
+        <div className="provider-command-output-message">
           {surface.mutatesState
             ? 'This changes provider or project state. Orchestrator keeps it as an explicit terminal handoff.'
             : 'This may spend model quota or open an interactive provider flow, so it is not run from settings.'}
-          {surface.note && <div style={{ marginTop: 6 }}>{surface.note}</div>}
+          {surface.note && <div className="provider-command-output-note">{surface.note}</div>}
         </div>
       ) : output ? (
         <StructuredCommandOutput output={output} color={color} surface={surface} />
       ) : (
-        <div style={{ padding: 10, fontSize: 12, color: result ? statusColor : 'var(--color-text-muted)' }}>
+        <div
+          className="provider-command-output-message"
+          style={{ color: result ? statusColor : undefined }}
+        >
           {loading ? 'Running…' : result ? result.status : 'Refresh to check this capability.'}
         </div>
       )}
