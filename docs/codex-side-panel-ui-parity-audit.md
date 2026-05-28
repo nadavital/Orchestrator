@@ -163,6 +163,14 @@ Current Review verification debt:
 
 ## Implementation Progress
 
+### 2026-05-28 - Composer Blocked Send Status Slice
+
+Implemented: the composer now shows a compact send-status strip when a draft cannot send because the selected permission policy is unsupported, when attachments are still saving, or when Enter will queue a follow-up behind a running turn. Unsupported permission states include a direct `Change` action that opens the permission menu, so the disabled send arrow is no longer the only signal.
+
+Verification: `pnpm exec tsc --noEmit` passed. `node -c scripts/run-automated-ui-smoke.mjs` passed. `git diff --check` passed. Focused `node scripts/run-automated-ui-smoke.mjs --composer` passed with `composerSendStatusExplainsBlocked=true` plus the existing composer active-thread settings, permission menu, queued cancel, draft, attachment, drag/drop, and toolbar responsive gates; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1779936669465.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1779936669465.png`.
+
+Remaining: this closes the immediate blocked-send visibility gap. It does not implement provider-native permission adapters or live provider-backed model/permission switching proof.
+
 ### 2026-05-28 - Composer Active Thread Model Settings Slice
 
 Implemented: existing-thread composer provider/model text is no longer a dead label. It now opens a compact `Thread settings` popover with the current provider identity plus model, Claude agent, and effort/thinking controls where supported. New-thread setup still keeps provider switching in the setup menu; this slice makes the active coding-thread controls inspectable and adjustable without expanding into new provider adapters.

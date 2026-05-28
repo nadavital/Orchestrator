@@ -276,6 +276,29 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   })
   const canSend = sendState.canSend && !isSavingPastedFiles
   const canStop = canStopSession(session.status)
+  const hasDraftText = text.trim().length > 0
+  const composerSendNotice = hasDraftText && !canUsePermission
+    ? {
+        state: 'unsupported-permission' as const,
+        tone: 'danger' as const,
+        title: 'Permission mode unavailable',
+        detail: resolvedPermission?.description ?? 'Choose a supported permission mode before sending.'
+      }
+    : hasDraftText && isSavingPastedFiles
+      ? {
+          state: 'saving-attachments' as const,
+          tone: 'neutral' as const,
+          title: 'Saving attachments',
+          detail: 'The message will be ready after attached files finish saving.'
+        }
+      : sendState.willQueue
+        ? {
+            state: 'will-queue' as const,
+            tone: 'accent' as const,
+            title: 'Will queue after current run',
+            detail: 'Press Enter to send this as a queued follow-up.'
+          }
+        : null
 
   const send = async (): Promise<void> => {
     if (!canSend) return
@@ -649,6 +672,42 @@ function InputBar({ session, isNew }: Props): JSX.Element {
                 onRemove={() => cancelPendingAttachment(attachment.id)}
               />
             ))}
+          </div>
+        )}
+        {composerSendNotice && (
+          <div
+            className="mx-3 mb-2 flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs"
+            data-testid="composer-send-status"
+            data-composer-send-state={composerSendNotice.state}
+            style={{
+              borderColor: composerSendNotice.tone === 'danger'
+                ? 'color-mix(in srgb, var(--color-red) 45%, var(--border-subtle))'
+                : 'var(--border-subtle)',
+              background: composerSendNotice.tone === 'danger'
+                ? 'color-mix(in srgb, var(--color-red) 9%, var(--surface-bg))'
+                : 'var(--control-bg)',
+              color: composerSendNotice.tone === 'danger' ? 'var(--color-red)' : 'var(--text-secondary)'
+            }}
+          >
+            <span className="font-semibold" style={{ color: composerSendNotice.tone === 'danger' ? 'var(--color-red)' : 'var(--text-primary)' }}>
+              {composerSendNotice.title}
+            </span>
+            <span className="min-w-0 flex-1 truncate">{composerSendNotice.detail}</span>
+            {composerSendNotice.state === 'unsupported-permission' && (
+              <button
+                type="button"
+                className="shrink-0 rounded-md px-1.5 py-0.5 font-semibold"
+                data-testid="composer-send-status-action"
+                onClick={() => setShowPermMenu(true)}
+                style={{
+                  background: 'var(--surface-bg)',
+                  border: '1px solid var(--border-subtle)',
+                  color: 'var(--text-primary)'
+                }}
+              >
+                Change
+              </button>
+            )}
           </div>
         )}
 

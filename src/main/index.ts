@@ -4470,6 +4470,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             const firstDraftRow = rowForTitle('Draft smoke one');
             const secondDraftRow = rowForTitle('Draft smoke two');
             const activeSettingsRow = rowForTitle('Active settings smoke');
+            const unsupportedPermissionRow = rowForTitle('Unsupported permission smoke');
             firstDraftRow?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
             await sleep(180);
             const firstDraftTyped = setTextareaValue('draft belongs to chat one');
@@ -4589,6 +4590,17 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 composerDragDropAttachmentWorks = false;
               }
             }
+            unsupportedPermissionRow?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+            await sleep(220);
+            setTextareaValue('try to send with unsupported permissions');
+            await sleep(120);
+            const sendStatus = document.querySelector('[data-testid="composer-send-status"]');
+            const sendStatusAction = document.querySelector('[data-testid="composer-send-status-action"]');
+            var composerSendStatusExplainsBlocked =
+              sendStatus instanceof HTMLElement &&
+              sendStatus.getAttribute('data-composer-send-state') === 'unsupported-permission' &&
+              sendStatus.textContent?.includes('Permission mode unavailable') === true &&
+              sendStatusAction instanceof HTMLButtonElement;
             activeSettingsRow?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
             await sleep(220);
 
@@ -5717,6 +5729,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             composerAgentMenuClosedWithOutsideClick: typeof composerAgentMenuClosedWithOutsideClick === 'boolean' ? composerAgentMenuClosedWithOutsideClick : null,
             composerAgentFocusReturned: typeof composerAgentFocusReturned === 'boolean' ? composerAgentFocusReturned : null,
             composerToolbarResponsiveWorks: typeof composerToolbarResponsiveWorks === 'boolean' ? composerToolbarResponsiveWorks : null,
+            composerSendStatusExplainsBlocked: typeof composerSendStatusExplainsBlocked === 'boolean' ? composerSendStatusExplainsBlocked : null,
             composerQueuedCancel: typeof composerQueuedCancel === 'boolean' ? composerQueuedCancel : null,
             composerEmptySuggestionFillsDraft: typeof composerEmptySuggestionFillsDraft === 'boolean' ? composerEmptySuggestionFillsDraft : null,
             composerDraftsPerChat: typeof composerDraftsPerChat === 'boolean' ? composerDraftsPerChat : null,
@@ -21628,6 +21641,38 @@ async function seedAutomatedComposerSmokeSession(projectId: string, workDir: str
       activeSettingsMessage
     ],
     latestMessageAt: activeSettingsMessage.timestamp
+  })
+
+  let unsupportedPermissionSession = sessionManager.list().find((candidate) => candidate.projectId === projectId && candidate.name === 'Unsupported permission smoke')
+  if (!unsupportedPermissionSession) {
+    unsupportedPermissionSession = await sessionManager.create({
+      projectId,
+      workDir,
+      useWorktree: false,
+      repoRoot: workDir
+    })
+    projectStore.addSession(projectId, unsupportedPermissionSession.id)
+  }
+  const unsupportedMessage: ChatMessage = {
+    id: 'composer-unsupported-permission-smoke-message',
+    role: 'assistant',
+    type: 'text',
+    content: 'UNSUPPORTED_PERMISSION_SMOKE existing thread for composer send status.',
+    timestamp: baseTime + 2
+  }
+  sessionManager.save({
+    ...unsupportedPermissionSession,
+    name: 'Unsupported permission smoke',
+    provider: 'codex',
+    model: 'gpt-5.4',
+    effort: 'medium',
+    permissionMode: 'unsupported-smoke-policy',
+    status: 'idle',
+    messages: [
+      ...unsupportedPermissionSession.messages.filter((message) => message.id !== unsupportedMessage.id),
+      unsupportedMessage
+    ],
+    latestMessageAt: unsupportedMessage.timestamp
   })
 }
 
