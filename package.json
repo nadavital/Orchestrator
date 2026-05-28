@@ -73,6 +73,7 @@
     "live:codex-composer-runtime-lifecycle": "node -e \"require('fs').rmSync('out-test',{recursive:true,force:true})\" && tsc -p tsconfig.node.json --outDir out-test --module commonjs && node scripts/codex-composer-runtime-lifecycle-live-proof.mjs",
     "live:codex-composer-session-lifecycle": "node -e \"require('fs').rmSync('out-test',{recursive:true,force:true})\" && tsc -p tsconfig.node.json --outDir out-test --module commonjs && node scripts/codex-composer-session-lifecycle-live-proof.mjs",
     "live:codex-composer-renderer-lifecycle": "ORCHESTRATOR_AUTOMATED_UI_SMOKE_TIMEOUT_MS=240000 node scripts/run-automated-ui-smoke.mjs --transcript-live-lifecycle",
+    "live:codex-composer-partial-continue": "ORCHESTRATOR_AUTOMATED_UI_SMOKE_TIMEOUT_MS=240000 node scripts/run-automated-ui-smoke.mjs --transcript-live-partial-continue",
     "live:codex-review-appserver": "node -e \"require('fs').rmSync('out-test',{recursive:true,force:true})\" && tsc -p tsconfig.node.json --outDir out-test --module commonjs && node scripts/codex-review-appserver-live-proof.mjs",
     "live:claude-capabilities": "tsc -p tsconfig.node.json --outDir out-test --module commonjs && node scripts/claude-live-capability-suite.mjs",
     "preview": "electron-vite preview",

@@ -70,6 +70,8 @@ const captureView = process.argv.includes('--settings-deeplink')
             ? 'sidebar'
             : process.argv.includes('--transcript-live-lifecycle')
               ? 'transcript-live-lifecycle'
+            : process.argv.includes('--transcript-live-partial-continue')
+              ? 'transcript-live-partial-continue'
             : process.argv.includes('--transcript-layout')
               ? 'transcript-layout'
               : process.argv.includes('--transcript-user-input')
@@ -2052,6 +2054,16 @@ child.on('exit', async (code) => {
         liveRendererSameProviderSession: result.liveRendererSameProviderSession === true,
         liveRendererStartMethod: Number(result.liveRendererStartMethodCount ?? 0) >= 1,
         liveRendererResumeMethods: Number(result.liveRendererResumeMethodCount ?? 0) >= 2
+      }
+    : captureView === 'transcript-live-partial-continue'
+    ? {
+        isolatedProfile: result.profile?.isIsolated === true,
+        livePartialSeedCompleted: result.livePartialSeedCompleted === true,
+        livePartialStatusVisible: result.livePartialStatusVisible === true,
+        livePartialContinueClicked: result.livePartialContinueClicked === true,
+        livePartialContinueCompleted: result.livePartialContinueCompleted === true,
+        livePartialSameProviderSession: result.livePartialSameProviderSession === true,
+        livePartialResumeMethod: Number(result.livePartialResumeMethodCount ?? 0) >= 1
       }
     : captureView === 'transcript-layout'
     ? {

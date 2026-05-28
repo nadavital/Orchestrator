@@ -7851,7 +7851,7 @@ Implemented: interrupted assistant streams now preserve an `interrupted` message
 
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, `pnpm exec tsc -p tsconfig.node.json --outDir out-test --module commonjs`, and `node --test out-test/src/main/__tests__/sessionControls.test.js` passed. Focused `node scripts/run-automated-ui-smoke.mjs --transcript-layout` passed with `partialResponseStatus=true`, `chatContinueLastTurn=true`, and the existing transcript layout, retry, permission, user-input, search, overflow, and tool-summary gates. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-transcript-layout-1779933783981.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-transcript-layout-1779933783981.png`.
 
-Remaining: this closes first-pass partial-response recovery in local transcript state only. Real provider-backed partial-continue proof, richer continuation around tool boundaries, long-thread continuation ergonomics, and broader model/context/permission workflow polish remain Phase 1 main-chat work.
+Remaining at this layer: this closes first-pass partial-response recovery in local transcript state only. The later live partial-response continuation proof closes provider-backed interrupted-assistant Continue for Codex; richer continuation around tool boundaries, long-thread continuation ergonomics, and broader model/context/permission workflow polish remain Phase 1 main-chat work.
 
 ### 2026-05-28 - Agents Selected Timeline
 
@@ -8801,7 +8801,7 @@ Implemented: added `scripts/codex-composer-resume-live-proof.mjs` and `npm run l
 
 Verification: `node -c scripts/codex-composer-resume-live-proof.mjs`, elevated `npm run live:codex-composer-resume`, `pnpm exec tsc --noEmit`, and `git diff --check` passed. Artifact: `/Users/nadav/Desktop/Orchestrator/tmp/codex-composer-resume-live-proof/result.json`; raw JSONL: `/Users/nadav/Desktop/Orchestrator/tmp/codex-composer-resume-live-proof/start.raw.jsonl` and `/Users/nadav/Desktop/Orchestrator/tmp/codex-composer-resume-live-proof/resume.raw.jsonl`. The first stronger recall run failed only because Codex returned `CODEX_RESUME_SECOND_OK: ORCH_RESUME_MEMORY_741` with separator whitespace; the final validator accepts harmless whitespace while still requiring the prior-turn key.
 
-Remaining: this closes backend Codex app-server resume/context-continuity proof. It does not close UI-level retry/continue end-to-end proof against an existing live provider thread, partial-response continuation semantics, model-switching across resumed provider threads, non-Codex provider adapters, or live Codex UI pixel/timing proof.
+Remaining at this layer: this closes backend Codex app-server resume/context-continuity proof. Later slices close UI-level retry/continue and partial-response continuation against an existing live provider thread; model-switching across resumed provider threads, non-Codex provider adapters, and live Codex UI pixel/timing proof remain separate.
 
 ### 2026-05-28 - Live Composer Runtime Lifecycle Proof
 
@@ -8821,7 +8821,7 @@ Implemented: added `scripts/codex-composer-session-lifecycle-live-proof.mjs` and
 
 Verification: `node -c scripts/codex-composer-session-lifecycle-live-proof.mjs` and elevated `npm run live:codex-composer-session-lifecycle` passed. Artifact: `/Users/nadav/Desktop/Orchestrator/tmp/codex-composer-session-lifecycle-live-proof/result.json`. The artifact records session id `1b021cb4-4c84-446a-9777-5de99b5ed97c`, provider session id `019e6f70-134f-7a21-92c5-5c59c123f401`, start method count `2`, resume method count `4`, archived cleanup `ok=true`, and assistant messages `CODEX_SESSION_LIFECYCLE_FIRST_OK`, `CODEX_SESSION_LIFECYCLE_CONTINUE_OK:ORCH_SESSION_LIFECYCLE_MEMORY_427`, and `CODEX_SESSION_LIFECYCLE_RETRY_OK:ORCH_SESSION_LIFECYCLE_MEMORY_427`.
 
-Remaining at this layer: this closes the main-process `sessionManager` live Codex send/continue/retry lifecycle proof. The following renderer slice closes the transcript-button click path; partial-response continuation through the visible UI, model-switching across resumed provider threads, non-command permission variants, non-Codex provider adapters, and live Codex UI pixel/timing proof remain separate.
+Remaining at this layer: this closes the main-process `sessionManager` live Codex send/continue/retry lifecycle proof. The following renderer slices close the transcript-button and partial-response click paths; model-switching across resumed provider threads, non-command permission variants, non-Codex provider adapters, and live Codex UI pixel/timing proof remain separate.
 
 ### 2026-05-28 - Live Composer Renderer Lifecycle Proof
 
@@ -8831,4 +8831,14 @@ Implemented: added the focused `--transcript-live-lifecycle` automated UI smoke 
 
 Verification: `node -c scripts/run-automated-ui-smoke.mjs`, `pnpm exec tsc --noEmit`, `git diff --check`, and elevated `npm run live:codex-composer-renderer-lifecycle` passed. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-transcript-live-lifecycle-1779986634530.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-transcript-live-lifecycle-1779986634530.png`. The first live run failed only because the check expected a transient `Continue` sent label after Codex completed too quickly; the final gate now checks the durable click plus live completion evidence.
 
-Remaining: this closes renderer click-to-live proof for Codex send/Continue/Retry. It does not close partial-response continuation through the visible UI, model-switching across resumed provider threads, non-command permission variants, non-Codex provider adapters, or live Codex UI pixel/timing proof.
+Remaining at this layer: this closes renderer click-to-live proof for Codex send/Continue/Retry. The following partial-response proof closes the interrupted-assistant Continue variant; model-switching across resumed provider threads, non-command permission variants, non-Codex provider adapters, and live Codex UI pixel/timing proof remain separate.
+
+### 2026-05-28 - Live Partial Response Continuation Proof
+
+Product evidence: local transcript smoke already proved interrupted assistant messages render `Partial response stopped` and that `continueLastTurn` switches to a partial-aware continuation prompt. The missing daily-use proof was whether the visible interrupted-assistant state can be continued through the real renderer button against a live Codex provider thread.
+
+Implemented: added `--transcript-live-partial-continue` and `npm run live:codex-composer-partial-continue`. The focused smoke starts a live Codex app-server thread, validates the first provider reply, appends an interrupted assistant message so the transcript shows the partial-response chip, clicks the actual visible Continue button, and verifies the resumed assistant reply returns through the same provider session id. The result also requires the partial-aware prompt text to be present in the transcript and records the live `thread/resume` method count.
+
+Verification: `node -c scripts/run-automated-ui-smoke.mjs`, `pnpm exec tsc --noEmit`, `git diff --check`, and elevated `npm run live:codex-composer-partial-continue` passed. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-transcript-live-partial-continue-1779987197970.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-transcript-live-partial-continue-1779987197970.png`. The artifact records provider session id `019e6f81-45ca-7a41-9c42-8f4d81aaf959`, `livePartialStatusVisible=true`, `livePartialContinueClicked=true`, `livePartialContinueCompleted=true`, `livePartialSameProviderSession=true`, `livePartialResumeMethodCount=2`, and assistant messages `CODEX_RENDERER_PARTIAL_FIRST_OK`, `PARTIAL_RESPONSE_VISIBLE_SMOKE ORCH_RENDERER_PARTIAL_MEMORY_529 stopped before the final answer.`, and `CODEX_RENDERER_PARTIAL_CONTINUE_OK:ORCH_RENDERER_PARTIAL_MEMORY_529`.
+
+Remaining: this closes live Codex partial-response continuation through the visible renderer path. It does not close model-switching across resumed provider threads, non-command permission variants, non-Codex provider adapters, live Codex UI pixel/timing proof, or richer continuation around tool boundaries.
