@@ -8922,3 +8922,13 @@ Implemented: Browser target, coordinate, and page-clipboard actions now publish 
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and `git diff --check` passed. Focused `node scripts/run-automated-ui-smoke.mjs --browser` first hit the expected sandbox localhost bind failure; the final elevated rerun passed with `browserTargetActionStatus=true` alongside Browser target action, client-tool, screenshot, local-server, comment-mode, load-error, tab-transfer, and no-overflow gates. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779990437515.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779990437515.png`.
 
 Remaining: this closes local Browser inspector target-action feedback only. Provider-emitted browser-use proof, non-Codex browser/local-server adapters, live Codex Browser pixel/timing evidence, and broader keyboard-only traversal remain separate.
+
+### 2026-05-28 - Codex App-Server Non-Command Permission Response Coverage
+
+Product evidence: local transcript permission smokes and provider parser tests proved file-change and permission-profile approval cards render correctly, but the lower app-server runtime test only proved command and legacy approval response payloads. That left a gap between visible non-command permission cards and the actual response bridge used by Codex app-server runs.
+
+Implemented: the Codex app-server runtime test now emits `item/fileChange/requestApproval` and `item/permissions/requestApproval` requests through the fake app-server process and verifies Orchestrator sends the correct accept-for-session file-change response, turn-scoped permission-profile response, and permission-profile denial error. The test also asserts those requests still parse into the expected Orchestrator `permission.requested` events.
+
+Verification: `pnpm exec tsc -p tsconfig.node.json --outDir out-test --module commonjs`, `pnpm exec tsc --noEmit`, and `node --test out-test/src/main/__tests__/codexAppServerRuntime.test.js` passed.
+
+Remaining: this closes local app-server runtime bridge coverage for non-command approval response shapes. It does not claim deterministic live provider forcing for `item/fileChange/requestApproval` or `item/permissions/requestApproval`; that remains separate until a live Codex prompt/API can reliably produce those exact methods.

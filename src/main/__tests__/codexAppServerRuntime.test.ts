@@ -217,6 +217,102 @@ test('codex app-server runtime starts a thread, starts a turn, and answers nativ
 
   proc.emitStdout({
     jsonrpc: '2.0',
+    id: 'file-approval-1',
+    method: 'item/fileChange/requestApproval',
+    params: {
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      itemId: 'file-1',
+      reason: 'Need write access for generated files.',
+      grantRoot: '/private/tmp/orchestrator-codex-generated'
+    }
+  })
+  assert.equal(manager.resolvePermission(session.id, true, true), true)
+  writes = writtenJson(proc)
+  assert.deepEqual(writes[writes.length - 1], {
+    id: 'file-approval-1',
+    result: { decision: 'acceptForSession' }
+  })
+  const filePermission = events.find((event) =>
+    event.type === 'permission.requested' &&
+    event.denials[0]?.tool_name === 'write'
+  )
+  assert.equal(filePermission?.type, 'permission.requested')
+  assert.equal(filePermission?.denials[0]?.tool_input.grantRoot, '/private/tmp/orchestrator-codex-generated')
+
+  proc.emitStdout({
+    jsonrpc: '2.0',
+    id: 'profile-approval-1',
+    method: 'item/permissions/requestApproval',
+    params: {
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      itemId: 'profile-1',
+      cwd: '/private/tmp/orchestrator-codex-generated',
+      reason: 'Need temporary network access.',
+      permissions: {
+        fileSystem: {
+          entries: [{
+            access: 'write',
+            path: { type: 'path', path: '/private/tmp/orchestrator-codex-generated' }
+          }]
+        },
+        network: { enabled: true }
+      }
+    }
+  })
+  assert.equal(manager.resolvePermission(session.id, true, false), true)
+  writes = writtenJson(proc)
+  assert.deepEqual(writes[writes.length - 1], {
+    id: 'profile-approval-1',
+    result: {
+      permissions: {
+        fileSystem: {
+          entries: [{
+            access: 'write',
+            path: { type: 'path', path: '/private/tmp/orchestrator-codex-generated' }
+          }]
+        },
+        network: { enabled: true }
+      },
+      scope: 'turn'
+    }
+  })
+  const profilePermission = events.find((event) =>
+    event.type === 'permission.requested' &&
+    event.denials[0]?.tool_name === 'permissions'
+  )
+  assert.equal(profilePermission?.type, 'permission.requested')
+  assert.deepEqual(profilePermission?.denials[0]?.tool_input.permissions, {
+    fileSystem: {
+      entries: [{
+        access: 'write',
+        path: { type: 'path', path: '/private/tmp/orchestrator-codex-generated' }
+      }]
+    },
+    network: { enabled: true }
+  })
+
+  proc.emitStdout({
+    jsonrpc: '2.0',
+    id: 'profile-approval-deny',
+    method: 'item/permissions/requestApproval',
+    params: {
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      itemId: 'profile-deny',
+      permissions: { network: { enabled: true } }
+    }
+  })
+  assert.equal(manager.resolvePermission(session.id, false, false), true)
+  writes = writtenJson(proc)
+  assert.deepEqual(writes[writes.length - 1], {
+    id: 'profile-approval-deny',
+    error: { code: -32000, message: 'Permission request declined by user.' }
+  })
+
+  proc.emitStdout({
+    jsonrpc: '2.0',
     id: 'question-1',
     method: 'item/tool/requestUserInput',
     params: {
