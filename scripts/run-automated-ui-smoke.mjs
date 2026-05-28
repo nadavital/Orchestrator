@@ -2152,6 +2152,9 @@ child.on('exit', async (code) => {
     ? {
         isolatedProfile: result.profile?.isIsolated === true,
         transcriptFound: result.transcriptFound === true,
+        chatSessionForkLatestTurnUi: result.chatSessionForkLatestTurnUi === true,
+        chatSessionForkLatestTurnTruncatesControls: result.chatSessionForkLatestTurnTruncatesControls === true,
+        chatSessionForkLatestTurnMenuLabel: result.chatSessionForkLatestTurnMenuLabel === true,
         chatMessageForkButtonVisible: result.chatMessageForkButtonVisible === true,
         chatMessageForkMenuChoices: result.chatMessageForkMenuChoices === true,
         chatMessageForkSameWorktreeUi: result.chatMessageForkSameWorktreeUi === true,

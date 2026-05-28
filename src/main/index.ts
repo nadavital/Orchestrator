@@ -22807,6 +22807,34 @@ function runAutomatedTranscriptForkSmoke(win: BrowserWindow, outputPath: string,
             scroller.scrollTop = 0;
             scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
             await sleep(220);
+            let chatSessionForkLatestTurnUi = false;
+            let chatSessionForkLatestTurnTruncatesControls = false;
+            let chatSessionForkLatestTurnMenuLabel = false;
+            const titlebarActions = document.querySelector('[data-testid="titlebar-chat-actions"]');
+            if (titlebarActions instanceof HTMLElement) {
+              titlebarActions.click();
+              await sleep(180);
+              const latestLocalItem = [...document.querySelectorAll('[role="menuitem"]')]
+                .find((item) => item.textContent?.includes('Fork into local'));
+              chatSessionForkLatestTurnMenuLabel = latestLocalItem?.textContent?.includes('latest turn') === true;
+              if (latestLocalItem instanceof HTMLElement) {
+                latestLocalItem.click();
+                for (let attempt = 0; attempt < 18; attempt += 1) {
+                  await sleep(120);
+                  const forked = window.__orchestratorLastForkedSession ?? null;
+                  if (forked?.mode === 'local' && forked?.sourceMessageId === 'transcript-layout-assistant') {
+                    chatSessionForkLatestTurnUi = true;
+                    chatSessionForkLatestTurnTruncatesControls = forked.messageCount === 3;
+                    break;
+                  }
+                }
+              }
+              window.__orchestratorSetActiveSessionForSmoke?.("${session?.id ?? ''}");
+              await sleep(220);
+              scroller.scrollTop = 0;
+              scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
+              await sleep(120);
+            }
             const forkButton = document.querySelector('[data-message-id="transcript-layout-user"] [data-testid="chat-message-fork"]');
             const chatMessageForkButtonVisible =
               forkButton instanceof HTMLButtonElement &&
@@ -22839,6 +22867,9 @@ function runAutomatedTranscriptForkSmoke(win: BrowserWindow, outputPath: string,
             }
             return {
               transcriptFound: true,
+              chatSessionForkLatestTurnUi,
+              chatSessionForkLatestTurnTruncatesControls,
+              chatSessionForkLatestTurnMenuLabel,
               chatMessageForkButtonVisible,
               chatMessageForkMenuChoices,
               chatMessageForkSameWorktreeUi

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { isSidebarPinnedSession } from '../../types'
-import type { Automation, AutomationPermissionSnapshot, AutomationSchedule, AutomationStatus, Session, SessionForkMode } from '../../types'
+import type { Automation, AutomationPermissionSnapshot, AutomationSchedule, AutomationStatus, ChatMessage, Session, SessionForkMode } from '../../types'
 import RenameChatDialog from './RenameChatDialog'
 import { Button, ConfirmDialog, DialogContent, DialogField, DialogFooter, DialogHeader, MenuItem, MenuSection, MenuSectionLabel, MenuSurface, MotionOverlay } from './designSystem'
 
@@ -23,6 +23,8 @@ interface SessionActionsMenuSession {
   permissionMode?: string
   allowedTools?: string[]
   disallowedTools?: string[]
+  messages?: ChatMessage[]
+  messageCount?: number
 }
 
 interface Props {
@@ -143,12 +145,17 @@ export default function SessionActionsMenu({
   }
 
   const forkChat = async (mode: SessionForkMode): Promise<void> => {
-    const forked = await window.api.sessions.fork(session.id, mode)
-    const testWindow = window as typeof window & { __orchestratorLastForkedSession?: { id: string; mode: SessionForkMode; name: string; useWorktree: boolean; workDir: string; worktreeState?: Session['worktreeState'] } }
+    const currentSession = await window.api.sessions.get(session.id)
+    const sourceMessageId = latestForkTurnMessageId(currentSession?.messages ?? session.messages ?? [])
+    const options = sourceMessageId ? { throughMessageId: sourceMessageId } : undefined
+    const forked = await window.api.sessions.fork(session.id, mode, options)
+    const testWindow = window as typeof window & { __orchestratorLastForkedSession?: { id: string; mode: SessionForkMode; sourceMessageId?: string; name: string; messageCount: number; useWorktree: boolean; workDir: string; worktreeState?: Session['worktreeState'] } }
     testWindow.__orchestratorLastForkedSession = {
       id: forked.id,
       mode,
+      sourceMessageId,
       name: forked.name,
+      messageCount: forked.messages.length,
       useWorktree: forked.useWorktree,
       workDir: forked.workDir,
       worktreeState: forked.worktreeState
@@ -336,12 +343,12 @@ export default function SessionActionsMenu({
         <MenuSection dataTestId="session-action-menu-workspace-section">
           <MenuSectionLabel>Workspace</MenuSectionLabel>
           <MenuItem icon="external" label="Open in new window" onClick={() => void openInNewWindow()} />
-          <MenuItem icon="branch" label="Fork into local" onClick={() => void forkChat('local')} />
+          <MenuItem icon="branch" label="Fork into local from latest turn" onClick={() => void forkChat('local')} />
           {session.useWorktree && (
-            <MenuItem icon="branch" label="Fork into same worktree" onClick={() => void forkChat('same-worktree')} />
+            <MenuItem icon="branch" label="Fork into same worktree from latest turn" onClick={() => void forkChat('same-worktree')} />
           )}
           {session.repoRoot && (
-            <MenuItem icon="branch" label="Fork into new worktree" onClick={() => void forkChat('new-worktree')} />
+            <MenuItem icon="branch" label="Fork into new worktree from latest turn" onClick={() => void forkChat('new-worktree')} />
           )}
           {session.worktreeState === 'failed' && (
             <MenuItem icon="refresh" label="Retry worktree creation" onClick={() => void retryPendingWorktree()} />
@@ -408,6 +415,18 @@ export default function SessionActionsMenu({
   )
 
   return createPortal(menu, document.body)
+}
+
+function latestForkTurnMessageId(messages: ChatMessage[]): string | undefined {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index]
+    if (message.type !== 'text') continue
+    if (message.role === 'system') continue
+    if (message.isStreaming || message.queueState) continue
+    if (!message.content.trim()) continue
+    return message.id
+  }
+  return undefined
 }
 
 function AutomationEditDialog({
