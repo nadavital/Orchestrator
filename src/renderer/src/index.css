@@ -6784,6 +6784,11 @@
     line-height: 1;
   }
 
+  .extensions-panel-local-summary {
+    flex: 0 0 auto;
+    justify-content: flex-end;
+  }
+
   .extensions-panel-summary-error {
     color: var(--state-danger);
   }
@@ -6822,6 +6827,12 @@
   .extensions-panel-entry-badge {
     padding: 1px 6px;
     font-size: 9.5px;
+  }
+
+  .extensions-panel-file-icon {
+    display: inline-flex;
+    flex-shrink: 0;
+    color: var(--text-tertiary);
   }
 
   .extension-panel-card textarea {

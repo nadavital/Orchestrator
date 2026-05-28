@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { PROVIDER_DEFS } from '../../types'
+import Icon from '../shared/Icon'
 import ProviderIcon from '../shared/ProviderIcon'
 import {
   Badge,
@@ -474,7 +475,11 @@ function CodexExtensionsView({
             </div>
           )}
           {embedded && (
-            <div className="extensions-panel-summary" data-testid="extensions-panel-summary">
+            <div
+              className="extensions-panel-summary"
+              data-testid="extensions-panel-summary"
+              data-extension-summary-surface="shared"
+            >
               <span>Extensions</span>
               <strong>{groups.length}</strong>
               <span>{loading ? 'loading' : `${totalItems} items`}</span>
@@ -485,7 +490,7 @@ function CodexExtensionsView({
         </div>
 
         {!embedded && (
-          <div className="mt-3 grid grid-cols-3 gap-1.5">
+          <div className="mt-3 grid grid-cols-3 gap-1.5" data-extension-metrics-surface="shared">
             <SystemMetricPill><span>Groups</span><strong>{groups.length}</strong></SystemMetricPill>
             <SystemMetricPill><span>Items</span><strong>{loading ? '...' : totalItems}</strong></SystemMetricPill>
             <SystemMetricPill tone="danger"><span>Errors</span><strong>{errorCount}</strong></SystemMetricPill>
@@ -548,48 +553,51 @@ function ExtensionGroupCard({
   )
 
   return (
-    <InspectorCard className="extension-panel-card overflow-hidden p-2">
-      <DisclosureSection
-        title={title}
-        defaultOpen={embedded ? group.status === 'error' : true}
-        meta={<Badge tone={group.status === 'error' ? 'danger' : 'neutral'}>{statusText}</Badge>}
-        bodyClassName="pt-2"
-      >
-        {group.error ? (
-          <div className="rounded-md px-2 py-1.5 text-xs" style={{ color: 'var(--state-danger)', background: 'var(--control-bg)', border: '1px solid var(--border-subtle)', fontSize: 11 }}>
-            {group.error}
-          </div>
-        ) : group.items.length === 0 ? (
-          <div className="text-xs" style={{ color: 'var(--text-secondary)', fontSize: 11 }}>
-            {loading ? 'Loading...' : 'No entries reported by Codex.'}
-          </div>
-        ) : (
-          <div className="flex flex-col gap-1.5">
-            {group.items.map((item, index) => (
-              <SurfaceRow
-                key={item.id}
-                index={index}
-                className="items-start gap-2 rounded-md px-2.5 py-2"
-                style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)' }}
-              >
-                <span className="mt-1 shrink-0 rounded-full" style={{ width: 6, height: 6, background: item.tone ?? accentColor }} />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-xs font-medium" style={{ color: 'var(--text-primary)' }}>
-                    {item.title}
-                  </span>
-                  {item.subtitle && (
-                    <span className="mt-0.5 block text-[10px]" style={{ color: 'var(--text-secondary)', overflowWrap: 'anywhere' }}>
-                      {item.subtitle}
+    <div data-extension-disclosure-surface="shared">
+      <InspectorCard className="extension-panel-card overflow-hidden p-2">
+        <DisclosureSection
+          title={title}
+          defaultOpen={embedded ? group.status === 'error' : true}
+          meta={<Badge tone={group.status === 'error' ? 'danger' : 'neutral'}>{statusText}</Badge>}
+          bodyClassName="pt-2"
+        >
+          {group.error ? (
+            <div className="rounded-md px-2 py-1.5 text-xs" style={{ color: 'var(--state-danger)', background: 'var(--control-bg)', border: '1px solid var(--border-subtle)', fontSize: 11 }}>
+              {group.error}
+            </div>
+          ) : group.items.length === 0 ? (
+            <div className="text-xs" style={{ color: 'var(--text-secondary)', fontSize: 11 }}>
+              {loading ? 'Loading...' : 'No entries reported by Codex.'}
+            </div>
+          ) : (
+            <div className="flex flex-col gap-1.5">
+              {group.items.map((item, index) => (
+                <SurfaceRow
+                  key={item.id}
+                  index={index}
+                  data-extension-item-row-surface="shared"
+                  className="items-start gap-2 rounded-md px-2.5 py-2"
+                  style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)' }}
+                >
+                  <span className="mt-1 shrink-0 rounded-full" style={{ width: 6, height: 6, background: item.tone ?? accentColor }} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-xs font-medium" style={{ color: 'var(--text-primary)' }}>
+                      {item.title}
                     </span>
-                  )}
-                </span>
-                {item.meta && <Badge tone={item.tone?.includes('EF4444') ? 'danger' : 'neutral'}>{item.meta}</Badge>}
-              </SurfaceRow>
-            ))}
-          </div>
-        )}
-      </DisclosureSection>
-    </InspectorCard>
+                    {item.subtitle && (
+                      <span className="mt-0.5 block text-[10px]" style={{ color: 'var(--text-secondary)', overflowWrap: 'anywhere' }}>
+                        {item.subtitle}
+                      </span>
+                    )}
+                  </span>
+                  {item.meta && <Badge tone={item.tone?.includes('EF4444') ? 'danger' : 'neutral'}>{item.meta}</Badge>}
+                </SurfaceRow>
+              ))}
+            </div>
+          )}
+        </DisclosureSection>
+      </InspectorCard>
+    </div>
   )
 }
 
@@ -721,10 +729,20 @@ function AgentSectionView({
 
   return (
     <div>
-      <div className={embedded ? 'extensions-panel-section-heading px-3' : 'px-4 py-3'} style={{ borderTop: '1px solid var(--border-subtle)', borderBottom: '1px solid var(--border-subtle)', background: 'var(--surface-bg)' }}>
+      <div
+        className={embedded ? 'extensions-panel-section-heading justify-between gap-2 px-3' : 'px-4 py-3'}
+        data-extension-summary-surface={embedded ? 'shared' : undefined}
+        style={{ borderTop: '1px solid var(--border-subtle)', borderBottom: '1px solid var(--border-subtle)', background: 'var(--surface-bg)' }}
+      >
         <div className="text-xs font-semibold" style={{ color: 'var(--color-text)' }}>
           {embedded ? 'Instructions' : 'Local Instructions'}
         </div>
+        {embedded && (
+          <div className="extensions-panel-summary extensions-panel-local-summary">
+            <strong>{section.files.length + section.dirs.length + (section.mcpServers ? 1 : 0)}</strong>
+            <span>sources</span>
+          </div>
+        )}
         {!embedded && (
           <div className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)', fontSize: 11 }}>
             Files and folders this provider reads from the workspace or home directory.
@@ -766,7 +784,12 @@ function McpServersView({ servers, accentColor, embedded = false }: {
   const entries = Object.entries(servers)
 
   return (
-    <div data-testid={embedded ? 'extensions-embedded-entry' : undefined} className={embedded ? 'extensions-panel-embedded-entry px-2 py-0' : 'px-4 py-3'} style={{ borderTop: '1px solid var(--color-border)' }}>
+    <div
+      data-testid={embedded ? 'extensions-embedded-entry' : undefined}
+      data-extension-disclosure-surface="shared"
+      className={embedded ? 'extensions-panel-embedded-entry px-2 py-0' : 'px-4 py-3'}
+      style={{ borderTop: '1px solid var(--color-border)' }}
+    >
       <InspectorCard className={embedded ? 'extension-panel-card p-0' : 'p-2'}>
         <DisclosureSection
           title={<span className={embedded ? 'extensions-panel-entry-title font-mono' : 'font-mono'}>MCP servers</span>}
@@ -787,6 +810,7 @@ function McpServersView({ servers, accentColor, embedded = false }: {
                   <SurfaceRow
                     key={name}
                     index={index}
+                    data-extension-item-row-surface="shared"
                     className={embedded ? 'items-start gap-2 rounded-md px-2 py-1.5' : 'items-start gap-2 rounded-md px-2.5 py-2'}
                     style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)' }}
                   >
@@ -821,7 +845,13 @@ function FileEditor({ file, embedded = false, accentColor, onUpdate, onSave }: {
   const isNew = file.content === null
 
   return (
-    <div data-testid={embedded ? 'extensions-embedded-entry' : undefined} className={embedded ? 'extensions-panel-embedded-entry px-2 py-0' : 'px-4 py-3'} style={{ borderTop: '1px solid var(--color-border)' }}>
+    <div
+      data-testid={embedded ? 'extensions-embedded-entry' : undefined}
+      data-extension-file-row-surface="shared"
+      data-extension-disclosure-surface="shared"
+      className={embedded ? 'extensions-panel-embedded-entry px-2 py-0' : 'px-4 py-3'}
+      style={{ borderTop: '1px solid var(--color-border)' }}
+    >
       <InspectorCard className={embedded ? 'extension-panel-card p-0' : 'p-2'}>
         <DisclosureSection
           title={<span className={embedded ? 'extensions-panel-entry-title font-mono' : 'font-mono'} style={{ color: isNew ? 'var(--text-secondary)' : 'var(--text-primary)' }}>{file.label}</span>}
@@ -839,6 +869,7 @@ function FileEditor({ file, embedded = false, accentColor, onUpdate, onSave }: {
             onChange={(e) => onUpdate(e.target.value)}
             placeholder={isNew ? '# Add instructions here\n' : ''}
             className="w-full resize-y rounded font-mono text-xs"
+            data-extension-editor-surface="shared"
             rows={embedded ? 5 : 6}
             style={{
               background: 'var(--color-surface2)',
@@ -881,7 +912,13 @@ function CommandsDirView({ dir, embedded = false, onOpenFile }: {
   const exists = dir.files !== null
 
   return (
-    <div data-testid={embedded ? 'extensions-embedded-entry' : undefined} className={embedded ? 'extensions-panel-embedded-entry px-2 py-0' : 'px-4 py-3'} style={{ borderTop: '1px solid var(--color-border)' }}>
+    <div
+      data-testid={embedded ? 'extensions-embedded-entry' : undefined}
+      data-extension-command-section-surface="shared"
+      data-extension-disclosure-surface="shared"
+      className={embedded ? 'extensions-panel-embedded-entry px-2 py-0' : 'px-4 py-3'}
+      style={{ borderTop: '1px solid var(--color-border)' }}
+    >
       <InspectorCard className={embedded ? 'extension-panel-card p-0' : 'p-2'}>
         <DisclosureSection
           title={<span className={embedded ? 'extensions-panel-entry-title font-mono' : 'font-mono'} style={{ color: exists ? 'var(--text-primary)' : 'var(--text-secondary)' }}>{dir.label}</span>}
@@ -900,12 +937,13 @@ function CommandsDirView({ dir, embedded = false, onOpenFile }: {
                   key={name}
                   index={index}
                   onClick={() => onOpenFile(name)}
+                  data-extension-command-row-surface="shared"
                   className="flex items-center gap-2 px-2 py-1 rounded text-left w-full"
                   style={{ background: 'transparent' }}
                 >
-                  <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor" style={{ opacity: 0.4, flexShrink: 0 }}>
-                    <path d="M2 1.75C2 .784 2.784 0 3.75 0h6.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0 1 13.25 16h-9.5A1.75 1.75 0 0 1 2 14.25Zm1.75-.25a.25.25 0 0 0-.25.25v12.5c0 .138.112.25.25.25h9.5a.25.25 0 0 0 .25-.25V6h-2.75A1.75 1.75 0 0 1 9 4.25V1.5Zm6.75.062V4.25c0 .138.112.25.25.25h2.688l-.011-.013-2.914-2.914-.013-.011Z" />
-                  </svg>
+                  <span className="extensions-panel-file-icon">
+                    <Icon name="file" size={11} />
+                  </span>
                   <span className="text-xs font-mono" style={{ color: 'var(--color-text)', fontSize: 11 }}>{name}</span>
                 </SurfaceRow>
               ))}

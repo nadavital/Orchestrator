@@ -504,12 +504,11 @@ Why it matters: this is now the largest untouched session-side panel.
 Current verification:
 
 - The session-side `ExtensionsPanel` is mounted again through the inspector path, and `/extensions` opens it directly.
-- `npm run smoke:ui:auto -- --extensions` verifies the panel is reachable and renders provider extension/local-instruction content.
+- `npm run smoke:ui:auto -- --extensions` verifies the panel is reachable, renders provider extension/local-instruction content, and keeps summary, disclosure, file row, command section, command row, and item row chrome on shared primitives under `extensionsPanelSharedPrimitives=true`.
 
 Still needed:
 
-- Replace the remaining local file/command rows and disclosure chevrons with shared primitives.
-- Replace remaining metric/status pills with shared `MetricPill`/`Badge`.
+- Continue Extensions work only when real provider data or live Codex comparison reveals a workflow/functionality gap; the known local primitive migration item is closed for the current embedded panel.
 
 ### P1: Capabilities Edit/Sync Sheets
 
@@ -1313,13 +1312,12 @@ Completed in the latest implementation pass:
 - Transcript active-run queue controls now share badge/button primitives for queued and steering follow-ups, and focused streaming smoke verifies steering follow-ups remain cancellable.
 - Pet overlay smoke now verifies custom provider state mapping, permission actions, running/review/failed buckets, tray collapse/reopen, row expansion, reply focus, and resize-handle hover/focus visibility.
 - Session-switch smoke now verifies transcript and title changes stay within the 150ms budget and are not hidden behind app-mode page animation.
-- Extensions panel is reachable again from `/extensions` and covered by an automated smoke.
+- Extensions panel is reachable again from `/extensions`, uses shared summary/disclosure/file/command/item row chrome for the embedded right-panel surface, and is covered by an automated smoke.
 
 The biggest remaining pieces are:
 
 1. Composer and transcript workflow polish beyond the implemented shared primitives, especially deeper context/permission flows and provider-backed retry/continue proof.
-2. Finish the remaining Extensions panel primitive migration for file/command rows, disclosures, and metrics.
-3. Add seeded edit/sync capability fixtures so those sheet flows are deterministic in smoke tests.
-4. Exit animation retention for menus/sheets/dialogs rather than immediate unmount.
-5. Reduced-motion screenshot assertions for the right panel, terminal panel, sheets, and popovers.
-6. Deeper visual comparison baselines against Codex for badges, banners, panels, menus, tabs, sheets, and navigation.
+2. Add seeded edit/sync capability fixtures so those sheet flows are deterministic in smoke tests.
+3. Exit animation retention for menus/sheets/dialogs rather than immediate unmount.
+4. Reduced-motion screenshot assertions for the right panel, terminal panel, sheets, and popovers.
+5. Deeper visual comparison baselines against Codex for badges, banners, panels, menus, tabs, sheets, and navigation.

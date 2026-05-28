@@ -5988,6 +5988,23 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                   extensionPanel.scrollWidth <= extensionPanel.clientWidth + 2 &&
                   (!(summary instanceof HTMLElement) || summary.getBoundingClientRect().height <= 24);
               })(),
+            extensionsPanelSharedPrimitivesWorks: ${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} !== 'extensions' ||
+              (() => {
+                const extensionPanel = document.querySelector('[data-testid="session-right-panel"]');
+                if (!(extensionPanel instanceof HTMLElement)) return false;
+                const summaries = [...extensionPanel.querySelectorAll('[data-extension-summary-surface="shared"]')];
+                const disclosures = [...extensionPanel.querySelectorAll('[data-extension-disclosure-surface="shared"]')];
+                const fileRows = [...extensionPanel.querySelectorAll('[data-extension-file-row-surface="shared"]')];
+                const commandSections = [...extensionPanel.querySelectorAll('[data-extension-command-section-surface="shared"]')];
+                const commandRows = [...extensionPanel.querySelectorAll('[data-extension-command-row-surface="shared"]')];
+                const itemRows = [...extensionPanel.querySelectorAll('[data-extension-item-row-surface="shared"]')];
+                return summaries.length >= 1 &&
+                  disclosures.length >= 1 &&
+                  fileRows.length >= 1 &&
+                  commandSections.length >= 1 &&
+                  commandRows.every((row) => row.classList.contains('surface-row')) &&
+                  itemRows.every((row) => row.classList.contains('surface-row'));
+              })(),
             hasSideQuestionCommandText: bodyText.includes('/btw') || Boolean(textarea && textarea.value.includes('/btw')),
             capabilityMenuOpened: typeof capabilityMenuOpened === 'boolean' ? capabilityMenuOpened : null,
             capabilityMenuArrowFocus: typeof capabilityMenuArrowFocus === 'boolean' ? capabilityMenuArrowFocus : null,
