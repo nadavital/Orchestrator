@@ -21425,6 +21425,7 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
                 button instanceof HTMLButtonElement &&
                 label instanceof HTMLElement &&
                 button.getAttribute('aria-label') === 'Continue sent' &&
+                label.getAttribute('role') === 'status' &&
                 label.getAttribute('aria-live') === 'polite' &&
                 label.getAttribute('aria-atomic') === 'true' &&
                 label.getAttribute('data-continue-state') === 'sent'

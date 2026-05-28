@@ -8482,3 +8482,13 @@ Implemented: the unsupported-permission `Change` action now opens the permission
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and `git diff --check` passed. Focused `node scripts/run-automated-ui-smoke.mjs --composer` first hit the expected sandbox localhost bind failure; the elevated rerun passed with `composerSendStatusActionFocusesPermissions=true` alongside `composerSendStatusActionOpensPermissions=true`, `composerSendStatusRecoveryClearsBlock=true`, `composerPermissionRovingKeyboard=true`, `composerSlashPermissionsFocusesMenu=true`, and the existing composer attachment, side-chat guard, toolbar, and menu gates. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1779971270405.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1779971270405.png`.
 
 Remaining: this closes local blocked-send permission recovery focus only. Deeper composer work should focus on real provider-backed model switching, permission execution behavior, and context workflow gaps rather than another local menu chrome pass.
+
+### 2026-05-28 - Transcript Continue Status Role
+
+Product evidence: continuing an incomplete assistant turn is a daily main-thread recovery action. The `Continue` control already changed its label and used polite live-region attributes after the request was sent, but the changing label was not an explicit status region, making this recovery feedback weaker than the surrounding retry, copy, permission, and user-input status semantics.
+
+Implemented: the assistant `Continue` result label now renders as a polite atomic `status` region, and the focused transcript-layout smoke requires that role in `chatContinueLastTurnA11y=true`.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and `git diff --check` passed. Focused `node scripts/run-automated-ui-smoke.mjs --transcript-layout` first hit the expected sandbox localhost bind failure; the elevated rerun passed with `chatContinueLastTurnA11y=true` alongside `chatContinueLastTurn=true`, retry, copy, user-input, permission, partial-response, search, overflow, narrow-layout, and tool-summary gates. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-transcript-layout-1779971545172.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-transcript-layout-1779971545172.png`.
+
+Remaining: this closes local Continue sent-status semantics only. Real provider-backed continuation timing, partial-continue proof, and live Codex transcript spacing remain Phase 1 work.

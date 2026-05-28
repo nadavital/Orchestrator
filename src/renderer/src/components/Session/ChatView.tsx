@@ -1281,6 +1281,7 @@ function ContinueButton({ sessionId }: { sessionId: string }): JSX.Element {
       <span
         data-testid="chat-continue-last-turn-label"
         data-continue-state={state}
+        role="status"
         aria-live="polite"
         aria-atomic="true"
       >
