@@ -12239,6 +12239,8 @@ function runAutomatedFocusedSurfaceSmoke(
                 reviewTranscriptCardTotals instanceof HTMLElement &&
                 reviewTranscriptCardLayout &&
                 reviewTranscriptCardUndoWorks &&
+                (reviewTranscriptCardReviewButton.getAttribute('title') ?? '').startsWith('Open Review for ') &&
+                (reviewTranscriptCardReviewButton.getAttribute('aria-label') ?? '').startsWith('Open Review for ') &&
                 reviewTranscriptInlineDiffWorks &&
                 Number(reviewTranscriptCard.getAttribute('data-review-card-file-count') ?? '0') >= 3 &&
                 Number(reviewTranscriptCard.getAttribute('data-review-card-additions') ?? '0') > 0 &&

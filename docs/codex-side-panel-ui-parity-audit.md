@@ -8502,3 +8502,13 @@ Implemented: the transcript Review card Undo button now mirrors the contextual u
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and `git diff --check` passed before the focused smoke. A broad `node scripts/run-automated-ui-smoke.mjs --inspector` rerun saw the button as `title: "Undo 20 changed files"` and `label: "Undo 20 changed files"` but failed unrelated inspector-matrix gates, so it was not used as the validator for this bounded slice. Focused `node scripts/run-automated-ui-smoke.mjs --diff-entry` passed with `reviewTranscriptCardUndo=true` alongside `reviewTranscriptCard=true`, Review toolbar/source header, metadata flyout, and environment-panel gates. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-entry-1779971905036.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-entry-1779971905036.png`.
 
 Remaining: this closes the local transcript Review-card Undo accessible-name gap only. Provider-backed checkpoint Undo remains unsupported until there is a real provider checkpoint/rollback contract, and live Codex Review spacing/source behavior remains Phase 1 work.
+
+### 2026-05-28 - Transcript Review Open Action Accessible Label
+
+Product evidence: the transcript Review card's `Review` action is the bridge from main chat into the right-side Review panel. It opened the correct panel, but the action name was only `Review`, which did not communicate whether it would open the current local changes or a last-turn source.
+
+Implemented: the transcript Review card now gives the `Review` action a contextual native title and `aria-label`, such as `Open Review for 20 changed files` or `Open Review for last turn, N changed files`. The existing focused card smoke now requires those labels as part of `reviewTranscriptCard=true`.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and `git diff --check` passed. Focused `node scripts/run-automated-ui-smoke.mjs --diff-entry` passed with `reviewTranscriptCard=true` and `reviewTranscriptCardUndo=true` alongside the Review toolbar/source header, metadata flyout, and environment-panel gates. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-entry-1779972100110.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-entry-1779972100110.png`.
+
+Remaining: this closes the local transcript Review-card open-action accessible-name gap only. Provider-backed Review source behavior, checkpoint rollback, and live Codex Review spacing remain Phase 1 work.

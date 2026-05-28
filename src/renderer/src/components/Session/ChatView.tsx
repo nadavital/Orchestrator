@@ -1959,6 +1959,13 @@ function ChangesReviewCard({ content, session, hideWhenEmpty = false }: { conten
         : undoState === 'error'
           ? undoError ?? 'Undo failed'
           : 'No changed files to undo'
+  const reviewTitle = reviewCardSource === 'last-turn'
+    ? files.length > 0
+      ? `Open Review for last turn, ${files.length} changed ${files.length === 1 ? 'file' : 'files'}`
+      : 'Open Review for last turn'
+    : files.length > 0
+      ? `Open Review for ${files.length} changed ${files.length === 1 ? 'file' : 'files'}`
+      : 'Open Review'
   const undoReviewChanges = async (): Promise<void> => {
     if (!canUndo) return
     setUndoState('undoing')
@@ -2026,6 +2033,8 @@ function ChangesReviewCard({ content, session, hideWhenEmpty = false }: { conten
               type="button"
               className="codex-review-card-action codex-review-card-review-action"
               data-testid="codex-review-card-review"
+              title={reviewTitle}
+              aria-label={reviewTitle}
               onClick={openReview}
             >
               Review
