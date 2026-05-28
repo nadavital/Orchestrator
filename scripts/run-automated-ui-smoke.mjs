@@ -2778,6 +2778,7 @@ child.on('exit', async (code) => {
         composerAgentOutsideClick: captureView !== 'composer' || result.composerAgentMenuClosedWithOutsideClick === true,
         composerAgentFocusReturned: captureView !== 'composer' || result.composerAgentFocusReturned === true,
         composerSendStatusExplainsBlocked: captureView !== 'composer' || result.composerSendStatusExplainsBlocked === true,
+        composerSendStatusActionOpensPermissions: captureView !== 'composer' || result.composerSendStatusActionOpensPermissions === true,
         composerQueuedCancel: captureView !== 'composer' || result.composerQueuedCancel === true,
         composerEmptySuggestionFillsDraft: captureView !== 'composer' || result.composerEmptySuggestionFillsDraft === true,
         composerDraftsPerChat: captureView !== 'composer' || result.composerDraftsPerChat === true,

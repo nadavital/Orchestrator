@@ -4601,6 +4601,19 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               sendStatus.getAttribute('data-composer-send-state') === 'unsupported-permission' &&
               sendStatus.textContent?.includes('Permission mode unavailable') === true &&
               sendStatusAction instanceof HTMLButtonElement;
+            if (sendStatusAction instanceof HTMLButtonElement) {
+              sendStatusAction.click();
+              await sleep(140);
+            }
+            const sendStatusPermissionMenu = document.querySelector('.motion-popover-surface');
+            var composerSendStatusActionOpensPermissions =
+              sendStatusAction instanceof HTMLButtonElement &&
+              sendStatusPermissionMenu instanceof HTMLElement &&
+              sendStatusPermissionMenu.textContent?.includes('Codex') === true &&
+              [...sendStatusPermissionMenu.querySelectorAll('button')]
+                .some((button) => button.textContent?.includes('Ask'));
+            window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+            await sleep(140);
             activeSettingsRow?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
             await sleep(220);
 
@@ -5730,6 +5743,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             composerAgentFocusReturned: typeof composerAgentFocusReturned === 'boolean' ? composerAgentFocusReturned : null,
             composerToolbarResponsiveWorks: typeof composerToolbarResponsiveWorks === 'boolean' ? composerToolbarResponsiveWorks : null,
             composerSendStatusExplainsBlocked: typeof composerSendStatusExplainsBlocked === 'boolean' ? composerSendStatusExplainsBlocked : null,
+            composerSendStatusActionOpensPermissions: typeof composerSendStatusActionOpensPermissions === 'boolean' ? composerSendStatusActionOpensPermissions : null,
             composerQueuedCancel: typeof composerQueuedCancel === 'boolean' ? composerQueuedCancel : null,
             composerEmptySuggestionFillsDraft: typeof composerEmptySuggestionFillsDraft === 'boolean' ? composerEmptySuggestionFillsDraft : null,
             composerDraftsPerChat: typeof composerDraftsPerChat === 'boolean' ? composerDraftsPerChat : null,
