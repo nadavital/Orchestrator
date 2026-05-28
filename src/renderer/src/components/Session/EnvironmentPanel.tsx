@@ -145,7 +145,14 @@ export default function EnvironmentPanel({ session, embedded = false, onOpenRevi
           <div className="environment-card-header">
             <span>Sources</span>
           </div>
-          <EnvironmentRow icon="browser" label="Web search" dataTestId="codex-environment-web-search" />
+          <EnvironmentRow
+            icon="browser"
+            label="Web search"
+            dataTestId="codex-environment-web-search"
+            disabled
+            disabledReason="Provider web-search source is not connected for this session"
+            trailing={<span className="environment-row-muted">Unavailable</span>}
+          />
         </div>
       </div>
     </section>

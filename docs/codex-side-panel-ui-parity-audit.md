@@ -8882,3 +8882,13 @@ Implemented: the Environment settings icon now opens Providers settings through 
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --environment` passed. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-environment-1779989046068.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-environment-1779989046068.png`. The run adds `environmentSettingsOpensProviders=true` while keeping Environment visual/action/source checks green.
 
 Remaining: this closes the local dead Environment settings control only. Full provider-backed Environment commit/PR creation, hosted PR metadata, and richer provider runtime settings adapters remain separate.
+
+### 2026-05-28 - Environment Source Boundary
+
+Product evidence: the Environment panel lists source capabilities next to local branch/change/PR context. Its `Web search` row looked like a normal available row, but there is no provider-backed web-search source adapter behind that Environment surface. Leaving it as an inert normal row made the panel less truthful than the unavailable-boundary pattern already used in Settings, Review sources, and dynamic client tools.
+
+Implemented: the Environment `Web search` source row is now explicitly disabled, shows `Unavailable`, and exposes the reason `Provider web-search source is not connected for this session` through title and smoke-visible data attributes. This keeps manual Browser separate from provider/source capabilities instead of pretending a source adapter exists.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --environment` passed. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-environment-1779989228491.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-environment-1779989228491.png`. The run adds `environmentSourceBoundary=true` while keeping Environment visual, action-row, source-card, and settings-open checks green.
+
+Remaining: this closes the local Environment Web-search source truthfulness gap only. Provider-backed web-search source state, provider-native environment sources, hosted PR metadata, and commit/PR creation remain separate.

@@ -7881,6 +7881,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 const environmentCreatePrRow = document.querySelector('[data-testid="codex-environment-create-pr"]');
                 const environmentSettingsButton = document.querySelector('[data-testid="codex-environment-settings"]');
                 const environmentSourcesCard = document.querySelector('[data-testid="codex-environment-sources-card"]');
+                const environmentWebSearchRow = document.querySelector('[data-testid="codex-environment-web-search"]');
                 const environmentRect = environmentPanel instanceof HTMLElement ? environmentPanel.getBoundingClientRect() : null;
                 const environmentScroll = environmentPanel instanceof HTMLElement
                   ? environmentPanel.querySelector('.environment-panel-scroll')
@@ -7934,8 +7935,15 @@ function runAutomatedFocusedSurfaceSmoke(
                     environmentPanel.getAttribute('data-environment-pull-request') === 'true',
                   environmentSourcesWork:
                     environmentSourcesCard instanceof HTMLElement &&
+                    environmentWebSearchRow instanceof HTMLElement &&
                     environmentSourcesCard.textContent?.includes('Sources') === true &&
                     environmentSourcesCard.textContent?.includes('Web search') === true,
+                  environmentSourceBoundaryWorks:
+                    environmentWebSearchRow instanceof HTMLElement &&
+                    environmentWebSearchRow.getAttribute('data-environment-row-disabled') === 'true' &&
+                    environmentWebSearchRow.getAttribute('data-environment-row-disabled-reason') === 'Provider web-search source is not connected for this session' &&
+                    environmentWebSearchRow.textContent?.includes('Unavailable') === true &&
+                    environmentWebSearchRow.getAttribute('title') === 'Provider web-search source is not connected for this session',
                   environmentSettingsOpensProviders: environmentSettingsOpensProvidersWorks
                 };
               }
