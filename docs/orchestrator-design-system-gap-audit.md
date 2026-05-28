@@ -1312,6 +1312,7 @@ Completed in the latest implementation pass:
 - Settings now shares design-system primitives for intro text, groups, panels, compact rows, choice cards, status pills, diagnostic pills, provider command-output cards, the provider picker, the provider model-list manager, the provider config editor, Appearance color swatches/chrome editor controls, and Appearance import controls.
 - Composer provider/agent/permission dropdown panels now use shared dismissable popover behavior with focus return.
 - Composer smoke now verifies permission-menu Escape dismissal/focus return, agent-menu outside-click dismissal/focus return, expanded/collapsed ARIA state on Agent/Permission popover triggers, and Arrow-key roving focus inside composer popovers.
+- Composer smoke now verifies `composerPermissionContextSignal=true`, covering the closed permission trigger's Static/Live/Fallback config-source badge and accessible label before users open the permission menu.
 - Composer blocked-send notices now render as polite atomic status regions, and transcript user-input/permission recovery states now expose assertive error alerts, polite sent/decision statuses, and named approval action groups.
 - Browser load-error recovery notices now render as assertive atomic alerts with named recovery action groups while preserving shared `PanelNotice` chrome.
 - Transcript active-run queue controls now share badge/button primitives for queued and steering follow-ups, and focused streaming smoke verifies steering follow-ups remain cancellable.

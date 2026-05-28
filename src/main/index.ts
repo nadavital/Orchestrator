@@ -5029,6 +5029,19 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             await sleep(220);
 
             const permissionButton = document.querySelector('[data-testid="composer-permission-menu"]');
+            let permissionContextBadge = document.querySelector('[data-testid="composer-permission-context-badge"]');
+            for (let index = 0; index < 10 && !(permissionContextBadge instanceof HTMLElement); index += 1) {
+              await sleep(80);
+              permissionContextBadge = document.querySelector('[data-testid="composer-permission-context-badge"]');
+            }
+            var composerPermissionContextSignal =
+              permissionButton instanceof HTMLElement &&
+              permissionButton.getAttribute('aria-label')?.includes('Permission mode:') === true &&
+              permissionButton.getAttribute('aria-label')?.includes('permission config') === true &&
+              permissionContextBadge instanceof HTMLElement &&
+              ['static', 'ok', 'unavailable', 'error'].includes(permissionContextBadge.getAttribute('data-permission-context-status') ?? '') &&
+              ['static', 'app-server'].includes(permissionContextBadge.getAttribute('data-permission-context-source') ?? '') &&
+              ['Static', 'Live', 'Fallback'].includes(permissionContextBadge.textContent?.trim() ?? '');
             permissionButton?.click();
             await sleep(140);
             const permissionMenu = document.querySelector('.motion-popover-surface');
@@ -6211,6 +6224,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             capabilityDialogExitRetained: typeof capabilityDialogExitRetained === 'boolean' ? capabilityDialogExitRetained : null,
             capabilityDialogClosedWithEscape: typeof capabilityDialogClosedWithEscape === 'boolean' ? capabilityDialogClosedWithEscape : null,
             composerPermissionMenuOpened: typeof composerPermissionMenuOpened === 'boolean' ? composerPermissionMenuOpened : null,
+            composerPermissionContextSignal: typeof composerPermissionContextSignal === 'boolean' ? composerPermissionContextSignal : null,
             composerDropdownMaterialWorks: typeof composerDropdownMaterialWorks === 'boolean' ? composerDropdownMaterialWorks : null,
             composerPermissionNativeTooltipsWork: typeof composerPermissionNativeTooltipsWork === 'boolean' ? composerPermissionNativeTooltipsWork : null,
             composerPermissionLabelsCalm: typeof composerPermissionLabelsCalm === 'boolean' ? composerPermissionLabelsCalm : null,

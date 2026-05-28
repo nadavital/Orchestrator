@@ -203,6 +203,16 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   const selectedAgentName = provider.id === 'claude' ? session.agentName ?? null : null
   const selectedPermissionMode = provider.permissionModes.find((p) => p.id === permissionMode)
   const permLabel = selectedPermissionMode?.label ?? 'Mode'
+  const permissionSourceLabel = permissionContext ? permissionSourceBadgeLabel(permissionContext) : null
+  const permissionTriggerLabel = [
+    `Permission mode: ${permLabel}`,
+    permissionSourceLabel ? `${permissionSourceLabel} permission config` : null,
+    resolvedPermission?.support === 'unsupported' ? 'unsupported by this runtime' : null
+  ].filter(Boolean).join('. ')
+  const permissionTriggerTitle = [
+    permissionTriggerLabel,
+    permissionContext?.summary
+  ].filter(Boolean).join('. ')
   const primaryPermissionModes = filterPermissionModes(getPrimaryPermissionModes(provider), permissionContext, permissionMode)
   const advancedPermissionModes = filterPermissionModes(getAdvancedPermissionModes(provider), permissionContext, permissionMode)
   const dangerPermissionModes = filterPermissionModes(getDangerPermissionModes(provider), permissionContext, permissionMode)
@@ -1066,12 +1076,24 @@ function InputBar({ session, isNew }: Props): JSX.Element {
               onClick={() => setShowPermMenu((v) => !v)}
               dataTestId="composer-permission-menu"
               className="composer-permission-trigger"
+              title={permissionTriggerTitle}
+              ariaLabel={permissionTriggerLabel}
               ariaExpanded={showPermMenu}
               ariaHasPopup="menu"
               onKeyDown={(event) => handleDropdownTriggerKeyDown(event, () => setShowPermMenu(true))}
             >
               <ProviderIcon providerId={provider.id} size={11} color={provider.color} />
               <span className="composer-control-label composer-control-label-xs">{permLabel}</span>
+              {permissionContext && (
+                <span
+                  className="composer-permission-source-badge"
+                  data-testid="composer-permission-context-badge"
+                  data-permission-context-status={permissionContext.status}
+                  data-permission-context-source={permissionContext.source}
+                >
+                  {permissionSourceBadgeLabel(permissionContext)}
+                </span>
+              )}
               {resolvedPermission?.support === 'unsupported' && <PolicyBadge policy={resolvedPermission} compact />}
               <Chevron />
             </ToolbarBtn>
@@ -1751,6 +1773,12 @@ function PermissionContextNote({ context }: { context: ProviderPermissionRuntime
       {context.status === 'ok' ? 'Live config' : 'Config fallback'} · {context.summary ?? 'Permission config checked.'}
     </div>
   )
+}
+
+function permissionSourceBadgeLabel(context: ProviderPermissionRuntimeContext): string {
+  if (context.status === 'ok') return 'Live'
+  if (context.source === 'app-server') return 'Fallback'
+  return 'Static'
 }
 
 function permissionExecutionLabels(execution: PermissionExecutionContract): Array<{ label: string; value: string }> {

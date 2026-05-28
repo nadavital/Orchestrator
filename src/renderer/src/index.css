@@ -652,12 +652,29 @@
     padding: 4px 7px;
   }
 
+  .composer-permission-source-badge {
+    min-width: 0;
+    max-width: 58px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    border: 1px solid var(--border-subtle);
+    border-radius: 999px;
+    background: var(--surface-bg);
+    color: var(--text-tertiary);
+    font-size: 9.5px;
+    font-weight: 700;
+    line-height: 1;
+    padding: 3px 5px;
+  }
+
   @container composer-toolbar (width <= 560px) {
     .composer-agent-trigger .composer-control-label {
       max-width: min(176px, 32cqw);
     }
 
-    .composer-permission-trigger .composer-control-label {
+    .composer-permission-trigger .composer-control-label,
+    .composer-permission-source-badge {
       display: none;
     }
 
