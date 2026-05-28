@@ -2287,6 +2287,8 @@ child.on('exit', async (code) => {
           workbenchPanelNewTabPage: result.workbenchPanelNewTabPageWorks === true,
           workbenchNewTabVisual: result.workbenchNewTabVisualWorks === true,
           workbenchNewTabSingleAddAffordance: result.workbenchNewTabSingleAddAffordance === true,
+          workbenchNewTabCompactLauncher: result.workbenchNewTabCompactLauncher === true,
+          workbenchNewTabFinalCapture: result.workbenchNewTabFinalCapture === true,
           workbenchNewTabAgentsAction: result.workbenchNewTabAgentsActionWorks === true,
           agentRuntimeEventDetail: result.agentRuntimeEventDetailWorks === true,
           agentRuntimeEventCopy: result.agentRuntimeEventCopyWorks === true,

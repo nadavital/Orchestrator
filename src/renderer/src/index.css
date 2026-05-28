@@ -1451,37 +1451,36 @@
     min-height: 0;
     overflow: auto;
     background: var(--surface-bg);
-    padding: 24px;
+    padding: 16px;
   }
 
   .workbench-new-tab-content {
     display: flex;
     width: 100%;
-    max-width: 672px;
     min-height: 100%;
-    margin: 0 auto;
-    align-items: center;
-    justify-content: center;
+    align-items: flex-start;
+    justify-content: flex-start;
   }
 
   .workbench-new-tab-grid {
     display: grid;
     width: 100%;
-    grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
-    gap: 12px;
+    max-width: 720px;
+    grid-template-columns: repeat(auto-fit, minmax(136px, 1fr));
+    gap: 8px;
   }
 
   .workbench-new-tab-card {
     display: flex;
-    min-height: 92px;
+    min-height: 68px;
     min-width: 0;
     align-items: flex-start;
-    gap: 12px;
+    gap: 10px;
     border: 1px solid var(--border-subtle);
     border-radius: 8px;
     background: color-mix(in srgb, var(--surface-elevated) 58%, transparent);
     color: var(--text-secondary);
-    padding: 14px;
+    padding: 12px;
     text-align: left;
     transition:
       background var(--motion-duration-fast) var(--motion-ease-standard),

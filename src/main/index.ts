@@ -7164,6 +7164,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 const panelRect = newTabPanel instanceof HTMLElement ? newTabPanel.getBoundingClientRect() : null;
                 const gridRect = newTabGrid instanceof HTMLElement ? newTabGrid.getBoundingClientRect() : null;
                 const rightPanelRect = rightPanel instanceof HTMLElement ? rightPanel.getBoundingClientRect() : null;
+                const newTabCardRects = newTabCards.map((card) => card.getBoundingClientRect());
                 const workbenchPanelNewTabPageWorks =
                   rightPanel instanceof HTMLElement &&
                   rightPanel.getAttribute('data-right-panel-active-tab') === 'new-tab' &&
@@ -7509,6 +7510,14 @@ function runAutomatedFocusedSurfaceSmoke(
                 } catch (error) {
                   agentRuntimeEventFacetFilterError = error instanceof Error ? error.message : String(error);
                 }
+                const finalNewTab = document.querySelector('[data-testid="workbench-panel-tabbar"] [role="tab"][data-tab-id="new-tab"]');
+                if (finalNewTab instanceof HTMLElement) {
+                  finalNewTab.click();
+                  await sleep(140);
+                }
+                const finalNewTabPanel = document.querySelector('[data-testid="workbench-new-tab-panel"]');
+                const finalNewTabGrid = document.querySelector('[data-testid="workbench-new-tab-action-grid"]');
+                const finalActiveNewTab = document.querySelector('[data-testid="workbench-panel-tabbar"] [role="tab"][data-tab-id="new-tab"][data-active="true"]');
                 return {
                   profile,
                   hasRightPanelState: rightPanel instanceof HTMLElement &&
@@ -7529,6 +7538,16 @@ function runAutomatedFocusedSurfaceSmoke(
                     activeNewTab instanceof HTMLElement &&
                     activeNewTabIcon instanceof SVGElement &&
                     (activeNewTab.textContent ?? '').includes('New tab'),
+                  workbenchNewTabCompactLauncher:
+                    panelRect !== null &&
+                    gridRect !== null &&
+                    gridRect.top - panelRect.top <= 24 &&
+                    newTabCardRects.length >= 6 &&
+                    newTabCardRects.every((rect) => rect.height <= 90),
+                  workbenchNewTabFinalCapture:
+                    finalNewTabPanel instanceof HTMLElement &&
+                    finalNewTabGrid instanceof HTMLElement &&
+                    finalActiveNewTab instanceof HTMLElement,
                   workbenchNewTabAgentsActionWorks,
                   agentRuntimeEventDetailWorks,
                   agentRuntimeEventCopyWorks,
