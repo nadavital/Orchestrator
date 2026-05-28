@@ -2152,7 +2152,8 @@ child.on('exit', async (code) => {
           permissionResumeErrorA11yLive: result.permissionResumeErrorA11yLive === true,
           permissionResumePrepareFailure: result.permissionResumePrepareFailureWorks === true,
           permissionActionsRecoverable: result.permissionActionsRecoverableWorks === true,
-          permissionVariantCards: result.permissionVariantCardsWork === true
+          permissionVariantCards: result.permissionVariantCardsWork === true,
+          permissionProfileDecisionLabels: result.permissionProfileDecisionLabelsWork === true
         }
     : captureView === 'design-system'
       ? {

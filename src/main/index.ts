@@ -22752,11 +22752,37 @@ function runAutomatedTranscriptPermissionSmoke(win: BrowserWindow, outputPath: s
             })()
           `)
         }
+        const profileLabelSession = sessionManager.list().find((candidate) => candidate.name === 'Transcript permission profile label')
+        let profileLabelResult = { permissionProfileDecisionLabelsWork: false }
+        if (profileLabelSession) {
+          win.webContents.send('pet:navigate', profileLabelSession.id)
+          sessionManager.updateStatus(profileLabelSession.id, 'waiting_for_permission')
+          await new Promise((resolve) => setTimeout(resolve, 280))
+          profileLabelResult = await win.webContents.executeJavaScript(`
+            (() => {
+              const text = document.body.innerText;
+              const allowOnce = document.querySelector('[data-testid="chat-permission-allow-once"]');
+              const allowSession = document.querySelector('[data-testid="chat-permission-allow-session"]');
+              const deny = document.querySelector('[data-testid="chat-permission-deny"]');
+              return {
+                permissionProfileDecisionLabelsWork:
+                  text.includes('Permission Profile') &&
+                  allowOnce instanceof HTMLButtonElement &&
+                  allowOnce.getAttribute('aria-label') === 'Allow once for permission profile' &&
+                  allowSession instanceof HTMLButtonElement &&
+                  allowSession.getAttribute('aria-label') === 'Allow for session for permission profile' &&
+                  deny instanceof HTMLButtonElement &&
+                  deny.getAttribute('aria-label') === 'Deny permission profile' &&
+                  !text.includes('permissions permission')
+              };
+            })()
+          `)
+        }
         if (screenshotPath) {
           const image = await win.webContents.capturePage()
           writeFileSync(screenshotPath, image.toPNG())
         }
-        writeFileSync(outputPath, JSON.stringify({ ok: true, result: { profile, ...result, ...throwResult, ...variantsResult }, screenshotPath }, null, 2))
+        writeFileSync(outputPath, JSON.stringify({ ok: true, result: { profile, ...result, ...throwResult, ...variantsResult, ...profileLabelResult }, screenshotPath }, null, 2))
         app.quit()
       } catch (error) {
         writeFileSync(outputPath, JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2))
@@ -25407,6 +25433,55 @@ function seedAutomatedTranscriptPermissionSmokeSession(sessionId: string): void 
       }
     ],
     providerSessionId: 'transcript-permission-variants-provider-session',
+    createdAt: baseTime,
+    latestMessageAt: baseTime + 2
+  })
+
+  sessionManager.save({
+    ...session,
+    id: 'transcript-permission-profile-label-session',
+    name: 'Transcript permission profile label',
+    status: 'waiting_for_permission',
+    messages: [
+      {
+        id: 'transcript-permission-profile-label-user',
+        role: 'user',
+        type: 'text',
+        content: 'TRANSCRIPT_PERMISSION_PROFILE_LABEL_SMOKE show a single permission profile request.',
+        timestamp: baseTime
+      },
+      {
+        id: 'transcript-permission-profile-label-request',
+        role: 'system',
+        type: 'result',
+        content: 'Approve temporary permission profile?',
+        subtype: 'error_during_execution',
+        timestamp: baseTime + 1,
+        permissionDenials: [{
+          tool_name: 'permissions',
+          tool_use_id: 'transcript-permission-profile-label',
+          tool_input: {
+            cwd: process.env.ORCHESTRATOR_SMOKE_WORKSPACE_DIR ?? '/tmp/orchestrator-automated-ui-workspace',
+            reason: 'Need temporary network access.',
+            permissions: {
+              fileSystem: {
+                entries: [{
+                  access: 'read',
+                  path: {
+                    type: 'path',
+                    path: '/tmp/orchestrator-permission-profile'
+                  }
+                }]
+              },
+              network: {
+                enabled: true
+              }
+            }
+          }
+        }]
+      }
+    ],
+    providerSessionId: 'transcript-permission-profile-label-provider-session',
     createdAt: baseTime,
     latestMessageAt: baseTime + 2
   })

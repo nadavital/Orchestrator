@@ -8862,3 +8862,13 @@ Implemented: `permissionRequestDetail` now classifies `tool_name="permissions"` 
 Verification: `node -c scripts/run-automated-ui-smoke.mjs`, `pnpm exec tsc --noEmit`, `git diff --check`, `npm run test:providers`, and elevated `node scripts/run-automated-ui-smoke.mjs --transcript-permission` passed. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-transcript-permission-1779988391389.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-transcript-permission-1779988391389.png`. The smoke gates `permissionVariantCards=true` in addition to the existing permission resume/error/action checks.
 
 Remaining: this closes local/parser/UI coverage for non-command permission variants. It does not claim deterministic live provider proof for `item/fileChange/requestApproval` or `item/permissions/requestApproval`; live forcing of those exact methods, non-Codex adapters, and auto-review/guardian details remain separate.
+
+### 2026-05-28 - Permission Profile Decision Labels
+
+Product evidence: after permission-profile cards became first-class, the visible card title was correct, but a single Codex `permissions` approval still derived action labels from the raw tool name. That produced awkward button labels such as `Allow once for permissions permission`, which is exactly the kind of small approval-flow rough edge that makes a daily coding app feel less coherent than Codex.
+
+Implemented: permission decision targets now derive from the normalized permission request kind instead of the raw provider tool token. Single profile approvals use `permission profile`, command/file/network/MCP approvals use human labels such as `command permission`, and multi-request cards still use the plural `N permission requests`. The focused transcript permission smoke now seeds a single profile approval and gates the allow/deny accessible labels plus absence of `permissions permission`.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --transcript-permission` passed. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-transcript-permission-1779988770839.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-transcript-permission-1779988770839.png`. The run kept `permissionVariantCards=true` and added `permissionProfileDecisionLabels=true`.
+
+Remaining: this closes local decision-label polish for single permission-profile cards. It does not change live provider forcing for file/profile approval methods, non-Codex adapters, or auto-review/guardian behavior.

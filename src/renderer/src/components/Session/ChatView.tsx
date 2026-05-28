@@ -2833,11 +2833,7 @@ function PermissionCard({ msg, sessionId, sessionStatus }: { msg: ResultMessage;
   const isPlanApproval = denials.some((d) => d.tool_name === 'ExitPlanMode')
   const requestIsActive = sessionStatus === 'waiting_for_permission'
   const displayDecision = msg.permissionDecision ?? decision
-  const permissionTarget = isPlanApproval
-    ? 'plan approval'
-    : toolNames.length === 1
-      ? `${toolNames[0]} permission`
-      : `${toolNames.length} permission requests`
+  const permissionTarget = permissionDecisionTarget(requestDetails, toolNames, isPlanApproval)
   const allowOnceLabel = isPlanApproval ? 'Approve plan' : `Allow once for ${permissionTarget}`
   const allowSessionLabel = `Allow for session for ${permissionTarget}`
   const denyLabel = isPlanApproval ? 'Keep planning' : `Deny ${permissionTarget}`
@@ -3058,6 +3054,24 @@ function PermissionCard({ msg, sessionId, sessionStatus }: { msg: ResultMessage;
       </SurfaceRow>
     </div>
   )
+}
+
+function permissionDecisionTarget(
+  requestDetails: ReturnType<typeof permissionRequestDetail>[],
+  toolNames: string[],
+  isPlanApproval: boolean
+): string {
+  if (isPlanApproval) return 'plan approval'
+  if (requestDetails.length === 1) {
+    const kind = requestDetails[0]?.kind
+    if (kind === 'profile') return 'permission profile'
+    if (kind === 'command') return 'command permission'
+    if (kind === 'file') return 'file permission'
+    if (kind === 'network') return 'network permission'
+    if (kind === 'mcp') return 'MCP permission'
+    return `${toolNames[0] ?? 'tool'} permission`
+  }
+  return `${requestDetails.length || toolNames.length} permission requests`
 }
 
 function permissionDecisionColor(decision: ResultMessage['permissionDecision'] | 'pending'): string {
