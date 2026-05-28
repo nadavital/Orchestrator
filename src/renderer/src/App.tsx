@@ -30,6 +30,13 @@ type ThreadFindStatus = {
   isCapped: boolean
   activePath?: string | null
 }
+type SessionRouteNotice = {
+  kind: 'archived' | 'missing'
+  sessionId: string
+  name: string | null
+  restoring?: boolean
+  error?: string | null
+}
 type BrowserPanelCommand =
   | 'open-browser-tab'
   | 'focus-browser-address-bar'
@@ -69,6 +76,22 @@ function replaceRouteUrl(url: string): void {
 function pushRouteUrl(url: string): void {
   if (currentUrlMatches(url)) return
   window.history.pushState(window.history.state, '', url)
+}
+
+async function sessionRouteNoticeForMissingId(sessionId: string): Promise<SessionRouteNotice> {
+  const stored = await window.api.sessions.get(sessionId)
+  if (stored?.archivedAt) {
+    return {
+      kind: 'archived',
+      sessionId,
+      name: stored.name ?? null
+    }
+  }
+  return {
+    kind: 'missing',
+    sessionId,
+    name: stored?.name ?? null
+  }
 }
 
 function applyBrowserManagerRunEvents(sessionId: string, records: SessionRunEventRecord[]): void {
@@ -143,8 +166,10 @@ export default function App(): JSX.Element {
     conversation: { totalMatches: 0, activeMatch: 0, isCapped: false },
     diff: { totalMatches: 0, activeMatch: 0, isCapped: false }
   })
+  const [sessionRouteNotice, setSessionRouteNotice] = useState<SessionRouteNotice | null>(null)
   const waitingNotificationKeysRef = useRef(new Set<string>())
   const shellFocusAreaRef = useRef<ShellFocusArea>('main')
+  const sessionRouteNoticeRequestRef = useRef(0)
 
   const threadFindInputRef = useRef<HTMLInputElement | null>(null)
   const threadFindReturnFocusRef = useRef<HTMLElement | null>(null)
@@ -196,18 +221,54 @@ export default function App(): JSX.Element {
 
   useEffect(() => {
     if (window.location.hash === '#design-system') return
-    if (showSettings || showCapabilities || !activeSessionId) return
+    if (showSettings || showCapabilities || sessionRouteNotice || !activeSessionId) return
     replaceRouteUrl(sessionRouteUrl(activeSessionId))
-  }, [activeSessionId, showCapabilities, showSettings])
+  }, [activeSessionId, sessionRouteNotice, showCapabilities, showSettings])
 
   useEffect(() => {
+    const inspectMissingSessionRoute = (sessionId: string): void => {
+      const requestId = sessionRouteNoticeRequestRef.current + 1
+      sessionRouteNoticeRequestRef.current = requestId
+      void sessionRouteNoticeForMissingId(sessionId)
+        .then((notice) => {
+          if (sessionRouteNoticeRequestRef.current !== requestId) return
+          const currentRoute = parseSessionRouteLocation(window.location)
+          if (currentRoute?.sessionId !== sessionId) return
+          const state = useSessionStore.getState()
+          if (state.sessions.some((session) => session.id === sessionId)) {
+            setSessionRouteNotice(null)
+            return
+          }
+          setShowSettings(false)
+          setShowCapabilities(false)
+          setSessionRouteNotice(notice)
+        })
+        .catch(() => {
+          if (sessionRouteNoticeRequestRef.current !== requestId) return
+          const currentRoute = parseSessionRouteLocation(window.location)
+          if (currentRoute?.sessionId !== sessionId) return
+          setShowSettings(false)
+          setShowCapabilities(false)
+          setSessionRouteNotice({ kind: 'missing', sessionId, name: null, error: 'Could not inspect this chat route.' })
+        })
+    }
+
     const applyRoute = (): void => {
       if (window.location.hash === '#design-system') return
       const route = parseSessionRouteLocation(window.location)
       if (!route) return
       const state = useSessionStore.getState()
-      if (!state.sessions.some((session) => session.id === route.sessionId)) return
-      if (state.activeSessionId === route.sessionId && !state.showSettings && !state.showCapabilities) return
+      if (!state.sessions.some((session) => session.id === route.sessionId)) {
+        inspectMissingSessionRoute(route.sessionId)
+        return
+      }
+      if (state.activeSessionId === route.sessionId && !state.showSettings && !state.showCapabilities) {
+        sessionRouteNoticeRequestRef.current += 1
+        setSessionRouteNotice(null)
+        return
+      }
+      sessionRouteNoticeRequestRef.current += 1
+      setSessionRouteNotice(null)
       setShowSettings(false)
       setShowCapabilities(false)
       setActiveSession(route.sessionId)
@@ -572,6 +633,46 @@ export default function App(): JSX.Element {
       if (!focusComposer()) window.setTimeout(focusComposer, 0)
     })
   }, [setShowSettings])
+
+  const returnToActiveChatFromRouteNotice = useCallback((): void => {
+    sessionRouteNoticeRequestRef.current += 1
+    setSessionRouteNotice(null)
+    const currentActiveId = useSessionStore.getState().activeSessionId
+    if (currentActiveId) replaceRouteUrl(sessionRouteUrl(currentActiveId))
+  }, [])
+
+  const restoreArchivedRouteSession = useCallback(async (): Promise<void> => {
+    const notice = sessionRouteNotice
+    if (!notice || notice.kind !== 'archived' || notice.restoring) return
+    setSessionRouteNotice({ ...notice, restoring: true, error: null })
+    try {
+      const restored = await window.api.sessions.restoreArchived(notice.sessionId)
+      if (!restored) {
+        setSessionRouteNotice({
+          kind: 'missing',
+          sessionId: notice.sessionId,
+          name: notice.name,
+          error: 'This archived chat could not be restored.'
+        })
+        return
+      }
+      addSession(restored)
+      addSessionToProject(restored.projectId, restored.id)
+      sessionRouteNoticeRequestRef.current += 1
+      setSessionRouteNotice(null)
+      setShowSettings(false)
+      setShowCapabilities(false)
+      setActiveSession(restored.id)
+      setHasUnread(restored.id, false)
+      replaceRouteUrl(sessionRouteUrl(restored.id))
+    } catch (error) {
+      setSessionRouteNotice({
+        ...notice,
+        restoring: false,
+        error: error instanceof Error ? error.message : 'Could not restore this archived chat.'
+      })
+    }
+  }, [addSession, addSessionToProject, sessionRouteNotice, setActiveSession, setHasUnread, setShowCapabilities, setShowSettings])
 
   const handleSidebarNewChat = useCallback((): void => {
     void createNewChat()
@@ -1143,10 +1244,31 @@ export default function App(): JSX.Element {
         if (effectiveNavigation?.kind === 'settings') {
           navigateToSettings(effectiveNavigation.section as SettingsSection, effectiveNavigation.hostId)
         } else if (effectiveNavigation?.kind === 'session' && cleanSessions.some((session) => session.id === effectiveNavigation.sessionId)) {
+          sessionRouteNoticeRequestRef.current += 1
+          setSessionRouteNotice(null)
           setShowSettings(false)
           setShowCapabilities(false)
           setActiveSession(effectiveNavigation.sessionId)
           setHasUnread(effectiveNavigation.sessionId, false)
+        } else if (effectiveNavigation?.kind === 'session') {
+          const notice = await sessionRouteNoticeForMissingId(effectiveNavigation.sessionId)
+          setSessionRouteNotice(notice)
+          setShowSettings(false)
+          setShowCapabilities(false)
+          if (reuseCandidate) {
+            setActiveSession(reuseCandidate.id)
+          } else {
+            const session = await window.api.sessions.create({
+              projectId: targetProject.id,
+              workDir: targetProject.rootPath,
+              useWorktree: false,
+              repoRoot: targetProject.rootPath
+            })
+            await window.api.projects.addSession(targetProject.id, session.id)
+            addSession(session)
+            addSessionToProject(targetProject.id, session.id)
+            setActiveSession(session.id)
+          }
         } else if (reuseCandidate) {
           setActiveSession(reuseCandidate.id)
         } else {
@@ -1418,7 +1540,13 @@ export default function App(): JSX.Element {
           </MotionView>
         ) : (
           <main className="flex-1 flex flex-col min-h-0 overflow-hidden">
-            {deferredActiveSessionId ? (
+            {sessionRouteNotice ? (
+              <SessionRouteRecoveryView
+                notice={sessionRouteNotice}
+                onRestore={() => { void restoreArchivedRouteSession() }}
+                onReturn={returnToActiveChatFromRouteNotice}
+              />
+            ) : deferredActiveSessionId ? (
               <MotionView viewKey="session" animate={false} className="flex flex-col overflow-hidden">
                 <SessionPane sessionId={deferredActiveSessionId} />
               </MotionView>
@@ -1593,6 +1721,72 @@ function ThreadFindBar({
         >
           <Icon name="close" size={13} />
         </button>
+      </div>
+    </div>
+  )
+}
+
+function SessionRouteRecoveryView({
+  notice,
+  onRestore,
+  onReturn
+}: {
+  notice: SessionRouteNotice
+  onRestore: () => void
+  onReturn: () => void
+}): JSX.Element {
+  const isArchived = notice.kind === 'archived'
+  const title = isArchived ? 'Archived chat' : 'Chat not found'
+  const description = isArchived
+    ? `${notice.name ?? 'This chat'} is archived. Restore it to reopen the thread from this link.`
+    : 'This chat link does not match an available local or archived chat in this profile.'
+
+  return (
+    <div
+      className="session-route-recovery"
+      data-testid="session-route-recovery"
+      data-session-route-recovery-kind={notice.kind}
+      data-session-route-recovery-id={notice.sessionId}
+      role={isArchived ? 'status' : 'alert'}
+      aria-live={isArchived ? 'polite' : 'assertive'}
+      aria-atomic="true"
+    >
+      <div className="session-route-recovery-card">
+        <div className="session-route-recovery-icon" aria-hidden="true">
+          <Icon name={isArchived ? 'archive' : 'warning'} size={18} />
+        </div>
+        <div className="session-route-recovery-body">
+          <div className="session-route-recovery-kicker">Thread route</div>
+          <h1 className="session-route-recovery-title">{title}</h1>
+          <p className="session-route-recovery-description">{description}</p>
+          <div className="session-route-recovery-code" title={notice.sessionId}>{notice.sessionId}</div>
+          {notice.error && (
+            <div className="session-route-recovery-error" data-testid="session-route-recovery-error">
+              {notice.error}
+            </div>
+          )}
+          <div className="session-route-recovery-actions">
+            {isArchived && (
+              <button
+                type="button"
+                className="session-route-recovery-primary"
+                data-testid="session-route-recovery-restore"
+                disabled={notice.restoring === true}
+                onClick={onRestore}
+              >
+                {notice.restoring ? 'Restoring...' : 'Restore chat'}
+              </button>
+            )}
+            <button
+              type="button"
+              className="session-route-recovery-secondary"
+              data-testid="session-route-recovery-return"
+              onClick={onReturn}
+            >
+              Return to current chat
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   )

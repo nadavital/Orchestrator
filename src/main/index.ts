@@ -19438,6 +19438,74 @@ function runAutomatedSessionSwitchSmoke(win: BrowserWindow, outputPath: string, 
           })()
         `)
 
+        const archivedRoute = sessionManager.listArchivedSummaries()
+          .find((session) => session.name === 'Archived route smoke')
+        const routeRecoveryResult = archivedRoute ? await win.webContents.executeJavaScript(`
+          (async () => {
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            const routeHashFor = (id) => '#/threads/' + encodeURIComponent(id);
+            window.location.hash = routeHashFor(${JSON.stringify(archivedRoute.id)});
+            let archivedRecovery = null;
+            for (let index = 0; index < 100; index += 1) {
+              archivedRecovery = document.querySelector('[data-testid="session-route-recovery"]');
+              if (
+                archivedRecovery instanceof HTMLElement &&
+                archivedRecovery.getAttribute('data-session-route-recovery-kind') === 'archived' &&
+                document.body.innerText.includes(${JSON.stringify(archivedRoute.name)})
+              ) break;
+              await sleep(25);
+            }
+            const restore = document.querySelector('[data-testid="session-route-recovery-restore"]');
+            if (restore instanceof HTMLButtonElement) restore.click();
+            for (let index = 0; index < 140; index += 1) {
+              const title = document.querySelector('[data-testid="active-session-title"]')?.textContent ?? '';
+              const transcriptText = document.querySelector('[data-testid="transcript-scroll"]')?.innerText ?? '';
+              if (title.includes(${JSON.stringify(archivedRoute.name)}) && transcriptText.includes('SESSION_SWITCH_SMOKE_ARCHIVED_ROUTE')) break;
+              await sleep(25);
+            }
+            const restoredRouteHash = window.location.hash;
+            const missingId = 'missing-route-smoke';
+            window.location.hash = routeHashFor(missingId);
+            let missingRecovery = null;
+            for (let index = 0; index < 100; index += 1) {
+              missingRecovery = document.querySelector('[data-testid="session-route-recovery"]');
+              if (
+                missingRecovery instanceof HTMLElement &&
+                missingRecovery.getAttribute('data-session-route-recovery-kind') === 'missing' &&
+                missingRecovery.getAttribute('data-session-route-recovery-id') === missingId
+              ) break;
+              await sleep(25);
+            }
+            const returnButton = document.querySelector('[data-testid="session-route-recovery-return"]');
+            if (returnButton instanceof HTMLButtonElement) returnButton.click();
+            for (let index = 0; index < 80; index += 1) {
+              if (!(document.querySelector('[data-testid="session-route-recovery"]') instanceof HTMLElement)) break;
+              await sleep(25);
+            }
+            return {
+              archivedRouteRecoveryVisible:
+                archivedRecovery instanceof HTMLElement &&
+                archivedRecovery.getAttribute('data-session-route-recovery-kind') === 'archived' &&
+                document.body.innerText.includes(${JSON.stringify(archivedRoute.name)}),
+              archivedRouteRestoreWorks:
+                document.querySelector('[data-testid="active-session-title"]')?.textContent?.includes(${JSON.stringify(archivedRoute.name)}) === true &&
+                document.querySelector('[data-testid="transcript-scroll"]')?.innerText?.includes('SESSION_SWITCH_SMOKE_ARCHIVED_ROUTE') === true,
+              archivedRouteRestoredHash: restoredRouteHash,
+              missingRouteRecoveryVisible:
+                missingRecovery instanceof HTMLElement &&
+                missingRecovery.getAttribute('data-session-route-recovery-kind') === 'missing' &&
+                missingRecovery.getAttribute('data-session-route-recovery-id') === missingId,
+              missingRouteReturnWorks: !(document.querySelector('[data-testid="session-route-recovery"]') instanceof HTMLElement)
+            };
+          })()
+        `) : {
+          archivedRouteRecoveryVisible: false,
+          archivedRouteRestoreWorks: false,
+          archivedRouteRestoredHash: null,
+          missingRouteRecoveryVisible: false,
+          missingRouteReturnWorks: false
+        }
+
         win.webContents.send('pet:navigate', first.id)
         await new Promise((resolve) => setTimeout(resolve, 250))
         const before = await win.webContents.executeJavaScript(`
@@ -19582,7 +19650,7 @@ function runAutomatedSessionSwitchSmoke(win: BrowserWindow, outputPath: string, 
           const image = await win.webContents.capturePage()
           writeFileSync(screenshotPath, image.toPNG())
         }
-        writeFileSync(outputPath, JSON.stringify({ ok: true, result: { profile, ...summaryResult, ...startupRouteResult, ...before, ...after }, screenshotPath }, null, 2))
+        writeFileSync(outputPath, JSON.stringify({ ok: true, result: { profile, ...summaryResult, ...startupRouteResult, ...routeRecoveryResult, ...before, ...after }, screenshotPath }, null, 2))
         app.quit()
       } catch (error) {
         writeFileSync(outputPath, JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2))
@@ -26967,6 +27035,13 @@ async function seedAutomatedSessionSwitchSmokeSessions(
   const two = existing.find((session) =>
     session.messages.some((message) => message.type === 'text' && message.content.includes('SESSION_SWITCH_SMOKE_TWO'))
   ) ?? await createSessionSwitchFixture(projectId, workDir, 'Session switch two', 'SESSION_SWITCH_SMOKE_TWO')
+  const hasArchivedRouteFixture = sessionManager.listArchivedSummaries()
+    .some((session) => session.name === 'Archived route smoke')
+  if (!hasArchivedRouteFixture) {
+    const archived = await createSessionSwitchFixture(projectId, workDir, 'Archived route smoke', 'SESSION_SWITCH_SMOKE_ARCHIVED_ROUTE')
+    projectStore.addSession(projectId, archived.id)
+    await sessionManager.archive(archived.id)
+  }
   projectStore.addSession(projectId, one.id)
   projectStore.addSession(projectId, two.id)
   return { one, two }

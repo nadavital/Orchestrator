@@ -301,6 +301,137 @@
     overflow: visible;
   }
 
+  .session-route-recovery {
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
+    align-items: center;
+    justify-content: center;
+    padding: 32px;
+    background: var(--canvas-bg);
+  }
+
+  .session-route-recovery-card {
+    display: grid;
+    grid-template-columns: 32px minmax(0, 1fr);
+    gap: 12px;
+    width: min(520px, 100%);
+    border: 1px solid var(--border-subtle);
+    border-radius: 8px;
+    background: var(--surface-bg);
+    box-shadow: var(--shadow-popover);
+    padding: 18px;
+  }
+
+  .session-route-recovery-icon {
+    display: flex;
+    width: 32px;
+    height: 32px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border-subtle);
+    border-radius: 8px;
+    background: var(--surface-bg-raised);
+    color: var(--text-secondary);
+  }
+
+  .session-route-recovery-body {
+    min-width: 0;
+  }
+
+  .session-route-recovery-kicker {
+    color: var(--text-tertiary);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.2;
+    text-transform: uppercase;
+  }
+
+  .session-route-recovery-title {
+    margin-top: 4px;
+    color: var(--text-primary);
+    font-size: 18px;
+    font-weight: 620;
+    line-height: 1.25;
+    letter-spacing: 0;
+  }
+
+  .session-route-recovery-description {
+    margin-top: 7px;
+    color: var(--text-secondary);
+    font-size: 13px;
+    line-height: 1.45;
+  }
+
+  .session-route-recovery-code {
+    max-width: 100%;
+    margin-top: 10px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    background: var(--control-bg);
+    color: var(--text-tertiary);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1.2;
+    padding: 6px 8px;
+  }
+
+  .session-route-recovery-error {
+    margin-top: 10px;
+    border: 1px solid color-mix(in srgb, var(--state-danger) 45%, transparent);
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--state-danger) 8%, transparent);
+    color: var(--state-danger);
+    font-size: 12px;
+    line-height: 1.35;
+    padding: 7px 8px;
+  }
+
+  .session-route-recovery-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 14px;
+  }
+
+  .session-route-recovery-primary,
+  .session-route-recovery-secondary {
+    display: inline-flex;
+    min-height: 30px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 7px;
+    font-size: 12px;
+    font-weight: 560;
+    line-height: 1;
+    padding: 0 11px;
+  }
+
+  .session-route-recovery-primary {
+    border: 1px solid var(--accent);
+    background: var(--accent);
+    color: #ffffff;
+  }
+
+  .session-route-recovery-primary:disabled {
+    cursor: default;
+    opacity: 0.68;
+  }
+
+  .session-route-recovery-secondary {
+    border: 1px solid var(--border-subtle);
+    background: var(--surface-bg);
+    color: var(--text-secondary);
+  }
+
+  .session-route-recovery-primary:not(:disabled):hover,
+  .session-route-recovery-secondary:hover {
+    filter: brightness(0.98);
+  }
+
   .app-skip-links {
     position: fixed;
     inset-block-start: 8px;

@@ -9284,3 +9284,13 @@ Implemented: the latest assistant response now shows a compact `Regenerate` acti
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --transcript-layout` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-transcript-layout-1780008552761.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-transcript-layout-1780008552761.png`. The run adds `chatRegenerateLastResponse=true` and `chatRegenerateLastResponseA11y=true` while keeping `narrowPermissionActionsWrap=true`.
 
 Remaining: this closes the local latest-assistant regenerate affordance only. Richer provider-native edit/resend/regenerate semantics, original-history preservation UI, and exact live Codex focus/timing evidence remain separate.
+
+### 2026-05-28 - Missing And Archived Thread Routes
+
+Product evidence: PP-037 tracks route-backed session identity as an app-shell reliability requirement. Orchestrator could reopen active local chats from `/threads/{id}` and `#/threads/{id}`, but archived and missing ids silently no-op'd. That made copied links fragile and hid the distinction between recoverable archived chats and genuinely unavailable chats.
+
+Implemented: the renderer now inspects unknown thread-route ids through `sessions.get`. Archived route ids render a main-content recovery surface with `Restore chat`; restoring re-adds the session to renderer/project state, activates it, and keeps the route on the restored thread. Missing ids render a clear `Chat not found` state with a return-to-current-chat action. Active-session URL syncing pauses while the recovery surface is visible so the original route remains inspectable.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --session-switch` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-session-switch-1780009198894.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-session-switch-1780009198895.png`. The focused session-switch run now gates `archivedRouteRecoveryVisible=true`, `archivedRouteRestoreWorks=true`, `missingRouteRecoveryVisible=true`, and `missingRouteReturnWorks=true` alongside the existing route startup, route update, transcript search, virtualization, and timing checks.
+
+Remaining: this closes local missing/archived route states. Provider-native remote and hotkey route semantics remain separate.
