@@ -2446,7 +2446,9 @@ child.on('exit', async (code) => {
           sideChatMultilineDraft: result.sideChatMultilineDraftWorks === true,
           sideChatContextMetadata: result.sideChatContextMetadataWorks === true,
           sideChatMessageLabelsCalm: result.sideChatMessageLabelsCalm === true,
+          sideChatActionStatusA11y: result.sideChatActionStatusA11yWorks === true,
           sideChatErrorRetry: result.sideChatErrorRetryWorks === true,
+          sideChatRetryStatusA11y: result.sideChatRetryStatusA11yWorks === true,
           sideChatClose: result.sideChatCloseWorks === true
         }
     : captureView === 'terminal-visual'

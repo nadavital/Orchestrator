@@ -15237,7 +15237,43 @@ function runAutomatedFocusedSurfaceSmoke(
                 if (panel?.getAttribute('data-side-chat-message-count') === '2') break;
                 await sleep(120);
               }
+              for (let index = 0; index < 12; index += 1) {
+                const panel = document.querySelector('[data-testid="side-chat-panel"]');
+                const status = document.querySelector('[data-testid="side-chat-action-status"]');
+                if (
+                  panel?.getAttribute('data-side-chat-action-status') === 'Answer ready' &&
+                  status !== null &&
+                  status.textContent?.includes('Answer ready') === true
+                ) break;
+                await sleep(120);
+              }
               const sideChatContextMeta = document.querySelector('[data-testid="side-chat-context-meta"]');
+              const sideChatPanelAfterAnswer = document.querySelector('[data-testid="side-chat-panel"]');
+              const sideChatMessageLog = document.querySelector('[data-testid="side-chat-message-log"]');
+              const sideChatActionStatus = document.querySelector('[data-testid="side-chat-action-status"]');
+              const sideChatMessageArticles = [...document.querySelectorAll('[data-testid="side-chat-message-log"] [role="article"]')];
+              const sideChatPanelStatus = sideChatPanelAfterAnswer?.getAttribute('data-side-chat-action-status') ?? '';
+              const sideChatPanelStatusTone = sideChatPanelAfterAnswer?.getAttribute('data-side-chat-action-status-tone') ?? '';
+              const sideChatLogRole = sideChatMessageLog?.getAttribute('role') ?? '';
+              const sideChatLogLive = sideChatMessageLog?.getAttribute('aria-live') ?? '';
+              const sideChatLogRelevant = sideChatMessageLog?.getAttribute('aria-relevant') ?? '';
+              const sideChatLogLabel = sideChatMessageLog?.getAttribute('aria-label') ?? '';
+              const sideChatStatusText = sideChatActionStatus?.textContent ?? '';
+              const sideChatStatusRole = sideChatActionStatus?.getAttribute('role') ?? '';
+              const sideChatStatusLive = sideChatActionStatus?.getAttribute('aria-live') ?? '';
+              const sideChatStatusAtomic = sideChatActionStatus?.getAttribute('aria-atomic') ?? '';
+              const sideChatActionStatusA11yWorks =
+                sideChatPanelStatus === 'Answer ready' &&
+                sideChatPanelStatusTone === 'info' &&
+                sideChatLogRole === 'log' &&
+                sideChatLogLive === 'polite' &&
+                sideChatLogRelevant === 'additions text' &&
+                sideChatLogLabel === 'Side chat messages' &&
+                sideChatMessageArticles.length >= 2 &&
+                sideChatStatusText.includes('Answer ready') &&
+                sideChatStatusRole === 'status' &&
+                sideChatStatusLive === 'polite' &&
+                sideChatStatusAtomic === 'true';
               const sideChatContextMetadataWorks =
                 sideChatContextMeta instanceof HTMLElement &&
                 sideChatContextMeta.getAttribute('data-side-chat-context-source') === 'composer-btw' &&
@@ -15258,6 +15294,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 });
               await openSideChat('smoke retry failure');
               let sideChatErrorRetryWorks = false;
+              let sideChatRetryStatusA11yWorks = false;
               for (let index = 0; index < 12; index += 1) {
                 if (document.querySelector('[data-testid="side-chat-retry"]')) break;
                 await sleep(120);
@@ -15270,6 +15307,17 @@ function runAutomatedFocusedSurfaceSmoke(
                   const recovered = panel?.textContent?.includes('Smoke retry recovered for: smoke retry failure') === true;
                   if (recovered) {
                     sideChatErrorRetryWorks = true;
+                    const retryPanel = document.querySelector('[data-testid="side-chat-panel"]');
+                    const retryStatus = document.querySelector('[data-testid="side-chat-action-status"]');
+                    sideChatRetryStatusA11yWorks =
+                      retryPanel instanceof HTMLElement &&
+                      retryPanel.getAttribute('data-side-chat-action-status') === 'Answer ready' &&
+                      retryPanel.getAttribute('data-side-chat-action-status-tone') === 'info' &&
+                      retryStatus !== null &&
+                      retryStatus.textContent?.includes('Answer ready') === true &&
+                      retryStatus.getAttribute('role') === 'status' &&
+                      retryStatus.getAttribute('aria-live') === 'polite' &&
+                      retryStatus.getAttribute('aria-atomic') === 'true';
                     break;
                   }
                   await sleep(120);
@@ -15299,7 +15347,9 @@ function runAutomatedFocusedSurfaceSmoke(
                 sideChatMultilineDraftWorks,
                 sideChatContextMetadataWorks,
                 sideChatMessageLabelsCalm,
+                sideChatActionStatusA11yWorks,
                 sideChatErrorRetryWorks,
+                sideChatRetryStatusA11yWorks,
                 sideChatCloseWorks:
                   sideChatTabsWork &&
                   document.querySelectorAll('[role="tab"][data-tab-id^="sidechat:"]').length === beforeClose - 1

@@ -10,9 +10,15 @@ interface Props {
   embedded?: boolean
 }
 
+type SideChatActionStatus = {
+  text: string
+  tone: 'info' | 'danger'
+}
+
 export default function SideQuestionPanel({ session, chatId, embedded }: Props): JSX.Element {
   const { uiState, appendSideQuestion, updateSideQuestion, appendSideChatMessage, updateSideChatMessage, setSideChatDraft } = useSessionStore()
   const [legacyQuestion, setLegacyQuestion] = useState('')
+  const [actionStatus, setActionStatus] = useState<SideChatActionStatus | null>(null)
   const ui = uiState[session.id]
   const sideChat = chatId ? ui?.sideChats?.find((chat) => chat.id === chatId) : null
   const messages = sideChat?.messages ?? ui?.sideQuestions ?? []
@@ -20,6 +26,7 @@ export default function SideQuestionPanel({ session, chatId, embedded }: Props):
   const errorCount = messages.filter((message) => message.status === 'error').length
   const question = chatId ? sideChat?.draft ?? '' : legacyQuestion
   const context = chatId ? sideChat?.context ?? sideChatContextSnapshot(session, 'restored') : null
+  const visibleActionStatus = sideChatVisibleActionStatus(messages, actionStatus)
 
   const setQuestion = (value: string): void => {
     if (chatId) setSideChatDraft(session.id, chatId, value)
@@ -30,6 +37,7 @@ export default function SideQuestionPanel({ session, chatId, embedded }: Props):
     const trimmed = question.trim()
     if (!trimmed || pending) return
     setQuestion('')
+    setActionStatus({ text: 'Question sent', tone: 'info' })
     const userId = crypto.randomUUID()
     const answerId = crypto.randomUUID()
     const append = chatId
@@ -44,6 +52,7 @@ export default function SideQuestionPanel({ session, chatId, embedded }: Props):
         status: result.ok ? 'complete' : 'error',
         usage: result.usage
       } as const
+      setActionStatus({ text: result.ok ? 'Answer ready' : 'Answer failed', tone: result.ok ? 'info' : 'danger' })
       if (chatId) updateSideChatMessage(session.id, chatId, answerId, patch)
       else updateSideQuestion(session.id, answerId, patch)
     } catch (error) {
@@ -51,6 +60,7 @@ export default function SideQuestionPanel({ session, chatId, embedded }: Props):
         content: error instanceof Error ? error.message : 'Side question failed.',
         status: 'error'
       } as const
+      setActionStatus({ text: 'Answer failed', tone: 'danger' })
       if (chatId) updateSideChatMessage(session.id, chatId, answerId, patch)
       else updateSideQuestion(session.id, answerId, patch)
     }
@@ -64,6 +74,7 @@ export default function SideQuestionPanel({ session, chatId, embedded }: Props):
     const retryQuestion = previousUserMessage?.content.trim()
     if (!retryQuestion) return
     const pendingPatch = { content: 'Thinking...', status: 'pending' as const }
+    setActionStatus({ text: 'Retrying answer', tone: 'info' })
     if (chatId) updateSideChatMessage(session.id, chatId, messageId, pendingPatch)
     else updateSideQuestion(session.id, messageId, pendingPatch)
     try {
@@ -73,6 +84,7 @@ export default function SideQuestionPanel({ session, chatId, embedded }: Props):
         status: result.ok ? 'complete' : 'error',
         usage: result.usage
       } as const
+      setActionStatus({ text: result.ok ? 'Answer ready' : 'Retry failed', tone: result.ok ? 'info' : 'danger' })
       if (chatId) updateSideChatMessage(session.id, chatId, messageId, patch)
       else updateSideQuestion(session.id, messageId, patch)
     } catch (error) {
@@ -80,6 +92,7 @@ export default function SideQuestionPanel({ session, chatId, embedded }: Props):
         content: error instanceof Error ? error.message : 'Side question failed.',
         status: 'error'
       } as const
+      setActionStatus({ text: 'Retry failed', tone: 'danger' })
       if (chatId) updateSideChatMessage(session.id, chatId, messageId, patch)
       else updateSideQuestion(session.id, messageId, patch)
     }
@@ -93,6 +106,8 @@ export default function SideQuestionPanel({ session, chatId, embedded }: Props):
       data-side-chat-message-count={messages.length}
       data-side-chat-pending={pending ? 'true' : 'false'}
       data-side-chat-errors={errorCount}
+      data-side-chat-action-status={visibleActionStatus?.text ?? ''}
+      data-side-chat-action-status-tone={visibleActionStatus?.tone ?? ''}
       style={{ color: 'var(--color-text)' }}
     >
       {chatId && (
@@ -137,48 +152,60 @@ export default function SideQuestionPanel({ session, chatId, embedded }: Props):
           </div>
         </div>
       )}
-      <div className="flex-1 min-h-0 overflow-y-auto space-y-2.5 pr-1">
+      <div
+        className="flex-1 min-h-0 overflow-y-auto space-y-2.5 pr-1"
+        role={chatId ? 'log' : undefined}
+        aria-live={chatId ? 'polite' : undefined}
+        aria-relevant={chatId ? 'additions text' : undefined}
+        aria-label={chatId ? 'Side chat messages' : undefined}
+        data-testid={chatId ? 'side-chat-message-log' : 'side-question-message-log'}
+      >
         {messages.length === 0 ? (
-          <div className="side-chat-empty" data-testid="side-chat-empty-state">
+          <div className="side-chat-empty" data-testid="side-chat-empty-state" role="status" aria-live="polite">
             No side chat yet.
           </div>
         ) : (
           messages.map((message, index) => (
-            <InspectorCard
+            <div
               key={message.id}
-              className="p-3 text-sm"
-              active={message.role === 'user'}
-              style={{
-                color: message.status === 'error' ? 'var(--color-red)' : 'var(--color-text)'
-              }}
+              role={chatId ? 'article' : undefined}
+              aria-label={chatId ? `${message.role === 'user' ? 'You' : 'Side answer'}: ${message.status}` : undefined}
             >
-              <div
-                className="mb-1 text-[11px] font-semibold tracking-normal"
-                data-testid="side-chat-message-label"
-                style={{ color: 'var(--color-text-muted)' }}
+              <InspectorCard
+                className="p-3 text-sm"
+                active={message.role === 'user'}
+                style={{
+                  color: message.status === 'error' ? 'var(--color-red)' : 'var(--color-text)'
+                }}
               >
-                {message.role === 'user' ? 'You' : message.status === 'pending' ? 'Answering' : 'Side answer'}
-              </div>
-              <div style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{message.content}</div>
-              {message.role === 'assistant' && message.status === 'error' && (
-                <div className="mt-2 flex items-center gap-2">
-                  <Button
-                    variant="secondary"
-                    className="h-7 px-2 py-1"
-                    dataTestId={chatId ? 'side-chat-retry' : 'side-question-retry'}
-                    onClick={() => { void retryAnswer(message.id, index) }}
-                    disabled={pending}
-                  >
-                    Retry
-                  </Button>
+                <div
+                  className="mb-1 text-[11px] font-semibold tracking-normal"
+                  data-testid="side-chat-message-label"
+                  style={{ color: 'var(--color-text-muted)' }}
+                >
+                  {message.role === 'user' ? 'You' : message.status === 'pending' ? 'Answering' : 'Side answer'}
                 </div>
-              )}
-              {message.usage?.totalCostUsd !== undefined && (
-                <div className="mt-2 text-[10px]" style={{ color: 'var(--color-text-muted)' }}>
-                  ${message.usage.totalCostUsd.toFixed(4)}
-                </div>
-              )}
-            </InspectorCard>
+                <div style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{message.content}</div>
+                {message.role === 'assistant' && message.status === 'error' && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <Button
+                      variant="secondary"
+                      className="h-7 px-2 py-1"
+                      dataTestId={chatId ? 'side-chat-retry' : 'side-question-retry'}
+                      onClick={() => { void retryAnswer(message.id, index) }}
+                      disabled={pending}
+                    >
+                      Retry
+                    </Button>
+                  </div>
+                )}
+                {message.usage?.totalCostUsd !== undefined && (
+                  <div className="mt-2 text-[10px]" style={{ color: 'var(--color-text-muted)' }}>
+                    ${message.usage.totalCostUsd.toFixed(4)}
+                  </div>
+                )}
+              </InspectorCard>
+            </div>
           ))
         )}
       </div>
@@ -204,6 +231,17 @@ export default function SideQuestionPanel({ session, chatId, embedded }: Props):
           rows={1}
           className="side-chat-input min-w-0 flex-1 resize-none text-sm outline-none"
         />
+        <span
+          className="side-chat-action-status"
+          data-testid={chatId ? 'side-chat-action-status' : 'side-question-action-status'}
+          data-side-chat-action-status-tone={visibleActionStatus?.tone ?? ''}
+          role={visibleActionStatus?.tone === 'danger' ? 'alert' : 'status'}
+          aria-live={visibleActionStatus?.tone === 'danger' ? 'assertive' : 'polite'}
+          aria-atomic="true"
+          hidden={visibleActionStatus === null}
+        >
+          {visibleActionStatus?.text ?? ''}
+        </span>
         <IconButton
           icon="send"
           label="Send side question"
@@ -217,6 +255,17 @@ export default function SideQuestionPanel({ session, chatId, embedded }: Props):
       </form>
     </div>
   )
+}
+
+function sideChatVisibleActionStatus(
+  messages: Array<{ role: string; status: string }>,
+  fallback: SideChatActionStatus | null
+): SideChatActionStatus | null {
+  if (messages.some((message) => message.status === 'pending')) return { text: 'Answering', tone: 'info' }
+  const lastAssistant = [...messages].reverse().find((message) => message.role === 'assistant')
+  if (lastAssistant?.status === 'error') return { text: 'Answer failed', tone: 'danger' }
+  if (lastAssistant?.status === 'complete') return { text: 'Answer ready', tone: 'info' }
+  return fallback
 }
 
 function sideChatSourceLabel(source: SideChatContextSnapshot['source']): string {

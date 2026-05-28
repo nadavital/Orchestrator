@@ -4236,6 +4236,29 @@
     background: var(--surface-bg) !important;
   }
 
+  .side-chat-action-status {
+    width: fit-content;
+    max-width: 108px;
+    flex: 0 1 auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border-subtle));
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--accent) 8%, var(--surface-bg));
+    color: var(--accent);
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 12px;
+    padding: 2px 7px;
+  }
+
+  .side-chat-action-status[data-side-chat-action-status-tone="danger"] {
+    border-color: color-mix(in srgb, var(--state-danger) 28%, var(--border-subtle));
+    background: color-mix(in srgb, var(--state-danger) 9%, var(--surface-bg));
+    color: var(--state-danger);
+  }
+
   .files-panel-body {
     display: grid;
     min-height: 0;
