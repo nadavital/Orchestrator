@@ -8326,6 +8326,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 const environmentCard = document.querySelector('[data-testid="codex-environment-card"]');
                 const environmentCommitRow = document.querySelector('[data-testid="codex-environment-commit"]');
                 const environmentCreatePrRow = document.querySelector('[data-testid="codex-environment-create-pr"]');
+                const environmentAddToChatButton = document.querySelector('[data-testid="codex-environment-add-to-chat"]');
                 const environmentSettingsButton = document.querySelector('[data-testid="codex-environment-settings"]');
                 const environmentSourcesCard = document.querySelector('[data-testid="codex-environment-sources-card"]');
                 const environmentWebSearchRow = document.querySelector('[data-testid="codex-environment-web-search"]');
@@ -8333,6 +8334,27 @@ function runAutomatedFocusedSurfaceSmoke(
                 const environmentScroll = environmentPanel instanceof HTMLElement
                   ? environmentPanel.querySelector('.environment-panel-scroll')
                   : null;
+                let environmentAddToChatWorks = false;
+                if (environmentAddToChatButton instanceof HTMLButtonElement) {
+                  environmentAddToChatButton.click();
+                  await sleep(180);
+                  const composerAfterEnvironmentAdd = document.querySelector('[data-testid="composer-textarea"]');
+                  const environmentActionStatus = document.querySelector('[data-testid="codex-environment-action-status"]');
+                  environmentAddToChatWorks =
+                    composerAfterEnvironmentAdd instanceof HTMLTextAreaElement &&
+                    composerAfterEnvironmentAdd.value.includes('Use this environment context:') &&
+                    composerAfterEnvironmentAdd.value.includes('Workspace:') &&
+                    composerAfterEnvironmentAdd.value.includes('Provider:') &&
+                    composerAfterEnvironmentAdd.value.includes('Branch:') &&
+                    composerAfterEnvironmentAdd.value.includes('Changes:') &&
+                    composerAfterEnvironmentAdd.value.includes('Pull request: #42') &&
+                    composerAfterEnvironmentAdd.value.includes('Sources: Web search: unavailable') &&
+                    environmentActionStatus instanceof HTMLElement &&
+                    environmentActionStatus.getAttribute('role') === 'status' &&
+                    environmentActionStatus.getAttribute('aria-live') === 'polite' &&
+                    environmentActionStatus.getAttribute('aria-atomic') === 'true' &&
+                    environmentActionStatus.textContent?.includes('Environment context added to chat') === true;
+                }
                 let environmentSettingsOpensProvidersWorks = false;
                 if (environmentSettingsButton instanceof HTMLButtonElement) {
                   environmentSettingsButton.click();
@@ -8385,6 +8407,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     environmentWebSearchRow instanceof HTMLElement &&
                     environmentSourcesCard.textContent?.includes('Sources') === true &&
                     environmentSourcesCard.textContent?.includes('Web search') === true,
+                  environmentAddToChatWorks,
                   environmentSourceBoundaryWorks:
                     environmentWebSearchRow instanceof HTMLElement &&
                     environmentWebSearchRow.getAttribute('data-environment-row-disabled') === 'true' &&

@@ -9264,3 +9264,13 @@ Implemented: the composer now renders compact context chips directly under the i
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --composer` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1780007565893.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1780007565893.png`.
 
 Remaining: this closes the local composer context-chip gap only. Provider-backed context sources and deeper attachment/context behavior remain PP-040 follow-ups.
+
+### 2026-05-28 - Environment Add To Chat
+
+Product evidence: Environment is a Phase 1 inspector/context surface for daily coding state. It showed workspace, provider/local state, branch, change totals, PR state, and source availability, but users could not move that context into the prompt without manually reading and retyping it.
+
+Implemented: the Environment header now includes an `Add environment to chat` action. It inserts a concise environment summary into the main composer through the shared composer insertion path and announces `Environment context added to chat` with a polite status region. The summary includes workspace, provider, session status, branch, change totals, pull-request metadata, and source availability.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --environment` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-environment-1780007816535.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-environment-1780007816535.png`. The focused run adds `environmentAddToChat=true` while preserving Environment visual, action-row, source-boundary, disabled-row a11y, and provider-settings navigation gates.
+
+Remaining: this closes local Environment-to-composer context flow only. Provider-backed web-search source state, provider-native environment sources, hosted PR metadata, commit/PR creation, and exact live Codex timing remain separate.

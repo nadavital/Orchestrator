@@ -10,6 +10,7 @@ For provider-specific implementation work, use `docs/provider-integration-runboo
 
 Recent side-panel parity checkpoint:
 
+- Environment add-to-chat checkpoint: the Environment panel now has an explicit `Add environment to chat` action that inserts workspace, provider, status, branch, change totals, PR metadata, and source availability into the composer through the shared composer insertion path. Focused Environment smoke gates this as `environmentAddToChat=true`.
 - Composer context chips checkpoint: the composer now shows compact context chips for current workspace, local/branch execution mode, and additional-directory count with accessible metadata. Focused composer smoke gates this as `composerContextChips=true` while preserving existing draft, attachment, queue, permission, provider/model, and toolbar checks.
 - File/source open outcome checkpoint: Files source tabs now keep the last `fs.openPath` result instead of discarding it, announce the resolved editor target/method/line/fallback in the action status, and expose structured diagnostic attributes so the focused Files smoke can gate `fileOpenTargetOutcomeDiagnostic=true`.
 - Composer pending attachment checkpoint: delayed pasted/dropped attachment saves now expose pending chips with explicit `Cancel saving ...` labels, failed chips use `Dismiss ...`, and focused composer smoke gates a delayed large attachment cancellation with `composerPendingAttachmentCancel=true` so a canceled save cannot attach after it eventually resolves.

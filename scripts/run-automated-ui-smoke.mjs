@@ -2414,6 +2414,7 @@ child.on('exit', async (code) => {
           environmentPanelVisual: result.environmentPanelVisualWorks === true,
           environmentActionRows: result.environmentActionRowsWork === true,
           environmentSources: result.environmentSourcesWork === true,
+          environmentAddToChat: result.environmentAddToChatWorks === true,
           environmentSourceBoundary: result.environmentSourceBoundaryWorks === true,
           environmentDisabledRowsA11y: result.environmentDisabledRowsA11yWorks === true,
           environmentSettingsOpensProviders: result.environmentSettingsOpensProviders === true

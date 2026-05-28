@@ -14,6 +14,7 @@ interface Props {
 export default function EnvironmentPanel({ session, embedded = false, onOpenReview }: Props): JSX.Element {
   const [changes, setChanges] = useState<FileChange[]>([])
   const [branches, setBranches] = useState<GitRefOption[]>([])
+  const [actionStatus, setActionStatus] = useState('')
   const setShowSettings = useSessionStore((state) => state.setShowSettings)
   const setShowCapabilities = useSessionStore((state) => state.setShowCapabilities)
   const setSettingsSection = useSessionStore((state) => state.setSettingsSection)
@@ -72,6 +73,26 @@ export default function EnvironmentPanel({ session, embedded = false, onOpenRevi
     setShowSettings(true)
   }
 
+  const addEnvironmentToChat = (): void => {
+    const sourceSummary = 'Web search: unavailable (provider web-search source is not connected for this session)'
+    const summary = [
+      'Use this environment context:',
+      `Workspace: ${session.workDir}`,
+      `Provider: ${session.provider ?? 'unknown'}`,
+      `Status: ${session.status}`,
+      `Branch: ${currentBranch}`,
+      `Changes: ${changes.length} ${changes.length === 1 ? 'file' : 'files'}, +${totals.additions}, -${totals.deletions} (${stagedCount} staged, ${unstagedCount} unstaged)`,
+      pullRequestUrl
+        ? `Pull request: ${pullRequest?.number ? `#${pullRequest.number} ` : ''}${pullRequestUrl}`
+        : 'Pull request: none',
+      `Sources: ${sourceSummary}`
+    ].join('\n')
+    window.dispatchEvent(new CustomEvent('orchestrator:add-composer-text', {
+      detail: { text: summary }
+    }))
+    setActionStatus('Environment context added to chat')
+  }
+
   return (
     <section
       className="environment-panel"
@@ -88,15 +109,41 @@ export default function EnvironmentPanel({ session, embedded = false, onOpenRevi
         <div className="environment-card" data-testid="codex-environment-card">
           <div className="environment-card-header">
             <span>Environment</span>
-            <IconButton
-              icon="settings"
-              label="Open provider settings"
-              size="xs"
-              variant="ghost"
-              dataTestId="codex-environment-settings"
-              onClick={openProviderSettings}
-            />
+            <div className="flex items-center gap-1">
+              <IconButton
+                icon="chat"
+                label="Add environment to chat"
+                size="xs"
+                variant="ghost"
+                dataTestId="codex-environment-add-to-chat"
+                onClick={addEnvironmentToChat}
+              />
+              <IconButton
+                icon="settings"
+                label="Open provider settings"
+                size="xs"
+                variant="ghost"
+                dataTestId="codex-environment-settings"
+                onClick={openProviderSettings}
+              />
+            </div>
           </div>
+          {actionStatus && (
+            <div
+              className="mx-2 mb-2 rounded-md border px-2 py-1 text-[11px]"
+              data-testid="codex-environment-action-status"
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+              style={{
+                color: 'var(--accent)',
+                background: 'color-mix(in srgb, var(--accent) 8%, var(--surface-bg))',
+                borderColor: 'color-mix(in srgb, var(--accent) 20%, var(--border-subtle))'
+              }}
+            >
+              {actionStatus}
+            </div>
+          )}
           <EnvironmentRow
             icon="diff"
             label="Changes"
