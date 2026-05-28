@@ -1995,6 +1995,7 @@ child.on('exit', async (code) => {
         sidebarPinnedRowsTextFirst: result.sidebarPinnedRowsTextFirst === true,
         sidebarPinActionsConsolidated: result.sidebarPinActionsConsolidated === true,
         sidebarActionMenuChromeCalm: result.sidebarActionMenuChromeCalm === true,
+        sidebarActionMenuTriggerState: result.sidebarActionMenuTriggerStateWorks === true,
         sidebarActionMenuSharedSections: result.sidebarActionMenuSharedSectionsWorks === true,
         actionRenameWorks: result.actionRenameWorks === true,
         actionMarkUnreadWorks: result.actionMarkUnreadWorks === true,

@@ -42,6 +42,7 @@ const errorStatuses = new Set<Session['status']>([
 function SessionItem({ session }: Props): JSX.Element {
   const rowRef = useRef<HTMLDivElement>(null)
   const hoverSurfaceId = `session-hover-${session.id}`
+  const actionsMenuId = `session-actions-menu-${session.id}`
   const isActive = useSessionStore((state) => state.activeSessionId === session.id)
   const unread = useSessionStore((state) => state.uiState[session.id]?.hasUnread ?? false)
   const addSession = useSessionStore((state) => state.addSession)
@@ -424,6 +425,9 @@ function SessionItem({ session }: Props): JSX.Element {
                 icon="ellipsis"
                 label="Chat actions"
                 size="sm"
+                ariaExpanded={menuPoint !== null}
+                ariaControls={actionsMenuId}
+                ariaHasPopup="menu"
                 onClick={openMenu}
                 style={{ color: 'var(--text-tertiary)' }}
               />
@@ -460,6 +464,7 @@ function SessionItem({ session }: Props): JSX.Element {
           session={session}
           x={menuPoint.x}
           y={menuPoint.y}
+          menuId={actionsMenuId}
           onClose={() => setMenuPoint(null)}
           onRemove={handleRemove}
           isUnread={unread}

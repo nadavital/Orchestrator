@@ -20005,12 +20005,22 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
             let sidebarAutomationRowMetadataActive = false;
             let sidebarAutomationRowMetadataDeleted = false;
             let sidebarActionMenuChromeCalm = false;
+            let sidebarActionMenuTriggerStateWorks = false;
             let sidebarActionMenuSharedSectionsWorks = false;
             if (normalRow instanceof HTMLElement) {
               const actionsButton = normalActionsButton ?? normalRow.querySelector('[aria-label="Chat actions"], [title="Chat actions"]');
+              const controlledMenuId = actionsButton instanceof HTMLElement
+                ? actionsButton.getAttribute('aria-controls') ?? ''
+                : '';
+              const actionMenuClosedState =
+                actionsButton instanceof HTMLButtonElement &&
+                actionsButton.getAttribute('aria-haspopup') === 'menu' &&
+                controlledMenuId.startsWith('session-actions-menu-') &&
+                actionsButton.getAttribute('aria-expanded') === 'false';
               if (actionsButton instanceof HTMLElement) actionsButton.click();
               await sleep(120);
               const menuSurface = document.querySelector('.orchestrator-menu-surface');
+              const controlledMenu = controlledMenuId ? document.getElementById(controlledMenuId) : null;
               const menuRows = [...document.querySelectorAll('.orchestrator-menu-surface [role="menuitem"]')]
                 .filter((item) => item instanceof HTMLElement);
               const menuSections = [...document.querySelectorAll('.orchestrator-menu-surface [data-menu-section="true"]')]
@@ -20030,6 +20040,13 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
                   label.classList.contains('orchestrator-menu-section-label') &&
                   getComputedStyle(label).textTransform !== 'uppercase'
                 );
+              sidebarActionMenuTriggerStateWorks =
+                actionMenuClosedState &&
+                actionsButton instanceof HTMLButtonElement &&
+                actionsButton.getAttribute('aria-expanded') === 'true' &&
+                controlledMenu instanceof HTMLElement &&
+                controlledMenu === menuSurface &&
+                controlledMenu.querySelector('[role="menu"]') instanceof HTMLElement;
               sidebarActionMenuChromeCalm =
                 menuSurface instanceof HTMLElement &&
                 menuSurface.getBoundingClientRect().width <= 230 &&
@@ -21482,6 +21499,7 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               sidebarPinnedRowsTextFirst,
               sidebarPinActionsConsolidated,
               sidebarActionMenuChromeCalm,
+              sidebarActionMenuTriggerStateWorks,
               sidebarActionMenuSharedSectionsWorks,
               actionRenameWorks,
               actionMarkUnreadWorks,
