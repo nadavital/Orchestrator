@@ -489,6 +489,7 @@ Current verification:
 - Focused `node scripts/run-automated-ui-smoke.mjs --composer` verifies `/btw` side-chat sends with attachments are blocked by a recoverable polite status guard under `composerSideChatAttachmentGuard=true`, preventing local attachment context from being silently dropped.
 - Focused `node scripts/run-automated-ui-smoke.mjs --composer` verifies `/model` opens the existing thread model/settings popover under `composerSlashModelOpensSettings=true` instead of inserting a literal command into the composer.
 - Focused `node scripts/run-automated-ui-smoke.mjs --composer` verifies slash-opened model and permission menus move focus into the opened menu under `composerSlashModelFocusesMenu=true` and `composerSlashPermissionsFocusesMenu=true`.
+- Focused `node scripts/run-automated-ui-smoke.mjs --streaming-typing` verifies the active-run composer stop control has a stable accessible action and announced stopped status under `composerStopRunControl=true` and `composerStopRunStatus=true`.
 
 Still needed:
 

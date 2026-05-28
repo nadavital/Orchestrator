@@ -23025,6 +23025,26 @@ function runAutomatedStreamingTypingSmoke(win: BrowserWindow, outputPath: string
               steeringCancel.click();
               await sleep(160);
             }
+            const stopRunButton = document.querySelector('[data-testid="composer-stop-run"]');
+            const composerStopRunControlWorks =
+              stopRunButton instanceof HTMLButtonElement &&
+              stopRunButton.getAttribute('aria-label') === 'Stop current run' &&
+              stopRunButton.getAttribute('data-tooltip-label') === 'Stop current run' &&
+              stopRunButton.getAttribute('data-native-title-free') === 'true' &&
+              stopRunButton.textContent?.includes('Stop') === true;
+            if (stopRunButton instanceof HTMLButtonElement) {
+              stopRunButton.click();
+              await sleep(180);
+            }
+            const runActionStatus = document.querySelector('[data-testid="composer-run-action-status"]');
+            const composerStopRunStatusWorks =
+              composerStopRunControlWorks &&
+              runActionStatus instanceof HTMLElement &&
+              runActionStatus.textContent?.includes('Run stopped') === true &&
+              runActionStatus.getAttribute('data-composer-run-action-status-tone') === 'info' &&
+              runActionStatus.getAttribute('role') === 'status' &&
+              runActionStatus.getAttribute('aria-live') === 'polite' &&
+              runActionStatus.getAttribute('aria-atomic') === 'true';
             return {
               profile: window.__orchestratorSmokeProfile ?? null,
               inputBarCommitCount: window.__orchestratorInputBarCommitCount ?? null,
@@ -23039,7 +23059,9 @@ function runAutomatedStreamingTypingSmoke(win: BrowserWindow, outputPath: string
               composerSteeringCancelWorks:
                 steeringBeforeCancel &&
                 !document.body.innerText.includes('STREAMING_TYPING_STEERING_FOLLOW_UP') &&
-                !(document.querySelector('[data-message-id="streaming-typing-steering-follow-up"] [data-testid="queued-message-actions"]') instanceof HTMLElement)
+                !(document.querySelector('[data-message-id="streaming-typing-steering-follow-up"] [data-testid="queued-message-actions"]') instanceof HTMLElement),
+              composerStopRunControlWorks,
+              composerStopRunStatusWorks
             };
           })()
         `)

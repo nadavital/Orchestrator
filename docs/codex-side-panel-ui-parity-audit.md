@@ -8402,3 +8402,13 @@ Implemented: Provider config editor status now renders through a shared status c
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and `git diff --check` passed. Focused `node scripts/run-automated-ui-smoke.mjs --settings-providers` first hit the expected sandbox localhost bind failure; the elevated rerun passed with `settingsProviderConfigEditorShared=true` alongside `settingsProviderInstallCommandCopy=true`, `settingsProviderInstallCommandStatusA11y=true`, and the existing provider dropdown, diagnostics, usage, model-list, command-output, sidebar-refresh, and top-anchor gates. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-providers-1779965832059.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-providers-1779965832059.png`.
 
 Remaining: this closes local provider config-editor status semantics only. Provider-native account/runtime adapters, real remote-host Settings adapters, and live Codex Settings pixel/timing evidence remain Phase 1 work.
+
+### 2026-05-28 - Composer Stop Run Status
+
+Product evidence: stopping an active run is a core daily coding action. The composer already exposed a red `Stop` button while a session was active, but that control had no stable test id, no explicit accessible action name/tooltip contract, and no visible or announced feedback after the stop request.
+
+Implemented: the active-run composer stop control now has a stable `composer-stop-run` test id, `Stop current run` accessible label, native-title-free tooltip metadata, and hidden SVG icon semantics. Clicking it writes a compact composer run-action status that announces `Run stopped` as a polite atomic status, with an error alert path if the stop call fails.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and `git diff --check` passed. Focused `node scripts/run-automated-ui-smoke.mjs --streaming-typing` first hit the expected sandbox localhost bind failure; the elevated rerun passed with `composerStopRunControl=true` and `composerStopRunStatus=true` alongside the existing streaming text, queued summary, steering cancel, will-queue status, typing responsiveness, and frame-budget gates. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-streaming-typing-1779966186827.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-streaming-typing-1779966186828.png`.
+
+Remaining: this closes local active-run stop control/status semantics only. Real provider-backed stop timing and deeper provider-run lifecycle proof remain Phase 1 work.

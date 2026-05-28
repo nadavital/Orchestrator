@@ -66,6 +66,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   const [isSavingPastedFiles, setIsSavingPastedFiles] = useState(false)
   const [dragActive, setDragActive] = useState(false)
   const [attachmentStatus, setAttachmentStatus] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
+  const [runActionStatus, setRunActionStatus] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
   const [permissionRulesStatus, setPermissionRulesStatus] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const agentButtonRef = useRef<HTMLButtonElement>(null)
@@ -153,6 +154,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     setIsSavingPastedFiles(false)
     setDragActive(false)
     setAttachmentStatus(null)
+    setRunActionStatus(null)
     setPermissionRulesStatus(null)
     setSlashIndex(0)
     window.setTimeout(() => {
@@ -396,6 +398,16 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     setComposerAttachments(session.id, [])
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
     await window.api.sessions.sendMessage(session.id, prompt, isNew ? useWorktree : undefined, attachments)
+  }
+
+  const stopCurrentRun = async (): Promise<void> => {
+    setRunActionStatus({ text: 'Stop requested', tone: 'info' })
+    try {
+      await window.api.sessions.stop(session.id)
+      setRunActionStatus({ text: 'Run stopped', tone: 'info' })
+    } catch (error) {
+      setRunActionStatus({ text: `Stop failed: ${errorText(error)}`, tone: 'danger' })
+    }
   }
 
   const attachFiles = async (): Promise<void> => {
@@ -826,6 +838,27 @@ function InputBar({ session, isNew }: Props): JSX.Element {
                 Clear
               </button>
             )}
+          </div>
+        )}
+        {runActionStatus && (
+          <div
+            className="mx-3 mb-2 rounded-lg border px-2.5 py-1.5 text-xs"
+            data-testid="composer-run-action-status"
+            data-composer-run-action-status-tone={runActionStatus.tone}
+            role={runActionStatus.tone === 'danger' ? 'alert' : 'status'}
+            aria-live={runActionStatus.tone === 'danger' ? 'assertive' : 'polite'}
+            aria-atomic="true"
+            style={{
+              borderColor: runActionStatus.tone === 'danger'
+                ? 'color-mix(in srgb, var(--color-red) 45%, var(--border-subtle))'
+                : 'var(--border-subtle)',
+              background: runActionStatus.tone === 'danger'
+                ? 'color-mix(in srgb, var(--color-red) 9%, var(--surface-bg))'
+                : 'var(--control-bg)',
+              color: runActionStatus.tone === 'danger' ? 'var(--color-red)' : 'var(--text-secondary)'
+            }}
+          >
+            {runActionStatus.text}
           </div>
         )}
 
@@ -1306,16 +1339,23 @@ function InputBar({ session, isNew }: Props): JSX.Element {
 
           {/* Send / Stop */}
           {canStop && (
-            <button
-              onClick={() => window.api.sessions.stop(session.id)}
-              className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium"
-              style={{ background: 'var(--color-red)', color: '#fff' }}
-            >
-              <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor">
-                <rect x="3" y="3" width="10" height="10" rx="1" />
-              </svg>
-              Stop
-            </button>
+            <Tooltip label="Stop current run">
+              <button
+                type="button"
+                data-testid="composer-stop-run"
+                data-tooltip-label="Stop current run"
+                data-native-title-free="true"
+                aria-label="Stop current run"
+                onClick={() => { void stopCurrentRun() }}
+                className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium"
+                style={{ background: 'var(--color-red)', color: '#fff' }}
+              >
+                <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                  <rect x="3" y="3" width="10" height="10" rx="1" />
+                </svg>
+                Stop
+              </button>
+            </Tooltip>
           )}
           {(session.status !== 'running' || canSend) && (
             <Tooltip label={sendTitle}>
@@ -1944,6 +1984,11 @@ function shallowEqualArray<T>(a?: T[], b?: T[]): boolean {
   if (a === b) return true
   if (!a || !b || a.length !== b.length) return false
   return a.every((value, index) => value === b[index])
+}
+
+function errorText(error: unknown): string {
+  if (error instanceof Error) return error.message
+  return String(error)
 }
 
 function Chip({
