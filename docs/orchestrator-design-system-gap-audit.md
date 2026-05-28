@@ -549,6 +549,7 @@ Current verification:
 - `node scripts/run-automated-ui-smoke.mjs --settings` now verifies `settingsBrowserStatusA11y=true` and `settingsBrowserDomainControlsA11y=true`, covering Browser Settings clear/save status announcements, labelled domain inputs, list semantics, and icon-only remove controls with accessible names.
 - `node scripts/run-automated-ui-smoke.mjs --settings` now verifies `settingsWorktreesActionA11y=true`, covering Worktrees Settings create/delete status announcements plus named worktree row, delete, conversation list, and open-chat controls.
 - `node scripts/run-automated-ui-smoke.mjs --diff-core` now verifies `reviewFloatingGitActionStatus=true`, covering Review floating local-git action progress/results as polite status and failure as assertive alert semantics.
+- `node scripts/run-automated-ui-smoke.mjs --header` now verifies `headerPanelEmptyFallback=true`, covering the header side-panel control's right-Workbench ownership and empty-panel fallback to the Workbench New tab launcher.
 
 Still needed:
 

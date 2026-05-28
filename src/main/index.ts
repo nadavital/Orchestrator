@@ -700,7 +700,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               headerActions.includes('provider-session');
             var titlebarSidebarToggleWorks =
               titlebarToggleSidebar instanceof HTMLButtonElement &&
-              titlebarToggleSidebar.getAttribute('aria-label') === 'Toggle sidebar' &&
+              titlebarToggleSidebar.getAttribute('aria-label') === 'Toggle side panel' &&
               titlebarToggleSidebar.dataset.icon === 'panelRight';
             if (chatActionsButton instanceof HTMLElement) {
               chatActionsButton.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
@@ -3212,7 +3212,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             await sleep(420);
           }
           if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'inspector') {
-            const sidebarButton = findButton('Toggle sidebar');
+            const sidebarButton = findButton('Toggle side panel');
             sidebarButton?.click();
             await sleep(700);
           }
@@ -6508,7 +6508,7 @@ function runAutomatedFocusedSurfaceSmoke(
             const openRightPanel = async () => {
               const visiblePanel = document.querySelector('[data-testid="session-right-panel"]');
               if (visiblePanel instanceof HTMLElement && visiblePanel.getBoundingClientRect().width > 120) return;
-              const sidebarButton = document.querySelector('[data-testid="titlebar-toggle-sidebar"]') ?? findButton('Toggle sidebar');
+              const sidebarButton = document.querySelector('[data-testid="titlebar-toggle-sidebar"]') ?? findButton('Toggle side panel');
               if (sidebarButton instanceof HTMLElement) {
                 sidebarButton.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
               }
@@ -6585,6 +6585,9 @@ function runAutomatedFocusedSurfaceSmoke(
               const chatActionsButton = document.querySelector('[data-testid="titlebar-chat-actions"]');
               const titlebarActions = document.querySelector('[data-testid="titlebar-actions"]');
               const headerActions = titlebarActions?.getAttribute('data-header-actions') ?? '';
+              const headerPanelOwner = titlebarActions?.getAttribute('data-header-panel-owner') ?? '';
+              const headerPanelToggleLabel = titlebarActions?.getAttribute('data-header-panel-toggle-label') ?? '';
+              const headerPanelEmptyFallback = titlebarActions?.getAttribute('data-header-panel-empty-fallback') ?? '';
               const titlebarActionButtons = titlebarActions instanceof HTMLElement
                 ? [
                     document.querySelector('[data-testid="titlebar-chat-actions"]'),
@@ -6621,6 +6624,25 @@ function runAutomatedFocusedSurfaceSmoke(
                 window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
                 await sleep(80);
               }
+              let headerPanelEmptyFallbackWorks = false;
+              const rightPanelBeforeToggle = document.querySelector('[data-testid="session-right-panel"]');
+              const rightPanelTabsBeforeToggle = rightPanelBeforeToggle?.getAttribute('data-right-panel-tabs') ?? '';
+              if (titlebarToggleSidebar instanceof HTMLElement && rightPanelTabsBeforeToggle.trim().length === 0) {
+                titlebarToggleSidebar.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+                for (let index = 0; index < 16; index += 1) {
+                  const rightPanelAfterToggle = document.querySelector('[data-testid="session-right-panel"]');
+                  if (
+                    rightPanelAfterToggle?.getAttribute('data-right-panel-active-tab') === 'new-tab' &&
+                    (rightPanelAfterToggle.getAttribute('data-right-panel-tabs') ?? '').includes('new-tab')
+                  ) {
+                    headerPanelEmptyFallbackWorks = true;
+                    break;
+                  }
+                  await sleep(80);
+                }
+              } else {
+                headerPanelEmptyFallbackWorks = true;
+              }
               const headerTooltipIds = ['active-session-title', 'session-header-metadata', 'profile-badge'];
               if (document.querySelector('[data-testid="session-header-pinned"]')) headerTooltipIds.push('session-header-pinned');
               return {
@@ -6656,8 +6678,12 @@ function runAutomatedFocusedSurfaceSmoke(
                 headerActions,
                 titlebarSidebarToggleWorks:
                   titlebarToggleSidebar instanceof HTMLButtonElement &&
-                  titlebarToggleSidebar.getAttribute('aria-label') === 'Toggle sidebar' &&
-                  titlebarToggleSidebar.dataset.icon === 'panelRight',
+                  titlebarToggleSidebar.getAttribute('aria-label') === 'Toggle side panel' &&
+                  titlebarToggleSidebar.dataset.icon === 'panelRight' &&
+                  headerPanelOwner === 'right-workbench' &&
+                  headerPanelToggleLabel === 'Toggle side panel' &&
+                  headerPanelEmptyFallback === 'new-tab',
+                headerPanelEmptyFallbackWorks,
                 headerActionChromeCompactWorks,
                 headerActionMenuWorks
               };
@@ -17945,7 +17971,7 @@ function runAutomatedMultiWindowFocusSmoke(win: BrowserWindow, outputPath: strin
             await waitFor(() => document.querySelector('[data-testid="active-session-title"]'));
             const rightPanel = document.querySelector('[data-testid="session-right-panel"]');
             if (!(rightPanel instanceof HTMLElement) || rightPanel.getBoundingClientRect().width <= 120) {
-              const toggle = document.querySelector('[data-testid="titlebar-toggle-sidebar"]') ?? findButton('Toggle sidebar');
+              const toggle = document.querySelector('[data-testid="titlebar-toggle-sidebar"]') ?? findButton('Toggle side panel');
               if (toggle instanceof HTMLElement) {
                 toggle.click();
                 await sleep(260);
@@ -21824,7 +21850,7 @@ function runAutomatedReducedMotionSmoke(win: BrowserWindow, outputPath: string, 
             };
             const allZero = (values) => values.length === 0 || values.every(isZeroDuration);
 
-            const sidebarButton = findButton('Toggle sidebar');
+            const sidebarButton = findButton('Toggle side panel');
             sidebarButton?.click();
             await sleep(120);
             const rightPanel = document.querySelector('[data-motion-panel="right"]');
@@ -22309,7 +22335,7 @@ function runAutomatedWorkbenchPerfSmoke(win: BrowserWindow, outputPath: string, 
             const openRightPanel = async () => {
               const visiblePanel = document.querySelector('[data-testid="session-right-panel"]');
               if (visiblePanel instanceof HTMLElement && visiblePanel.getBoundingClientRect().width > 120) return;
-              const sidebarButton = document.querySelector('[data-testid="titlebar-toggle-sidebar"]') ?? findButton('Toggle sidebar');
+              const sidebarButton = document.querySelector('[data-testid="titlebar-toggle-sidebar"]') ?? findButton('Toggle side panel');
               if (sidebarButton instanceof HTMLElement) {
                 sidebarButton.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
               }

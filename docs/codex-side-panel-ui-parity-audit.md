@@ -8302,3 +8302,13 @@ Implemented: selected Agents event details now include an `Add to chat` action. 
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and focused `node scripts/run-automated-ui-smoke.mjs --workbench-new-tab` passed. The elevated final rerun passed with `agentRuntimeEventAddToChat=true` alongside `agentRuntimeEventCopy=true`, `agentRuntimeEventDetail=true`, `agentRuntimeEventFilter=true`, `agentRuntimeEventFacetFilters=true`, `agentRuntimeFailureGroups=true`, `agentRuntimeIssueTriage=true`, `agentSelectedTimeline=true`, and `agentTransportLog=true`. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-workbench-new-tab-1779962046567.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-workbench-new-tab-1779962046567.png`.
 
 Remaining: this closes local selected-event composer handoff only. Richer provider-backed observability, live coding-session proof, provider-native diagnostic metadata, and whole-app keyboard/screen-reader audit remain Phase 1 work.
+
+### 2026-05-28 - Header Side Panel Toggle Ownership
+
+Product evidence: the header side-panel control is a daily shell affordance. Codex treats the right thread panel as a side panel and opens an empty side-panel shell when there are no existing tabs; Orchestrator still labelled the control as `Toggle sidebar` and fell straight into Review when the panel had no tabs, which blurred the left sidebar/right Workbench distinction.
+
+Implemented: the session header now labels the control as `Toggle side panel`, marks the header action group as owning the `right-workbench` side panel, and opens the Workbench New tab launcher when the user toggles the side panel with no existing tabs. Existing tabs still restore normally, and closing an open panel is unchanged.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and focused `node scripts/run-automated-ui-smoke.mjs --header` passed. The first non-elevated smoke hit the expected sandbox localhost bind failure; the elevated rerun passed with `titlebarSidebarToggle=true` and `headerPanelEmptyFallback=true` alongside the existing header identity, metadata, compact action, tooltip, profile badge, and action-menu gates. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-header-1779962518986.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-header-1779962518986.png`.
+
+Remaining: this closes local header side-panel ownership and empty-panel fallback only. Live Codex pixel/timing proof for the header/right-panel boundary and broader route/window lifecycle proof remain Phase 1 work.

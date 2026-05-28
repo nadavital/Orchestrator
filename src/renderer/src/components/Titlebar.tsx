@@ -38,8 +38,8 @@ function Titlebar(): JSX.Element {
   const rightPanelOpen = useSessionStore((state) => activeSessionId ? state.uiState[activeSessionId]?.rightPanel?.open ?? false : false)
   const rightPanelHasTabs = useSessionStore((state) => activeSessionId ? (state.uiState[activeSessionId]?.rightPanel?.tabs.length ?? 0) > 0 : false)
   const setShowTerminal = useSessionStore((state) => state.setShowTerminal)
-  const setShowDiff = useSessionStore((state) => state.setShowDiff)
   const setRightPanelOpen = useSessionStore((state) => state.setRightPanelOpen)
+  const openRightPanelTab = useSessionStore((state) => state.openRightPanelTab)
   const closeRightPanel = useSessionStore((state) => state.closeRightPanel)
   const updateStatus = useSessionStore((state) => state.updateStatus)
   const addSession = useSessionStore((state) => state.addSession)
@@ -105,7 +105,7 @@ function Titlebar(): JSX.Element {
     } else if (rightPanelHasTabs) {
       setRightPanelOpen(activeSessionId, true)
     } else {
-      setShowDiff(activeSessionId, true)
+      openRightPanelTab(activeSessionId, 'new-tab')
     }
   }
 
@@ -237,6 +237,9 @@ function Titlebar(): JSX.Element {
         data-testid="titlebar-actions"
         data-header-panel-action-style="codex-compact"
         data-header-actions="folder,project,session,provider-session,branch"
+        data-header-panel-owner="right-workbench"
+        data-header-panel-toggle-label="Toggle side panel"
+        data-header-panel-empty-fallback="new-tab"
         className="flex items-center gap-1 px-2"
         style={{ WebkitAppRegion: 'no-drag', zIndex: 1 } as React.CSSProperties}
       >
@@ -256,7 +259,7 @@ function Titlebar(): JSX.Element {
             />
             <ToolbarButton
               icon="panelRight"
-              label="Toggle sidebar"
+              label="Toggle side panel"
               active={inspectorOpen}
               dataTestId="titlebar-toggle-sidebar"
               size="sm"
