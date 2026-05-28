@@ -85,7 +85,7 @@ export default function EventInspectorPanel({ session, embedded = false, activeA
             </div>
           </div>
 
-          {selectedAgent && <AgentConversation agent={selectedAgent} />}
+          {selectedAgent && <AgentConversation agent={selectedAgent} events={events} />}
         </div>
       )}
     </section>
@@ -604,13 +604,18 @@ function AgentTab({
   )
 }
 
-function AgentConversation({ agent }: { agent: AgentNode }): JSX.Element {
+function AgentConversation({ agent, events }: { agent: AgentNode; events: SessionRunEventRecord[] }): JSX.Element {
   const transcript = agent.transcript?.trim()
   const summary = agent.summary?.trim()
   const displaySummary = summary && summary !== agent.role && summary !== agent.name ? summary : undefined
+  const timelineEvents = useMemo(() => selectedAgentTimeline(agent, events), [agent, events])
 
   return (
-    <div className="flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden p-3">
+    <div
+      className="flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden p-3"
+      data-testid="agent-selected-conversation"
+      data-agent-id={agent.id}
+    >
       <div className="flex items-start justify-between gap-3 min-w-0">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 min-w-0">
@@ -628,6 +633,8 @@ function AgentConversation({ agent }: { agent: AgentNode }): JSX.Element {
         </div>
       </div>
 
+      {timelineEvents.length > 0 && <AgentTimeline agent={agent} events={timelineEvents} />}
+
       {transcript ? (
         <TranscriptBlock content={transcript} />
       ) : displaySummary ? (
@@ -636,6 +643,41 @@ function AgentConversation({ agent }: { agent: AgentNode }): JSX.Element {
         <EmptyText>Waiting for transcript text from this agent.</EmptyText>
       )}
     </div>
+  )
+}
+
+function AgentTimeline({ agent, events }: { agent: AgentNode; events: SessionRunEventRecord[] }): JSX.Element {
+  return (
+    <InspectorSection
+      title="Timeline"
+      className="mt-3 gap-1.5"
+      dataTestId="agent-selected-timeline"
+    >
+      <div
+        className="grid gap-1.5"
+        data-testid="agent-selected-timeline-list"
+        data-agent-id={agent.id}
+        data-agent-timeline-count={events.length}
+      >
+        {events.map((record) => (
+          <InspectorRow
+            key={record.id}
+            variant="muted"
+            dataTestId="agent-selected-timeline-event"
+          >
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-[11px] font-semibold" style={{ color: 'var(--color-text)' }}>
+                {agentTimelineTitle(record)}
+              </div>
+              <div className="truncate text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
+                {formatClockTime(record.timestamp)}
+              </div>
+            </div>
+            <Badge tone={eventTone(record)}>{eventBadge(record)}</Badge>
+          </InspectorRow>
+        ))}
+      </div>
+    </InspectorSection>
   )
 }
 
@@ -657,6 +699,36 @@ function TranscriptBlock({ content, muted = false }: { content: string; muted?: 
       {content}
     </InspectorCard>
   )
+}
+
+function selectedAgentTimeline(agent: AgentNode, events: SessionRunEventRecord[]): SessionRunEventRecord[] {
+  return events
+    .filter((record) => eventBelongsToAgent(record, agent.id))
+    .sort((a, b) => a.timestamp - b.timestamp)
+    .slice(-6)
+}
+
+function eventBelongsToAgent(record: SessionRunEventRecord, agentId: string): boolean {
+  const { event } = record
+  if (
+    event.type === 'agent.started' ||
+    event.type === 'agent.updated' ||
+    event.type === 'agent.completed' ||
+    event.type === 'agent.failed'
+  ) {
+    return event.agent.id === agentId
+  }
+  if (event.type === 'agent.text.delta' || event.type === 'agent.text.completed') return event.agentId === agentId
+  if (event.type === 'tool.started') return event.id === agentId
+  if (event.type === 'tool.completed') return event.toolUseId === agentId
+  return false
+}
+
+function agentTimelineTitle(record: SessionRunEventRecord): string {
+  const { event } = record
+  if (event.type === 'agent.text.delta') return compactText(event.content)
+  if (event.type === 'agent.text.completed') return 'Agent text completed'
+  return eventTitle(record)
 }
 
 function agentStatusTone(status: AgentStatus): 'accent' | 'success' | 'warning' | 'danger' {

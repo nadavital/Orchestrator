@@ -6167,16 +6167,51 @@ function runAutomatedFocusedSurfaceSmoke(
                       }
                     },
                     {
-                      id: 'agent-inspector-smoke-run-failed',
+                      id: 'agent-inspector-smoke-text',
                       timestamp: now + 2,
+                      event: {
+                        type: 'agent.text.delta',
+                        agentId: 'agent-inspector-smoke',
+                        streamId: 'agent-inspector-smoke-stream',
+                        content: 'Collected runtime diagnostics timeline.'
+                      }
+                    },
+                    {
+                      id: 'agent-inspector-smoke-run-failed',
+                      timestamp: now + 3,
                       event: {
                         type: 'run.failed',
                         content: 'Runtime transport failed during diagnostics smoke.'
+                      }
+                    },
+                    {
+                      id: 'agent-inspector-smoke-text-completed',
+                      timestamp: now + 4,
+                      event: {
+                        type: 'agent.text.completed',
+                        agentId: 'agent-inspector-smoke',
+                        streamId: 'agent-inspector-smoke-stream'
                       }
                     }
                   ]);
                   await sleep(220);
                 }
+                const selectedAgentConversation = document.querySelector('[data-testid="agent-selected-conversation"]');
+                const selectedAgentTimeline = document.querySelector('[data-testid="agent-selected-timeline"]');
+                const selectedAgentTimelineList = document.querySelector('[data-testid="agent-selected-timeline-list"]');
+                const selectedAgentTimelineRows = [...document.querySelectorAll('[data-testid="agent-selected-timeline-event"]')]
+                  .filter((row) => row instanceof HTMLElement);
+                const agentSelectedTimelineWorks =
+                  selectedAgentConversation instanceof HTMLElement &&
+                  selectedAgentConversation.getAttribute('data-agent-id') === 'agent-inspector-smoke' &&
+                  selectedAgentTimeline instanceof HTMLElement &&
+                  selectedAgentTimelineList instanceof HTMLElement &&
+                  selectedAgentTimelineList.getAttribute('data-agent-id') === 'agent-inspector-smoke' &&
+                  selectedAgentTimelineList.getAttribute('data-agent-timeline-count') === '3' &&
+                  selectedAgentTimelineRows.length === 3 &&
+                  selectedAgentTimeline.textContent?.includes('Runtime inspector smoke') === true &&
+                  selectedAgentTimeline.textContent?.includes('Collected runtime diagnostics timeline') === true &&
+                  selectedAgentTimeline.textContent?.includes('Agent text completed') === true;
                 const recentEventRows = [...document.querySelectorAll('[data-testid="agent-recent-event"]')]
                   .filter((row) => row instanceof HTMLButtonElement);
                 const runtimeIssues = document.querySelector('[data-testid="agent-runtime-issues"]');
@@ -6324,6 +6359,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     (activeNewTab.textContent ?? '').includes('New tab'),
                   workbenchNewTabAgentsActionWorks,
                   agentRuntimeEventDetailWorks,
+                  agentSelectedTimelineWorks,
                   agentRuntimeEventFacetFiltersWork,
                   agentRuntimeEventFacetFilterError,
                   agentRuntimeEventFilterWorks,

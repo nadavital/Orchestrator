@@ -2234,6 +2234,7 @@ child.on('exit', async (code) => {
           workbenchNewTabSingleAddAffordance: result.workbenchNewTabSingleAddAffordance === true,
           workbenchNewTabAgentsAction: result.workbenchNewTabAgentsActionWorks === true,
           agentRuntimeEventDetail: result.agentRuntimeEventDetailWorks === true,
+          agentSelectedTimeline: result.agentSelectedTimelineWorks === true,
           agentRuntimeEventFacetFilters: result.agentRuntimeEventFacetFiltersWork === true,
           agentRuntimeEventFilter: result.agentRuntimeEventFilterWorks === true,
           agentRuntimeIssueTriage: result.agentRuntimeIssueTriageWorks === true,
