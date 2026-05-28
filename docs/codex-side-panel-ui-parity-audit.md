@@ -8232,3 +8232,13 @@ Implemented: Review `Copy git apply command` and `Copy path` now write through t
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and focused `node scripts/run-automated-ui-smoke.mjs --diff-core` passed. The first non-elevated smoke hit the expected sandbox localhost bind failure; the elevated rerun passed with `reviewGitApplyCopyStatus=true` alongside `reviewGitApplyCommandCoversAll=true`, `reviewFloatingGitActionStatus=true`, `reviewFloatingGitActions=true`, and the existing diff-core Review gates. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-core-1779958615749.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-core-1779958615749.png`.
 
 Remaining: this closes local Review copy reliability and copied-status semantics only. Provider-backed Review checkpoint Undo, hosted/cloud sources, PR metadata, comments, blame, and live Codex side-by-side Review spacing remain Phase 1 work.
+
+### 2026-05-28 - Browser Copy URL Status
+
+Product evidence: Browser `Copy URL` is a daily coding/debugging action for moving local app URLs into chat, terminal commands, bug reports, and external browsers. It still used the renderer clipboard path directly and gave no copied/failed feedback, while other coding surfaces now use the app clipboard bridge with explicit status.
+
+Implemented: Browser `Copy URL` now writes through the app clipboard bridge with a browser clipboard fallback. The Browser panel exposes pending, success, and failure copy status as a live region in normal browser status context, and the load-error recovery panel shows the same `URL copied`/failure status next to the recovery actions without bringing back the older error status row.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and focused `node scripts/run-automated-ui-smoke.mjs --browser` passed. The first non-elevated smoke hit the expected sandbox localhost bind failure; the elevated rerun passed with `browserCopyUrlStatus=true` alongside `browserLoadErrorA11yLive=true`, `browserLoadErrorSharedState=true`, `browserErrorRecovery=true`, and the existing Browser tool/action/inspector gates. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779959006682.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779959006682.png`.
+
+Remaining: this closes local Browser URL copy reliability and copied-status semantics only. Live provider-emitted Browser/browser-use proof and non-Codex browser/local-server adapters remain Phase 1 work where real provider evidence is available.

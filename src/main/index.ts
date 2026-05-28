@@ -16543,6 +16543,23 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserLoadError.querySelector('.orchestrator-panel-notice-actions')?.getAttribute('role') === 'group' &&
               browserLoadError.querySelector('.orchestrator-panel-notice-actions')?.getAttribute('aria-label') === 'Browser load error recovery actions' &&
               browserLoadErrorActions.every((action) => action instanceof HTMLButtonElement && !action.disabled);
+            if (browserLoadErrorCopyUrl instanceof HTMLButtonElement && !browserLoadErrorCopyUrl.disabled) {
+              browserLoadErrorCopyUrl.click();
+              await sleep(160);
+            }
+            const browserLoadErrorCopyStatus = document.querySelector('[data-testid="browser-load-error-copy-status"]');
+            const copiedBrowserUrl =
+              await window.api?.clipboard?.readText?.().catch(() => '') ??
+              await navigator.clipboard?.readText?.().catch(() => '') ??
+              '';
+            var browserCopyUrlStatusWorks =
+              browserLoadErrorCopyStatus instanceof HTMLElement &&
+              browserLoadErrorCopyStatus.textContent?.includes('URL copied') === true &&
+              browserLoadErrorCopyStatus.getAttribute('role') === 'status' &&
+              browserLoadErrorCopyStatus.getAttribute('aria-live') === 'polite' &&
+              browserLoadErrorCopyStatus.getAttribute('aria-atomic') === 'true' &&
+              browserLoadErrorCopyStatus.getAttribute('data-browser-copy-url-status-tone') === 'info' &&
+              copiedBrowserUrl === badBrowserUrl;
             var browserCommentUnavailableWorks = false;
             if (browserActionsButton instanceof HTMLButtonElement) {
               browserActionsButton.click();
@@ -17397,6 +17414,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserLoadErrorPanelWorks,
               browserLoadErrorSharedStateWorks,
               browserLoadErrorA11yLiveWorks,
+              browserCopyUrlStatusWorks,
               browserSingleTabStripHidden,
               browserTabShellControllerWorks,
               browserTabChromeCalmWorks,

@@ -202,6 +202,8 @@ export default function BrowserPanel({
   const [actionText, setActionText] = useState('')
   const [targetReadResult, setTargetReadResult] = useState<BrowserTargetReadResult | null>(null)
   const [clipboardText, setClipboardText] = useState('')
+  const [copyUrlStatus, setCopyUrlStatus] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
+  const copyUrlStatusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [coordinateAction, setCoordinateAction] = useState({ x: 20, y: 20, scrollY: 360 })
   const [browserMenuOpen, setBrowserMenuOpen] = useState(false)
   const [pageContextMenu, setPageContextMenu] = useState<{ x: number; y: number } | null>(null)
@@ -231,7 +233,7 @@ export default function BrowserPanel({
     : pendingComment
       ? `Point ${pendingComment.xPercent}%, ${pendingComment.yPercent}%`
       : ''
-  const showStatusRow = isLoading || blocked || devicePreviewActive
+  const showStatusRow = isLoading || blocked || devicePreviewActive || (copyUrlStatus !== null && !error)
   const browserUseCursorText = workbench.browserUseCursorState?.visible
     ? `${Math.round(workbench.browserUseCursorState.x)},${Math.round(workbench.browserUseCursorState.y)}`
     : ''
@@ -779,9 +781,33 @@ export default function BrowserPanel({
     return () => window.removeEventListener('orchestrator:browser-panel-command', handleBrowserPanelCommand)
   })
 
-  const copyCurrentUrl = (): void => {
+  useEffect(() => () => {
+    if (copyUrlStatusTimeoutRef.current) window.clearTimeout(copyUrlStatusTimeoutRef.current)
+  }, [])
+
+  const writeBrowserClipboardText = async (text: string): Promise<void> => {
+    if (typeof window.api.clipboard?.writeText === 'function') {
+      const didWrite = await window.api.clipboard.writeText(text)
+      if (!didWrite) throw new Error('Clipboard write failed')
+      return
+    }
+    await navigator.clipboard.writeText(text)
+  }
+
+  const copyCurrentUrl = async (): Promise<void> => {
     if (!currentUrl) return
-    void navigator.clipboard.writeText(currentUrl)
+    if (copyUrlStatusTimeoutRef.current) window.clearTimeout(copyUrlStatusTimeoutRef.current)
+    setCopyUrlStatus({ text: 'Copying URL', tone: 'info' })
+    try {
+      await writeBrowserClipboardText(currentUrl)
+      setCopyUrlStatus({ text: 'URL copied', tone: 'info' })
+    } catch {
+      setCopyUrlStatus({ text: 'Copy URL failed', tone: 'danger' })
+    }
+    copyUrlStatusTimeoutRef.current = window.setTimeout(() => {
+      setCopyUrlStatus(null)
+      copyUrlStatusTimeoutRef.current = null
+    }, 2200)
   }
 
   const addPageContextToChat = async (): Promise<void> => {
@@ -1583,7 +1609,7 @@ export default function BrowserPanel({
                   ariaLabel="Copy browser URL"
                   disabled={!currentUrl}
                   onClick={() => {
-                    void navigator.clipboard.writeText(currentUrl)
+                    void copyCurrentUrl()
                     setBrowserMenuOpen(false)
                   }}
                 />
@@ -1760,8 +1786,20 @@ export default function BrowserPanel({
           {error && (
             <div className="browser-status-actions">
               <button type="button" data-testid="browser-error-retry" onClick={retryCurrentPage}>Retry</button>
-              <button type="button" data-testid="browser-error-copy-url" onClick={copyCurrentUrl}>Copy URL</button>
+              <button type="button" data-testid="browser-error-copy-url" onClick={() => { void copyCurrentUrl() }}>Copy URL</button>
             </div>
+          )}
+          {copyUrlStatus && (
+            <span
+              className="browser-copy-url-status"
+              data-testid="browser-copy-url-status"
+              data-browser-copy-url-status-tone={copyUrlStatus.tone}
+              role={copyUrlStatus.tone === 'danger' ? 'alert' : 'status'}
+              aria-live={copyUrlStatus.tone === 'danger' ? 'assertive' : 'polite'}
+              aria-atomic="true"
+            >
+              {copyUrlStatus.text}
+            </span>
           )}
           {!error && devicePreviewActive && (
             <div className="flex items-center gap-1">
@@ -1822,7 +1860,8 @@ export default function BrowserPanel({
                 <BrowserLoadErrorPane
                   error={error}
                   url={currentUrl}
-                  onCopyUrl={copyCurrentUrl}
+                  copyStatus={copyUrlStatus}
+                  onCopyUrl={() => { void copyCurrentUrl() }}
                   onHardReload={hardReloadCurrentPage}
                   onOpenExternal={openExternal}
                   onRetry={retryCurrentPage}
@@ -2392,6 +2431,7 @@ export default function BrowserPanel({
 }
 
 function BrowserLoadErrorPane({
+  copyStatus,
   error,
   url,
   onCopyUrl,
@@ -2399,6 +2439,7 @@ function BrowserLoadErrorPane({
   onOpenExternal,
   onRetry
 }: {
+  copyStatus: { text: string; tone: 'info' | 'danger' } | null
   error: string
   url: string
   onCopyUrl: () => void
@@ -2437,6 +2478,18 @@ function BrowserLoadErrorPane({
       title="Page unavailable"
       tone="danger"
     >
+      {copyStatus && (
+        <span
+          className="browser-copy-url-status"
+          data-testid="browser-load-error-copy-status"
+          data-browser-copy-url-status-tone={copyStatus.tone}
+          role={copyStatus.tone === 'danger' ? 'alert' : 'status'}
+          aria-live={copyStatus.tone === 'danger' ? 'assertive' : 'polite'}
+          aria-atomic="true"
+        >
+          {copyStatus.text}
+        </span>
+      )}
       <div className="orchestrator-panel-notice-suggestions browser-load-error-suggestions">
         <span>Try</span>
         {suggestions.map((suggestion) => (

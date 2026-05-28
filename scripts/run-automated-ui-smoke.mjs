@@ -2180,6 +2180,7 @@ child.on('exit', async (code) => {
           browserLoadErrorPanel: result.browserLoadErrorPanelWorks === true,
           browserLoadErrorSharedState: result.browserLoadErrorSharedStateWorks === true,
           browserLoadErrorA11yLive: result.browserLoadErrorA11yLiveWorks === true,
+          browserCopyUrlStatus: result.browserCopyUrlStatusWorks === true,
           browserSingleTabChrome: result.browserSingleTabStripHidden === true,
           browserTabShellController: result.browserTabShellControllerWorks === true,
           browserTabChromeCalm: result.browserTabChromeCalmWorks === true,
