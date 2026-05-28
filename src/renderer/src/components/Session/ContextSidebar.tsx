@@ -285,6 +285,9 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
   const tabMenuTransferAvailability = tabMenuTransferKind
     ? resolvePanelTabTransferAvailability('right', 'bottom', tabMenuTransferKind)
     : null
+  const tabMenuCanReset = tabMenu
+    ? tabMenu.tabId === 'browser' || Boolean(filePathFromTabId(tabMenu.tabId))
+    : false
 
   const openToolTab = (tab: 'environment' | 'diff' | 'browser' | 'files'): void => {
     if (tab === 'diff') {
@@ -558,7 +561,7 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
               disabled={tabMenuIndex < 0 || tabMenuIndex >= tabs.length - 1}
               onClick={() => moveTab(tabMenu.tabId, 'right')}
             />
-            {tabMenu.tabId === 'browser' && (
+            {tabMenuCanReset && (
               <MenuItem
                 icon="refresh"
                 label="Reset tab"

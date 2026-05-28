@@ -995,7 +995,36 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   resetRightPanelTabState: (id, tabId) =>
     set((s) => {
       const current = s.uiState[id] ?? defaultUI
-      if (tabId !== 'browser') return s
+      if (tabId !== 'browser' && !tabId.startsWith('file:')) return s
+      if (tabId.startsWith('file:')) {
+        const currentPanel = ensureRightPanel(current.rightPanel)
+        return {
+          uiState: {
+            ...s.uiState,
+            [id]: {
+              ...current,
+              rightPanel: {
+                ...currentPanel,
+                tabs: currentPanel.tabs.map((tab) =>
+                  tab.id === tabId && tab.kind === 'file'
+                    ? {
+                        ...tab,
+                        fileViewMode: undefined,
+                        sourceWrap: undefined,
+                        selectedSourceLine: null,
+                        sourceSearchQuery: '',
+                        sourceSearchIndex: 0,
+                        sourceBlameVisible: false,
+                        sourceRevealLine: null,
+                        sourceRevealRequest: undefined
+                      }
+                    : tab
+                )
+              }
+            }
+          }
+        }
+      }
       return {
         uiState: {
           ...s.uiState,

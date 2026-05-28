@@ -13612,6 +13612,7 @@ function runAutomatedFocusedSurfaceSmoke(
               let workbenchFileTabActionMenuStateWorks = false;
               let workbenchFileTabCodexActionLabelsWorks = false;
               let workbenchFileTabCodexActionClusterWorks = false;
+              let workbenchFileTabResetWorks = false;
               let filesContentSearchWorks = false;
               let filesContentSearchOpenLineWorks = false;
               let fileSourceLineSelectionWorks = false;
@@ -15902,13 +15903,48 @@ function runAutomatedFocusedSurfaceSmoke(
                     sourceModeFileTab.getAttribute('data-file-tab-view-mode') === 'source' &&
                     sourcePreviewAfterToggle instanceof HTMLElement &&
                     sourcePreviewAfterToggle.innerText.includes('Nested file smoke preview');
-                  if (pinFileTabButton instanceof HTMLButtonElement) {
-                    pinFileTabButton.click();
+                  if (fileTabButton instanceof HTMLElement) {
+                    fileTabButton.dispatchEvent(new MouseEvent('contextmenu', {
+                      bubbles: true,
+                      cancelable: true,
+                      clientX: fileTabButton.getBoundingClientRect().left + 12,
+                      clientY: fileTabButton.getBoundingClientRect().bottom + 4
+                    }));
+                    for (let attempt = 0; attempt < 12 && !document.body.innerText.includes('Reset tab'); attempt += 1) {
+                      await sleep(100);
+                    }
+                    const resetFileTab = [...document.querySelectorAll('[role="menuitem"]')]
+                      .find((item) => item.textContent?.includes('Reset tab'));
+                    if (resetFileTab instanceof HTMLButtonElement) {
+                      resetFileTab.click();
+                      await sleep(220);
+                    }
+                  }
+                  const resetFileTab = document.querySelector('[data-testid="workbench-file-tab"]');
+                  const richPreviewAfterReset = document.querySelector('[data-testid="workbench-file-tab"] [data-testid="workspace-markdown-preview"]');
+                  const resetFileTabButton = document.querySelector('[data-tab-id^="file:"]')?.closest('[role="tab"]');
+                  workbenchFileTabResetWorks =
+                    fileSourceModeWorks &&
+                    resetFileTab instanceof HTMLElement &&
+                    resetFileTab.getAttribute('data-file-tab-view-mode') === 'rich' &&
+                    resetFileTab.getAttribute('data-file-tab-selected-source-line') === '' &&
+                    resetFileTab.getAttribute('data-file-tab-source-search-query') === '' &&
+                    resetFileTab.getAttribute('data-file-tab-source-search-index') === '0' &&
+                    resetFileTab.getAttribute('data-file-tab-source-blame-visible') === 'false' &&
+                    resetFileTab.getAttribute('data-file-tab-source-reveal-line') === '' &&
+                    resetFileTab.getAttribute('data-file-tab-preview') === 'true' &&
+                    richPreviewAfterReset instanceof HTMLElement &&
+                    resetFileTabButton instanceof HTMLElement &&
+                    resetFileTabButton.getAttribute('data-preview') === 'true';
+                  const pinFileTabButtonAfterReset = findButton('Pin file tab');
+                  if (pinFileTabButtonAfterReset instanceof HTMLButtonElement) {
+                    pinFileTabButtonAfterReset.click();
                     await sleep(140);
                   }
+                  const pinnedFileTabButton = document.querySelector('[data-tab-id^="file:"]')?.closest('[role="tab"]');
                   workbenchFileTabPinWorks =
-                    fileTabButton instanceof HTMLElement &&
-                    fileTabButton.getAttribute('data-preview') === 'false' &&
+                    pinnedFileTabButton instanceof HTMLElement &&
+                    pinnedFileTabButton.getAttribute('data-preview') === 'false' &&
                     !findButton('Pin file tab');
                 }
               }
@@ -16419,6 +16455,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 workbenchFileTabActionMenuStateWorks,
                 workbenchFileTabCodexActionLabelsWorks,
                 workbenchFileTabCodexActionClusterWorks,
+                workbenchFileTabResetWorks,
                 fileOpenTargetDiagnosticWorks: workbenchFileTabWorks,
                 fileSourceLineSelectionWorks,
                 fileSourceLineUtilitiesWorks,
