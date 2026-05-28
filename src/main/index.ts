@@ -7639,6 +7639,13 @@ function runAutomatedFocusedSurfaceSmoke(
                 }
                 const composerAfterEventAdd = document.querySelector('textarea');
                 const eventDetailAddStatus = document.querySelector('[data-testid="agent-event-detail-copy-status"]');
+                const agentRuntimeEventAddToChatContextWorks =
+                  activeSmokeSession &&
+                  composerAfterEventAdd instanceof HTMLTextAreaElement &&
+                  composerAfterEventAdd.value.includes('Thread: ' + (activeSmokeSession.title || activeSmokeSession.id)) &&
+                  composerAfterEventAdd.value.includes('Runtime: ' + [activeSmokeSession.provider, activeSmokeSession.model].filter(Boolean).join(' / ')) &&
+                  composerAfterEventAdd.value.includes('Status: ' + activeSmokeSession.status) &&
+                  composerAfterEventAdd.value.includes('Workspace: ' + activeSmokeSession.workDir);
                 const agentRuntimeEventAddToChatWorks =
                   eventDetailAddToChat instanceof HTMLButtonElement &&
                   composerAfterEventAdd instanceof HTMLTextAreaElement &&
@@ -7782,6 +7789,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   agentRuntimeEventDetailWorks,
                   agentRuntimeEventCopyWorks,
                   agentRuntimeEventAddToChatWorks,
+                  agentRuntimeEventAddToChatContextWorks,
                   agentRuntimeFailureGroupsWorks,
                   agentTransportLogWorks,
                   agentSelectedTimelineWorks,

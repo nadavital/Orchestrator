@@ -414,13 +414,13 @@ function SessionContextSummary({
       )}
 
       {selectedEvent && (
-        <EventDetailCard record={selectedEvent} />
+        <EventDetailCard session={session} record={selectedEvent} />
       )}
     </div>
   )
 }
 
-function EventDetailCard({ record }: { record: SessionRunEventRecord }): JSX.Element {
+function EventDetailCard({ session, record }: { session: Session; record: SessionRunEventRecord }): JSX.Element {
   const payload = compactJson(record.event)
   const [copyStatus, setCopyStatus] = useState<string | null>(null)
   const copyPayload = (): void => {
@@ -436,6 +436,10 @@ function EventDetailCard({ record }: { record: SessionRunEventRecord }): JSX.Ele
       detail: {
         text: [
           'Investigate this runtime event:',
+          `Thread: ${session.title || session.id}`,
+          `Runtime: ${[session.provider, session.model].filter(Boolean).join(' / ') || 'Unknown runtime'}`,
+          `Status: ${session.status}`,
+          `Workspace: ${session.workDir || 'Unknown workspace'}`,
           `Type: ${record.event.type}`,
           `Time: ${formatClockTime(record.timestamp)}`,
           '',

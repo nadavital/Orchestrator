@@ -2302,6 +2302,7 @@ child.on('exit', async (code) => {
           agentRuntimeEventDetail: result.agentRuntimeEventDetailWorks === true,
           agentRuntimeEventCopy: result.agentRuntimeEventCopyWorks === true,
           agentRuntimeEventAddToChat: result.agentRuntimeEventAddToChatWorks === true,
+          agentRuntimeEventAddToChatContext: result.agentRuntimeEventAddToChatContextWorks === true,
           agentSelectedTimeline: result.agentSelectedTimelineWorks === true,
           agentRuntimeEventFacetFilters: result.agentRuntimeEventFacetFiltersWork === true,
           agentRuntimeEventFilter: result.agentRuntimeEventFilterWorks === true,
