@@ -357,6 +357,7 @@ export default function CapabilitiesPage(): JSX.Element {
           <SegmentedControl
             value={activeTab.id}
             onChange={setTab}
+            ariaLabel="Capability sections"
             options={visibleTabs.map((nextTab) => ({
               value: nextTab.id,
               label: (
@@ -686,6 +687,7 @@ function CreateCapabilitySheet({
         <SegmentedControl
           value={kind}
           onChange={onKindChange}
+          ariaLabel="Capability type"
           options={(['skill', 'plugin', 'mcp_server'] as CapabilityCreateKind[]).map((nextKind) => ({
             value: nextKind,
             label: createLabel(nextKind)
@@ -707,6 +709,7 @@ function CreateCapabilitySheet({
             <SegmentedControl
               value={mcpTransport}
               onChange={onMcpTransportChange}
+              ariaLabel="MCP transport"
               options={(['stdio', 'http'] as CapabilityMcpTransport[]).map((transport) => ({
                 value: transport,
                 label: transport === 'stdio' ? 'Command' : 'HTTP'
@@ -810,6 +813,7 @@ function EditCapabilitySheet({
             <SegmentedControl
               value={mcpTransport}
               onChange={onMcpTransportChange}
+              ariaLabel="MCP transport"
               options={(['stdio', 'http'] as CapabilityMcpTransport[]).map((transport) => ({
                 value: transport,
                 label: transport === 'stdio' ? 'Command' : 'HTTP',
@@ -903,6 +907,7 @@ function SyncCapabilitySheet({
         <SegmentedControl
           value={mode}
           onChange={onModeChange}
+          ariaLabel="Sync mode"
           options={syncModeOptions(group.kind).map((option) => ({
             value: option.id,
             label: option.label

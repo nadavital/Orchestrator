@@ -199,6 +199,7 @@ export default function ProvidersSettingsPage({
                         items={providerDef.effortLevels}
                         value={currentEffort}
                         color={providerDef.color}
+                        ariaLabel={`${providerDef.name} thinking level`}
                         onChange={(id) => onSetDefaultEffort(selectedId, id)}
                       />
                     )}
@@ -215,6 +216,7 @@ export default function ProvidersSettingsPage({
                           items={primaryPermissionModes}
                           value={currentPermissionMode}
                           color={providerDef.color}
+                          ariaLabel={`${providerDef.name} permission mode`}
                           onChange={(id) => onSetDefaultPermissionMode(selectedId, id)}
                         />
                         <ProviderPermissionContract
@@ -1469,11 +1471,13 @@ function SegmentedControl({
   items,
   value,
   color: _color,
+  ariaLabel,
   onChange,
 }: {
   items: Array<{ id: string; label: string }>
   value: string
   color: string
+  ariaLabel: string
   onChange: (id: string) => void
 }): JSX.Element {
   return (
@@ -1481,6 +1485,7 @@ function SegmentedControl({
       value={value}
       onChange={onChange}
       options={items.map((item) => ({ value: item.id, label: item.label }))}
+      ariaLabel={ariaLabel}
       className="settings-segmented-control"
     />
   )

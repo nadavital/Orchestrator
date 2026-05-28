@@ -2868,6 +2868,7 @@ child.on('exit', async (code) => {
         settingsProviderModelListShared: captureView !== 'settings-providers' || result.settingsProviderModelListSharedWorks === true,
         settingsProviderConfigEditorShared: captureView !== 'settings-providers' || result.settingsProviderConfigEditorSharedWorks === true,
         settingsProviderControlSurfaceUnified: captureView !== 'settings-providers' || result.settingsProviderControlSurfaceUnifiedWorks === true,
+        settingsProviderSegmentedControlLabels: captureView !== 'settings-providers' || result.settingsProviderSegmentedControlLabelsWorks === true,
         settingsProviderBoundaries: captureView !== 'settings-providers' || result.settingsProviderBoundariesWorks === true,
         settingsProvidersModule: captureView !== 'settings-providers' || result.settingsProvidersModuleWorks === true,
         settingsProviderCatalogLabelCalm: captureView !== 'settings-providers' || result.settingsProviderCatalogLabelCalm === true,
@@ -2922,6 +2923,12 @@ child.on('exit', async (code) => {
         capabilityCreateMenuChromeCalm: captureView !== 'capabilities' || result.capabilityCreateMenuChromeCalm === true,
         capabilityRowMenuChromeCalm: captureView !== 'capabilities' || result.capabilityRowMenuChromeCalm === true,
         capabilityPageLabelsCalm: captureView !== 'capabilities' || result.capabilityPageLabelsCalm === true,
+        capabilitySegmentedControlLabels: captureView !== 'capabilities' || (
+          result.capabilitySegmentedControlLabels === true &&
+          result.capabilityCreateSheetSegmentedLabels === true &&
+          result.capabilityEditSheetSegmentedLabels === true &&
+          result.capabilitySyncSheetSegmentedLabels === true
+        ),
         capabilitySeededFixture: captureView !== 'capabilities' || result.capabilitySeededFixtureVisible === true,
         capabilityCreateSheet: captureView !== 'capabilities' || result.capabilitySheetOpened === true,
         capabilitySheetFocus: captureView !== 'capabilities' || result.capabilitySheetFocused === true,

@@ -925,6 +925,13 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 providerControlSurfaceText.indexOf('Default') < providerControlSurfaceText.indexOf('Models') &&
                 providerControlSurfaceText.indexOf('Models') < providerControlSurfaceText.indexOf('Capabilities') &&
                 providerControlSurfaceText.indexOf('Capabilities') < providerControlSurfaceText.indexOf('Boundaries');
+              const providerSegmentedControls = diagnosticsSection instanceof HTMLElement
+                ? [...diagnosticsSection.querySelectorAll('.segmented-control[role="tablist"]')]
+                  .filter((control) => control instanceof HTMLElement)
+                : [];
+              var settingsProviderSegmentedControlLabelsWorks =
+                providerSegmentedControls.length >= 2 &&
+                providerSegmentedControls.every((control) => (control.getAttribute('aria-label') ?? '').trim().length > 0);
               var settingsProviderBoundariesWorks =
                 providerBoundarySummary instanceof HTMLElement &&
                 providerBoundarySummary.getBoundingClientRect().height <= 46 &&
@@ -5010,6 +5017,12 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                   getComputedStyle(row).transform === 'none'
                 );
             };
+            const segmentedControlsLabelled = (root = document, requireOne = true) => {
+              const controls = [...root.querySelectorAll('.segmented-control[role="tablist"]')]
+                .filter((control) => control instanceof HTMLElement);
+              return (!requireOne || controls.length > 0) &&
+                controls.every((control) => (control.getAttribute('aria-label') ?? '').trim().length > 0);
+            };
             const createButton = [...document.querySelectorAll('button')]
               .find((button) => button.textContent?.trim() === 'Create');
             createButton?.click();
@@ -5035,6 +5048,9 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             const capabilitySheet = document.querySelector('.motion-sheet');
             var capabilitySheetOpened = Boolean(capabilitySheet);
             var capabilitySheetFocused = Boolean(capabilitySheet?.contains(document.activeElement));
+            var capabilityCreateSheetSegmentedLabels =
+              capabilitySheet instanceof HTMLElement &&
+              segmentedControlsLabelled(capabilitySheet);
             window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
             await sleep(40);
             var capabilitySheetFocusStayedInside = Boolean(document.querySelector('.motion-sheet')?.contains(document.activeElement));
@@ -5067,6 +5083,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               getComputedStyle(capabilitiesScopeLabel).textTransform !== 'uppercase' &&
               capabilityStatusLabels.length > 0 &&
               capabilityStatusLabels.every((label) => getComputedStyle(label).textTransform !== 'uppercase');
+            var capabilitySegmentedControlLabels = segmentedControlsLabelled(document);
 
             const openCapabilityAction = async (label) => {
               const actionButtons = [...document.querySelectorAll('button')]
@@ -5097,6 +5114,9 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               capabilityEditSheet.innerText.includes('Edit capability') &&
               [...capabilityEditSheet.querySelectorAll('input, textarea')]
                 .some((field) => field.value?.includes('orchestrator-smoke-skill') || field.value?.includes('Orchestrator Smoke Skill'));
+            var capabilityEditSheetSegmentedLabels =
+              !(capabilityEditSheet instanceof HTMLElement) ||
+              segmentedControlsLabelled(capabilityEditSheet, false);
             window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
             await sleep(300);
             var capabilitySyncActionClicked = await openCapabilityAction('Sync');
@@ -5106,6 +5126,9 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               capabilitySyncSheet instanceof HTMLElement &&
               capabilitySyncSheet.innerText.includes('Sync capability') &&
               capabilitySyncSheet.innerText.includes('orchestrator-smoke-skill');
+            var capabilitySyncSheetSegmentedLabels =
+              capabilitySyncSheet instanceof HTMLElement &&
+              segmentedControlsLabelled(capabilitySyncSheet);
             window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
             await sleep(300);
             var capabilityDeleteActionClicked = await openCapabilityAction('Delete');
@@ -6971,6 +6994,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             settingsProviderModelListSharedWorks: typeof settingsProviderModelListSharedWorks === 'boolean' ? settingsProviderModelListSharedWorks : null,
             settingsProviderConfigEditorSharedWorks: typeof settingsProviderConfigEditorSharedWorks === 'boolean' ? settingsProviderConfigEditorSharedWorks : null,
             settingsProviderControlSurfaceUnifiedWorks: typeof settingsProviderControlSurfaceUnifiedWorks === 'boolean' ? settingsProviderControlSurfaceUnifiedWorks : null,
+            settingsProviderSegmentedControlLabelsWorks: typeof settingsProviderSegmentedControlLabelsWorks === 'boolean' ? settingsProviderSegmentedControlLabelsWorks : null,
             settingsProviderBoundariesWorks: typeof settingsProviderBoundariesWorks === 'boolean' ? settingsProviderBoundariesWorks : null,
             settingsProvidersModuleWorks: typeof settingsProvidersModuleWorks === 'boolean' ? settingsProvidersModuleWorks : null,
             settingsProviderCatalogLabelCalm: typeof settingsProviderCatalogLabelCalm === 'boolean' ? settingsProviderCatalogLabelCalm : null,
@@ -7059,18 +7083,22 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             capabilityCreateMenuChromeCalm: typeof capabilityCreateMenuChromeCalm === 'boolean' ? capabilityCreateMenuChromeCalm : null,
             capabilityRowMenuChromeCalm: typeof capabilityRowMenuChromeCalm === 'boolean' ? capabilityRowMenuChromeCalm : null,
             capabilityPageLabelsCalm: typeof capabilityPageLabelsCalm === 'boolean' ? capabilityPageLabelsCalm : null,
+            capabilitySegmentedControlLabels: typeof capabilitySegmentedControlLabels === 'boolean' ? capabilitySegmentedControlLabels : null,
             capabilitySeededFixtureVisible: typeof capabilitySeededFixtureVisible === 'boolean' ? capabilitySeededFixtureVisible : null,
             capabilitySheetOpened: typeof capabilitySheetOpened === 'boolean' ? capabilitySheetOpened : null,
             capabilitySheetFocused: typeof capabilitySheetFocused === 'boolean' ? capabilitySheetFocused : null,
+            capabilityCreateSheetSegmentedLabels: typeof capabilityCreateSheetSegmentedLabels === 'boolean' ? capabilityCreateSheetSegmentedLabels : null,
             capabilitySheetFocusStayedInside: typeof capabilitySheetFocusStayedInside === 'boolean' ? capabilitySheetFocusStayedInside : null,
             capabilitySheetExitRetained: typeof capabilitySheetExitRetained === 'boolean' ? capabilitySheetExitRetained : null,
             capabilitySheetClosedWithEscape: typeof capabilitySheetClosedWithEscape === 'boolean' ? capabilitySheetClosedWithEscape : null,
             capabilityEditActionClicked: typeof capabilityEditActionClicked === 'boolean' ? capabilityEditActionClicked : null,
             capabilityEditSheetOpened: typeof capabilityEditSheetOpened === 'boolean' ? capabilityEditSheetOpened : null,
             capabilityEditSheetSeeded: typeof capabilityEditSheetSeeded === 'boolean' ? capabilityEditSheetSeeded : null,
+            capabilityEditSheetSegmentedLabels: typeof capabilityEditSheetSegmentedLabels === 'boolean' ? capabilityEditSheetSegmentedLabels : null,
             capabilitySyncActionClicked: typeof capabilitySyncActionClicked === 'boolean' ? capabilitySyncActionClicked : null,
             capabilitySyncSheetOpened: typeof capabilitySyncSheetOpened === 'boolean' ? capabilitySyncSheetOpened : null,
             capabilitySyncSheetSeeded: typeof capabilitySyncSheetSeeded === 'boolean' ? capabilitySyncSheetSeeded : null,
+            capabilitySyncSheetSegmentedLabels: typeof capabilitySyncSheetSegmentedLabels === 'boolean' ? capabilitySyncSheetSegmentedLabels : null,
             capabilityDeleteActionClicked: typeof capabilityDeleteActionClicked === 'boolean' ? capabilityDeleteActionClicked : null,
             capabilityDeleteDialogOpened: typeof capabilityDeleteDialogOpened === 'boolean' ? capabilityDeleteDialogOpened : null,
             capabilityDialogExitRetained: typeof capabilityDialogExitRetained === 'boolean' ? capabilityDialogExitRetained : null,
