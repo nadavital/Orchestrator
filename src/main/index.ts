@@ -5204,11 +5204,33 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             await sleep(180);
             const slashModelMenu = document.querySelector('.motion-popover-surface');
             const slashModelSummary = document.querySelector('[data-testid="composer-active-agent-summary"]');
+            const slashModelActiveElement = document.activeElement;
             var composerSlashModelOpensSettings =
               slashModelMenu instanceof HTMLElement &&
               slashModelSummary instanceof HTMLElement &&
               slashModelSummary.textContent?.includes('Thread settings') === true &&
               textareaValue() === '';
+            var composerSlashModelFocusesMenu =
+              slashModelMenu instanceof HTMLElement &&
+              slashModelActiveElement instanceof HTMLButtonElement &&
+              slashModelMenu.contains(slashModelActiveElement);
+            window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+            await sleep(260);
+
+            setTextareaValue('/permissions');
+            await sleep(120);
+            window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+            await sleep(180);
+            const slashPermissionsMenu = document.querySelector('.motion-popover-surface');
+            const slashPermissionsActiveElement = document.activeElement;
+            var composerSlashPermissionsOpensMenu =
+              slashPermissionsMenu instanceof HTMLElement &&
+              slashPermissionsMenu.textContent?.includes('Claude') === true &&
+              textareaValue() === '';
+            var composerSlashPermissionsFocusesMenu =
+              slashPermissionsMenu instanceof HTMLElement &&
+              slashPermissionsActiveElement instanceof HTMLButtonElement &&
+              slashPermissionsMenu.contains(slashPermissionsActiveElement);
             window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
             await sleep(260);
 
@@ -6451,6 +6473,9 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             composerPermissionLabelsCalm: typeof composerPermissionLabelsCalm === 'boolean' ? composerPermissionLabelsCalm : null,
             composerPermissionRuleStatus: typeof composerPermissionRuleStatus === 'boolean' ? composerPermissionRuleStatus : null,
             composerSlashModelOpensSettings: typeof composerSlashModelOpensSettings === 'boolean' ? composerSlashModelOpensSettings : null,
+            composerSlashModelFocusesMenu: typeof composerSlashModelFocusesMenu === 'boolean' ? composerSlashModelFocusesMenu : null,
+            composerSlashPermissionsOpensMenu: typeof composerSlashPermissionsOpensMenu === 'boolean' ? composerSlashPermissionsOpensMenu : null,
+            composerSlashPermissionsFocusesMenu: typeof composerSlashPermissionsFocusesMenu === 'boolean' ? composerSlashPermissionsFocusesMenu : null,
             composerPermissionTriggerExpandedOnOpen: typeof composerPermissionTriggerExpandedOnOpen === 'boolean' ? composerPermissionTriggerExpandedOnOpen : null,
             composerPermissionRovingKeyboard: typeof composerPermissionRovingKeyboard === 'boolean' ? composerPermissionRovingKeyboard : null,
             composerPermissionMenuClosedWithEscape: typeof composerPermissionMenuClosedWithEscape === 'boolean' ? composerPermissionMenuClosedWithEscape : null,

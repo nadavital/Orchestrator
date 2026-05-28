@@ -1,4 +1,5 @@
 import { memo, useState, useRef, useEffect } from 'react'
+import type { Ref } from 'react'
 import type { Attachment, PermissionExecutionContract, ProviderAgentDef, ProviderPermissionMode, ProviderPermissionRuntimeContext, ProviderRuntimeInfo, ProviderSlashCommand, ResolvedExecutionPolicy, Session } from '../../types'
 import type { SlashPaletteCommand } from '../../types'
 import { PROVIDER_DEFS, canStopSession, expandSlashCommandPrompt, getAdvancedPermissionModes, getComposerSendState, getDangerPermissionModes, getDefaultPermissionMode, getPrimaryPermissionModes, getVisibleModels, parseClaudeAgentsOutput } from '../../types'
@@ -67,6 +68,8 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   const [attachmentStatus, setAttachmentStatus] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
   const [permissionRulesStatus, setPermissionRulesStatus] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const agentButtonRef = useRef<HTMLButtonElement>(null)
+  const permissionButtonRef = useRef<HTMLButtonElement>(null)
   const cancelledPendingAttachments = useRef<Set<string>>(new Set())
   const activeAttachmentSaves = useRef<Set<string>>(new Set())
 
@@ -607,6 +610,16 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   }
 
   const applySlashCommand = (command: SlashPaletteCommand): void => {
+    const openDropdownFromSlash = (
+      trigger: HTMLButtonElement | null,
+      openDropdown: () => void
+    ): void => {
+      openDropdown()
+      window.setTimeout(() => {
+        if (trigger) focusComposerDropdownButton(trigger, 'first')
+      }, 0)
+    }
+
     if (command.handler === 'app-action') {
       setComposerText('')
       setSlashIndex(0)
@@ -633,9 +646,11 @@ function InputBar({ session, isNew }: Props): JSX.Element {
           .catch(() => window.api.pet.setOpen(true))
       }
       if (command.id === 'model') {
-        setShowAgentMenu(true)
+        openDropdownFromSlash(agentButtonRef.current, () => setShowAgentMenu(true))
       }
-      if (command.id === 'permissions') setShowPermMenu(true)
+      if (command.id === 'permissions') {
+        openDropdownFromSlash(permissionButtonRef.current, () => setShowPermMenu(true))
+      }
       return
     }
 
@@ -868,6 +883,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
                 onClick={() => setShowAgentMenu((v) => !v)}
                 providerColor={provider.color}
                 dataTestId="composer-agent-menu"
+                buttonRef={agentButtonRef}
                 className="composer-agent-trigger"
                 title="Thread model settings"
                 ariaLabel="Thread model settings"
@@ -1016,6 +1032,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
                 onClick={() => setShowAgentMenu((v) => !v)}
                 providerColor={provider.color}
                 dataTestId="composer-agent-menu"
+                buttonRef={agentButtonRef}
                 className="composer-agent-trigger"
                 ariaExpanded={showAgentMenu}
                 ariaHasPopup="menu"
@@ -1152,6 +1169,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
               active={permissionMode !== defaultPermissionMode}
               onClick={() => setShowPermMenu((v) => !v)}
               dataTestId="composer-permission-menu"
+              buttonRef={permissionButtonRef}
               className="composer-permission-trigger"
               title={permissionTriggerTitle}
               ariaLabel={permissionTriggerLabel}
@@ -1455,7 +1473,7 @@ function formatBytes(value: number): string {
 }
 
 function ToolbarBtn({
-  children, active, onClick, onKeyDown, muted, title, ariaLabel, ariaExpanded, ariaHasPopup, providerColor, dataTestId, className
+  children, active, onClick, onKeyDown, muted, title, ariaLabel, ariaExpanded, ariaHasPopup, providerColor, dataTestId, buttonRef, className
 }: {
   children: React.ReactNode
   active: boolean
@@ -1468,6 +1486,7 @@ function ToolbarBtn({
   ariaHasPopup?: 'menu' | 'listbox' | 'tree' | 'grid' | 'dialog'
   providerColor?: string
   dataTestId?: string
+  buttonRef?: Ref<HTMLButtonElement>
   className?: string
 }): JSX.Element {
   const borderColor = active ? 'var(--border-strong)' : 'transparent'
@@ -1475,6 +1494,7 @@ function ToolbarBtn({
   void providerColor
   const button = (
     <button
+      ref={buttonRef}
       onClick={(event) => {
         event.currentTarget.focus({ preventScroll: true })
         onClick?.()
