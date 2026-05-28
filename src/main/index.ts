@@ -8190,6 +8190,7 @@ function runAutomatedFocusedSurfaceSmoke(
               let rightPanelInactiveCloseWorks = false;
               let rightPanelMiddleClickCloseWorks = false;
               let rightPanelCloseFallbackFromMainWorks = false;
+              let rightPanelLastTabCloseFocusRestoredWorks = false;
               let rightPanelTabPanelA11yWorks = false;
               let rightPanelTabListLabelWorks = false;
               let rightPanelTabRovingFocusWorks = false;
@@ -9263,6 +9264,35 @@ function runAutomatedFocusedSurfaceSmoke(
                   typeof metric.metadata?.activeTab === 'string' &&
                   metric.metadata?.routeKind === 'local_thread'
                 );
+              if (rightPanel instanceof HTMLElement) {
+                await openPanelTab('browser', 'Browser');
+                for (let attempt = 0; attempt < 10; attempt += 1) {
+                  const panelTabs = [...document.querySelectorAll('[data-testid="workbench-panel-tabbar"] [role="tab"]')]
+                    .filter((tab) => tab instanceof HTMLElement);
+                  if (panelTabs.length <= 1) break;
+                  const tabToClose = panelTabs.find((tab) => tab.getAttribute('data-active') !== 'true') ?? panelTabs[0];
+                  const closeButton = tabToClose?.querySelector('.motion-tab-close');
+                  if (!(closeButton instanceof HTMLButtonElement)) break;
+                  closeButton.click();
+                  await sleep(180);
+                }
+                const remainingTabs = [...document.querySelectorAll('[data-testid="workbench-panel-tabbar"] [role="tab"]')]
+                  .filter((tab) => tab instanceof HTMLElement);
+                const remainingCloseButton = remainingTabs[0]?.querySelector('.motion-tab-close');
+                if (remainingTabs.length === 1 && remainingCloseButton instanceof HTMLButtonElement) {
+                  remainingCloseButton.click();
+                  await sleep(260);
+                  const restoredToggle = document.querySelector('[data-testid="titlebar-toggle-sidebar"]');
+                  rightPanelLastTabCloseFocusRestoredWorks =
+                    restoredToggle instanceof HTMLButtonElement &&
+                    document.activeElement === restoredToggle &&
+                    restoredToggle.getAttribute('aria-expanded') === 'false' &&
+                    rightPanel.getAttribute('data-right-panel-open') === 'false' &&
+                    (rightPanel.getAttribute('data-right-panel-tabs') ?? '') === '';
+                  await openPanelTab('files', 'Files');
+                  await openPanelTab('browser', 'Browser');
+                }
+              }
               const titlebarActions = document.querySelector('[data-testid="titlebar-actions"]');
               const profileBadge = document.querySelector('[data-testid="profile-badge"]');
               const profileBadgeRect = profileBadge instanceof HTMLElement ? profileBadge.getBoundingClientRect() : null;
@@ -9345,6 +9375,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 rightPanelInactiveCloseWorks,
                 rightPanelMiddleClickCloseWorks,
                 rightPanelCloseFallbackFromMainWorks,
+                rightPanelLastTabCloseFocusRestoredWorks,
                 rightPanelTabPanelA11yWorks,
                 rightPanelTabListLabelWorks,
                 rightPanelTabRovingFocusWorks,

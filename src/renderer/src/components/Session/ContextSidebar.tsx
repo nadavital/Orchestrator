@@ -211,10 +211,17 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
 
   const close = (tab?: ContextTab): void => {
     setTabMenu(null)
+    const restoreToggleFocus = (): void => {
+      window.requestAnimationFrame(() => {
+        document.querySelector<HTMLButtonElement>('[data-testid="titlebar-toggle-sidebar"]')?.focus({ preventScroll: true })
+      })
+    }
     if (!tab) {
       closeRightPanel(session.id)
+      restoreToggleFocus()
       return
     }
+    const closingFinalTab = tabs.length <= 1
     exitFullscreenForPanelTab('right', tab)
     if (tab === 'new-tab') closeRightPanelTab(session.id, 'new-tab')
     if (tab === 'environment') closeRightPanelTab(session.id, 'environment')
@@ -233,6 +240,7 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
     if (tab === 'agents' || !tab) setShowEvents(session.id, false)
     if (tab === 'extensions' || !tab) setShowExtensions(session.id, false)
     if (tab === 'side' || !tab) setShowSideQuestions(session.id, false)
+    if (closingFinalTab) restoreToggleFocus()
   }
 
   const getRightPanelDragRowWidth = useCallback((): number => {

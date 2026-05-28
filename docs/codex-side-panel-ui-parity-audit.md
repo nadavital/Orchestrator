@@ -9092,3 +9092,13 @@ Implemented: hiding the Terminal from the bottom panel now restores focus to `ti
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and `git diff --check` passed. The first sandboxed `node scripts/run-automated-ui-smoke.mjs --terminal` hit the expected localhost bind denial; the elevated rerun passed with `terminalHideFocusRestored=true` while preserving terminal tab persistence, shared shell ownership, animation/layout, tab menu/reorder/drag, resize, clipboard/status, fullscreen cleanup, right-panel transfer, link routing, and theme/font gates. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779997133443.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779997133443.png`.
 
 Remaining: this closes local Terminal hide focus restoration only. Whole-app keyboard traversal and live Codex bottom-panel animation timing remain separate.
+
+### 2026-05-28 - Workbench Final Tab Close Focus Restoration
+
+Product evidence: the right Workbench is the primary side panel for Phase 1 coding workflows. Closing the final Workbench tab from inside the panel removes the focused panel, but focus was not deliberately returned to the matching header side-panel toggle.
+
+Implemented: closing the whole Workbench panel or its final tab now restores focus to `titlebar-toggle-sidebar` on the next animation frame. Closing non-final tabs still leaves normal tab activation/focus behavior untouched.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and `git diff --check` passed. The first sandboxed `node scripts/run-automated-ui-smoke.mjs --right-panel` hit the expected localhost bind denial; the elevated rerun passed with `rightPanelLastTabCloseFocusRestored=true` while preserving right-panel shell ownership, header seam/band, resize, tab close/reorder/drag, tab a11y, find routing/status/focus, browser command routing, and transfer-boundary gates. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779997390432.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779997390432.png`.
+
+Remaining: this closes local Workbench final-tab close focus restoration only. Whole-app keyboard traversal and live Codex right-panel animation timing remain separate.
