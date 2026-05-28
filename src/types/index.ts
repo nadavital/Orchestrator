@@ -689,6 +689,27 @@ export interface ProviderPermissionRuntimeContext {
   updatedAt: number
 }
 
+export interface ProviderAuthSecretStatus {
+  providerId: string
+  configured: boolean
+  source: 'keychain' | 'none'
+  message?: string
+  updatedAt: number
+}
+
+export interface ProviderAuthSecretMutationResult {
+  ok: boolean
+  status: ProviderAuthSecretStatus
+  message?: string
+}
+
+export interface ProviderAuthValidationResult {
+  ok: boolean
+  providerId: string
+  message: string
+  eventTypes?: string[]
+}
+
 export type PermissionIntent =
   | 'ask'
   | 'plan'

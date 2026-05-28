@@ -273,6 +273,7 @@ test('provider spawn env keeps desktop CLI directories available to provider hel
 test('provider spawn env merges generic env overrides from provider settings', () => {
   const originalHome = process.env.HOME
   const originalProviderEnvPath = process.env.ORCHESTRATOR_PROVIDER_ENV_PATH
+  const originalDisableProviderKeychain = process.env.ORCHESTRATOR_DISABLE_PROVIDER_KEYCHAIN
   const tmpRoot = join(tmpdir(), `orchestrator-provider-env-${Date.now()}`)
   const claudeDir = join(tmpRoot, '.claude')
   const cursorDir = join(tmpRoot, '.cursor')
@@ -281,6 +282,7 @@ test('provider spawn env merges generic env overrides from provider settings', (
   try {
     process.env.HOME = tmpRoot
     process.env.ORCHESTRATOR_PROVIDER_ENV_PATH = orchestratorEnvPath
+    process.env.ORCHESTRATOR_DISABLE_PROVIDER_KEYCHAIN = '1'
     mkdirSync(claudeDir, { recursive: true })
     mkdirSync(cursorDir, { recursive: true })
     writeFileSync(join(claudeDir, 'settings.json'), JSON.stringify({
@@ -317,6 +319,8 @@ test('provider spawn env merges generic env overrides from provider settings', (
     process.env.HOME = originalHome
     if (originalProviderEnvPath === undefined) delete process.env.ORCHESTRATOR_PROVIDER_ENV_PATH
     else process.env.ORCHESTRATOR_PROVIDER_ENV_PATH = originalProviderEnvPath
+    if (originalDisableProviderKeychain === undefined) delete process.env.ORCHESTRATOR_DISABLE_PROVIDER_KEYCHAIN
+    else process.env.ORCHESTRATOR_DISABLE_PROVIDER_KEYCHAIN = originalDisableProviderKeychain
     rmSync(tmpRoot, { recursive: true, force: true })
   }
 })

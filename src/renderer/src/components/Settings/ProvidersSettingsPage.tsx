@@ -15,6 +15,7 @@ import {
   getVisibleModels,
   type PermissionExecutionContract,
   type ProviderCapabilityGap,
+  type ProviderAuthSecretStatus,
   type ProviderPermissionMode,
   type ProviderPermissionRuntimeContext,
   type ProviderCommandSurface,
@@ -630,19 +631,153 @@ function ProviderSetupDetails({ providerDef }: { providerDef: typeof PROVIDER_DE
       {providerDef.id === 'cursor' && (
         <div className="provider-setup-row" data-testid="provider-setup-cursor-auth">
           <div className="provider-setup-label">Auth</div>
-          <div style={{ display: 'grid', gap: 4, minWidth: 0 }}>
-            <div style={{ color: 'var(--color-text)', fontSize: 12, fontWeight: 650 }}>
-              User API Key
-            </div>
-            <div style={{ color: 'var(--color-text-muted)', fontSize: 11, lineHeight: 1.35 }}>
-              Cursor Dashboard → Integrations → User API Keys. Store as <code>CURSOR_API_KEY</code> in the config env block.
-            </div>
-          </div>
+          <CursorAuthField color={providerDef.color} />
         </div>
       )}
       <div className="provider-setup-row" data-testid="provider-setup-config">
         <div className="provider-setup-label">Config</div>
         <ProviderConfigEditor providerId={providerDef.id} color={providerDef.color} />
+      </div>
+    </div>
+  )
+}
+
+function CursorAuthField({ color }: { color: string }): JSX.Element {
+  const [status, setStatus] = useState<ProviderAuthSecretStatus | null>(null)
+  const [keyValue, setKeyValue] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState('')
+  const [tone, setTone] = useState<'muted' | 'success' | 'error'>('muted')
+
+  const refresh = async (): Promise<void> => {
+    const next = await window.api.providers.getAuthSecretStatus('cursor')
+    setStatus(next)
+    setTone(next.configured ? 'success' : 'muted')
+    setMessage(next.message ?? (next.configured ? 'API key saved in Keychain.' : 'No API key saved.'))
+  }
+
+  useEffect(() => {
+    void refresh()
+  }, [])
+
+  const save = async (): Promise<void> => {
+    const trimmed = keyValue.trim()
+    if (!trimmed || busy) return
+    setBusy(true)
+    const result = await window.api.providers.setAuthSecret('cursor', trimmed)
+    setStatus(result.status)
+    setKeyValue('')
+    setTone(result.ok ? 'success' : 'error')
+    setMessage(result.message ?? result.status.message ?? (result.ok ? 'Saved' : 'Save failed'))
+    setBusy(false)
+  }
+
+  const validate = async (): Promise<void> => {
+    if (busy) return
+    setBusy(true)
+    setTone('muted')
+    setMessage('Testing Cursor auth...')
+    const result = await window.api.providers.validateAuthSecret('cursor')
+    setTone(result.ok ? 'success' : 'error')
+    setMessage(result.message)
+    setBusy(false)
+  }
+
+  const remove = async (): Promise<void> => {
+    if (busy) return
+    setBusy(true)
+    const result = await window.api.providers.deleteAuthSecret('cursor')
+    setStatus(result.status)
+    setTone(result.ok ? 'muted' : 'error')
+    setMessage(result.message ?? result.status.message ?? (result.ok ? 'Removed' : 'Remove failed'))
+    setBusy(false)
+  }
+
+  const statusColor = tone === 'success'
+    ? 'var(--color-green)'
+    : tone === 'error'
+      ? 'var(--color-red)'
+      : 'var(--color-text-muted)'
+
+  return (
+    <div data-testid="cursor-auth-keychain-field" style={{ display: 'grid', gap: 8, minWidth: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+        <div style={{ color: 'var(--color-text)', fontSize: 12, fontWeight: 650 }}>
+          User API Key
+        </div>
+        <span
+          data-testid="cursor-auth-keychain-status"
+          data-cursor-auth-configured={status?.configured ? 'true' : 'false'}
+          style={{
+            fontSize: 10,
+            color: statusColor,
+            border: '1px solid var(--color-border)',
+            borderRadius: 999,
+            padding: '1px 6px',
+            background: 'var(--color-surface2)'
+          }}
+        >
+          {status?.configured ? 'Keychain' : 'Not set'}
+        </span>
+      </div>
+      <div style={{ display: 'flex', gap: 8, minWidth: 0, flexWrap: 'wrap' }}>
+        <input
+          type="password"
+          value={keyValue}
+          onChange={(event) => {
+            setKeyValue(event.target.value)
+            setTone('muted')
+            setMessage(status?.configured ? 'Replace saved key' : 'Ready to save')
+          }}
+          placeholder={status?.configured ? 'Key saved in Keychain' : 'Cursor User API key'}
+          data-testid="cursor-auth-key-input"
+          style={{
+            flex: '1 1 220px',
+            minWidth: 0,
+            padding: '7px 10px',
+            borderRadius: 6,
+            fontSize: 11,
+            fontFamily: 'monospace',
+            background: 'var(--color-surface2)',
+            border: `1px solid ${keyValue.trim() ? color : 'var(--color-border)'}`,
+            color: 'var(--color-text)',
+            outline: 'none'
+          }}
+        />
+        <button
+          type="button"
+          onClick={save}
+          disabled={!keyValue.trim() || busy}
+          className="settings-action-button"
+          data-testid="cursor-auth-save"
+        >
+          {busy && keyValue.trim() ? 'Saving...' : 'Save'}
+        </button>
+        <button
+          type="button"
+          onClick={validate}
+          disabled={!status?.configured || busy}
+          className="settings-action-button"
+          data-testid="cursor-auth-test"
+        >
+          {busy && !keyValue.trim() ? 'Testing...' : 'Test'}
+        </button>
+        <button
+          type="button"
+          onClick={remove}
+          disabled={!status?.configured || busy}
+          className="settings-action-button"
+          data-testid="cursor-auth-remove"
+        >
+          Remove
+        </button>
+      </div>
+      <div
+        data-testid="cursor-auth-message"
+        data-cursor-auth-tone={tone}
+        style={{ color: statusColor, fontSize: 11, lineHeight: 1.35 }}
+      >
+        {message || 'Cursor Dashboard / Integrations / User API Keys'}
       </div>
     </div>
   )
@@ -1606,7 +1741,7 @@ function ProviderConfigEditor({ providerId, color }: { providerId: string; color
               setError('')
             }}
             spellCheck={false}
-            placeholder={providerId === 'cursor' ? '{\n  "env": {\n    "CURSOR_API_KEY": "..."\n  },\n  "network": {\n    "useHttp1ForAgent": true\n  }\n}' : ''}
+            placeholder={providerId === 'cursor' ? '{\n  "network": {\n    "useHttp1ForAgent": true\n  }\n}' : ''}
             className="provider-config-textarea"
           />
           <div className="provider-config-footer">
