@@ -465,7 +465,7 @@ test('settings navigation filters local-only sections for remote hosts', () => {
   assert.equal(settingsHostAdapterState('pets', 'remote'), 'app-global')
   assert.equal(settingsHostAdapterState('shortcuts', 'remote'), 'unavailable')
   assert.equal(settingsHostAdapterState('personalization', 'remote'), 'unavailable')
-  assert.equal(settingsHostAdapterState('personalization', 'local'), 'unavailable')
+  assert.equal(settingsHostAdapterState('personalization', 'local'), 'local')
   assert.equal(settingsHostAdapterState('pets', 'local'), 'local')
 })
 

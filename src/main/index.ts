@@ -959,6 +959,50 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 await sleep(160);
               }
               const localWorktreesSection = document.querySelector('[data-testid="worktrees-settings-section"]');
+              const localPersonalizationNav = [...document.querySelectorAll('[data-testid="sidebar-nav-item"]')]
+                .find((row) => row.textContent?.replace(/\\s+/g, ' ').trim() === 'Personalization');
+              if (localPersonalizationNav instanceof HTMLButtonElement) {
+                localPersonalizationNav.click();
+                await sleep(180);
+              }
+              const localPersonalizationSection = document.querySelector('[data-testid="personalization-settings-section"]');
+              const personalizationEnabled = document.querySelector('[data-testid="settings-personalization-enabled"]');
+              const personalizationCustom = document.querySelector('[data-testid="settings-personalization-custom"]');
+              const personalizationCoding = document.querySelector('[data-testid="settings-personalization-coding"]');
+              if (personalizationCustom instanceof HTMLTextAreaElement) {
+                const setter = Object.getOwnPropertyDescriptor(personalizationCustom.constructor.prototype, 'value')?.set;
+                setter?.call(personalizationCustom, 'Be concise and cite changed files.');
+                personalizationCustom.dispatchEvent(new Event('input', { bubbles: true }));
+              }
+              if (personalizationCoding instanceof HTMLTextAreaElement) {
+                const setter = Object.getOwnPropertyDescriptor(personalizationCoding.constructor.prototype, 'value')?.set;
+                setter?.call(personalizationCoding, 'Run only targeted validators for each slice.');
+                personalizationCoding.dispatchEvent(new Event('input', { bubbles: true }));
+              }
+              if (personalizationEnabled instanceof HTMLInputElement && !personalizationEnabled.checked) {
+                personalizationEnabled.click();
+              }
+              await sleep(180);
+              const personalizationSettings = await window.api.settings.get();
+              var settingsPersonalizationLocalWorks =
+                localPersonalizationNav instanceof HTMLButtonElement &&
+                settingsShell instanceof HTMLElement &&
+                settingsShell.getAttribute('data-settings-active-section') === 'personalization' &&
+                document.querySelector('[data-settings-content-host-id="local"][data-settings-host-adapter="local"]') instanceof HTMLElement &&
+                localPersonalizationSection instanceof HTMLElement &&
+                localPersonalizationSection.closest('[data-settings-page-module="personalization"]') instanceof HTMLElement &&
+                personalizationEnabled instanceof HTMLInputElement &&
+                personalizationEnabled.checked === true &&
+                personalizationCustom instanceof HTMLTextAreaElement &&
+                personalizationCoding instanceof HTMLTextAreaElement &&
+                personalizationSettings.personalizationEnabled === true &&
+                personalizationSettings.personalizationCustomInstructions === 'Be concise and cite changed files.' &&
+                personalizationSettings.personalizationCodingPreferences === 'Run only targeted validators for each slice.' &&
+                !(document.querySelector('[data-testid="settings-host-adapter-unavailable"]') instanceof HTMLElement);
+              if (localWorktreesNav instanceof HTMLButtonElement) {
+                localWorktreesNav.click();
+                await sleep(140);
+              }
               if (settingsHostSelect instanceof HTMLSelectElement) {
                 settingsHostSelect.value = 'codex:remote-mac';
                 settingsHostSelect.dispatchEvent(new Event('change', { bubbles: true }));
@@ -5530,6 +5574,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             settingsHostContextWorks: typeof settingsHostContextWorks === 'boolean' ? settingsHostContextWorks : null,
             settingsHostSectionFilteringWorks: typeof settingsHostSectionFilteringWorks === 'boolean' ? settingsHostSectionFilteringWorks : null,
             settingsHostAdapterBoundaryWorks: typeof settingsHostAdapterBoundaryWorks === 'boolean' ? settingsHostAdapterBoundaryWorks : null,
+            settingsPersonalizationLocalWorks: typeof settingsPersonalizationLocalWorks === 'boolean' ? settingsPersonalizationLocalWorks : null,
             settingsPersonalizationHostBoundaryWorks: typeof settingsPersonalizationHostBoundaryWorks === 'boolean' ? settingsPersonalizationHostBoundaryWorks : null,
             settingsSidebarNavCompactWorks: typeof settingsSidebarNavCompactWorks === 'boolean' ? settingsSidebarNavCompactWorks : null,
             settingsSidebarNavPrimitiveWorks: typeof settingsSidebarNavPrimitiveWorks === 'boolean' ? settingsSidebarNavPrimitiveWorks : null,

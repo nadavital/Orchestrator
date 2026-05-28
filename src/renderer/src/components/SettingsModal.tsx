@@ -23,6 +23,7 @@ import BrowserSettingsPage from './Settings/BrowserSettingsPage'
 import DataControlsSettingsPage from './Settings/DataControlsSettingsPage'
 import GeneralSettingsPage from './Settings/GeneralSettingsPage'
 import PetsSettingsPage from './Settings/PetsSettingsPage'
+import PersonalizationSettingsPage from './Settings/PersonalizationSettingsPage'
 import ProvidersSettingsPage from './Settings/ProvidersSettingsPage'
 import ShortcutsSettingsPage from './Settings/ShortcutsSettingsPage'
 import WorktreesSettingsPage from './Settings/WorktreesSettingsPage'
@@ -79,6 +80,9 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
   const [usePointerCursors, setUsePointerCursors] = useState(true)
   const [reduceMotion, setReduceMotion] = useState(false)
   const [shortcutOverrides, setShortcutOverrides] = useState<ShortcutOverrides>({})
+  const [personalizationEnabled, setPersonalizationEnabled] = useState(false)
+  const [personalizationCustomInstructions, setPersonalizationCustomInstructions] = useState('')
+  const [personalizationCodingPreferences, setPersonalizationCodingPreferences] = useState('')
   const settingsHostOptions = useMemo(() => settingsHostOptionsFromSessions(sessions), [sessions])
   const normalizedSettingsHostId = normalizeSettingsHostId(selectedSettingsHostId, settingsHostOptions)
   const selectedSettingsHost = settingsHostOptions.find((host) => host.id === normalizedSettingsHostId) ?? settingsHostOptions[0]
@@ -115,6 +119,9 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
       setUsePointerCursors((rec.usePointerCursors as boolean | undefined) ?? true)
       setReduceMotion((rec.reduceMotion as boolean | undefined) ?? false)
       setShortcutOverrides((rec.shortcutOverrides as ShortcutOverrides | undefined) ?? {})
+      setPersonalizationEnabled((rec.personalizationEnabled as boolean | undefined) ?? false)
+      setPersonalizationCustomInstructions((rec.personalizationCustomInstructions as string | undefined) ?? '')
+      setPersonalizationCodingPreferences((rec.personalizationCodingPreferences as string | undefined) ?? '')
       const currentSettingsHostId = useSessionStore.getState().settingsHostId
       setSelectedSettingsHostId(currentSettingsHostId !== 'local'
         ? currentSettingsHostId
@@ -261,6 +268,21 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
     setShortcutOverrides(next)
     window.api.settings.set('shortcutOverrides', next)
     window.dispatchEvent(new CustomEvent('orchestrator:shortcut-overrides-changed', { detail: next }))
+  }
+
+  const savePersonalizationEnabled = (value: boolean): void => {
+    setPersonalizationEnabled(value)
+    window.api.settings.set('personalizationEnabled', value)
+  }
+
+  const savePersonalizationCustomInstructions = (value: string): void => {
+    setPersonalizationCustomInstructions(value)
+    window.api.settings.set('personalizationCustomInstructions', value)
+  }
+
+  const savePersonalizationCodingPreferences = (value: string): void => {
+    setPersonalizationCodingPreferences(value)
+    window.api.settings.set('personalizationCodingPreferences', value)
   }
 
   const importPortableTheme = (raw: string): { ok: boolean; error?: string } => {
@@ -467,6 +489,16 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
                 />
               )}
               {effectiveSection === 'data' && <DataControlsSettingsPage />}
+              {effectiveSection === 'personalization' && (
+                <PersonalizationSettingsPage
+                  enabled={personalizationEnabled}
+                  customInstructions={personalizationCustomInstructions}
+                  codingPreferences={personalizationCodingPreferences}
+                  onSetEnabled={savePersonalizationEnabled}
+                  onSetCustomInstructions={savePersonalizationCustomInstructions}
+                  onSetCodingPreferences={savePersonalizationCodingPreferences}
+                />
+              )}
               {effectiveSection === 'browser' && (
                 <BrowserSettingsPage
                   hostId={selectedSettingsHost.id}
@@ -538,7 +570,7 @@ function SettingsHostAdapterUnavailable({
 
 function settingsHostAdapterUnavailableDescription(section: SettingsSection, hostLabel: string): string {
   if (section === 'personalization') {
-    return `Personalization settings for ${hostLabel} are host-scoped in Codex, including memory, personality, and custom instructions. Orchestrator needs a provider host adapter before they can be edited here.`
+    return `Personalization settings for ${hostLabel} are host-scoped in Codex, including memory, personality, and custom instructions. Orchestrator keeps local personalization editable, but this provider host needs an adapter before remote settings can be edited here.`
   }
   return `${settingsTitle(section)} settings for ${hostLabel} need a provider host adapter before they can be edited here.`
 }

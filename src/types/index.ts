@@ -1466,7 +1466,7 @@ export function settingsHostAdapterState(
   section: SettingsSectionId,
   hostKind: SettingsHostOption['kind']
 ): SettingsHostAdapterState {
-  if (section === 'personalization') return 'unavailable'
+  if (section === 'personalization') return hostKind === 'remote' ? 'unavailable' : 'local'
   if (settingsSectionScope(section) === 'app') return hostKind === 'remote' ? 'app-global' : 'local'
   return hostKind === 'remote' ? 'unavailable' : 'local'
 }

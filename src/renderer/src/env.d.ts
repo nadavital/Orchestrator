@@ -32,6 +32,9 @@ export interface AppSettings {
   reduceMotion: boolean
   shortcutOverrides: ShortcutOverrides
   browserUsePolicy: BrowserUsePolicy
+  personalizationEnabled: boolean
+  personalizationCustomInstructions: string
+  personalizationCodingPreferences: string
 }
 
 export interface ChromeTheme {

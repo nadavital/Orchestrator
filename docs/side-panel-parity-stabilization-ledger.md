@@ -81,7 +81,7 @@ Before considering the stabilization complete:
 
 These remain real goal gaps and should not be claimed complete from local fixture smokes:
 
-- Main chat thread, composer, inspector/context panel, and Settings still need an explicit day-to-day coding usability audit and implementation pass. Codex parity evidence is useful here, but Orchestrator-owned workflow quality is the success bar.
+- Main chat thread, composer, inspector/context panel, and Settings still need an explicit day-to-day coding usability audit and implementation pass. Codex parity evidence is useful here, but Orchestrator-owned workflow quality is the success bar. Local Personalization Settings now have a first pass with persisted custom instructions/coding preferences and focused smoke coverage; remaining Settings work should target provider/account/runtime gaps, real remote adapters, and higher-value daily coding workflows.
 - Inspector/context first pass: Agents is now reachable from the Workbench New tab even before a live subagent exists, and its empty state shows session/runtime context under `workbenchNewTabAgentsAction=true`. Remaining inspector work should focus on deeper selected-event/runtime diagnostics and real coding workflow gaps rather than more empty-state access fixes.
 - Codex-style global/thread find parity. Fresh Codex bundle evidence shows `Cmd+F` opens a floating `content-search-input` with `Search chat` and `Search diffs` scope controls, while Orchestrator currently routes `Cmd+F` to per-panel inputs. `rightPanelFindShortcutRouting=true` is therefore a regression check for current Orchestrator behavior, not full Codex parity.
 - Live Codex side-by-side visual comparison across the 23-surface inventory.
@@ -89,7 +89,7 @@ These remain real goal gaps and should not be claimed complete from local fixtur
 - Provider-backed Review checkpoint Undo, cloud/hosted sources, PR metadata, comments, and blame.
 - Provider pin mutation and richer hosted/cloud/worktree sidebar reconciliation.
 - Live provider-emitted Browser/browser-use proof and non-Codex browser/local-server adapters where available.
-- Real remote-host Settings adapters and Codex-style Host Personalization for memory/personality/custom instructions.
+- Real remote-host Settings adapters and Codex-style provider-native Host Personalization for memory/personality/custom instructions. Local Orchestrator personalization is implemented separately and should not be mistaken for provider-native sync.
 - Dedicated accessibility audit for keyboard-only traversal, focus restoration, screen-reader labels, and reduced motion.
 - Deep Office/PDF renderer work remains tracked, but it is Phase 2 unless a coding workflow depends on it.
 

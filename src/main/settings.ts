@@ -32,6 +32,9 @@ interface AppSettings {
   reduceMotion: boolean
   shortcutOverrides: ShortcutOverrides
   browserUsePolicy: BrowserUsePolicy
+  personalizationEnabled: boolean
+  personalizationCustomInstructions: string
+  personalizationCodingPreferences: string
 }
 
 interface ChromeTheme {
@@ -105,6 +108,9 @@ export const settingsStore = new Store<AppSettings>({
     reduceMotion: false,
     shortcutOverrides: {},
     browserUsePolicy: DEFAULT_BROWSER_USE_POLICY,
+    personalizationEnabled: false,
+    personalizationCustomInstructions: '',
+    personalizationCodingPreferences: '',
   }
 })
 

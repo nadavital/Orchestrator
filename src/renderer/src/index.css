@@ -9034,6 +9034,41 @@
     color: var(--color-red);
   }
 
+  .settings-toggle-control {
+    display: inline-flex;
+    min-width: 72px;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 7px;
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 500;
+  }
+
+  .settings-toggle-control input {
+    accent-color: var(--accent);
+  }
+
+  .settings-textarea {
+    width: 100%;
+    min-height: 92px;
+    resize: vertical;
+    border: 1px solid var(--border-subtle);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--surface-bg) 98%, var(--canvas-bg));
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    font-size: 12px;
+    line-height: 1.45;
+    outline: none;
+    padding: 10px;
+  }
+
+  .settings-textarea:focus-visible {
+    border-color: color-mix(in srgb, var(--accent) 56%, var(--border-subtle));
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 14%, transparent);
+  }
+
   .settings-actions-inline {
     display: flex;
     min-width: 0;
@@ -9047,6 +9082,10 @@
   }
 
   .browser-settings-page {
+    max-width: 760px;
+  }
+
+  .personalization-settings-page {
     max-width: 760px;
   }
 
@@ -9094,6 +9133,23 @@
   .browser-settings-content-group,
   .browser-settings-surface {
     min-width: 0;
+  }
+
+  .personalization-settings-content-group,
+  .personalization-settings-surface {
+    min-width: 0;
+  }
+
+  .personalization-field-row {
+    display: grid;
+    min-width: 0;
+    gap: 7px;
+    padding: 10px 12px 12px;
+  }
+
+  .settings-row + .personalization-field-row,
+  .personalization-field-row + .personalization-field-row {
+    border-top: 1px solid color-mix(in srgb, var(--border-subtle) 72%, transparent);
   }
 
   .browser-settings-status {

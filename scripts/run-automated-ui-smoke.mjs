@@ -2684,6 +2684,7 @@ child.on('exit', async (code) => {
         settingsHostContext: captureView !== 'settings' || result.settingsHostContextWorks === true,
         settingsHostSectionFiltering: captureView !== 'settings' || result.settingsHostSectionFilteringWorks === true,
         settingsHostAdapterBoundary: captureView !== 'settings' || result.settingsHostAdapterBoundaryWorks === true,
+        settingsPersonalizationLocal: captureView !== 'settings' || result.settingsPersonalizationLocalWorks === true,
         settingsPersonalizationHostBoundary: captureView !== 'settings' || result.settingsPersonalizationHostBoundaryWorks === true,
         settingsSidebarNavCompact: captureView !== 'settings' || result.settingsSidebarNavCompactWorks === true,
         settingsSidebarNavPrimitive: captureView !== 'settings' || result.settingsSidebarNavPrimitiveWorks === true,

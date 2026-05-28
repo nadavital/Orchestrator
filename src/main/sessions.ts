@@ -208,6 +208,22 @@ function requestFromSession(session: Session, prompt: string): RunRequest {
   }
 }
 
+function promptWithPersonalization(prompt: string): string {
+  const enabled = settingsStore.get('personalizationEnabled', false)
+  if (!enabled) return prompt
+  const customInstructions = settingsStore.get('personalizationCustomInstructions', '').trim()
+  const codingPreferences = settingsStore.get('personalizationCodingPreferences', '').trim()
+  if (!customInstructions && !codingPreferences) return prompt
+
+  const sections = [
+    '<orchestrator_personalization>',
+    customInstructions ? `Custom instructions:\n${customInstructions}` : '',
+    codingPreferences ? `Coding preferences:\n${codingPreferences}` : '',
+    '</orchestrator_personalization>'
+  ].filter(Boolean)
+  return `${sections.join('\n\n')}\n\n${prompt}`
+}
+
 function claudeResourceAttachmentSpecs(attachments: Attachment[] = []): Attachment[] {
   return attachments.filter((attachment) => attachment.kind === 'claude_file')
 }
@@ -1133,7 +1149,7 @@ export const sessionManager = {
     const session = this.get(sessionId)
     if (!session) throw new Error(`Session ${sessionId} not found`)
     const activeProviderId = session.provider ?? 'claude'
-    const effectivePrompt = promptWithLocalAttachments(prompt, attachments)
+    const effectivePrompt = promptWithPersonalization(promptWithLocalAttachments(prompt, attachments))
     const runtimeAttachments = activeProviderId === 'codex' ? attachments : claudeResourceAttachmentSpecs(attachments)
     if (providerRuntime.hasActiveRun(sessionId)) {
       if (session.runtime === 'interactive' && session.status === 'idle') {
