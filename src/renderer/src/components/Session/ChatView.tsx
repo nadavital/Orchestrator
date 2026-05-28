@@ -737,7 +737,7 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
                   onHeight={handleVirtualRowHeight}
                 >
                   {item.type === 'tool_group'
-                    ? <ToolActivitySummary messages={item.messages} />
+                    ? <ToolActivitySummary messages={item.messages} session={session} />
                     : (
                       <MessageRow
                         msg={item.message}
@@ -1461,13 +1461,19 @@ function MessageRow({
 function ErrorRecoveryCard({ msg, session }: { msg: ResultMessage; session: Session }): JSX.Element {
   const [retryState, setRetryState] = useState<'idle' | 'retrying' | 'sent' | 'error'>('idle')
   const [retryError, setRetryError] = useState<string | null>(null)
-  const canRetry = hasRetryableUserMessage(session) && !isActiveSessionStatus(session.status)
+  const activeSession = isActiveSessionStatus(session.status)
+  const canRetry = hasRetryableUserMessage(session)
+  const actionLabel = activeSession ? 'Stop and retry' : 'Retry last message'
 
   const retryLastMessage = async (): Promise<void> => {
     if (!canRetry || retryState === 'retrying') return
     setRetryState('retrying')
     setRetryError(null)
     try {
+      if (activeSession) {
+        await window.api.sessions.stop(session.id)
+        await new Promise((resolve) => setTimeout(resolve, 160))
+      }
       const ok = await window.api.sessions.retryLastUserMessage(session.id)
       if (!ok) {
         setRetryState('error')
@@ -1523,7 +1529,7 @@ function ErrorRecoveryCard({ msg, session }: { msg: ResultMessage; session: Sess
           disabled={!canRetry || retryState === 'retrying'}
           onClick={() => { void retryLastMessage() }}
         >
-          {retryState === 'retrying' ? 'Retrying...' : 'Retry last message'}
+          {retryState === 'retrying' ? 'Retrying...' : actionLabel}
         </Button>
       </SurfaceRow>
     </div>
@@ -2215,7 +2221,7 @@ function fileReferenceSearchContent(message: ChatMessage): string | null {
   return null
 }
 
-function ToolActivitySummary({ messages }: { messages: Array<ToolUseMessage | ToolResultMessage> }): JSX.Element {
+function ToolActivitySummary({ messages, session }: { messages: Array<ToolUseMessage | ToolResultMessage>; session: Session }): JSX.Element {
   const activities = pairToolActivities(messages)
   const orphanResults = messages.filter((message): message is ToolResultMessage => message.type === 'tool_result' && !activities.some((activity) => activity.result?.id === message.id))
   const hasErrors = activities.some((activity) => activity.result?.isError) || orphanResults.some((result) => result.isError)
@@ -2239,6 +2245,7 @@ function ToolActivitySummary({ messages }: { messages: Array<ToolUseMessage | To
             }}
           >
             <div className="min-w-0 space-y-1">
+              {hasErrors && <ToolFailureRecovery session={session} />}
               {activities.map((activity) => (
                 <div key={activity.tool.id} className="flex min-w-0 max-w-full items-start gap-2">
                   <span
@@ -2266,6 +2273,72 @@ function ToolActivitySummary({ messages }: { messages: Array<ToolUseMessage | To
           </div>
         </DisclosureSection>
       </div>
+    </div>
+  )
+}
+
+function ToolFailureRecovery({ session }: { session: Session }): JSX.Element {
+  const [retryState, setRetryState] = useState<'idle' | 'retrying' | 'sent' | 'error'>('idle')
+  const [retryError, setRetryError] = useState<string | null>(null)
+  const activeSession = isActiveSessionStatus(session.status)
+  const canRetry = hasRetryableUserMessage(session)
+  const actionLabel = activeSession ? 'Stop and retry' : 'Retry last message'
+
+  const retryLastMessage = async (): Promise<void> => {
+    if (!canRetry || retryState === 'retrying') return
+    setRetryState('retrying')
+    setRetryError(null)
+    try {
+      if (activeSession) {
+        await window.api.sessions.stop(session.id)
+        await new Promise((resolve) => setTimeout(resolve, 160))
+      }
+      const ok = await window.api.sessions.retryLastUserMessage(session.id)
+      if (!ok) {
+        setRetryState('error')
+        setRetryError('No retryable message is available.')
+        return
+      }
+      setRetryState('sent')
+    } catch (error) {
+      setRetryState('error')
+      setRetryError(error instanceof Error ? error.message : 'Retry failed.')
+    }
+  }
+
+  return (
+    <div
+      className="mb-2 flex min-w-0 flex-wrap items-center gap-2 rounded-lg px-2 py-1.5"
+      data-testid="tool-failure-recovery"
+      style={{
+        background: 'color-mix(in srgb, var(--color-red) 8%, var(--color-surface2))',
+        border: '1px solid color-mix(in srgb, var(--color-red) 24%, var(--color-border))',
+        color: 'var(--color-text)'
+      }}
+    >
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-[11px] font-semibold" style={{ color: 'var(--color-red)' }}>
+          Tool failed
+        </div>
+        {(retryError || retryState === 'sent') && (
+          <div
+            className="truncate text-[11px]"
+            data-testid="tool-failure-retry-status"
+            style={{ color: retryState === 'error' ? 'var(--color-red)' : 'var(--color-green)' }}
+          >
+            {retryState === 'error' ? retryError : 'Retry sent'}
+          </div>
+        )}
+      </div>
+      <Button
+        variant="secondary"
+        className="h-7 shrink-0 px-2 text-[11px]"
+        dataTestId="tool-failure-retry-last"
+        disabled={!canRetry || retryState === 'retrying'}
+        onClick={() => { void retryLastMessage() }}
+      >
+        {retryState === 'retrying' ? 'Retrying...' : actionLabel}
+      </Button>
     </div>
   )
 }

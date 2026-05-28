@@ -524,6 +524,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
     runAutomatedTranscriptLayoutSmoke(win, outputPath, screenshotPath)
     return
   }
+  if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-tool-failure') {
+    runAutomatedTranscriptToolFailureSmoke(win, outputPath, screenshotPath)
+    return
+  }
   if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'pet-overlay') {
     runAutomatedPetOverlaySmoke(win, outputPath, screenshotPath)
     return
@@ -19773,6 +19777,98 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
   })
 }
 
+function runAutomatedTranscriptToolFailureSmoke(win: BrowserWindow, outputPath: string, screenshotPath?: string): void {
+  win.webContents.once('did-finish-load', () => {
+    setTimeout(async () => {
+      try {
+        const profile = getAppProfile()
+        const result = await win.webContents.executeJavaScript(`
+          (async () => {
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            for (let index = 0; index < 40; index += 1) {
+              const sessionTitle = document.querySelector('[data-thread-title="Transcript tool failure smoke"]');
+              const sessionShell = sessionTitle?.closest('[data-session-id]');
+              const sessionRow = sessionShell?.querySelector('[data-testid="session-row"]') ??
+                [...document.querySelectorAll('[data-testid="session-row"]')]
+                  .find((element) => element.textContent?.includes('Transcript tool failure smoke'));
+              if (sessionRow instanceof HTMLElement) {
+                sessionRow.click();
+                break;
+              }
+              await sleep(50);
+            }
+            await sleep(320);
+            for (let index = 0; index < 80; index += 1) {
+              if (document.body.innerText.includes('TRANSCRIPT_TOOL_FAILURE_SMOKE')) break;
+              await sleep(50);
+            }
+            const scroller = document.querySelector('[data-testid="transcript-scroll"]');
+            if (!(scroller instanceof HTMLElement)) {
+              return {
+                profile: await window.api.app.getProfile(),
+                transcriptToolFailureVisible: false,
+                transcriptToolFailureSummary: false,
+                transcriptToolFailureRecovery: false,
+                transcriptToolFailureRetry: false,
+                bodyText: document.body.innerText
+              };
+            }
+            for (let index = 0; index < 12; index += 1) {
+              scroller.scrollTop = Math.max(0, scroller.scrollHeight - scroller.clientHeight) * (index / 11);
+              scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
+              await sleep(100);
+              if (document.querySelector('[data-testid="tool-activity-summary"]')) break;
+            }
+            const summary = document.querySelector('[data-testid="tool-activity-summary"]');
+            const trigger = summary?.querySelector('.motion-disclosure-trigger');
+            if (trigger instanceof HTMLElement && trigger.getAttribute('aria-expanded') !== 'true') {
+              trigger.click();
+              await sleep(160);
+            }
+            const body = document.querySelector('[data-testid="tool-activity-body"]');
+            const recovery = document.querySelector('[data-testid="tool-failure-recovery"]');
+            const retryButton = document.querySelector('[data-testid="tool-failure-retry-last"]');
+            const visible = summary instanceof HTMLElement &&
+              body instanceof HTMLElement &&
+              recovery instanceof HTMLElement &&
+              retryButton instanceof HTMLButtonElement;
+            const summaryWorks = summary instanceof HTMLElement &&
+              summary.textContent?.includes('1 error') === true &&
+              body?.textContent?.includes('Tool failed') === true;
+            const recoveryWorks = visible &&
+              !retryButton.disabled &&
+              (retryButton.textContent?.includes('Stop and retry') === true ||
+                retryButton.textContent?.includes('Retry last message') === true);
+            if (retryButton instanceof HTMLButtonElement && !retryButton.disabled) {
+              retryButton.click();
+              await sleep(360);
+            }
+            const retryStatus = document.querySelector('[data-testid="tool-failure-retry-status"]');
+            return {
+              profile: await window.api.app.getProfile(),
+              transcriptToolFailureVisible: visible,
+              transcriptToolFailureSummary: summaryWorks,
+              transcriptToolFailureRecovery: recoveryWorks,
+              transcriptToolFailureRetry: retryStatus instanceof HTMLElement &&
+                retryStatus.textContent?.includes('Retry sent') === true,
+              bodyText: document.body.innerText
+            };
+          })()
+        `)
+        if (screenshotPath) {
+          const image = await win.webContents.capturePage()
+          writeFileSync(screenshotPath, image.toPNG())
+        }
+        writeFileSync(outputPath, JSON.stringify({ ok: true, result: { profile, ...result }, screenshotPath }, null, 2))
+        app.quit()
+      } catch (error) {
+        writeFileSync(outputPath, JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2))
+        app.quit()
+      }
+    }, 700)
+  })
+}
+
 function runAutomatedPetOverlaySmoke(win: BrowserWindow, outputPath: string, screenshotPath?: string): void {
   win.webContents.once('did-finish-load', () => {
     setTimeout(async () => {
@@ -21200,6 +21296,9 @@ async function bootstrapAutomatedUiSmokeState(): Promise<void> {
     await seedAutomatedSidebarSmokeSessions(project.id, project.rootPath)
   } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-layout') {
     seedAutomatedTranscriptLayoutSmokeSession(session.id)
+  } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-tool-failure') {
+    seedAutomatedTranscriptToolFailureSmokeSession(session.id)
+    pendingNavigation = { kind: 'session', sessionId: session.id }
   } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'session-switch') {
     await seedAutomatedSessionSwitchSmokeSessions(project.id, project.rootPath)
   } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-stress') {
@@ -21673,6 +21772,63 @@ function seedAutomatedTranscriptLayoutSmokeSession(sessionId: string): void {
     createdAt: baseTime,
     latestMessageAt: baseTime + messages.length
   })
+}
+
+function seedAutomatedTranscriptToolFailureSmokeSession(sessionId: string): void {
+  const session = sessionManager.get(sessionId)
+  if (!session) return
+
+  const baseTime = Date.now()
+  const messages: ChatMessage[] = [
+    {
+      id: 'transcript-tool-failure-user',
+      role: 'user',
+      type: 'text',
+      content: 'TRANSCRIPT_TOOL_FAILURE_SMOKE retry the last coding request if the tool fails.',
+      timestamp: baseTime
+    },
+    {
+      id: 'transcript-tool-failure-assistant',
+      role: 'assistant',
+      type: 'text',
+      content: 'I will inspect the workspace and recover if the tool fails.',
+      timestamp: baseTime + 1
+    },
+    {
+      id: 'transcript-tool-failure-tool',
+      role: 'assistant',
+      type: 'tool_use',
+      toolName: 'Bash',
+      toolInput: {
+        command: 'git status --short',
+        cwd: process.env.ORCHESTRATOR_SMOKE_WORKSPACE_DIR ?? '/tmp/orchestrator-automated-ui-workspace',
+        description: 'Inspect workspace status'
+      },
+      timestamp: baseTime + 2
+    },
+    {
+      id: 'transcript-tool-failure-result',
+      role: 'tool',
+      type: 'tool_result',
+      toolUseId: 'transcript-tool-failure-tool',
+      content: 'Bash failed while inspecting the workspace.',
+      isError: true,
+      timestamp: baseTime + 3
+    }
+  ]
+
+  const targetSessions = sessionManager.list().filter((candidate) => candidate.projectId === session.projectId)
+  for (const target of targetSessions.length > 0 ? targetSessions : [session]) {
+    sessionManager.save({
+      ...target,
+      name: 'Transcript tool failure smoke',
+      status: 'running',
+      providerSessionId: 'transcript-tool-failure-provider-session',
+      messages,
+      createdAt: baseTime,
+      latestMessageAt: baseTime + 3
+    })
+  }
 }
 
 async function seedAutomatedSidebarSmokeSessions(projectId: string, workDir: string): Promise<void> {

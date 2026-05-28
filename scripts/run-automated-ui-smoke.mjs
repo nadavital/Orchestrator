@@ -70,6 +70,8 @@ const captureView = process.argv.includes('--settings-deeplink')
             ? 'sidebar'
             : process.argv.includes('--transcript-layout')
               ? 'transcript-layout'
+              : process.argv.includes('--transcript-tool-failure')
+                ? 'transcript-tool-failure'
               : process.argv.includes('--transcript-stress')
                 ? 'transcript-stress'
                 : process.argv.includes('--streaming-drag')
@@ -1779,6 +1781,14 @@ child.on('exit', async (code) => {
         titleWithinBudget: Number(result.titleElapsedMs ?? Number.POSITIVE_INFINITY) <= 150,
         transcriptWithinBudget: Number(result.switchElapsedMs ?? Number.POSITIVE_INFINITY) <= 900,
         sessionViewNotAnimated: result.sessionViewAnimated === false
+      }
+    : captureView === 'transcript-tool-failure'
+    ? {
+        isolatedProfile: result.profile?.isIsolated === true,
+        transcriptToolFailureVisible: result.transcriptToolFailureVisible === true,
+        transcriptToolFailureSummary: result.transcriptToolFailureSummary === true,
+        transcriptToolFailureRecovery: result.transcriptToolFailureRecovery === true,
+        transcriptToolFailureRetry: result.transcriptToolFailureRetry === true
       }
     : captureView === 'transcript-stress'
     ? {

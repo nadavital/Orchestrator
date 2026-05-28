@@ -1240,7 +1240,11 @@ export const sessionManager = {
     )
     if (!lastUserMessage) return false
     if (providerRuntime.hasActiveRun(sessionId)) return false
-    if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT && process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-layout') {
+    if (
+      process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT &&
+      (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-layout' ||
+        process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-tool-failure')
+    ) {
       return true
     }
 
