@@ -8052,3 +8052,13 @@ Implemented: Extensions now exposes shared-surface attributes for embedded summa
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and `git diff --check` passed. Focused `node scripts/run-automated-ui-smoke.mjs --extensions` first hit the expected sandbox localhost bind failure; the elevated rerun passed with `extensionsPanelSharedPrimitives=true`, `extensionsPanelCalm=true`, `extensionsEmbeddedCopyCompact=true`, and the existing right-panel/app-shell gates. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-extensions-1779949749916.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-extensions-1779949749916.png`.
 
 Remaining: this closes the known Extensions local primitive migration item for the current embedded right-panel surface. Remaining Extensions work should be driven by live provider data, Codex visual comparison, or concrete functionality gaps rather than another speculative local chrome pass.
+
+### 2026-05-28 - Capabilities Edit/Sync Smoke Fixtures
+
+Product evidence: the design-system gap audit still listed Capabilities edit/sync coverage as fixture-dependent. The page had moved create/edit/sync sheets onto shared primitives, but the focused smoke opened edit/sync opportunistically from whatever provider resources existed locally, which made the check less directly comparable across machines.
+
+Implemented: automated Capabilities smoke now seeds an isolated project Claude skill fixture in the smoke workspace before the renderer loads. The smoke searches for that seeded capability, verifies it is visible, and only passes edit/sync sheet checks when the shared sheets open against the seeded `orchestrator-smoke-skill` row.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and `git diff --check` passed. Focused `node scripts/run-automated-ui-smoke.mjs --capabilities` first hit the expected sandbox localhost bind failure; the elevated rerun passed with `capabilitySeededFixture=true`, `capabilityEditSheet=true`, `capabilitySyncSheet=true`, and the existing create-menu/create-sheet focus gates. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-capabilities-1779950085573.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-capabilities-1779950085573.png`.
+
+Remaining: this closes the deterministic Capabilities edit/sync smoke coverage gap. Further Capabilities work should come from real provider capability workflows or live Codex comparison evidence.

@@ -1,7 +1,7 @@
 import { app, shell, BrowserWindow, ipcMain, Menu, net, protocol } from 'electron'
 import type { MenuItemConstructorOptions, Session } from 'electron'
 import { join, resolve, sep } from 'path'
-import { writeFileSync } from 'fs'
+import { mkdirSync, writeFileSync } from 'fs'
 import { pathToFileURL } from 'url'
 import { electronApp, is } from '@electron-toolkit/utils'
 import { configureAppProfile, getAppProfile } from './appProfile'
@@ -58,6 +58,21 @@ function seedAutomatedBrowserUsePolicy(): void {
     allowedUploadOrigins: ['uploads.example'],
     blockedUploadOrigins: []
   })
+}
+
+function seedAutomatedCapabilitiesSmokeFixtures(workspace: string): void {
+  const skillDir = join(workspace, '.claude', 'skills', 'orchestrator-smoke-skill')
+  mkdirSync(skillDir, { recursive: true })
+  writeFileSync(
+    join(skillDir, 'SKILL.md'),
+    [
+      '# Orchestrator Smoke Skill',
+      '',
+      'Deterministic capability fixture for edit and sync sheet smoke coverage.',
+      '',
+      'Use this only inside the isolated automated UI smoke workspace.'
+    ].join('\n')
+  )
 }
 
 function activeAppWindow(): BrowserWindow | null {
@@ -4592,6 +4607,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               .find((button) => button.textContent?.includes('Skills'));
             skillsTab?.click();
             await sleep(180);
+            var capabilitySeededFixtureVisible = document.body.innerText.includes('Orchestrator Smoke Skill');
             const capabilitiesScopeLabel = document.querySelector('.capabilities-scope-select span');
             const capabilityStatusLabels = [...document.querySelectorAll('.capability-row-status')]
               .filter((label) => label instanceof HTMLElement);
@@ -4623,11 +4639,22 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
 
             var capabilityRowMenuChromeCalm = false;
             var capabilityEditActionClicked = await openCapabilityAction('Edit');
-            var capabilityEditSheetOpened = Boolean(document.querySelector('.motion-sheet'));
+            const capabilityEditSheet = document.querySelector('.motion-sheet');
+            var capabilityEditSheetOpened = Boolean(capabilityEditSheet);
+            var capabilityEditSheetSeeded =
+              capabilityEditSheet instanceof HTMLElement &&
+              capabilityEditSheet.innerText.includes('Edit capability') &&
+              [...capabilityEditSheet.querySelectorAll('input, textarea')]
+                .some((field) => field.value?.includes('orchestrator-smoke-skill') || field.value?.includes('Orchestrator Smoke Skill'));
             window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
             await sleep(120);
             var capabilitySyncActionClicked = await openCapabilityAction('Sync');
-            var capabilitySyncSheetOpened = Boolean(document.querySelector('.motion-sheet'));
+            const capabilitySyncSheet = document.querySelector('.motion-sheet');
+            var capabilitySyncSheetOpened = Boolean(capabilitySyncSheet);
+            var capabilitySyncSheetSeeded =
+              capabilitySyncSheet instanceof HTMLElement &&
+              capabilitySyncSheet.innerText.includes('Sync capability') &&
+              capabilitySyncSheet.innerText.includes('orchestrator-smoke-skill');
             window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
             await sleep(120);
           }
@@ -6013,14 +6040,17 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             capabilityCreateMenuChromeCalm: typeof capabilityCreateMenuChromeCalm === 'boolean' ? capabilityCreateMenuChromeCalm : null,
             capabilityRowMenuChromeCalm: typeof capabilityRowMenuChromeCalm === 'boolean' ? capabilityRowMenuChromeCalm : null,
             capabilityPageLabelsCalm: typeof capabilityPageLabelsCalm === 'boolean' ? capabilityPageLabelsCalm : null,
+            capabilitySeededFixtureVisible: typeof capabilitySeededFixtureVisible === 'boolean' ? capabilitySeededFixtureVisible : null,
             capabilitySheetOpened: typeof capabilitySheetOpened === 'boolean' ? capabilitySheetOpened : null,
             capabilitySheetFocused: typeof capabilitySheetFocused === 'boolean' ? capabilitySheetFocused : null,
             capabilitySheetFocusStayedInside: typeof capabilitySheetFocusStayedInside === 'boolean' ? capabilitySheetFocusStayedInside : null,
             capabilitySheetClosedWithEscape: typeof capabilitySheetClosedWithEscape === 'boolean' ? capabilitySheetClosedWithEscape : null,
             capabilityEditActionClicked: typeof capabilityEditActionClicked === 'boolean' ? capabilityEditActionClicked : null,
             capabilityEditSheetOpened: typeof capabilityEditSheetOpened === 'boolean' ? capabilityEditSheetOpened : null,
+            capabilityEditSheetSeeded: typeof capabilityEditSheetSeeded === 'boolean' ? capabilityEditSheetSeeded : null,
             capabilitySyncActionClicked: typeof capabilitySyncActionClicked === 'boolean' ? capabilitySyncActionClicked : null,
             capabilitySyncSheetOpened: typeof capabilitySyncSheetOpened === 'boolean' ? capabilitySyncSheetOpened : null,
+            capabilitySyncSheetSeeded: typeof capabilitySyncSheetSeeded === 'boolean' ? capabilitySyncSheetSeeded : null,
             composerPermissionMenuOpened: typeof composerPermissionMenuOpened === 'boolean' ? composerPermissionMenuOpened : null,
             composerDropdownMaterialWorks: typeof composerDropdownMaterialWorks === 'boolean' ? composerDropdownMaterialWorks : null,
             composerPermissionNativeTooltipsWork: typeof composerPermissionNativeTooltipsWork === 'boolean' ? composerPermissionNativeTooltipsWork : null,
@@ -22225,6 +22255,8 @@ async function bootstrapAutomatedUiSmokeState(): Promise<void> {
     seedAutomatedReviewCardSmokeSession(session.id)
   } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'browser') {
     seedAutomatedBrowserUsePolicy()
+  } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'capabilities') {
+    seedAutomatedCapabilitiesSmokeFixtures(project.rootPath)
   } else if (
     process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'pet-overlay' ||
     process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'motion-reduced'

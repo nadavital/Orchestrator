@@ -518,11 +518,11 @@ Current verification:
 
 - `CreateCapabilitySheet`, `EditCapabilitySheet`, and `SyncCapabilitySheet` use shared `Sheet`.
 - Sync provider targets now use shared `SettingChoiceCard`, and sync plan operations use `InspectorCard`.
-- Capabilities smoke covers create-sheet focus trapping and menu keyboard/focus behavior.
+- Capabilities smoke covers create-sheet focus trapping, menu keyboard/focus behavior, and deterministic seeded edit/sync sheet entry points under `capabilitySeededFixture=true`, `capabilityEditSheet=true`, and `capabilitySyncSheet=true`.
 
 Still needed:
 
-- Add seeded capability rows so the smoke can open edit and sync sheets deterministically instead of depending on whichever provider resources are present locally.
+- Continue Capabilities work only when a real provider capability workflow exposes a functionality gap; the known deterministic edit/sync smoke coverage gap is closed.
 
 ### P1: Reduced Motion
 
@@ -1317,7 +1317,6 @@ Completed in the latest implementation pass:
 The biggest remaining pieces are:
 
 1. Composer and transcript workflow polish beyond the implemented shared primitives, especially deeper context/permission flows and provider-backed retry/continue proof.
-2. Add seeded edit/sync capability fixtures so those sheet flows are deterministic in smoke tests.
-3. Exit animation retention for menus/sheets/dialogs rather than immediate unmount.
-4. Reduced-motion screenshot assertions for the right panel, terminal panel, sheets, and popovers.
-5. Deeper visual comparison baselines against Codex for badges, banners, panels, menus, tabs, sheets, and navigation.
+2. Exit animation retention for menus/sheets/dialogs rather than immediate unmount.
+3. Reduced-motion screenshot assertions for the right panel, terminal panel, sheets, and popovers.
+4. Deeper visual comparison baselines against Codex for badges, banners, panels, menus, tabs, sheets, and navigation.
