@@ -104,6 +104,7 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
   const [renderLimit, setRenderLimit] = useState(() => Math.min(session.messages.length, TRANSCRIPT_RENDER_CHUNK))
   const [scrollMetrics, setScrollMetrics] = useState({ top: 0, height: 0, listOffsetTop: 0 })
   const [rowMeasurementVersion, setRowMeasurementVersion] = useState(0)
+  const [transcriptActionStatus, setTranscriptActionStatus] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
 
   useEffect(() => {
     const globals = window as typeof window & { __orchestratorChatViewCommitCount?: number }
@@ -149,6 +150,31 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
   useEffect(() => {
     loadingEarlierRef.current = loadingEarlier
   }, [loadingEarlier])
+
+  useEffect(() => {
+    setTranscriptActionStatus(null)
+  }, [session.id])
+
+  const steerQueuedMessage = useCallback(async (messageId: string): Promise<void> => {
+    setTranscriptActionStatus({ text: 'Steering follow-up', tone: 'info' })
+    try {
+      await window.api.sessions.steerQueuedMessage(session.id, messageId)
+      setTranscriptActionStatus({ text: 'Follow-up will steer next', tone: 'info' })
+    } catch (error) {
+      setTranscriptActionStatus({ text: `Steer failed: ${errorText(error)}`, tone: 'danger' })
+    }
+  }, [session.id])
+
+  const cancelQueuedMessage = useCallback(async (messageId: string, queueState: 'queued' | 'steer_next'): Promise<void> => {
+    const label = queueState === 'steer_next' ? 'steering message' : 'queued message'
+    setTranscriptActionStatus({ text: `Canceling ${label}`, tone: 'info' })
+    try {
+      await window.api.sessions.cancelQueuedMessage(session.id, messageId)
+      setTranscriptActionStatus({ text: queueState === 'steer_next' ? 'Steering message canceled' : 'Queued message canceled', tone: 'info' })
+    } catch (error) {
+      setTranscriptActionStatus({ text: `Cancel failed: ${errorText(error)}`, tone: 'danger' })
+    }
+  }, [session.id])
 
   const updateScrollMetrics = useCallback(() => {
     const scroller = scrollContainerRef.current
@@ -745,6 +771,9 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
               setSharedFindActive(false)
             }}
           />
+          {transcriptActionStatus && (
+            <TranscriptActionStatus status={transcriptActionStatus} />
+          )}
           <div
             ref={transcriptListRef}
             data-testid="virtualized-transcript"
@@ -773,6 +802,8 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
                         preferredEditor={preferredEditor}
                         canCopy={item.message.id === lastAssistantTextId}
                         canContinue={item.message.id === lastAssistantTextId && !isActiveSessionStatus(session.status)}
+                        onSteerQueuedMessage={steerQueuedMessage}
+                        onCancelQueuedMessage={cancelQueuedMessage}
                       />
                     )}
                 </MeasuredTranscriptRow>
@@ -837,6 +868,36 @@ function TranscriptHistoryStatus({
       >
         <span>{totalCount.toLocaleString()} messages loaded</span>
       </SurfaceRow>
+    </div>
+  )
+}
+
+function TranscriptActionStatus({
+  status
+}: {
+  status: { text: string; tone: 'info' | 'danger' }
+}): JSX.Element {
+  return (
+    <div className="flex justify-center">
+      <div
+        data-testid="transcript-action-status"
+        data-transcript-action-status-tone={status.tone}
+        role={status.tone === 'danger' ? 'alert' : 'status'}
+        aria-live={status.tone === 'danger' ? 'assertive' : 'polite'}
+        aria-atomic="true"
+        className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs"
+        style={{
+          background: status.tone === 'danger'
+            ? 'color-mix(in srgb, var(--color-red) 9%, var(--surface-bg))'
+            : 'var(--surface-bg)',
+          border: status.tone === 'danger'
+            ? '1px solid color-mix(in srgb, var(--color-red) 40%, var(--border-subtle))'
+            : '1px solid var(--border-subtle)',
+          color: status.tone === 'danger' ? 'var(--color-red)' : 'var(--text-secondary)'
+        }}
+      >
+        <span>{status.text}</span>
+      </div>
     </div>
   )
 }
@@ -1415,7 +1476,9 @@ function MessageRow({
   fileReferenceRoots,
   preferredEditor,
   canCopy,
-  canContinue
+  canContinue,
+  onSteerQueuedMessage,
+  onCancelQueuedMessage
 }: {
   msg: ChatMessage
   session: Session
@@ -1423,6 +1486,8 @@ function MessageRow({
   preferredEditor: PreferredEditor
   canCopy: boolean
   canContinue: boolean
+  onSteerQueuedMessage: (messageId: string) => Promise<void>
+  onCancelQueuedMessage: (messageId: string, queueState: 'queued' | 'steer_next') => Promise<void>
 }): JSX.Element | null {
   const [isUserMessageExpanded, setIsUserMessageExpanded] = useState(false)
 
@@ -1552,7 +1617,7 @@ function MessageRow({
                     dataTestId="queued-message-steer"
                     ariaLabel="Steer queued message"
                     title="Send after the current tool call completes"
-                    onClick={() => window.api.sessions.steerQueuedMessage(session.id, msg.id)}
+                    onClick={() => { void onSteerQueuedMessage(msg.id) }}
                   >
                     Steer
                   </Button>
@@ -1563,7 +1628,7 @@ function MessageRow({
                   dataTestId="queued-message-cancel"
                   ariaLabel={queueState === 'steer_next' ? 'Cancel steering message' : 'Cancel queued message'}
                   title={queueState === 'steer_next' ? 'Cancel steering message' : 'Cancel queued message'}
-                  onClick={() => { void window.api.sessions.cancelQueuedMessage(session.id, msg.id) }}
+                  onClick={() => { void onCancelQueuedMessage(msg.id, queueState) }}
                 >
                   Cancel
                 </Button>
@@ -1695,6 +1760,11 @@ function hasRetryableUserMessage(session: Session): boolean {
 
 function isActiveSessionStatus(status: Session['status']): boolean {
   return status === 'running' || status === 'waiting_for_permission' || status === 'waiting_for_user' || status === 'reconnecting'
+}
+
+function errorText(error: unknown): string {
+  if (error instanceof Error) return error.message
+  return String(error)
 }
 
 function collapsedUserMessageContent(content: string): string {

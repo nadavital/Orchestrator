@@ -627,9 +627,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
       openDropdown: () => void
     ): void => {
       openDropdown()
-      window.setTimeout(() => {
-        if (trigger) focusComposerDropdownButton(trigger, 'first')
-      }, 0)
+      if (trigger) queueFocusComposerDropdownButton(trigger, 'first')
     }
 
     if (command.handler === 'app-action') {
@@ -1616,9 +1614,7 @@ function handleDropdownTriggerKeyDown(
   event.stopPropagation()
   const trigger = event.currentTarget
   openDropdown()
-  window.setTimeout(() => {
-    focusComposerDropdownButton(trigger, event.key === 'ArrowUp' ? 'last' : 'first')
-  }, 0)
+  focusComposerDropdownButtonWhenReady(trigger, event.key === 'ArrowUp' ? 'last' : 'first')
 }
 
 function handleDropdownSurfaceKeyDown(event: React.KeyboardEvent<HTMLDivElement>): void {
@@ -1653,13 +1649,58 @@ function handleDropdownSurfaceKeyDown(event: React.KeyboardEvent<HTMLDivElement>
   buttons[nextIndex]?.focus({ preventScroll: true })
 }
 
-function focusComposerDropdownButton(trigger: HTMLElement, position: 'first' | 'last'): void {
+function queueFocusComposerDropdownButton(trigger: HTMLElement, position: 'first' | 'last'): void {
+  let attempts = 0
+  let observedSurface: HTMLElement | null = null
+  let observedClosed = false
+  const focusWhenReady = (): void => {
+    attempts += 1
+    if (observedClosed) return
+    if (observedSurface && trigger.getAttribute('aria-expanded') !== 'true') {
+      observedClosed = true
+      return
+    }
+    const surface = composerDropdownSurfaceForTrigger(trigger)
+    if (observedSurface && surface !== observedSurface) return
+    if (surface) {
+      observedSurface = surface
+      focusComposerDropdownButtonInSurface(surface, position)
+    }
+    if (attempts >= 10) return
+    window.setTimeout(focusWhenReady, 32)
+  }
+  window.setTimeout(focusWhenReady, 0)
+}
+
+function focusComposerDropdownButtonWhenReady(trigger: HTMLElement, position: 'first' | 'last'): void {
+  let attempts = 0
+  const focusWhenReady = (): void => {
+    attempts += 1
+    if (focusComposerDropdownButton(trigger, position) || attempts >= 8) return
+    window.setTimeout(focusWhenReady, 16)
+  }
+  window.setTimeout(focusWhenReady, 0)
+}
+
+function focusComposerDropdownButton(trigger: HTMLElement, position: 'first' | 'last'): boolean {
+  const surface = composerDropdownSurfaceForTrigger(trigger)
+  if (!(surface instanceof HTMLElement)) return false
+  return focusComposerDropdownButtonInSurface(surface, position)
+}
+
+function composerDropdownSurfaceForTrigger(trigger: HTMLElement): HTMLElement | null {
   const owner = trigger.closest('.relative') ?? trigger.parentElement
-  const surface = owner?.querySelector('[data-composer-dropdown-surface="true"]')
-  if (!(surface instanceof HTMLElement)) return
+  const surface = owner?.querySelector('[data-composer-dropdown-surface="true"]') ??
+    Array.from(document.querySelectorAll('[data-composer-dropdown-surface="true"]')).at(-1)
+  return surface instanceof HTMLElement ? surface : null
+}
+
+function focusComposerDropdownButtonInSurface(surface: HTMLElement, position: 'first' | 'last'): boolean {
   const buttons = composerDropdownButtons(surface)
   const target = position === 'last' ? buttons.at(-1) : buttons[0]
-  target?.focus({ preventScroll: true })
+  if (!target) return false
+  target.focus({ preventScroll: true })
+  return document.activeElement === target
 }
 
 function composerDropdownButtons(root: ParentNode): HTMLButtonElement[] {

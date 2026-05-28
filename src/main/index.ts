@@ -606,6 +606,9 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
 
   win.webContents.once('did-finish-load', () => {
     setTimeout(() => {
+      if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'composer') {
+        injectAutomatedComposerQueuedCancelMessage()
+      }
       win.webContents.executeJavaScript(`
         (async () => {
           const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -5045,6 +5048,22 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 .find((element) => element.getAttribute('data-thread-title') === title);
               return titleEl?.closest('[data-testid="session-row"]') ?? null;
             };
+            const activeSidebarSessionId = () => {
+              const active = document.querySelector('[data-session-id][aria-current="page"]');
+              return active instanceof HTMLElement ? active.dataset.sessionId ?? null : null;
+            };
+            const selectThreadByTitle = async (title) => {
+              const row = rowForTitle(title);
+              const shell = row?.closest('[data-session-id]');
+              const sessionId = shell instanceof HTMLElement ? shell.dataset.sessionId ?? null : null;
+              if (!(row instanceof HTMLElement) || !sessionId) return false;
+              for (let attempt = 0; attempt < 12; attempt += 1) {
+                row.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+                await sleep(80);
+                if (activeSidebarSessionId() === sessionId) return true;
+              }
+              return activeSidebarSessionId() === sessionId;
+            };
             const textareaValue = () => {
               const element = document.querySelector('textarea');
               return element instanceof HTMLTextAreaElement ? element.value : null;
@@ -5125,29 +5144,39 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               composerDraftClearedOnSwitch &&
               composerFirstDraftRestored &&
               composerSecondDraftRestored;
-            const queuedCancelRow = rowForTitle('Queued cancel smoke');
-            if (queuedCancelRow instanceof HTMLElement) {
-              queuedCancelRow.click();
-            }
-            await sleep(220);
+            const queuedCancelSelected = await selectThreadByTitle('Queued cancel smoke');
             const queuedCancelButton = document.querySelector('[data-testid="queued-message-cancel"]');
             const queuedMessageElement = document.querySelector('[data-message-id^="composer-queued-cancel-smoke-"]');
             const activeSessionShell = document.querySelector('[data-session-id][aria-current="page"]');
             const queuedMessageId = queuedMessageElement instanceof HTMLElement ? queuedMessageElement.dataset.messageId : null;
             const queuedSessionId = activeSessionShell instanceof HTMLElement ? activeSessionShell.dataset.sessionId : null;
             const queuedBeforeCancel =
+              queuedCancelSelected &&
               document.body.innerText.includes('QUEUED_CANCEL_SMOKE') &&
-              (queuedCancelButton instanceof HTMLButtonElement || (Boolean(queuedSessionId) && Boolean(queuedMessageId)));
+              queuedCancelButton instanceof HTMLButtonElement &&
+              Boolean(queuedSessionId) &&
+              Boolean(queuedMessageId);
             if (queuedCancelButton instanceof HTMLButtonElement) {
               queuedCancelButton.click();
-            } else if (queuedSessionId && queuedMessageId) {
-              await window.api.sessions.cancelQueuedMessage(queuedSessionId, queuedMessageId);
             }
-            await sleep(220);
+            let queuedCancelStatus = null;
+            for (let attempt = 0; attempt < 12; attempt += 1) {
+              queuedCancelStatus = document.querySelector('[data-testid="transcript-action-status"]');
+              if (queuedCancelStatus instanceof HTMLElement && queuedCancelStatus.textContent?.includes('Queued message canceled') === true) break;
+              await sleep(80);
+            }
             var composerQueuedCancel =
               queuedBeforeCancel &&
               !document.body.innerText.includes('QUEUED_CANCEL_SMOKE') &&
               !(document.querySelector('[data-testid="queued-message-cancel"]') instanceof HTMLElement);
+            var composerQueuedCancelStatusWorks =
+              composerQueuedCancel &&
+              queuedCancelStatus instanceof HTMLElement &&
+              queuedCancelStatus.textContent?.includes('Queued message canceled') === true &&
+              queuedCancelStatus.getAttribute('data-transcript-action-status-tone') === 'info' &&
+              queuedCancelStatus.getAttribute('role') === 'status' &&
+              queuedCancelStatus.getAttribute('aria-live') === 'polite' &&
+              queuedCancelStatus.getAttribute('aria-atomic') === 'true';
             firstDraftRow?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
             await sleep(220);
             addComposerAttachment('draft-one.txt', '/tmp/orchestrator-draft-one.txt');
@@ -6657,6 +6686,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             composerSendStatusActionOpensPermissions: typeof composerSendStatusActionOpensPermissions === 'boolean' ? composerSendStatusActionOpensPermissions : null,
             composerSendStatusRecoveryClearsBlock: typeof composerSendStatusRecoveryClearsBlock === 'boolean' ? composerSendStatusRecoveryClearsBlock : null,
             composerQueuedCancel: typeof composerQueuedCancel === 'boolean' ? composerQueuedCancel : null,
+            composerQueuedCancelStatusWorks: typeof composerQueuedCancelStatusWorks === 'boolean' ? composerQueuedCancelStatusWorks : null,
             composerEmptySuggestionFillsDraft: typeof composerEmptySuggestionFillsDraft === 'boolean' ? composerEmptySuggestionFillsDraft : null,
             composerDraftsPerChat: typeof composerDraftsPerChat === 'boolean' ? composerDraftsPerChat : null,
             composerDraftClearedOnSwitch: typeof composerDraftClearedOnSwitch === 'boolean' ? composerDraftClearedOnSwitch : null,
@@ -23025,6 +23055,15 @@ function runAutomatedStreamingTypingSmoke(win: BrowserWindow, outputPath: string
               steeringCancel.click();
               await sleep(160);
             }
+            const steeringCancelStatus = document.querySelector('[data-testid="transcript-action-status"]');
+            const composerSteeringCancelStatusWorks =
+              steeringBeforeCancel &&
+              steeringCancelStatus instanceof HTMLElement &&
+              steeringCancelStatus.textContent?.includes('Steering message canceled') === true &&
+              steeringCancelStatus.getAttribute('data-transcript-action-status-tone') === 'info' &&
+              steeringCancelStatus.getAttribute('role') === 'status' &&
+              steeringCancelStatus.getAttribute('aria-live') === 'polite' &&
+              steeringCancelStatus.getAttribute('aria-atomic') === 'true';
             const stopRunButton = document.querySelector('[data-testid="composer-stop-run"]');
             const composerStopRunControlWorks =
               stopRunButton instanceof HTMLButtonElement &&
@@ -23060,6 +23099,7 @@ function runAutomatedStreamingTypingSmoke(win: BrowserWindow, outputPath: string
                 steeringBeforeCancel &&
                 !document.body.innerText.includes('STREAMING_TYPING_STEERING_FOLLOW_UP') &&
                 !(document.querySelector('[data-message-id="streaming-typing-steering-follow-up"] [data-testid="queued-message-actions"]') instanceof HTMLElement),
+              composerSteeringCancelStatusWorks,
               composerStopRunControlWorks,
               composerStopRunStatusWorks
             };
@@ -23319,6 +23359,13 @@ async function seedAutomatedComposerSmokeSession(projectId: string, workDir: str
     projectStore.addSession(projectId, session.id)
   }
   const baseTime = Date.now()
+  const contextMessage: ChatMessage = {
+    id: 'composer-queued-cancel-smoke-context',
+    role: 'assistant',
+    type: 'text',
+    content: 'Queued cancel smoke context keeps the transcript mounted after the follow-up is removed.',
+    timestamp: baseTime - 1
+  }
   const queuedMessage: ChatMessage = {
     id: `composer-queued-cancel-smoke-${baseTime}`,
     role: 'user',
@@ -23333,6 +23380,7 @@ async function seedAutomatedComposerSmokeSession(projectId: string, workDir: str
     status: 'idle',
     messages: [
       ...session.messages.filter((message) => !message.id.startsWith('composer-queued-cancel-smoke-')),
+      contextMessage,
       queuedMessage
     ],
     latestMessageAt: baseTime
@@ -23397,6 +23445,24 @@ async function seedAutomatedComposerSmokeSession(projectId: string, workDir: str
     ],
     latestMessageAt: unsupportedMessage.timestamp
   })
+}
+
+function injectAutomatedComposerQueuedCancelMessage(): void {
+  const session = sessionManager.list().find((candidate) => candidate.name === 'Queued cancel smoke')
+  if (!session) return
+  for (const message of session.messages) {
+    if (message.id.startsWith('composer-queued-cancel-smoke-') && message.id !== 'composer-queued-cancel-smoke-context') {
+      sessionManager.removeMessage(session.id, message.id)
+    }
+  }
+  sessionManager.appendMessage(session.id, [{
+    id: `composer-queued-cancel-smoke-${Date.now()}`,
+    role: 'user',
+    type: 'text',
+    content: 'QUEUED_CANCEL_SMOKE follow up while the current run is still active.',
+    queueState: 'queued',
+    timestamp: Date.now()
+  }])
 }
 
 function seedAutomatedReviewCardSmokeSession(sessionId: string): void {

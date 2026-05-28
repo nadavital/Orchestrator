@@ -1359,6 +1359,7 @@ Completed in the latest implementation pass:
 - Composer blocked-send notices now render as polite atomic status regions, and transcript user-input/permission recovery states now expose assertive error alerts, polite sent/decision statuses, and named approval action groups.
 - Browser load-error recovery notices now render as assertive atomic alerts with named recovery action groups while preserving shared `PanelNotice` chrome.
 - Transcript active-run queue controls now share badge/button primitives for queued and steering follow-ups, and focused streaming smoke verifies steering follow-ups remain cancellable.
+- Transcript queued/steering follow-up actions now expose visible and announced action-status feedback, with focused composer and streaming smokes verifying `composerQueuedCancelStatus=true` and `composerSteeringCancelStatus=true` while preserving slash-opened permission menu focus under `composerSlashPermissionsFocusesMenu=true`.
 - Pet overlay smoke now verifies custom provider state mapping, permission actions, running/review/failed buckets, tray collapse/reopen, row expansion, reply focus, and resize-handle hover/focus visibility.
 - Session-switch smoke now verifies transcript and title changes stay within the 150ms budget and are not hidden behind app-mode page animation.
 - Extensions panel is reachable again from `/extensions`, uses shared summary/disclosure/file/command/item row chrome for the embedded right-panel surface, and is covered by an automated smoke.
