@@ -2822,6 +2822,13 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
     ) {
       throw new Error('Smoke send failure')
     }
+    if (
+      process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT &&
+      process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'composer' &&
+      prompt === 'SEND_FALSE_SMOKE'
+    ) {
+      return false
+    }
     return sessionManager.sendMessage(sessionId, prompt, useWorktree, attachments ?? [])
   })
   ipcMain.handle('sessions:retryLastUserMessage', (_, sessionId: string) =>

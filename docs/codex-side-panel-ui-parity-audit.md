@@ -8662,3 +8662,13 @@ Implemented: the composer now snapshots the current draft and attachment list be
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and `git diff --check` passed. Focused `node scripts/run-automated-ui-smoke.mjs --composer` first hit the expected sandbox localhost bind failure; the final elevated rerun passed with `composerSendFailureRestoresDraft=true` alongside `composerSlashEscapePreservesDraft=true`, `composerActiveThreadModelSwitchPersisted=true`, `composerActiveThreadProviderSwitchPolicyPersisted=true`, blocked-send recovery, attachment, side-chat guard, and toolbar gates. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1779977638247.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1779977638247.png`.
 
 Remaining: this closes local send-transport draft loss only. Live provider-backed send/model/permission behavior and deeper context workflow proof remain Phase 1 work.
+
+### 2026-05-28 - Composer Failed Start Restores Draft
+
+Product evidence: `sessions.sendMessage` can also return `false` when a run is not accepted. That is a failed start just like a thrown IPC error from the user's perspective, so the composer should not clear the draft or attachments in that path either.
+
+Implemented: the failed-send restoration path now handles both thrown IPC errors and `false` send results. The focused Composer smoke injects a `false` result, then verifies the draft text, attachment chip, and assertive `Run failed to start` status remain visible.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and `git diff --check` passed. Focused `node scripts/run-automated-ui-smoke.mjs --composer` first hit the expected sandbox localhost bind failure; the elevated rerun passed with `composerSendFalseRestoresDraft=true` and `composerSendFailureRestoresDraft=true` alongside the existing composer model/provider, slash, blocked-send, attachment, side-chat guard, and toolbar gates. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1779977976195.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1779977976195.png`.
+
+Remaining: this closes local failed-start draft loss only. Live provider-backed send/model/permission behavior and deeper context workflow proof remain Phase 1 work.

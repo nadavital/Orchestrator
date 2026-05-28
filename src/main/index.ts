@@ -5353,6 +5353,27 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               sendFailureStatus.getAttribute('role') === 'alert' &&
               sendFailureStatus.getAttribute('aria-live') === 'assertive' &&
               sendFailureStatus.getAttribute('aria-atomic') === 'true';
+            setTextareaValue('SEND_FALSE_SMOKE');
+            await sleep(120);
+            addComposerAttachment('send-false.txt', '/tmp/orchestrator-send-false.txt');
+            await sleep(140);
+            const sendFalseButton = [...document.querySelectorAll('button')]
+              .find((button) => button.getAttribute('aria-label')?.startsWith('Send'));
+            if (sendFalseButton instanceof HTMLButtonElement) {
+              sendFalseButton.click();
+              await sleep(260);
+            }
+            const sendFalseStatus = document.querySelector('[data-testid="composer-run-action-status"]');
+            var composerSendFalseRestoresDraft =
+              sendFalseButton instanceof HTMLButtonElement &&
+              textareaValue() === 'SEND_FALSE_SMOKE' &&
+              attachmentLabels().some((label) => label.includes('send-false.txt')) &&
+              sendFalseStatus instanceof HTMLElement &&
+              sendFalseStatus.textContent?.includes('Run failed to start') === true &&
+              sendFalseStatus.getAttribute('data-composer-run-action-status-tone') === 'danger' &&
+              sendFalseStatus.getAttribute('role') === 'alert' &&
+              sendFalseStatus.getAttribute('aria-live') === 'assertive' &&
+              sendFalseStatus.getAttribute('aria-atomic') === 'true';
             const emptyStateSuggestion = document.querySelector('[data-testid="chat-empty-state-suggestion"]');
             if (emptyStateSuggestion instanceof HTMLButtonElement) {
               emptyStateSuggestion.click();
@@ -6874,6 +6895,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             composerSendStatusActionFocusesPermissions: typeof composerSendStatusActionFocusesPermissions === 'boolean' ? composerSendStatusActionFocusesPermissions : null,
             composerSendStatusRecoveryClearsBlock: typeof composerSendStatusRecoveryClearsBlock === 'boolean' ? composerSendStatusRecoveryClearsBlock : null,
             composerSendFailureRestoresDraft: typeof composerSendFailureRestoresDraft === 'boolean' ? composerSendFailureRestoresDraft : null,
+            composerSendFalseRestoresDraft: typeof composerSendFalseRestoresDraft === 'boolean' ? composerSendFalseRestoresDraft : null,
             composerQueuedCancel: typeof composerQueuedCancel === 'boolean' ? composerQueuedCancel : null,
             composerQueuedCancelStatusWorks: typeof composerQueuedCancelStatusWorks === 'boolean' ? composerQueuedCancelStatusWorks : null,
             composerEmptySuggestionFillsDraft: typeof composerEmptySuggestionFillsDraft === 'boolean' ? composerEmptySuggestionFillsDraft : null,
