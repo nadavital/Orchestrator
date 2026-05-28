@@ -71,10 +71,6 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
     closeLabel: 'Close terminal'
   }))
 
-  const addTab = (): void => {
-    addTerminalTab(session.id)
-  }
-
   useEffect(() => () => {
     if (terminalActionStatusTimeoutRef.current) window.clearTimeout(terminalActionStatusTimeoutRef.current)
   }, [])
@@ -88,6 +84,11 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
     }, 2200)
   }, [])
 
+  const addTab = (): void => {
+    addTerminalTab(session.id)
+    setPanelActionStatus({ text: 'New terminal opened', tone: 'info' })
+  }
+
   const clearActiveTerminal = useCallback((): void => {
     void window.api.terminal.clear(`${session.id}-${activeTab}`)
       .then(() => setPanelActionStatus({ text: 'Terminal cleared', tone: 'info' }))
@@ -98,11 +99,13 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
     exitFullscreenForPanelTab('bottom', tabId)
     window.api.terminal.kill(terminalId(tabId))
     closeTerminalTab(session.id, tabId)
+    setPanelActionStatus({ text: 'Terminal tab closed', tone: 'info' })
     setTerminalMenu(null)
   }
 
   const moveTab = (tabId: number, direction: 'left' | 'right'): void => {
     moveTerminalTab(session.id, tabId, direction)
+    setPanelActionStatus({ text: `Terminal tab moved ${direction}`, tone: 'info' })
     setTerminalMenu(null)
   }
 
@@ -113,6 +116,7 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
       tabKind: 'terminal',
       tabId
     })
+    setPanelActionStatus({ text: 'Terminal moved to right panel', tone: 'info' })
     setTerminalMenu(null)
   }
 

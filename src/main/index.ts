@@ -2476,6 +2476,17 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               await sleep(260);
             }
             const bottomPanelWithTabs = document.querySelector('[data-testid="session-bottom-panel"]');
+            const newTerminalStatus = document.querySelector('[data-testid="terminal-panel-action-status"]');
+            var terminalTabActionStatusWorks =
+              bottomPanelWithTabs instanceof HTMLElement &&
+              newTerminalStatus instanceof HTMLElement &&
+              newTerminalStatus.textContent?.includes('New terminal opened') === true &&
+              newTerminalStatus.getAttribute('role') === 'status' &&
+              newTerminalStatus.getAttribute('aria-live') === 'polite' &&
+              newTerminalStatus.getAttribute('aria-atomic') === 'true' &&
+              newTerminalStatus.getAttribute('data-terminal-action-status-tone') === 'info' &&
+              bottomPanelWithTabs.getAttribute('data-terminal-action-status') === 'New terminal opened' &&
+              bottomPanelWithTabs.getAttribute('data-terminal-action-status-tone') === 'info';
             var terminalTabsPersistState =
               bottomPanelWithTabs instanceof HTMLElement &&
               bottomPanelWithTabs.dataset.bottomPanelTabs?.includes(',') === true &&
@@ -6757,6 +6768,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             terminalFailureStateA11yWorks: typeof terminalFailureStateA11yWorks === 'boolean' ? terminalFailureStateA11yWorks : null,
             terminalClipboardStatusWorks: typeof terminalClipboardStatusWorks === 'boolean' ? terminalClipboardStatusWorks : null,
             terminalClearActionStatusWorks: typeof terminalClearActionStatusWorks === 'boolean' ? terminalClearActionStatusWorks : null,
+            terminalTabActionStatusWorks: typeof terminalTabActionStatusWorks === 'boolean' ? terminalTabActionStatusWorks : null,
             terminalFullscreenCleanupWorks: typeof terminalFullscreenCleanupWorks === 'boolean' ? terminalFullscreenCleanupWorks : null,
             terminalTabTelemetryWorks: typeof terminalTabTelemetryWorks === 'boolean' ? terminalTabTelemetryWorks : null,
             terminalTabLifecycleTelemetryWorks: typeof terminalTabLifecycleTelemetryWorks === 'boolean' ? terminalTabLifecycleTelemetryWorks : null,
