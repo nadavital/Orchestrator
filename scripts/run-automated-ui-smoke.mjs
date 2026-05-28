@@ -2767,6 +2767,7 @@ child.on('exit', async (code) => {
         composerAgentRowLabelsCalm: captureView !== 'composer' || result.composerAgentRowLabelsCalm === true,
         composerAgentOutsideClick: captureView !== 'composer' || result.composerAgentMenuClosedWithOutsideClick === true,
         composerAgentFocusReturned: captureView !== 'composer' || result.composerAgentFocusReturned === true,
+        composerQueuedCancel: captureView !== 'composer' || result.composerQueuedCancel === true,
         composerEmptySuggestionFillsDraft: captureView !== 'composer' || result.composerEmptySuggestionFillsDraft === true,
         composerDraftsPerChat: captureView !== 'composer' || result.composerDraftsPerChat === true,
         composerAttachmentsPerChat: captureView !== 'composer' || result.composerAttachmentsPerChat === true,

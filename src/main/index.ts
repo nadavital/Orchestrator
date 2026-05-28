@@ -4476,6 +4476,29 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               composerDraftClearedOnSwitch &&
               composerFirstDraftRestored &&
               composerSecondDraftRestored;
+            const queuedCancelRow = rowForTitle('Queued cancel smoke');
+            if (queuedCancelRow instanceof HTMLElement) {
+              queuedCancelRow.click();
+            }
+            await sleep(220);
+            const queuedCancelButton = document.querySelector('[data-testid="queued-message-cancel"]');
+            const queuedMessageElement = document.querySelector('[data-message-id^="composer-queued-cancel-smoke-"]');
+            const activeSessionShell = document.querySelector('[data-session-id][aria-current="page"]');
+            const queuedMessageId = queuedMessageElement instanceof HTMLElement ? queuedMessageElement.dataset.messageId : null;
+            const queuedSessionId = activeSessionShell instanceof HTMLElement ? activeSessionShell.dataset.sessionId : null;
+            const queuedBeforeCancel =
+              document.body.innerText.includes('QUEUED_CANCEL_SMOKE') &&
+              (queuedCancelButton instanceof HTMLButtonElement || (Boolean(queuedSessionId) && Boolean(queuedMessageId)));
+            if (queuedCancelButton instanceof HTMLButtonElement) {
+              queuedCancelButton.click();
+            } else if (queuedSessionId && queuedMessageId) {
+              await window.api.sessions.cancelQueuedMessage(queuedSessionId, queuedMessageId);
+            }
+            await sleep(220);
+            var composerQueuedCancel =
+              queuedBeforeCancel &&
+              !document.body.innerText.includes('QUEUED_CANCEL_SMOKE') &&
+              !(document.querySelector('[data-testid="queued-message-cancel"]') instanceof HTMLElement);
             firstDraftRow?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
             await sleep(220);
             addComposerAttachment('draft-one.txt', '/tmp/orchestrator-draft-one.txt');
@@ -5667,6 +5690,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             composerAgentMenuClosedWithOutsideClick: typeof composerAgentMenuClosedWithOutsideClick === 'boolean' ? composerAgentMenuClosedWithOutsideClick : null,
             composerAgentFocusReturned: typeof composerAgentFocusReturned === 'boolean' ? composerAgentFocusReturned : null,
             composerToolbarResponsiveWorks: typeof composerToolbarResponsiveWorks === 'boolean' ? composerToolbarResponsiveWorks : null,
+            composerQueuedCancel: typeof composerQueuedCancel === 'boolean' ? composerQueuedCancel : null,
             composerEmptySuggestionFillsDraft: typeof composerEmptySuggestionFillsDraft === 'boolean' ? composerEmptySuggestionFillsDraft : null,
             composerDraftsPerChat: typeof composerDraftsPerChat === 'boolean' ? composerDraftsPerChat : null,
             composerDraftClearedOnSwitch: typeof composerDraftClearedOnSwitch === 'boolean' ? composerDraftClearedOnSwitch : null,
@@ -21307,6 +21331,8 @@ async function bootstrapAutomatedUiSmokeState(): Promise<void> {
     seedAutomatedStreamingDragSmokeSession(session.id)
   } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'streaming-typing') {
     seedAutomatedStreamingTypingSmokeSession(session.id)
+  } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'composer') {
+    await seedAutomatedComposerSmokeSession(project.id, project.rootPath)
   } else if (
     process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'settings' ||
     process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'settings-deeplink'
@@ -21357,6 +21383,38 @@ async function bootstrapAutomatedUiSmokeState(): Promise<void> {
       ]
     })
   }
+}
+
+async function seedAutomatedComposerSmokeSession(projectId: string, workDir: string): Promise<void> {
+  let session = sessionManager.list().find((candidate) => candidate.projectId === projectId && candidate.name === 'Queued cancel smoke')
+  if (!session) {
+    session = await sessionManager.create({
+      projectId,
+      workDir,
+      useWorktree: false,
+      repoRoot: workDir
+    })
+    projectStore.addSession(projectId, session.id)
+  }
+  const baseTime = Date.now()
+  const queuedMessage: ChatMessage = {
+    id: `composer-queued-cancel-smoke-${baseTime}`,
+    role: 'user',
+    type: 'text',
+    content: 'QUEUED_CANCEL_SMOKE follow up while the current run is still active.',
+    queueState: 'queued',
+    timestamp: baseTime
+  }
+  sessionManager.save({
+    ...session,
+    name: 'Queued cancel smoke',
+    status: 'idle',
+    messages: [
+      ...session.messages.filter((message) => !message.id.startsWith('composer-queued-cancel-smoke-')),
+      queuedMessage
+    ],
+    latestMessageAt: baseTime
+  })
 }
 
 function seedAutomatedReviewCardSmokeSession(sessionId: string): void {

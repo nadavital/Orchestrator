@@ -119,6 +119,7 @@ export type SessionEvent =
   | { type: 'status'; id: string; status: Session['status'] }
   | { type: 'messages'; id: string; messages: ChatMessage[] }
   | { type: 'messageUpdated'; id: string; message: ChatMessage }
+  | { type: 'messageRemoved'; id: string; messageId: string }
   | { type: 'events'; id: string; events: SessionRunEventRecord[] }
   | { type: 'raw'; id: string; data: string }
   | { type: 'renamed'; id: string; name: string }
@@ -209,6 +210,7 @@ declare global {
         }) => Promise<void>
         checkProviders: () => Promise<Record<string, boolean>>
         stop: (sessionId: string) => Promise<void>
+        cancelQueuedMessage: (sessionId: string, messageId: string) => Promise<boolean>
         steerQueuedMessage: (sessionId: string, messageId: string) => Promise<void>
         archive: (sessionId: string) => Promise<void>
         restoreArchived: (sessionId: string) => Promise<Session | undefined>

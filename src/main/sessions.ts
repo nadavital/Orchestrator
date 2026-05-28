@@ -5,7 +5,7 @@ import { execFile } from 'child_process'
 import { readFileSync } from 'fs'
 import { performance } from 'perf_hooks'
 import { promisify } from 'util'
-import type { Attachment, AutomationPermissionSnapshot, Session, SessionForkMode, SessionListItem, ChatMessage, ProviderRuntimeKind, ProviderSidebarSyncResult, ReviewMetadata, RunEvent, RunRequest, SessionStatus, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary, WorktreeInventoryItem } from '../types'
+import type { Attachment, AutomationPermissionSnapshot, Session, SessionForkMode, SessionListItem, ChatMessage, TextMessage, ProviderRuntimeKind, ProviderSidebarSyncResult, ReviewMetadata, RunEvent, RunRequest, SessionStatus, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary, WorktreeInventoryItem } from '../types'
 import { PROVIDER_DEFS, applyAutomationPermissionSnapshot, finalizeInterruptedMessages, getDefaultPermissionMode } from '../types'
 import { gitManager } from './git'
 import { getProvider, PROVIDERS, providerSpawnEnv, resolveProviderBinary, resolveProviderCommand, runCodexAppServerCommandSurfaceRaw } from './providers'
@@ -383,6 +383,20 @@ function markPendingFollowUp(sessionId: string, messageId: string, mode: Pending
   return true
 }
 
+function removePendingFollowUp(sessionId: string, messageId: string): boolean {
+  const current = pendingFollowUps.get(sessionId)
+  if (!current) return false
+  const next = current.filter((item) => item.id !== messageId)
+  if (next.length === current.length) return false
+  if (next.length === 0) pendingFollowUps.delete(sessionId)
+  else pendingFollowUps.set(sessionId, next)
+  return true
+}
+
+function pendingFollowUpMessageIds(sessionId: string): Set<string> {
+  return new Set((pendingFollowUps.get(sessionId) ?? []).map((item) => item.id))
+}
+
 function hasSteerableFollowUp(sessionId: string): boolean {
   return Boolean(pendingFollowUps.get(sessionId)?.some((item) => item.mode === 'steer_next'))
 }
@@ -683,6 +697,19 @@ export const sessionManager = {
     else s.messages.push(message)
     store.set('sessions', sessions)
     send('session:messageUpdated', { id, message })
+  },
+
+  removeMessage(id: string, messageId: string): boolean {
+    const sessions = store.get('sessions', [])
+    const s = sessions.find((s) => s.id === id)
+    if (!s) return false
+
+    const nextMessages = s.messages.filter((message) => message.id !== messageId)
+    if (nextMessages.length === s.messages.length) return false
+    s.messages = nextMessages
+    store.set('sessions', sessions)
+    send('session:messageRemoved', { id, messageId })
+    return true
   },
 
   async create(opts: {
@@ -1235,7 +1262,7 @@ export const sessionManager = {
     if (!session) throw new Error(`Session ${sessionId} not found`)
     const lastUserMessage = [...session.messages]
       .reverse()
-      .find((message): message is Extract<ChatMessage, { type: 'text'; role: 'user' }> =>
+      .find((message): message is TextMessage & { role: 'user' } =>
         message.type === 'text' && message.role === 'user' && message.content.trim().length > 0
     )
     if (!lastUserMessage) return false
@@ -1418,8 +1445,13 @@ export const sessionManager = {
       session?.status === 'waiting_for_permission' ||
       session?.status === 'waiting_for_user' ||
       session?.status === 'reconnecting'
+    const queuedMessageIds = pendingFollowUpMessageIds(sessionId)
     if (providerRuntime.hasActiveRun(sessionId)) {
       for (const message of session?.messages ?? []) {
+        if (message.type === 'text' && queuedMessageIds.has(message.id)) {
+          this.removeMessage(sessionId, message.id)
+          continue
+        }
         if (message.type === 'text' && (message.queueState || message.isStreaming)) {
           this.upsertMessage(sessionId, { ...message, queueState: undefined, isStreaming: false })
         }
@@ -1431,6 +1463,18 @@ export const sessionManager = {
       clearRuntimeState(sessionId)
       this.updateStatus(sessionId, 'idle')
     }
+  },
+
+  cancelQueuedMessage(sessionId: string, messageId: string): boolean {
+    const removedPending = removePendingFollowUp(sessionId, messageId)
+    const sessions = store.get('sessions', [])
+    const rawMessage = sessions
+      .find((session) => session.id === sessionId)
+      ?.messages.find((candidate) => candidate.id === messageId)
+    if (rawMessage?.type === 'text' && (rawMessage.queueState || removedPending)) {
+      return this.removeMessage(sessionId, messageId) || removedPending
+    }
+    return removedPending
   },
 
   steerQueuedMessage(sessionId: string, messageId: string): void {

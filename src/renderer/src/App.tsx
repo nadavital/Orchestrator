@@ -109,6 +109,7 @@ export default function App(): JSX.Element {
   const updateSettings = useSessionStore((state) => state.updateSettings)
   const appendMessages = useSessionStore((state) => state.appendMessages)
   const upsertMessage = useSessionStore((state) => state.upsertMessage)
+  const removeMessage = useSessionStore((state) => state.removeMessage)
   const appendEvents = useSessionStore((state) => state.appendEvents)
   const appendRaw = useSessionStore((state) => state.appendRaw)
   const setShowTerminal = useSessionStore((state) => state.setShowTerminal)
@@ -1056,6 +1057,8 @@ export default function App(): JSX.Element {
         appendMessages(event.id, event.messages)
       } else if (event.type === 'messageUpdated') {
         upsertMessage(event.id, event.message)
+      } else if (event.type === 'messageRemoved') {
+        removeMessage(event.id, event.messageId)
       } else if (event.type === 'events') {
         appendEvents(event.id, event.events)
         applyBrowserManagerRunEvents(event.id, event.events)

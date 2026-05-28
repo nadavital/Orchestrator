@@ -2848,6 +2848,9 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   )
   ipcMain.handle('sessions:checkProviders', () => sessionManager.checkProviders())
   ipcMain.handle('sessions:stop', (_, sessionId: string) => sessionManager.stop(sessionId))
+  ipcMain.handle('sessions:cancelQueuedMessage', (_, sessionId: string, messageId: string) =>
+    sessionManager.cancelQueuedMessage(sessionId, messageId)
+  )
   ipcMain.handle('sessions:steerQueuedMessage', (_, sessionId: string, messageId: string) =>
     sessionManager.steerQueuedMessage(sessionId, messageId)
   )

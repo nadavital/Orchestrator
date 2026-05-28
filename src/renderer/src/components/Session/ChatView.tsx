@@ -1410,15 +1410,30 @@ function MessageRow({
                   {queueState === 'steer_next' ? 'Steering next' : 'Queued'}
                 </span>
                 {queueState === 'queued' && (
-                  <button
-                    type="button"
-                    className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
-                    style={{ background: 'rgba(255,255,255,0.9)', color: 'var(--color-accent)' }}
-                    title="Send after the current tool call completes"
-                    onClick={() => window.api.sessions.steerQueuedMessage(session.id, msg.id)}
-                  >
-                    Steer
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                      data-testid="queued-message-steer"
+                      style={{ background: 'rgba(255,255,255,0.9)', color: 'var(--color-accent)' }}
+                      aria-label="Steer queued message"
+                      data-tooltip-label="Send after the current tool call completes"
+                      onClick={() => window.api.sessions.steerQueuedMessage(session.id, msg.id)}
+                    >
+                      Steer
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                      data-testid="queued-message-cancel"
+                      style={{ background: 'rgba(255,255,255,0.16)', color: 'rgba(255,255,255,0.9)', border: '1px solid rgba(255,255,255,0.22)' }}
+                      aria-label="Cancel queued message"
+                      data-tooltip-label="Cancel queued message"
+                      onClick={() => { void window.api.sessions.cancelQueuedMessage(session.id, msg.id) }}
+                    >
+                      Cancel
+                    </button>
+                  </>
                 )}
               </div>
             )}

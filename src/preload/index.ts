@@ -118,6 +118,7 @@ export type SessionEvent =
   | { type: 'status'; id: string; status: Session['status'] }
   | { type: 'messages'; id: string; messages: ChatMessage[] }
   | { type: 'messageUpdated'; id: string; message: ChatMessage }
+  | { type: 'messageRemoved'; id: string; messageId: string }
   | { type: 'events'; id: string; events: SessionRunEventRecord[] }
   | { type: 'raw'; id: string; data: string }
   | { type: 'renamed'; id: string; name: string }
@@ -227,6 +228,8 @@ const api = {
     checkProviders: (): Promise<Record<string, boolean>> =>
       ipcRenderer.invoke('sessions:checkProviders'),
     stop: (sessionId: string): Promise<void> => ipcRenderer.invoke('sessions:stop', sessionId),
+    cancelQueuedMessage: (sessionId: string, messageId: string): Promise<boolean> =>
+      ipcRenderer.invoke('sessions:cancelQueuedMessage', sessionId, messageId),
     steerQueuedMessage: (sessionId: string, messageId: string): Promise<void> =>
       ipcRenderer.invoke('sessions:steerQueuedMessage', sessionId, messageId),
     archive: (sessionId: string): Promise<void> => ipcRenderer.invoke('sessions:archive', sessionId),
@@ -462,6 +465,8 @@ const api = {
       cb({ type: 'messages', ...p })
     const onMessageUpdated = (_: Electron.IpcRendererEvent, p: { id: string; message: ChatMessage }): void =>
       cb({ type: 'messageUpdated', ...p })
+    const onMessageRemoved = (_: Electron.IpcRendererEvent, p: { id: string; messageId: string }): void =>
+      cb({ type: 'messageRemoved', ...p })
     const onEvents = (_: Electron.IpcRendererEvent, p: { id: string; events: SessionRunEventRecord[] }): void =>
       cb({ type: 'events', ...p })
     const onRaw = (_: Electron.IpcRendererEvent, p: { id: string; data: string }): void =>
@@ -483,6 +488,7 @@ const api = {
     ipcRenderer.on('session:status', onStatus)
     ipcRenderer.on('session:messages', onMessages)
     ipcRenderer.on('session:messageUpdated', onMessageUpdated)
+    ipcRenderer.on('session:messageRemoved', onMessageRemoved)
     ipcRenderer.on('session:events', onEvents)
     ipcRenderer.on('session:raw', onRaw)
     ipcRenderer.on('session:renamed', onRenamed)
@@ -497,6 +503,7 @@ const api = {
       ipcRenderer.off('session:status', onStatus)
       ipcRenderer.off('session:messages', onMessages)
       ipcRenderer.off('session:messageUpdated', onMessageUpdated)
+      ipcRenderer.off('session:messageRemoved', onMessageRemoved)
       ipcRenderer.off('session:events', onEvents)
       ipcRenderer.off('session:raw', onRaw)
       ipcRenderer.off('session:renamed', onRenamed)

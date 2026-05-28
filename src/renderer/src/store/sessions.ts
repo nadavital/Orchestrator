@@ -290,6 +290,7 @@ interface SessionState {
   setSettingsHostId: (hostId: string) => void
   appendMessages: (id: string, messages: ChatMessage[]) => void
   upsertMessage: (id: string, message: ChatMessage) => void
+  removeMessage: (id: string, messageId: string) => void
   appendEvents: (id: string, events: SessionRunEventRecord[]) => void
   appendRaw: (id: string, data: string) => void
 }
@@ -1392,6 +1393,22 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           messageCount: index >= 0 ? (x.messageCount ?? x.messages.length) : (x.messageCount ?? x.messages.length) + 1,
           previewText: sessionPreviewText(messages, x.name),
           latestMessageAt: message.timestamp ?? x.latestMessageAt
+        }
+      })
+    })),
+
+  removeMessage: (id, messageId) =>
+    set((s) => ({
+      sessions: s.sessions.map((x) => {
+        if (x.id !== id) return x
+        const messages = x.messages.filter((message) => message.id !== messageId)
+        if (messages.length === x.messages.length) return x
+        return {
+          ...x,
+          messages,
+          messageCount: Math.max(0, (x.messageCount ?? x.messages.length) - 1),
+          previewText: sessionPreviewText(messages, x.name),
+          latestMessageAt: messages.at(-1)?.timestamp ?? x.latestMessageAt
         }
       })
     })),
