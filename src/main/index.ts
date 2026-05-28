@@ -15322,6 +15322,11 @@ function runAutomatedFocusedSurfaceSmoke(
                 revealedLargeLine instanceof HTMLElement &&
                 revealedLargeLine.getAttribute('data-source-line-number') === revealLineNumber &&
                 revealedLargeLine.getAttribute('data-source-line-selected') === 'true';
+              const pinLargeSourceTabButton = findButton('Pin file tab');
+              if (pinLargeSourceTabButton instanceof HTMLButtonElement) {
+                pinLargeSourceTabButton.click();
+                await sleep(140);
+              }
               await openPanelTab('files', 'Files');
               await sleep(160);
               const loadingSourceSearch = document.querySelector('[data-testid="workspace-file-search"]');
