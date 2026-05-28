@@ -2,7 +2,7 @@ import { memo, useState, useRef, useEffect } from 'react'
 import type { Attachment, PermissionExecutionContract, ProviderAgentDef, ProviderPermissionMode, ProviderPermissionRuntimeContext, ProviderRuntimeInfo, ProviderSlashCommand, ResolvedExecutionPolicy, Session } from '../../types'
 import type { SlashPaletteCommand } from '../../types'
 import { PROVIDER_DEFS, canStopSession, expandSlashCommandPrompt, getAdvancedPermissionModes, getComposerSendState, getDangerPermissionModes, getDefaultPermissionMode, getPrimaryPermissionModes, getVisibleModels, parseClaudeAgentsOutput } from '../../types'
-import { defaultUI, useSessionStore } from '../../store/sessions'
+import { defaultUI, sideChatContextSnapshot, useSessionStore } from '../../store/sessions'
 import SlashCommandPalette, { getSlashQuery } from './SlashCommandPalette'
 import ProviderIcon from '../shared/ProviderIcon'
 import Icon from '../shared/Icon'
@@ -315,7 +315,12 @@ function InputBar({ session, isNew }: Props): JSX.Element {
       setComposerAttachments(session.id, [])
       if (textareaRef.current) textareaRef.current.style.height = 'auto'
       const sideChatId = crypto.randomUUID()
-      openSideChat(session.id, sideChatId, question ? sideChatTitle(question) : 'Side chat')
+      openSideChat(
+        session.id,
+        sideChatId,
+        question ? sideChatTitle(question) : 'Side chat',
+        sideChatContextSnapshot(session, 'composer-btw', question)
+      )
       if (!question) return
       const userMessageId = crypto.randomUUID()
       const answerMessageId = crypto.randomUUID()
@@ -556,7 +561,9 @@ function InputBar({ session, isNew }: Props): JSX.Element {
       }
       if (command.id === 'extensions') setShowExtensions(session.id, true)
       if (command.id === 'terminal') setShowTerminal(session.id, !currentUi.showTerminal)
-      if (command.id === 'btw') openSideChat(session.id, crypto.randomUUID(), 'Side chat')
+      if (command.id === 'btw') {
+        openSideChat(session.id, crypto.randomUUID(), 'Side chat', sideChatContextSnapshot(session, 'slash-command'))
+      }
       if (command.id === 'pet') {
         window.api.pet.getConfig()
           .then((config) => {

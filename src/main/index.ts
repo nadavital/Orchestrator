@@ -4316,11 +4316,21 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             }
             await openSideChat('smoke label check');
             var sideChatMessageLabelsCalm = false;
+            var sideChatContextMetadataWorks = false;
             for (let index = 0; index < 12; index += 1) {
               const sideChatPanel = document.querySelector('[data-testid="side-chat-panel"]');
               if (sideChatPanel?.getAttribute('data-side-chat-message-count') === '2') break;
               await sleep(120);
             }
+            const sideChatContextMeta = document.querySelector('[data-testid="side-chat-context-meta"]');
+            sideChatContextMetadataWorks =
+              sideChatContextMeta instanceof HTMLElement &&
+              sideChatContextMeta.getAttribute('data-side-chat-context-source') === 'composer-btw' &&
+              (sideChatContextMeta.getAttribute('data-side-chat-context-provider') ?? '').length > 0 &&
+              (sideChatContextMeta.getAttribute('data-side-chat-context-model') ?? '').length > 0 &&
+              Number(sideChatContextMeta.getAttribute('data-side-chat-context-message-count') ?? '-1') >= 0 &&
+              sideChatContextMeta.textContent?.includes('Composer /btw') === true &&
+              sideChatContextMeta.textContent?.includes('smoke label check') === true;
             const sideChatMessageLabels = [...document.querySelectorAll('[data-testid="side-chat-message-label"]')]
               .filter((label) => label instanceof HTMLElement);
             sideChatMessageLabelsCalm =
@@ -5665,6 +5675,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             sideChatComposerCompactWorks: typeof sideChatComposerCompactWorks === 'boolean' ? sideChatComposerCompactWorks : null,
             sideChatDraftPersistenceWorks: typeof sideChatDraftPersistenceWorks === 'boolean' ? sideChatDraftPersistenceWorks : null,
             sideChatMultilineDraftWorks: typeof sideChatMultilineDraftWorks === 'boolean' ? sideChatMultilineDraftWorks : null,
+            sideChatContextMetadataWorks: typeof sideChatContextMetadataWorks === 'boolean' ? sideChatContextMetadataWorks : null,
             sideChatMessageLabelsCalm: typeof sideChatMessageLabelsCalm === 'boolean' ? sideChatMessageLabelsCalm : null,
             sideChatErrorRetryWorks: typeof sideChatErrorRetryWorks === 'boolean' ? sideChatErrorRetryWorks : null,
             sideChatCloseWorks: typeof sideChatCloseWorks === 'boolean' ? sideChatCloseWorks : null,
@@ -14526,6 +14537,15 @@ function runAutomatedFocusedSurfaceSmoke(
                 if (panel?.getAttribute('data-side-chat-message-count') === '2') break;
                 await sleep(120);
               }
+              const sideChatContextMeta = document.querySelector('[data-testid="side-chat-context-meta"]');
+              const sideChatContextMetadataWorks =
+                sideChatContextMeta instanceof HTMLElement &&
+                sideChatContextMeta.getAttribute('data-side-chat-context-source') === 'composer-btw' &&
+                (sideChatContextMeta.getAttribute('data-side-chat-context-provider') ?? '').length > 0 &&
+                (sideChatContextMeta.getAttribute('data-side-chat-context-model') ?? '').length > 0 &&
+                Number(sideChatContextMeta.getAttribute('data-side-chat-context-message-count') ?? '-1') >= 0 &&
+                sideChatContextMeta.textContent?.includes('Composer /btw') === true &&
+                sideChatContextMeta.textContent?.includes('smoke label check') === true;
               const labels = [...document.querySelectorAll('[data-testid="side-chat-message-label"]')]
                 .filter((label) => label instanceof HTMLElement);
               const sideChatMessageLabelsCalm =
@@ -14577,6 +14597,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 sideChatComposerCompactWorks,
                 sideChatDraftPersistenceWorks,
                 sideChatMultilineDraftWorks,
+                sideChatContextMetadataWorks,
                 sideChatMessageLabelsCalm,
                 sideChatErrorRetryWorks,
                 sideChatCloseWorks:

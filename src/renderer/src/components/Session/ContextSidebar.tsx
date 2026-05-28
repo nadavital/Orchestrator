@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import { filePathFromTabId, sideChatIdFromTabId, terminalTabIdFromTabId, useSessionStore } from '../../store/sessions'
+import { filePathFromTabId, sideChatContextSnapshot, sideChatIdFromTabId, terminalTabIdFromTabId, useSessionStore } from '../../store/sessions'
 import type { RightPanelTabId, RightPanelTabKind } from '../../store/sessions'
 import { derivePlanStates, derivePlanStatesFromMessages, resolvePanelTabTransferAvailability } from '../../types'
 import type { AgentNode, Session, SessionRunEventRecord } from '../../types'
@@ -287,7 +287,7 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
     openRightPanelTab(session.id, tab)
   }
   const openSideChatTab = (): void => {
-    openSideChat(session.id, crypto.randomUUID(), 'Side chat')
+    openSideChat(session.id, crypto.randomUUID(), 'Side chat', sideChatContextSnapshot(session, 'workbench-new-tab'))
   }
   const openRightTerminalTab = (): void => {
     const tabId = addTerminalTab(session.id)

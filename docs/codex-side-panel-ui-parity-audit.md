@@ -7877,6 +7877,16 @@ Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.
 
 Remaining: this closes multiline side-chat draft/composer consistency only. Provider-backed side-chat proof, richer side-chat context/fork-turn metadata, and exact live Codex timing remain Phase 1 side-panel work.
 
+### 2026-05-28 - Side Chat Context Metadata
+
+Product evidence: the Phase 1 side-panel backlog calls out richer side-chat context/fork-turn metadata. Before this slice, side chats opened as separate right-panel tabs but did not show which main thread, provider/model, message-count context, or `/btw` prompt they were attached to, so multiple side chats could become ambiguous during a coding session.
+
+Implemented: side-chat threads now store a compact context snapshot when opened from composer `/btw`, slash `/btw`, or the Workbench New Tab. The side-chat header renders the source, main thread name, provider/model, message count, and prompt preview when available, with stable data attributes for smoke coverage. Existing side chats without saved context fall back to the current main-thread context instead of rendering blank metadata.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and `git diff --check` passed. Focused `node scripts/run-automated-ui-smoke.mjs --side-chat` first hit the expected sandbox `listen EPERM 127.0.0.1`; the elevated rerun passed with `sideChatContextMetadata=true`, `sideChatMultilineDraft=true`, `sideChatErrorRetry=true`, `sideChatTabs=true`, `sideChatComposerCompact=true`, `sideChatDraftPersistence=true`, `sideChatMessageLabelsCalm=true`, and `sideChatClose=true`. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-side-chat-1779944877204.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-side-chat-1779944877204.png`.
+
+Remaining: this closes first-pass side-chat context metadata only. Provider-backed side-chat proof, deeper fork-turn/provider metadata, and exact live Codex timing remain Phase 1 side-panel work.
+
 ### 2026-05-28 - Chat Multi-Question User Input
 
 Product evidence: the Phase 1 main-chat backlog calls out approval and user-input card ergonomics. Before this slice, option buttons submitted immediately, which was fine for a single prompt but awkward for structured provider requests with multiple questions because the user could not pick answers for every question before resuming.

@@ -151,6 +151,18 @@ export interface SideQuestionMessage {
   usage?: UsageSummary
 }
 
+export interface SideChatContextSnapshot {
+  source: 'composer-btw' | 'slash-command' | 'workbench-new-tab' | 'restored'
+  sessionName: string
+  provider: string
+  model: string
+  workDir: string
+  messageCount: number
+  sessionStatus: Session['status']
+  createdAt: number
+  questionPreview?: string
+}
+
 export interface SideChatThread {
   id: string
   title: string
@@ -159,6 +171,7 @@ export interface SideChatThread {
   updatedAt: number
   draft?: string
   unread?: boolean
+  context?: SideChatContextSnapshot
 }
 
 export interface TerminalPanelState {
@@ -250,7 +263,7 @@ interface SessionState {
   closeAgentTab: (id: string, agentId: string) => void
   appendSideQuestion: (id: string, message: SideQuestionMessage) => void
   updateSideQuestion: (id: string, messageId: string, patch: Partial<SideQuestionMessage>) => void
-  openSideChat: (id: string, chatId: string, title?: string) => void
+  openSideChat: (id: string, chatId: string, title?: string, context?: SideChatContextSnapshot) => void
   closeSideChat: (id: string, chatId: string) => void
   setSideChatDraft: (id: string, chatId: string, draft: string) => void
   appendSideChatMessage: (id: string, chatId: string, message: SideQuestionMessage) => void
@@ -698,13 +711,17 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       }
     }),
 
-  openSideChat: (id, chatId, title = 'Side chat') =>
+  openSideChat: (id, chatId, title = 'Side chat', context) =>
     set((s) => {
       const current = s.uiState[id] ?? defaultUI
       const now = Date.now()
       const sideChats = current.sideChats?.some((chat) => chat.id === chatId)
-        ? current.sideChats.map((chat) => chat.id === chatId ? { ...chat, title: chat.title || title, updatedAt: now, unread: false } : chat)
-        : [...(current.sideChats ?? []), { id: chatId, title, messages: [], createdAt: now, updatedAt: now }]
+        ? current.sideChats.map((chat) =>
+            chat.id === chatId
+              ? { ...chat, title: chat.title || title, updatedAt: now, unread: false, context: chat.context ?? context }
+              : chat
+          )
+        : [...(current.sideChats ?? []), { id: chatId, title, messages: [], createdAt: now, updatedAt: now, context }]
       return {
         uiState: {
           ...s.uiState,
@@ -1618,6 +1635,29 @@ function sideChatTitle(currentTitle: string, message: SideQuestionMessage): stri
   if (currentTitle !== 'Side chat' || message.role !== 'user') return currentTitle
   const compact = message.content.replace(/\s+/g, ' ').trim()
   return compact.length > 28 ? `${compact.slice(0, 25)}...` : compact || currentTitle
+}
+
+export function sideChatContextSnapshot(
+  session: Session,
+  source: SideChatContextSnapshot['source'],
+  question?: string
+): SideChatContextSnapshot {
+  const compactQuestion = question?.replace(/\s+/g, ' ').trim()
+  return {
+    source,
+    sessionName: session.name,
+    provider: session.provider,
+    model: session.model,
+    workDir: session.workDir,
+    messageCount: session.messageCount ?? session.messages.length,
+    sessionStatus: session.status,
+    createdAt: Date.now(),
+    questionPreview: compactQuestion ? truncateSideChatPreview(compactQuestion) : undefined
+  }
+}
+
+function truncateSideChatPreview(value: string): string {
+  return value.length > 64 ? `${value.slice(0, 61)}...` : value
 }
 
 function syncRightPanelTab(panel: RightPanelState | undefined, id: RightPanelTabId, open: boolean): RightPanelState {

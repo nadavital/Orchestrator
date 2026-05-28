@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { Session } from '../../types'
-import { useSessionStore } from '../../store/sessions'
+import type { SideChatContextSnapshot } from '../../store/sessions'
+import { sideChatContextSnapshot, useSessionStore } from '../../store/sessions'
 import { Button, IconButton, InspectorCard } from '../shared/designSystem'
 
 interface Props {
@@ -18,6 +19,7 @@ export default function SideQuestionPanel({ session, chatId, embedded }: Props):
   const pending = messages.some((message) => message.status === 'pending')
   const errorCount = messages.filter((message) => message.status === 'error').length
   const question = chatId ? sideChat?.draft ?? '' : legacyQuestion
+  const context = chatId ? sideChat?.context ?? sideChatContextSnapshot(session, 'restored') : null
 
   const setQuestion = (value: string): void => {
     if (chatId) setSideChatDraft(session.id, chatId, value)
@@ -94,11 +96,37 @@ export default function SideQuestionPanel({ session, chatId, embedded }: Props):
       style={{ color: 'var(--color-text)' }}
     >
       {chatId && (
-        <div className="mb-2 flex shrink-0 items-center gap-2">
+        <div className="mb-2 flex shrink-0 items-start gap-2">
           <div className="min-w-0 flex-1">
             <div className="truncate text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
               {sideChat?.title ?? 'Side chat'}
             </div>
+            {context && (
+              <div
+                className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px]"
+                data-testid="side-chat-context-meta"
+                data-side-chat-context-source={context.source}
+                data-side-chat-context-message-count={context.messageCount}
+                data-side-chat-context-provider={context.provider}
+                data-side-chat-context-model={context.model}
+                title={context.workDir}
+                style={{ color: 'var(--text-tertiary)' }}
+              >
+                <span>{sideChatSourceLabel(context.source)}</span>
+                <span aria-hidden="true">·</span>
+                <span className="truncate" style={{ maxWidth: 180 }}>{context.sessionName}</span>
+                <span aria-hidden="true">·</span>
+                <span>{providerModelLabel(context)}</span>
+                <span aria-hidden="true">·</span>
+                <span>{context.messageCount} msg{context.messageCount === 1 ? '' : 's'}</span>
+                {context.questionPreview && (
+                  <>
+                    <span aria-hidden="true">·</span>
+                    <span className="truncate" style={{ maxWidth: 220 }}>{context.questionPreview}</span>
+                  </>
+                )}
+              </div>
+            )}
             {(messages.length > 0 || pending || errorCount > 0) && (
               <div className="mt-0.5 text-[11px]" style={{ color: 'var(--text-tertiary)' }}>
                 {messages.length} message{messages.length === 1 ? '' : 's'}
@@ -189,4 +217,27 @@ export default function SideQuestionPanel({ session, chatId, embedded }: Props):
       </form>
     </div>
   )
+}
+
+function sideChatSourceLabel(source: SideChatContextSnapshot['source']): string {
+  if (source === 'composer-btw') return 'Composer /btw'
+  if (source === 'slash-command') return 'Slash /btw'
+  if (source === 'workbench-new-tab') return 'Workbench'
+  return 'Main thread'
+}
+
+function providerModelLabel(context: SideChatContextSnapshot): string {
+  const provider = displayContextValue(context.provider)
+  const model = displayContextValue(context.model)
+  if (provider && model) return `${provider} / ${model}`
+  return provider || model || 'Provider'
+}
+
+function displayContextValue(value: string): string {
+  return value
+    .trim()
+    .split(/[\s_-]+/)
+    .filter(Boolean)
+    .map((part) => part.length <= 2 ? part.toUpperCase() : `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`)
+    .join(' ')
 }

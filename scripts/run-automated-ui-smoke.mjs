@@ -2418,6 +2418,7 @@ child.on('exit', async (code) => {
           sideChatComposerCompact: result.sideChatComposerCompactWorks === true,
           sideChatDraftPersistence: result.sideChatDraftPersistenceWorks === true,
           sideChatMultilineDraft: result.sideChatMultilineDraftWorks === true,
+          sideChatContextMetadata: result.sideChatContextMetadataWorks === true,
           sideChatMessageLabelsCalm: result.sideChatMessageLabelsCalm === true,
           sideChatErrorRetry: result.sideChatErrorRetryWorks === true,
           sideChatClose: result.sideChatCloseWorks === true
@@ -2686,6 +2687,7 @@ child.on('exit', async (code) => {
         sideChatComposerCompact: captureView !== 'inspector' || result.sideChatComposerCompactWorks === true,
         sideChatDraftPersistence: captureView !== 'inspector' || result.sideChatDraftPersistenceWorks === true,
         sideChatMultilineDraft: captureView !== 'inspector' || result.sideChatMultilineDraftWorks === true,
+        sideChatContextMetadata: captureView !== 'inspector' || result.sideChatContextMetadataWorks === true,
         sideChatMessageLabelsCalm: captureView !== 'inspector' || result.sideChatMessageLabelsCalm === true,
         sideChatErrorRetry: captureView !== 'inspector' || result.sideChatErrorRetryWorks === true,
         sideChatClose: captureView !== 'inspector' || result.sideChatCloseWorks === true,
