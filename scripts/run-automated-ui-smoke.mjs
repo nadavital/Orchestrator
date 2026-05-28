@@ -2470,6 +2470,7 @@ child.on('exit', async (code) => {
           sideChatActionStatusA11y: result.sideChatActionStatusA11yWorks === true,
           sideChatErrorRetry: result.sideChatErrorRetryWorks === true,
           sideChatRetryStatusA11y: result.sideChatRetryStatusA11yWorks === true,
+          sideChatPersonalizationContext: result.sideChatPersonalizationContextWorks === true,
           sideChatClose: result.sideChatCloseWorks === true
         }
     : captureView === 'terminal-visual'
@@ -2745,6 +2746,7 @@ child.on('exit', async (code) => {
         sideChatContextMetadata: captureView !== 'inspector' || result.sideChatContextMetadataWorks === true,
         sideChatMessageLabelsCalm: captureView !== 'inspector' || result.sideChatMessageLabelsCalm === true,
         sideChatErrorRetry: captureView !== 'inspector' || result.sideChatErrorRetryWorks === true,
+        sideChatPersonalizationContext: captureView !== 'inspector' || result.sideChatPersonalizationContextWorks === true,
         sideChatClose: captureView !== 'inspector' || result.sideChatCloseWorks === true,
         terminalTabsPersist: captureView !== 'terminal' || result.terminalTabsPersistState === true,
         terminalShellOwnership: captureView !== 'terminal' || result.terminalShellOwnershipWorks === true,

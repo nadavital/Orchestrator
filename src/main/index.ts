@@ -4897,6 +4897,24 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 await sleep(120);
               }
             }
+            const previousPersonalizationSettings = await window.api.settings.get();
+            await window.api.settings.set('personalizationEnabled', true);
+            await window.api.settings.set('personalizationCustomInstructions', 'SMOKE_SIDE_CUSTOM_INSTRUCTIONS');
+            await window.api.settings.set('personalizationCodingPreferences', 'SMOKE_SIDE_CODING_PREFS');
+            await openSideChat('smoke personalization check');
+            var sideChatPersonalizationContextWorks = false;
+            for (let index = 0; index < 12; index += 1) {
+              const panel = document.querySelector('[data-testid="side-chat-panel"]');
+              sideChatPersonalizationContextWorks =
+                panel?.textContent?.includes('Smoke side personalization applied') === true &&
+                panel?.textContent?.includes('SMOKE_SIDE_CUSTOM_INSTRUCTIONS') === true &&
+                panel?.textContent?.includes('SMOKE_SIDE_CODING_PREFS') === true;
+              if (sideChatPersonalizationContextWorks) break;
+              await sleep(120);
+            }
+            await window.api.settings.set('personalizationEnabled', previousPersonalizationSettings.personalizationEnabled);
+            await window.api.settings.set('personalizationCustomInstructions', previousPersonalizationSettings.personalizationCustomInstructions);
+            await window.api.settings.set('personalizationCodingPreferences', previousPersonalizationSettings.personalizationCodingPreferences);
             const sideChatTabsBeforeCloseForClose = document.querySelectorAll('[role="tab"][data-tab-id^="sidechat:"]').length;
             const closeSideChatButton = [...document.querySelectorAll('[role="tab"][data-tab-id^="sidechat:"]')]
               .at(-1)
@@ -6711,6 +6729,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             sideChatContextMetadataWorks: typeof sideChatContextMetadataWorks === 'boolean' ? sideChatContextMetadataWorks : null,
             sideChatMessageLabelsCalm: typeof sideChatMessageLabelsCalm === 'boolean' ? sideChatMessageLabelsCalm : null,
             sideChatErrorRetryWorks: typeof sideChatErrorRetryWorks === 'boolean' ? sideChatErrorRetryWorks : null,
+            sideChatPersonalizationContextWorks: typeof sideChatPersonalizationContextWorks === 'boolean' ? sideChatPersonalizationContextWorks : null,
             sideChatCloseWorks: typeof sideChatCloseWorks === 'boolean' ? sideChatCloseWorks : null,
             terminalTabsPersistState: typeof terminalTabsPersistState === 'boolean' ? terminalTabsPersistState : null,
             terminalShellOwnershipWorks: typeof terminalShellOwnershipWorks === 'boolean' ? terminalShellOwnershipWorks : null,
@@ -16026,6 +16045,24 @@ function runAutomatedFocusedSurfaceSmoke(
                   await sleep(120);
                 }
               }
+              const previousPersonalizationSettings = await window.api.settings.get();
+              await window.api.settings.set('personalizationEnabled', true);
+              await window.api.settings.set('personalizationCustomInstructions', 'SMOKE_SIDE_CUSTOM_INSTRUCTIONS');
+              await window.api.settings.set('personalizationCodingPreferences', 'SMOKE_SIDE_CODING_PREFS');
+              await openSideChat('smoke personalization check');
+              let sideChatPersonalizationContextWorks = false;
+              for (let index = 0; index < 12; index += 1) {
+                const panel = document.querySelector('[data-testid="side-chat-panel"]');
+                sideChatPersonalizationContextWorks =
+                  panel?.textContent?.includes('Smoke side personalization applied') === true &&
+                  panel?.textContent?.includes('SMOKE_SIDE_CUSTOM_INSTRUCTIONS') === true &&
+                  panel?.textContent?.includes('SMOKE_SIDE_CODING_PREFS') === true;
+                if (sideChatPersonalizationContextWorks) break;
+                await sleep(120);
+              }
+              await window.api.settings.set('personalizationEnabled', previousPersonalizationSettings.personalizationEnabled);
+              await window.api.settings.set('personalizationCustomInstructions', previousPersonalizationSettings.personalizationCustomInstructions);
+              await window.api.settings.set('personalizationCodingPreferences', previousPersonalizationSettings.personalizationCodingPreferences);
               const beforeClose = document.querySelectorAll('[role="tab"][data-tab-id^="sidechat:"]').length;
               const lastSideChatTab = [...document.querySelectorAll('[role="tab"][data-tab-id^="sidechat:"]')].at(-1);
               const closeButton = lastSideChatTab?.querySelector('[aria-label^="Close "]');
@@ -16053,6 +16090,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 sideChatActionStatusA11yWorks,
                 sideChatErrorRetryWorks,
                 sideChatRetryStatusA11yWorks,
+                sideChatPersonalizationContextWorks,
                 sideChatCloseWorks:
                   sideChatTabsWork &&
                   document.querySelectorAll('[role="tab"][data-tab-id^="sidechat:"]').length === beforeClose - 1

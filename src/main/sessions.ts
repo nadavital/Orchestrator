@@ -1899,7 +1899,28 @@ export const sessionManager = {
     if (!session) return { ok: false, answer: '', error: `Session ${sessionId} not found.` }
     const trimmed = question.trim()
     if (!trimmed) return { ok: false, answer: '', error: 'Question is empty.' }
+    const effectivePrompt = promptWithPersonalization(sideQuestionPrompt(session, trimmed))
     if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT) {
+      if (trimmed.toLowerCase().includes('smoke personalization check')) {
+        const hasCustomInstructions = effectivePrompt.includes('SMOKE_SIDE_CUSTOM_INSTRUCTIONS')
+        const hasCodingPreferences = effectivePrompt.includes('SMOKE_SIDE_CODING_PREFS')
+        return {
+          ok: hasCustomInstructions && hasCodingPreferences,
+          answer: hasCustomInstructions && hasCodingPreferences
+            ? 'Smoke side personalization applied: SMOKE_SIDE_CUSTOM_INSTRUCTIONS + SMOKE_SIDE_CODING_PREFS'
+            : '',
+          error: hasCustomInstructions && hasCodingPreferences ? undefined : 'Smoke side personalization missing.',
+          usage: {
+            inputTokens: 14,
+            outputTokens: 7,
+            totalTokens: 21,
+            totalCostUsd: 0,
+            durationMs: 120,
+            apiDurationMs: 80,
+            turns: 1
+          }
+        }
+      }
       if (trimmed.toLowerCase().includes('smoke retry failure')) {
         const smokeFailureKey = `${sessionId}:${trimmed}`
         if (!smokeSideQuestionFailures.has(smokeFailureKey)) {
@@ -1941,7 +1962,7 @@ export const sessionManager = {
 
     const provider = getProvider(session.provider ?? 'claude')
     const request: RunRequest = {
-      ...requestFromSession(session, sideQuestionPrompt(session, trimmed)),
+      ...requestFromSession(session, effectivePrompt),
       providerSessionId: null,
       executionPolicy: provider.id === 'claude' ? 'dontAsk' : session.permissionMode,
       allowedTools: [],
