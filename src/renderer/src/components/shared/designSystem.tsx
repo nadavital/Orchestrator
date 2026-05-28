@@ -23,6 +23,7 @@ const focusableSelector = [
 ].join(',')
 
 const APP_SHELL_PANEL_ANIMATION_MS = 360
+const RETAINED_EXIT_MS = 240
 
 function appShellPanelEaseOut(progress: number): number {
   const clamped = Math.max(0, Math.min(1, progress))
@@ -176,6 +177,31 @@ function useLayerFocus(
       }
     }
   }, [onClose, ref])
+}
+
+function useRetainedExit(onClose: () => void): { exiting: boolean; close: () => void } {
+  const [exiting, setExiting] = useState(false)
+  const timeoutRef = useRef<number | null>(null)
+  const reducedMotion = useReducedMotionPreference()
+
+  useEffect(() => () => {
+    if (timeoutRef.current !== null) window.clearTimeout(timeoutRef.current)
+  }, [])
+
+  const close = useCallback(() => {
+    if (exiting) return
+    if (reducedMotion) {
+      onClose()
+      return
+    }
+    setExiting(true)
+    timeoutRef.current = window.setTimeout(() => {
+      timeoutRef.current = null
+      onClose()
+    }, RETAINED_EXIT_MS)
+  }, [exiting, onClose, reducedMotion])
+
+  return { exiting, close }
 }
 
 interface ButtonProps {
@@ -2479,13 +2505,16 @@ export function MotionOverlay({
   backdropStyle?: CSSProperties
 }): JSX.Element {
   const surfaceRef = useRef<HTMLDivElement>(null)
-  useLayerFocus(surfaceRef, onClose)
+  const { exiting, close } = useRetainedExit(onClose)
+  useLayerFocus(surfaceRef, close)
 
   return (
     <div
       className={`motion-overlay-backdrop fixed inset-0 z-50 flex items-center justify-center ${className}`}
+      data-motion-exit={exiting ? 'true' : 'false'}
+      aria-hidden={exiting ? 'true' : undefined}
       style={{ background: 'rgba(16, 24, 40, 0.18)', backdropFilter: 'blur(4px)', ...backdropStyle }}
-      onClick={(event) => event.target === event.currentTarget && onClose()}
+      onClick={(event) => event.target === event.currentTarget && close()}
     >
       <div
         ref={surfaceRef}
@@ -2515,12 +2544,15 @@ export function Sheet({
   width?: number
 }): JSX.Element {
   const sheetRef = useRef<HTMLElement>(null)
-  useLayerFocus(sheetRef, onClose)
+  const { exiting, close } = useRetainedExit(onClose)
+  useLayerFocus(sheetRef, close)
 
   return (
     <div
       className="motion-sheet-backdrop fixed inset-0 z-50 flex justify-end"
-      onClick={(event) => event.target === event.currentTarget && onClose()}
+      data-motion-exit={exiting ? 'true' : 'false'}
+      aria-hidden={exiting ? 'true' : undefined}
+      onClick={(event) => event.target === event.currentTarget && close()}
     >
       <section
         ref={sheetRef}
@@ -2532,7 +2564,7 @@ export function Sheet({
       >
         <header className="motion-sheet-header">
           <div className="min-w-0 flex-1">{title}</div>
-          <IconButton icon="close" label="Close" onClick={onClose} />
+          <IconButton icon="close" label="Close" onClick={close} />
         </header>
         <div className="motion-sheet-body">{children}</div>
         {footer && <footer className="motion-sheet-footer">{footer}</footer>}
@@ -2584,6 +2616,7 @@ export function DismissablePopoverSurface({
   role?: string
 }): JSX.Element {
   const ref = useRef<HTMLDivElement>(null)
+  const { exiting, close } = useRetainedExit(onClose)
 
   useEffect(() => {
     const previouslyFocused = document.activeElement instanceof HTMLElement
@@ -2598,14 +2631,14 @@ export function DismissablePopoverSurface({
       if (event.key === 'Escape') {
         event.preventDefault()
         restoreFocus()
-        onClose()
+        close()
       }
     }
     const onMouseDown = (event: MouseEvent): void => {
       if (ref.current && !ref.current.contains(event.target as Node)) {
         window.setTimeout(() => {
           restoreFocus()
-          onClose()
+          close()
         }, 0)
       }
     }
@@ -2616,10 +2649,16 @@ export function DismissablePopoverSurface({
       document.removeEventListener('mousedown', onMouseDown, { capture: true })
       restoreFocus()
     }
-  }, [onClose])
+  }, [close])
 
   return (
-    <PopoverSurface ref={ref} className={className} style={style}>
+    <PopoverSurface
+      ref={ref}
+      className={className}
+      style={style}
+      data-motion-exit={exiting ? 'true' : 'false'}
+      aria-hidden={exiting ? 'true' : undefined}
+    >
       <div role={role} className="min-w-0">
         {children}
       </div>
@@ -2640,6 +2679,7 @@ export function MenuSurface({
   style?: CSSProperties
 } & HTMLAttributes<HTMLDivElement>): JSX.Element {
   const ref = useRef<HTMLDivElement>(null)
+  const { exiting, close } = useRetainedExit(onClose)
 
   useEffect(() => {
     const previouslyFocused = document.activeElement instanceof HTMLElement
@@ -2672,7 +2712,7 @@ export function MenuSurface({
       if (event.key === 'Escape') {
         event.preventDefault()
         restoreFocus()
-        onClose()
+        close()
       } else if (event.key === 'ArrowDown') {
         event.preventDefault()
         focusMenuItem(1)
@@ -2691,7 +2731,7 @@ export function MenuSurface({
       if (ref.current && !ref.current.contains(event.target as Node)) {
         window.setTimeout(() => {
           restoreFocus()
-          onClose()
+          close()
         }, 0)
       }
     }
@@ -2703,12 +2743,14 @@ export function MenuSurface({
       document.removeEventListener('mousedown', onMouseDown, { capture: true })
       restoreFocus()
     }
-  }, [onClose])
+  }, [close])
 
   return (
     <PopoverSurface
       ref={ref}
       {...surfaceProps}
+      data-motion-exit={exiting ? 'true' : 'false'}
+      aria-hidden={exiting ? 'true' : undefined}
       className={`orchestrator-menu-surface ${className}`.trim()}
       style={{
         borderRadius: 12,

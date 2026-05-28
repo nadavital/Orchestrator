@@ -705,9 +705,19 @@
     to { opacity: 1; transform: translateY(0) scale(1); }
   }
 
+  @keyframes motionOverlayOut {
+    from { opacity: 1; transform: translateY(0) scale(1); }
+    to { opacity: 0; transform: translateY(3px) scale(0.985); }
+  }
+
   @keyframes motionFadeIn {
     from { opacity: 0; }
     to { opacity: 1; }
+  }
+
+  @keyframes motionFadeOut {
+    from { opacity: 1; }
+    to { opacity: 0; }
   }
 
   @keyframes motionSpinner {
@@ -763,6 +773,18 @@
   .motion-popover-surface {
     animation: motionOverlayIn var(--motion-duration-overlay) var(--motion-ease-standard) both;
     transform-origin: top center;
+  }
+
+  .motion-overlay-backdrop[data-motion-exit='true'],
+  .motion-sheet-backdrop[data-motion-exit='true'] {
+    pointer-events: none;
+    animation: motionFadeOut var(--motion-duration-overlay) var(--motion-ease-standard) both;
+  }
+
+  .motion-overlay-backdrop[data-motion-exit='true'] .motion-overlay-surface,
+  .motion-popover-surface[data-motion-exit='true'] {
+    pointer-events: none;
+    animation: motionOverlayOut var(--motion-duration-overlay) var(--motion-ease-standard) both;
   }
 
   .motion-overlay-surface {
@@ -11357,9 +11379,19 @@
     animation: motionSheetIn var(--motion-duration-panel) var(--motion-ease-emphasized) both;
   }
 
+  .motion-sheet-backdrop[data-motion-exit='true'] .motion-sheet {
+    pointer-events: none;
+    animation: motionSheetOut var(--motion-duration-overlay) var(--motion-ease-standard) both;
+  }
+
   @keyframes motionSheetIn {
     from { opacity: 0; transform: translateX(18px); }
     to { opacity: 1; transform: translateX(0); }
+  }
+
+  @keyframes motionSheetOut {
+    from { opacity: 1; transform: translateX(0); }
+    to { opacity: 0; transform: translateX(12px); }
   }
 
   .motion-sheet-header,

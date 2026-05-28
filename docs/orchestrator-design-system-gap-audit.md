@@ -435,13 +435,13 @@ Current verification:
 
 - Shared `MenuSurface` now focuses the first menu item, supports ArrowUp/ArrowDown/Home/End, closes on Escape/outside click, and restores focus to the opener.
 - Shared `DismissablePopoverSurface` now restores focus to the opener after Escape or outside-click dismissal.
-- Capabilities smoke verifies create-menu open, arrow-key focus, Escape dismissal, and focus return.
+- Shared menu, popover, sheet, and dialog close paths now mark the surface with `data-motion-exit="true"` and delay the close callback long enough for an exit animation when reduced motion is not active.
+- Capabilities smoke verifies create-menu open, arrow-key focus, Escape dismissal, focus return, and retained exit states for create menu, create sheet, and delete confirmation dialog.
 - Composer smoke verifies permission-menu Escape focus return and agent-menu outside-click focus return.
 
 Still needed:
 
 - `MenuSeparator` and optional submenu/disclosure behavior.
-- Exit animation retention instead of immediate unmount for menus/sheets where feasible.
 
 Highest-value targets:
 
@@ -1291,7 +1291,7 @@ Use this as the definition of done for the full migration.
 
 ## Bottom Line
 
-The current implementation is no longer just a first slice. It now has a real app-shell, panel, resize, tab, toolbar, badge, inspector, pet-overlay geometry, reduced-motion, and shared interaction primitive baseline. It is still not a whole-app 1:1 Codex UI/motion system because settings, transcript, composer, extension panels, roving menu keyboard behavior, and exit-animation retention still need a dedicated finishing pass.
+The current implementation is no longer just a first slice. It now has a real app-shell, panel, resize, tab, toolbar, badge, inspector, pet-overlay geometry, reduced-motion, retained shared-surface exits, and shared interaction primitive baseline. It is still not a whole-app 1:1 Codex UI/motion system because settings, transcript, composer, extension panels, roving menu keyboard behavior, and deeper live visual comparison still need dedicated finishing passes.
 
 Completed in the latest implementation pass:
 
@@ -1302,9 +1302,10 @@ Completed in the latest implementation pass:
 - Automated session-switch smoke now verifies transcript switching within budget and confirms the session view is not replaying entrance motion.
 - Automated reduced-motion smoke now verifies forced reduced-motion profile propagation, zeroed main-renderer motion durations, and disabled pet-overlay badge/row transitions.
 - Shared `MenuSurface`, `MenuItem`, `DismissablePopoverSurface`, `ConfirmDialog`, and `TextInputDialog` primitives now cover Escape/outside-click behavior, disabled/danger states, and native dialog replacement.
+- Shared menu, popover, sheet, and dialog close paths now retain exiting surfaces with `data-motion-exit="true"` instead of immediately unmounting on Escape/outside/close-button paths.
 - Capabilities create/row menus, edit/sync sheets, and delete confirmation now use shared primitives.
 - Session action rename/delete and project removal no longer use native browser prompt/confirm UI.
-- Capabilities smoke now verifies create-menu open, menu Escape dismissal, create-sheet open, and sheet Escape dismissal.
+- Capabilities smoke now verifies create-menu open, menu Escape dismissal, create-sheet open, sheet Escape dismissal, and retained exit states for menu, sheet, and dialog surfaces.
 - Settings now shares design-system primitives for intro text, groups, panels, compact rows, choice cards, status pills, diagnostic pills, provider command-output cards, the provider picker, the provider model-list manager, the provider config editor, Appearance color swatches/chrome editor controls, and Appearance import controls.
 - Composer provider/agent/permission dropdown panels now use shared dismissable popover behavior with focus return.
 - Composer smoke now verifies permission-menu Escape dismissal/focus return, agent-menu outside-click dismissal/focus return, expanded/collapsed ARIA state on Agent/Permission popover triggers, and Arrow-key roving focus inside composer popovers.
@@ -1316,5 +1317,4 @@ Completed in the latest implementation pass:
 The biggest remaining pieces are:
 
 1. Composer and transcript workflow polish beyond the implemented shared primitives, especially deeper context/permission flows and provider-backed retry/continue proof.
-2. Exit animation retention for menus/sheets/dialogs rather than immediate unmount.
-3. Deeper visual comparison baselines against Codex for badges, banners, panels, menus, tabs, sheets, and navigation.
+2. Deeper visual comparison baselines against Codex for badges, banners, panels, menus, tabs, sheets, and navigation.

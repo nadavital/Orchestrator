@@ -4574,7 +4574,9 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             await sleep(40);
             capabilityMenuArrowFocus = document.activeElement?.getAttribute('role') === 'menuitem';
             window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-            await sleep(120);
+            await sleep(40);
+            var capabilityMenuExitRetained = Boolean(document.querySelector('.cap-create-menu[data-motion-exit="true"] [role="menu"]'));
+            await sleep(300);
             var capabilityMenuClosedWithEscape = !document.querySelector('.cap-create-menu [role="menu"]');
             var capabilityMenuFocusReturned = document.activeElement === createButton;
             createButton?.click();
@@ -4590,7 +4592,9 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             await sleep(40);
             var capabilitySheetFocusStayedInside = Boolean(document.querySelector('.motion-sheet')?.contains(document.activeElement));
             window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-            await sleep(120);
+            await sleep(40);
+            var capabilitySheetExitRetained = Boolean(document.querySelector('.motion-sheet-backdrop[data-motion-exit="true"] .motion-sheet'));
+            await sleep(300);
             var capabilitySheetClosedWithEscape = !document.querySelector('.motion-sheet');
 
             const setNativeValue = (element, value) => {
@@ -4632,7 +4636,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                   return true;
                 }
                 window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-                await sleep(60);
+                await sleep(300);
               }
               return false;
             };
@@ -4647,7 +4651,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               [...capabilityEditSheet.querySelectorAll('input, textarea')]
                 .some((field) => field.value?.includes('orchestrator-smoke-skill') || field.value?.includes('Orchestrator Smoke Skill'));
             window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-            await sleep(120);
+            await sleep(300);
             var capabilitySyncActionClicked = await openCapabilityAction('Sync');
             const capabilitySyncSheet = document.querySelector('.motion-sheet');
             var capabilitySyncSheetOpened = Boolean(capabilitySyncSheet);
@@ -4656,7 +4660,20 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               capabilitySyncSheet.innerText.includes('Sync capability') &&
               capabilitySyncSheet.innerText.includes('orchestrator-smoke-skill');
             window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-            await sleep(120);
+            await sleep(300);
+            var capabilityDeleteActionClicked = await openCapabilityAction('Delete');
+            const capabilityDeleteDialog = document.querySelector('.motion-overlay-backdrop [role="dialog"]');
+            var capabilityDeleteDialogOpened =
+              capabilityDeleteDialog instanceof HTMLElement &&
+              (
+                capabilityDeleteDialog.innerText.includes('Remove Orchestrator Smoke Skill?') ||
+                capabilityDeleteDialog.innerText.includes('Remove orchestrator-smoke-skill?')
+              );
+            window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+            await sleep(40);
+            var capabilityDialogExitRetained = Boolean(document.querySelector('.motion-overlay-backdrop[data-motion-exit="true"] [role="dialog"]'));
+            await sleep(300);
+            var capabilityDialogClosedWithEscape = !document.querySelector('.motion-overlay-backdrop [role="dialog"]');
           }
           if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'composer') {
             const setNativeValue = (element, value) => {
@@ -4931,9 +4948,9 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               (
                 permissionDangerLabel.textContent?.trim() === 'Isolated only' &&
                 getComputedStyle(permissionDangerLabel).textTransform !== 'uppercase'
-              );
+            );
             window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-            await sleep(140);
+            await sleep(300);
             var composerPermissionMenuClosedWithEscape = !document.querySelector('.motion-popover-surface');
             var composerPermissionFocusReturned = document.activeElement === permissionButton;
             var composerPermissionTriggerCollapsedOnClose =
@@ -4963,9 +4980,9 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 return text.length > 0 &&
                   text !== text.toUpperCase() &&
                   getComputedStyle(label).textTransform !== 'uppercase';
-              });
+            });
             document.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, clientX: 1, clientY: 1 }));
-            await sleep(140);
+            await sleep(300);
             var composerAgentMenuClosedWithOutsideClick = !document.querySelector('.motion-popover-surface');
             var composerAgentFocusReturned = document.activeElement === agentButton;
             var composerAgentTriggerCollapsedOnClose =
@@ -6035,6 +6052,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             hasSideQuestionCommandText: bodyText.includes('/btw') || Boolean(textarea && textarea.value.includes('/btw')),
             capabilityMenuOpened: typeof capabilityMenuOpened === 'boolean' ? capabilityMenuOpened : null,
             capabilityMenuArrowFocus: typeof capabilityMenuArrowFocus === 'boolean' ? capabilityMenuArrowFocus : null,
+            capabilityMenuExitRetained: typeof capabilityMenuExitRetained === 'boolean' ? capabilityMenuExitRetained : null,
             capabilityMenuClosedWithEscape: typeof capabilityMenuClosedWithEscape === 'boolean' ? capabilityMenuClosedWithEscape : null,
             capabilityMenuFocusReturned: typeof capabilityMenuFocusReturned === 'boolean' ? capabilityMenuFocusReturned : null,
             capabilityCreateMenuChromeCalm: typeof capabilityCreateMenuChromeCalm === 'boolean' ? capabilityCreateMenuChromeCalm : null,
@@ -6044,6 +6062,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             capabilitySheetOpened: typeof capabilitySheetOpened === 'boolean' ? capabilitySheetOpened : null,
             capabilitySheetFocused: typeof capabilitySheetFocused === 'boolean' ? capabilitySheetFocused : null,
             capabilitySheetFocusStayedInside: typeof capabilitySheetFocusStayedInside === 'boolean' ? capabilitySheetFocusStayedInside : null,
+            capabilitySheetExitRetained: typeof capabilitySheetExitRetained === 'boolean' ? capabilitySheetExitRetained : null,
             capabilitySheetClosedWithEscape: typeof capabilitySheetClosedWithEscape === 'boolean' ? capabilitySheetClosedWithEscape : null,
             capabilityEditActionClicked: typeof capabilityEditActionClicked === 'boolean' ? capabilityEditActionClicked : null,
             capabilityEditSheetOpened: typeof capabilityEditSheetOpened === 'boolean' ? capabilityEditSheetOpened : null,
@@ -6051,6 +6070,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             capabilitySyncActionClicked: typeof capabilitySyncActionClicked === 'boolean' ? capabilitySyncActionClicked : null,
             capabilitySyncSheetOpened: typeof capabilitySyncSheetOpened === 'boolean' ? capabilitySyncSheetOpened : null,
             capabilitySyncSheetSeeded: typeof capabilitySyncSheetSeeded === 'boolean' ? capabilitySyncSheetSeeded : null,
+            capabilityDeleteActionClicked: typeof capabilityDeleteActionClicked === 'boolean' ? capabilityDeleteActionClicked : null,
+            capabilityDeleteDialogOpened: typeof capabilityDeleteDialogOpened === 'boolean' ? capabilityDeleteDialogOpened : null,
+            capabilityDialogExitRetained: typeof capabilityDialogExitRetained === 'boolean' ? capabilityDialogExitRetained : null,
+            capabilityDialogClosedWithEscape: typeof capabilityDialogClosedWithEscape === 'boolean' ? capabilityDialogClosedWithEscape : null,
             composerPermissionMenuOpened: typeof composerPermissionMenuOpened === 'boolean' ? composerPermissionMenuOpened : null,
             composerDropdownMaterialWorks: typeof composerDropdownMaterialWorks === 'boolean' ? composerDropdownMaterialWorks : null,
             composerPermissionNativeTooltipsWork: typeof composerPermissionNativeTooltipsWork === 'boolean' ? composerPermissionNativeTooltipsWork : null,

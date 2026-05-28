@@ -2798,6 +2798,7 @@ child.on('exit', async (code) => {
         sideQuestionCommand: ['terminal', 'settings', 'settings-providers', 'settings-deeplink', 'resources', 'capabilities', 'pets', 'inspector', 'composer', 'extensions', 'plan'].includes(captureView) || result.hasSideQuestionCommandText === true,
         capabilityCreateMenu: captureView !== 'capabilities' || result.capabilityMenuOpened === true,
         capabilityMenuArrowFocus: captureView !== 'capabilities' || result.capabilityMenuArrowFocus === true,
+        capabilityMenuExitRetained: captureView !== 'capabilities' || result.capabilityMenuExitRetained === true,
         capabilityMenuEscape: captureView !== 'capabilities' || result.capabilityMenuClosedWithEscape === true,
         capabilityMenuFocusReturned: captureView !== 'capabilities' || result.capabilityMenuFocusReturned === true,
         capabilityCreateMenuChromeCalm: captureView !== 'capabilities' || result.capabilityCreateMenuChromeCalm === true,
@@ -2807,9 +2808,16 @@ child.on('exit', async (code) => {
         capabilityCreateSheet: captureView !== 'capabilities' || result.capabilitySheetOpened === true,
         capabilitySheetFocus: captureView !== 'capabilities' || result.capabilitySheetFocused === true,
         capabilitySheetFocusTrap: captureView !== 'capabilities' || result.capabilitySheetFocusStayedInside === true,
+        capabilitySheetExitRetained: captureView !== 'capabilities' || result.capabilitySheetExitRetained === true,
         capabilitySheetEscape: captureView !== 'capabilities' || result.capabilitySheetClosedWithEscape === true,
         capabilityEditSheet: captureView !== 'capabilities' || (result.capabilityEditSheetOpened === true && result.capabilityEditSheetSeeded === true),
         capabilitySyncSheet: captureView !== 'capabilities' || (result.capabilitySyncSheetOpened === true && result.capabilitySyncSheetSeeded === true),
+        capabilityDialogExitRetained: captureView !== 'capabilities' || (
+          result.capabilityDeleteActionClicked === true &&
+          result.capabilityDeleteDialogOpened === true &&
+          result.capabilityDialogExitRetained === true &&
+          result.capabilityDialogClosedWithEscape === true
+        ),
         composerPermissionMenu: captureView !== 'composer' || result.composerPermissionMenuOpened === true,
         composerDropdownMaterial: captureView !== 'composer' || result.composerDropdownMaterialWorks === true,
         composerPermissionNativeTooltips: captureView !== 'composer' || result.composerPermissionNativeTooltipsWork === true,
