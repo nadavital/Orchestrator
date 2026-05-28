@@ -1912,7 +1912,9 @@ child.on('exit', async (code) => {
         scrollStayedPut: result.scrollStayedPut === true,
         streamingDidNotAutoFollow: result.streamingDidNotAutoFollow === true,
         streamingCursorVisibleDuringUpdate: result.streamingCursorVisibleDuringUpdate === true,
+        thinkingIndicatorDuringUpdate: result.thinkingIndicatorVisibleDuringUpdate === true,
         streamingCursorHiddenAfterComplete: result.streamingCursorHiddenAfterComplete === true,
+        thinkingIndicatorHiddenAfterComplete: result.thinkingIndicatorHiddenAfterComplete === true,
         finalStreamingTextDeduped: result.finalStreamingTextDeduped === true,
         jumpToLatestReached: result.jumpToLatestReached === true,
         jumpHiddenAfterClick: result.jumpVisibleAfterClick === false

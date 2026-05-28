@@ -475,6 +475,10 @@ Constraints:
 
 Why it matters: Codex's interaction feel depends heavily on the composer and transcript. Orchestrator still has many local styles here.
 
+Current verification:
+
+- Focused `node scripts/run-automated-ui-smoke.mjs --scroll` verifies streamed assistant updates expose a polite atomic thinking indicator under `thinkingIndicatorDuringUpdate=true`, hide it after completion under `thinkingIndicatorHiddenAfterComplete=true`, and keep scroll lock, streaming cursor, dedupe, and jump-to-latest gates green.
+
 Still needed:
 
 - `ComposerShell`.
@@ -483,7 +487,6 @@ Still needed:
 - `ComposerAttachmentChip`.
 - `ComposerStatusButton` for permission/model/runtime state.
 - `ScrollToBottomButton` modeled on Codex's scroll-to-bottom behavior.
-- `ThinkingIndicator`.
 - `AttachmentChip`.
 - `FileReferenceCard`.
 - `MarkdownSurface`.

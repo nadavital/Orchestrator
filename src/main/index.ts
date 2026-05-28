@@ -22091,6 +22091,14 @@ function runAutomatedScrollSmoke(win: BrowserWindow, outputPath: string, screens
             const jump = document.querySelector('[data-testid="jump-to-latest"]');
             const jumpVisibleAfterUpdate = Boolean(jump);
             const streamingCursorVisibleDuringUpdate = Boolean(document.querySelector('[data-testid="streaming-cursor"]'));
+            const thinkingIndicator = document.querySelector('[data-testid="thinking-indicator"]');
+            const thinkingIndicatorVisibleDuringUpdate =
+              thinkingIndicator instanceof HTMLElement &&
+              thinkingIndicator.getAttribute('role') === 'status' &&
+              thinkingIndicator.getAttribute('aria-live') === 'polite' &&
+              thinkingIndicator.getAttribute('aria-atomic') === 'true' &&
+              thinkingIndicator.getAttribute('data-thinking-indicator-streaming') === 'true' &&
+              thinkingIndicator.textContent.includes('Assistant response streaming');
             jump?.click();
             await sleep(180);
             const finalBottomDistance = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
@@ -22102,6 +22110,7 @@ function runAutomatedScrollSmoke(win: BrowserWindow, outputPath: string, screens
               afterBottomDistance,
               jumpVisibleAfterUpdate,
               streamingCursorVisibleDuringUpdate,
+              thinkingIndicatorVisibleDuringUpdate,
               finalScrollTop: scroller.scrollTop,
               finalBottomDistance,
               jumpVisibleAfterClick: Boolean(document.querySelector('[data-testid="jump-to-latest"]'))
@@ -22131,6 +22140,7 @@ function runAutomatedScrollSmoke(win: BrowserWindow, outputPath: string, screens
             return {
               transcriptFoundAfterComplete: true,
               streamingCursorHiddenAfterComplete: !document.querySelector('[data-testid="streaming-cursor"]'),
+              thinkingIndicatorHiddenAfterComplete: !document.querySelector('[data-testid="thinking-indicator"]'),
               finalStreamingTextDeduped: finalLineMatches.length === 1
             };
           })()

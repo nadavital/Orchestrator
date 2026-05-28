@@ -787,6 +787,18 @@
     padding-left: 32px;
   }
 
+  .transcript-thinking-indicator {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+    padding: 2px 10px;
+    color: var(--text-tertiary);
+  }
+
+  .transcript-thinking-indicator .thinking-dots {
+    padding-left: 0;
+  }
+
   .thinking-dot {
     width: 6px;
     height: 6px;

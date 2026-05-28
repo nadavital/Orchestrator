@@ -8312,3 +8312,13 @@ Implemented: the session header now labels the control as `Toggle side panel`, m
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and focused `node scripts/run-automated-ui-smoke.mjs --header` passed. The first non-elevated smoke hit the expected sandbox localhost bind failure; the elevated rerun passed with `titlebarSidebarToggle=true` and `headerPanelEmptyFallback=true` alongside the existing header identity, metadata, compact action, tooltip, profile badge, and action-menu gates. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-header-1779962518986.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-header-1779962518986.png`.
 
 Remaining: this closes local header side-panel ownership and empty-panel fallback only. Live Codex pixel/timing proof for the header/right-panel boundary and broader route/window lifecycle proof remain Phase 1 work.
+
+### 2026-05-28 - Transcript Thinking Indicator Status
+
+Product evidence: the main transcript is a Phase 1 daily coding surface. Orchestrator already showed a streaming cursor during assistant updates, but the shared thinking affordance only depended on the session run status. Local streamed assistant updates could therefore lack the same visible/status-region feedback path that users expect while a response is still arriving.
+
+Implemented: transcript thinking feedback now appears when the session is active or when any visible assistant text message is streaming. The indicator exposes a stable `thinking-indicator` test id, polite atomic `status` semantics, and a `data-thinking-indicator-streaming` state so smoke can distinguish response streaming from generic thinking without relying on a broad provider run.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and `git diff --check` passed. Focused `node scripts/run-automated-ui-smoke.mjs --scroll` first hit the expected sandbox localhost bind failure; the elevated rerun passed with `thinkingIndicatorDuringUpdate=true` and `thinkingIndicatorHiddenAfterComplete=true` alongside the existing scroll lock, streaming cursor, dedupe, and jump-to-latest gates. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-scroll-1779962918884.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-scroll-1779962918884.png`.
+
+Remaining: this closes local transcript thinking/status semantics for streamed assistant updates only. Real provider-backed streaming timing, broader keyboard/screen-reader traversal, and exact live Codex transcript spacing remain Phase 1 work.

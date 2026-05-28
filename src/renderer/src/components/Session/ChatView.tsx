@@ -120,6 +120,14 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
   const hiddenMessageCount = Math.max(0, totalMessageCount - visibleMessages.length)
   const transcriptItems = useMemo(() => groupTranscriptMessages(visibleMessages), [visibleMessages])
   const fileReferenceRoots = useMemo(() => sessionFileReferenceRoots(session), [session])
+  const hasStreamingAssistantMessage = useMemo(() => (
+    visibleMessages.some((message) => (
+      message.type === 'text' &&
+      message.role === 'assistant' &&
+      message.isStreaming === true
+    ))
+  ), [visibleMessages])
+  const showThinkingIndicator = isActiveSessionStatus(session.status) || hasStreamingAssistantMessage
   const lastMessage = session.messages[session.messages.length - 1]
   const lastTextLength = lastMessage?.type === 'text' ? lastMessage.content.length : 0
   const lastAssistantTextId = useMemo(() => {
@@ -771,7 +779,7 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
               ))}
             </div>
           </div>
-          {session.status === 'running' && <ThinkingIndicator />}
+          {showThinkingIndicator && <ThinkingIndicator streaming={hasStreamingAssistantMessage} />}
           <div ref={bottomRef} />
         </div>
       </div>
@@ -2962,8 +2970,21 @@ function permissionRiskColor(risk: 'low' | 'medium' | 'high'): string {
   return 'var(--color-green)'
 }
 
-function ThinkingIndicator(): JSX.Element {
+function ThinkingIndicator({ streaming }: { streaming: boolean }): JSX.Element {
+  const statusText = streaming ? 'Assistant response streaming' : 'Assistant is thinking'
   return (
-    <ThinkingDots />
+    <div className="flex justify-center">
+      <div
+        className="transcript-thinking-indicator"
+        data-testid="thinking-indicator"
+        data-thinking-indicator-streaming={streaming ? 'true' : 'false'}
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+      >
+        <ThinkingDots label={statusText} />
+        <span className="sr-only">{statusText}</span>
+      </div>
+    </div>
   )
 }
