@@ -36,6 +36,7 @@ let projectStore: typeof import('./projects').projectStore
 let sessionManager: typeof import('./sessions').sessionManager
 let automationManager: typeof import('./automations').automationManager
 let automationScheduler: typeof import('./automationSchedulerSingleton').automationScheduler
+let listProviderRuntimeDebugEvents: typeof import('./providerRuntimeDiagnostics').listProviderRuntimeDebugEvents
 
 let mainWindow: BrowserWindow | null = null
 const appWindows = new Set<BrowserWindow>()
@@ -537,6 +538,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
   }
   if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-layout') {
     runAutomatedTranscriptLayoutSmoke(win, outputPath, screenshotPath)
+    return
+  }
+  if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-live-lifecycle') {
+    runAutomatedTranscriptLiveLifecycleSmoke(win, outputPath, screenshotPath)
     return
   }
   if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-user-input') {
@@ -21948,6 +21953,236 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
   })
 }
 
+function runAutomatedTranscriptLiveLifecycleSmoke(win: BrowserWindow, outputPath: string, screenshotPath?: string): void {
+  win.webContents.once('did-finish-load', () => {
+    setTimeout(async () => {
+      try {
+        win.setMinimumSize(520, 600)
+        win.setSize(920, 760)
+        const profile = getAppProfile()
+        const session = sessionManager.list()[0]
+        if (!session) throw new Error('No smoke session was available for live transcript lifecycle proof.')
+        const now = Date.now()
+        const firstToken = 'CODEX_RENDERER_LIFECYCLE_FIRST_OK'
+        const continueToken = 'CODEX_RENDERER_LIFECYCLE_CONTINUE_OK'
+        const retryToken = 'CODEX_RENDERER_LIFECYCLE_RETRY_OK'
+        const memoryToken = 'ORCH_RENDERER_LIFECYCLE_MEMORY_638'
+        const firstPrompt = [
+          'This is a live Orchestrator renderer lifecycle proof.',
+          'Do not run tools.',
+          `Remember this proof key: ${memoryToken}.`,
+          `If I ask "Continue from where you left off.", reply exactly ${continueToken}:${memoryToken}.`,
+          `If I ask "Renderer retry continuation proof.", reply exactly ${retryToken}:${memoryToken}.`,
+          `For this turn, reply exactly ${firstToken}.`
+        ].join(' ')
+
+        sessionManager.save({
+          ...session,
+          name: 'Transcript live lifecycle smoke',
+          provider: 'codex',
+          runtime: 'app-server',
+          model: 'gpt-5.4-mini',
+          effort: 'low',
+          permissionMode: 'default',
+          providerSessionId: null,
+          claudeSessionId: null,
+          status: 'idle',
+          messages: [],
+          latestMessageAt: now
+        })
+        win.webContents.send('pet:navigate', session.id)
+        await new Promise((resolve) => setTimeout(resolve, 240))
+
+        const sendStarted = await sessionManager.sendMessage(session.id, firstPrompt)
+        if (!sendStarted) throw new Error('Live renderer lifecycle proof failed to start sendMessage.')
+        const afterSend = await waitForAutomatedSessionText(session.id, firstToken, { requireProviderSessionId: true })
+        const providerSessionId = afterSend.providerSessionId
+        if (!providerSessionId) throw new Error('Live renderer lifecycle proof did not record a provider session id.')
+
+        const continueClick = await win.webContents.executeJavaScript(`
+          (async () => {
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            const scroller = document.querySelector('[data-testid="transcript-scroll"]');
+            if (scroller instanceof HTMLElement) {
+              scroller.scrollTop = 0;
+              scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
+            }
+            for (let index = 0; index < 60; index += 1) {
+              const buttons = [...document.querySelectorAll('[data-testid="chat-continue-last-turn"]')];
+              const button = buttons.at(-1);
+              if (button instanceof HTMLButtonElement && !button.disabled) {
+                button.click();
+                for (let labelIndex = 0; labelIndex < 80; labelIndex += 1) {
+                  const labels = [...document.querySelectorAll('[data-testid="chat-continue-last-turn-label"]')];
+                  const label = labels.at(-1);
+                  if (label instanceof HTMLElement && label.textContent?.includes('Continue sent')) {
+                    return {
+                      clicked: true,
+                      label: label.textContent,
+                      state: label.getAttribute('data-continue-state'),
+                      ariaLive: label.getAttribute('aria-live')
+                    };
+                  }
+                  await sleep(100);
+                }
+                return { clicked: true, label: null, state: null, ariaLive: null };
+              }
+              await sleep(100);
+            }
+            return { clicked: false };
+          })()
+        `)
+        if (!continueClick?.clicked) throw new Error('Live renderer lifecycle proof could not click Continue.')
+        const afterContinue = await waitForAutomatedSessionText(
+          session.id,
+          new RegExp(`${escapeAutomatedRegExp(continueToken)}\\s*:\\s*${escapeAutomatedRegExp(memoryToken)}`),
+          { providerSessionId }
+        )
+
+        sessionManager.appendMessage(session.id, [
+          {
+            id: 'renderer-live-lifecycle-retry-user',
+            role: 'user',
+            type: 'text',
+            content: 'Renderer retry continuation proof.',
+            timestamp: Date.now()
+          },
+          {
+            id: 'renderer-live-lifecycle-retry-error',
+            role: 'system',
+            type: 'result',
+            content: 'Renderer live lifecycle retry recovery fixture.',
+            subtype: 'error_during_execution',
+            timestamp: Date.now() + 1
+          }
+        ])
+        sessionManager.updateStatus(session.id, 'error')
+        await new Promise((resolve) => setTimeout(resolve, 240))
+
+        const retryClick = await win.webContents.executeJavaScript(`
+          (async () => {
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            const scroller = document.querySelector('[data-testid="transcript-scroll"]');
+            if (scroller instanceof HTMLElement) {
+              scroller.scrollTop = scroller.scrollHeight;
+              scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
+            }
+            for (let index = 0; index < 80; index += 1) {
+              const cards = [...document.querySelectorAll('[data-testid="chat-error-recovery-card"]')];
+              const card = cards.at(-1);
+              const button = card?.querySelector('[data-testid="chat-error-retry-last"]');
+              if (button instanceof HTMLButtonElement && !button.disabled) {
+                button.click();
+                for (let statusIndex = 0; statusIndex < 80; statusIndex += 1) {
+                  const statuses = [...document.querySelectorAll('[data-testid="chat-error-retry-status"]')];
+                  const status = statuses.at(-1);
+                  if (status instanceof HTMLElement && status.textContent?.includes('Retry sent')) {
+                    return {
+                      clicked: true,
+                      status: status.textContent,
+                      role: status.getAttribute('role'),
+                      ariaLive: status.getAttribute('aria-live')
+                    };
+                  }
+                  await sleep(100);
+                }
+                return { clicked: true, status: null, role: null, ariaLive: null };
+              }
+              await sleep(100);
+            }
+            return { clicked: false };
+          })()
+        `)
+        if (!retryClick?.clicked) throw new Error('Live renderer lifecycle proof could not click Retry last message.')
+        const afterRetry = await waitForAutomatedSessionText(
+          session.id,
+          new RegExp(`${escapeAutomatedRegExp(retryToken)}\\s*:\\s*${escapeAutomatedRegExp(memoryToken)}`),
+          { providerSessionId }
+        )
+        const finalSession = sessionManager.get(session.id)
+        const debugEvents = listProviderRuntimeDebugEvents({ sessionId: session.id, includeNoisy: true, limit: 1000 })
+        const startMethodCount = debugEvents.filter((event) => event.method === 'thread/start').length
+        const resumeMethodCount = debugEvents.filter((event) => event.method === 'thread/resume').length
+        const result = {
+          profile,
+          liveRendererSendCompleted: sendStarted && afterSend.transcript.includes(firstToken),
+          liveRendererContinueClicked: continueClick.clicked === true,
+          liveRendererContinueCompleted:
+            afterContinue.providerSessionId === providerSessionId &&
+            afterContinue.transcript.includes(continueToken) &&
+            afterContinue.transcript.includes(memoryToken),
+          liveRendererRetryClicked: retryClick.clicked === true && retryClick.status?.includes('Retry sent') === true,
+          liveRendererRetryCompleted:
+            afterRetry.providerSessionId === providerSessionId &&
+            afterRetry.transcript.includes(retryToken) &&
+            afterRetry.transcript.includes(memoryToken),
+          liveRendererSameProviderSession:
+            afterSend.providerSessionId === providerSessionId &&
+            afterContinue.providerSessionId === providerSessionId &&
+            afterRetry.providerSessionId === providerSessionId,
+          liveRendererStartMethodCount: startMethodCount,
+          liveRendererResumeMethodCount: resumeMethodCount,
+          sessionId: session.id,
+          providerSessionId,
+          continueClick,
+          retryClick,
+          assistantMessages: finalSession?.messages
+            .filter((message) => message.type === 'text' && message.role === 'assistant')
+            .map((message) => message.content) ?? []
+        }
+        if (screenshotPath) {
+          const image = await win.webContents.capturePage()
+          writeFileSync(screenshotPath, image.toPNG())
+        }
+        writeFileSync(outputPath, JSON.stringify({ ok: true, result, screenshotPath }, null, 2))
+        app.quit()
+      } catch (error) {
+        writeFileSync(outputPath, JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2))
+        app.quit()
+      }
+    }, 700)
+  })
+}
+
+async function waitForAutomatedSessionText(
+  sessionId: string,
+  expected: string | RegExp,
+  options: { requireProviderSessionId?: boolean; providerSessionId?: string } = {}
+): Promise<{ providerSessionId: string | null; transcript: string }> {
+  const startedAt = Date.now()
+  const timeoutMs = 180_000
+  while (Date.now() - startedAt < timeoutMs) {
+    const session = sessionManager.get(sessionId)
+    if (!session) throw new Error(`Session ${sessionId} disappeared during automated smoke.`)
+    const transcript = session.messages
+      .filter((message) => message.type === 'text' || message.type === 'result')
+      .map((message) => 'content' in message ? String(message.content) : '')
+      .join('\n')
+    const textMatches = typeof expected === 'string' ? transcript.includes(expected) : expected.test(transcript)
+    const providerMatches = options.providerSessionId
+      ? session.providerSessionId === options.providerSessionId
+      : !options.requireProviderSessionId || Boolean(session.providerSessionId)
+    if (session.status === 'idle' && textMatches && providerMatches) {
+      return { providerSessionId: session.providerSessionId ?? null, transcript }
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250))
+  }
+  const session = sessionManager.get(sessionId)
+  throw new Error(`Timed out waiting for live session text. Last state: ${JSON.stringify({
+    status: session?.status,
+    providerSessionId: session?.providerSessionId,
+    transcript: session?.messages
+      .filter((message) => message.type === 'text' || message.type === 'result')
+      .map((message) => 'content' in message ? String(message.content) : '')
+      .join('\n')
+      .slice(-2000)
+  })}`)
+}
+
+function escapeAutomatedRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
 function runAutomatedTranscriptUserInputSmoke(win: BrowserWindow, outputPath: string, screenshotPath?: string): void {
   win.webContents.once('did-finish-load', () => {
     setTimeout(async () => {
@@ -23916,6 +24151,7 @@ app.whenReady().then(async () => {
   ;({ sessionManager } = await import('./sessions'))
   ;({ automationManager } = await import('./automations'))
   ;({ automationScheduler } = await import('./automationSchedulerSingleton'))
+  ;({ listProviderRuntimeDebugEvents } = await import('./providerRuntimeDiagnostics'))
 
   electronApp.setAppUserModelId('com.orchestrator.app')
   app.setAsDefaultProtocolClient(APP_DEEPLINK_PROTOCOL)

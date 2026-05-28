@@ -68,6 +68,8 @@ const captureView = process.argv.includes('--settings-deeplink')
           ? 'pet-overlay'
           : process.argv.includes('--sidebar')
             ? 'sidebar'
+            : process.argv.includes('--transcript-live-lifecycle')
+              ? 'transcript-live-lifecycle'
             : process.argv.includes('--transcript-layout')
               ? 'transcript-layout'
               : process.argv.includes('--transcript-user-input')
@@ -2038,6 +2040,18 @@ child.on('exit', async (code) => {
         organizeMenuWorks: result.organizeMenuWorks === true,
         organizeMenuSharedSections: result.organizeMenuSharedSectionsWorks === true,
         sidebarConnectionGrouping: result.sidebarConnectionGroupingWorks === true
+      }
+    : captureView === 'transcript-live-lifecycle'
+    ? {
+        isolatedProfile: result.profile?.isIsolated === true,
+        liveRendererSendCompleted: result.liveRendererSendCompleted === true,
+        liveRendererContinueClicked: result.liveRendererContinueClicked === true,
+        liveRendererContinueCompleted: result.liveRendererContinueCompleted === true,
+        liveRendererRetryClicked: result.liveRendererRetryClicked === true,
+        liveRendererRetryCompleted: result.liveRendererRetryCompleted === true,
+        liveRendererSameProviderSession: result.liveRendererSameProviderSession === true,
+        liveRendererStartMethod: Number(result.liveRendererStartMethodCount ?? 0) >= 1,
+        liveRendererResumeMethods: Number(result.liveRendererResumeMethodCount ?? 0) >= 2
       }
     : captureView === 'transcript-layout'
     ? {
