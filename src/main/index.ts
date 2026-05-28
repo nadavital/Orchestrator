@@ -4719,6 +4719,22 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               [...permissionMenu.querySelectorAll('button')]
                 .filter((button) => button.getAttribute('data-tooltip-label'))
                 .every((button) => button.getAttribute('title') === null && button.getAttribute('data-native-title-free') === 'true');
+            if (permissionButton instanceof HTMLElement) {
+              permissionButton.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }));
+              await sleep(80);
+            }
+            const permissionKeyboardFirstFocus = document.activeElement;
+            if (permissionKeyboardFirstFocus instanceof HTMLElement) {
+              permissionKeyboardFirstFocus.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }));
+              await sleep(80);
+            }
+            var composerPermissionRovingKeyboard =
+              permissionMenu instanceof HTMLElement &&
+              permissionKeyboardFirstFocus instanceof HTMLButtonElement &&
+              permissionMenu.contains(permissionKeyboardFirstFocus) &&
+              document.activeElement instanceof HTMLButtonElement &&
+              document.activeElement !== permissionKeyboardFirstFocus &&
+              permissionMenu.contains(document.activeElement);
             const advancedPermissionsButton = permissionMenu instanceof HTMLElement
               ? [...permissionMenu.querySelectorAll('button')]
                   .find((button) => button.textContent?.includes('Advanced permissions'))
@@ -5833,6 +5849,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             composerPermissionNativeTooltipsWork: typeof composerPermissionNativeTooltipsWork === 'boolean' ? composerPermissionNativeTooltipsWork : null,
             composerPermissionLabelsCalm: typeof composerPermissionLabelsCalm === 'boolean' ? composerPermissionLabelsCalm : null,
             composerPermissionTriggerExpandedOnOpen: typeof composerPermissionTriggerExpandedOnOpen === 'boolean' ? composerPermissionTriggerExpandedOnOpen : null,
+            composerPermissionRovingKeyboard: typeof composerPermissionRovingKeyboard === 'boolean' ? composerPermissionRovingKeyboard : null,
             composerPermissionMenuClosedWithEscape: typeof composerPermissionMenuClosedWithEscape === 'boolean' ? composerPermissionMenuClosedWithEscape : null,
             composerPermissionFocusReturned: typeof composerPermissionFocusReturned === 'boolean' ? composerPermissionFocusReturned : null,
             composerPermissionTriggerCollapsedOnClose: typeof composerPermissionTriggerCollapsedOnClose === 'boolean' ? composerPermissionTriggerCollapsedOnClose : null,

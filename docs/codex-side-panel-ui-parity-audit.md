@@ -187,6 +187,14 @@ Verification: `pnpm exec tsc --noEmit` passed. `node -c scripts/run-automated-ui
 
 Remaining: this closes the immediate composer popover trigger-state gap. It does not close the whole-app accessibility audit, roving keyboard navigation, or live provider-backed model/permission workflow proof.
 
+### 2026-05-28 - Composer Popover Roving Keyboard Slice
+
+Implemented: composer dropdown panels now support ArrowDown, ArrowUp, Home, and End roving focus across enabled popover buttons. Composer Worktree, Agent, and Permission triggers also use ArrowDown/ArrowUp to enter their open popover, so keyboard users can move from the trigger into the controls without tabbing through the rest of the toolbar.
+
+Verification: `pnpm exec tsc --noEmit` passed. `node -c scripts/run-automated-ui-smoke.mjs` passed. `git diff --check` passed. Focused `node scripts/run-automated-ui-smoke.mjs --composer` first caught a delayed-focus bug in the new trigger handler; after capturing the trigger before the timeout, the focused rerun passed with `composerPermissionRovingKeyboard=true` alongside the existing permission Escape/focus-return, trigger ARIA state, active-thread settings, blocked-send, queued cancel, draft, attachment, drag/drop, and responsive-toolbar gates. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1779946332468.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1779946332468.png`.
+
+Remaining: this closes the local composer popover roving-keyboard gap only. The whole-app accessibility audit still needs broader keyboard traversal, screen-reader labels, reduced-motion checks, and live provider-backed model/permission workflow proof.
+
 ### 2026-05-28 - Composer Blocked Send Status Slice
 
 Implemented: the composer now shows a compact send-status strip when a draft cannot send because the selected permission policy is unsupported, when attachments are still saving, or when Enter will queue a follow-up behind a running turn. Unsupported permission states include a direct `Change` action that opens the permission menu, so the disabled send arrow is no longer the only signal.

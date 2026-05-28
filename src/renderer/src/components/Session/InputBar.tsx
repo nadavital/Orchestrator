@@ -739,6 +739,9 @@ function InputBar({ session, isNew }: Props): JSX.Element {
                 className="composer-worktree-trigger"
                 ariaExpanded={isGitRepo ? showModeMenu : undefined}
                 ariaHasPopup={isGitRepo ? 'menu' : undefined}
+                onKeyDown={(event) => {
+                  if (isGitRepo) handleDropdownTriggerKeyDown(event, () => setShowModeMenu(true))
+                }}
               >
                 <Icon name={effectiveMode ? 'branch' : 'folder'} size={13} />
                 <span className="composer-control-label composer-control-label-sm">
@@ -779,6 +782,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
                 ariaLabel="Thread model settings"
                 ariaExpanded={showAgentMenu}
                 ariaHasPopup="menu"
+                onKeyDown={(event) => handleDropdownTriggerKeyDown(event, () => setShowAgentMenu(true))}
               >
                 <ProviderIcon providerId={provider.id} size={11} color={provider.color} />
                 <span className="composer-control-label">{agentLabel}</span>
@@ -924,6 +928,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
                 className="composer-agent-trigger"
                 ariaExpanded={showAgentMenu}
                 ariaHasPopup="menu"
+                onKeyDown={(event) => handleDropdownTriggerKeyDown(event, () => setShowAgentMenu(true))}
               >
                 <ProviderIcon providerId={provider.id} size={11} color={provider.color} />
                 <span className="composer-control-label">{agentLabel}</span>
@@ -1059,6 +1064,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
               className="composer-permission-trigger"
               ariaExpanded={showPermMenu}
               ariaHasPopup="menu"
+              onKeyDown={(event) => handleDropdownTriggerKeyDown(event, () => setShowPermMenu(true))}
             >
               <ProviderIcon providerId={provider.id} size={11} color={provider.color} />
               <span className="composer-control-label composer-control-label-xs">{permLabel}</span>
@@ -1345,11 +1351,12 @@ function formatBytes(value: number): string {
 }
 
 function ToolbarBtn({
-  children, active, onClick, muted, title, ariaLabel, ariaExpanded, ariaHasPopup, providerColor, dataTestId, className
+  children, active, onClick, onKeyDown, muted, title, ariaLabel, ariaExpanded, ariaHasPopup, providerColor, dataTestId, className
 }: {
   children: React.ReactNode
   active: boolean
   onClick?: () => void
+  onKeyDown?: (event: React.KeyboardEvent<HTMLButtonElement>) => void
   muted?: boolean
   title?: string
   ariaLabel?: string
@@ -1371,6 +1378,7 @@ function ToolbarBtn({
       aria-label={ariaLabel}
       aria-expanded={ariaExpanded}
       aria-haspopup={ariaHasPopup}
+      onKeyDown={onKeyDown}
       data-tooltip-label={title}
       data-native-title-free="true"
       data-testid={dataTestId}
@@ -1424,11 +1432,80 @@ function DropdownPanel({
         ...style
       }}
     >
-      <div data-testid={testId} data-composer-dropdown-surface="true">
+      <div
+        data-testid={testId}
+        data-composer-dropdown-surface="true"
+        onKeyDown={handleDropdownSurfaceKeyDown}
+      >
         {children}
       </div>
     </DismissablePopoverSurface>
   )
+}
+
+function handleDropdownTriggerKeyDown(
+  event: React.KeyboardEvent<HTMLButtonElement>,
+  openDropdown: () => void
+): void {
+  if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
+  event.preventDefault()
+  event.stopPropagation()
+  const trigger = event.currentTarget
+  openDropdown()
+  window.setTimeout(() => {
+    focusComposerDropdownButton(trigger, event.key === 'ArrowUp' ? 'last' : 'first')
+  }, 0)
+}
+
+function handleDropdownSurfaceKeyDown(event: React.KeyboardEvent<HTMLDivElement>): void {
+  const root = event.currentTarget
+  const active = document.activeElement
+  if (!(active instanceof HTMLElement) || !root.contains(active)) return
+
+  if (event.key === 'ArrowDown' || event.key === 'ArrowUp' || event.key === 'Home' || event.key === 'End') {
+    event.preventDefault()
+    event.stopPropagation()
+  } else {
+    return
+  }
+
+  const buttons = composerDropdownButtons(root)
+  if (buttons.length === 0) return
+
+  const activeIndex = buttons.findIndex((button) => button === active || button.contains(active))
+  if (event.key === 'Home') {
+    buttons[0]?.focus({ preventScroll: true })
+    return
+  }
+  if (event.key === 'End') {
+    buttons.at(-1)?.focus({ preventScroll: true })
+    return
+  }
+
+  const offset = event.key === 'ArrowUp' ? -1 : 1
+  const nextIndex = activeIndex >= 0
+    ? (activeIndex + offset + buttons.length) % buttons.length
+    : (offset < 0 ? buttons.length - 1 : 0)
+  buttons[nextIndex]?.focus({ preventScroll: true })
+}
+
+function focusComposerDropdownButton(trigger: HTMLElement, position: 'first' | 'last'): void {
+  const owner = trigger.closest('.relative') ?? trigger.parentElement
+  const surface = owner?.querySelector('[data-composer-dropdown-surface="true"]')
+  if (!(surface instanceof HTMLElement)) return
+  const buttons = composerDropdownButtons(surface)
+  const target = position === 'last' ? buttons.at(-1) : buttons[0]
+  target?.focus({ preventScroll: true })
+}
+
+function composerDropdownButtons(root: ParentNode): HTMLButtonElement[] {
+  return Array.from(root.querySelectorAll('button'))
+    .filter((button): button is HTMLButtonElement =>
+      button instanceof HTMLButtonElement &&
+      !button.disabled &&
+      button.tabIndex !== -1 &&
+      button.offsetParent !== null
+    )
 }
 
 function DropdownRow({

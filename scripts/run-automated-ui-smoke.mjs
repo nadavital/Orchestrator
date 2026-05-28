@@ -2801,6 +2801,7 @@ child.on('exit', async (code) => {
         composerPermissionNativeTooltips: captureView !== 'composer' || result.composerPermissionNativeTooltipsWork === true,
         composerPermissionLabelsCalm: captureView !== 'composer' || result.composerPermissionLabelsCalm === true,
         composerPermissionTriggerAriaExpanded: captureView !== 'composer' || result.composerPermissionTriggerExpandedOnOpen === true,
+        composerPermissionRovingKeyboard: captureView !== 'composer' || result.composerPermissionRovingKeyboard === true,
         composerPermissionEscape: captureView !== 'composer' || result.composerPermissionMenuClosedWithEscape === true,
         composerPermissionFocusReturned: captureView !== 'composer' || result.composerPermissionFocusReturned === true,
         composerPermissionTriggerAriaCollapsed: captureView !== 'composer' || result.composerPermissionTriggerCollapsedOnClose === true,

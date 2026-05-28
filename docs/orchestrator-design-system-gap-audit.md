@@ -1309,7 +1309,7 @@ Completed in the latest implementation pass:
 - Capabilities smoke now verifies create-menu open, menu Escape dismissal, create-sheet open, and sheet Escape dismissal.
 - Settings now shares design-system primitives for intro text, groups, panels, compact rows, choice cards, status pills, and diagnostic pills.
 - Composer provider/agent/permission dropdown panels now use shared dismissable popover behavior with focus return.
-- Composer smoke now verifies permission-menu Escape dismissal/focus return, agent-menu outside-click dismissal/focus return, and expanded/collapsed ARIA state on Agent/Permission popover triggers.
+- Composer smoke now verifies permission-menu Escape dismissal/focus return, agent-menu outside-click dismissal/focus return, expanded/collapsed ARIA state on Agent/Permission popover triggers, and Arrow-key roving focus inside composer popovers.
 - Pet overlay smoke now verifies custom provider state mapping, permission actions, running/review/failed buckets, tray collapse/reopen, row expansion, reply focus, and resize-handle hover/focus visibility.
 - Session-switch smoke now verifies transcript and title changes stay within the 150ms budget and are not hidden behind app-mode page animation.
 - Extensions panel is reachable again from `/extensions` and covered by an automated smoke.
