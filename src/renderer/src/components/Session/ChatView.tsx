@@ -1482,39 +1482,38 @@ function MessageRow({
               </div>
             )}
             {queueState && (
-              <div className="mt-2 flex items-center justify-end gap-2">
-                <span
-                  className="rounded-full px-2 py-0.5 text-[10px] font-medium"
-                  style={{ background: 'rgba(255,255,255,0.16)', color: 'rgba(255,255,255,0.82)' }}
-                >
-                  {queueState === 'steer_next' ? 'Steering next' : 'Queued'}
-                </span>
+              <div
+                className="mt-2 flex flex-wrap items-center justify-end gap-2"
+                data-testid="queued-message-actions"
+                data-queued-message-state={queueState}
+              >
+                <StatusBadge
+                  label={queueState === 'steer_next' ? 'Steering next' : 'Queued'}
+                  tone={queueState === 'steer_next' ? 'accent' : 'neutral'}
+                  pulse={queueState === 'steer_next'}
+                />
                 {queueState === 'queued' && (
-                  <>
-                    <button
-                      type="button"
-                      className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
-                      data-testid="queued-message-steer"
-                      style={{ background: 'rgba(255,255,255,0.9)', color: 'var(--color-accent)' }}
-                      aria-label="Steer queued message"
-                      data-tooltip-label="Send after the current tool call completes"
-                      onClick={() => window.api.sessions.steerQueuedMessage(session.id, msg.id)}
-                    >
-                      Steer
-                    </button>
-                    <button
-                      type="button"
-                      className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
-                      data-testid="queued-message-cancel"
-                      style={{ background: 'rgba(255,255,255,0.16)', color: 'rgba(255,255,255,0.9)', border: '1px solid rgba(255,255,255,0.22)' }}
-                      aria-label="Cancel queued message"
-                      data-tooltip-label="Cancel queued message"
-                      onClick={() => { void window.api.sessions.cancelQueuedMessage(session.id, msg.id) }}
-                    >
-                      Cancel
-                    </button>
-                  </>
+                  <Button
+                    variant="secondary"
+                    className="rounded-full px-2 py-0.5 text-[10px]"
+                    dataTestId="queued-message-steer"
+                    ariaLabel="Steer queued message"
+                    title="Send after the current tool call completes"
+                    onClick={() => window.api.sessions.steerQueuedMessage(session.id, msg.id)}
+                  >
+                    Steer
+                  </Button>
                 )}
+                <Button
+                  variant="ghost"
+                  className="rounded-full px-2 py-0.5 text-[10px]"
+                  dataTestId="queued-message-cancel"
+                  ariaLabel={queueState === 'steer_next' ? 'Cancel steering message' : 'Cancel queued message'}
+                  title={queueState === 'steer_next' ? 'Cancel steering message' : 'Cancel queued message'}
+                  onClick={() => { void window.api.sessions.cancelQueuedMessage(session.id, msg.id) }}
+                >
+                  Cancel
+                </Button>
               </div>
             )}
           </div>

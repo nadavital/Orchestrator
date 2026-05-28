@@ -1310,6 +1310,7 @@ Completed in the latest implementation pass:
 - Settings now shares design-system primitives for intro text, groups, panels, compact rows, choice cards, status pills, diagnostic pills, and provider command-output cards.
 - Composer provider/agent/permission dropdown panels now use shared dismissable popover behavior with focus return.
 - Composer smoke now verifies permission-menu Escape dismissal/focus return, agent-menu outside-click dismissal/focus return, expanded/collapsed ARIA state on Agent/Permission popover triggers, and Arrow-key roving focus inside composer popovers.
+- Transcript active-run queue controls now share badge/button primitives for queued and steering follow-ups, and focused streaming smoke verifies steering follow-ups remain cancellable.
 - Pet overlay smoke now verifies custom provider state mapping, permission actions, running/review/failed buckets, tray collapse/reopen, row expansion, reply focus, and resize-handle hover/focus visibility.
 - Session-switch smoke now verifies transcript and title changes stay within the 150ms budget and are not hidden behind app-mode page animation.
 - Extensions panel is reachable again from `/extensions` and covered by an automated smoke.
@@ -1317,7 +1318,7 @@ Completed in the latest implementation pass:
 The biggest remaining pieces are:
 
 1. Finish the remaining settings local controls: color swatches, provider picker, model list manager, config editor, import controls, and provider command output cards.
-2. Composer and transcript primitives beyond dropdown dismissal, especially attachment chips, command surfaces, file cards, scroll-to-bottom, and thinking/streaming states.
+2. Composer and transcript workflow polish beyond the implemented shared primitives, especially deeper context/permission flows and provider-backed retry/continue proof.
 3. Finish the remaining Extensions panel primitive migration for file/command rows, disclosures, and metrics.
 4. Add seeded edit/sync capability fixtures so those sheet flows are deterministic in smoke tests.
 5. Exit animation retention for menus/sheets/dialogs rather than immediate unmount.

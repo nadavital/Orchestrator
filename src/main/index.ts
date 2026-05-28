@@ -21746,6 +21746,13 @@ function runAutomatedStreamingTypingSmoke(win: BrowserWindow, outputPath: string
             content: 'STREAMING_TYPING_QUEUED_FOLLOW_UP: keep this queued while the current run streams.',
             queueState: 'queued',
             timestamp: Date.now()
+          }, {
+            id: 'streaming-typing-steering-follow-up',
+            role: 'user',
+            type: 'text',
+            content: 'STREAMING_TYPING_STEERING_FOLLOW_UP: this steering follow-up can still be cancelled.',
+            queueState: 'steer_next',
+            timestamp: Date.now() + 1
           }])
           await new Promise((resolve) => setTimeout(resolve, 120))
         }
@@ -21828,9 +21835,20 @@ function runAutomatedStreamingTypingSmoke(win: BrowserWindow, outputPath: string
         const [streamingMessageUpdated, typingResult] = await Promise.all([updatePromise, typingResultPromise])
 
         const result = await win.webContents.executeJavaScript(`
-          (() => {
+          (async () => {
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
             window.__orchestratorStreamingFrameStop = true;
             const gaps = Array.isArray(window.__orchestratorStreamingFrameGaps) ? window.__orchestratorStreamingFrameGaps : [];
+            const steeringActions = document.querySelector('[data-message-id="streaming-typing-steering-follow-up"] [data-testid="queued-message-actions"][data-queued-message-state="steer_next"]');
+            const steeringCancel = document.querySelector('[data-message-id="streaming-typing-steering-follow-up"] [data-testid="queued-message-cancel"]');
+            const steeringBeforeCancel =
+              steeringActions instanceof HTMLElement &&
+              steeringActions.textContent?.includes('Steering next') === true &&
+              steeringCancel instanceof HTMLButtonElement;
+            if (steeringCancel instanceof HTMLButtonElement) {
+              steeringCancel.click();
+              await sleep(160);
+            }
             return {
               profile: window.__orchestratorSmokeProfile ?? null,
               inputBarCommitCount: window.__orchestratorInputBarCommitCount ?? null,
@@ -21841,7 +21859,11 @@ function runAutomatedStreamingTypingSmoke(win: BrowserWindow, outputPath: string
               streamingTextVisible: document.body.innerText.includes('typing stream update 110'),
               composerQueuedSummaryVisible: document.querySelector('[data-testid="composer-queued-summary"]') instanceof HTMLElement,
               composerQueuedSummaryText: document.querySelector('[data-testid="composer-queued-summary"]')?.textContent ?? '',
-              composerQueuedSummaryCount: document.querySelector('[data-testid="composer-queued-summary"]')?.getAttribute('data-queued-follow-up-count') ?? null
+              composerQueuedSummaryCount: document.querySelector('[data-testid="composer-queued-summary"]')?.getAttribute('data-queued-follow-up-count') ?? null,
+              composerSteeringCancelWorks:
+                steeringBeforeCancel &&
+                !document.body.innerText.includes('STREAMING_TYPING_STEERING_FOLLOW_UP') &&
+                !(document.querySelector('[data-message-id="streaming-typing-steering-follow-up"] [data-testid="queued-message-actions"]') instanceof HTMLElement)
             };
           })()
         `)
