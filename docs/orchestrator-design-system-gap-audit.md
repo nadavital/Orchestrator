@@ -464,6 +464,7 @@ Current verification:
 - Focused `node scripts/run-automated-ui-smoke.mjs --settings` verifies Automations settings row grouping, action labels, and pause-result live status under `settingsAutomationsActionA11y=true`.
 - Focused `node scripts/run-automated-ui-smoke.mjs --settings` verifies Appearance theme sharing copy/import status semantics and app clipboard bridge usage under `themeSharingStatusA11y=true` and `themeCopyClipboard=true`.
 - Focused `node scripts/run-automated-ui-smoke.mjs --settings` verifies Data Controls data-path copy through the app clipboard bridge plus action status semantics under `settingsDataControlsActionA11y=true` and `settingsDataControlsCopyPathClipboard=true`.
+- Focused `node scripts/run-automated-ui-smoke.mjs --settings-providers` verifies unavailable provider install-command copy through the app clipboard bridge plus announced copied status under `settingsProviderInstallCommandCopy=true` and `settingsProviderInstallCommandStatusA11y=true`.
 
 Still needed:
 

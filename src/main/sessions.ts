@@ -1829,6 +1829,9 @@ export const sessionManager = {
     for (const provider of Object.values(PROVIDERS)) {
       result[provider.id] = resolveProviderBinary(provider) !== null
     }
+    if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'settings-providers') {
+      result.copilot = false
+    }
     return result
   },
 

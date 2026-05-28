@@ -2377,14 +2377,28 @@ function ClaudeEndpointField({ color }: { color: string }): JSX.Element {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function InstallCommand({ cmd }: { cmd: string }): JSX.Element {
-  const [copied, setCopied] = useState(false)
-  const handleCopy = (): void => {
-    navigator.clipboard.writeText(cmd)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1500)
+  const [status, setStatus] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
+  const statusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => {
+    if (statusTimeoutRef.current) window.clearTimeout(statusTimeoutRef.current)
+  }, [])
+  const handleCopy = async (): Promise<void> => {
+    if (statusTimeoutRef.current) window.clearTimeout(statusTimeoutRef.current)
+    try {
+      await writeClipboardText(cmd)
+      setStatus({ text: 'Install command copied', tone: 'info' })
+    } catch (error) {
+      setStatus({ text: `Copy failed: ${errorText(error)}`, tone: 'danger' })
+    }
+    statusTimeoutRef.current = window.setTimeout(() => {
+      setStatus(null)
+      statusTimeoutRef.current = null
+    }, 1800)
   }
   return (
     <div
+      data-testid="provider-install-command"
+      data-provider-install-command-status-tone={status?.tone ?? ''}
       style={{
         display: 'flex', alignItems: 'center', gap: 12,
         padding: '6px 10px', borderRadius: 8,
@@ -2398,16 +2412,50 @@ function InstallCommand({ cmd }: { cmd: string }): JSX.Element {
         {cmd}
       </span>
       <button
-        onClick={handleCopy}
+        data-testid="provider-install-command-copy"
+        onClick={() => { void handleCopy() }}
         style={{
           flexShrink: 0, padding: '2px 8px', borderRadius: 4, fontSize: 11,
-          background: copied ? 'var(--color-green)' : 'var(--color-surface)',
+          background: status?.tone === 'info' ? 'var(--color-green)' : 'var(--color-surface)',
           border: '1px solid var(--color-border)',
-          color: copied ? '#fff' : 'var(--color-text-muted)', cursor: 'pointer', fontWeight: 500
+          color: status?.tone === 'info' ? '#fff' : 'var(--color-text-muted)', cursor: 'pointer', fontWeight: 500
         }}
       >
-        {copied ? 'Copied!' : 'Copy'}
+        {status?.tone === 'info' ? 'Copied' : 'Copy'}
       </button>
+      {status && (
+        <span
+          data-testid="provider-install-command-status"
+          role={status.tone === 'danger' ? 'alert' : 'status'}
+          aria-live={status.tone === 'danger' ? 'assertive' : 'polite'}
+          aria-atomic="true"
+          style={{
+            flexShrink: 0,
+            maxWidth: 160,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            fontSize: 11,
+            fontWeight: 500,
+            color: status.tone === 'danger' ? 'var(--state-danger)' : 'var(--color-text-muted)'
+          }}
+        >
+          {status.text}
+        </span>
+      )}
     </div>
   )
+}
+
+async function writeClipboardText(text: string): Promise<void> {
+  if (typeof window.api.clipboard?.writeText === 'function') {
+    const didWrite = await window.api.clipboard.writeText(text)
+    if (didWrite) return
+  }
+  await navigator.clipboard.writeText(text)
+}
+
+function errorText(error: unknown): string {
+  if (error instanceof Error) return error.message
+  return String(error)
 }

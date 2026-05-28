@@ -1048,6 +1048,43 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                   await sleep(100);
                 }
               }
+              var settingsProviderInstallCommandCopyWorks = false;
+              var settingsProviderInstallCommandStatusA11yWorks = false;
+              const unavailableProviderSelect = providerSelects.find((select) =>
+                [...select.options].some((option) => option.value === 'copilot')
+              );
+              if (unavailableProviderSelect instanceof HTMLSelectElement) {
+                unavailableProviderSelect.value = 'copilot';
+                unavailableProviderSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                await sleep(220);
+                const installCommand = document.querySelector('[data-testid="provider-install-command"]');
+                const installCommandButton = document.querySelector('[data-testid="provider-install-command-copy"]');
+                const installCommandText = installCommand instanceof HTMLElement
+                  ? installCommand.querySelector('span')?.textContent?.trim() ?? ''
+                  : '';
+                if (installCommandButton instanceof HTMLButtonElement) {
+                  installCommandButton.click();
+                  await sleep(140);
+                }
+                const installCommandStatus = document.querySelector('[data-testid="provider-install-command-status"]');
+                const copiedInstallCommand =
+                  await window.api?.clipboard?.readText?.().catch(() => '') ??
+                  await navigator.clipboard?.readText?.().catch(() => '') ??
+                  '';
+                settingsProviderInstallCommandCopyWorks =
+                  installCommand instanceof HTMLElement &&
+                  installCommand.getAttribute('data-provider-install-command-status-tone') === 'info' &&
+                  installCommandButton instanceof HTMLButtonElement &&
+                  installCommandButton.textContent?.trim() === 'Copied' &&
+                  installCommandText.length > 0 &&
+                  copiedInstallCommand === installCommandText;
+                settingsProviderInstallCommandStatusA11yWorks =
+                  installCommandStatus instanceof HTMLElement &&
+                  installCommandStatus.textContent?.trim() === 'Install command copied' &&
+                  installCommandStatus.getAttribute('role') === 'status' &&
+                  installCommandStatus.getAttribute('aria-live') === 'polite' &&
+                  installCommandStatus.getAttribute('aria-atomic') === 'true';
+              }
               const codexProviderSelect = providerSelects.find((select) =>
                 [...select.options].some((option) => option.value === 'codex')
               );
@@ -6489,6 +6526,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             settingsProviderCatalogLabelCalm: typeof settingsProviderCatalogLabelCalm === 'boolean' ? settingsProviderCatalogLabelCalm : null,
             settingsDiagnosticsDisclosureCompactWorks: typeof settingsDiagnosticsDisclosureCompactWorks === 'boolean' ? settingsDiagnosticsDisclosureCompactWorks : null,
             settingsProviderCommandOutputSharedWorks: typeof settingsProviderCommandOutputSharedWorks === 'boolean' ? settingsProviderCommandOutputSharedWorks : null,
+            settingsProviderInstallCommandCopyWorks: typeof settingsProviderInstallCommandCopyWorks === 'boolean' ? settingsProviderInstallCommandCopyWorks : null,
+            settingsProviderInstallCommandStatusA11yWorks: typeof settingsProviderInstallCommandStatusA11yWorks === 'boolean' ? settingsProviderInstallCommandStatusA11yWorks : null,
             settingsProviderSidebarRefreshWorks: typeof settingsProviderSidebarRefreshWorks === 'boolean' ? settingsProviderSidebarRefreshWorks : null,
             settingsProviderContentAnchoredWorks: typeof settingsProviderContentAnchoredWorks === 'boolean' ? settingsProviderContentAnchoredWorks : null,
             settingsDataControlsWorks: typeof settingsDataControlsWorks === 'boolean' ? settingsDataControlsWorks : null,
