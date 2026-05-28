@@ -277,6 +277,11 @@ const api = {
     delete: (id: string): Promise<void> => ipcRenderer.invoke('automations:delete', id)
   },
 
+  clipboard: {
+    writeText: (text: string): Promise<boolean> => ipcRenderer.invoke('clipboard:writeText', text),
+    readText: (): Promise<string> => ipcRenderer.invoke('clipboard:readText')
+  },
+
   git: {
     isGitRepo: (dir: string): Promise<boolean> => ipcRenderer.invoke('git:isGitRepo', dir),
     getCurrentBranch: (dir: string): Promise<string | null> => ipcRenderer.invoke('git:getCurrentBranch', dir),

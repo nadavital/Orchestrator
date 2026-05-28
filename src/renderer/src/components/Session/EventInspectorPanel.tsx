@@ -418,6 +418,16 @@ function SessionContextSummary({
 
 function EventDetailCard({ record }: { record: SessionRunEventRecord }): JSX.Element {
   const payload = compactJson(record.event)
+  const [copyStatus, setCopyStatus] = useState<string | null>(null)
+  const copyPayload = (): void => {
+    const writeText = window.api.clipboard?.writeText
+      ? window.api.clipboard.writeText(payload).then(() => undefined)
+      : navigator.clipboard.writeText(payload)
+    void writeText
+      .then(() => setCopyStatus('Event payload copied'))
+      .catch(() => setCopyStatus('Unable to copy event payload'))
+  }
+
   return (
     <InspectorSection title="Event detail" dataTestId="agent-event-detail">
       <InspectorRow dataTestId="agent-event-detail-summary" variant="muted">
@@ -431,6 +441,39 @@ function EventDetailCard({ record }: { record: SessionRunEventRecord }): JSX.Ele
         </div>
         <Badge tone={eventTone(record)}>{record.event.type}</Badge>
       </InspectorRow>
+      <div className="flex items-center gap-1.5">
+        <button
+          type="button"
+          className="rounded-md border px-2 py-1 text-[11px] font-semibold"
+          data-testid="agent-event-detail-copy"
+          onClick={copyPayload}
+          style={{
+            color: 'var(--color-text)',
+            background: 'var(--control-bg)',
+            borderColor: 'var(--border-subtle)'
+          }}
+        >
+          Copy payload
+        </button>
+        {copyStatus && (
+          <span
+            className="min-w-0 truncate rounded-md px-2 py-1 text-[11px]"
+            data-testid="agent-event-detail-copy-status"
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+            style={{
+              color: copyStatus.startsWith('Unable') ? 'var(--state-danger)' : 'var(--accent)',
+              background: copyStatus.startsWith('Unable')
+                ? 'color-mix(in srgb, var(--state-danger) 8%, var(--surface-bg))'
+                : 'color-mix(in srgb, var(--accent) 8%, var(--surface-bg))',
+              border: '1px solid var(--border-subtle)'
+            }}
+          >
+            {copyStatus}
+          </span>
+        )}
+      </div>
       <pre
         className="m-0 max-h-32 overflow-auto rounded-md px-2 py-1.5 text-[11px]"
         data-testid="agent-event-detail-payload"

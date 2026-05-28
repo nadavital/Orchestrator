@@ -240,6 +240,10 @@ declare global {
         resume: (id: string) => Promise<Automation | undefined>
         delete: (id: string) => Promise<void>
       }
+      clipboard: {
+        writeText: (text: string) => Promise<boolean>
+        readText: () => Promise<string>
+      }
       git: {
         isGitRepo: (dir: string) => Promise<boolean>
         getCurrentBranch: (dir: string) => Promise<string | null>

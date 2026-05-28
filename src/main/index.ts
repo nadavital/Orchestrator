@@ -6160,6 +6160,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             planAgentTabShimmerWorks: typeof planAgentTabShimmerWorks === 'boolean' ? planAgentTabShimmerWorks : null,
             planAgentStatLabelsCalm: typeof planAgentStatLabelsCalm === 'boolean' ? planAgentStatLabelsCalm : null,
             agentRuntimeEventDetailWorks: typeof agentRuntimeEventDetailWorks === 'boolean' ? agentRuntimeEventDetailWorks : null,
+            agentRuntimeEventCopyWorks: typeof agentRuntimeEventCopyWorks === 'boolean' ? agentRuntimeEventCopyWorks : null,
             sideChatTabsWork: typeof sideChatTabsWork === 'boolean' ? sideChatTabsWork : null,
             sideChatComposerCompactWorks: typeof sideChatComposerCompactWorks === 'boolean' ? sideChatComposerCompactWorks : null,
             sideChatDraftPersistenceWorks: typeof sideChatDraftPersistenceWorks === 'boolean' ? sideChatDraftPersistenceWorks : null,
@@ -6960,6 +6961,24 @@ function runAutomatedFocusedSurfaceSmoke(
                 const selectedRecentEvent = document.querySelector('[data-testid="agent-recent-event"][data-agent-event-selected="true"]');
                 const eventDetail = document.querySelector('[data-testid="agent-event-detail"]');
                 const eventPayload = document.querySelector('[data-testid="agent-event-detail-payload"]');
+                const eventDetailCopy = document.querySelector('[data-testid="agent-event-detail-copy"]');
+                if (eventDetailCopy instanceof HTMLButtonElement) {
+                  eventDetailCopy.click();
+                }
+                let eventDetailCopyStatus = document.querySelector('[data-testid="agent-event-detail-copy-status"]');
+                let copiedEventPayload = '';
+                for (let attempt = 0; attempt < 12; attempt += 1) {
+                  await sleep(80);
+                  eventDetailCopyStatus = document.querySelector('[data-testid="agent-event-detail-copy-status"]');
+                  copiedEventPayload = await window.api.clipboard?.readText().catch(() => '') ?? '';
+                  if (
+                    eventDetailCopyStatus instanceof HTMLElement &&
+                    eventDetailCopyStatus.textContent?.includes('Event payload copied') === true &&
+                    copiedEventPayload.includes('git status --short')
+                  ) {
+                    break;
+                  }
+                }
                 const agentRuntimeEventDetailWorks =
                   agentsPanel instanceof HTMLElement &&
                   recentEventRows.length >= 3 &&
@@ -6970,6 +6989,16 @@ function runAutomatedFocusedSurfaceSmoke(
                   eventPayload instanceof HTMLElement &&
                   eventDetail.textContent?.includes('permission.requested') === true &&
                   eventPayload.textContent?.includes('git status --short') === true;
+                const agentRuntimeEventCopyWorks =
+                  agentRuntimeEventDetailWorks &&
+                  eventDetailCopy instanceof HTMLButtonElement &&
+                  eventDetailCopyStatus instanceof HTMLElement &&
+                  eventDetailCopyStatus.getAttribute('role') === 'status' &&
+                  eventDetailCopyStatus.getAttribute('aria-live') === 'polite' &&
+                  eventDetailCopyStatus.getAttribute('aria-atomic') === 'true' &&
+                  eventDetailCopyStatus.textContent?.includes('Event payload copied') === true &&
+                  copiedEventPayload.includes('git status --short') === true &&
+                  copiedEventPayload.includes('permission.requested') === true;
                 let agentRuntimeEventFacetFiltersWork = false;
                 let agentRuntimeEventFacetFilterError = null;
                 try {
@@ -7060,6 +7089,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     (activeNewTab.textContent ?? '').includes('New tab'),
                   workbenchNewTabAgentsActionWorks,
                   agentRuntimeEventDetailWorks,
+                  agentRuntimeEventCopyWorks,
                   agentRuntimeFailureGroupsWorks,
                   agentTransportLogWorks,
                   agentSelectedTimelineWorks,

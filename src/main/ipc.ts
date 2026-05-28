@@ -2759,6 +2759,11 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
 
   // App profile
   ipcMain.handle('app:getProfile', () => getAppProfile())
+  ipcMain.handle('clipboard:writeText', (_, text: string) => {
+    clipboard.writeText(text)
+    return true
+  })
+  ipcMain.handle('clipboard:readText', () => clipboard.readText())
 
   // Projects
   ipcMain.handle('projects:list', () => projectStore.list())
