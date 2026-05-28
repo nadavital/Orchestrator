@@ -2908,6 +2908,7 @@ child.on('exit', async (code) => {
         composerSendStatusActionOpensPermissions: captureView !== 'composer' || result.composerSendStatusActionOpensPermissions === true,
         composerSendStatusActionFocusesPermissions: captureView !== 'composer' || result.composerSendStatusActionFocusesPermissions === true,
         composerSendStatusRecoveryClearsBlock: captureView !== 'composer' || result.composerSendStatusRecoveryClearsBlock === true,
+        composerSendFailureRestoresDraft: captureView !== 'composer' || result.composerSendFailureRestoresDraft === true,
         composerQueuedCancel: captureView !== 'composer' || result.composerQueuedCancel === true,
         composerQueuedCancelStatus: captureView !== 'composer' || result.composerQueuedCancelStatusWorks === true,
         composerEmptySuggestionFillsDraft: captureView !== 'composer' || result.composerEmptySuggestionFillsDraft === true,

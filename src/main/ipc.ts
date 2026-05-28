@@ -2814,9 +2814,16 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
     })
   })
   ipcMain.handle('sessions:retryPendingWorktree', (_, id: string) => sessionManager.retryPendingWorktree(id))
-  ipcMain.handle('sessions:sendMessage', (_, sessionId: string, prompt: string, useWorktree?: boolean, attachments?: Attachment[]) =>
-    sessionManager.sendMessage(sessionId, prompt, useWorktree, attachments ?? [])
-  )
+  ipcMain.handle('sessions:sendMessage', (_, sessionId: string, prompt: string, useWorktree?: boolean, attachments?: Attachment[]) => {
+    if (
+      process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT &&
+      process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'composer' &&
+      prompt === 'SEND_FAILURE_SMOKE'
+    ) {
+      throw new Error('Smoke send failure')
+    }
+    return sessionManager.sendMessage(sessionId, prompt, useWorktree, attachments ?? [])
+  })
   ipcMain.handle('sessions:retryLastUserMessage', (_, sessionId: string) =>
     sessionManager.retryLastUserMessage(sessionId)
   )

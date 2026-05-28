@@ -401,10 +401,26 @@ function InputBar({ session, isNew }: Props): JSX.Element {
       return
     }
     const prompt = expandedCommandPrompt(rawPrompt) ?? rawPrompt
+    const draftBeforeSend = text
+    const attachmentsBeforeSend = [...attachments]
+    setRunActionStatus(null)
     setComposerText('')
     setComposerAttachments(session.id, [])
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
-    await window.api.sessions.sendMessage(session.id, prompt, isNew ? useWorktree : undefined, attachments)
+    try {
+      const started = await window.api.sessions.sendMessage(session.id, prompt, isNew ? useWorktree : undefined, attachments)
+      if (!started) setRunActionStatus({ text: 'Run failed to start', tone: 'danger' })
+    } catch (error) {
+      setComposerText(draftBeforeSend)
+      setComposerAttachments(session.id, attachmentsBeforeSend)
+      setRunActionStatus({ text: `Send failed: ${errorText(error)}`, tone: 'danger' })
+      window.setTimeout(() => {
+        if (textareaRef.current) {
+          resizeTextarea(textareaRef.current)
+          moveTextareaCursorToEnd(textareaRef.current)
+        }
+      }, 0)
+    }
   }
 
   const stopCurrentRun = async (): Promise<void> => {

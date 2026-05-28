@@ -5330,6 +5330,29 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               Boolean(attachmentOnlyRow) &&
               Boolean(attachmentOnlyRowAfterSwitch) &&
               attachmentLabels().some((label) => label.includes('attachment-only.txt'));
+            setTextareaValue('SEND_FAILURE_SMOKE');
+            await sleep(120);
+            addComposerAttachment('send-failure.txt', '/tmp/orchestrator-send-failure.txt');
+            await sleep(140);
+            const sendFailureButton = [...document.querySelectorAll('button')]
+              .find((button) => button.getAttribute('aria-label')?.startsWith('Send'));
+            if (sendFailureButton instanceof HTMLButtonElement) {
+              sendFailureButton.click();
+              await sleep(260);
+            }
+            const sendFailureStatus = document.querySelector('[data-testid="composer-run-action-status"]');
+            var composerSendFailureRestoresDraft =
+              Boolean(attachmentOnlyRowAfterSwitch) &&
+              sendFailureButton instanceof HTMLButtonElement &&
+              textareaValue() === 'SEND_FAILURE_SMOKE' &&
+              attachmentLabels().some((label) => label.includes('send-failure.txt')) &&
+              sendFailureStatus instanceof HTMLElement &&
+              sendFailureStatus.textContent?.includes('Send failed:') === true &&
+              sendFailureStatus.textContent?.includes('Smoke send failure') === true &&
+              sendFailureStatus.getAttribute('data-composer-run-action-status-tone') === 'danger' &&
+              sendFailureStatus.getAttribute('role') === 'alert' &&
+              sendFailureStatus.getAttribute('aria-live') === 'assertive' &&
+              sendFailureStatus.getAttribute('aria-atomic') === 'true';
             const emptyStateSuggestion = document.querySelector('[data-testid="chat-empty-state-suggestion"]');
             if (emptyStateSuggestion instanceof HTMLButtonElement) {
               emptyStateSuggestion.click();
@@ -6850,6 +6873,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             composerSendStatusActionOpensPermissions: typeof composerSendStatusActionOpensPermissions === 'boolean' ? composerSendStatusActionOpensPermissions : null,
             composerSendStatusActionFocusesPermissions: typeof composerSendStatusActionFocusesPermissions === 'boolean' ? composerSendStatusActionFocusesPermissions : null,
             composerSendStatusRecoveryClearsBlock: typeof composerSendStatusRecoveryClearsBlock === 'boolean' ? composerSendStatusRecoveryClearsBlock : null,
+            composerSendFailureRestoresDraft: typeof composerSendFailureRestoresDraft === 'boolean' ? composerSendFailureRestoresDraft : null,
             composerQueuedCancel: typeof composerQueuedCancel === 'boolean' ? composerQueuedCancel : null,
             composerQueuedCancelStatusWorks: typeof composerQueuedCancelStatusWorks === 'boolean' ? composerQueuedCancelStatusWorks : null,
             composerEmptySuggestionFillsDraft: typeof composerEmptySuggestionFillsDraft === 'boolean' ? composerEmptySuggestionFillsDraft : null,

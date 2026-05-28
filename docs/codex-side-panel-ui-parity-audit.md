@@ -8652,3 +8652,13 @@ Implemented: composer slash dismissal now stores the dismissed slash query separ
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and `git diff --check` passed. Focused `node scripts/run-automated-ui-smoke.mjs --composer` first hit the expected sandbox localhost bind failure; the elevated rerun passed with `composerSlashEscapePreservesDraft=true` alongside `composerSlashModelOpensSettings=true`, `composerSlashModelFocusesMenu=true`, `composerSlashPermissionsOpensMenu=true`, `composerSlashPermissionsFocusesMenu=true`, `composerActiveThreadModelSwitchPersisted=true`, `composerActiveThreadProviderSwitchPolicyPersisted=true`, and the broader composer gates. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1779977049179.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1779977049179.png`.
 
 Remaining: this closes the local slash-menu draft-loss bug only. Deeper context/permission workflow polish and live provider-backed send/model/permission behavior remain Phase 1 work.
+
+### 2026-05-28 - Composer Send Failure Restores Draft
+
+Product evidence: the main composer owns user-authored state. Before this slice, it cleared the draft and attachments before awaiting the send IPC, so an IPC/transport exception could erase the message without a provider run being accepted.
+
+Implemented: the composer now snapshots the current draft and attachment list before send. If `sessions.sendMessage` throws, it restores the draft and attachments, resizes the textarea, and shows an assertive composer run-action error. A smoke-only IPC failure path exercises the real renderer recovery without starting a live provider.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and `git diff --check` passed. Focused `node scripts/run-automated-ui-smoke.mjs --composer` first hit the expected sandbox localhost bind failure; the final elevated rerun passed with `composerSendFailureRestoresDraft=true` alongside `composerSlashEscapePreservesDraft=true`, `composerActiveThreadModelSwitchPersisted=true`, `composerActiveThreadProviderSwitchPolicyPersisted=true`, blocked-send recovery, attachment, side-chat guard, and toolbar gates. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1779977638247.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1779977638247.png`.
+
+Remaining: this closes local send-transport draft loss only. Live provider-backed send/model/permission behavior and deeper context workflow proof remain Phase 1 work.
