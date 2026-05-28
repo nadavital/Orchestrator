@@ -319,6 +319,24 @@ export default function BrowserPanel({
   }, [])
 
   useEffect(() => {
+    const stepBrowserFind = (event: Event): void => {
+      const direction = (event as CustomEvent<{ direction?: number }>).detail?.direction === -1 ? 'previous' : 'next'
+      const query = workbenchRef.current.findQuery.trim()
+      if (!query) {
+        patchWorkbench({ findVisible: true })
+        window.requestAnimationFrame(() => {
+          findInputRef.current?.focus({ preventScroll: true })
+        })
+        return
+      }
+      patchWorkbench({ findVisible: true })
+      webviewRef.current?.findInPage(query, { findNext: true, forward: direction === 'next' })
+    }
+    window.addEventListener('orchestrator:browser-find-step', stepBrowserFind)
+    return () => window.removeEventListener('orchestrator:browser-find-step', stepBrowserFind)
+  }, [])
+
+  useEffect(() => {
     if (localTargetView === 'hidden' && hiddenLocalTargets.length === 0) {
       setLocalTargetView('online')
     }

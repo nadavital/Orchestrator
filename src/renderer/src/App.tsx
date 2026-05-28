@@ -458,6 +458,8 @@ export default function App(): JSX.Element {
       'next-recent-chat': sessionCount > 1,
       'open-file-search': hasActiveSession,
       'search-transcript': panelFindAvailable,
+      'find-next': panelFindAvailable,
+      'find-previous': panelFindAvailable,
       'toggle-inspector': hasActiveSession,
       'open-review-tab': hasActiveSession,
       'open-browser-tab': hasActiveSession,
@@ -494,6 +496,35 @@ export default function App(): JSX.Element {
       openBrowserFind()
     }
   }, [openBrowserFind, openThreadFind, resolveCurrentPanelFindTarget])
+
+  const stepPanelFindTarget = useCallback((direction: 1 | -1): void => {
+    if (threadFindVisible && activeSessionId) {
+      window.dispatchEvent(new CustomEvent('orchestrator:thread-find-step', {
+        detail: { sessionId: activeSessionId, domain: threadFindDomain, direction }
+      }))
+      return
+    }
+    const target = resolveCurrentPanelFindTarget()
+    if (target === 'browser-page') {
+      window.dispatchEvent(new CustomEvent('orchestrator:browser-find-step', {
+        detail: { direction }
+      }))
+      return
+    }
+    if (!activeSessionId) return
+    if (target === 'transcript' || target === 'review-files' || target === 'source-file') {
+      const domain: ThreadFindDomain = target === 'transcript' ? 'conversation' : 'diff'
+      if (!threadFindVisible || threadFindDomain !== domain) {
+        openThreadFind(domain)
+        return
+      }
+      window.dispatchEvent(new CustomEvent('orchestrator:thread-find-step', {
+        detail: { sessionId: activeSessionId, domain, direction }
+      }))
+      return
+    }
+    openPanelFindTarget()
+  }, [activeSessionId, openPanelFindTarget, openThreadFind, resolveCurrentPanelFindTarget, threadFindDomain, threadFindVisible])
 
   const openBrowserTabCommand = useCallback((): void => {
     const { activeSessionId, uiState, addTerminalTab, moveTerminalTabToRight } = useSessionStore.getState()
@@ -718,6 +749,26 @@ export default function App(): JSX.Element {
       run: openPanelFindTarget
     },
     {
+      id: 'find-next',
+      label: APP_COMMANDS['find-next'].label,
+      group: APP_COMMANDS['find-next'].group,
+      description: APP_COMMANDS['find-next'].description,
+      shortcuts: shortcutsFor('find-next'),
+      keywords: [...(APP_COMMANDS['find-next'].keywords ?? [])],
+      disabled: !activeSessionId || !canRunPanelFind(),
+      run: () => stepPanelFindTarget(1)
+    },
+    {
+      id: 'find-previous',
+      label: APP_COMMANDS['find-previous'].label,
+      group: APP_COMMANDS['find-previous'].group,
+      description: APP_COMMANDS['find-previous'].description,
+      shortcuts: shortcutsFor('find-previous'),
+      keywords: [...(APP_COMMANDS['find-previous'].keywords ?? [])],
+      disabled: !activeSessionId || !canRunPanelFind(),
+      run: () => stepPanelFindTarget(-1)
+    },
+    {
       id: 'open-file-search',
       label: APP_COMMANDS['open-file-search'].label,
       group: APP_COMMANDS['open-file-search'].group,
@@ -850,6 +901,7 @@ export default function App(): JSX.Element {
     openFileSearch,
     openSettings,
     openPanelFindTarget,
+    stepPanelFindTarget,
     openBrowserTabCommand,
     openReviewPanelTab,
     openTranscriptSearch,
@@ -883,6 +935,12 @@ export default function App(): JSX.Element {
         break
       case 'search-transcript':
         openPanelFindTarget()
+        break
+      case 'find-next':
+        stepPanelFindTarget(1)
+        break
+      case 'find-previous':
+        stepPanelFindTarget(-1)
         break
       case 'open-file-search':
         openFileSearch()
@@ -938,6 +996,7 @@ export default function App(): JSX.Element {
     openFileSearch,
     openSettings,
     openPanelFindTarget,
+    stepPanelFindTarget,
     openBrowserTabCommand,
     openReviewPanelTab,
     openTranscriptSearch,
@@ -1204,7 +1263,7 @@ export default function App(): JSX.Element {
       if (command) {
         updateShellFocusArea(event.target)
         if (command === 'close-active-panel-tab' && !canCloseActivePanelTab()) return
-        if (command === 'search-transcript' && !canRunPanelFind()) return
+        if ((command === 'search-transcript' || command === 'find-next' || command === 'find-previous') && !canRunPanelFind()) return
         if (BROWSER_PANEL_COMMANDS.includes(command as BrowserPanelCommand) && !canRunBrowserPanelCommand()) return
         event.preventDefault()
         runAppCommand(command)

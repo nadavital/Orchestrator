@@ -4,6 +4,8 @@ export type StableAppCommand =
   | 'open-command-menu'
   | 'new-chat'
   | 'search-transcript'
+  | 'find-next'
+  | 'find-previous'
   | 'open-file-search'
   | 'focus-browser-address-bar'
   | 'browser-reload-page'
@@ -137,6 +139,26 @@ export const APP_COMMANDS: Record<StableAppCommand, AppCommandDefinition> = {
     shortcuts: [['mod', 'F']],
     accelerator: 'CmdOrCtrl+F',
     keywords: ['find', 'history'],
+    showInShortcuts: true
+  },
+  'find-next': {
+    id: 'find-next',
+    label: 'Find Next',
+    group: 'Navigation',
+    description: 'Move to the next result in the active find surface.',
+    shortcuts: [['mod', 'G']],
+    accelerator: 'CmdOrCtrl+G',
+    keywords: ['find', 'search', 'next', 'result'],
+    showInShortcuts: true
+  },
+  'find-previous': {
+    id: 'find-previous',
+    label: 'Find Previous',
+    group: 'Navigation',
+    description: 'Move to the previous result in the active find surface.',
+    shortcuts: [['mod', 'shift', 'G']],
+    accelerator: 'CmdOrCtrl+Shift+G',
+    keywords: ['find', 'search', 'previous', 'result'],
     showInShortcuts: true
   },
   'open-file-search': {

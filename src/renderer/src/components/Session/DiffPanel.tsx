@@ -287,7 +287,7 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
 
   const stepReviewSearchMatch = useCallback((direction: 1 | -1): void => {
     if (reviewSearchNavigationMatches.length === 0) return
-    const current = reviewSearchActiveMatchIndex ?? (direction === 1 ? -1 : 0)
+    const current = reviewSearchActiveMatchIndex ?? 0
     const next = (current + direction + reviewSearchNavigationMatches.length) % reviewSearchNavigationMatches.length
     const match = reviewSearchNavigationMatches[next]
     setReviewSearchActiveMatchIndex(next)

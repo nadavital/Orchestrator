@@ -8397,8 +8397,9 @@ function runAutomatedFocusedSurfaceSmoke(
               let workbenchPanelTabCloseStartEdgeWorks = false;
               let workbenchPanelTabCloseStartEdgeDebug = [];
               let workbenchPanelNewTabPageWorks = false;
-              let rightPanelFindShortcutRoutingWorks = false;
-              let rightPanelFindStatusA11yWorks = false;
+                let rightPanelFindShortcutRoutingWorks = false;
+                let rightPanelFindStepShortcutRoutingWorks = false;
+                let rightPanelFindStatusA11yWorks = false;
               let rightPanelFindScopeLabelA11yWorks = false;
               let rightPanelFindCloseFocusRestoredWorks = false;
               let rightPanelFindShortcutRoutingDebug = {};
@@ -8917,6 +8918,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   reviewSharedFindScopeToggle = chatScopeActive && diffScopeActive;
                 }
                 let reviewSharedFindDrivesDiff = false;
+                let rightPanelFindStepShortcutRoutingDebug = {};
                 for (let index = 0; index < 20; index += 1) {
                   const diffRoot = document.querySelector('.diff-panel-root[data-embedded="true"]');
                   const matchCount = Number(diffRoot?.getAttribute('data-review-tree-search-match-count') ?? '0');
@@ -8931,6 +8933,42 @@ function runAutomatedFocusedSurfaceSmoke(
                     break;
                   }
                   await sleep(80);
+                }
+                if (reviewSharedFindInput instanceof HTMLInputElement) {
+                  setInputValue(reviewSharedFindInput, 'review');
+                  await sleep(360);
+                  const findBarBeforeStep = document.querySelector('[data-testid="thread-find-bar"]');
+                  const matchCountBeforeStep = Number(findBarBeforeStep?.getAttribute('data-thread-find-total-matches') ?? '0');
+                  const activeBeforeStep = Number(findBarBeforeStep?.getAttribute('data-thread-find-active-match') ?? '0');
+                  sendShortcut(reviewSharedFindInput, 'g', 'KeyG');
+                  let activeAfterNextStep = activeBeforeStep;
+                  for (let index = 0; index < 20; index += 1) {
+                    activeAfterNextStep = Number(document.querySelector('[data-testid="thread-find-bar"]')?.getAttribute('data-thread-find-active-match') ?? '0');
+                    if (activeAfterNextStep > 0 && activeAfterNextStep !== activeBeforeStep) break;
+                    await sleep(80);
+                  }
+                  sendShortcut(reviewSharedFindInput, 'G', 'KeyG', true);
+                  let activeAfterPreviousStep = activeAfterNextStep;
+                  for (let index = 0; index < 20; index += 1) {
+                    activeAfterPreviousStep = Number(document.querySelector('[data-testid="thread-find-bar"]')?.getAttribute('data-thread-find-active-match') ?? '0');
+                    if (activeAfterPreviousStep === activeBeforeStep) break;
+                    await sleep(80);
+                  }
+                  rightPanelFindStepShortcutRoutingWorks =
+                    matchCountBeforeStep > 1 &&
+                    activeAfterNextStep > 0 &&
+                    activeAfterPreviousStep > 0 &&
+                    activeAfterPreviousStep !== activeAfterNextStep;
+                  rightPanelFindStepShortcutRoutingDebug = {
+                    matchCountBeforeStep,
+                    activeBeforeStep,
+                    activeAfterNextStep,
+                    activeAfterPreviousStep,
+                    queryAfterStep: document.querySelector('[data-testid="thread-find-bar"]')?.getAttribute('data-thread-find-query') ?? '',
+                    domainAfterStep: document.querySelector('[data-testid="thread-find-bar"]')?.getAttribute('data-thread-find-domain') ?? '',
+                    totalAfterStep: document.querySelector('[data-testid="thread-find-bar"]')?.getAttribute('data-thread-find-total-matches') ?? '',
+                    activeAfterStep: document.querySelector('[data-testid="thread-find-bar"]')?.getAttribute('data-thread-find-active-match') ?? ''
+                  };
                 }
                 const threadFindStatus = document.querySelector('[data-testid="thread-find-status"]');
                 rightPanelFindStatusA11yWorks =
@@ -8985,6 +9023,8 @@ function runAutomatedFocusedSurfaceSmoke(
                   reviewSharedFindDiffScope,
                   reviewSharedFindScopeToggle,
                   reviewSharedFindDrivesDiff,
+                  rightPanelFindStepShortcutRoutingWorks,
+                  rightPanelFindStepShortcutRoutingDebug,
                   fileFindFocused,
                   browserFindFocused,
                   activeElementId: document.activeElement?.id ?? null,
@@ -9573,6 +9613,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 rightPanelMenuCommandStateWorks,
                 rightPanelMenuCommandStateDebug,
                 rightPanelFindShortcutRoutingWorks,
+                rightPanelFindStepShortcutRoutingWorks,
                 rightPanelFindStatusA11yWorks,
                 rightPanelFindScopeLabelA11yWorks,
                 rightPanelFindCloseFocusRestoredWorks,

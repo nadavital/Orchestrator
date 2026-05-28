@@ -2373,6 +2373,7 @@ child.on('exit', async (code) => {
           workbenchPanelOverflowFadeMasksClippedTabs: result.workbenchPanelOverflowFadeMasksClippedTabsWorks === true,
           rightPanelMenuCommandState: result.rightPanelMenuCommandStateWorks === true,
           rightPanelFindShortcutRouting: result.rightPanelFindShortcutRoutingWorks === true,
+          rightPanelFindStepShortcutRouting: result.rightPanelFindStepShortcutRoutingWorks === true,
           rightPanelFindStatusA11y: result.rightPanelFindStatusA11yWorks === true,
           rightPanelFindScopeLabelA11y: result.rightPanelFindScopeLabelA11yWorks === true,
           rightPanelFindCloseFocusRestored: result.rightPanelFindCloseFocusRestoredWorks === true,

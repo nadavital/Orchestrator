@@ -9224,3 +9224,13 @@ Implemented: Workbench file tabs now expose `Reset tab` in the shared tab contex
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --files` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1780004708217.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1780004708217.png`. The focused run adds `workbenchFileTabReset=true` while preserving the existing Files, source-tab, artifact, DOCX/PDF/XLSX/PPTX/IPYNB, and fallback gates.
 
 Remaining: this closes local Browser/file reset parity only. The larger app-shell tab-controller abstraction and non-Terminal cross-panel moves remain separate.
+
+### 2026-05-28 - Shared Find Next And Previous Commands
+
+Product evidence: PP-041 tracks command/search unification. `Cmd/Ctrl+F` already opened the correct find surface for chat, Review, file-source tabs, and Browser, but `Find Next` / `Find Previous` were not command-registry actions. That left common search stepping outside the same editable shortcuts, menu state, and command-palette path used by other daily coding actions.
+
+Implemented: added `find-next` and `find-previous` to the shared app command registry with `Cmd/Ctrl+G` and `Cmd/Ctrl+Shift+G`. The app shell routes those commands to the active find surface: shared chat/diff/source find bars step through their current matches, Browser page find steps through webview matches, and inactive find surfaces are opened instead of swallowing the command. The command palette and native menu availability now use the same panel-find target resolver as `Find in Chat`.
+
+Verification: the focused right-panel smoke now gates `rightPanelFindStepShortcutRouting=true` by opening Review find, entering a multi-match query, using `Cmd/Ctrl+G` to advance, and `Cmd/Ctrl+Shift+G` to move back while keeping existing Review/Files/Browser find routing checks green.
+
+Remaining: this closes local shared find-step command routing only. Deeper provider-indexed search, search history/persistence, and exact live Codex focus timing remain separate.
