@@ -2276,6 +2276,7 @@ export function AttachmentPill({
   title,
   meta,
   onRemove,
+  removeLabel,
   tone = 'neutral',
   className = '',
 }: {
@@ -2283,6 +2284,7 @@ export function AttachmentPill({
   title?: string
   meta?: ReactNode
   onRemove?: () => void
+  removeLabel?: string
   tone?: Tone
   className?: string
 }): JSX.Element {
@@ -2302,7 +2304,7 @@ export function AttachmentPill({
       {onRemove && (
         <IconButton
           icon="close"
-          label={`Remove ${typeof label === 'string' ? label : 'attachment'}`}
+          label={removeLabel ?? `Remove ${typeof label === 'string' ? label : 'attachment'}`}
           onClick={onRemove}
           size="sm"
           tooltip={false}

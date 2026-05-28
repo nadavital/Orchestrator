@@ -3088,9 +3088,17 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('browser:setSecurityPolicy', (_, policy: Parameters<typeof setBrowserSecurityPolicy>[0]) =>
     setBrowserSecurityPolicy(policy)
   )
-  ipcMain.handle('attachments:savePastedFile', (_, request: PastedAttachmentRequest) =>
-    writePastedAttachment(request)
-  )
+  ipcMain.handle('attachments:savePastedFile', async (_, request: PastedAttachmentRequest) => {
+    if (
+      process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT &&
+      process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'composer' &&
+      typeof request.name === 'string' &&
+      (request.name.startsWith('async-switch') || request.name.startsWith('large-cancel'))
+    ) {
+      await new Promise((resolve) => setTimeout(resolve, 360))
+    }
+    return writePastedAttachment(request)
+  })
 
   // App settings
   ipcMain.handle('settings:get', () => settingsStore.store)

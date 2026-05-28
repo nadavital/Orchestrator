@@ -5449,17 +5449,13 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               attachmentLabels().some((label) => label.includes('draft-one.txt')) &&
               !attachmentLabels().some((label) => label.includes('draft-two.txt'));
             var composerAsyncAttachmentSwitchIsolation = false;
-            const asyncAttachmentOriginalSave = window.api.attachments.savePastedFile;
+            const hasComposerAttachmentSave = typeof window.api.attachments.savePastedFile === 'function';
             if (
-              typeof asyncAttachmentOriginalSave === 'function' &&
+              hasComposerAttachmentSave &&
               typeof File === 'function' &&
               typeof DataTransfer === 'function'
             ) {
               try {
-                window.api.attachments.savePastedFile = async (...args) => {
-                  await sleep(260);
-                  return asyncAttachmentOriginalSave(...args);
-                };
                 const asyncAttachmentFirstSelected = await selectThreadByTitle('Draft smoke one');
                 await sleep(160);
                 const asyncDropShell = document.querySelector('[data-testid="composer-shell"]');
@@ -5486,8 +5482,51 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 }
               } catch {
                 composerAsyncAttachmentSwitchIsolation = false;
-              } finally {
-                window.api.attachments.savePastedFile = asyncAttachmentOriginalSave;
+              }
+            }
+            var composerPendingAttachmentCancel = false;
+            if (
+              hasComposerAttachmentSave &&
+              typeof File === 'function' &&
+              typeof DataTransfer === 'function'
+            ) {
+              try {
+                const pendingCancelSelected = await selectThreadByTitle('Draft smoke one');
+                await sleep(160);
+                const pendingCancelShell = document.querySelector('[data-testid="composer-shell"]');
+                if (pendingCancelShell instanceof HTMLElement) {
+                  const pendingCancelName = 'large-cancel-' + Date.now() + '.txt';
+                  const cancelTransfer = new DataTransfer();
+                  cancelTransfer.items.add(new File(['large attachment cancel smoke '.repeat(4096)], pendingCancelName, { type: 'text/plain' }));
+                  const cancelDropEvent = new Event('drop', { bubbles: true, cancelable: true });
+                  Object.defineProperty(cancelDropEvent, 'dataTransfer', { value: cancelTransfer });
+                  pendingCancelShell.dispatchEvent(cancelDropEvent);
+                  let pendingCancelButton = null;
+                  for (let attempt = 0; attempt < 16; attempt += 1) {
+                    pendingCancelButton = [...document.querySelectorAll('[aria-label]')]
+                      .find((element) => element.getAttribute('aria-label') === 'Cancel saving ' + pendingCancelName);
+                    if (pendingCancelButton instanceof HTMLButtonElement) break;
+                    await sleep(60);
+                  }
+                  const pendingLabelVisibleBeforeCancel = attachmentLabels().some((label) => label.includes(pendingCancelName));
+                  if (pendingCancelButton instanceof HTMLButtonElement) {
+                    pendingCancelButton.click();
+                    await sleep(620);
+                  }
+                  const cancelStatus = composerAttachmentStatus();
+                  composerPendingAttachmentCancel =
+                    pendingCancelSelected &&
+                    pendingCancelButton instanceof HTMLButtonElement &&
+                    pendingCancelButton.getAttribute('aria-label') === 'Cancel saving ' + pendingCancelName &&
+                    pendingLabelVisibleBeforeCancel &&
+                    cancelStatus instanceof HTMLElement &&
+                    cancelStatus.textContent?.includes('Attachment canceled') === true &&
+                    !attachmentLabels().some((label) => label.includes(pendingCancelName)) &&
+                    ![...document.querySelectorAll('[aria-label]')]
+                      .some((element) => element.getAttribute('aria-label') === 'Cancel saving ' + pendingCancelName);
+                }
+              } catch {
+                composerPendingAttachmentCancel = false;
               }
             }
             var composerManualAttachmentSwitchIsolation = false;
@@ -7335,6 +7374,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             composerAttachmentsPerChat: typeof composerAttachmentsPerChat === 'boolean' ? composerAttachmentsPerChat : null,
             composerAttachmentsClearedOnSwitch: typeof composerAttachmentsClearedOnSwitch === 'boolean' ? composerAttachmentsClearedOnSwitch : null,
             composerAsyncAttachmentSwitchIsolation: typeof composerAsyncAttachmentSwitchIsolation === 'boolean' ? composerAsyncAttachmentSwitchIsolation : null,
+            composerPendingAttachmentCancel: typeof composerPendingAttachmentCancel === 'boolean' ? composerPendingAttachmentCancel : null,
             composerManualAttachmentSwitchIsolation: typeof composerManualAttachmentSwitchIsolation === 'boolean' ? composerManualAttachmentSwitchIsolation : null,
             composerFirstAttachmentRestored: typeof composerFirstAttachmentRestored === 'boolean' ? composerFirstAttachmentRestored : null,
             composerSecondAttachmentRestored: typeof composerSecondAttachmentRestored === 'boolean' ? composerSecondAttachmentRestored : null,

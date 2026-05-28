@@ -9234,3 +9234,13 @@ Implemented: added `find-next` and `find-previous` to the shared app command reg
 Verification: the focused right-panel smoke now gates `rightPanelFindStepShortcutRouting=true` by opening Review find, entering a multi-match query, using `Cmd/Ctrl+G` to advance, and `Cmd/Ctrl+Shift+G` to move back while keeping existing Review/Files/Browser find routing checks green.
 
 Remaining: this closes local shared find-step command routing only. Deeper provider-indexed search, search history/persistence, and exact live Codex focus timing remain separate.
+
+### 2026-05-28 - Composer Pending Attachment Cancel
+
+Product evidence: PP-040 tracks Codex-like composer attachment handling. Orchestrator had pending save chips and cancellation state, but the visible action still read as a generic remove control and the focused composer smoke did not prove a delayed large attachment could be canceled before the async save resolved.
+
+Implemented: pending attachment chips now expose explicit `Cancel saving {file}` labels while failed chips expose `Dismiss {file}`. Canceled saves are also guarded by an active-save check before a completed async result can be attached. The focused composer smoke now delays the real main-process `savePastedFile` IPC for the cancellation fixture, drops a larger text attachment, clicks the pending cancel action, waits for the delayed save to complete, and verifies the canceled file is not added back to the composer.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --composer` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1780006686832.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1780006686832.png`. The composer smoke adds `composerPendingAttachmentCancel=true`.
+
+Remaining: this closes local pending-save cancellation semantics and coverage. Richer context chips and provider-backed attachment/context behavior remain separate Phase 1 follow-ups; deep Office/PDF renderer fidelity remains Phase 2 unless it blocks coding workflows.

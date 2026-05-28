@@ -23,6 +23,8 @@ interface PendingAttachment {
   error?: string
 }
 
+const cancelledComposerAttachmentSaves = new Set<string>()
+
 function InputBar({ session, isNew }: Props): JSX.Element {
   const providerAvailability = useSessionStore((state) => state.providerAvailability)
   const providerModels = useSessionStore((state) => state.providerModels)
@@ -504,15 +506,19 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     try {
       const saved = await Promise.all(files.map(async (file, index): Promise<{ pendingId: string; attachment?: Attachment; error?: string }> => {
         const pendingId = pending[index].id
+        const pendingAttachmentIsActive = (): boolean =>
+          activeAttachmentSaves.current.has(pendingId) &&
+          !cancelledPendingAttachments.current.has(pendingId) &&
+          !cancelledComposerAttachmentSaves.has(pendingId)
         try {
           const bytes = await file.arrayBuffer()
-          if (cancelledPendingAttachments.current.has(pendingId)) return { pendingId }
+          if (!pendingAttachmentIsActive()) return { pendingId }
           const attachment = await window.api.attachments.savePastedFile({
             name: file.name || undefined,
             mimeType: file.type || undefined,
             bytes
           })
-          if (cancelledPendingAttachments.current.has(pendingId)) return { pendingId }
+          if (!pendingAttachmentIsActive()) return { pendingId }
           return {
             pendingId,
             attachment: {
@@ -554,6 +560,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     } finally {
       for (const item of pending) {
         cancelledPendingAttachments.current.delete(item.id)
+        cancelledComposerAttachmentSaves.delete(item.id)
         activeAttachmentSaves.current.delete(item.id)
       }
       if (targetSessionIsActive()) setIsSavingPastedFiles(activeAttachmentSaves.current.size > 0)
@@ -562,6 +569,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
 
   const cancelPendingAttachment = (id: string): void => {
     cancelledPendingAttachments.current.add(id)
+    cancelledComposerAttachmentSaves.add(id)
     activeAttachmentSaves.current.delete(id)
     setIsSavingPastedFiles(activeAttachmentSaves.current.size > 0)
     setPendingAttachments((current) => current.filter((item) => item.id !== id))
@@ -1601,6 +1609,7 @@ function PendingAttachmentChip({
       meta={meta}
       tone={attachment.status === 'error' ? 'danger' : 'accent'}
       onRemove={onRemove}
+      removeLabel={attachment.status === 'saving' ? `Cancel saving ${attachment.name}` : `Dismiss ${attachment.name}`}
       className="composer-pending-attachment"
     />
   )
