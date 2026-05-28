@@ -771,6 +771,12 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               const providerControlSurfaces = diagnosticsSection instanceof HTMLElement
                 ? [...diagnosticsSection.querySelectorAll('.provider-settings-control-surface')]
                 : [];
+              const providerSelectorGrid = providerSelectorCard instanceof HTMLElement
+                ? providerSelectorCard.querySelector('.provider-selector-grid')
+                : null;
+              const providerSelectorSelect = providerSelectorCard instanceof HTMLElement
+                ? providerSelectorCard.querySelector('.provider-selector-select')
+                : null;
               const permissionExecutionContract = document.querySelector('[data-testid="settings-permission-execution-contract"]');
               const providerControlSurfaceText = providerControlSurfaces[0] instanceof HTMLElement
                 ? providerControlSurfaces[0].innerText
@@ -793,8 +799,12 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 diagnosticsSection instanceof HTMLElement &&
                 providerSelectorCard instanceof HTMLElement &&
                 providerSelectorSummary instanceof HTMLElement &&
+                providerSelectorCard.getAttribute('data-provider-selector-surface') === 'shared' &&
+                providerSelectorGrid instanceof HTMLElement &&
+                providerSelectorSelect instanceof HTMLSelectElement &&
                 providerSelectorSummary.textContent?.includes('Ready') &&
                 providerSelectorCard.getBoundingClientRect().height <= 38 &&
+                providerSelectorCard.scrollWidth <= providerSelectorCard.clientWidth + 2 &&
                 providerSelects.some((select) => [...select.options].some((option) => option.textContent?.includes('Codex CLI'))) &&
                 !providerButtonLabels.some((label) => ['Claude Code', 'GitHub Copilot', 'Codex CLI', 'Cursor'].includes(label));
               var settingsDiagnosticsSectionWorks =

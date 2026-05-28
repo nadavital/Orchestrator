@@ -669,43 +669,23 @@ function ProviderDropdown({
   return (
     <div
       data-testid="provider-selector-card"
-      style={{
-        display: 'grid',
-        gap: 8,
-        marginBottom: 10
-      }}
+      data-provider-selector-surface="shared"
+      className="provider-selector-card"
+      style={{ '--provider-color': color } as CSSProperties}
     >
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'minmax(170px, 1fr) minmax(180px, 280px) auto',
-          alignItems: 'center',
-          gap: 10
-        }}
-      >
+      <div className="provider-selector-grid">
         <div
           data-testid="provider-selector-summary"
-          style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}
+          className="provider-selector-summary"
         >
-          <span
-            style={{
-              width: 24,
-              height: 24,
-              borderRadius: 7,
-              display: 'grid',
-              placeItems: 'center',
-              background: `${color}18`,
-              color,
-              flexShrink: 0
-            }}
-          >
+          <span className="provider-selector-icon">
             <ProviderIcon providerId={providerId} size={16} color={color} />
           </span>
-          <span className="min-w-0" style={{ display: 'grid', gap: 1 }}>
-            <span style={{ color: 'var(--color-text)', fontSize: 13, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <span className="provider-selector-copy">
+            <span className="provider-selector-name">
               {selectedProvider?.name ?? 'Provider'}
             </span>
-            <span style={{ color: 'var(--color-text-muted)', fontSize: 11, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <span className="provider-selector-status">
               {providerStatus}
             </span>
           </span>
@@ -714,18 +694,7 @@ function ProviderDropdown({
           aria-label="Provider"
           value={selectedId}
           onChange={(event) => onSelect(event.target.value)}
-          style={{
-            width: '100%',
-            height: 30,
-            borderRadius: 7,
-            border: '1px solid var(--color-border)',
-            background: 'var(--color-surface2)',
-            color: 'var(--color-text)',
-            fontSize: 12,
-            fontWeight: 600,
-            padding: '0 8px',
-            outline: 'none',
-          }}
+          className="provider-selector-select"
         >
           {providers.map((provider) => (
             <option key={provider.id} value={provider.id}>{provider.name}</option>
@@ -735,18 +704,7 @@ function ProviderDropdown({
           <button
             onClick={onSetDefault}
             disabled={!installed}
-            style={{
-              height: 30,
-              padding: '0 10px',
-              borderRadius: 7,
-              border: `1px solid ${installed ? color : 'var(--color-border)'}`,
-              background: installed ? `${color}12` : 'var(--color-surface2)',
-              color: installed ? color : 'var(--color-text-muted)',
-              cursor: installed ? 'pointer' : 'default',
-              fontSize: 12,
-              fontWeight: 600,
-              whiteSpace: 'nowrap'
-            }}
+            className="settings-action-button provider-selector-default-action"
           >
             Set default
           </button>

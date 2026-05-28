@@ -1307,7 +1307,7 @@ Completed in the latest implementation pass:
 - Capabilities create/row menus, edit/sync sheets, and delete confirmation now use shared primitives.
 - Session action rename/delete and project removal no longer use native browser prompt/confirm UI.
 - Capabilities smoke now verifies create-menu open, menu Escape dismissal, create-sheet open, and sheet Escape dismissal.
-- Settings now shares design-system primitives for intro text, groups, panels, compact rows, choice cards, status pills, diagnostic pills, and provider command-output cards.
+- Settings now shares design-system primitives for intro text, groups, panels, compact rows, choice cards, status pills, diagnostic pills, provider command-output cards, and the provider picker.
 - Composer provider/agent/permission dropdown panels now use shared dismissable popover behavior with focus return.
 - Composer smoke now verifies permission-menu Escape dismissal/focus return, agent-menu outside-click dismissal/focus return, expanded/collapsed ARIA state on Agent/Permission popover triggers, and Arrow-key roving focus inside composer popovers.
 - Transcript active-run queue controls now share badge/button primitives for queued and steering follow-ups, and focused streaming smoke verifies steering follow-ups remain cancellable.
@@ -1317,7 +1317,7 @@ Completed in the latest implementation pass:
 
 The biggest remaining pieces are:
 
-1. Finish the remaining settings local controls: color swatches, provider picker, model list manager, config editor, import controls, and provider command output cards.
+1. Finish the remaining settings local controls: color swatches, model list manager, config editor, and import controls.
 2. Composer and transcript workflow polish beyond the implemented shared primitives, especially deeper context/permission flows and provider-backed retry/continue proof.
 3. Finish the remaining Extensions panel primitive migration for file/command rows, disclosures, and metrics.
 4. Add seeded edit/sync capability fixtures so those sheet flows are deterministic in smoke tests.
