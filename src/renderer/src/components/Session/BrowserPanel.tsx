@@ -240,10 +240,13 @@ export default function BrowserPanel({
     : pendingComment
       ? `Point ${pendingComment.xPercent}%, ${pendingComment.yPercent}%`
       : ''
-  const showStatusRow = isLoading || blocked || devicePreviewActive || (copyUrlStatus !== null && !error)
   const browserUseCursorText = workbench.browserUseCursorState?.visible
     ? `${Math.round(workbench.browserUseCursorState.x)},${Math.round(workbench.browserUseCursorState.y)}`
     : ''
+  const browserUseRuntimeSignal = hasBrowserUseRuntimeSignal(workbench)
+  const browserUseRuntimeLabel = workbench.browserUseActive ? 'Agent browsing' : 'Browser runtime'
+  const browserUseRuntimeDetail = browserUseRuntimeSummary(workbench, browserUseCursorText)
+  const showStatusRow = isLoading || blocked || devicePreviewActive || browserUseRuntimeSignal || (copyUrlStatus !== null && !error)
   const sortedLocalTargets = sortLocalTargets(localTargets, localTargetSort)
   const hiddenLocalTargetUrls = new Set(workbench.hiddenLocalTargets)
   const visibleLocalTargets = sortedLocalTargets.filter((target) => !hiddenLocalTargetUrls.has(target.url))
@@ -1825,6 +1828,22 @@ export default function BrowserPanel({
             {isLoading && <Badge tone="neutral">Loading</Badge>}
             {error && <Badge tone="danger">Failed</Badge>}
             {blocked && <Badge tone="warning">Blocked origin</Badge>}
+            {browserUseRuntimeSignal && (
+              <span
+                className="browser-use-status-pill"
+                data-testid="browser-use-status"
+                data-browser-use-status-active={workbench.browserUseActive ? 'true' : 'false'}
+                data-browser-use-status-detail={browserUseRuntimeDetail}
+                role="status"
+                aria-live="polite"
+                aria-atomic="true"
+                aria-label={`${browserUseRuntimeLabel}: ${browserUseRuntimeDetail}`}
+                title={`${browserUseRuntimeLabel}: ${browserUseRuntimeDetail}`}
+              >
+                <Icon name="browser" size={12} />
+                <span>{browserUseRuntimeLabel}</span>
+              </span>
+            )}
             <span className="min-w-0 flex-1 truncate" style={{ color: error ? 'var(--state-danger)' : 'var(--text-tertiary)' }}>
               {error ?? title ?? currentUrl}
             </span>
@@ -3296,6 +3315,30 @@ function normalizeBrowserUseCursorState(state: BrowserUseCursorState | null | un
     x,
     y
   }
+}
+
+function hasBrowserUseRuntimeSignal(workbench: BrowserWorkbenchState): boolean {
+  return workbench.browserUseActive ||
+    Boolean(workbench.browserUseTurnId) ||
+    workbench.browserUseViewportSize !== null ||
+    workbench.browserUseCaptureSurfaceSize !== null ||
+    workbench.browserUseCaptureBounds !== null ||
+    workbench.browserUseCursorState !== null
+}
+
+function browserUseRuntimeSummary(workbench: BrowserWorkbenchState, cursorText: string): string {
+  const viewport = workbench.browserUseViewportSize
+  const capture = workbench.browserUseCaptureSurfaceSize
+  const bounds = workbench.browserUseCaptureBounds
+  const parts = [
+    viewport ? `Viewport ${viewport.width}x${viewport.height}` : null,
+    capture ? `Capture ${capture.width}x${capture.height}` : null,
+    bounds ? `Bounds ${bounds.x},${bounds.y}` : null,
+    cursorText ? `Cursor ${cursorText}` : null
+  ].filter(Boolean)
+  if (parts.length > 0) return parts.join(' · ')
+  if (workbench.browserUseTurnId) return `Turn ${workbench.browserUseTurnId}`
+  return 'Runtime signal received'
 }
 
 function addArtifactToChat(path: string | null): void {

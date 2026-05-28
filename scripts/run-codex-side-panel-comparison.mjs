@@ -397,7 +397,7 @@ function buildContracts() {
         { path: 'src/main/codexAppServerRuntime.ts', terms: ['clientDynamicToolBridge', 'dynamicTools', 'answerClientDynamicTool'] },
         { path: 'src/main/browserClientToolSpecs.ts', terms: ['browser_open', 'browser_read', 'browser_click', 'browser_type', 'browser_screenshot', 'includeImage', 'browser_fill', 'browser_key', 'browser_select', 'browser_check', 'browser_scroll', 'browserClientDynamicTools'] },
         { path: 'src/main/browserClientTools.ts', terms: ['browser:clientToolCall', 'browser:runClientToolSmoke'] },
-        { path: 'src/renderer/src/components/Session/BrowserPanel.tsx', terms: ['onClientToolCall', 'browserClientToolSnapshot', 'waitForWebviewSettled'] },
+        { path: 'src/renderer/src/components/Session/BrowserPanel.tsx', terms: ['onClientToolCall', 'browserClientToolSnapshot', 'waitForWebviewSettled', 'browser-use-status'] },
         { path: 'src/main/__tests__/codexAppServerRuntime.test.ts', terms: ['advertises and answers supported Browser dynamic tools', 'browser_read'] },
         { path: 'scripts/codex-browser-appserver-live-proof.mjs', terms: ['CODEX_BROWSER_PROOF_DYNAMIC_TOOL', 'CODEX_BROWSER_PROOF_REAL_BROWSER_TOOLS', 'browser_bridge_status'] },
         { path: 'package.json', terms: ['live:codex-browser-tools'] }
@@ -442,9 +442,9 @@ function buildContracts() {
           ]
         }
       ],
-      smokeChecks: ['browserWebviewManagerBoundary', 'browserHiddenWebviewContainment', 'browserForkDomTransfer', 'browserUseNoMutation', 'browserManagerStateBridge', 'browserClientToolBridge', 'browserClientToolActions', 'browserClientToolScreenshot', 'browserClientToolScreenshotImage', 'browserClientToolAdvancedActions', 'browserPersistedPolicyDefaults'],
+      smokeChecks: ['browserWebviewManagerBoundary', 'browserHiddenWebviewContainment', 'browserForkDomTransfer', 'browserUseNoMutation', 'browserManagerStateBridge', 'browserUseStatusVisible', 'browserClientToolBridge', 'browserClientToolActions', 'browserClientToolScreenshot', 'browserClientToolScreenshotImage', 'browserClientToolAdvancedActions', 'browserPersistedPolicyDefaults'],
       statusWhenCovered: 'fixture-covered',
-      caveat: 'Synthetic manager events, UI boundaries, Browser renderer loopback, persisted Browser Use policy defaults in the right Browser panel, installed-app smoke proof, and live Codex app-server real browser_open/browser_read/browser_click/browser_type/browser_screenshot(includeImage)/browser_fill/browser_key/browser_select/browser_check/browser_scroll tool requests pass; native browser-use event streaming is still separate.',
+      caveat: 'Synthetic manager events, visible Browser runtime status, UI boundaries, Browser renderer loopback, persisted Browser Use policy defaults in the right Browser panel, installed-app smoke proof, and live Codex app-server real browser_open/browser_read/browser_click/browser_type/browser_screenshot(includeImage)/browser_fill/browser_key/browser_select/browser_check/browser_scroll tool requests pass; native browser-use event streaming is still separate.',
       next: 'Keep unavailable runtime boundaries explicit; expand only when native browser-use events, provider design-change application, or live pixel/timing evidence becomes available.',
       openIssues: [
         {

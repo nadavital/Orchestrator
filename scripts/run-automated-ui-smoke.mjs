@@ -2193,6 +2193,7 @@ child.on('exit', async (code) => {
           browserVisibleGeometry: result.browserVisibleGeometryWorks === true,
           browserViewportReset: result.browserViewportResetWorks === true,
           browserManagerStateBridge: result.browserManagerStateBridgeWorks === true,
+          browserUseStatusVisible: result.browserUseStatusVisibleWorks === true,
           browserClientToolBridge: result.browserClientToolBridgeWorks === true,
           browserClientToolActions: result.browserClientToolActionsWork === true,
           browserClientToolScreenshot: result.browserClientToolScreenshotWorks === true,

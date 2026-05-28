@@ -16831,6 +16831,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
             const browserPanelAfterManagerBridge = document.querySelector('[data-testid="browser-panel"]');
             const browserWebviewManager = document.querySelector('[data-testid="browser-webview-manager"]');
             const browserUseCursor = document.querySelector('[data-testid="browser-use-cursor"]');
+            const browserUseStatus = document.querySelector('[data-testid="browser-use-status"]');
             const browserNoMutationAfterBrowserUseActive = captureBrowserNoMutationSnapshot();
             var browserManagerStateBridgeWorks =
               browserPanelAfterManagerBridge?.getAttribute('data-browser-use-active') === 'true' &&
@@ -16863,6 +16864,16 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserUseCursor.getAttribute('data-browser-use-cursor-x') === '48' &&
               browserUseCursor.getAttribute('data-browser-use-cursor-y') === '64' &&
               browserUseCursor.getAttribute('data-browser-use-cursor-animated') === 'true';
+            var browserUseStatusVisibleWorks =
+              browserUseStatus instanceof HTMLElement &&
+              browserUseStatus.getAttribute('role') === 'status' &&
+              browserUseStatus.getAttribute('aria-live') === 'polite' &&
+              browserUseStatus.getAttribute('data-browser-use-status-active') === 'true' &&
+              browserUseStatus.getAttribute('data-browser-use-status-detail')?.includes('Viewport 390x844') === true &&
+              browserUseStatus.getAttribute('data-browser-use-status-detail')?.includes('Capture 800x600') === true &&
+              browserUseStatus.getAttribute('data-browser-use-status-detail')?.includes('Cursor 48,64') === true &&
+              browserUseStatus.textContent?.includes('Agent browsing') === true &&
+              browserUseStatus.scrollWidth <= browserUseStatus.clientWidth + 2;
             var browserCaptureGeometryWorks =
               browserPanelAfterManagerBridge?.getAttribute('data-browser-use-capture-x') === '12' &&
               browserPanelAfterManagerBridge?.getAttribute('data-browser-use-capture-y') === '34' &&
@@ -16910,6 +16921,9 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserWebviewManagerAfterReset.getAttribute('data-browser-manager-paint-host') === 'false' &&
               browserWebviewManagerAfterReset.getAttribute('data-browser-manager-browser-use-active') === 'false' &&
               !document.querySelector('[data-testid="browser-use-cursor"]');
+            browserUseStatusVisibleWorks =
+              browserUseStatusVisibleWorks &&
+              !document.querySelector('[data-testid="browser-use-status"]');
             const noCacheButton = findButton('Reload without cache');
             if (noCacheButton instanceof HTMLButtonElement) {
               noCacheButton.click();
@@ -18412,6 +18426,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserVisibleGeometryWorks,
               browserViewportResetWorks,
               browserManagerStateBridgeWorks,
+              browserUseStatusVisibleWorks,
               browserClientToolBridgeWorks,
               browserClientToolActionsWork,
               browserClientToolScreenshotWorks,
