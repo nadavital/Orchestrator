@@ -187,6 +187,7 @@ declare global {
         fork: (id: string, mode: SessionForkMode) => Promise<Session>
         retryPendingWorktree: (id: string) => Promise<Session>
         sendMessage: (sessionId: string, prompt: string, useWorktree?: boolean, attachments?: Attachment[]) => Promise<void>
+        retryLastUserMessage: (sessionId: string) => Promise<boolean>
         answerSideQuestion: (sessionId: string, question: string) => Promise<{ ok: boolean; answer: string; error?: string; usage?: UsageSummary }>
         updateName: (id: string, name: string) => Promise<void>
         updatePinned: (id: string, pinned: boolean) => Promise<void>

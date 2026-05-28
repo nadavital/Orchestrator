@@ -1414,19 +1414,92 @@ function MessageRow({
       return <StatusCard content={msg.content} session={session} />
     }
     if (msg.subtype === 'success') return null
-    return (
-      <div className="flex justify-center">
-        <span
-          className="text-xs px-3 py-1 rounded-full"
-          style={{ background: '#2d1a1a', color: 'var(--color-red)' }}
-        >
-          ✗ Error{msg.content ? ` — ${msg.content.slice(0, 80)}` : ''}
-        </span>
-      </div>
-    )
+    return <ErrorRecoveryCard msg={msg} session={session} />
   }
 
   return null
+}
+
+function ErrorRecoveryCard({ msg, session }: { msg: ResultMessage; session: Session }): JSX.Element {
+  const [retryState, setRetryState] = useState<'idle' | 'retrying' | 'sent' | 'error'>('idle')
+  const [retryError, setRetryError] = useState<string | null>(null)
+  const canRetry = hasRetryableUserMessage(session) && !isActiveSessionStatus(session.status)
+
+  const retryLastMessage = async (): Promise<void> => {
+    if (!canRetry || retryState === 'retrying') return
+    setRetryState('retrying')
+    setRetryError(null)
+    try {
+      const ok = await window.api.sessions.retryLastUserMessage(session.id)
+      if (!ok) {
+        setRetryState('error')
+        setRetryError('No retryable message is available.')
+        return
+      }
+      setRetryState('sent')
+    } catch (error) {
+      setRetryState('error')
+      setRetryError(error instanceof Error ? error.message : 'Retry failed.')
+    }
+  }
+
+  return (
+    <div className="flex justify-start min-w-0 w-full">
+      <SurfaceRow
+        className="flex min-w-0 items-start gap-2 rounded-xl px-3 py-2 text-xs"
+        dataTestId="chat-error-recovery-card"
+        style={{
+          maxWidth: 'min(640px, 100%)',
+          background: 'color-mix(in srgb, var(--color-red) 8%, var(--color-surface2))',
+          border: '1px solid color-mix(in srgb, var(--color-red) 28%, var(--color-border))',
+          color: 'var(--color-text)'
+        }}
+      >
+        <span
+          className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded"
+          style={{ color: 'var(--color-red)', background: 'var(--color-surface)' }}
+        >
+          {iconPath('warning')}
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="text-[11px] font-semibold" style={{ color: 'var(--color-red)' }}>
+            Run failed
+          </div>
+          <div className="mt-0.5" style={{ color: 'var(--color-text)', overflowWrap: 'anywhere' }}>
+            {msg.content?.trim() || 'The provider run stopped before completing.'}
+          </div>
+          {(retryError || retryState === 'sent') && (
+            <div
+              className="mt-1 text-[11px]"
+              data-testid="chat-error-retry-status"
+              style={{ color: retryState === 'error' ? 'var(--color-red)' : 'var(--color-green)' }}
+            >
+              {retryState === 'error' ? retryError : 'Retry sent'}
+            </div>
+          )}
+        </div>
+        <Button
+          variant="secondary"
+          className="shrink-0 px-3 py-1"
+          dataTestId="chat-error-retry-last"
+          disabled={!canRetry || retryState === 'retrying'}
+          onClick={() => { void retryLastMessage() }}
+        >
+          {retryState === 'retrying' ? 'Retrying...' : 'Retry last message'}
+        </Button>
+      </SurfaceRow>
+    </div>
+  )
+}
+
+function hasRetryableUserMessage(session: Session): boolean {
+  return session.messages.some((message) =>
+    message.type === 'text' && message.role === 'user' && message.content.trim().length > 0
+  )
+}
+
+function isActiveSessionStatus(status: Session['status']): boolean {
+  return status === 'running' || status === 'waiting_for_permission' || status === 'waiting_for_user' || status === 'reconnecting'
 }
 
 function collapsedUserMessageContent(content: string): string {

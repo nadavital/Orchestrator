@@ -1230,6 +1230,36 @@ export const sessionManager = {
     return this.startProviderRun(sessionId, currentSession, provider, runRequest, 'start', options.onProviderRunComplete)
   },
 
+  async retryLastUserMessage(sessionId: string): Promise<boolean> {
+    const session = this.get(sessionId)
+    if (!session) throw new Error(`Session ${sessionId} not found`)
+    const lastUserMessage = [...session.messages]
+      .reverse()
+      .find((message): message is Extract<ChatMessage, { type: 'text'; role: 'user' }> =>
+        message.type === 'text' && message.role === 'user' && message.content.trim().length > 0
+    )
+    if (!lastUserMessage) return false
+    if (providerRuntime.hasActiveRun(sessionId)) return false
+    if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT && process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-layout') {
+      return true
+    }
+
+    const attachments = lastUserMessage.attachments ?? []
+    const provider = getProvider(session.provider ?? 'claude')
+    const effectivePrompt = promptWithPersonalization(promptWithLocalAttachments(lastUserMessage.content, attachments))
+    const runtimeAttachments = provider.id === 'codex' ? attachments : claudeResourceAttachmentSpecs(attachments)
+    this.updateStatus(sessionId, 'running')
+
+    const currentSession = this.get(sessionId)!
+    const mode = currentSession.providerSessionId ? 'resume' : 'start'
+    const runRequest: RunRequest = {
+      ...requestFromSession(currentSession, effectivePrompt),
+      runtime: currentSession.runtime,
+      attachments: runtimeAttachments
+    }
+    return this.startProviderRun(sessionId, currentSession, provider, runRequest, mode)
+  },
+
   applyRunEvents(sessionId: string, events: RunEvent[]): void {
     if (events.length === 0) return
 

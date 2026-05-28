@@ -2031,6 +2031,7 @@ child.on('exit', async (code) => {
         userInputCard: result.userInputCardWorks === true,
         permissionCard: result.permissionCardWorks === true,
         permissionActionsWrap: result.permissionActionsWrap === true,
+        errorRecoveryRetry: result.errorRecoveryRetryWorks === true,
         rawEventsHiddenFromTranscript: result.rawEventsHiddenFromTranscript === true,
         narrowDocumentNoHorizontalOverflow: result.narrowDocumentNoHorizontalOverflow === true,
         narrowTranscriptNoHorizontalOverflow: result.narrowTranscriptNoHorizontalOverflow === true,

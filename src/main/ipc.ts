@@ -2812,6 +2812,9 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('sessions:sendMessage', (_, sessionId: string, prompt: string, useWorktree?: boolean, attachments?: Attachment[]) =>
     sessionManager.sendMessage(sessionId, prompt, useWorktree, attachments ?? [])
   )
+  ipcMain.handle('sessions:retryLastUserMessage', (_, sessionId: string) =>
+    sessionManager.retryLastUserMessage(sessionId)
+  )
   ipcMain.handle('sessions:answerSideQuestion', (_, sessionId: string, question: string) =>
     sessionManager.answerSideQuestion(sessionId, question)
   )

@@ -19510,6 +19510,88 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
             };
           })()
         `)
+        if (session) {
+          sessionManager.updateStatus(session.id, 'idle')
+          win.setSize(860, 720)
+          win.webContents.send('pet:navigate', session.id)
+          await new Promise((resolve) => setTimeout(resolve, 240))
+        }
+        const retryTarget = await win.webContents.executeJavaScript(`
+          (async () => {
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            const activeSessionId = ${JSON.stringify(session?.id ?? '')};
+            const scroller = document.querySelector('[data-testid="transcript-scroll"]');
+            if (!(scroller instanceof HTMLElement)) return { found: false };
+            const scrollerRect = scroller.getBoundingClientRect();
+            const isInsideScroller = (element) => {
+              const rect = element.getBoundingClientRect();
+              return rect.left >= scrollerRect.left - 2 && rect.right <= scrollerRect.right + 2;
+            };
+            if (activeSessionId) {
+              await window.api.sessions.stop(activeSessionId);
+              await sleep(360);
+            }
+            let recoveryCards = [];
+            let recoveryCard = null;
+            let retryLastButton = null;
+            for (let index = 0; index < 14; index += 1) {
+              scroller.scrollTop = Math.max(0, scroller.scrollHeight - scroller.clientHeight) * (index / 13);
+              scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
+              await sleep(120);
+              recoveryCards = [...document.querySelectorAll('[data-testid="chat-error-recovery-card"]')]
+                .filter((card) => card instanceof HTMLElement);
+              recoveryCard = recoveryCards.find((card) => {
+                const button = card.querySelector('[data-testid="chat-error-retry-last"]');
+                const rect = card.getBoundingClientRect();
+                const buttonRect = button instanceof HTMLButtonElement ? button.getBoundingClientRect() : null;
+                return button instanceof HTMLButtonElement &&
+                  !button.disabled &&
+                  rect.width > 0 &&
+                  rect.height > 0 &&
+                  buttonRect !== null &&
+                  buttonRect.width > 0 &&
+                  buttonRect.height > 0;
+              });
+              if (recoveryCard instanceof HTMLElement) {
+                retryLastButton = recoveryCard.querySelector('[data-testid="chat-error-retry-last"]');
+                break;
+              }
+            }
+            if (activeSessionId && retryLastButton instanceof HTMLButtonElement && !retryLastButton.disabled) {
+              retryLastButton.focus();
+            }
+            const buttonRect = retryLastButton instanceof HTMLButtonElement ? retryLastButton.getBoundingClientRect() : null;
+            return {
+              found: recoveryCard instanceof HTMLElement && retryLastButton instanceof HTMLButtonElement,
+              activeSessionId,
+              recoveryCardBounded: recoveryCard instanceof HTMLElement && isInsideScroller(recoveryCard),
+              buttonDisabled: retryLastButton instanceof HTMLButtonElement ? retryLastButton.disabled : null,
+              x: buttonRect ? buttonRect.left + buttonRect.width / 2 : null,
+              y: buttonRect ? buttonRect.top + buttonRect.height / 2 : null
+            };
+          })()
+        `)
+        if (retryTarget?.found && retryTarget.x !== null && retryTarget.y !== null) {
+          win.webContents.sendInputEvent({ type: 'mouseMove', x: retryTarget.x, y: retryTarget.y })
+          win.webContents.sendInputEvent({ type: 'mouseDown', x: retryTarget.x, y: retryTarget.y, button: 'left', clickCount: 1 })
+          win.webContents.sendInputEvent({ type: 'mouseUp', x: retryTarget.x, y: retryTarget.y, button: 'left', clickCount: 1 })
+          await new Promise((resolve) => setTimeout(resolve, 240))
+        }
+        const retryResult = await win.webContents.executeJavaScript(`
+          (() => {
+            const activeSessionId = ${JSON.stringify(session?.id ?? '')};
+            const recoveryCard = document.querySelector('[data-testid="chat-error-recovery-card"]');
+            const retryLastButton = recoveryCard?.querySelector('[data-testid="chat-error-retry-last"]');
+            const retryStatus = recoveryCard?.querySelector('[data-testid="chat-error-retry-status"]');
+            return {
+              errorRecoveryRetryWorks:
+                ${JSON.stringify(Boolean(retryTarget?.recoveryCardBounded))} &&
+                retryLastButton instanceof HTMLButtonElement &&
+                retryStatus instanceof HTMLElement &&
+                retryStatus.textContent?.includes('Retry sent') === true
+            };
+          })()
+        `)
         const shortcutResult = await win.webContents.executeJavaScript(`
           (async () => {
             const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -19532,7 +19614,7 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
           const image = await win.webContents.capturePage()
           writeFileSync(screenshotPath, image.toPNG())
         }
-        writeFileSync(outputPath, JSON.stringify({ ok: true, result: { profile, ...result, ...narrowResult, ...shortcutResult }, screenshotPath }, null, 2))
+        writeFileSync(outputPath, JSON.stringify({ ok: true, result: { profile, ...result, ...narrowResult, ...retryResult, ...shortcutResult }, screenshotPath }, null, 2))
         app.quit()
       } catch (error) {
         writeFileSync(outputPath, JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2))
@@ -21380,12 +21462,20 @@ function seedAutomatedTranscriptLayoutSmokeSession(sessionId: string): void {
       timestamp: baseTime + 1
     },
     {
+      id: 'transcript-layout-run-failed',
+      role: 'system',
+      type: 'result',
+      content: 'Provider transport failed before completing this coding request.',
+      subtype: 'error_during_execution',
+      timestamp: baseTime + 2
+    },
+    {
       id: 'transcript-layout-user-input',
       role: 'system',
       type: 'result',
       content: 'Which implementation direction should this coding session take next?',
       subtype: 'waiting_for_user',
-      timestamp: baseTime + 2,
+      timestamp: baseTime + 3,
       userInputQuestions: [{
         id: 'transcript-layout-choice',
         header: 'Direction',
@@ -21402,7 +21492,7 @@ function seedAutomatedTranscriptLayoutSmokeSession(sessionId: string): void {
       type: 'result',
       content: 'Allow this command to inspect the workspace?',
       subtype: 'error_during_execution',
-      timestamp: baseTime + 3,
+      timestamp: baseTime + 4,
       permissionDenials: [{
         tool_name: 'Bash',
         tool_use_id: 'transcript-layout-permission',
@@ -21422,7 +21512,7 @@ function seedAutomatedTranscriptLayoutSmokeSession(sessionId: string): void {
         cwd: longPath,
         description: `Layout fixture tool call ${index + 1}`
       },
-      timestamp: baseTime + 4 + index
+      timestamp: baseTime + 5 + index
     }))
   ]
 
