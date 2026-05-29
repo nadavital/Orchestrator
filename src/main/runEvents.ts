@@ -93,6 +93,17 @@ export function eventsToMessages(events: RunEvent[]): ChatMessage[] {
         subtype: 'status',
         timestamp: Date.now()
       })
+    } else if (event.type === 'review.mode.changed') {
+      messages.push({
+        id: uuidv4(),
+        role: 'system',
+        type: 'result',
+        content: event.active
+          ? `Review mode: active${event.review ? ` · ${event.review}` : ''}`
+          : `Review mode: exited${event.review ? ` · ${event.review}` : ''}`,
+        subtype: 'status',
+        timestamp: Date.now()
+      })
     } else if (event.type === 'run.completed') {
       messages.push({
         id: uuidv4(),

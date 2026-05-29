@@ -2420,7 +2420,11 @@ function contentItemsText(value: unknown): string {
   }).filter(Boolean).join('\n')
 }
 
-function parseCodexAppServerItem(item: Record<string, unknown>, phase?: 'started' | 'completed'): RunEvent[] {
+function parseCodexAppServerItem(
+  item: Record<string, unknown>,
+  phase?: 'started' | 'completed',
+  params: Record<string, unknown> = {}
+): RunEvent[] {
   const itemType = stringValue(item.type)
   if (itemType === 'agentMessage') {
     const text = stringValue(item.text)
@@ -2555,11 +2559,14 @@ function parseCodexAppServerItem(item: Record<string, unknown>, phase?: 'started
   }
 
   if (itemType === 'enteredReviewMode' || itemType === 'exitedReviewMode') {
+    const review = stringValue(item.review)
     return [{
-      type: 'assistant.status',
-      content: itemType === 'enteredReviewMode'
-        ? `Entered review mode${stringValue(item.review) ? `: ${stringValue(item.review)}` : ''}`
-        : `Exited review mode${stringValue(item.review) ? `: ${stringValue(item.review)}` : ''}`
+      type: 'review.mode.changed',
+      providerId: 'codex',
+      sessionId: stringValue(params.threadId, item.threadId) ?? '',
+      active: itemType === 'enteredReviewMode',
+      review,
+      itemId: stringValue(item.id)
     }]
   }
 
@@ -2991,7 +2998,7 @@ function parseCodexAppServerMessage(obj: Record<string, unknown>): RunEvent[] {
 
   if (method === 'item/started' || method === 'item/completed') {
     const item = asRecord(params.item)
-    if (item) events.push(...parseCodexAppServerItem(item, method === 'item/started' ? 'started' : 'completed'))
+    if (item) events.push(...parseCodexAppServerItem(item, method === 'item/started' ? 'started' : 'completed', params))
   }
 
   if (

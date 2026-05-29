@@ -1364,7 +1364,7 @@ test('codex app-server protocol messages normalize lifecycle, review, diff, and 
     { jsonrpc: '2.0', method: 'item/started', params: { item: { type: 'webSearch', id: 'web-1', query: 'codex app server', action: null } } },
     { jsonrpc: '2.0', method: 'item/completed', params: { item: { type: 'webSearch', id: 'web-1', query: 'codex app server', action: { type: 'search' } } } },
     { jsonrpc: '2.0', method: 'item/completed', params: { item: { type: 'imageGeneration', id: 'img-1', status: 'completed', revisedPrompt: 'a diagram', result: 'ok', savedPath: '/tmp/image.png' } } },
-    { jsonrpc: '2.0', method: 'item/completed', params: { item: { type: 'enteredReviewMode', id: 'review-mode-1', review: 'Review current diff' } } },
+    { jsonrpc: '2.0', method: 'item/completed', params: { threadId: 'codex-thread-rich', item: { type: 'enteredReviewMode', id: 'review-mode-1', review: 'Review current diff' } } },
     { jsonrpc: '2.0', method: 'item/completed', params: { item: { type: 'contextCompaction', id: 'compact-1' } } },
     { jsonrpc: '2.0', method: 'command/exec/outputDelta', params: { callId: 'cmd-1', delta: 'stdout chunk' } },
     { jsonrpc: '2.0', method: 'item/reasoning/summaryTextDelta', params: { itemId: 'reasoning-1', delta: 'thinking summary' } },
@@ -1376,16 +1376,21 @@ test('codex app-server protocol messages normalize lifecycle, review, diff, and 
   const messages = eventsToMessages(events)
 
   const diffUpdated = firstEvent(events, 'diff.updated')
+  const reviewMode = firstEvent(events, 'review.mode.changed')
   assert.equal(diffUpdated.providerSessionId, 'codex-thread-rich')
   assert.equal(diffUpdated.providerTurnId, 'turn-1')
   assert.equal(diffUpdated.checkpointId, undefined)
   assert.equal(diffUpdated.checkpointUndoSupported, false)
+  assert.equal(reviewMode.active, true)
+  assert.equal(reviewMode.sessionId, 'codex-thread-rich')
+  assert.equal(reviewMode.review, 'Review current diff')
   assert.ok(events.some((event) => event.type === 'tool.started' && event.toolName === 'web_search'))
   assert.ok(events.some((event) => event.type === 'tool.completed' && event.toolUseId === 'img-1'))
   assert.ok(events.some((event) => event.type === 'assistant.text.delta' && event.content === 'stdout chunk'))
   assert.ok(events.some((event) => event.type === 'assistant.text.delta' && event.content === 'thinking summary'))
   assert.ok(messages.some((message) => 'content' in message && message.content.includes('Diff updated')))
   assert.ok(messages.some((message) => 'content' in message && message.content.includes('Auto-review completed')))
+  assert.ok(messages.some((message) => 'content' in message && message.content.includes('Review mode: active')))
   assert.ok(messages.some((message) => 'content' in message && message.content.includes('watch out')))
   assert.ok(messages.some((message) => 'content' in message && message.content.includes('Thread closed')))
 })

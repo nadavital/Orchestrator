@@ -2814,6 +2814,9 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             const goalProgress = document.querySelector('[data-testid="plan-goal-progress"]');
             const goalProgressBar = document.querySelector('[data-testid="plan-goal-progress-bar"]');
             const goalClear = document.querySelector('[data-testid="plan-goal-clear"]');
+            const reviewModeTitle = document.querySelector('[data-testid="plan-review-mode-title"]');
+            const reviewModeSummary = document.querySelector('[data-testid="plan-review-mode-summary"]');
+            const reviewModeOpen = document.querySelector('[data-testid="plan-review-mode-open"]');
             const taskList = document.querySelector('[data-testid="plan-task-list"]');
             const hiddenSentence = 'This hidden sentence should only appear after expanding the full objective.';
             const compactPanelText = planPanel instanceof HTMLElement ? planPanel.innerText : '';
@@ -2836,6 +2839,15 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               !taskListText.includes('Completed') &&
               !taskListText.includes('In progress') &&
               !taskListText.includes('Pending');
+            var planReviewModeWorks =
+              reviewModeTitle instanceof HTMLElement &&
+              reviewModeTitle.getAttribute('data-review-mode-provider') === 'codex' &&
+              reviewModeTitle.getAttribute('data-review-mode-active') === 'true' &&
+              reviewModeTitle.textContent?.includes('Codex is reviewing this thread') === true &&
+              reviewModeSummary instanceof HTMLElement &&
+              reviewModeSummary.textContent?.includes('Review current diff') === true &&
+              reviewModeOpen instanceof HTMLButtonElement &&
+              reviewModeOpen.getAttribute('aria-label') === 'Open Review panel';
             const planGoalToggleCompactWorks =
               goalToggle instanceof HTMLButtonElement &&
               goalToggle.dataset.icon === 'chevronRight' &&
@@ -2894,6 +2906,14 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               document.body.innerText.includes('Reduce Plan panel verbosity') &&
               document.body.innerText.includes(hiddenSentence) &&
               Boolean(document.querySelector('[data-testid="plan-goal-full-objective"]'));
+            var planReviewModeOpenWorks = false;
+            if (reviewModeOpen instanceof HTMLButtonElement) {
+              reviewModeOpen.click();
+              await sleep(240);
+              planReviewModeOpenWorks =
+                document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-active-tab') === 'diff' &&
+                document.querySelector('.diff-panel-root[data-embedded="true"]') instanceof HTMLElement;
+            }
             const agentsTab = document.querySelector('[data-tab-id="agents"]')?.closest('[role="tab"]');
             var planAgentTabShimmerWorks =
               agentsTab instanceof HTMLElement &&
@@ -7736,6 +7756,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             rightPanelTabReorderWorks: typeof rightPanelTabReorderWorks === 'boolean' ? rightPanelTabReorderWorks : null,
             planPanelWorks: typeof planPanelWorks === 'boolean' ? planPanelWorks : null,
             compactTaskRowsWork: typeof compactTaskRowsWork === 'boolean' ? compactTaskRowsWork : null,
+            planReviewModeWorks: typeof planReviewModeWorks === 'boolean' ? planReviewModeWorks : null,
+            planReviewModeOpenWorks: typeof planReviewModeOpenWorks === 'boolean' ? planReviewModeOpenWorks : null,
             planGoalPersistedMetricsWorks: typeof planGoalPersistedMetricsWorks === 'boolean' ? planGoalPersistedMetricsWorks : null,
             planGoalClearActionWorks: typeof planGoalClearActionWorks === 'boolean' ? planGoalClearActionWorks : null,
             planAgentTabShimmerWorks: typeof planAgentTabShimmerWorks === 'boolean' ? planAgentTabShimmerWorks : null,
@@ -28744,6 +28766,14 @@ function seedAutomatedPlanSmokeSession(sessionId: string): void {
       timestamp: now
     },
     {
+      id: 'plan-smoke-review-mode',
+      role: 'system',
+      type: 'result',
+      content: 'Review mode: active · Review current diff',
+      subtype: 'status',
+      timestamp: now + 1
+    },
+    {
       id: 'plan-smoke-todos',
       role: 'assistant',
       type: 'tool_use',
@@ -28755,7 +28785,7 @@ function seedAutomatedPlanSmokeSession(sessionId: string): void {
           { id: '3', content: 'Verify non-foreground smoke coverage', status: 'pending' }
         ]
       },
-      timestamp: now + 1
+      timestamp: now + 2
     },
     {
       id: 'plan-smoke-agent',
@@ -28766,7 +28796,7 @@ function seedAutomatedPlanSmokeSession(sessionId: string): void {
         description: 'Inspect right sidebar polish',
         prompt: 'Compare the right sidebar against Codex density and label treatment.'
       },
-      timestamp: now + 2
+      timestamp: now + 3
     }
   ]
   sessionManager.save({

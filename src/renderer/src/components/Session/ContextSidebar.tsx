@@ -106,7 +106,7 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
     ...derivePlanStates(session, events)
   ]
   const agents = deriveSessionAgentNodes(session, events)
-  const hasPlan = plans.length > 0 || hasActiveGoal(events)
+  const hasPlan = plans.length > 0 || hasActiveGoal(events) || hasActiveReviewMode(events, session)
   const hasOpenAgent = (ui?.agentTabIds?.length ?? 0) > 0
   const hasLiveAgent = agents.some(isLiveAgent)
   const hasSideQuestions = (ui?.sideQuestions?.length ?? 0) > 0
@@ -750,4 +750,19 @@ function hasActiveGoal(events: SessionRunEventRecord[]): boolean {
     if (record.event.type === 'goal.cleared') active = false
   }
   return active
+}
+
+function hasActiveReviewMode(events: SessionRunEventRecord[], session: Session): boolean {
+  let active = false
+  for (const record of events) {
+    if (record.event.type === 'review.mode.changed') active = record.event.active
+  }
+  if (active) return true
+  for (let index = session.messages.length - 1; index >= 0; index -= 1) {
+    const message = session.messages[index]!
+    if (message.type !== 'result') continue
+    const match = /^Review mode:\s*(active|exited)\b/i.exec(message.content.trim())
+    if (match) return match[1]?.toLowerCase() === 'active'
+  }
+  return false
 }

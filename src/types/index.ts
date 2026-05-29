@@ -1060,6 +1060,7 @@ export type RunEvent =
   | { type: 'plan.updated'; plan: PlanState }
   | { type: 'goal.updated'; goal: { providerId: string; sessionId: string; objective: string; status?: string; tokenBudget?: number | null; tokensUsed?: number; timeUsedSeconds?: number } }
   | { type: 'goal.cleared'; providerId: string; sessionId: string }
+  | { type: 'review.mode.changed'; providerId: string; sessionId: string; active: boolean; review?: string; itemId?: string }
   | { type: 'permission.requested'; denials: PermissionDenial[]; content?: string }
   | { type: 'user_input.requested'; content: string; questions?: UserInputQuestion[] }
   | { type: 'connection.reconnecting'; attempt?: number; content?: string }

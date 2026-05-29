@@ -218,8 +218,8 @@ Local Codex CLI: `codex-cli 0.128.0`
    - Add `plugin/read`, safe install/uninstall flows, and composer insertion for native `skill` and `mention` input items.
 
 3. Codex Review Mode:
-   - Add `review/start` for uncommitted/base/commit/custom targets.
-   - Parse `enteredReviewMode` and `exitedReviewMode` into a review card/sidebar section.
+   - Status: `enteredReviewMode` and `exitedReviewMode` now parse into typed review-mode state, persist through transcript status rows, and surface in the right Workbench Plan tab with an Open Review action.
+   - Remaining: add `review/start` controls for uncommitted/base/commit/custom targets and live Codex review-mode timing proof.
 
 4. Native App-Server Diff:
    - Feed `diff.updated` into the existing Diff panel or a Codex turn-diff card.

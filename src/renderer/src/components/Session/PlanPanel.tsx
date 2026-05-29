@@ -12,7 +12,7 @@ interface Props {
 }
 
 export default function PlanPanel({ session, embedded = false }: Props): JSX.Element {
-  const { eventBuffers } = useSessionStore()
+  const { eventBuffers, setShowDiff } = useSessionStore()
   const events = eventBuffers[session.id] ?? []
   const plans = useMemo(() => [
     ...derivePlanStatesFromMessages(session, session.messages),
@@ -20,7 +20,8 @@ export default function PlanPanel({ session, embedded = false }: Props): JSX.Ele
   ].slice(-5), [events, session])
   const current = useMemo(() => combinedPlan(plans), [plans])
   const goal = useMemo(() => latestGoal(events) ?? latestGoalFromMessages(session, session.messages), [events, session])
-  const hasContent = Boolean(current || goal)
+  const reviewMode = useMemo(() => latestReviewMode(events) ?? latestReviewModeFromMessages(session, session.messages), [events, session])
+  const hasContent = Boolean(current || goal || reviewMode)
 
   return (
     <section
@@ -44,6 +45,7 @@ export default function PlanPanel({ session, embedded = false }: Props): JSX.Ele
       ) : (
         <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
           {goal && <GoalBlock goal={goal} session={session} />}
+          {reviewMode && <ReviewModeBlock mode={reviewMode} onOpenReview={() => setShowDiff(session.id, true)} />}
           {current && <PlanBlock plan={current} />}
         </div>
       )}
@@ -52,12 +54,23 @@ export default function PlanPanel({ session, embedded = false }: Props): JSX.Ele
 }
 
 type GoalEvent = Extract<RunEvent, { type: 'goal.updated' }>['goal']
+type ReviewModeEvent = Extract<RunEvent, { type: 'review.mode.changed' }>
 
 function latestGoal(records: SessionRunEventRecord[]): GoalEvent | null {
   let current: GoalEvent | null = null
   for (const record of records) {
     if (record.event.type === 'goal.updated') current = record.event.goal
     if (record.event.type === 'goal.cleared') current = null
+  }
+  return current
+}
+
+function latestReviewMode(records: SessionRunEventRecord[]): ReviewModeEvent | null {
+  let current: ReviewModeEvent | null = null
+  for (const record of records) {
+    if (record.event.type === 'review.mode.changed') {
+      current = record.event.active ? record.event : null
+    }
   }
   return current
 }
@@ -243,6 +256,24 @@ function latestGoalFromMessages(session: Session, messages: Session['messages'])
   return null
 }
 
+function latestReviewModeFromMessages(session: Session, messages: Session['messages']): ReviewModeEvent | null {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index]!
+    if (message.type !== 'result') continue
+    const match = /^Review mode:\s*(active|exited)(?:\s+·\s+([\s\S]+))?$/i.exec(message.content.trim())
+    if (!match) continue
+    if (match[1]?.toLowerCase() !== 'active') return null
+    return {
+      type: 'review.mode.changed',
+      providerId: session.provider ?? 'provider',
+      sessionId: session.id,
+      active: true,
+      review: match[2]?.trim()
+    }
+  }
+  return null
+}
+
 function parsePersistedGoalUsage(value: string): Pick<GoalEvent, 'tokenBudget' | 'tokensUsed' | 'timeUsedSeconds'> {
   const tokensUsed = parseLocaleInteger(value.match(/([\d,]+)\s+tokens?\b/i)?.[1])
   const tokenBudget = parseLocaleInteger(value.match(/([\d,]+)\s+budget\b/i)?.[1])
@@ -273,6 +304,55 @@ function formatDuration(seconds: number): string {
 
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
+}
+
+function ReviewModeBlock({ mode, onOpenReview }: { mode: ReviewModeEvent; onOpenReview: () => void }): JSX.Element {
+  return (
+    <PlanSection>
+      <div className="flex min-w-0 items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div
+            className="text-[11px] font-semibold tracking-normal"
+            data-testid="plan-review-mode-label"
+            style={{ color: 'var(--accent)' }}
+          >
+            Review mode
+          </div>
+          <h3
+            className="mt-1 text-[13px] font-semibold leading-5"
+            data-testid="plan-review-mode-title"
+            data-review-mode-provider={mode.providerId}
+            data-review-mode-active={mode.active ? 'true' : 'false'}
+            style={{ color: 'var(--color-text)', overflowWrap: 'anywhere' }}
+          >
+            Codex is reviewing this thread
+          </h3>
+          {mode.review && (
+            <div
+              className="mt-1 text-xs"
+              data-testid="plan-review-mode-summary"
+              style={{ color: 'var(--text-secondary)', lineHeight: 1.45, overflowWrap: 'anywhere' }}
+            >
+              {mode.review}
+            </div>
+          )}
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            <Badge tone="accent">active</Badge>
+            <MetricPill>app-server</MetricPill>
+          </div>
+        </div>
+        <Button
+          variant="ghost"
+          className="h-7 shrink-0 px-2 text-[11px]"
+          dataTestId="plan-review-mode-open"
+          ariaLabel="Open Review panel"
+          onClick={onOpenReview}
+        >
+          Review
+        </Button>
+      </div>
+    </PlanSection>
+  )
 }
 
 function PlanBlock({ plan }: { plan: PlanState }): JSX.Element {
