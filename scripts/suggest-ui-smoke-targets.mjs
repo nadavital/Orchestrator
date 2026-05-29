@@ -311,9 +311,11 @@ function suggestTargets(paths) {
   suppressTranscriptLayoutForPermissionDiff(matched, paths)
   suppressTranscriptLayoutForFileReferenceDiff(matched, paths)
   suppressTranscriptPermissionForSettingsDiff(matched, paths)
+  suppressComposerForSettingsFocusDiff(matched, paths)
   suppressTranscriptPermissionForAgentEventFocusDiff(matched, paths)
   suppressTranscriptLayoutForForkDiff(matched, paths)
   suppressDesignSystemForSettingsCssDiff(matched, paths)
+  suppressDesignSystemForWorktreesSettingsCssDiff(matched, paths)
   suppressTranscriptForkForCodeBlockDiff(matched, paths)
   suppressTranscriptLayoutForAgentEventFocusDiff(matched, paths)
   suppressComposerForWorktreeLifecycleDiff(matched, paths)
@@ -329,6 +331,7 @@ function suggestTargets(paths) {
   suppressTerminalForFilesPathTerminalHandoffDiff(matched, paths)
   suppressTerminalForFileTabPathTerminalHandoffDiff(matched, paths)
   suppressTerminalForReviewPathTerminalHandoffDiff(matched, paths)
+  suppressTerminalForWorktreesSettingsPathHandoffDiff(matched, paths)
   suppressFilesAndTerminalForFileReferenceDiff(matched, paths)
   suppressComposerAndFilesForReviewRowAddToChatDiff(matched, paths)
   suppressEnvironmentForGitFileWorkflowDiff(matched, paths)
@@ -628,6 +631,16 @@ function suppressTranscriptPermissionForSettingsDiff(matched, paths) {
   matched.delete('--transcript-permission')
 }
 
+function suppressComposerForSettingsFocusDiff(matched, paths) {
+  const composer = matched.get('--composer')
+  const settings = matched.get('--settings')
+  if (!composer || !settings) return
+  if (!composer.files.every((file) => file === 'src/main/index.ts')) return
+  const diff = paths.includes('src/main/index.ts') ? diffForFile('src/main/index.ts') : ''
+  if (!/settingsCloseFocusRestored|composerAfterSettingsClose|settingsWorktreesPathActions/.test(diff)) return
+  matched.delete('--composer')
+}
+
 function suppressTranscriptPermissionForAgentEventFocusDiff(matched, paths) {
   const permission = matched.get('--transcript-permission')
   const workbench = matched.get('--workbench-new-tab')
@@ -653,6 +666,16 @@ function suppressDesignSystemForSettingsCssDiff(matched, paths) {
   if (!designSystem.files.every((file) => file === 'src/renderer/src/index.css')) return
   const diff = paths.includes('src/renderer/src/index.css') ? diffForFile('src/renderer/src/index.css') : ''
   if (!/settings-search|settings-topbar-search/.test(diff)) return
+  matched.delete('--design-system')
+}
+
+function suppressDesignSystemForWorktreesSettingsCssDiff(matched, paths) {
+  const designSystem = matched.get('--design-system')
+  const settings = matched.get('--settings')
+  if (!designSystem || !settings) return
+  if (!designSystem.files.every((file) => file === 'src/renderer/src/index.css')) return
+  const diff = paths.includes('src/renderer/src/index.css') ? diffForFile('src/renderer/src/index.css') : ''
+  if (!/worktrees-row-actions|worktrees-row-header|worktrees-/.test(diff)) return
   matched.delete('--design-system')
 }
 
@@ -828,6 +851,20 @@ function suppressTerminalForReviewPathTerminalHandoffDiff(matched, paths) {
     paths.includes('src/main/index.ts') ? diffForFile('src/main/index.ts') : ''
   ].join('\n')
   if (!/reviewRowInsertPathTerminal|review-row-insert-terminal|Review path inserted in terminal|__orchestratorLastReviewTerminal/.test(diff)) return
+  matched.delete('--terminal')
+}
+
+function suppressTerminalForWorktreesSettingsPathHandoffDiff(matched, paths) {
+  const terminal = matched.get('--terminal')
+  const settings = matched.get('--settings')
+  if (!terminal || !settings) return
+  if (!terminal.files.every((file) => file === 'scripts/run-automated-ui-smoke.mjs' || file === 'src/main/index.ts')) return
+  const diff = [
+    paths.includes('src/renderer/src/components/Settings/WorktreesSettingsPage.tsx') ? diffForFile('src/renderer/src/components/Settings/WorktreesSettingsPage.tsx') : '',
+    paths.includes('scripts/run-automated-ui-smoke.mjs') ? diffForFile('scripts/run-automated-ui-smoke.mjs') : '',
+    paths.includes('src/main/index.ts') ? diffForFile('src/main/index.ts') : ''
+  ].join('\n')
+  if (!/settingsWorktreesPathActions|worktree-insert-terminal|Worktree path inserted in terminal|__orchestratorLastWorktreeTerminal/.test(diff)) return
   matched.delete('--terminal')
 }
 

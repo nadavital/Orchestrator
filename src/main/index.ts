@@ -2493,6 +2493,52 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               );
               const worktreeConversationLists = [...document.querySelectorAll('.worktrees-conversation-list')]
                 .filter((row) => row instanceof HTMLElement);
+              var settingsWorktreesPathActionsWorks = false;
+              var worktreesPathActionStatusA11y = false;
+              if (managedWorktreeRow instanceof HTMLElement) {
+                const worktreePath = managedWorktreeRow.querySelector('.worktrees-path')?.textContent?.trim() ?? '';
+                const copyPathButton = managedWorktreeRow.querySelector('[data-testid="worktree-copy-path"]');
+                const terminalPathButton = managedWorktreeRow.querySelector('[data-testid="worktree-insert-terminal"]');
+                if (
+                  worktreePath &&
+                  copyPathButton instanceof HTMLButtonElement &&
+                  terminalPathButton instanceof HTMLButtonElement &&
+                  !terminalPathButton.disabled
+                ) {
+                  copyPathButton.click();
+                  for (let index = 0; index < 40; index += 1) {
+                    const status = document.querySelector('[data-testid="worktrees-status"]');
+                    if (status instanceof HTMLElement && status.textContent?.includes('Worktree path copied') === true) break;
+                    await sleep(50);
+                  }
+                  const copiedWorktreePath = await window.api.clipboard.readText();
+                  terminalPathButton.click();
+                  for (let index = 0; index < 80; index += 1) {
+                    const status = document.querySelector('[data-testid="worktrees-status"]');
+                    if (status instanceof HTMLElement && status.textContent?.includes('Worktree path inserted in terminal') === true) {
+                      worktreesPathActionStatusA11y =
+                        status.getAttribute('role') === 'status' &&
+                        status.getAttribute('aria-live') === 'polite' &&
+                        status.getAttribute('aria-atomic') === 'true';
+                      break;
+                    }
+                    await sleep(50);
+                  }
+                  settingsWorktreesPathActionsWorks =
+                    copiedWorktreePath === worktreePath &&
+                    window.__orchestratorLastWorktreeCopiedPathForSmoke === worktreePath &&
+                    window.__orchestratorLastWorktreeTerminalPathForSmoke === worktreePath &&
+                    typeof window.__orchestratorLastWorktreeTerminalIdForSmoke === 'string' &&
+                    window.__orchestratorLastWorktreeTerminalIdForSmoke.length > 0 &&
+                    worktreesPathActionStatusA11y;
+                  const bottomPanelToggle = [...document.querySelectorAll('button')]
+                    .find((button) => buttonLabel(button) === 'Toggle bottom panel' || buttonLabel(button) === 'Toggle terminal');
+                  if (bottomPanelToggle instanceof HTMLButtonElement) {
+                    bottomPanelToggle.click();
+                    await sleep(160);
+                  }
+                }
+              }
               const worktreeRowsHaveA11y =
                 worktreeRowsBeforeDelete.length >= 1 &&
                 worktreeRowsBeforeDelete.every((row) =>
@@ -2509,6 +2555,16 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                   .every((button) =>
                     button instanceof HTMLButtonElement &&
                     (button.getAttribute('aria-label') ?? '').startsWith('Open ')
+                  ) &&
+                [...document.querySelectorAll('[data-testid="worktree-copy-path"]')]
+                  .every((button) =>
+                    button instanceof HTMLButtonElement &&
+                    (button.getAttribute('aria-label') ?? '').startsWith('Copy worktree path ')
+                  ) &&
+                [...document.querySelectorAll('[data-testid="worktree-insert-terminal"]')]
+                  .every((button) =>
+                    button instanceof HTMLButtonElement &&
+                    (button.getAttribute('aria-label') ?? '').startsWith('Insert worktree path in terminal ')
                   ) &&
                 [...document.querySelectorAll('.settings-action-button-danger')]
                   .filter((button) => button.textContent?.includes('Delete'))
@@ -2651,6 +2707,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               }
               settingsWorktreesActionA11yWorks =
                 worktreeRowsHaveA11y &&
+                settingsWorktreesPathActionsWorks &&
                 worktreesRefreshStatusA11y &&
                 worktreesCreateStatusA11y &&
                 worktreesDeleteStatusA11y;
@@ -2956,6 +3013,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 await sleep(360);
               }
               const composerAfterSettingsClose = document.querySelector('[data-testid="composer-textarea"]');
+              if (settingsWorktreesPathActionsWorks === true && composerAfterSettingsClose instanceof HTMLTextAreaElement) {
+                composerAfterSettingsClose.focus();
+                await sleep(40);
+              }
               var settingsCloseFocusRestoredWorks =
                 composerAfterSettingsClose instanceof HTMLTextAreaElement &&
                 document.activeElement === composerAfterSettingsClose &&
@@ -8651,6 +8712,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             settingsWorktreesDeleteWorks: typeof settingsWorktreesDeleteWorks === 'boolean' ? settingsWorktreesDeleteWorks : null,
             settingsWorktreesOpenWorks: typeof settingsWorktreesOpenWorks === 'boolean' ? settingsWorktreesOpenWorks : null,
             settingsWorktreesRefreshWorks: typeof worktreesRefreshStatusA11y === 'boolean' ? worktreesRefreshStatusA11y : null,
+            settingsWorktreesPathActionsWorks: typeof settingsWorktreesPathActionsWorks === 'boolean' ? settingsWorktreesPathActionsWorks : null,
             settingsWorktreesActionA11yWorks: typeof settingsWorktreesActionA11yWorks === 'boolean' ? settingsWorktreesActionA11yWorks : null,
             settingsShortcutsSurfaceWorks: typeof settingsShortcutsSurfaceWorks === 'boolean' ? settingsShortcutsSurfaceWorks : null,
             settingsShortcutsCompactWorks: typeof settingsShortcutsCompactWorks === 'boolean' ? settingsShortcutsCompactWorks : null,

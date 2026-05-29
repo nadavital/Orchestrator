@@ -249,6 +249,7 @@ export default function WorktreesSettingsPage({ onClose }: WorktreesSettingsPage
                         busy={busyIds[worktree.id] === true}
                         onDeleteRequest={setPendingDeleteWorktree}
                         onOpenConversation={openConversation}
+                        onStatus={setStatus}
                       />
                     ))}
                   </div>
@@ -290,13 +291,69 @@ function WorktreeRow({
   busy,
   onDeleteRequest,
   onOpenConversation,
+  onStatus
 }: {
   worktree: WorktreeInventoryItem
   busy: boolean
   onDeleteRequest: (worktree: WorktreeInventoryItem) => void
   onOpenConversation: (conversationId: string) => void
+  onStatus: (status: string) => void
 }): JSX.Element {
   const conversationsLabelId = useId()
+  const activeSessionId = useSessionStore((state) => state.activeSessionId)
+  const setActiveSession = useSessionStore((state) => state.setActiveSession)
+  const setShowTerminal = useSessionStore((state) => state.setShowTerminal)
+  const addTerminalTab = useSessionStore((state) => state.addTerminalTab)
+  const setActiveTerminalTab = useSessionStore((state) => state.setActiveTerminalTab)
+  const terminalSessionId = worktree.conversations[0]?.id ?? activeSessionId
+
+  const copyWorktreePath = async (): Promise<void> => {
+    onStatus('Copying worktree path')
+    try {
+      if (typeof window.api.clipboard?.writeText === 'function') {
+        const didWrite = await window.api.clipboard.writeText(worktree.workDir)
+        if (!didWrite) throw new Error('Clipboard write failed')
+      } else {
+        await navigator.clipboard.writeText(worktree.workDir)
+      }
+      const globals = window as typeof window & { __orchestratorLastWorktreeCopiedPathForSmoke?: string }
+      globals.__orchestratorLastWorktreeCopiedPathForSmoke = worktree.workDir
+      onStatus('Worktree path copied')
+    } catch {
+      onStatus('Copy worktree path failed')
+    }
+  }
+
+  const insertWorktreePathInTerminal = async (): Promise<void> => {
+    if (!terminalSessionId) {
+      onStatus('No chat available for terminal handoff')
+      return
+    }
+    onStatus('Opening terminal for worktree path')
+    try {
+      const state = useSessionStore.getState()
+      const currentPanel = state.uiState[terminalSessionId]?.terminalPanel
+      const existingTab = typeof currentPanel?.activeTabId === 'number'
+        ? currentPanel.activeTabId
+        : currentPanel?.tabs.find((tab): tab is number => typeof tab === 'number')
+      const tabId = existingTab ?? addTerminalTab(terminalSessionId)
+      setActiveSession(terminalSessionId)
+      setShowTerminal(terminalSessionId, true)
+      setActiveTerminalTab(terminalSessionId, tabId)
+      const terminalId = `${terminalSessionId}-${tabId}`
+      const globals = window as typeof window & {
+        __orchestratorLastWorktreeTerminalPathForSmoke?: string
+        __orchestratorLastWorktreeTerminalIdForSmoke?: string
+      }
+      globals.__orchestratorLastWorktreeTerminalPathForSmoke = worktree.workDir
+      globals.__orchestratorLastWorktreeTerminalIdForSmoke = terminalId
+      await window.api.terminal.spawn(terminalId, worktree.workDir)
+      await window.api.terminal.write(terminalId, shellQuote(worktree.workDir))
+      onStatus('Worktree path inserted in terminal')
+    } catch {
+      onStatus('Insert worktree path in terminal failed')
+    }
+  }
 
   return (
     <div
@@ -315,15 +372,36 @@ function WorktreeRow({
           </div>
           <code className="worktrees-path">{worktree.workDir}</code>
         </div>
-        <button
-          type="button"
-          className="settings-action-button settings-action-button-danger"
-          disabled={!worktree.managed || busy}
-          aria-label={`Delete worktree at ${worktree.workDir}`}
-          onClick={() => onDeleteRequest(worktree)}
-        >
-          {busy ? 'Deleting...' : 'Delete'}
-        </button>
+        <div className="worktrees-row-actions">
+          <button
+            type="button"
+            className="settings-action-button"
+            aria-label={`Copy worktree path ${worktree.workDir}`}
+            onClick={() => { void copyWorktreePath() }}
+            data-testid="worktree-copy-path"
+          >
+            Copy path
+          </button>
+          <button
+            type="button"
+            className="settings-action-button"
+            disabled={!terminalSessionId}
+            aria-label={`Insert worktree path in terminal ${worktree.workDir}`}
+            onClick={() => { void insertWorktreePathInTerminal() }}
+            data-testid="worktree-insert-terminal"
+          >
+            Terminal
+          </button>
+          <button
+            type="button"
+            className="settings-action-button settings-action-button-danger"
+            disabled={!worktree.managed || busy}
+            aria-label={`Delete worktree at ${worktree.workDir}`}
+            onClick={() => onDeleteRequest(worktree)}
+          >
+            {busy ? 'Deleting...' : 'Delete'}
+          </button>
+        </div>
       </div>
       <div className="worktrees-conversation-block">
         <div id={conversationsLabelId} className="worktrees-conversation-label">Conversations</div>
@@ -380,4 +458,8 @@ function formatRelativeTime(timestamp: number): string {
   if (elapsedMs < day) return `${Math.floor(elapsedMs / hour)}h ago`
   if (elapsedMs < week) return `${Math.floor(elapsedMs / day)}d ago`
   return `${Math.floor(elapsedMs / week)}w ago`
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, `'\\''`)}'`
 }

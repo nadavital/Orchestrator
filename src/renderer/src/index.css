@@ -10751,6 +10751,14 @@
     min-width: 0;
   }
 
+  .worktrees-row-actions {
+    display: flex;
+    min-width: 0;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 6px;
+  }
+
   .worktrees-row-title {
     display: flex;
     min-width: 0;
@@ -10878,6 +10886,14 @@
     .worktrees-create-grid {
       grid-template-columns: 1fr;
       align-items: stretch;
+    }
+
+    .worktrees-row-header {
+      grid-template-columns: 1fr;
+    }
+
+    .worktrees-row-actions {
+      justify-content: flex-start;
     }
 
     .worktrees-conversation-row {
