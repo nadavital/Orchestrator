@@ -6183,6 +6183,26 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               Number(sideChatContextMeta.getAttribute('data-side-chat-context-message-count') ?? '-1') >= 0 &&
               sideChatContextMeta.textContent?.includes('Composer /btw') === true &&
               sideChatContextMeta.textContent?.includes('smoke label check') === true;
+            var sideChatAddToChatWorks = false;
+            const sideChatAddToChat = document.querySelector('[data-testid="side-chat-add-to-chat"]');
+            if (sideChatAddToChat instanceof HTMLButtonElement) {
+              sideChatAddToChat.click();
+              await sleep(120);
+              const composer = document.querySelector('[data-testid="composer-textarea"]');
+              const sideChatActionStatus = document.querySelector('[data-testid="side-chat-action-status"]');
+              sideChatAddToChatWorks =
+                sideChatAddToChat.getAttribute('aria-label') === 'Add side chat to chat' &&
+                sideChatAddToChat.disabled === false &&
+                composer instanceof HTMLTextAreaElement &&
+                composer.value.includes('Use this side chat context:') &&
+                composer.value.includes('Side chat transcript:') &&
+                composer.value.includes('smoke label check') &&
+                sideChatActionStatus instanceof HTMLElement &&
+                sideChatActionStatus.textContent?.includes('Side chat added to chat') === true &&
+                sideChatActionStatus.getAttribute('role') === 'status' &&
+                sideChatActionStatus.getAttribute('aria-live') === 'polite' &&
+                sideChatActionStatus.getAttribute('aria-atomic') === 'true';
+            }
             const sideChatMessageLabels = [...document.querySelectorAll('[data-testid="side-chat-message-label"]')]
               .filter((label) => label instanceof HTMLElement);
             sideChatMessageLabelsCalm =
@@ -8486,6 +8506,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             sideChatDraftPersistenceWorks: typeof sideChatDraftPersistenceWorks === 'boolean' ? sideChatDraftPersistenceWorks : null,
             sideChatMultilineDraftWorks: typeof sideChatMultilineDraftWorks === 'boolean' ? sideChatMultilineDraftWorks : null,
             sideChatContextMetadataWorks: typeof sideChatContextMetadataWorks === 'boolean' ? sideChatContextMetadataWorks : null,
+            sideChatAddToChatWorks: typeof sideChatAddToChatWorks === 'boolean' ? sideChatAddToChatWorks : null,
             sideChatMessageLabelsCalm: typeof sideChatMessageLabelsCalm === 'boolean' ? sideChatMessageLabelsCalm : null,
             sideChatErrorRetryWorks: typeof sideChatErrorRetryWorks === 'boolean' ? sideChatErrorRetryWorks : null,
             sideChatPersonalizationContextWorks: typeof sideChatPersonalizationContextWorks === 'boolean' ? sideChatPersonalizationContextWorks : null,
@@ -20688,6 +20709,29 @@ function runAutomatedFocusedSurfaceSmoke(
                 Number(sideChatContextMeta.getAttribute('data-side-chat-context-message-count') ?? '-1') >= 0 &&
                 sideChatContextMeta.textContent?.includes('Composer /btw') === true &&
                 sideChatContextMeta.textContent?.includes('smoke label check') === true;
+              let sideChatAddToChatWorks = false;
+              const sideChatAddToChat = document.querySelector('[data-testid="side-chat-add-to-chat"]');
+              if (sideChatAddToChat instanceof HTMLButtonElement) {
+                sideChatAddToChat.click();
+                await sleep(120);
+                const composer = document.querySelector('[data-testid="composer-textarea"]');
+                const status = document.querySelector('[data-testid="side-chat-action-status"]');
+                const panel = document.querySelector('[data-testid="side-chat-panel"]');
+                sideChatAddToChatWorks =
+                  sideChatAddToChat.getAttribute('aria-label') === 'Add side chat to chat' &&
+                  sideChatAddToChat.disabled === false &&
+                  composer instanceof HTMLTextAreaElement &&
+                  composer.value.includes('Use this side chat context:') &&
+                  composer.value.includes('Side chat transcript:') &&
+                  composer.value.includes('smoke label check') &&
+                  status instanceof HTMLElement &&
+                  status.textContent?.includes('Side chat added to chat') === true &&
+                  status.getAttribute('role') === 'status' &&
+                  status.getAttribute('aria-live') === 'polite' &&
+                  status.getAttribute('aria-atomic') === 'true' &&
+                  panel?.getAttribute('data-side-chat-action-status') === 'Side chat added to chat' &&
+                  panel?.getAttribute('data-side-chat-action-status-tone') === 'info';
+              }
               const labels = [...document.querySelectorAll('[data-testid="side-chat-message-label"]')]
                 .filter((label) => label instanceof HTMLElement);
               const sideChatMessageLabelsCalm =
@@ -20793,6 +20837,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 sideChatDraftPersistenceWorks,
                 sideChatMultilineDraftWorks,
                 sideChatContextMetadataWorks,
+                sideChatAddToChatWorks,
                 sideChatMessageLabelsCalm,
                 sideChatActionStatusA11yWorks,
                 sideChatFollowupContextWorks,

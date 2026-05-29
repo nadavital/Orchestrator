@@ -104,6 +104,17 @@ export default function SideQuestionPanel({ session, chatId, embedded }: Props):
     }
   }
 
+  const addSideChatToChat = (): void => {
+    if (!chatId || messages.length === 0) {
+      setActionStatus({ text: 'No side chat to add', tone: 'danger' })
+      return
+    }
+    window.dispatchEvent(new CustomEvent('orchestrator:add-composer-text', {
+      detail: { text: sideChatTranscriptSummary(sideChat?.title ?? 'Side chat', context, messages) }
+    }))
+    setActionStatus({ text: 'Side chat added to chat', tone: 'info' })
+  }
+
   return (
     <div
       className={embedded ? 'h-full min-h-0 flex flex-col p-3' : 'flex flex-col'}
@@ -156,6 +167,14 @@ export default function SideQuestionPanel({ session, chatId, embedded }: Props):
               </div>
             )}
           </div>
+          <IconButton
+            icon="paperclip"
+            label="Add side chat to chat"
+            size="sm"
+            dataTestId="side-chat-add-to-chat"
+            disabled={messages.length === 0}
+            onClick={addSideChatToChat}
+          />
         </div>
       )}
       <div
@@ -271,8 +290,38 @@ function sideChatVisibleActionStatus(
   if (messages.some((message) => message.status === 'pending')) return { text: 'Answering', tone: 'info' }
   const lastAssistant = [...messages].reverse().find((message) => message.role === 'assistant')
   if (lastAssistant?.status === 'error') return { text: 'Answer failed', tone: 'danger' }
+  if (fallback) return fallback
   if (lastAssistant?.status === 'complete') return { text: 'Answer ready', tone: 'info' }
   return fallback
+}
+
+function sideChatTranscriptSummary(
+  title: string,
+  context: SideChatContextSnapshot | null,
+  messages: Array<{ role: string; content: string; status: string }>
+): string {
+  const boundedMessages = messages
+    .filter((message) => message.content.trim())
+    .slice(-8)
+    .map((message) => {
+      const label = message.role === 'user' ? 'User' : message.status === 'error' ? 'Side answer error' : 'Side answer'
+      return `${label}: ${message.content.trim()}`
+    })
+  return [
+    'Use this side chat context:',
+    `Title: ${title}`,
+    ...(context
+      ? [
+          `Source: ${sideChatSourceLabel(context.source)}`,
+          `Thread: ${context.sessionName}`,
+          `Provider/model: ${providerModelLabel(context)}`,
+          `Main transcript messages: ${context.messageCount}`,
+          ...(context.questionPreview ? [`Original question: ${context.questionPreview}`] : [])
+        ]
+      : []),
+    'Side chat transcript:',
+    ...(boundedMessages.length > 0 ? boundedMessages : ['No messages.'])
+  ].join('\n')
 }
 
 function sideChatSourceLabel(source: SideChatContextSnapshot['source']): string {
