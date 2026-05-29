@@ -85,7 +85,13 @@ export default function GeneralSettingsPage({
           subtitle="App-level defaults that affect everyday navigation and file handoff."
           dataTestId="settings-content-layout"
         >
-          <SettingsContentGroup className="general-settings-content-group">
+          <SettingsContentGroup
+            className="general-settings-content-group"
+            rootAttrs={{
+              tabIndex: -1,
+              'data-settings-search-anchor': 'general-files'
+            }}
+          >
             <div className="settings-content-heading">
               <div className="settings-content-title">Files</div>
               <div className="settings-content-description">Choose where referenced file cards open from chat.</div>
@@ -116,7 +122,13 @@ export default function GeneralSettingsPage({
               </SettingsSurface>
             </SettingsGroupContent>
           </SettingsContentGroup>
-          <SettingsContentGroup className="general-settings-content-group">
+          <SettingsContentGroup
+            className="general-settings-content-group"
+            rootAttrs={{
+              tabIndex: -1,
+              'data-settings-search-anchor': 'general-composer'
+            }}
+          >
             <div className="settings-content-heading">
               <div className="settings-content-title">Composer</div>
               <div className="settings-content-description">Choose how the main message field handles Enter.</div>

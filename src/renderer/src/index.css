@@ -9346,6 +9346,19 @@
     outline: none;
   }
 
+  .settings-content-group[data-settings-search-anchor] {
+    scroll-margin-top: calc(var(--app-shell-toolbar-height) + 12px);
+    border-radius: var(--radius-md);
+  }
+
+  .settings-content-group[data-settings-search-anchor]:focus {
+    outline: none;
+  }
+
+  .settings-content-group[data-settings-search-active='true'] {
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 24%, transparent);
+  }
+
   .settings-topbar-actions {
     display: inline-flex;
     min-width: 0;

@@ -1250,16 +1250,18 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               var settingsSearchNavigationWorks = false;
               const settingsSearchInput = document.querySelector('[data-testid="settings-search"]');
               const setSettingsSearchValue = (value) => {
-                if (!(settingsSearchInput instanceof HTMLInputElement)) return;
-                const setter = Object.getOwnPropertyDescriptor(settingsSearchInput.constructor.prototype, 'value')?.set;
-                setter?.call(settingsSearchInput, value);
-                settingsSearchInput.dispatchEvent(new Event('input', { bubbles: true }));
+                const input = document.querySelector('[data-testid="settings-search"]');
+                if (!(input instanceof HTMLInputElement)) return null;
+                const setter = Object.getOwnPropertyDescriptor(input.constructor.prototype, 'value')?.set;
+                setter?.call(input, value);
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+                return input;
               };
               if (settingsSearchInput instanceof HTMLInputElement) {
-                setSettingsSearchValue('browser');
+                let activeSettingsSearchInput = setSettingsSearchValue('browser') ?? settingsSearchInput;
                 await sleep(120);
                 const settingsSearchMatch = document.querySelector('[data-testid="settings-search-match"]');
-                settingsSearchInput.dispatchEvent(new KeyboardEvent('keydown', {
+                activeSettingsSearchInput.dispatchEvent(new KeyboardEvent('keydown', {
                   key: 'Enter',
                   code: 'Enter',
                   bubbles: true,
@@ -1281,9 +1283,9 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                   }
                   await sleep(80);
                 }
-                setSettingsSearchValue('general');
+                activeSettingsSearchInput = setSettingsSearchValue('general') ?? activeSettingsSearchInput;
                 await sleep(120);
-                settingsSearchInput.dispatchEvent(new KeyboardEvent('keydown', {
+                activeSettingsSearchInput.dispatchEvent(new KeyboardEvent('keydown', {
                   key: 'Enter',
                   code: 'Enter',
                   bubbles: true,
@@ -1300,6 +1302,34 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                     routeMatches
                   ) {
                     settingsSearchNavigationWorks = true;
+                    break;
+                  }
+                  await sleep(80);
+                }
+                var settingsInPageSearchTargetWorks = false;
+                activeSettingsSearchInput = setSettingsSearchValue('composer') ?? activeSettingsSearchInput;
+                await sleep(120);
+                const composerSearchMatch = document.querySelector('[data-testid="settings-search-match"]');
+                activeSettingsSearchInput.dispatchEvent(new KeyboardEvent('keydown', {
+                  key: 'Enter',
+                  code: 'Enter',
+                  bubbles: true,
+                  cancelable: true
+                }));
+                for (let index = 0; index < 25; index += 1) {
+                  const shell = document.querySelector('.settings-shell');
+                  const composerAnchor = document.querySelector('[data-settings-search-anchor="general-composer"]');
+                  if (
+                    shell instanceof HTMLElement &&
+                    shell.getAttribute('data-settings-active-section') === 'general' &&
+                    composerSearchMatch instanceof HTMLButtonElement &&
+                    composerSearchMatch.getAttribute('data-settings-search-target') === 'general' &&
+                    composerSearchMatch.getAttribute('data-settings-search-target-anchor') === 'general-composer' &&
+                    composerAnchor instanceof HTMLElement &&
+                    composerAnchor.getAttribute('data-settings-search-active') === 'true' &&
+                    document.activeElement === composerAnchor
+                  ) {
+                    settingsInPageSearchTargetWorks = true;
                     break;
                   }
                   await sleep(80);
@@ -7474,6 +7504,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             settingsRouteOwnedWorks: typeof settingsRouteOwnedWorks === 'boolean' ? settingsRouteOwnedWorks : null,
             settingsSectionHistoryNavigationWorks: typeof settingsSectionHistoryNavigationWorks === 'boolean' ? settingsSectionHistoryNavigationWorks : null,
             settingsSearchNavigationWorks: typeof settingsSearchNavigationWorks === 'boolean' ? settingsSearchNavigationWorks : null,
+            settingsInPageSearchTargetWorks: typeof settingsInPageSearchTargetWorks === 'boolean' ? settingsInPageSearchTargetWorks : null,
             settingsDeepLinkRouteWorks: typeof settingsDeepLinkRouteWorks === 'boolean' ? settingsDeepLinkRouteWorks : null,
             settingsDeepLinkRouteDebug: typeof settingsDeepLinkRouteDebug === 'object' ? settingsDeepLinkRouteDebug : null,
             settingsHostContextWorks: typeof settingsHostContextWorks === 'boolean' ? settingsHostContextWorks : null,

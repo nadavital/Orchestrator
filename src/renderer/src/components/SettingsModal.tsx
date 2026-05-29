@@ -49,8 +49,11 @@ const SETTINGS_SEARCH_ITEMS: Array<{
   label: string
   description: string
   keywords: string
+  anchor?: string
 }> = [
-  { section: 'general', label: 'General', description: 'Editor and composer defaults', keywords: 'files editor handoff composer enter send newline' },
+  { section: 'general', label: 'General', description: 'App-level defaults', keywords: 'defaults general app' },
+  { section: 'general', label: 'File handoff', description: 'Preferred editor for file opens', keywords: 'files editor handoff open path target cursor vscode zed', anchor: 'general-files' },
+  { section: 'general', label: 'Composer', description: 'Enter behavior and send shortcut', keywords: 'composer enter send newline message input command control', anchor: 'general-composer' },
   { section: 'appearance', label: 'Appearance', description: 'Theme, density, color, and fonts', keywords: 'theme accent density font motion chrome code' },
   { section: 'providers', label: 'Providers', description: 'Default provider, models, permissions, and diagnostics', keywords: 'model agent permission diagnostics runtime codex claude openai' },
   { section: 'automations', label: 'Automations', description: 'Scheduled follow-ups and run history', keywords: 'schedule reminder heartbeat cron run history pause' },
@@ -107,6 +110,7 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
   const [personalizationCustomInstructions, setPersonalizationCustomInstructions] = useState('')
   const [personalizationCodingPreferences, setPersonalizationCodingPreferences] = useState('')
   const [settingsSearchQuery, setSettingsSearchQuery] = useState('')
+  const [settingsSearchTarget, setSettingsSearchTarget] = useState<{ section: SettingsSection; anchor: string } | null>(null)
   const settingsHostOptions = useMemo(() => settingsHostOptionsFromSessions(sessions), [sessions])
   const normalizedSettingsHostId = normalizeSettingsHostId(selectedSettingsHostId, settingsHostOptions)
   const selectedSettingsHost = settingsHostOptions.find((host) => host.id === normalizedSettingsHostId) ?? settingsHostOptions[0]
@@ -187,6 +191,23 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
     scroll?.scrollTo({ top: 0, left: 0 })
     scroll?.focus({ preventScroll: true })
   }, [effectiveSection, selectedSettingsHost.id])
+
+  useLayoutEffect(() => {
+    if (!settingsSearchTarget || settingsSearchTarget.section !== effectiveSection) return
+    const scroll = settingsScrollRef.current
+    const target = scroll?.querySelector<HTMLElement>(`[data-settings-search-anchor="${cssEscape(settingsSearchTarget.anchor)}"]`)
+    if (!target) return
+    target.scrollIntoView({ block: 'start', inline: 'nearest' })
+    target.focus({ preventScroll: true })
+    target.setAttribute('data-settings-search-active', 'true')
+    const timeout = window.setTimeout(() => {
+      target.removeAttribute('data-settings-search-active')
+    }, 1400)
+    return () => {
+      window.clearTimeout(timeout)
+      target.removeAttribute('data-settings-search-active')
+    }
+  }, [effectiveSection, settingsSearchTarget, selectedSettingsHost.id])
 
   const loadProviderDiagnostics = useCallback((providerId: string): void => {
     if (providerDiagnostics[providerId] || diagnosticsLoading[providerId]) return
@@ -472,6 +493,9 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
 
   const submitSettingsSearch = (): void => {
     if (!settingsSearchMatch) return
+    if (settingsSearchMatch.anchor) {
+      setSettingsSearchTarget({ section: settingsSearchMatch.section, anchor: settingsSearchMatch.anchor })
+    }
     navigateSettingsSection(settingsSearchMatch.section)
   }
 
@@ -521,6 +545,7 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
                 disabled={!settingsSearchMatch}
                 data-testid="settings-search-match"
                 data-settings-search-target={settingsSearchMatch?.section ?? ''}
+                data-settings-search-target-anchor={settingsSearchMatch?.anchor ?? ''}
                 onClick={submitSettingsSearch}
               >
                 {settingsSearchMatch?.label ?? 'No match'}
@@ -715,6 +740,11 @@ function settingsTitle(section: SettingsSection): string {
   if (section === 'pets') return 'Pet overlay'
   if (section === 'data') return 'Data controls'
   return 'General'
+}
+
+function cssEscape(value: string): string {
+  if (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') return CSS.escape(value)
+  return value.replace(/["\\]/g, '\\$&')
 }
 
 function normalizePreferredEditor(value: unknown): PreferredEditor {

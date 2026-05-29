@@ -1886,12 +1886,14 @@ export function SettingGroup({
 export function SettingsContentGroup({
   children,
   className = '',
+  rootAttrs,
 }: {
   children: ReactNode
   className?: string
+  rootAttrs?: Omit<HTMLAttributes<HTMLElement>, 'children' | 'className'>
 }): JSX.Element {
   return (
-    <section className={`settings-content-group ${className}`.trim()}>
+    <section {...rootAttrs} className={`settings-content-group ${className}`.trim()}>
       {children}
     </section>
   )

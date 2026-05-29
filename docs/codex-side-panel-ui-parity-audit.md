@@ -9565,6 +9565,16 @@ Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.
 
 Remaining: this closes the local Settings header-band mismatch only. Deeper Settings page/window structure, in-page search depth, provider-host Settings adapters, and exact live Codex Settings timing remain separate PP-058 follow-ups.
 
+### 2026-05-29 - Settings In-Page Search Targets
+
+Product evidence: PP-058 still tracked richer Settings search depth after section search landed. The topbar search could route to General, Browser, and other sections, but a daily-use query such as `composer` only landed on the General page and left the user to scan for the Enter behavior controls.
+
+Implemented: Settings search items now support optional in-page anchors. General exposes focusable anchors for File handoff and Composer groups; matching a subtarget scrolls the group into view, moves focus to it, and briefly marks it with `data-settings-search-active="true"`. The search match chip also exposes the target anchor for smoke/debug visibility.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --settings` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1780025552163.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1780025552163.png`. The focused Settings smoke now gates `settingsInPageSearchTarget=true` by searching `composer`, verifying the search chip targets `general-composer`, and confirming the Composer group receives focus plus active-search state.
+
+Remaining: this closes the local high-frequency Settings subtarget search path for General. Broader per-control search coverage across Providers/Browser/Shortcuts, provider-host Settings adapters, deeper Settings page/window structure, and exact live Codex Settings timing remain separate follow-ups.
+
 ### 2026-05-28 - Thread Link Copy
 
 Product evidence: PP-037 tracks route-backed session identity as a daily reliability requirement. Orchestrator had app-protocol `Copy deeplink` and `Open in new window`, but the action menu did not expose a normal in-app `/threads/{id}` or `#/threads/{id}` route for sharing or browser/app route testing.
