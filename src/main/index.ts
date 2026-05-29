@@ -9444,6 +9444,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 let workbenchNewTabGitPrCommandWorks = false;
                 let workbenchNewTabGitPrCommandHandoffWorks = false;
                 let workbenchNewTabGitRefreshStatusWorks = false;
+                let workbenchNewTabGitStatusHandoffWorks = false;
                 let workbenchNewTabGitCommitWorks = false;
                 let workbenchNewTabGitDiscardWorks = false;
                 let workbenchNewTabSingletonSwitchWorks = false;
@@ -9488,6 +9489,23 @@ function runAutomatedFocusedSurfaceSmoke(
                     gitStatusAfterRefresh.getAttribute('aria-live') === 'polite' &&
                     gitStatusAfterRefresh.getAttribute('aria-atomic') === 'true' &&
                     gitStatusAfterRefresh.textContent?.includes('Git status refreshed') === true;
+                  const gitAddStatusToChat = document.querySelector('[data-testid="git-add-status-to-chat"]');
+                  if (gitAddStatusToChat instanceof HTMLButtonElement && !gitAddStatusToChat.disabled) {
+                    gitAddStatusToChat.click();
+                    await sleep(160);
+                    const gitStatusAfterStatusHandoff = document.querySelector('[data-testid="git-action-status"]');
+                    const composerAfterGitStatus = document.querySelector('[data-testid="composer-shell"]');
+                    workbenchNewTabGitStatusHandoffWorks =
+                      gitStatusAfterStatusHandoff instanceof HTMLElement &&
+                      gitStatusAfterStatusHandoff.getAttribute('role') === 'status' &&
+                      gitStatusAfterStatusHandoff.getAttribute('aria-live') === 'polite' &&
+                      gitStatusAfterStatusHandoff.textContent?.includes('Git status added to chat') === true &&
+                      composerAfterGitStatus instanceof HTMLElement &&
+                      composerAfterGitStatus.textContent?.includes('Use this Git status:') === true &&
+                      composerAfterGitStatus.textContent?.includes('Branch:') === true &&
+                      composerAfterGitStatus.textContent?.includes('Changes:') === true &&
+                      composerAfterGitStatus.textContent?.includes('Files:') === true;
+                  }
                   const gitStageAll = document.querySelector('[data-testid="git-stage-all"]');
                   const gitUnstageAll = document.querySelector('[data-testid="git-unstage-all"]');
                   const gitBranch = document.querySelector('[data-testid="git-current-branch"]');
@@ -9928,6 +9946,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     workbenchNewTabGitPrCommandWorks &&
                     workbenchNewTabGitPrCommandHandoffWorks &&
                     workbenchNewTabGitRefreshStatusWorks &&
+                    workbenchNewTabGitStatusHandoffWorks &&
                     workbenchNewTabGitCommitWorks &&
                     workbenchNewTabGitDiscardWorks;
                   const newTabAfterGit = document.querySelector('[data-testid="workbench-panel-tabbar"] [role="tab"][data-tab-id="new-tab"]');
@@ -10474,6 +10493,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   workbenchNewTabGitPrCommandWorks,
                   workbenchNewTabGitPrCommandHandoffWorks,
                   workbenchNewTabGitRefreshStatusWorks,
+                  workbenchNewTabGitStatusHandoffWorks,
                   workbenchNewTabGitCommitWorks,
                   workbenchNewTabGitDiscardWorks,
                   agentRuntimeEventDetailWorks,

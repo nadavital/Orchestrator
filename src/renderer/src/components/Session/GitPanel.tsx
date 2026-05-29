@@ -279,6 +279,35 @@ export default function GitPanel({
     setActionMessage({ text: 'PR command added to chat', tone: 'info' })
   }
 
+  const addGitStatusToChat = (): void => {
+    if (busy) return
+    const fileLines = changes.slice(0, 12).map((change) => {
+      const state = change.staged && change.unstaged
+        ? 'staged and unstaged'
+        : change.staged
+          ? 'staged'
+          : change.unstaged
+            ? 'unstaged'
+            : 'changed'
+      return `- ${change.path} (${fileStatusLabel(change.status)}, ${state}, +${change.additions}, -${change.deletions})`
+    })
+    window.dispatchEvent(new CustomEvent('orchestrator:add-composer-text', {
+      detail: {
+        text: [
+          'Use this Git status:',
+          `Workspace: ${workDir}`,
+          `Branch: ${currentBranch}`,
+          `Changes: ${changes.length} ${changes.length === 1 ? 'file' : 'files'}, +${totals.additions}, -${totals.deletions}`,
+          `Staged: ${stagedPaths.length}`,
+          `Unstaged: ${unstagedPaths.length}`,
+          ...(pullRequestUrl ? [`Pull request: ${pullRequestUrl}`] : []),
+          ...(fileLines.length > 0 ? ['Files:', ...fileLines] : ['Files: none'])
+        ].join('\n')
+      }
+    }))
+    setActionMessage({ text: 'Git status added to chat', tone: 'info' })
+  }
+
   const copyChangedFilePath = async (path: string): Promise<void> => {
     if (!path || busy) return
     setActionMessage({ text: 'Copying file path', tone: 'info' })
@@ -353,6 +382,14 @@ export default function GitPanel({
           <div className="environment-card-header">
             <span>Git</span>
             <div className="flex items-center gap-1">
+              <IconButton
+                icon="chat"
+                label="Add Git status to chat"
+                size="xs"
+                dataTestId="git-add-status-to-chat"
+                disabled={busy}
+                onClick={addGitStatusToChat}
+              />
               <IconButton
                 icon="refresh"
                 label="Refresh Git status"
