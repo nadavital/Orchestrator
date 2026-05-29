@@ -2037,6 +2037,7 @@ child.on('exit', async (code) => {
         sidebarActionMenuSharedSections: result.sidebarActionMenuSharedSectionsWorks === true,
         actionRenameWorks: result.actionRenameWorks === true,
         actionMarkUnreadWorks: result.actionMarkUnreadWorks === true,
+        actionCopyThreadLinkWorks: result.actionCopyThreadLinkWorks === true,
         actionCopyDeeplinkWorks: result.actionCopyDeeplinkWorks === true,
         actionCopyMarkdownWorks: result.actionCopyMarkdownWorks === true,
         actionStopChatWorks: result.actionStopChatWorks === true,

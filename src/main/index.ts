@@ -20843,6 +20843,17 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
                 await sleep(160);
               }
             };
+            const ensureSidebarExpanded = async () => {
+              for (let index = 0; index < 60; index += 1) {
+                const sidebar = document.querySelector('[data-testid="app-sidebar"]');
+                if (sidebar instanceof HTMLElement && sidebar.getAttribute('data-sidebar-collapsed') !== 'true') return true;
+                const expand = document.querySelector('[data-testid="sidebar-rail-expand-toggle"]');
+                if (expand instanceof HTMLButtonElement) expand.click();
+                await sleep(25);
+              }
+              return document.querySelector('[data-testid="app-sidebar"]')?.getAttribute('data-sidebar-collapsed') !== 'true';
+            };
+            await ensureSidebarExpanded();
             await waitForRow('Sidebar pinned recent');
             const initialShowMoreRow = [...document.querySelectorAll('[data-testid="project-show-more-row"]')]
               .find((row) => row.textContent?.includes('Show'));
@@ -21490,6 +21501,7 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
 
             let actionRenameWorks = false;
             let actionMarkUnreadWorks = false;
+            let actionCopyThreadLinkWorks = false;
             let actionCopyDeeplinkWorks = false;
             let actionCopyMarkdownWorks = false;
             let actionStopChatWorks = false;
@@ -21569,6 +21581,24 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
                   getComputedStyle(row).fontWeight === '400' &&
                   getComputedStyle(row).transform === 'none'
                 );
+              const copyThreadLinkMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
+                .find((item) => item.textContent?.includes('Copy thread link'));
+              if (copyThreadLinkMenuItem instanceof HTMLElement) {
+                copyThreadLinkMenuItem.click();
+                await sleep(160);
+                const copiedThreadLink = window.__orchestratorLastCopiedThreadLink ?? '';
+                const clipboardThreadLink = await window.api.clipboard?.readText?.().catch(() => '') ?? '';
+                const expectedSessionId = ${JSON.stringify(normalSession?.id ?? '')};
+                actionCopyThreadLinkWorks =
+                  copiedThreadLink.includes('/threads/') &&
+                  (expectedSessionId.length === 0 || copiedThreadLink.endsWith('/threads/' + encodeURIComponent(expectedSessionId))) &&
+                  clipboardThreadLink === copiedThreadLink;
+                const reopenedActionsButton = normalRow.querySelector('[aria-label="Chat actions"], [title="Chat actions"]');
+                if (reopenedActionsButton instanceof HTMLElement) {
+                  reopenedActionsButton.click();
+                  await sleep(120);
+                }
+              }
               const copyDeeplinkMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
                 .find((item) => item.textContent?.includes('Copy deeplink'));
               if (copyDeeplinkMenuItem instanceof HTMLElement) {
@@ -23039,6 +23069,7 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               sidebarActionMenuSharedSectionsWorks,
               actionRenameWorks,
               actionMarkUnreadWorks,
+              actionCopyThreadLinkWorks,
               actionCopyDeeplinkWorks,
               actionCopyMarkdownWorks,
               actionStopChatWorks,

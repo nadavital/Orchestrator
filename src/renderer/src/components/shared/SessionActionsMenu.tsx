@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { isSidebarPinnedSession } from '../../types'
+import { isSidebarPinnedSession, sessionRouteUrlForLocation } from '../../types'
 import type { Automation, AutomationPermissionSnapshot, AutomationSchedule, AutomationStatus, ChatMessage, Session, SessionForkMode } from '../../types'
 import RenameChatDialog from './RenameChatDialog'
 import { Button, ConfirmDialog, DialogContent, DialogField, DialogFooter, DialogHeader, MenuItem, MenuSection, MenuSectionLabel, MenuSurface, MotionOverlay } from './designSystem'
@@ -101,6 +101,19 @@ export default function SessionActionsMenu({
 
   const copyToClipboard = async (value: string): Promise<void> => {
     await navigator.clipboard.writeText(value)
+    onClose()
+  }
+
+  const copyThreadLink = async (): Promise<void> => {
+    const routeUrl = sessionRouteUrlForLocation(session.id, window.location)
+    const href = new URL(routeUrl, window.location.href).href
+    if (typeof window.api.clipboard?.writeText === 'function') {
+      await window.api.clipboard.writeText(href)
+    } else {
+      await navigator.clipboard.writeText(href)
+    }
+    const testWindow = window as typeof window & { __orchestratorLastCopiedThreadLink?: string }
+    testWindow.__orchestratorLastCopiedThreadLink = href
     onClose()
   }
 
@@ -364,6 +377,7 @@ export default function SessionActionsMenu({
             <MenuItem icon="copy" label="Copy repo root" onClick={() => void copyToClipboard(session.repoRoot!)} />
           )}
           <MenuItem icon="copy" label="Copy session ID" onClick={() => void copyToClipboard(session.id)} />
+          <MenuItem icon="copy" label="Copy thread link" onClick={() => void copyThreadLink()} />
           <MenuItem icon="copy" label="Copy deeplink" onClick={() => void copyDeeplink()} />
           <MenuItem icon="copy" label="Copy as Markdown" onClick={() => void copyConversationMarkdown()} />
           <MenuItem
