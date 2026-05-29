@@ -9784,3 +9784,13 @@ Implemented: singleton launcher actions now stay enabled when their tab is alrea
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --workbench-new-tab` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-workbench-new-tab-1780033185880.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-workbench-new-tab-1780033185880.png`. The focused smoke now gates `workbenchNewTabSingletonSwitch=true` by reopening Git from the launcher, verifying the action is enabled and marked open, and confirming the Git tab count stays singular while the active tab switches back to Git.
 
 Remaining: this closes the local singleton-switch usability gap for the Workbench launcher only. Full shared tab-controller ownership, non-singleton transfer semantics, and exact live Codex launcher/focus timing remain separate PP-026/PP-058 follow-ups.
+
+### 2026-05-29 - Plan Goal Persisted Metrics
+
+Product evidence: the Codex app-server matrix still tracks Codex Goal UI as a daily-use surface. Orchestrator already parsed live `thread/goal/updated` events and rendered a compact Plan goal block, but after reload it reconstructed the goal from the persisted transcript status row and lost token budget, token usage, elapsed time, and progress. That made the Plan panel less useful for long-running coding sessions even though the data was preserved in the transcript.
+
+Implemented: the Plan goal fallback parser now reads persisted `tokens`, `budget`, and elapsed `h/m/s` usage from `Goal:` status messages. The Goal block renders the persisted status, token usage, token budget, elapsed time, progress pill, and progress bar with smoke-visible attributes, so reload-derived goals retain the same operational context as live goal events.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --plan` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-plan-1780033652489.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-plan-1780033652489.png`. The focused Plan smoke now gates `planGoalPersistedMetrics=true` without running the broader side-panel comparison.
+
+Remaining: this closes persisted local Goal-panel metrics only. Direct provider-backed `/goal` clear/update controls and exact live Codex Goal timing remain separate Codex app-server follow-ups.

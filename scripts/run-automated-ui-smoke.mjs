@@ -2954,6 +2954,7 @@ child.on('exit', async (code) => {
         rightPanelTabReorderWorks: captureView !== 'inspector' || result.rightPanelTabReorderWorks === true,
         planPanel: captureView !== 'plan' || result.planPanelWorks === true,
         planCompactRows: captureView !== 'plan' || result.compactTaskRowsWork === true,
+        planGoalPersistedMetrics: captureView !== 'plan' || result.planGoalPersistedMetricsWorks === true,
         planAgentTabShimmer: captureView !== 'plan' || result.planAgentTabShimmerWorks === true,
         planAgentStatLabelsCalm: captureView !== 'plan' || result.planAgentStatLabelsCalm === true,
         sideChatTabs: captureView !== 'inspector' || result.sideChatTabsWork === true,

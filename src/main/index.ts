@@ -2807,6 +2807,12 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             const compactGoal = document.querySelector('[data-testid="plan-goal-compact-objective"]');
             const goalLabel = document.querySelector('[data-testid="plan-goal-label"]');
             const goalToggle = document.querySelector('[data-testid="plan-goal-toggle"]');
+            const goalStatus = document.querySelector('[data-testid="plan-goal-status"]');
+            const goalTokensUsed = document.querySelector('[data-testid="plan-goal-tokens-used"]');
+            const goalTokenBudget = document.querySelector('[data-testid="plan-goal-token-budget"]');
+            const goalTimeUsed = document.querySelector('[data-testid="plan-goal-time-used"]');
+            const goalProgress = document.querySelector('[data-testid="plan-goal-progress"]');
+            const goalProgressBar = document.querySelector('[data-testid="plan-goal-progress-bar"]');
             const taskList = document.querySelector('[data-testid="plan-task-list"]');
             const hiddenSentence = 'This hidden sentence should only appear after expanding the full objective.';
             const compactPanelText = planPanel instanceof HTMLElement ? planPanel.innerText : '';
@@ -2839,6 +2845,21 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               goalToggle.getAttribute('aria-label') === 'Show full objective' &&
               !compactPanelText.includes('Details') &&
               !compactPanelText.includes('Hide');
+            var planGoalPersistedMetricsWorks =
+              compactGoal instanceof HTMLElement &&
+              compactGoal.getAttribute('data-plan-goal-status') === 'active' &&
+              goalStatus instanceof HTMLElement &&
+              goalStatus.textContent?.includes('active') === true &&
+              goalTokensUsed instanceof HTMLElement &&
+              goalTokensUsed.textContent?.includes('12,345 tokens') === true &&
+              goalTokenBudget instanceof HTMLElement &&
+              goalTokenBudget.textContent?.includes('20,000 budget') === true &&
+              goalTimeUsed instanceof HTMLElement &&
+              goalTimeUsed.textContent?.includes('3m 5s') === true &&
+              goalProgress instanceof HTMLElement &&
+              goalProgress.textContent?.includes('62%') === true &&
+              goalProgressBar instanceof HTMLElement &&
+              goalProgressBar.style.width === '62%';
             if (goalToggle instanceof HTMLButtonElement) {
               goalToggle.click();
               await sleep(120);
@@ -2847,6 +2868,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               compactGoalWorks &&
               compactTaskRowsWork &&
               planGoalToggleCompactWorks &&
+              planGoalPersistedMetricsWorks &&
               document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-active-tab') === 'plan' &&
               document.body.innerText.includes('Reduce Plan panel verbosity') &&
               document.body.innerText.includes(hiddenSentence) &&
@@ -7693,6 +7715,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             rightPanelTabReorderWorks: typeof rightPanelTabReorderWorks === 'boolean' ? rightPanelTabReorderWorks : null,
             planPanelWorks: typeof planPanelWorks === 'boolean' ? planPanelWorks : null,
             compactTaskRowsWork: typeof compactTaskRowsWork === 'boolean' ? compactTaskRowsWork : null,
+            planGoalPersistedMetricsWorks: typeof planGoalPersistedMetricsWorks === 'boolean' ? planGoalPersistedMetricsWorks : null,
             planAgentTabShimmerWorks: typeof planAgentTabShimmerWorks === 'boolean' ? planAgentTabShimmerWorks : null,
             planAgentStatLabelsCalm: typeof planAgentStatLabelsCalm === 'boolean' ? planAgentStatLabelsCalm : null,
             agentRuntimeEventDetailWorks: typeof agentRuntimeEventDetailWorks === 'boolean' ? agentRuntimeEventDetailWorks : null,
@@ -28694,7 +28717,7 @@ function seedAutomatedPlanSmokeSession(sessionId: string): void {
       id: 'plan-smoke-goal',
       role: 'system',
       type: 'result',
-      content: `${longGoal} (active) · 12,345 tokens · 3m`,
+      content: `${longGoal} (active) · 12,345 tokens · 20,000 budget · 3m 5s`,
       subtype: 'status',
       timestamp: now
     },

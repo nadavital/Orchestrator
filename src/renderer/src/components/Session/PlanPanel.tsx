@@ -103,6 +103,7 @@ function GoalBlock({ goal }: { goal: GoalEvent }): JSX.Element {
           <h3
             className="mt-1 text-[13px] font-semibold leading-5"
             data-testid="plan-goal-compact-objective"
+            data-plan-goal-status={goal.status ?? ''}
             style={{ color: 'var(--color-text)', overflowWrap: 'anywhere' }}
           >
             {compactObjective}
@@ -120,22 +121,42 @@ function GoalBlock({ goal }: { goal: GoalEvent }): JSX.Element {
               {goal.objective}
             </div>
           )}
-          {stats.length > 0 && (
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {stats.map((stat) => (
-                <MetricPill key={stat}>{stat}</MetricPill>
-              ))}
+          {(goal.status || stats.length > 0) && (
+            <div className="mt-2 flex flex-wrap gap-1.5" data-testid="plan-goal-stats">
+              {goal.status && (
+                <span data-testid="plan-goal-status">
+                  <Badge tone={goal.status === 'active' ? 'success' : 'neutral'}>{goal.status}</Badge>
+                </span>
+              )}
+              {used !== null && (
+                <span data-testid="plan-goal-tokens-used">
+                  <MetricPill>{used.toLocaleString()} tokens</MetricPill>
+                </span>
+              )}
+              {budget && (
+                <span data-testid="plan-goal-token-budget">
+                  <MetricPill>{budget.toLocaleString()} budget</MetricPill>
+                </span>
+              )}
+              {typeof goal.timeUsedSeconds === 'number' && (
+                <span data-testid="plan-goal-time-used">
+                  <MetricPill>{formatDuration(goal.timeUsedSeconds)}</MetricPill>
+                </span>
+              )}
             </div>
           )}
         </div>
         {pct !== null && (
-          <MetricPill tone={pct >= 90 ? 'warning' : 'accent'}>{pct}%</MetricPill>
+          <span data-testid="plan-goal-progress">
+            <MetricPill tone={pct >= 90 ? 'warning' : 'accent'}>{pct}%</MetricPill>
+          </span>
         )}
       </div>
       {pct !== null && (
         <div className="mt-3 h-1.5 overflow-hidden rounded-full" style={{ background: 'var(--control-bg)' }}>
           <div
             className="h-full rounded-full"
+            data-testid="plan-goal-progress-bar"
             style={{
               width: `${pct}%`,
               background: pct >= 90 ? 'var(--color-yellow)' : 'var(--color-accent)'
@@ -164,16 +185,41 @@ function latestGoalFromMessages(session: Session, messages: Session['messages'])
     const message = messages[index]!
     if (message.type !== 'result') continue
     if (/^Goal cleared\b/i.test(message.content)) return null
-    const match = /^Goal:\s*([\s\S]+?)(?:\s+\(([^)]+)\))?(?:\s+·\s+.*)?$/i.exec(message.content.trim())
+    const match = /^Goal:\s*([\s\S]+?)(?:\s+\(([^)]+)\))?(?:\s+·\s+([\s\S]+))?$/i.exec(message.content.trim())
     if (!match) continue
+    const usage = parsePersistedGoalUsage(match[3] ?? '')
     return {
       providerId: session.provider ?? 'provider',
       sessionId: session.id,
       objective: match[1]?.trim() ?? '',
-      status: match[2]?.trim()
+      status: match[2]?.trim(),
+      tokenBudget: usage.tokenBudget,
+      tokensUsed: usage.tokensUsed,
+      timeUsedSeconds: usage.timeUsedSeconds
     }
   }
   return null
+}
+
+function parsePersistedGoalUsage(value: string): Pick<GoalEvent, 'tokenBudget' | 'tokensUsed' | 'timeUsedSeconds'> {
+  const tokensUsed = parseLocaleInteger(value.match(/([\d,]+)\s+tokens?\b/i)?.[1])
+  const tokenBudget = parseLocaleInteger(value.match(/([\d,]+)\s+budget\b/i)?.[1])
+  const timeUsedSeconds = parseDurationSeconds(value)
+  return { tokensUsed, tokenBudget, timeUsedSeconds }
+}
+
+function parseLocaleInteger(value: string | undefined): number | undefined {
+  if (!value) return undefined
+  const parsed = Number.parseInt(value.replace(/,/g, ''), 10)
+  return Number.isFinite(parsed) ? parsed : undefined
+}
+
+function parseDurationSeconds(value: string): number | undefined {
+  const hours = parseLocaleInteger(value.match(/\b([\d,]+)\s*h(?:ours?)?\b/i)?.[1])
+  const minutes = parseLocaleInteger(value.match(/\b([\d,]+)\s*m(?:in(?:ute)?s?)?\b/i)?.[1])
+  const seconds = parseLocaleInteger(value.match(/\b([\d,]+)\s*s(?:ec(?:ond)?s?)?\b/i)?.[1])
+  if (hours === undefined && minutes === undefined && seconds === undefined) return undefined
+  return (hours ?? 0) * 3600 + (minutes ?? 0) * 60 + (seconds ?? 0)
 }
 
 function formatDuration(seconds: number): string {
