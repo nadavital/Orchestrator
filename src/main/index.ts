@@ -546,6 +546,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
     runAutomatedTranscriptReserveSmoke(win, outputPath, screenshotPath)
     return
   }
+  if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-tool-jump') {
+    runAutomatedTranscriptToolJumpSmoke(win, outputPath, screenshotPath)
+    return
+  }
   if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-fork') {
     runAutomatedTranscriptForkSmoke(win, outputPath, screenshotPath)
     return
@@ -23504,6 +23508,105 @@ function runAutomatedTranscriptReserveSmoke(win: BrowserWindow, outputPath: stri
   })
 }
 
+function runAutomatedTranscriptToolJumpSmoke(win: BrowserWindow, outputPath: string, screenshotPath?: string): void {
+  win.webContents.once('did-finish-load', () => {
+    setTimeout(async () => {
+      try {
+        win.setMinimumSize(520, 600)
+        win.setSize(860, 720)
+        const profile = getAppProfile()
+        const session = sessionManager.list().find((candidate) => candidate.name === 'Transcript tool jump smoke')
+        if (session) {
+          win.webContents.send('pet:navigate', session.id)
+          await new Promise((resolve) => setTimeout(resolve, 260))
+        }
+        const result = await win.webContents.executeJavaScript(`
+          (async () => {
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            const waitFor = async (predicate, timeoutMs = 5000) => {
+              const startedAt = Date.now();
+              while (Date.now() - startedAt < timeoutMs) {
+                const value = predicate();
+                if (value) return value;
+                await sleep(50);
+              }
+              return null;
+            };
+            const scroller = await waitFor(() => document.querySelector('[data-testid="transcript-scroll"]'));
+            if (!(scroller instanceof HTMLElement)) return { transcriptFound: false };
+            const initialNeedleVisible = document.body.innerText.includes('TRANSCRIPT_TOOL_JUMP_NEEDLE');
+            window.dispatchEvent(new CustomEvent('orchestrator:open-transcript-search'));
+            const input = await waitFor(() => document.querySelector('#transcript-search'));
+            if (!(input instanceof HTMLInputElement)) {
+              return { transcriptFound: true, transcriptToolGroupStableKeyWorks: false, transcriptToolSearchJumpWorks: false, initialNeedleVisible };
+            }
+            const setter = Object.getOwnPropertyDescriptor(input.constructor.prototype, 'value')?.set;
+            setter?.call(input, 'TRANSCRIPT_TOOL_JUMP_NEEDLE');
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            const resultButton = await waitFor(() => {
+              const resultList = document.querySelector('[data-testid="transcript-search"]')?.closest('.workbench-search-field')?.nextElementSibling;
+              const buttons = [...(resultList?.querySelectorAll('button') ?? [])];
+              return buttons.find((button) => button.textContent?.includes('TRANSCRIPT_TOOL_JUMP_NEEDLE')) ?? null;
+            });
+            if (resultButton instanceof HTMLElement) {
+              resultButton.click();
+            }
+            const targetRow = await waitFor(() => {
+              for (const row of document.querySelectorAll('[data-virtual-row-message-ids]')) {
+                if (!(row instanceof HTMLElement)) continue;
+                const ids = row.dataset.virtualRowMessageIds?.split(' ') ?? [];
+                if (ids.includes('transcript-tool-jump-result-needle')) return row;
+              }
+              return null;
+            });
+            const groupRow = document.querySelector('[data-virtual-row-id="tools-transcript-tool-jump-use-1"]');
+            const groupIds = groupRow instanceof HTMLElement
+              ? groupRow.dataset.virtualRowMessageIds?.split(' ') ?? []
+              : [];
+            const scrollerRect = scroller.getBoundingClientRect();
+            const rowRect = targetRow instanceof HTMLElement ? targetRow.getBoundingClientRect() : null;
+            const transcriptToolGroupStableKeyWorks =
+              groupRow instanceof HTMLElement &&
+              groupRow.getAttribute('data-virtual-row-primary-message-id') === 'transcript-tool-jump-use-1' &&
+              groupIds.includes('transcript-tool-jump-use-1') &&
+              groupIds.includes('transcript-tool-jump-result-needle') &&
+              !groupRow.getAttribute('data-virtual-row-id')?.includes('transcript-tool-jump-result-needle');
+            const transcriptToolSearchJumpWorks =
+              resultButton instanceof HTMLElement &&
+              targetRow instanceof HTMLElement &&
+              rowRect !== null &&
+              rowRect.top < scrollerRect.bottom &&
+              rowRect.bottom > scrollerRect.top;
+            return {
+              transcriptFound: true,
+              initialNeedleVisible,
+              transcriptToolGroupStableKeyWorks,
+              transcriptToolSearchJumpWorks,
+              transcriptToolJumpDebug: {
+                groupRowId: groupRow instanceof HTMLElement ? groupRow.getAttribute('data-virtual-row-id') : null,
+                groupIds,
+                rowTop: rowRect?.top ?? null,
+                rowBottom: rowRect?.bottom ?? null,
+                scrollerTop: scrollerRect.top,
+                scrollerBottom: scrollerRect.bottom
+              }
+            };
+          })()
+        `)
+        if (screenshotPath) {
+          const image = await win.webContents.capturePage()
+          writeFileSync(screenshotPath, image.toPNG())
+        }
+        writeFileSync(outputPath, JSON.stringify({ ok: true, result: { profile, ...result }, screenshotPath }, null, 2))
+        app.quit()
+      } catch (error) {
+        writeFileSync(outputPath, JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2))
+        app.quit()
+      }
+    }, 700)
+  })
+}
+
 function runAutomatedTranscriptForkSmoke(win: BrowserWindow, outputPath: string, screenshotPath?: string): void {
   win.webContents.once('did-finish-load', () => {
     setTimeout(async () => {
@@ -26338,6 +26441,8 @@ async function bootstrapAutomatedUiSmokeState(): Promise<void> {
     process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-fork'
   ) {
     seedAutomatedTranscriptLayoutSmokeSession(session.id)
+  } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-tool-jump') {
+    seedAutomatedTranscriptToolJumpSmokeSession(session.id)
   } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-user-input') {
     seedAutomatedTranscriptUserInputSmokeSession(session.id)
   } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-permission') {
@@ -26953,6 +27058,86 @@ function seedAutomatedTranscriptLayoutSmokeSession(sessionId: string): void {
   sessionManager.save({
     ...session,
     name: 'Transcript layout smoke',
+    status: 'idle',
+    messages,
+    createdAt: baseTime,
+    latestMessageAt: baseTime + messages.length
+  })
+}
+
+function seedAutomatedTranscriptToolJumpSmokeSession(sessionId: string): void {
+  const session = sessionManager.get(sessionId)
+  if (!session) return
+
+  const baseTime = Date.now()
+  const introMessages: ChatMessage[] = Array.from({ length: 20 }, (_, index) => ({
+    id: `transcript-tool-jump-intro-${index + 1}`,
+    role: index % 2 === 0 ? 'user' : 'assistant',
+    type: 'text',
+    content: `Transcript tool jump intro ${index + 1}. This keeps the tool group outside the initial render window.`,
+    timestamp: baseTime + index
+  }))
+  const toolMessages: ChatMessage[] = [
+    {
+      id: 'transcript-tool-jump-use-1',
+      role: 'assistant',
+      type: 'tool_use',
+      toolName: 'Bash',
+      toolInput: {
+        command: 'printf tool-jump-start',
+        cwd: process.env.ORCHESTRATOR_SMOKE_WORKSPACE_DIR ?? '/tmp/orchestrator-automated-ui-workspace',
+        description: 'Create the first grouped tool row item'
+      },
+      timestamp: baseTime + 21
+    },
+    {
+      id: 'transcript-tool-jump-result-1',
+      role: 'tool',
+      type: 'tool_result',
+      toolUseId: 'transcript-tool-jump-use-1',
+      content: 'tool-jump-start',
+      timestamp: baseTime + 22
+    },
+    {
+      id: 'transcript-tool-jump-use-needle',
+      role: 'assistant',
+      type: 'tool_use',
+      toolName: 'Bash',
+      toolInput: {
+        command: 'printf TRANSCRIPT_TOOL_JUMP_NEEDLE',
+        cwd: process.env.ORCHESTRATOR_SMOKE_WORKSPACE_DIR ?? '/tmp/orchestrator-automated-ui-workspace',
+        description: 'Create the searchable grouped tool result'
+      },
+      timestamp: baseTime + 23
+    },
+    {
+      id: 'transcript-tool-jump-result-needle',
+      role: 'tool',
+      type: 'tool_result',
+      toolUseId: 'transcript-tool-jump-use-needle',
+      content: 'TRANSCRIPT_TOOL_JUMP_NEEDLE grouped tool result output.',
+      timestamp: baseTime + 24
+    },
+    {
+      id: 'transcript-tool-jump-after-tools',
+      role: 'assistant',
+      type: 'text',
+      content: 'Tool jump fixture resumes normal transcript content after the grouped tool activity.',
+      timestamp: baseTime + 25
+    }
+  ]
+  const tailMessages: ChatMessage[] = Array.from({ length: 60 }, (_, index) => ({
+    id: `transcript-tool-jump-tail-${index + 1}`,
+    role: index % 2 === 0 ? 'user' : 'assistant',
+    type: 'text',
+    content: `Transcript tool jump tail ${index + 1}. This keeps the searchable tool result out of the latest-message viewport.`,
+    timestamp: baseTime + 26 + index
+  }))
+
+  const messages = [...introMessages, ...toolMessages, ...tailMessages]
+  sessionManager.save({
+    ...session,
+    name: 'Transcript tool jump smoke',
     status: 'idle',
     messages,
     createdAt: baseTime,

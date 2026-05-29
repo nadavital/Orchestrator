@@ -665,7 +665,7 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
         updateScrollMetrics()
       }
       window.requestAnimationFrame(() => {
-        document.querySelector(`[data-message-id="${CSS.escape(result.messageId)}"]`)?.scrollIntoView({ block: 'center' })
+        findTranscriptElementForMessage(result.messageId)?.scrollIntoView({ block: 'center' })
         updateScrollMetrics()
       })
     })
@@ -868,6 +868,7 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
                 <MeasuredTranscriptRow
                   key={id}
                   id={id}
+                  messageIds={transcriptItemMessageIds(item)}
                   onHeight={handleVirtualRowHeight}
                 >
                   {item.type === 'tool_group'
@@ -1168,6 +1169,12 @@ function transcriptItemId(item: TranscriptItem): string {
   return item.type === 'tool_group' ? item.id : item.message.id
 }
 
+function transcriptItemMessageIds(item: TranscriptItem): string[] {
+  return item.type === 'tool_group'
+    ? item.messages.map((message) => message.id)
+    : [item.message.id]
+}
+
 function transcriptItemOffset(
   messageId: string,
   items: TranscriptItem[],
@@ -1176,8 +1183,20 @@ function transcriptItemOffset(
   let offset = 0
   for (const item of items) {
     const id = transcriptItemId(item)
-    if (id === messageId) return offset
+    if (transcriptItemMessageIds(item).includes(messageId)) return offset
     offset += measuredHeights[id] ?? estimateTranscriptItemHeight(item)
+  }
+  return null
+}
+
+function findTranscriptElementForMessage(messageId: string): Element | null {
+  const directMessage = document.querySelector(`[data-message-id="${CSS.escape(messageId)}"]`)
+  if (directMessage) return directMessage
+
+  for (const row of document.querySelectorAll('[data-virtual-row-message-ids]')) {
+    if (!(row instanceof HTMLElement)) continue
+    const ids = row.dataset.virtualRowMessageIds?.split(' ') ?? []
+    if (ids.includes(messageId)) return row
   }
   return null
 }
@@ -1203,10 +1222,12 @@ function estimateTranscriptItemHeight(item: TranscriptItem): number {
 
 function MeasuredTranscriptRow({
   id,
+  messageIds,
   onHeight,
   children
 }: {
   id: string
+  messageIds: string[]
   onHeight: (id: string, height: number) => void
   children: ReactNode
 }): JSX.Element {
@@ -1230,6 +1251,8 @@ function MeasuredTranscriptRow({
       ref={rowRef}
       data-testid="virtual-transcript-row"
       data-virtual-row-id={id}
+      data-virtual-row-message-ids={messageIds.join(' ')}
+      data-virtual-row-primary-message-id={messageIds[0] ?? ''}
       className="min-w-0"
       style={{ paddingBottom: TRANSCRIPT_VIRTUAL_ROW_GAP }}
     >
@@ -1246,7 +1269,7 @@ function groupTranscriptMessages(messages: ChatMessage[]): TranscriptItem[] {
     if (pendingTools.length === 0) return
     items.push({
       type: 'tool_group',
-      id: `tools-${pendingTools[0].id}-${pendingTools[pendingTools.length - 1].id}`,
+      id: `tools-${pendingTools[0].id}`,
       messages: pendingTools
     })
     pendingTools = []

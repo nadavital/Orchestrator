@@ -76,6 +76,8 @@ const captureView = process.argv.includes('--settings-deeplink')
               ? 'transcript-live-model-switch'
             : process.argv.includes('--transcript-reserve')
               ? 'transcript-reserve'
+            : process.argv.includes('--transcript-tool-jump')
+              ? 'transcript-tool-jump'
             : process.argv.includes('--transcript-layout')
               ? 'transcript-layout'
               : process.argv.includes('--transcript-fork')
@@ -2169,6 +2171,13 @@ child.on('exit', async (code) => {
         transcriptFound: result.transcriptFound === true,
         composerReserveContract: result.composerReserveContractWorks === true,
         composerReserveFollowBottom: result.composerReserveFollowBottomWorks === true
+      }
+    : captureView === 'transcript-tool-jump'
+    ? {
+        isolatedProfile: result.profile?.isIsolated === true,
+        transcriptFound: result.transcriptFound === true,
+        transcriptToolGroupStableKey: result.transcriptToolGroupStableKeyWorks === true,
+        transcriptToolSearchJump: result.transcriptToolSearchJumpWorks === true
       }
     : captureView === 'transcript-fork'
     ? {
