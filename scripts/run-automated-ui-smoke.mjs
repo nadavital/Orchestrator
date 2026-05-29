@@ -3118,6 +3118,8 @@ child.on('exit', async (code) => {
         settingsProviderPermissionRefresh: captureView !== 'settings-providers' || result.settingsProviderPermissionRefreshWorks === true,
         settingsProviderRuntimeCopy: captureView !== 'settings-providers' || result.settingsProviderRuntimeCopyWorks === true,
         settingsProviderRuntimeCopyStatusA11y: captureView !== 'settings-providers' || result.settingsProviderRuntimeCopyStatusA11yWorks === true,
+        settingsProviderRuntimeAddToChat: captureView !== 'settings-providers' || result.settingsProviderRuntimeAddToChatWorks === true,
+        settingsProviderRuntimeAddToChatStatusA11y: captureView !== 'settings-providers' || result.settingsProviderRuntimeAddToChatStatusA11yWorks === true,
         settingsProviderSidebarRefresh: captureView !== 'settings-providers' || result.settingsProviderSidebarRefreshWorks === true,
         settingsProviderContentAnchored: captureView !== 'settings-providers' || result.settingsProviderContentAnchoredWorks === true,
         settingsDataControls: captureView !== 'settings' || result.settingsDataControlsWorks === true,

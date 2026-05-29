@@ -993,17 +993,20 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 !diagnosticsToggle.textContent?.includes('Hidden');
               var settingsProviderRuntimeCopyWorks = false;
               var settingsProviderRuntimeCopyStatusA11yWorks = false;
+              var settingsProviderRuntimeAddToChatWorks = false;
+              var settingsProviderRuntimeAddToChatStatusA11yWorks = false;
               for (let index = 0; index < 16; index += 1) {
                 if (document.querySelector('[data-testid="provider-runtime-events-card"]') instanceof HTMLElement) break;
                 await sleep(100);
               }
               const runtimeEventsCard = document.querySelector('[data-testid="provider-runtime-events-card"]');
               const runtimeEventsCopy = document.querySelector('[data-testid="provider-runtime-events-copy"]');
+              const runtimeEventsAddToChat = document.querySelector('[data-testid="provider-runtime-events-add-chat"]');
               if (runtimeEventsCopy instanceof HTMLElement) {
                 runtimeEventsCopy.click();
                 for (let index = 0; index < 12; index += 1) {
                   const card = document.querySelector('[data-testid="provider-runtime-events-card"]');
-                  const status = document.querySelector('[data-testid="provider-runtime-events-copy-status"]');
+                  const status = document.querySelector('[data-testid="provider-runtime-events-action-status"]');
                   if (
                     card instanceof HTMLElement &&
                     card.getAttribute('data-provider-runtime-copy-status-tone') === 'info' &&
@@ -1012,7 +1015,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                   ) break;
                   await sleep(100);
                 }
-                const runtimeCopyStatus = document.querySelector('[data-testid="provider-runtime-events-copy-status"]');
+                const runtimeCopyStatus = document.querySelector('[data-testid="provider-runtime-events-action-status"]');
                 const copiedRuntimeActivity =
                   await window.api?.clipboard?.readText?.().catch(() => '') ??
                   await navigator.clipboard?.readText?.().catch(() => '') ??
@@ -1029,6 +1032,34 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                   runtimeCopyStatus.getAttribute('role') === 'status' &&
                   runtimeCopyStatus.getAttribute('aria-live') === 'polite' &&
                   runtimeCopyStatus.getAttribute('aria-atomic') === 'true';
+              }
+              if (runtimeEventsAddToChat instanceof HTMLElement) {
+                runtimeEventsAddToChat.click();
+                for (let index = 0; index < 12; index += 1) {
+                  const card = document.querySelector('[data-testid="provider-runtime-events-card"]');
+                  const status = document.querySelector('[data-testid="provider-runtime-events-action-status"]');
+                  if (
+                    card instanceof HTMLElement &&
+                    card.getAttribute('data-provider-runtime-add-chat-status-tone') === 'info' &&
+                    status instanceof HTMLElement &&
+                    status.textContent?.includes('Runtime activity added to chat') === true
+                  ) break;
+                  await sleep(100);
+                }
+                const runtimeAddToChatStatus = document.querySelector('[data-testid="provider-runtime-events-action-status"]');
+                const runtimeActivityPayload = window.__orchestratorLastProviderRuntimeActivityForSmoke ?? '';
+                settingsProviderRuntimeAddToChatWorks =
+                  runtimeEventsCard instanceof HTMLElement &&
+                  runtimeEventsCard.getAttribute('data-provider-runtime-add-chat-status-tone') === 'info' &&
+                  runtimeActivityPayload.includes('Use this provider runtime activity:') &&
+                  runtimeActivityPayload.includes('Provider runtime activity') &&
+                  runtimeActivityPayload.includes('No runtime activity recorded');
+                settingsProviderRuntimeAddToChatStatusA11yWorks =
+                  runtimeAddToChatStatus instanceof HTMLElement &&
+                  runtimeAddToChatStatus.textContent?.trim() === 'Runtime activity added to chat' &&
+                  runtimeAddToChatStatus.getAttribute('role') === 'status' &&
+                  runtimeAddToChatStatus.getAttribute('aria-live') === 'polite' &&
+                  runtimeAddToChatStatus.getAttribute('aria-atomic') === 'true';
               }
               var settingsProviderCommandOutputSharedWorks = false;
               if (providerCapabilitySelect instanceof HTMLSelectElement) {
@@ -8577,6 +8608,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             settingsProviderPermissionRefreshWorks: typeof settingsProviderPermissionRefreshWorks === 'boolean' ? settingsProviderPermissionRefreshWorks : null,
             settingsProviderRuntimeCopyWorks: typeof settingsProviderRuntimeCopyWorks === 'boolean' ? settingsProviderRuntimeCopyWorks : null,
             settingsProviderRuntimeCopyStatusA11yWorks: typeof settingsProviderRuntimeCopyStatusA11yWorks === 'boolean' ? settingsProviderRuntimeCopyStatusA11yWorks : null,
+            settingsProviderRuntimeAddToChatWorks: typeof settingsProviderRuntimeAddToChatWorks === 'boolean' ? settingsProviderRuntimeAddToChatWorks : null,
+            settingsProviderRuntimeAddToChatStatusA11yWorks: typeof settingsProviderRuntimeAddToChatStatusA11yWorks === 'boolean' ? settingsProviderRuntimeAddToChatStatusA11yWorks : null,
             settingsProviderSidebarRefreshWorks: typeof settingsProviderSidebarRefreshWorks === 'boolean' ? settingsProviderSidebarRefreshWorks : null,
             settingsProviderContentAnchoredWorks: typeof settingsProviderContentAnchoredWorks === 'boolean' ? settingsProviderContentAnchoredWorks : null,
             settingsDataControlsWorks: typeof settingsDataControlsWorks === 'boolean' ? settingsDataControlsWorks : null,

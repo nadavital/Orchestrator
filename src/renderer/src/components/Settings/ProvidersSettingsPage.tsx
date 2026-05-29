@@ -30,6 +30,7 @@ import {
 } from '../../types'
 import ProviderIcon from '../shared/ProviderIcon'
 import Icon from '../shared/Icon'
+import { useSessionStore } from '../../store/sessions'
 import {
   DiagnosticPill,
   SettingsContentLayout,
@@ -637,8 +638,10 @@ function ProviderRuntimeEventsCard({
   events: ProviderRuntimeDebugEvent[]
   color: string
 }): JSX.Element {
-  const [copyStatus, setCopyStatus] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
+  const [actionStatus, setActionStatus] = useState<{ text: string; tone: 'info' | 'danger'; action: 'copy' | 'chat' } | null>(null)
   const statusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const activeSessionId = useSessionStore((state) => state.activeSessionId)
+  const setComposerDraft = useSessionStore((state) => state.setComposerDraft)
   const visibleEvents = events.slice(-4).reverse()
   const visibleConnections = connections.slice(-2).reverse()
   useEffect(() => () => {
@@ -648,49 +651,87 @@ function ProviderRuntimeEventsCard({
     if (statusTimeoutRef.current) window.clearTimeout(statusTimeoutRef.current)
     try {
       await writeClipboardText(formatProviderRuntimeActivity(connections, events))
-      setCopyStatus({ text: 'Runtime activity copied', tone: 'info' })
+      setActionStatus({ text: 'Runtime activity copied', tone: 'info', action: 'copy' })
     } catch (error) {
-      setCopyStatus({ text: `Copy failed: ${errorText(error)}`, tone: 'danger' })
+      setActionStatus({ text: `Copy failed: ${errorText(error)}`, tone: 'danger', action: 'copy' })
     }
     statusTimeoutRef.current = window.setTimeout(() => {
-      setCopyStatus(null)
+      setActionStatus(null)
       statusTimeoutRef.current = null
     }, 1800)
   }
+
+  const addRuntimeActivityToChat = (): void => {
+    if (statusTimeoutRef.current) window.clearTimeout(statusTimeoutRef.current)
+    if (!activeSessionId) {
+      setActionStatus({ text: 'No active chat selected', tone: 'danger', action: 'chat' })
+    } else {
+      const text = [
+        'Use this provider runtime activity:',
+        formatProviderRuntimeActivity(connections, events)
+      ].join('\n')
+      const currentDraft = useSessionStore.getState().uiState[activeSessionId]?.composerDraft?.trimEnd() ?? ''
+      const globals = window as typeof window & { __orchestratorLastProviderRuntimeActivityForSmoke?: string }
+      globals.__orchestratorLastProviderRuntimeActivityForSmoke = text
+      setComposerDraft(activeSessionId, currentDraft ? `${currentDraft}\n\n${text}` : text)
+      setActionStatus({ text: 'Runtime activity added to chat', tone: 'info', action: 'chat' })
+    }
+    statusTimeoutRef.current = window.setTimeout(() => {
+      setActionStatus(null)
+      statusTimeoutRef.current = null
+    }, 1800)
+  }
+
+  const copySucceeded = actionStatus?.action === 'copy' && actionStatus.tone === 'info'
   return (
     <div
       data-testid="provider-runtime-events-card"
-      data-provider-runtime-copy-status={copyStatus?.text ?? ''}
-      data-provider-runtime-copy-status-tone={copyStatus?.tone ?? ''}
+      data-provider-runtime-copy-status={actionStatus?.action === 'copy' ? actionStatus.text : ''}
+      data-provider-runtime-copy-status-tone={actionStatus?.action === 'copy' ? actionStatus.tone : ''}
+      data-provider-runtime-add-chat-status={actionStatus?.action === 'chat' ? actionStatus.text : ''}
+      data-provider-runtime-add-chat-status-tone={actionStatus?.action === 'chat' ? actionStatus.tone : ''}
       style={{ display: 'grid', gap: 6 }}
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, minWidth: 0 }}>
         <InlineMutedText>Latest runtime activity</InlineMutedText>
-        <button
-          type="button"
-          className="provider-details-inline-action"
-          data-testid="provider-runtime-events-copy"
-          aria-label="Copy provider runtime activity"
-          onClick={() => { void handleCopy() }}
-          style={{ '--provider-color': color } as CSSProperties}
-        >
-          <Icon name="copy" size={11} />
-          {copyStatus?.tone === 'info' ? 'Copied' : 'Copy'}
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+          <button
+            type="button"
+            className="provider-details-inline-action"
+            data-testid="provider-runtime-events-add-chat"
+            aria-label="Add provider runtime activity to chat"
+            onClick={addRuntimeActivityToChat}
+            style={{ '--provider-color': color } as CSSProperties}
+          >
+            <Icon name="chat" size={11} />
+            Add to chat
+          </button>
+          <button
+            type="button"
+            className="provider-details-inline-action"
+            data-testid="provider-runtime-events-copy"
+            aria-label="Copy provider runtime activity"
+            onClick={() => { void handleCopy() }}
+            style={{ '--provider-color': color } as CSSProperties}
+          >
+            <Icon name="copy" size={11} />
+            {copySucceeded ? 'Copied' : 'Copy'}
+          </button>
+        </div>
       </div>
-      {copyStatus && (
+      {actionStatus && (
         <div
-          data-testid="provider-runtime-events-copy-status"
-          role={copyStatus.tone === 'danger' ? 'alert' : 'status'}
-          aria-live={copyStatus.tone === 'danger' ? 'assertive' : 'polite'}
+          data-testid="provider-runtime-events-action-status"
+          role={actionStatus.tone === 'danger' ? 'alert' : 'status'}
+          aria-live={actionStatus.tone === 'danger' ? 'assertive' : 'polite'}
           aria-atomic="true"
           style={{
-            color: copyStatus.tone === 'danger' ? 'var(--state-danger)' : 'var(--text-secondary)',
+            color: actionStatus.tone === 'danger' ? 'var(--state-danger)' : 'var(--text-secondary)',
             fontSize: 10.5,
             fontWeight: 600
           }}
         >
-          {copyStatus.text}
+          {actionStatus.text}
         </div>
       )}
       {visibleConnections.length === 0 && visibleEvents.length === 0 && (

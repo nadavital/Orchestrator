@@ -134,6 +134,12 @@ const diffRules = [
     diffPatterns: [/closeActivePanelTab/, /restoreRightPanelToggleFocus/, /rightPanelLastTabShortcutFocusRestored/, /rightPanelClose[A-Z]/]
   },
   {
+    flag: '--settings-providers',
+    label: 'Provider Settings',
+    filePatterns: [/^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
+    diffPatterns: [/settingsProvider/, /provider-runtime/, /providerRuntime/, /provider-runtime-events/]
+  },
+  {
     flag: '--settings',
     label: 'Settings',
     filePatterns: [/^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
@@ -283,6 +289,7 @@ function suggestTargets(paths) {
   suppressHeaderForSmokeHelperDiff(matched, paths)
   suppressHeaderForEnvironmentSmokeHelperDiff(matched, paths)
   restoreDiffTargets(matched, paths)
+  suppressSettingsForProviderSettingsDiff(matched, paths)
   suppressWorkbenchLauncherForContextSidebarTabDiff(matched, paths)
   suppressRightPanelForContextSidebarTerminalDiff(matched, paths)
   suppressWorkbenchLauncherForContextSidebarTerminalDiff(matched, paths)
@@ -389,6 +396,26 @@ function suppressCoveredTarget(matched, broadFlag, focusedFlag) {
   if (!broad || !focused) return
   const focusedFiles = new Set(focused.files)
   if (broad.files.every((file) => focusedFiles.has(file))) matched.delete(broadFlag)
+}
+
+function suppressSettingsForProviderSettingsDiff(matched, paths) {
+  const settings = matched.get('--settings')
+  const providers = matched.get('--settings-providers')
+  if (!settings || !providers) return
+  if (!paths.every((file) =>
+    file === 'src/renderer/src/components/Settings/ProvidersSettingsPage.tsx' ||
+    file === 'src/main/index.ts' ||
+    file === 'scripts/run-automated-ui-smoke.mjs' ||
+    file === 'scripts/suggest-ui-smoke-targets.mjs' ||
+    file.startsWith('docs/')
+  )) return
+  const diff = [
+    paths.includes('src/renderer/src/components/Settings/ProvidersSettingsPage.tsx') ? diffForFile('src/renderer/src/components/Settings/ProvidersSettingsPage.tsx') : '',
+    paths.includes('src/main/index.ts') ? diffForFile('src/main/index.ts') : '',
+    paths.includes('scripts/run-automated-ui-smoke.mjs') ? diffForFile('scripts/run-automated-ui-smoke.mjs') : ''
+  ].join('\n')
+  if (!/settingsProvider|provider-runtime|providerRuntime|provider-runtime-events/.test(diff)) return
+  matched.delete('--settings')
 }
 
 function suppressHeaderForRightPanelCloseDiff(matched, paths) {
