@@ -31,7 +31,7 @@ type ThreadFindStatus = {
   activePath?: string | null
 }
 type SessionRouteNotice = {
-  kind: 'archived' | 'missing'
+  kind: 'resolving' | 'archived' | 'missing'
   sessionId: string
   name: string | null
   restoring?: boolean
@@ -92,6 +92,14 @@ async function sessionRouteNoticeForMissingId(sessionId: string): Promise<Sessio
     sessionId,
     name: stored?.name ?? null
   }
+}
+
+async function inspectSessionRoute(sessionId: string): Promise<SessionRouteNotice> {
+  const globals = window as typeof window & {
+    __orchestratorDelaySessionRouteInspectionForSmoke?: (sessionId: string) => Promise<void> | void
+  }
+  await globals.__orchestratorDelaySessionRouteInspectionForSmoke?.(sessionId)
+  return sessionRouteNoticeForMissingId(sessionId)
 }
 
 function applyBrowserManagerRunEvents(sessionId: string, records: SessionRunEventRecord[]): void {
@@ -229,7 +237,14 @@ export default function App(): JSX.Element {
     const inspectMissingSessionRoute = (sessionId: string): void => {
       const requestId = sessionRouteNoticeRequestRef.current + 1
       sessionRouteNoticeRequestRef.current = requestId
-      void sessionRouteNoticeForMissingId(sessionId)
+      setShowSettings(false)
+      setShowCapabilities(false)
+      setSessionRouteNotice({
+        kind: 'resolving',
+        sessionId,
+        name: null
+      })
+      void inspectSessionRoute(sessionId)
         .then((notice) => {
           if (sessionRouteNoticeRequestRef.current !== requestId) return
           const currentRoute = parseSessionRouteLocation(window.location)
@@ -239,16 +254,12 @@ export default function App(): JSX.Element {
             setSessionRouteNotice(null)
             return
           }
-          setShowSettings(false)
-          setShowCapabilities(false)
           setSessionRouteNotice(notice)
         })
         .catch(() => {
           if (sessionRouteNoticeRequestRef.current !== requestId) return
           const currentRoute = parseSessionRouteLocation(window.location)
           if (currentRoute?.sessionId !== sessionId) return
-          setShowSettings(false)
-          setShowCapabilities(false)
           setSessionRouteNotice({ kind: 'missing', sessionId, name: null, error: 'Could not inspect this chat route.' })
         })
     }
@@ -1254,7 +1265,12 @@ export default function App(): JSX.Element {
           setShowCapabilities(false)
           setActiveSession(effectiveNavigation.sessionId)
         } else if (effectiveNavigation?.kind === 'session') {
-          const notice = await sessionRouteNoticeForMissingId(effectiveNavigation.sessionId)
+          setSessionRouteNotice({
+            kind: 'resolving',
+            sessionId: effectiveNavigation.sessionId,
+            name: null
+          })
+          const notice = await inspectSessionRoute(effectiveNavigation.sessionId)
           setSessionRouteNotice(notice)
           setShowSettings(false)
           setShowCapabilities(false)
@@ -1739,10 +1755,13 @@ function SessionRouteRecoveryView({
   onReturn: () => void
 }): JSX.Element {
   const isArchived = notice.kind === 'archived'
-  const title = isArchived ? 'Archived chat' : 'Chat not found'
-  const description = isArchived
-    ? `${notice.name ?? 'This chat'} is archived. Restore it to reopen the thread from this link.`
-    : 'This chat link does not match an available local or archived chat in this profile.'
+  const isResolving = notice.kind === 'resolving'
+  const title = isResolving ? 'Opening chat' : isArchived ? 'Archived chat' : 'Chat not found'
+  const description = isResolving
+    ? 'Checking this thread route before switching the visible chat.'
+    : isArchived
+      ? `${notice.name ?? 'This chat'} is archived. Restore it to reopen the thread from this link.`
+      : 'This chat link does not match an available local or archived chat in this profile.'
 
   return (
     <div
@@ -1750,13 +1769,14 @@ function SessionRouteRecoveryView({
       data-testid="session-route-recovery"
       data-session-route-recovery-kind={notice.kind}
       data-session-route-recovery-id={notice.sessionId}
-      role={isArchived ? 'status' : 'alert'}
-      aria-live={isArchived ? 'polite' : 'assertive'}
+      data-session-route-recovery-lifecycle={notice.restoring ? 'restoring' : notice.kind}
+      role={isArchived || isResolving ? 'status' : 'alert'}
+      aria-live={isArchived || isResolving ? 'polite' : 'assertive'}
       aria-atomic="true"
     >
       <div className="session-route-recovery-card">
         <div className="session-route-recovery-icon" aria-hidden="true">
-          <Icon name={isArchived ? 'archive' : 'warning'} size={18} />
+          <Icon name={isResolving ? 'refresh' : isArchived ? 'archive' : 'warning'} size={18} />
         </div>
         <div className="session-route-recovery-body">
           <div className="session-route-recovery-kicker">Thread route</div>

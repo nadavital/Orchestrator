@@ -9315,6 +9315,16 @@ Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.
 
 Remaining: this closes local missing/archived route states. Provider-native remote and hotkey route semantics remain separate.
 
+### 2026-05-28 - Thread Route Opening Lifecycle
+
+Product evidence: PP-033/PP-037 still had a page-open lifecycle gap after missing/archived route recovery landed: unknown thread routes were inspected asynchronously, so stale transcript content could remain visible briefly while the app determined whether the target was archived or missing. For daily coding, copied thread links and app reopen paths should show an explicit opening state instead of making the user wonder whether the route took effect.
+
+Implemented: unknown `/threads/{id}` and `#/threads/{id}` routes now immediately replace the main transcript with an `Opening chat` route notice carrying `data-session-route-recovery-kind="resolving"` and a lifecycle attribute. The lookup then settles into the existing archived restore surface or missing-chat recovery. The route-inspection helper includes a smoke-only delay hook so the transient state is directly verifiable without slowing normal route handling.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --session-switch` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-session-switch-1780019041203.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-session-switch-1780019041203.png`. The focused session-switch run now gates `sessionRouteResolvingVisible=true` alongside archived restore, missing recovery, route startup/update, transcript search, virtualization, and timing checks.
+
+Remaining: this closes the local route-opening lifecycle state. Provider-native remote/hotkey routes, fuller shared thread scroll control, and exact live Codex page-open timing remain separate.
+
 ### 2026-05-28 - Browser Clear History
 
 Product evidence: PP-058 tracks Browser action/history/zoom polish as part of day-to-day coding usability. The Browser actions menu already exposed recent history rows, but it had no first-class way to clear that local Browser workbench history without resetting the whole tab.

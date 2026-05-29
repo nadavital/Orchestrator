@@ -1810,6 +1810,7 @@ child.on('exit', async (code) => {
         startupRouteTranscriptFound: result.startupRouteTranscriptFound === true,
         archivedRouteRecoveryVisible: result.archivedRouteRecoveryVisible === true,
         archivedRouteRestoreWorks: result.archivedRouteRestoreWorks === true,
+        sessionRouteResolvingVisible: result.sessionRouteResolvingVisible === true,
         missingRouteRecoveryVisible: result.missingRouteRecoveryVisible === true,
         missingRouteReturnWorks: result.missingRouteReturnWorks === true,
         firstTranscriptFound: result.firstTranscriptFound === true,

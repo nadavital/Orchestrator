@@ -20134,6 +20134,49 @@ function runAutomatedSessionSwitchSmoke(win: BrowserWindow, outputPath: string, 
           (async () => {
             const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
             const routeHashFor = (id) => '#/threads/' + encodeURIComponent(id);
+            const resolvingId = 'resolving-route-smoke';
+            let resolveInspection = null;
+            const delayedInspection = new Promise((resolve) => {
+              resolveInspection = resolve;
+            });
+            window.__orchestratorDelaySessionRouteInspectionForSmoke = async (id) => {
+              if (id === resolvingId) await delayedInspection;
+            };
+            window.location.hash = routeHashFor(resolvingId);
+            let resolvingRecovery = null;
+            for (let index = 0; index < 100; index += 1) {
+              resolvingRecovery = document.querySelector('[data-testid="session-route-recovery"]');
+              if (
+                resolvingRecovery instanceof HTMLElement &&
+                resolvingRecovery.getAttribute('data-session-route-recovery-kind') === 'resolving' &&
+                resolvingRecovery.getAttribute('data-session-route-recovery-lifecycle') === 'resolving' &&
+                resolvingRecovery.getAttribute('data-session-route-recovery-id') === resolvingId
+              ) break;
+              await sleep(25);
+            }
+            const resolvingSnapshot = {
+              kind: resolvingRecovery instanceof HTMLElement ? resolvingRecovery.getAttribute('data-session-route-recovery-kind') ?? '' : '',
+              lifecycle: resolvingRecovery instanceof HTMLElement ? resolvingRecovery.getAttribute('data-session-route-recovery-lifecycle') ?? '' : '',
+              id: resolvingRecovery instanceof HTMLElement ? resolvingRecovery.getAttribute('data-session-route-recovery-id') ?? '' : '',
+              text: resolvingRecovery instanceof HTMLElement ? resolvingRecovery.textContent ?? '' : ''
+            };
+            const resolvingReplacedTranscript = !(document.querySelector('[data-testid="transcript-scroll"]') instanceof HTMLElement);
+            if (typeof resolveInspection === 'function') resolveInspection(undefined);
+            window.__orchestratorDelaySessionRouteInspectionForSmoke = undefined;
+            let resolvingSettledMissing = null;
+            for (let index = 0; index < 100; index += 1) {
+              resolvingSettledMissing = document.querySelector('[data-testid="session-route-recovery"]');
+              if (
+                resolvingSettledMissing instanceof HTMLElement &&
+                resolvingSettledMissing.getAttribute('data-session-route-recovery-kind') === 'missing' &&
+                resolvingSettledMissing.getAttribute('data-session-route-recovery-id') === resolvingId
+              ) break;
+              await sleep(25);
+            }
+            const resolvingSettledSnapshot = {
+              kind: resolvingSettledMissing instanceof HTMLElement ? resolvingSettledMissing.getAttribute('data-session-route-recovery-kind') ?? '' : '',
+              id: resolvingSettledMissing instanceof HTMLElement ? resolvingSettledMissing.getAttribute('data-session-route-recovery-id') ?? '' : ''
+            };
             window.location.hash = routeHashFor(${JSON.stringify(archivedRoute.id)});
             let archivedRecovery = null;
             for (let index = 0; index < 100; index += 1) {
@@ -20181,6 +20224,24 @@ function runAutomatedSessionSwitchSmoke(win: BrowserWindow, outputPath: string, 
                 document.querySelector('[data-testid="active-session-title"]')?.textContent?.includes(${JSON.stringify(archivedRoute.name)}) === true &&
                 document.querySelector('[data-testid="transcript-scroll"]')?.innerText?.includes('SESSION_SWITCH_SMOKE_ARCHIVED_ROUTE') === true,
               archivedRouteRestoredHash: restoredRouteHash,
+              sessionRouteResolvingVisible:
+                resolvingSnapshot.kind === 'resolving' &&
+                resolvingSnapshot.lifecycle === 'resolving' &&
+                resolvingSnapshot.id === resolvingId &&
+                resolvingSnapshot.text.includes('Opening chat') &&
+                resolvingReplacedTranscript &&
+                resolvingSettledSnapshot.kind === 'missing' &&
+                resolvingSettledSnapshot.id === resolvingId,
+              sessionRouteResolvingDebug: {
+                resolvingKind: resolvingSnapshot.kind,
+                resolvingLifecycle: resolvingSnapshot.lifecycle,
+                resolvingIdAttr: resolvingSnapshot.id,
+                resolvingText: resolvingSnapshot.text,
+                resolvingReplacedTranscript,
+                settledKind: resolvingSettledSnapshot.kind,
+                settledId: resolvingSettledSnapshot.id,
+                hashAfterResolving: window.location.hash
+              },
               missingRouteRecoveryVisible:
                 missingRecovery instanceof HTMLElement &&
                 missingRecovery.getAttribute('data-session-route-recovery-kind') === 'missing' &&
@@ -20192,6 +20253,7 @@ function runAutomatedSessionSwitchSmoke(win: BrowserWindow, outputPath: string, 
           archivedRouteRecoveryVisible: false,
           archivedRouteRestoreWorks: false,
           archivedRouteRestoredHash: null,
+          sessionRouteResolvingVisible: false,
           missingRouteRecoveryVisible: false,
           missingRouteReturnWorks: false
         }
