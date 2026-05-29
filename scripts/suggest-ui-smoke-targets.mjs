@@ -60,6 +60,27 @@ const broadTriggers = [
   /^pnpm-lock\.yaml$/
 ]
 
+const staticValidationRules = [
+  {
+    label: 'Panel tab unit policy',
+    patterns: [/^src\/types\/panelTabs\.ts$/, /^src\/main\/__tests__\/panelTabs\.test\.ts$/],
+    checks: [
+      {
+        kind: 'static',
+        label: 'Compile node tests',
+        command: 'pnpm',
+        args: ['exec', 'tsc', '-p', 'tsconfig.node.json', '--outDir', 'out-test', '--module', 'commonjs']
+      },
+      {
+        kind: 'static',
+        label: 'Panel tab unit policy',
+        command: 'node',
+        args: ['--test', 'out-test/src/main/__tests__/panelTabs.test.js']
+      }
+    ]
+  }
+]
+
 const args = process.argv.slice(2)
 const shouldRun = args.includes('--run')
 const shouldPrintJson = args.includes('--json')
@@ -119,6 +140,12 @@ function suggestTargets(paths) {
       fileMatched = true
       addMatchedTarget(matched, rule, file)
     }
+    if (staticValidationRules.some((rule) => rule.patterns.some((pattern) => pattern.test(file)))) {
+      fileMatched = true
+    }
+    if (file.startsWith('scripts/') && file.endsWith('.mjs')) {
+      fileMatched = true
+    }
     if (broadTriggers.some((pattern) => pattern.test(file))) {
       broadReasons.push(file)
     }
@@ -173,6 +200,11 @@ function buildValidationPlan(paths, suggestions) {
     })
   }
 
+  for (const rule of staticValidationRules) {
+    if (!paths.some((file) => rule.patterns.some((pattern) => pattern.test(file)))) continue
+    for (const check of rule.checks) pushUniqueCheck(checks, check)
+  }
+
   for (const target of suggestions.targets) {
     checks.push({
       kind: 'ui-smoke',
@@ -184,6 +216,12 @@ function buildValidationPlan(paths, suggestions) {
   }
 
   return checks
+}
+
+function pushUniqueCheck(checks, check) {
+  const key = formatCommand(check)
+  if (checks.some((candidate) => formatCommand(candidate) === key)) return
+  checks.push(check)
 }
 
 function suppressCoveredTarget(matched, broadFlag, focusedFlag) {
