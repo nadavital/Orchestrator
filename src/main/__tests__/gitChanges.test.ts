@@ -64,6 +64,38 @@ test('changed files expose staged and unstaged state for review actions', async 
   }
 })
 
+test('commit staged creates a commit and leaves unstaged edits alone', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'orchestrator-git-commit-staged-'))
+  try {
+    writeFileSync(join(root, 'tracked.txt'), 'before\n')
+    git(root, 'init')
+    git(root, 'config', 'user.email', 'orchestrator-test@example.test')
+    git(root, 'config', 'user.name', 'Orchestrator Test')
+    git(root, 'add', '.')
+    git(root, 'commit', '-m', 'baseline')
+
+    writeFileSync(join(root, 'tracked.txt'), 'staged\n')
+    writeFileSync(join(root, 'unstaged.txt'), 'working tree\n')
+    await gitManager.stagePaths(root, ['tracked.txt'])
+
+    const emptyMessage = await gitManager.commitStaged(root, '   ')
+    assert.equal(emptyMessage.ok, false)
+    assert.match(emptyMessage.error ?? '', /commit message/i)
+
+    const result = await gitManager.commitStaged(root, 'Workbench commit\n')
+    assert.equal(result.ok, true)
+    assert.match(result.commit ?? '', /^[0-9a-f]{7,}$/)
+    assert.deepEqual(result.changedFiles.map((file) => file.path), ['unstaged.txt'])
+    assert.equal(result.changedFiles[0]?.unstaged, true)
+
+    const subject = spawnSync('git', ['log', '-1', '--pretty=%s'], { cwd: root, encoding: 'utf-8' })
+    assert.equal(subject.status, 0, subject.stderr || subject.stdout)
+    assert.equal(subject.stdout.trim(), 'Workbench commit')
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
 test('changed files expose unmerged conflict state for review helpers', async () => {
   const root = mkdtempSync(join(tmpdir(), 'orchestrator-git-conflict-state-'))
   try {

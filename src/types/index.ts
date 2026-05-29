@@ -1955,6 +1955,14 @@ export interface GitPathActionResult {
   error?: string
 }
 
+export interface GitCommitResult {
+  ok: boolean
+  changedFiles: FileChange[]
+  commit?: string
+  message?: string
+  error?: string
+}
+
 export interface GitLineBlameResult {
   ok: boolean
   path: string

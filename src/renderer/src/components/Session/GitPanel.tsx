@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { type FormEvent, useEffect, useMemo, useState } from 'react'
 import { fileStatusLabel } from '../../types'
 import type { FileChange, GitRefOption } from '../../types'
 import Icon, { type IconName } from '../shared/Icon'
@@ -11,13 +11,15 @@ interface Props {
   onOpenReview: () => void
 }
 
-type GitActionState = 'idle' | 'loading' | 'staging' | 'unstaging'
+type GitActionState = 'idle' | 'loading' | 'staging' | 'unstaging' | 'committing'
 
 export default function GitPanel({ sessionId, workDir, embedded = false, onOpenReview }: Props): JSX.Element {
   const [changes, setChanges] = useState<FileChange[]>([])
   const [branches, setBranches] = useState<GitRefOption[]>([])
   const [actionState, setActionState] = useState<GitActionState>('loading')
   const [actionMessage, setActionMessage] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
+  const [commitMessage, setCommitMessage] = useState('')
+  const [lastCommit, setLastCommit] = useState<string | null>(null)
 
   const refresh = async (): Promise<void> => {
     setActionState((current) => current === 'idle' ? 'loading' : current)
@@ -58,6 +60,7 @@ export default function GitPanel({ sessionId, workDir, embedded = false, onOpenR
   }), { additions: 0, deletions: 0 }), [changes])
   const currentBranch = branches.find((branch) => branch.current)?.label ?? 'main'
   const busy = actionState !== 'idle'
+  const commitReady = stagedPaths.length > 0 && commitMessage.trim().length > 0
 
   const runPathAction = async (action: 'stage' | 'unstage'): Promise<void> => {
     const paths = action === 'stage' ? unstagedPaths : stagedPaths
@@ -85,6 +88,31 @@ export default function GitPanel({ sessionId, workDir, embedded = false, onOpenR
     }
   }
 
+  const runCommit = async (event?: FormEvent<HTMLFormElement>): Promise<void> => {
+    event?.preventDefault()
+    if (!commitReady || busy) return
+    const stagedCount = stagedPaths.length
+    const countLabel = `${stagedCount} ${stagedCount === 1 ? 'file' : 'files'}`
+    setActionState('committing')
+    setActionMessage({ text: `Committing ${countLabel}`, tone: 'info' })
+    setLastCommit(null)
+    try {
+      const result = await window.api.git.commitStaged(workDir, commitMessage)
+      setChanges(result.changedFiles)
+      if (result.ok) {
+        setCommitMessage('')
+        setLastCommit(result.commit ?? null)
+        setActionMessage({ text: `Committed ${result.commit ?? 'changes'}`, tone: 'info' })
+      } else {
+        setActionMessage({ text: result.error || `Commit failed for ${countLabel}`, tone: 'danger' })
+      }
+    } catch (error) {
+      setActionMessage({ text: error instanceof Error ? error.message : 'Commit failed', tone: 'danger' })
+    } finally {
+      setActionState('idle')
+    }
+  }
+
   return (
     <section
       className="git-panel environment-panel"
@@ -93,6 +121,7 @@ export default function GitPanel({ sessionId, workDir, embedded = false, onOpenR
       data-git-staged-count={stagedPaths.length}
       data-git-unstaged-count={unstagedPaths.length}
       data-git-action-state={actionState}
+      data-git-last-commit={lastCommit ?? ''}
       style={{ height: embedded ? '100%' : undefined }}
     >
       <div className="environment-panel-scroll">
@@ -178,6 +207,35 @@ export default function GitPanel({ sessionId, workDir, embedded = false, onOpenR
             </Button>
           </div>
         </div>
+
+        <form className="environment-card git-commit-card" data-testid="git-commit-card" onSubmit={(event) => { void runCommit(event) }}>
+          <div className="environment-card-header">
+            <span>Commit</span>
+            <span className="environment-row-muted">{stagedPaths.length} staged</span>
+          </div>
+          <div className="git-commit-row">
+            <input
+              className="git-commit-input"
+              data-testid="git-commit-message"
+              value={commitMessage}
+              disabled={busy}
+              placeholder="Commit message"
+              aria-label="Commit message"
+              onChange={(event) => setCommitMessage(event.target.value)}
+            />
+            <Button
+              type="submit"
+              variant="primary"
+              dataTestId="git-commit-staged"
+              disabled={busy || !commitReady}
+            >
+              Commit staged
+            </Button>
+          </div>
+          {lastCommit && (
+            <div className="git-commit-meta" data-testid="git-last-commit">Last commit {lastCommit}</div>
+          )}
+        </form>
 
         <div className="environment-card" data-testid="git-file-list-card">
           <div className="environment-card-header">

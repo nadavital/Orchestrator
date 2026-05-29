@@ -8152,6 +8152,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   newTabCardIds.includes('agents') &&
                   newTabCardIds.includes('terminal');
                 let workbenchNewTabGitActionWorks = false;
+                let workbenchNewTabGitCommitWorks = false;
                 const gitAction = document.querySelector('[data-testid="workbench-new-tab-action-git"]');
                 if (gitAction instanceof HTMLButtonElement) {
                   gitAction.click();
@@ -8222,6 +8223,66 @@ function runAutomatedFocusedSurfaceSmoke(
                   const gitAfterUnstageUnstagedCount = gitPanelAfterUnstage instanceof HTMLElement
                     ? Number(gitPanelAfterUnstage.getAttribute('data-git-unstaged-count') ?? '0')
                     : -1;
+                  const gitStageAllAfterUnstage = document.querySelector('[data-testid="git-stage-all"]');
+                  if (gitStageAllAfterUnstage instanceof HTMLButtonElement && !gitStageAllAfterUnstage.disabled) {
+                    gitStageAllAfterUnstage.click();
+                    for (let attempt = 0; attempt < 20; attempt += 1) {
+                      await sleep(100);
+                      const gitPanelBeforeCommit = document.querySelector('[data-testid="git-panel"]');
+                      if (
+                        gitPanelBeforeCommit instanceof HTMLElement &&
+                        gitPanelBeforeCommit.getAttribute('data-git-action-state') === 'idle' &&
+                        Number(gitPanelBeforeCommit.getAttribute('data-git-unstaged-count') ?? '-1') === 0 &&
+                        Number(gitPanelBeforeCommit.getAttribute('data-git-staged-count') ?? '0') >= gitChangeCountBefore
+                      ) {
+                        break;
+                      }
+                    }
+                  }
+                  const gitPanelBeforeCommit = document.querySelector('[data-testid="git-panel"]');
+                  const gitBeforeCommitStagedCount = gitPanelBeforeCommit instanceof HTMLElement
+                    ? Number(gitPanelBeforeCommit.getAttribute('data-git-staged-count') ?? '0')
+                    : -1;
+                  const gitCommitMessage = document.querySelector('[data-testid="git-commit-message"]');
+                  const gitCommitButton = document.querySelector('[data-testid="git-commit-staged"]');
+                  if (
+                    gitPanelBeforeCommit instanceof HTMLElement &&
+                    gitCommitMessage instanceof HTMLInputElement &&
+                    gitCommitButton instanceof HTMLButtonElement &&
+                    gitBeforeCommitStagedCount >= gitChangeCountBefore
+                  ) {
+                    const setter = Object.getOwnPropertyDescriptor(gitCommitMessage.constructor.prototype, 'value')?.set;
+                    setter?.call(gitCommitMessage, 'Git tab smoke commit ' + Date.now());
+                    gitCommitMessage.dispatchEvent(new Event('input', { bubbles: true }));
+                    await sleep(120);
+                    if (!gitCommitButton.disabled) {
+                      gitCommitButton.click();
+                      for (let attempt = 0; attempt < 30; attempt += 1) {
+                        await sleep(120);
+                        const gitPanelAfterCommit = document.querySelector('[data-testid="git-panel"]');
+                        const gitStatusAfterCommit = document.querySelector('[data-testid="git-action-status"]');
+                        if (
+                          gitPanelAfterCommit instanceof HTMLElement &&
+                          gitPanelAfterCommit.getAttribute('data-git-action-state') === 'idle' &&
+                          Number(gitPanelAfterCommit.getAttribute('data-git-change-count') ?? '-1') === 0 &&
+                          gitPanelAfterCommit.getAttribute('data-git-last-commit') &&
+                          gitStatusAfterCommit instanceof HTMLElement &&
+                          gitStatusAfterCommit.textContent?.includes('Committed') === true
+                        ) {
+                          break;
+                        }
+                      }
+                    }
+                  }
+                  const gitPanelAfterCommit = document.querySelector('[data-testid="git-panel"]');
+                  const gitStatusAfterCommit = document.querySelector('[data-testid="git-action-status"]');
+                  workbenchNewTabGitCommitWorks =
+                    gitPanelAfterCommit instanceof HTMLElement &&
+                    Number(gitPanelAfterCommit.getAttribute('data-git-change-count') ?? '-1') === 0 &&
+                    (gitPanelAfterCommit.getAttribute('data-git-last-commit') ?? '').length > 0 &&
+                    gitStatusAfterCommit instanceof HTMLElement &&
+                    gitStatusAfterCommit.getAttribute('role') === 'status' &&
+                    gitStatusAfterCommit.textContent?.includes('Committed') === true;
                   const gitStatus = document.querySelector('[data-testid="git-action-status"]');
                   workbenchNewTabGitActionWorks =
                     gitPanelBefore instanceof HTMLElement &&
@@ -8235,9 +8296,10 @@ function runAutomatedFocusedSurfaceSmoke(
                     gitAfterStageStagedCount >= gitChangeCountBefore &&
                     gitAfterUnstageStagedCount === 0 &&
                     gitAfterUnstageUnstagedCount >= gitChangeCountBefore &&
+                    workbenchNewTabGitCommitWorks &&
                     gitStatus instanceof HTMLElement &&
                     gitStatus.getAttribute('role') === 'status' &&
-                    gitStatus.textContent?.includes('Unstaged') === true;
+                    gitStatus.textContent?.includes('Committed') === true;
                   const newTabAfterGit = document.querySelector('[data-testid="workbench-panel-tabbar"] [role="tab"][data-tab-id="new-tab"]');
                   if (newTabAfterGit instanceof HTMLElement) {
                     newTabAfterGit.click();
@@ -8626,6 +8688,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     finalActiveNewTab instanceof HTMLElement,
                   workbenchNewTabAgentsActionWorks,
                   workbenchNewTabGitActionWorks,
+                  workbenchNewTabGitCommitWorks,
                   agentRuntimeEventDetailWorks,
                   agentRuntimeEventCopyWorks,
                   agentRuntimeEventAddToChatWorks,

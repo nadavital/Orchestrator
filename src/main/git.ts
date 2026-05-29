@@ -3,7 +3,7 @@ import { join, resolve, sep } from 'path'
 import { mkdirSync } from 'fs'
 import { execFile, spawnSync } from 'child_process'
 import { promisify } from 'util'
-import type { FileChange, GitLineBlameResult, GitPathActionResult, GitRefOption, ReviewDiffSource, ReviewMetadata, ReviewCheckStatus, ReviewProviderBlame } from '../types'
+import type { FileChange, GitCommitResult, GitLineBlameResult, GitPathActionResult, GitRefOption, ReviewDiffSource, ReviewMetadata, ReviewCheckStatus, ReviewProviderBlame } from '../types'
 
 const execFileAsync = promisify(execFile)
 
@@ -268,6 +268,35 @@ export const gitManager = {
       return {
         ok: false,
         paths: cleanPaths,
+        changedFiles: await this.getChangedFiles(cwd),
+        error: error instanceof Error ? error.message : String(error)
+      }
+    }
+  },
+
+  async commitStaged(cwd: string, message: string): Promise<GitCommitResult> {
+    const cleanMessage = normalizeCommitMessage(message)
+    const changedFiles = await this.getChangedFiles(cwd)
+    if (!cleanMessage) {
+      return { ok: false, changedFiles, error: 'Enter a commit message.' }
+    }
+    if (!changedFiles.some((file) => file.staged)) {
+      return { ok: false, changedFiles, error: 'No staged changes to commit.' }
+    }
+
+    try {
+      const git = simpleGit(cwd)
+      await git.raw(['commit', '-m', cleanMessage])
+      const commit = (await git.raw(['rev-parse', '--short', 'HEAD'])).trim()
+      return {
+        ok: true,
+        changedFiles: await this.getChangedFiles(cwd),
+        commit,
+        message: cleanMessage
+      }
+    } catch (error) {
+      return {
+        ok: false,
         changedFiles: await this.getChangedFiles(cwd),
         error: error instanceof Error ? error.message : String(error)
       }
@@ -774,6 +803,15 @@ function normalizePathList(paths: string[]): string[] {
     clean.push(value)
   }
   return clean
+}
+
+function normalizeCommitMessage(message: string): string {
+  return message
+    .replace(/\r\n?/g, '\n')
+    .split('\n')
+    .map((line) => line.trimEnd())
+    .join('\n')
+    .trim()
 }
 
 function isSafeRelativePath(cwd: string, filePath: string): boolean {
