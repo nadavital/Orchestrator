@@ -9475,6 +9475,16 @@ Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.
 
 Remaining: live PR creation, provider-hosted Git metadata, exact live Codex UI timing, and retiring Review's temporary local-git bridge once the Git tab fully owns local Git actions.
 
+### 2026-05-28 - Git Workbench Per-File Actions
+
+Product evidence: after the Git tab took over branch, commit, discard, and PR-command handoff, selective commits were still awkward because only `Stage all` and `Unstage all` existed. For daily coding, the dedicated Git surface needs per-file stage/unstage controls so users can make focused commits without going back to terminal Git.
+
+Implemented: Git tab file rows now expose compact per-file Stage and Unstage icon actions. They reuse the existing safe `git.stagePaths` / `git.unstagePaths` IPC paths with a single file path, update row-level staged/unstaged metadata, and publish the existing live action status. Bulk Stage all / Unstage all behavior remains unchanged.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --workbench-new-tab` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-workbench-new-tab-1780020692507.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-workbench-new-tab-1780020692507.png`. The focused smoke gates `workbenchNewTabGitFileActions=true` by staging and unstaging one file, then preserving the existing branch creation, PR-command copy, checkout, discard cancel, Stage all / Unstage all, and commit path.
+
+Remaining: live PR creation, provider-hosted Git metadata, exact live Codex UI timing, and retiring Review's temporary local-git bridge once the Git tab fully owns local Git actions.
+
 ### 2026-05-28 - Review Provider Suggestions
 
 Product evidence: PP-054 still had an actionable Review gap after the Git tab picked up local branch/commit/PR-command ownership: provider inline comments could be displayed, but GitHub suggestion fences were passive text. For daily coding, Review should let users copy or apply a concrete suggestion without leaving the right Workbench panel.

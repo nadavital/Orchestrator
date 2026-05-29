@@ -89,8 +89,8 @@ export default function GitPanel({ session, embedded = false, onOpenReview }: Pr
     await navigator.clipboard.writeText(text)
   }
 
-  const runPathAction = async (action: 'stage' | 'unstage'): Promise<void> => {
-    const paths = action === 'stage' ? unstagedPaths : stagedPaths
+  const runPathAction = async (action: 'stage' | 'unstage', targetPaths?: string[]): Promise<void> => {
+    const paths = targetPaths ?? (action === 'stage' ? unstagedPaths : stagedPaths)
     if (paths.length === 0 || busy) return
     const countLabel = `${paths.length} ${paths.length === 1 ? 'file' : 'files'}`
     setActionState(action === 'stage' ? 'staging' : 'unstaging')
@@ -484,6 +484,26 @@ export default function GitPanel({ session, embedded = false, onOpenReview }: Pr
               <span className="git-file-path">{change.path}</span>
               <span className="git-file-delta">
                 +{change.additions.toLocaleString()} -{change.deletions.toLocaleString()}
+              </span>
+              <span className="git-file-actions">
+                <IconButton
+                  icon="plus"
+                  label={`Stage ${change.path}`}
+                  size="xs"
+                  variant="ghost"
+                  dataTestId="git-file-stage"
+                  disabled={busy || !change.unstaged}
+                  onClick={() => { void runPathAction('stage', [change.path]) }}
+                />
+                <IconButton
+                  icon="eraser"
+                  label={`Unstage ${change.path}`}
+                  size="xs"
+                  variant="ghost"
+                  dataTestId="git-file-unstage"
+                  disabled={busy || !change.staged}
+                  onClick={() => { void runPathAction('unstage', [change.path]) }}
+                />
               </span>
             </div>
           ))}

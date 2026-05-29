@@ -2647,7 +2647,7 @@
     display: grid;
     min-width: 0;
     min-height: 30px;
-    grid-template-columns: 42px minmax(0, 1fr) auto;
+    grid-template-columns: 42px minmax(0, 1fr) auto auto;
     align-items: center;
     gap: 8px;
     border-top: 1px solid color-mix(in srgb, var(--border-subtle) 48%, transparent);
@@ -2672,6 +2672,12 @@
   .git-file-delta {
     color: var(--text-tertiary);
     font-size: 11px;
+  }
+
+  .git-file-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
   }
 
   .git-empty-state {

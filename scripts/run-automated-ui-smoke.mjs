@@ -2438,6 +2438,7 @@ child.on('exit', async (code) => {
           workbenchNewTabFinalCapture: result.workbenchNewTabFinalCapture === true,
           workbenchNewTabAgentsAction: result.workbenchNewTabAgentsActionWorks === true,
           workbenchNewTabGitAction: result.workbenchNewTabGitActionWorks === true,
+          workbenchNewTabGitFileActions: result.workbenchNewTabGitFileActionsWorks === true,
           workbenchNewTabGitBranch: result.workbenchNewTabGitBranchWorks === true,
           workbenchNewTabGitCheckout: result.workbenchNewTabGitCheckoutWorks === true,
           workbenchNewTabGitPrCommand: result.workbenchNewTabGitPrCommandWorks === true,

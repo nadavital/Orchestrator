@@ -8155,6 +8155,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   newTabCardIds.includes('agents') &&
                   newTabCardIds.includes('terminal');
                 let workbenchNewTabGitActionWorks = false;
+                let workbenchNewTabGitFileActionsWorks = false;
                 let workbenchNewTabGitBranchWorks = false;
                 let workbenchNewTabGitCheckoutWorks = false;
                 let workbenchNewTabGitPrCommandWorks = false;
@@ -8188,6 +8189,67 @@ function runAutomatedFocusedSurfaceSmoke(
                   const gitChangeCountBefore = gitPanelBefore instanceof HTMLElement
                     ? Number(gitPanelBefore.getAttribute('data-git-change-count') ?? '0')
                     : 0;
+                  const firstStageableFileRow = [...document.querySelectorAll('[data-testid="git-file-row"]')]
+                    .find((row) => row instanceof HTMLElement && row.getAttribute('data-git-file-unstaged') === 'true');
+                  const firstStageableFilePath = firstStageableFileRow instanceof HTMLElement
+                    ? firstStageableFileRow.getAttribute('data-git-file-path') ?? ''
+                    : '';
+                  const firstStageFileButton = firstStageableFileRow instanceof HTMLElement
+                    ? firstStageableFileRow.querySelector('[data-testid="git-file-stage"]')
+                    : null;
+                  if (firstStageableFilePath.length > 0 && firstStageFileButton instanceof HTMLButtonElement && !firstStageFileButton.disabled) {
+                    firstStageFileButton.click();
+                    for (let attempt = 0; attempt < 20; attempt += 1) {
+                      await sleep(100);
+                      const gitPanelAfterFileStage = document.querySelector('[data-testid="git-panel"]');
+                      const rowAfterFileStage = [...document.querySelectorAll('[data-testid="git-file-row"]')]
+                        .find((row) => row instanceof HTMLElement && row.getAttribute('data-git-file-path') === firstStageableFilePath);
+                      if (
+                        gitPanelAfterFileStage instanceof HTMLElement &&
+                        gitPanelAfterFileStage.getAttribute('data-git-action-state') === 'idle' &&
+                        rowAfterFileStage instanceof HTMLElement &&
+                        rowAfterFileStage.getAttribute('data-git-file-staged') === 'true'
+                      ) {
+                        break;
+                      }
+                    }
+                    const rowAfterFileStage = [...document.querySelectorAll('[data-testid="git-file-row"]')]
+                      .find((row) => row instanceof HTMLElement && row.getAttribute('data-git-file-path') === firstStageableFilePath);
+                    const firstUnstageFileButton = rowAfterFileStage instanceof HTMLElement
+                      ? rowAfterFileStage.querySelector('[data-testid="git-file-unstage"]')
+                      : null;
+                    if (firstUnstageFileButton instanceof HTMLButtonElement && !firstUnstageFileButton.disabled) {
+                      firstUnstageFileButton.click();
+                      for (let attempt = 0; attempt < 20; attempt += 1) {
+                        await sleep(100);
+                        const gitPanelAfterFileUnstage = document.querySelector('[data-testid="git-panel"]');
+                        const rowAfterFileUnstage = [...document.querySelectorAll('[data-testid="git-file-row"]')]
+                          .find((row) => row instanceof HTMLElement && row.getAttribute('data-git-file-path') === firstStageableFilePath);
+                        if (
+                          gitPanelAfterFileUnstage instanceof HTMLElement &&
+                          gitPanelAfterFileUnstage.getAttribute('data-git-action-state') === 'idle' &&
+                          rowAfterFileUnstage instanceof HTMLElement &&
+                          rowAfterFileUnstage.getAttribute('data-git-file-staged') === 'false' &&
+                          rowAfterFileUnstage.getAttribute('data-git-file-unstaged') === 'true'
+                        ) {
+                          break;
+                        }
+                      }
+                    }
+                  }
+                  const rowAfterFileActions = [...document.querySelectorAll('[data-testid="git-file-row"]')]
+                    .find((row) => row instanceof HTMLElement && row.getAttribute('data-git-file-path') === firstStageableFilePath);
+                  const gitStatusAfterFileActions = document.querySelector('[data-testid="git-action-status"]');
+                  workbenchNewTabGitFileActionsWorks =
+                    firstStageableFilePath.length > 0 &&
+                    rowAfterFileActions instanceof HTMLElement &&
+                    rowAfterFileActions.getAttribute('data-git-file-staged') === 'false' &&
+                    rowAfterFileActions.getAttribute('data-git-file-unstaged') === 'true' &&
+                    rowAfterFileActions.querySelector('[data-testid="git-file-stage"]') instanceof HTMLButtonElement &&
+                    rowAfterFileActions.querySelector('[data-testid="git-file-unstage"]') instanceof HTMLButtonElement &&
+                    gitStatusAfterFileActions instanceof HTMLElement &&
+                    gitStatusAfterFileActions.getAttribute('role') === 'status' &&
+                    gitStatusAfterFileActions.textContent?.includes('Unstaged 1 file') === true;
                   const smokeBranchName = 'orchestrator/git-smoke-' + Date.now();
                   const gitBranchInput = document.querySelector('[data-testid="git-branch-name"]');
                   const gitCreateBranch = document.querySelector('[data-testid="git-create-branch"]');
@@ -8448,6 +8510,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     gitOpenReview instanceof HTMLButtonElement &&
                     gitFileRowsBefore.length >= 3 &&
                     gitChangeCountBefore >= 3 &&
+                    workbenchNewTabGitFileActionsWorks &&
                     workbenchNewTabGitBranchWorks &&
                     workbenchNewTabGitCheckoutWorks &&
                     workbenchNewTabGitPrCommandWorks &&
@@ -8848,6 +8911,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     finalActiveNewTab instanceof HTMLElement,
                   workbenchNewTabAgentsActionWorks,
                   workbenchNewTabGitActionWorks,
+                  workbenchNewTabGitFileActionsWorks,
                   workbenchNewTabGitBranchWorks,
                   workbenchNewTabGitCheckoutWorks,
                   workbenchNewTabGitPrCommandWorks,
