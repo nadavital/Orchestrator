@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 
-import type { Session, ChatMessage, SessionRunEventRecord } from '../../../types'
+import type { Session, ChatMessage, SessionRunEventRecord, UserInputAnswerPayload } from '../../../types'
 
 export type PetSessionEvent =
   | { type: 'created'; session: Session }
@@ -48,7 +48,7 @@ declare global {
         sendMessage: (sessionId: string, prompt: string) => Promise<void>
         grantAndResume: (sessionId: string, toolNames: string[]) => Promise<{ ok: boolean; error?: string }>
         allowOnceAndResume: (sessionId: string, toolNames: string[]) => Promise<{ ok: boolean; error?: string }>
-        answerUserInput: (sessionId: string, answer: string) => Promise<{ ok: boolean; error?: string }>
+        answerUserInput: (sessionId: string, answer: string | UserInputAnswerPayload) => Promise<{ ok: boolean; error?: string }>
         denyPermission: (sessionId: string) => Promise<{ ok: boolean; error?: string }>
       }
       pet: {

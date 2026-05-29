@@ -29617,6 +29617,12 @@ function runAutomatedTranscriptUserInputSmoke(win: BrowserWindow, outputPath: st
               typecheckOption.click();
               await sleep(80);
             }
+            if (freeformInput instanceof HTMLInputElement) {
+              const freeformSetter = Object.getOwnPropertyDescriptor(freeformInput.constructor.prototype, 'value')?.set;
+              freeformSetter?.call(freeformInput, 'deploy-secret');
+              freeformInput.dispatchEvent(new Event('input', { bubbles: true }));
+              await sleep(80);
+            }
             const selectedOptions = [...document.querySelectorAll('[data-testid="chat-user-input-option"][data-selected="true"]')];
             const allOptionStates = [...document.querySelectorAll('[data-testid="chat-user-input-option"]')]
               .filter((option) => option instanceof HTMLButtonElement)
@@ -29664,12 +29670,21 @@ function runAutomatedTranscriptUserInputSmoke(win: BrowserWindow, outputPath: st
                 status.getAttribute('aria-atomic') === 'true' &&
                 status.textContent?.includes('Answer sent') === true
               );
+            const userInputStructuredPayloadWorks =
+              updatedForm instanceof HTMLElement &&
+              updatedForm.getAttribute('data-user-input-answer-key-count') === '4' &&
+              updatedForm.getAttribute('data-user-input-answer-has-secret') === 'true' &&
+              (updatedForm.getAttribute('data-user-input-answer-keys') ?? '').includes('transcript-user-input-direction') &&
+              (updatedForm.getAttribute('data-user-input-answer-keys') ?? '').includes('transcript-user-input-validation') &&
+              (updatedForm.getAttribute('data-user-input-answer-keys') ?? '').includes('transcript-user-input-validators') &&
+              (updatedForm.getAttribute('data-user-input-answer-keys') ?? '').includes('transcript-user-input-secret-other');
             return {
               userInputMultiQuestionCardWorks,
               userInputQuestionMetadataWorks,
               userInputOptionSelectionWorks,
               userInputOptionDescriptionsA11y,
               userInputMultiSelectWorks,
+              userInputStructuredPayloadWorks,
               userInputStructuredSubmitWorks,
               userInputStructuredStatusLive
             };

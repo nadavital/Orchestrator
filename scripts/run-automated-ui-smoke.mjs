@@ -2252,6 +2252,7 @@ child.on('exit', async (code) => {
           userInputOptionSelection: result.userInputOptionSelectionWorks === true,
           userInputOptionDescriptionsA11y: result.userInputOptionDescriptionsA11y === true,
           userInputMultiSelect: result.userInputMultiSelectWorks === true,
+          userInputStructuredPayload: result.userInputStructuredPayloadWorks === true,
           userInputStructuredSubmit: result.userInputStructuredSubmitWorks === true,
           userInputStructuredStatusLive: result.userInputStructuredStatusLive === true,
           userInputResumeError: result.userInputResumeErrorWorks === true,

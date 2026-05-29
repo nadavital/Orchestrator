@@ -331,6 +331,38 @@ test('codex app-server runtime starts a thread, starts a turn, and answers nativ
 
   proc.emitStdout({
     jsonrpc: '2.0',
+    id: 'question-structured',
+    method: 'item/tool/requestUserInput',
+    params: {
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      itemId: 'question-structured-item',
+      questions: [
+        { id: 'target', question: 'Pick target?', options: [{ label: 'staging' }, { label: 'production' }] },
+        { id: 'token', question: 'Provide token?', isSecret: true }
+      ]
+    }
+  })
+  assert.equal(manager.answerUserInput(session.id, {
+    content: 'Target: staging\n\nToken: secret-token',
+    answers: {
+      target: ['staging'],
+      token: ['secret-token']
+    }
+  }), true)
+  writes = writtenJson(proc)
+  assert.deepEqual(writes[writes.length - 1], {
+    id: 'question-structured',
+    result: {
+      answers: {
+        target: { answers: ['staging'] },
+        token: { answers: ['secret-token'] }
+      }
+    }
+  })
+
+  proc.emitStdout({
+    jsonrpc: '2.0',
     id: 'legacy-approval-1',
     method: 'execCommandApproval',
     params: {

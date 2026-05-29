@@ -2078,6 +2078,11 @@ export interface UserInputQuestion {
   isSecret?: boolean
 }
 
+export interface UserInputAnswerPayload {
+  content: string
+  answers?: Record<string, string[]>
+}
+
 export interface ResultMessage extends BaseMessage {
   role: 'system'
   type: 'result'

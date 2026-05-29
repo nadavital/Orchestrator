@@ -6,7 +6,7 @@ import { closeSync, openSync, readFileSync, readSync, writeFileSync, mkdirSync, 
 import { tmpdir } from 'os'
 import { basename, dirname, extname, join } from 'path'
 import { inflateRawSync } from 'zlib'
-import type { Attachment, AutomationUpsertRequest, CapabilityCreateRequest, CapabilityDeleteRequest, CapabilitySyncRequest, CapabilityUpdateRequest, ChatMessage, CodexReviewStartRequest, GitBranchActionResult, GitCommitResult, GitLineBlameResult, GitPathActionResult, OpenPathMethod, OpenPathOptions, OpenPathResult, OpenTargetAvailability, PerformanceMetric, PreferredOpenTarget, ReviewDiffSource, Session, SessionForkMode, SessionForkOptions, SideQuestionMessage, TranscriptPageRequest, WorkspaceSearchRequest } from '../types'
+import type { Attachment, AutomationUpsertRequest, CapabilityCreateRequest, CapabilityDeleteRequest, CapabilitySyncRequest, CapabilityUpdateRequest, ChatMessage, CodexReviewStartRequest, GitBranchActionResult, GitCommitResult, GitLineBlameResult, GitPathActionResult, OpenPathMethod, OpenPathOptions, OpenPathResult, OpenTargetAvailability, PerformanceMetric, PreferredOpenTarget, ReviewDiffSource, Session, SessionForkMode, SessionForkOptions, SideQuestionMessage, TranscriptPageRequest, UserInputAnswerPayload, WorkspaceSearchRequest } from '../types'
 import { browserWebviewPartitionForHost, isOrchestratorBrowserWebviewPartition } from '../types'
 import { projectStore } from './projects'
 import { sessionManager } from './sessions'
@@ -2941,7 +2941,7 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('sessions:allowOnceAndResume', (_, sessionId: string, toolNames: string[]) =>
     sessionManager.allowOnceAndResume(sessionId, toolNames)
   )
-  ipcMain.handle('sessions:answerUserInput', (_, sessionId: string, answer: string) =>
+  ipcMain.handle('sessions:answerUserInput', (_, sessionId: string, answer: string | UserInputAnswerPayload) =>
     sessionManager.answerUserInput(sessionId, answer)
   )
   ipcMain.handle('sessions:denyPermission', (_, sessionId: string) =>

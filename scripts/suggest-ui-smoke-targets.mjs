@@ -95,8 +95,23 @@ const diffRules = [
   {
     flag: '--transcript-user-input',
     label: 'Transcript user input',
-    filePatterns: [/^src\/renderer\/src\/components\/Session\/ChatView\.tsx$/, /^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/, /^src\/main\/providers\.ts$/, /^src\/types\/index\.ts$/],
-    diffPatterns: [/UserInputCard|QuestionBlock|chat-user-input|userInput[A-Z]|data-user-input/]
+    filePatterns: [
+      /^src\/renderer\/src\/components\/Session\/ChatView\.tsx$/,
+      /^scripts\/run-automated-ui-smoke\.mjs$/,
+      /^src\/main\/index\.ts$/,
+      /^src\/main\/providers\.ts$/,
+      /^src\/main\/codexAppServerRuntime\.ts$/,
+      /^src\/main\/sessions\.ts$/,
+      /^src\/main\/providerRuntime\.ts$/,
+      /^src\/main\/ipc\.ts$/,
+      /^src\/preload\/index\.ts$/,
+      /^src\/preload\/petOverlay\.ts$/,
+      /^src\/renderer\/src\/env\.d\.ts$/,
+      /^src\/renderer\/pet-overlay\/src\/env\.d\.ts$/,
+      /^src\/main\/__tests__\/codexAppServerRuntime\.test\.ts$/,
+      /^src\/types\/index\.ts$/
+    ],
+    diffPatterns: [/UserInputCard|QuestionBlock|chat-user-input|UserInput[A-Z]|userInput[A-Z]|data-user-input|answerUserInput|requestUserInput/]
   },
   {
     flag: '--transcript-fork',
@@ -253,6 +268,30 @@ const staticValidationRules = [
         args: ['--test', 'out-test/src/main/__tests__/providers.test.js']
       }
     ]
+  },
+  {
+    label: 'Codex app-server runtime unit coverage',
+    patterns: [/^src\/main\/codexAppServerRuntime\.ts$/, /^src\/main\/__tests__\/codexAppServerRuntime\.test\.ts$/],
+    checks: [
+      {
+        kind: 'static',
+        label: 'Clean node test output',
+        command: 'node',
+        args: ['-e', "require('fs').rmSync('out-test',{recursive:true,force:true})"]
+      },
+      {
+        kind: 'static',
+        label: 'Compile node tests',
+        command: 'pnpm',
+        args: ['exec', 'tsc', '-p', 'tsconfig.node.json', '--outDir', 'out-test', '--module', 'commonjs']
+      },
+      {
+        kind: 'static',
+        label: 'Codex app-server runtime unit coverage',
+        command: 'node',
+        args: ['--test', 'out-test/src/main/__tests__/codexAppServerRuntime.test.js']
+      }
+    ]
   }
 ]
 
@@ -347,6 +386,7 @@ function suggestTargets(paths) {
   suppressDiffCoreForMergeConflictDiff(matched)
   suppressSettingsForProviderSettingsDiff(matched, paths)
   suppressSettingsProvidersForUserInputDiff(matched, paths)
+  suppressSharedSurfacesForUserInputAnswerDiff(matched, paths)
   suppressWorkbenchLauncherForContextSidebarTabDiff(matched, paths)
   suppressRightPanelForContextSidebarTerminalDiff(matched, paths)
   suppressWorkbenchLauncherForContextSidebarTerminalDiff(matched, paths)
@@ -649,7 +689,7 @@ function suppressTranscriptLayoutForUserInputDiff(matched, paths) {
   const diff = paths.includes('src/renderer/src/components/Session/ChatView.tsx')
     ? diffForFile('src/renderer/src/components/Session/ChatView.tsx')
     : ''
-  if (!/UserInputCard|QuestionBlock|chat-user-input|userInput[A-Z]|data-user-input/.test(diff)) return
+  if (!/UserInputCard|QuestionBlock|chat-user-input|UserInput[A-Z]|userInput[A-Z]|data-user-input/.test(diff)) return
   matched.delete('--transcript-layout')
 }
 
@@ -659,8 +699,37 @@ function suppressSettingsProvidersForUserInputDiff(matched, paths) {
   if (!providers || !userInput) return
   if (!providers.files.every((file) => file === 'src/main/providers.ts')) return
   const diff = paths.includes('src/main/providers.ts') ? diffForFile('src/main/providers.ts') : ''
-  if (!/UserInputQuestion|userInput|requestUserInput|isOther|isSecret/.test(diff)) return
+  if (!/UserInputQuestion|UserInputAnswer|userInput|requestUserInput|isOther|isSecret/.test(diff)) return
   matched.delete('--settings-providers')
+}
+
+function suppressSharedSurfacesForUserInputAnswerDiff(matched, paths) {
+  const userInput = matched.get('--transcript-user-input')
+  if (!userInput) return
+  const contractFiles = new Set([
+    'scripts/run-automated-ui-smoke.mjs',
+    'src/main/index.ts',
+    'src/main/codexAppServerRuntime.ts',
+    'src/main/sessions.ts',
+    'src/main/providerRuntime.ts',
+    'src/main/ipc.ts',
+    'src/preload/index.ts',
+    'src/preload/petOverlay.ts',
+    'src/renderer/src/env.d.ts',
+    'src/renderer/pet-overlay/src/env.d.ts',
+    'src/renderer/src/components/Session/ChatView.tsx',
+    'src/types/index.ts'
+  ])
+  const diff = paths
+    .filter((file) => contractFiles.has(file))
+    .map((file) => diffForFile(file))
+    .join('\n')
+  if (!/UserInputAnswer|answerUserInput|requestUserInput|userInputStructuredPayload|submittedUserInputPayload/.test(diff)) return
+  for (const flag of ['--composer', '--settings-providers', '--session-switch']) {
+    const target = matched.get(flag)
+    if (!target) continue
+    if (target.files.every((file) => contractFiles.has(file))) matched.delete(flag)
+  }
 }
 
 function suppressTranscriptLayoutForFileReferenceDiff(matched, paths) {

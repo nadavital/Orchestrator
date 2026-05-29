@@ -5,7 +5,7 @@ import { execFile } from 'child_process'
 import { readFileSync } from 'fs'
 import { performance } from 'perf_hooks'
 import { promisify } from 'util'
-import type { Attachment, AutomationPermissionSnapshot, CodexReviewStartRequest, Session, SessionForkMode, SessionForkOptions, SessionListItem, ChatMessage, TextMessage, ProviderRuntimeKind, ProviderSidebarSyncResult, ReviewMetadata, RunEvent, RunRequest, SessionStatus, SideQuestionMessage, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary, WorktreeInventoryItem } from '../types'
+import type { Attachment, AutomationPermissionSnapshot, CodexReviewStartRequest, Session, SessionForkMode, SessionForkOptions, SessionListItem, ChatMessage, TextMessage, ProviderRuntimeKind, ProviderSidebarSyncResult, ReviewMetadata, RunEvent, RunRequest, SessionStatus, SideQuestionMessage, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary, UserInputAnswerPayload, WorktreeInventoryItem } from '../types'
 import { PROVIDER_DEFS, applyAutomationPermissionSnapshot, finalizeInterruptedMessages, getDefaultPermissionMode } from '../types'
 import { gitManager } from './git'
 import { getProvider, PROVIDERS, providerSpawnEnv, resolveProviderBinary, resolveProviderCommand, runCodexAppServerCommandSurfaceRaw } from './providers'
@@ -42,6 +42,20 @@ let codexSidebarRecurringRefreshTimer: ReturnType<typeof setInterval> | null = n
 let codexSidebarRecurringRefreshInFlight = false
 let codexSidebarLastRefreshAt: number | null = null
 const smokeSideQuestionFailures = new Set<string>()
+
+function normalizeUserInputAnswer(answer: string | UserInputAnswerPayload): UserInputAnswerPayload {
+  if (typeof answer === 'string') return { content: answer.trim() }
+  const content = typeof answer.content === 'string' ? answer.content.trim() : ''
+  const answers: Record<string, string[]> = {}
+  if (answer.answers && typeof answer.answers === 'object') {
+    for (const [key, values] of Object.entries(answer.answers)) {
+      if (!Array.isArray(values)) continue
+      const cleaned = values.map((value) => String(value).trim()).filter(Boolean)
+      if (cleaned.length > 0) answers[key] = cleaned
+    }
+  }
+  return { content, answers: Object.keys(answers).length > 0 ? answers : undefined }
+}
 
 interface PendingFollowUp {
   id: string
@@ -1861,10 +1875,11 @@ export const sessionManager = {
     return { ok: true }
   },
 
-  async answerUserInput(sessionId: string, answer: string): Promise<SessionActionResult> {
+  async answerUserInput(sessionId: string, answer: string | UserInputAnswerPayload): Promise<SessionActionResult> {
     const session = this.get(sessionId)
     if (!session) return { ok: false, error: `Session ${sessionId} not found.` }
-    const trimmed = answer.trim()
+    const payload = normalizeUserInputAnswer(answer)
+    const trimmed = payload.content
     if (!trimmed) return { ok: false, error: 'Answer is empty.' }
     const simulateUserInputResumePreparationFailure =
       process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT &&
@@ -1885,7 +1900,7 @@ export const sessionManager = {
       return { ok: true }
     }
 
-    if (providerRuntime.answerUserInput(sessionId, trimmed)) {
+    if (providerRuntime.answerUserInput(sessionId, payload)) {
       this.appendMessage(sessionId, [{
         id: uuidv4(),
         role: 'user',

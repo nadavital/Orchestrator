@@ -1,6 +1,6 @@
 import { spawn as childSpawn } from 'child_process'
 import type { ChildProcessWithoutNullStreams, SpawnOptionsWithoutStdio } from 'child_process'
-import type { Attachment, RunEvent, RunRequest, Session } from '../types'
+import type { Attachment, RunEvent, RunRequest, Session, UserInputAnswerPayload } from '../types'
 import { codexRuntimePolicyConfig, providerSpawnEnv, resolveProviderCommand, type ProviderAdapter } from './providers'
 import { recordProviderRuntimeDebugEvent, updateProviderRuntimeConnection } from './providerRuntimeDiagnostics'
 
@@ -70,7 +70,7 @@ export interface CodexAppServerRun {
   stop(): void
   interrupt(): boolean
   resolvePermission(allow: boolean, persistGrant: boolean): boolean
-  answerUserInput(answer: string): boolean
+  answerUserInput(answer: string | UserInputAnswerPayload): boolean
 }
 
 interface PendingClientRequest {
@@ -219,16 +219,19 @@ class CodexAppServerSession implements CodexAppServerRun {
     return false
   }
 
-  answerUserInput(answer: string): boolean {
+  answerUserInput(answer: string | UserInputAnswerPayload): boolean {
     const pending = latestPending(this.pendingServerRequests, 'user_input') ??
       latestPending(this.pendingServerRequests, 'mcp_elicitation')
     if (!pending) return false
+
+    const normalized = normalizeUserInputAnswer(answer)
+    if (!normalized.content) return false
 
     this.pendingServerRequests.delete(pending.id)
     if (pending.kind === 'mcp_elicitation') {
       this.sendResponse(pending.id, {
         action: 'accept',
-        content: answer,
+        content: normalized.content,
         _meta: null
       })
       return true
@@ -239,9 +242,10 @@ class CodexAppServerSession implements CodexAppServerRun {
     for (const question of questions) {
       const rec = asRecord(question)
       const id = stringValue(rec?.id) ?? stringValue(rec?.question) ?? 'answer'
-      answers[id] = { answers: [answer] }
+      const structured = normalized.answers?.[id]?.map((value) => value.trim()).filter(Boolean) ?? []
+      answers[id] = { answers: structured.length > 0 ? structured : [normalized.content] }
     }
-    if (Object.keys(answers).length === 0) answers.answer = { answers: [answer] }
+    if (Object.keys(answers).length === 0) answers.answer = { answers: [normalized.content] }
     this.sendResponse(pending.id, { answers })
     return true
   }
@@ -736,7 +740,7 @@ export class CodexAppServerRuntimeManager {
     return this.runs.get(sessionId)?.resolvePermission(allow, persistGrant) ?? false
   }
 
-  answerUserInput(sessionId: string, answer: string): boolean {
+  answerUserInput(sessionId: string, answer: string | UserInputAnswerPayload): boolean {
     return this.runs.get(sessionId)?.answerUserInput(answer) ?? false
   }
 }
@@ -851,6 +855,20 @@ function parseJsonObject(line: string): JsonObject | null {
 
 function asRecord(value: unknown): JsonObject | null {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as JsonObject : null
+}
+
+function normalizeUserInputAnswer(answer: string | UserInputAnswerPayload): UserInputAnswerPayload {
+  if (typeof answer === 'string') return { content: answer.trim() }
+  const content = typeof answer.content === 'string' ? answer.content.trim() : ''
+  const answers: Record<string, string[]> = {}
+  if (answer.answers && typeof answer.answers === 'object') {
+    for (const [key, values] of Object.entries(answer.answers)) {
+      if (!Array.isArray(values)) continue
+      const cleaned = values.map((value) => String(value).trim()).filter(Boolean)
+      if (cleaned.length > 0) answers[key] = cleaned
+    }
+  }
+  return { content, answers: Object.keys(answers).length > 0 ? answers : undefined }
 }
 
 function stringValue(...values: unknown[]): string | undefined {

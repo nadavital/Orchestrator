@@ -3654,19 +3654,35 @@ function UserInputCard({
     answerInputRef.current?.focus({ preventScroll: true })
   }, [requestIsActive, submitState])
 
-  const composeAnswer = (freeform: string): string => {
+  const buildAnswerPayload = (freeform: string): { content: string; answers: Record<string, string[]> } => {
+    const answers: Record<string, string[]> = {}
     const selectedAnswers = questions.flatMap((question, index) => {
       const selected = questionAnswers[questionInputKey(question, index)]?.map((value) => value.trim()).filter(Boolean) ?? []
       if (selected.length === 0) return []
+      const id = question.id ?? question.question ?? `answer-${index + 1}`
+      answers[id] = selected
       const label = question.header ? `${question.header}: ${question.question}` : question.question
       return [`${label}\nAnswer: ${selected.join(', ')}`]
     })
     const trimmedFreeform = freeform.trim()
-    if (selectedAnswers.length === 0) return trimmedFreeform
-    return [...selectedAnswers, ...(trimmedFreeform ? [`Additional details:\n${trimmedFreeform}`] : [])].join('\n\n')
+    if (trimmedFreeform) {
+      const freeformTargets = questions
+        .map((question, index) => ({ question, index }))
+        .filter(({ question }) => question.isOther || question.isSecret || (!question.options?.length && questions.length === 1))
+      const targets = freeformTargets.length > 0 ? freeformTargets : selectedAnswers.length === 0 ? questions.map((question, index) => ({ question, index })) : []
+      for (const { question, index } of targets) {
+        const id = question.id ?? question.question ?? `answer-${index + 1}`
+        answers[id] = [...(answers[id] ?? []), trimmedFreeform]
+      }
+    }
+    const content = selectedAnswers.length === 0
+      ? trimmedFreeform
+      : [...selectedAnswers, ...(trimmedFreeform ? [`Additional details:\n${trimmedFreeform}`] : [])].join('\n\n')
+    return { content, answers }
   }
 
-  const composedAnswer = composeAnswer(answer)
+  const answerPayload = buildAnswerPayload(answer)
+  const composedAnswer = answerPayload.content
 
   const submitAnswer = async (value: string): Promise<void> => {
     const trimmed = value.trim()
@@ -3674,7 +3690,10 @@ function UserInputCard({
     setSubmitState('sending')
     setSubmitError(null)
     try {
-      const result = await window.api.sessions.answerUserInput(sessionId, trimmed)
+      const result = await window.api.sessions.answerUserInput(sessionId, {
+        content: trimmed,
+        answers: Object.keys(answerPayload.answers).length > 0 ? answerPayload.answers : undefined
+      })
       if (result.ok) {
         setSubmitState('sent')
       } else {
@@ -3744,6 +3763,9 @@ function UserInputCard({
             data-user-input-selected-option-count={Object.values(questionAnswers).reduce((count, values) => count + values.filter((value) => value.trim()).length, 0)}
             data-user-input-has-other={hasOtherQuestion ? 'true' : 'false'}
             data-user-input-has-secret={hasSecretQuestion ? 'true' : 'false'}
+            data-user-input-answer-key-count={Object.keys(answerPayload.answers).length}
+            data-user-input-answer-keys={Object.keys(answerPayload.answers).join(' ')}
+            data-user-input-answer-has-secret={questions.some((question) => question.isSecret && Boolean(answerPayload.answers[question.id ?? question.question])) ? 'true' : 'false'}
             onSubmit={(event) => {
               event.preventDefault()
               void submitAnswer(composedAnswer)
