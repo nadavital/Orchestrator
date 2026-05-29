@@ -20,7 +20,8 @@ const captureViewOptions = [
   { flag: '--header', view: 'header', surface: 'Shell', scope: 'Header/sidebar/right-panel contact contract' },
   { flag: '--multi-window-focus', view: 'multi-window-focus', surface: 'Shell', scope: 'Window focus and menu routing' },
   { flag: '--worktree-lifecycle', view: 'worktree-lifecycle', surface: 'Worktrees', scope: 'Pending/failed worktree notices and retry controls' },
-  { flag: '--workbench-new-tab', view: 'workbench-new-tab', surface: 'Workbench', scope: 'New-tab launcher, keyboard navigation, singleton switching' },
+  { flag: '--workbench-launcher', view: 'workbench-launcher', surface: 'Workbench', scope: 'New-tab launcher discovery and tab activation' },
+  { flag: '--workbench-new-tab', view: 'workbench-new-tab', surface: 'Workbench', scope: 'New-tab launcher, keyboard navigation, singleton switching, Git/agent workflows' },
   { flag: '--environment', view: 'environment', surface: 'Workbench', scope: 'Environment panel and add-to-chat context handoff' },
   { flag: '--right-panel', view: 'right-panel', surface: 'Workbench', scope: 'Right-panel tab shell, transfer boundaries, keyboard routing' },
   { flag: '--workbench-perf', view: 'workbench-perf', surface: 'Workbench', scope: 'Workbench rendering performance gates' },
@@ -82,7 +83,7 @@ const profile = 'automated-ui-smoke'
 const userDataDir = join(tmpdir(), 'orchestrator-profiles', `${profile}-${captureView}`)
 const workspaceDir = join(tmpdir(), 'orchestrator-automated-ui-workspace')
 const isDiffCaptureView = captureView === 'diff' || captureView.startsWith('diff-')
-const fixtureWorkspaceViews = new Set(['inspector', 'right-panel', 'workbench-new-tab', 'environment', 'workbench-perf', 'cross-panel-keyboard', 'diff', 'diff-entry', 'diff-empty', 'diff-loading', 'diff-conflict', 'diff-narrow', 'diff-core', 'diff-last-turn', 'diff-source', 'diff-preview', 'files', 'side-chat', 'browser'])
+const fixtureWorkspaceViews = new Set(['inspector', 'right-panel', 'workbench-launcher', 'workbench-new-tab', 'environment', 'workbench-perf', 'cross-panel-keyboard', 'diff', 'diff-entry', 'diff-empty', 'diff-loading', 'diff-conflict', 'diff-narrow', 'diff-core', 'diff-last-turn', 'diff-source', 'diff-preview', 'files', 'side-chat', 'browser'])
 const resetWorkspaceViews = new Set([...fixtureWorkspaceViews, 'sidebar', 'multi-window-focus', 'worktree-lifecycle'])
 const outputPath = join(tmpdir(), `orchestrator-automated-ui-smoke-${captureView}-${Date.now()}.json`)
 const screenshotPath = join(tmpdir(), `orchestrator-automated-ui-smoke-${captureView}-${Date.now()}.png`)
@@ -2411,6 +2412,18 @@ child.on('exit', async (code) => {
           rightPanelBrowserCommandRouting: result.rightPanelBrowserCommandRoutingWorks === true,
           rightPanelBrowserVisualReset: result.rightPanelBrowserVisualResetWorks === true,
           rightPanelTransferUnsupportedBoundary: result.rightPanelTransferUnsupportedBoundaryWorks === true
+        }
+    : captureView === 'workbench-launcher'
+      ? {
+          isolatedProfile: result.profile?.isIsolated === true,
+          rightPanelState: result.hasRightPanelState === true,
+          rightPanelShellOwnership: result.rightPanelShellOwnershipWorks === true,
+          workbenchLauncherDiscovery: result.workbenchLauncherDiscoveryWorks === true,
+          workbenchLauncherEnvironmentAction: result.workbenchLauncherEnvironmentActionWorks === true,
+          workbenchLauncherExtensionsAction: result.workbenchLauncherExtensionsActionWorks === true,
+          workbenchLauncherOpenState: result.workbenchLauncherOpenStateWorks === true,
+          workbenchLauncherCards: Number(result.workbenchLauncherActionCount ?? 0) >= 9,
+          workbenchLauncherNoHorizontalOverflow: result.workbenchLauncherNoHorizontalOverflow === true
         }
     : captureView === 'workbench-new-tab'
       ? {

@@ -344,6 +344,14 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
       onSelect: () => openToolTab('files')
     },
     {
+      id: 'environment',
+      title: 'Environment',
+      description: hasEnvironmentTab ? 'Switch to open Environment tab' : 'Inspect workspace context',
+      icon: 'settings',
+      state: hasEnvironmentTab ? 'open' : 'new',
+      onSelect: () => openToolTab('environment')
+    },
+    {
       id: 'side-chat',
       title: 'Side chat',
       description: 'Start a side conversation',
@@ -381,6 +389,14 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
       icon: 'agents',
       state: ui?.showEvents ? 'open' : 'new',
       onSelect: () => setShowEvents(session.id, true)
+    },
+    {
+      id: 'extensions',
+      title: 'Extensions',
+      description: ui?.showExtensions ? 'Switch to open Extensions tab' : 'Inspect MCP, apps, plugins, and skills',
+      icon: 'extensions',
+      state: ui?.showExtensions ? 'open' : 'new',
+      onSelect: () => setShowExtensions(session.id, true)
     },
     {
       id: 'terminal',

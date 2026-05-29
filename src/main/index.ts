@@ -634,11 +634,11 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
     return
   }
   const smokeView = process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW ?? ''
-  if (['header', 'right-panel', 'workbench-new-tab', 'environment', 'diff', 'files', 'side-chat'].includes(smokeView) || smokeView.startsWith('diff-')) {
+  if (['header', 'right-panel', 'workbench-launcher', 'workbench-new-tab', 'environment', 'diff', 'files', 'side-chat'].includes(smokeView) || smokeView.startsWith('diff-')) {
     runAutomatedFocusedSurfaceSmoke(
       win,
       outputPath,
-      (smokeView === 'workbench-new-tab' || smokeView === 'environment' ? 'right-panel' : smokeView.startsWith('diff-') ? 'diff' : smokeView) as 'header' | 'right-panel' | 'diff' | 'files' | 'side-chat',
+      (smokeView === 'workbench-launcher' || smokeView === 'workbench-new-tab' || smokeView === 'environment' ? 'right-panel' : smokeView.startsWith('diff-') ? 'diff' : smokeView) as 'header' | 'right-panel' | 'diff' | 'files' | 'side-chat',
       screenshotPath
     )
     return
@@ -8610,6 +8610,92 @@ function runAutomatedFocusedSurfaceSmoke(
                 titlebarRect.height <= 42 &&
                 rightPanelChromeRectForSeam.height >= 30 &&
                 rightPanelChromeRectForSeam.height <= 44;
+              if (smokeView === 'workbench-launcher') {
+                const openLauncher = async () => {
+                  const activeTab = document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-active-tab') ?? '';
+                  if (activeTab !== 'new-tab') {
+                    const addButton = document.querySelector('[data-testid="right-panel-add-tab"]') ?? findButton('Add Workbench tab');
+                    if (addButton instanceof HTMLElement) {
+                      addButton.click();
+                      await sleep(180);
+                    }
+                  }
+                  return {
+                    panel: document.querySelector('[data-testid="workbench-new-tab-panel"]'),
+                    grid: document.querySelector('[data-testid="workbench-new-tab-action-grid"]'),
+                    cards: [...document.querySelectorAll('[data-workbench-new-tab-action]')]
+                      .filter((card) => card instanceof HTMLElement)
+                  };
+                };
+                const launcher = await openLauncher();
+                const launcherCardIds = launcher.cards
+                  .map((card) => card.getAttribute('data-workbench-new-tab-action'))
+                  .filter(Boolean);
+                const requiredLauncherIds = ['files', 'environment', 'side-chat', 'browser', 'git', 'review', 'agents', 'extensions', 'terminal'];
+                const launcherDiscoveryWorks =
+                  launcher.panel instanceof HTMLElement &&
+                  launcher.grid instanceof HTMLElement &&
+                  launcher.grid.classList.contains('workbench-new-tab-list') &&
+                  launcher.grid.getAttribute('role') === 'list' &&
+                  requiredLauncherIds.every((id) => launcherCardIds.includes(id)) &&
+                  launcher.cards.every((card) =>
+                    card instanceof HTMLElement &&
+                    card.closest('[role="listitem"]') instanceof HTMLElement &&
+                    card.getAttribute('aria-label')?.includes(':') === true
+                  );
+                const activateLauncherAction = async (actionId, expectedTabId, panelSelector) => {
+                  const opened = await openLauncher();
+                  const action = document.querySelector('[data-testid="workbench-new-tab-action-' + actionId + '"]');
+                  if (!(opened.panel instanceof HTMLElement) || !(action instanceof HTMLButtonElement) || action.disabled) return false;
+                  action.click();
+                  for (let attempt = 0; attempt < 16; attempt += 1) {
+                    await sleep(100);
+                    const panel = document.querySelector('[data-testid="session-right-panel"]');
+                    const tabPanel = document.querySelector('[role="tabpanel"][data-tab-id="' + expectedTabId + '"]');
+                    if (
+                      panel instanceof HTMLElement &&
+                      panel.getAttribute('data-right-panel-active-tab') === expectedTabId &&
+                      panel.getAttribute('data-right-panel-tabs')?.includes(expectedTabId) === true &&
+                      tabPanel instanceof HTMLElement &&
+                      document.querySelector(panelSelector) instanceof HTMLElement
+                    ) {
+                      return true;
+                    }
+                  }
+                  return false;
+                };
+                const workbenchLauncherEnvironmentActionWorks = await activateLauncherAction('environment', 'environment', '[data-testid="codex-environment-panel"]');
+                const workbenchLauncherExtensionsActionWorks = await activateLauncherAction('extensions', 'extensions', '[role="tabpanel"][data-tab-id="extensions"]');
+                const finalLauncher = await openLauncher();
+                const finalEnvironmentAction = document.querySelector('[data-testid="workbench-new-tab-action-environment"]');
+                const finalExtensionsAction = document.querySelector('[data-testid="workbench-new-tab-action-extensions"]');
+                const finalRightPanel = document.querySelector('[data-testid="session-right-panel"]');
+                return {
+                  profile,
+                  hasRightPanelState: rightPanel instanceof HTMLElement &&
+                    rightPanel.dataset.rightPanelTabs?.includes('new-tab') === true &&
+                    Number(rightPanel.dataset.rightPanelWidth ?? '0') >= 360,
+                  rightPanelShellOwnershipWorks,
+                  workbenchLauncherDiscoveryWorks: launcherDiscoveryWorks,
+                  workbenchLauncherEnvironmentActionWorks,
+                  workbenchLauncherExtensionsActionWorks,
+                  workbenchLauncherOpenStateWorks:
+                    finalLauncher.panel instanceof HTMLElement &&
+                    finalRightPanel instanceof HTMLElement &&
+                    finalRightPanel.getAttribute('data-right-panel-active-tab') === 'new-tab' &&
+                    finalEnvironmentAction instanceof HTMLElement &&
+                    finalEnvironmentAction.getAttribute('data-workbench-new-tab-action-state') === 'open' &&
+                    finalEnvironmentAction.textContent?.includes('Open') === true &&
+                    finalExtensionsAction instanceof HTMLElement &&
+                    finalExtensionsAction.getAttribute('data-workbench-new-tab-action-state') === 'open' &&
+                    finalExtensionsAction.textContent?.includes('Open') === true,
+                  workbenchLauncherNoHorizontalOverflow:
+                    rightPanelRectForSeam !== null &&
+                    finalLauncher.panel instanceof HTMLElement &&
+                    finalLauncher.panel.scrollWidth <= Math.ceil(rightPanelRectForSeam.width) + 2,
+                  workbenchLauncherActionCount: launcher.cards.length
+                };
+              }
               if (smokeView === 'workbench-new-tab') {
                 const addButton = document.querySelector('[data-testid="right-panel-add-tab"]');
                 if (addButton instanceof HTMLElement) {
@@ -8672,11 +8758,13 @@ function runAutomatedFocusedSurfaceSmoke(
                   newTabPanel instanceof HTMLElement &&
                   newTabGrid instanceof HTMLElement &&
                   newTabCardIds.includes('files') &&
+                  newTabCardIds.includes('environment') &&
                   newTabCardIds.includes('side-chat') &&
                   newTabCardIds.includes('browser') &&
                   newTabCardIds.includes('git') &&
                   newTabCardIds.includes('review') &&
                   newTabCardIds.includes('agents') &&
+                  newTabCardIds.includes('extensions') &&
                   newTabCardIds.includes('terminal');
                 let workbenchNewTabGitActionWorks = false;
                 let workbenchNewTabGitFileActionsWorks = false;
