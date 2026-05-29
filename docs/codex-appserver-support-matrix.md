@@ -210,8 +210,8 @@ Local Codex CLI: `codex-cli 0.128.0`
 ## Recommended Next Implementation Slices
 
 1. Codex Goal UI:
-   - Keep `/goal ...` routed through the app-server turn and render the resulting `thread/goal/updated` state persistently.
-   - Render a small Goal panel with objective, status, token budget, tokens used, and clear action.
+   - Status: local Plan goal rendering now preserves live and persisted objective/status/token metrics, Codex sessions expose `/goal` as an app-server slash command, and the Goal panel can request `/goal clear`.
+   - Remaining: live clear/update proof against Codex `thread/goal/cleared`, richer update controls, and exact live Goal timing.
 
 2. Codex App/Skill/Plugin Browser:
    - Promote the read-only settings surfaces into a real browser/picker.

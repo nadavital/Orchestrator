@@ -2835,6 +2835,13 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
     }
     if (
       process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT &&
+      process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'plan' &&
+      prompt === '/goal clear'
+    ) {
+      return true
+    }
+    if (
+      process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT &&
       process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'composer' &&
       prompt === 'SEND_FAILURE_SMOKE'
     ) {

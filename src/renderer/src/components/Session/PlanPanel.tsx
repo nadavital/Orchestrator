@@ -4,7 +4,7 @@ import remarkGfm from 'remark-gfm'
 import { useSessionStore } from '../../store/sessions'
 import { derivePlanStates, derivePlanStatesFromMessages } from '../../types'
 import type { PlanItemStatus, PlanState, RunEvent, Session, SessionRunEventRecord } from '../../types'
-import { Badge, IconButton, MetricPill, PanelHeader } from '../shared/designSystem'
+import { Badge, Button, IconButton, MetricPill, PanelHeader } from '../shared/designSystem'
 
 interface Props {
   session: Session
@@ -43,7 +43,7 @@ export default function PlanPanel({ session, embedded = false }: Props): JSX.Ele
         </EmptyText>
       ) : (
         <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
-          {goal && <GoalBlock goal={goal} />}
+          {goal && <GoalBlock goal={goal} session={session} />}
           {current && <PlanBlock plan={current} />}
         </div>
       )}
@@ -62,18 +62,32 @@ function latestGoal(records: SessionRunEventRecord[]): GoalEvent | null {
   return current
 }
 
-function GoalBlock({ goal }: { goal: GoalEvent }): JSX.Element {
+function GoalBlock({ goal, session }: { goal: GoalEvent; session: Session }): JSX.Element {
   const [expanded, setExpanded] = useState(false)
+  const [clearStatus, setClearStatus] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
   const budget = typeof goal.tokenBudget === 'number' && goal.tokenBudget > 0 ? goal.tokenBudget : null
   const used = typeof goal.tokensUsed === 'number' ? goal.tokensUsed : null
   const pct = budget && used !== null ? Math.min(100, Math.round((used / budget) * 100)) : null
   const compactObjective = compactGoalObjective(goal.objective)
   const canExpand = compactObjective !== goal.objective.trim()
+  const canClearGoal = goal.providerId === 'codex' || session.provider === 'codex'
   const stats = [
     used !== null ? `${used.toLocaleString()} tokens` : undefined,
     budget ? `${budget.toLocaleString()} budget` : undefined,
     typeof goal.timeUsedSeconds === 'number' ? formatDuration(goal.timeUsedSeconds) : undefined
   ].filter(Boolean)
+
+  const clearGoal = async (): Promise<void> => {
+    setClearStatus({ text: 'Clearing goal...', tone: 'info' })
+    try {
+      const started = await window.api.sessions.sendMessage(session.id, '/goal clear')
+      setClearStatus(started
+        ? { text: 'Clear requested', tone: 'info' }
+        : { text: 'Clear failed to start', tone: 'danger' })
+    } catch (error) {
+      setClearStatus({ text: `Clear failed: ${errorText(error)}`, tone: 'danger' })
+    }
+  }
 
   return (
     <PlanSection>
@@ -146,12 +160,40 @@ function GoalBlock({ goal }: { goal: GoalEvent }): JSX.Element {
             </div>
           )}
         </div>
-        {pct !== null && (
-          <span data-testid="plan-goal-progress">
-            <MetricPill tone={pct >= 90 ? 'warning' : 'accent'}>{pct}%</MetricPill>
-          </span>
-        )}
+        <div className="flex shrink-0 flex-col items-end gap-1.5">
+          {pct !== null && (
+            <span data-testid="plan-goal-progress">
+              <MetricPill tone={pct >= 90 ? 'warning' : 'accent'}>{pct}%</MetricPill>
+            </span>
+          )}
+          {canClearGoal && (
+            <Button
+              variant="ghost"
+              className="h-7 px-2 text-[11px]"
+              dataTestId="plan-goal-clear"
+              ariaLabel="Clear Codex goal"
+              onClick={clearGoal}
+            >
+              Clear
+            </Button>
+          )}
+        </div>
       </div>
+      {clearStatus && (
+        <div
+          className="mt-2 text-[11px]"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          data-testid="plan-goal-clear-status"
+          data-plan-goal-clear-status-tone={clearStatus.tone}
+          style={{
+            color: clearStatus.tone === 'danger' ? 'var(--color-red)' : 'var(--text-secondary)'
+          }}
+        >
+          {clearStatus.text}
+        </div>
+      )}
       {pct !== null && (
         <div className="mt-3 h-1.5 overflow-hidden rounded-full" style={{ background: 'var(--control-bg)' }}>
           <div
@@ -227,6 +269,10 @@ function formatDuration(seconds: number): string {
   const minutes = Math.floor(seconds / 60)
   const remaining = Math.round(seconds % 60)
   return remaining > 0 ? `${minutes}m ${remaining}s` : `${minutes}m`
+}
+
+function errorText(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }
 
 function PlanBlock({ plan }: { plan: PlanState }): JSX.Element {

@@ -9794,3 +9794,13 @@ Implemented: the Plan goal fallback parser now reads persisted `tokens`, `budget
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --plan` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-plan-1780033652489.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-plan-1780033652489.png`. The focused Plan smoke now gates `planGoalPersistedMetrics=true` without running the broader side-panel comparison.
 
 Remaining: this closes persisted local Goal-panel metrics only. Direct provider-backed `/goal` clear/update controls and exact live Codex Goal timing remain separate Codex app-server follow-ups.
+
+### 2026-05-29 - Codex Goal Command And Clear Action
+
+Product evidence: the Goal UI support-matrix slice also requires `/goal ...` to stay routed through the app-server turn and expose a clear action. Orchestrator could display live and persisted goal state, but Codex sessions did not advertise `/goal` in the slash-command palette, and the Plan goal block had no direct way to clear the active provider goal.
+
+Implemented: Codex provider runtime metadata now exposes `/goal` as a provider slash command with `runtime="app-server"` and `handler="send-to-provider"`, so selecting it keeps the native command text and routes through the normal Codex app-server send path. The Plan goal block now shows a compact `Clear` action for Codex-backed goals, sends `/goal clear` through `sessions.sendMessage`, and announces the requested/failure state in a polite status row.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, `pnpm run test:providers`, and elevated `node scripts/run-automated-ui-smoke.mjs --plan` passed. The provider test suite gates `Codex slash command surface exposes goal routing through the app-server turn`; the focused Plan smoke gates `planGoalClearAction=true` alongside `planGoalPersistedMetrics=true`. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-plan-1780033984816.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-plan-1780033984816.png`.
+
+Remaining: this closes local `/goal` discovery and clear request routing only. Live proof that Codex returns `thread/goal/cleared` for the clear action, richer update forms, and exact live Codex Goal timing remain separate app-server follow-ups.

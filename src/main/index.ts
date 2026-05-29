@@ -2813,6 +2813,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             const goalTimeUsed = document.querySelector('[data-testid="plan-goal-time-used"]');
             const goalProgress = document.querySelector('[data-testid="plan-goal-progress"]');
             const goalProgressBar = document.querySelector('[data-testid="plan-goal-progress-bar"]');
+            const goalClear = document.querySelector('[data-testid="plan-goal-clear"]');
             const taskList = document.querySelector('[data-testid="plan-task-list"]');
             const hiddenSentence = 'This hidden sentence should only appear after expanding the full objective.';
             const compactPanelText = planPanel instanceof HTMLElement ? planPanel.innerText : '';
@@ -2860,6 +2861,25 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               goalProgress.textContent?.includes('62%') === true &&
               goalProgressBar instanceof HTMLElement &&
               goalProgressBar.style.width === '62%';
+            var planGoalClearActionWorks = false;
+            if (goalClear instanceof HTMLButtonElement) {
+              goalClear.click();
+              for (let index = 0; index < 20; index += 1) {
+                const clearStatus = document.querySelector('[data-testid="plan-goal-clear-status"]');
+                if (
+                  clearStatus instanceof HTMLElement &&
+                  clearStatus.getAttribute('role') === 'status' &&
+                  clearStatus.getAttribute('aria-live') === 'polite' &&
+                  clearStatus.getAttribute('aria-atomic') === 'true' &&
+                  clearStatus.getAttribute('data-plan-goal-clear-status-tone') === 'info' &&
+                  clearStatus.textContent?.includes('Clear requested') === true
+                ) {
+                  planGoalClearActionWorks = true;
+                  break;
+                }
+                await sleep(80);
+              }
+            }
             if (goalToggle instanceof HTMLButtonElement) {
               goalToggle.click();
               await sleep(120);
@@ -2869,6 +2889,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               compactTaskRowsWork &&
               planGoalToggleCompactWorks &&
               planGoalPersistedMetricsWorks &&
+              planGoalClearActionWorks &&
               document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-active-tab') === 'plan' &&
               document.body.innerText.includes('Reduce Plan panel verbosity') &&
               document.body.innerText.includes(hiddenSentence) &&
@@ -7716,6 +7737,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             planPanelWorks: typeof planPanelWorks === 'boolean' ? planPanelWorks : null,
             compactTaskRowsWork: typeof compactTaskRowsWork === 'boolean' ? compactTaskRowsWork : null,
             planGoalPersistedMetricsWorks: typeof planGoalPersistedMetricsWorks === 'boolean' ? planGoalPersistedMetricsWorks : null,
+            planGoalClearActionWorks: typeof planGoalClearActionWorks === 'boolean' ? planGoalClearActionWorks : null,
             planAgentTabShimmerWorks: typeof planAgentTabShimmerWorks === 'boolean' ? planAgentTabShimmerWorks : null,
             planAgentStatLabelsCalm: typeof planAgentStatLabelsCalm === 'boolean' ? planAgentStatLabelsCalm : null,
             agentRuntimeEventDetailWorks: typeof agentRuntimeEventDetailWorks === 'boolean' ? agentRuntimeEventDetailWorks : null,
@@ -28750,6 +28772,8 @@ function seedAutomatedPlanSmokeSession(sessionId: string): void {
   sessionManager.save({
     ...session,
     name: 'Plan panel smoke',
+    provider: 'codex',
+    runtime: 'app-server',
     messages: [
       ...session.messages.filter((message) => !message.id.startsWith('plan-smoke-')),
       ...messages
@@ -29006,6 +29030,7 @@ function seedAutomatedTranscriptToolJumpSmokeSession(sessionId: string): void {
       type: 'tool_result',
       toolUseId: 'transcript-tool-jump-use-1',
       content: 'tool-jump-start',
+      isError: false,
       timestamp: baseTime + 22
     },
     {
@@ -29026,6 +29051,7 @@ function seedAutomatedTranscriptToolJumpSmokeSession(sessionId: string): void {
       type: 'tool_result',
       toolUseId: 'transcript-tool-jump-use-needle',
       content: 'TRANSCRIPT_TOOL_JUMP_NEEDLE grouped tool result output.',
+      isError: false,
       timestamp: baseTime + 24
     },
     {
