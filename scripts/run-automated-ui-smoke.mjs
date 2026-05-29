@@ -1851,7 +1851,7 @@ child.on('exit', async (code) => {
     ? {
         isolatedProfile: result.profile?.isIsolated === true,
         stressTranscriptFound: result.stressTranscriptFound === true,
-        stressMessageCount: Number(result.messageCount ?? 0) >= 2500,
+        stressMessageCount: Number(result.messageCount ?? 0) >= 10000,
         initialMountedRowsBounded: Number(result.initialMountedRows ?? Number.POSITIVE_INFINITY) <= 48,
         lazyMountedRowsBounded: Number(result.lazyMountedRows ?? Number.POSITIVE_INFINITY) <= 56,
         searchMountedRowsBounded: Number(result.searchMountedRows ?? Number.POSITIVE_INFINITY) <= 56,

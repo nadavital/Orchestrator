@@ -26543,29 +26543,29 @@ function runAutomatedTranscriptStressSmoke(win: BrowserWindow, outputPath: strin
             const loadControlHidden = Number(initialLoadControl?.getAttribute('data-hidden-message-count') ?? 0);
             const longThreadLoadControlWorks = (
               initialLoadControl instanceof HTMLElement &&
-              loadControlText.includes('40 of 2,501 messages shown') &&
-              loadControlTotal === 2501 &&
+              loadControlText.includes('40 of 10,001 messages shown') &&
+              loadControlTotal === 10001 &&
               loadControlVisible === 40 &&
-              loadControlHidden === 2461 &&
+              loadControlHidden === 9961 &&
               (
                 (
-                  loadControlLoadedHidden === 2461 &&
+                  loadControlLoadedHidden === 9961 &&
                   loadControlUnloadedBefore === 0 &&
                   loadControlText.includes('Show 40 earlier') &&
                   loadControlText.includes('Show all loaded')
                 ) ||
                 (
                   loadControlLoadedHidden === 0 &&
-                  loadControlUnloadedBefore === 2461 &&
+                  loadControlUnloadedBefore === 9961 &&
                   loadControlText.includes('Load 40 earlier') &&
                   !loadControlText.includes('Show all loaded')
                 )
               )
             ) || (
               longThreadStatus instanceof HTMLElement &&
-              longThreadStatus.getAttribute('data-total-message-count') === '2501' &&
-              longThreadStatus.getAttribute('data-visible-message-count') === '2501' &&
-              longThreadStatus.textContent?.includes('2,501 messages loaded') === true
+              longThreadStatus.getAttribute('data-total-message-count') === '10001' &&
+              longThreadStatus.getAttribute('data-visible-message-count') === '10001' &&
+              longThreadStatus.textContent?.includes('10,001 messages loaded') === true
             );
 
             scroller.scrollTop = Math.min(240, Math.max(0, scroller.scrollHeight - scroller.clientHeight));
@@ -28653,6 +28653,8 @@ async function seedAutomatedSessionSwitchSmokeSessions(
 }
 
 async function seedAutomatedTranscriptStressSmokeSession(projectId: string, workDir: string): Promise<void> {
+  const stressMessageCount = 10000
+  const stressTotalMessageCount = stressMessageCount + 1
   const existing = sessionManager.list().find((session) =>
     session.messages.some((message) => message.type === 'text' && message.content.includes('TRANSCRIPT_STRESS_LATEST'))
   )
@@ -28663,8 +28665,8 @@ async function seedAutomatedTranscriptStressSmokeSession(projectId: string, work
     repoRoot: workDir
   })
   const baseTime = Date.now()
-  const messages: ChatMessage[] = Array.from({ length: 2500 }, (_, index) => {
-    const number = String(index + 1).padStart(4, '0')
+  const messages: ChatMessage[] = Array.from({ length: stressMessageCount }, (_, index) => {
+    const number = String(index + 1).padStart(5, '0')
     const marker = index === 6 ? 'TRANSCRIPT_STRESS_EARLY_0007' : `TRANSCRIPT_STRESS_${number}`
     return {
       id: `transcript-stress-${number}`,
@@ -28696,7 +28698,7 @@ async function seedAutomatedTranscriptStressSmokeSession(projectId: string, work
 
   sessionManager.save({
     ...session,
-    name: 'Transcript stress smoke',
+    name: `Transcript stress smoke (${stressTotalMessageCount.toLocaleString()} messages)`,
     status: 'idle',
     messages,
     createdAt: baseTime,
