@@ -9809,6 +9809,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 const transportLogList = document.querySelector('[data-testid="agent-transport-log-list"]');
                 const transportLogRows = [...document.querySelectorAll('[data-testid="agent-transport-log-line"]')]
                   .filter((row) => row instanceof HTMLElement);
+                const transportLogAddButton = document.querySelector('[data-testid="agent-transport-log-add-to-chat"]');
                 const agentTransportLogWorks =
                   transportLog instanceof HTMLElement &&
                   transportLogList instanceof HTMLElement &&
@@ -9819,7 +9820,30 @@ function runAutomatedFocusedSurfaceSmoke(
                   transportLog.textContent?.includes('assistant') === true &&
                   transportLog.textContent?.includes('Transport diagnostics ready') === true &&
                   transportLog.textContent?.includes('secret-token-smoke') === false &&
-                  transportLog.textContent?.includes('[redacted]') === true;
+                  transportLog.textContent?.includes('[redacted]') === true &&
+                  transportLogAddButton instanceof HTMLButtonElement &&
+                  transportLogAddButton.getAttribute('data-icon') === 'chat' &&
+                  transportLogAddButton.getAttribute('data-icon-button-variant') === 'toolbar';
+                if (transportLogAddButton instanceof HTMLButtonElement) {
+                  transportLogAddButton.click();
+                  await sleep(160);
+                }
+                const transportLogActionStatus = document.querySelector('[data-testid="agent-transport-log-action-status"]');
+                const composerAfterTransportAdd = document.querySelector('textarea');
+                const agentTransportLogAddToChatWorks =
+                  agentTransportLogWorks &&
+                  transportLogActionStatus instanceof HTMLElement &&
+                  transportLogActionStatus.getAttribute('role') === 'status' &&
+                  transportLogActionStatus.getAttribute('aria-live') === 'polite' &&
+                  transportLogActionStatus.getAttribute('aria-atomic') === 'true' &&
+                  transportLogActionStatus.textContent?.includes('Transport log added to chat') === true &&
+                  composerAfterTransportAdd instanceof HTMLTextAreaElement &&
+                  composerAfterTransportAdd.value.includes('Investigate this provider transport log excerpt:') &&
+                  (!activeSmokeSession || composerAfterTransportAdd.value.includes('Runtime: ' + [activeSmokeSession.provider, activeSmokeSession.model].filter(Boolean).join(' / '))) &&
+                  composerAfterTransportAdd.value.includes('system.init: session transport-smoke-session') &&
+                  composerAfterTransportAdd.value.includes('assistant: Transport diagnostics ready') &&
+                  composerAfterTransportAdd.value.includes('secret-token-smoke') === false &&
+                  composerAfterTransportAdd.value.includes('[redacted]') === true;
                 const eventSearch = document.querySelector('[data-testid="agent-event-search"]');
                 if (eventSearch instanceof HTMLInputElement) {
                   const setter = Object.getOwnPropertyDescriptor(eventSearch.constructor.prototype, 'value')?.set;
@@ -10064,6 +10088,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   agentRuntimeFailureGroupAddToChatWorks,
                   agentRuntimeFailureGroupsWorks,
                   agentTransportLogWorks,
+                  agentTransportLogAddToChatWorks,
                   agentSelectedTimelineWorks,
                   agentRuntimeEventFacetFiltersWork,
                   agentRuntimeEventFacetFilterError,

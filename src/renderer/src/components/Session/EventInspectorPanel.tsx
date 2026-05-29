@@ -165,6 +165,7 @@ function SessionContextSummary({
   const [eventSeverityFilter, setEventSeverityFilter] = useState<EventSeverityFilter>('all')
   const [eventSourceFilter, setEventSourceFilter] = useState<EventSourceFilter>('all')
   const [issueActionStatus, setIssueActionStatus] = useState<string | null>(null)
+  const [transportActionStatus, setTransportActionStatus] = useState<string | null>(null)
   const messageCount = session.messageCount ?? session.messages.length
   const workDirLabel = compactPath(session.workDir)
   const transportLines = useMemo(() => transportLogLines(rawLog), [rawLog])
@@ -218,6 +219,24 @@ function SessionContextSummary({
       }
     }))
     setIssueActionStatus('Failure group added to chat')
+  }
+  const addTransportLogToChat = (): void => {
+    if (transportLines.length === 0) return
+    window.dispatchEvent(new CustomEvent('orchestrator:add-composer-text', {
+      detail: {
+        text: [
+          'Investigate this provider transport log excerpt:',
+          `Thread: ${session.title || session.id}`,
+          `Runtime: ${[session.provider, session.model].filter(Boolean).join(' / ') || 'Unknown runtime'}`,
+          `Status: ${session.status}`,
+          `Workspace: ${session.workDir || 'Unknown workspace'}`,
+          '',
+          'Recent redacted transport lines:',
+          ...transportLines.map((line) => `- ${line.label}: ${line.preview}`)
+        ].join('\n')
+      }
+    }))
+    setTransportActionStatus('Transport log added to chat')
   }
 
   return (
@@ -341,7 +360,19 @@ function SessionContextSummary({
 
       {transportLines.length > 0 && (
         <InspectorSection
-          title="Transport log"
+          title={(
+            <span className="flex min-w-0 items-center justify-between gap-2">
+              <span className="truncate">Transport log</span>
+              <ToolbarButton
+                icon="chat"
+                label="Add transport log to chat"
+                dataTestId="agent-transport-log-add-to-chat"
+                onClick={addTransportLogToChat}
+                size="sm"
+                variant="toolbar"
+              />
+            </span>
+          )}
           dataTestId="agent-transport-log"
           className="gap-1.5"
         >
@@ -369,6 +400,22 @@ function SessionContextSummary({
               </InspectorRow>
             ))}
           </div>
+          {transportActionStatus && (
+            <div
+              className="rounded-md px-2 py-1 text-[11px]"
+              data-testid="agent-transport-log-action-status"
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+              style={{
+                color: 'var(--accent)',
+                background: 'color-mix(in srgb, var(--accent) 8%, var(--surface-bg))',
+                border: '1px solid var(--border-subtle)'
+              }}
+            >
+              {transportActionStatus}
+            </div>
+          )}
         </InspectorSection>
       )}
 
