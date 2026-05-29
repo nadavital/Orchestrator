@@ -10506,12 +10506,31 @@ function runAutomatedFocusedSurfaceSmoke(
                   Number(environmentPanel.getAttribute('data-environment-staged-count') ?? '0') >= 1 &&
                   Number(environmentPanel.getAttribute('data-environment-unstaged-count') ?? '0') >= 1 &&
                   environmentCommitRow instanceof HTMLButtonElement &&
-                  environmentCommitRow.getAttribute('data-environment-row-action') === 'open-review' &&
+                  environmentCommitRow.getAttribute('data-environment-row-action') === 'open-git-commit' &&
+                  environmentCommitRow.getAttribute('aria-label') === 'Commit. Open Git to commit changes' &&
                   environmentCreatePrRow instanceof HTMLButtonElement &&
                   environmentCreatePrRow.getAttribute('data-environment-row-action') === 'open-pull-request' &&
                   environmentCreatePrRow.textContent?.includes('View pull request') === true &&
                   environmentCreatePrRow.textContent?.includes('PR 42') === true &&
                   environmentPanel.getAttribute('data-environment-pull-request') === 'true';
+                let environmentCommitOpensGitWorks = false;
+                if (environmentCommitRow instanceof HTMLButtonElement) {
+                  environmentCommitRow.click();
+                  for (let attempt = 0; attempt < 12; attempt += 1) {
+                    const gitPanel = document.querySelector('[data-testid="git-panel"]');
+                    const activeTab = document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-active-tab') ?? '';
+                    if (activeTab === 'git' && gitPanel instanceof HTMLElement) break;
+                    await sleep(100);
+                  }
+                  const rightPanelAfterCommitOpen = document.querySelector('[data-testid="session-right-panel"]');
+                  const gitPanelAfterCommitOpen = document.querySelector('[data-testid="git-panel"]');
+                  environmentCommitOpensGitWorks =
+                    rightPanelAfterCommitOpen instanceof HTMLElement &&
+                    rightPanelAfterCommitOpen.getAttribute('data-right-panel-active-tab') === 'git' &&
+                    gitPanelAfterCommitOpen instanceof HTMLElement;
+                  await openPanelTab('environment', 'Environment');
+                  await sleep(120);
+                }
                 let environmentCreatePrOpensGitWorks = false;
                 const setSessionReviewMetadataForSmoke = window.__orchestratorSetSessionReviewMetadataForSmoke;
                 if (
@@ -10606,6 +10625,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     environmentWebSearchRow instanceof HTMLElement &&
                     environmentWebSearchRow.getAttribute('aria-disabled') === 'true' &&
                     environmentWebSearchRow.getAttribute('aria-label') === 'Web search. Provider web-search source is not connected for this session',
+                  environmentCommitOpensGitWorks,
                   environmentCreatePrOpensGitWorks,
                   environmentSettingsOpensProviders: environmentSettingsOpensProvidersWorks
                 };

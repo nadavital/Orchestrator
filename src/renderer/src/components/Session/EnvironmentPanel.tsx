@@ -78,6 +78,11 @@ export default function EnvironmentPanel({ session, embedded = false, onOpenRevi
     setShowSettings(true)
   }
 
+  const openGitForCommit = (): void => {
+    onOpenGit()
+    setActionStatus('Opening Git to commit changes')
+  }
+
   const addEnvironmentToChat = (): void => {
     const sourceSummary = 'Web search: unavailable (provider web-search source is not connected for this session)'
     const summary = [
@@ -175,10 +180,10 @@ export default function EnvironmentPanel({ session, embedded = false, onOpenRevi
             dataTestId="codex-environment-commit"
             disabled={changes.length === 0}
             disabledReason="No changes to commit"
-            action="open-review"
-            title={changes.length > 0 ? 'Review changes before committing' : 'No changes to commit'}
+            action="open-git-commit"
+            title={changes.length > 0 ? 'Open Git to commit changes' : 'No changes to commit'}
             trailing={<span className="environment-row-muted">{commitTrailing}</span>}
-            onClick={changes.length > 0 ? onOpenReview : undefined}
+            onClick={changes.length > 0 ? openGitForCommit : undefined}
           />
           <EnvironmentRow
             icon={pullRequestUrl ? 'external' : 'browser'}

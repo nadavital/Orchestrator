@@ -161,7 +161,7 @@ const diffRules = [
     flag: '--environment',
     label: 'Environment panel',
     filePatterns: [/^src\/renderer\/src\/components\/Session\/EnvironmentPanel\.tsx$/, /^src\/renderer\/src\/components\/Session\/ContextSidebar\.tsx$/, /^src\/renderer\/src\/App\.tsx$/, /^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
-    diffPatterns: [/environmentCreatePrOpensGit/, /open-git-pr/, /Open Git to create a pull request/, /__orchestratorSetSessionReviewMetadataForSmoke/, /onOpenGit/]
+    diffPatterns: [/environmentCreatePrOpensGit/, /environmentCommitOpensGit/, /open-git-pr/, /open-git-commit/, /Open Git to create a pull request/, /Open Git to commit changes/, /__orchestratorSetSessionReviewMetadataForSmoke/, /onOpenGit/]
   }
 ]
 
@@ -664,7 +664,7 @@ function suppressWorkbenchForEnvironmentCreatePrDiff(matched, paths) {
     )
     .map(diffForFile)
     .join('\n')
-  if (!/environmentCreatePrOpensGit|open-git-pr|Open Git to create a pull request|__orchestratorSetSessionReviewMetadataForSmoke|onOpenGit/.test(diff)) return
+  if (!/environmentCreatePrOpensGit|environmentCommitOpensGit|open-git-pr|open-git-commit|Open Git to create a pull request|Open Git to commit changes|__orchestratorSetSessionReviewMetadataForSmoke|onOpenGit/.test(diff)) return
   for (const flag of ['--right-panel', '--workbench-launcher', '--workbench-new-tab']) {
     const target = matched.get(flag)
     if (!target) continue
