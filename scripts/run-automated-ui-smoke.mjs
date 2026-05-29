@@ -2238,6 +2238,7 @@ child.on('exit', async (code) => {
           permissionResumeErrorA11yLive: result.permissionResumeErrorA11yLive === true,
           permissionResumePrepareFailure: result.permissionResumePrepareFailureWorks === true,
           permissionActionsRecoverable: result.permissionActionsRecoverableWorks === true,
+          permissionCopyDetails: result.permissionCopyDetailsWorks === true,
           permissionVariantCards: result.permissionVariantCardsWork === true,
           permissionProfileDecisionLabels: result.permissionProfileDecisionLabelsWork === true
         }

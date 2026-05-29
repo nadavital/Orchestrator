@@ -74,6 +74,12 @@ const diffRules = [
     diffPatterns: [/LoadEarlierMessages/, /load-earlier-messages/, /longThreadLoadControl/, /TRANSCRIPT_STRESS/]
   },
   {
+    flag: '--transcript-permission',
+    label: 'Transcript permissions',
+    filePatterns: [/^src\/renderer\/src\/components\/Session\/ChatView\.tsx$/, /^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
+    diffPatterns: [/PermissionCard/, /permissionRequest/, /chat-permission/, /permission[A-Z]/]
+  },
+  {
     flag: '--transcript-fork',
     label: 'Transcript fork controls',
     filePatterns: [/^src\/renderer\/src\/components\/Session\/ChatView\.tsx$/, /^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
@@ -245,6 +251,7 @@ function suggestTargets(paths) {
   suppressWorkbenchLauncherForContextSidebarTabDiff(matched, paths)
   suppressRightPanelForWorkbenchTreeFileDiff(matched)
   suppressTranscriptLayoutForLongThreadDiff(matched, paths)
+  suppressTranscriptLayoutForPermissionDiff(matched, paths)
   suppressTranscriptLayoutForForkDiff(matched, paths)
   suppressTranscriptForkForCodeBlockDiff(matched, paths)
   suppressComposerForWorktreeLifecycleDiff(matched, paths)
@@ -386,6 +393,18 @@ function suppressTranscriptForkForCodeBlockDiff(matched, paths) {
     : ''
   if (!/CodeBlock|chat-code-block|codeBlockCopy/.test(diff)) return
   matched.delete('--transcript-fork')
+}
+
+function suppressTranscriptLayoutForPermissionDiff(matched, paths) {
+  const transcript = matched.get('--transcript-layout')
+  const permission = matched.get('--transcript-permission')
+  if (!transcript || !permission) return
+  if (!transcript.files.every((file) => file === 'src/renderer/src/components/Session/ChatView.tsx')) return
+  const diff = paths.includes('src/renderer/src/components/Session/ChatView.tsx')
+    ? diffForFile('src/renderer/src/components/Session/ChatView.tsx')
+    : ''
+  if (!/PermissionCard|permissionRequest|chat-permission/.test(diff)) return
+  matched.delete('--transcript-layout')
 }
 
 function suppressTranscriptLayoutForLongThreadDiff(matched, paths) {

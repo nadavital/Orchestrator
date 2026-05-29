@@ -27750,6 +27750,16 @@ function runAutomatedTranscriptPermissionSmoke(win: BrowserWindow, outputPath: s
           (async () => {
             const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
             const card = document.querySelector('[data-testid="chat-permission-card"]');
+            const copyDetails = document.querySelector('[data-testid="chat-permission-copy-details"]');
+            if (copyDetails instanceof HTMLButtonElement) {
+              copyDetails.click();
+              await sleep(160);
+            }
+            const copyStatus = document.querySelector('[data-testid="chat-permission-copy-details-status"]');
+            const copiedPermissionText =
+              await window.api?.clipboard?.readText?.().catch(() => '') ??
+              await navigator.clipboard?.readText?.().catch(() => '') ??
+              '';
             const allowOnce = document.querySelector('[data-testid="chat-permission-allow-once"]');
             if (allowOnce instanceof HTMLButtonElement) {
               allowOnce.click();
@@ -27777,7 +27787,20 @@ function runAutomatedTranscriptPermissionSmoke(win: BrowserWindow, outputPath: s
                   button instanceof HTMLButtonElement &&
                   !button.disabled &&
                   (button.getAttribute('aria-label') ?? '').includes('permission')
-                )
+                ),
+              permissionCopyDetailsWorks:
+                copyDetails instanceof HTMLButtonElement &&
+                copyDetails.getAttribute('aria-label') === 'Copied permission details' &&
+                copyDetails.getAttribute('data-icon-button-variant') === 'toolbar' &&
+                copyStatus instanceof HTMLElement &&
+                copyStatus.getAttribute('role') === 'status' &&
+                copyStatus.getAttribute('aria-live') === 'polite' &&
+                copyStatus.getAttribute('aria-atomic') === 'true' &&
+                copyStatus.textContent?.includes('Copied permission details') === true &&
+                copiedPermissionText.includes('Command Approval: Bash') &&
+                copiedPermissionText.includes('Command: git status --short') &&
+                copiedPermissionText.includes('Working dir:') &&
+                copiedPermissionText.includes('orchestrator-automated-ui-workspace')
             };
           })()
         `)

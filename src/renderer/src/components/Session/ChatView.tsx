@@ -33,7 +33,7 @@ import {
   permissionRequestDetail,
   summarizeToolActivities
 } from '../../types'
-import type { Session, ChatMessage, FileChange, FileReference, OpenPathResult, ResultMessage, SessionForkMode, SessionRunEventRecord, ToolResultMessage, ToolUseMessage, UserInputQuestion } from '../../types'
+import type { Session, ChatMessage, FileChange, FileReference, OpenPathResult, PermissionRequestDetail, ResultMessage, SessionForkMode, SessionRunEventRecord, ToolResultMessage, ToolUseMessage, UserInputQuestion } from '../../types'
 import type { Attachment } from '../../types'
 import type { TranscriptSearchResult } from '../../types'
 import { useSessionStore } from '../../store/sessions'
@@ -3523,6 +3523,76 @@ function questionInputKey(question: UserInputQuestion, index: number): string {
   return question.id ?? `${index}:${question.question}`
 }
 
+function permissionRequestCopyText(detail: PermissionRequestDetail): string {
+  const lines = [`${detail.title}: ${detail.toolName}`]
+  if (detail.summary) lines.push(`Summary: ${detail.summary}`)
+  for (const field of detail.fields) {
+    lines.push(`${field.label}: ${field.value}`)
+  }
+  return lines.join('\n')
+}
+
+function PermissionRequestCopyButton({ detail }: { detail: PermissionRequestDetail }): JSX.Element {
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'error'>('idle')
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const copyText = useMemo(() => permissionRequestCopyText(detail), [detail])
+
+  useEffect(() => () => {
+    if (timeoutRef.current) window.clearTimeout(timeoutRef.current)
+  }, [])
+
+  const copyDetails = useCallback(async (event: React.MouseEvent) => {
+    event.preventDefault()
+    event.stopPropagation()
+    if (timeoutRef.current) window.clearTimeout(timeoutRef.current)
+    try {
+      if (typeof window.api.clipboard?.writeText === 'function') {
+        const didWrite = await window.api.clipboard.writeText(copyText)
+        if (!didWrite) throw new Error('Clipboard write failed')
+      } else {
+        await navigator.clipboard.writeText(copyText)
+      }
+      setCopyStatus('copied')
+      timeoutRef.current = window.setTimeout(() => {
+        setCopyStatus('idle')
+        timeoutRef.current = null
+      }, 1500)
+    } catch {
+      setCopyStatus('error')
+      timeoutRef.current = window.setTimeout(() => {
+        setCopyStatus('idle')
+        timeoutRef.current = null
+      }, 2200)
+    }
+  }, [copyText])
+
+  return (
+    <>
+      <IconButton
+        icon={copyStatus === 'copied' ? 'check' : 'copy'}
+        label={copyStatus === 'error' ? 'Copy permission details failed' : copyStatus === 'copied' ? 'Copied permission details' : 'Copy permission details'}
+        size="xs"
+        variant="toolbar"
+        tone={copyStatus === 'copied' ? 'success' : copyStatus === 'error' ? 'danger' : 'neutral'}
+        dataTestId="chat-permission-copy-details"
+        onClick={copyDetails}
+      />
+      {copyStatus !== 'idle' && (
+        <span
+          className="sr-only"
+          data-testid="chat-permission-copy-details-status"
+          data-copy-state={copyStatus}
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          {copyStatus === 'copied' ? 'Copied permission details' : 'Unable to copy permission details'}
+        </span>
+      )}
+    </>
+  )
+}
+
 function PermissionCard({ msg, sessionId, sessionStatus }: { msg: ResultMessage; sessionId: string; sessionStatus: Session['status'] }): JSX.Element {
   const [decision, setDecision] = useState<'pending' | 'allowed_once' | 'allowed_session' | 'denied'>('pending')
   const [submittingDecision, setSubmittingDecision] = useState<'allowed_once' | 'allowed_session' | 'denied' | null>(null)
@@ -3622,6 +3692,9 @@ function PermissionCard({ msg, sessionId, sessionStatus }: { msg: ResultMessage;
                   }}
                 >
                   {detail.toolName}
+                </span>
+                <span className="ml-auto shrink-0">
+                  <PermissionRequestCopyButton detail={detail} />
                 </span>
               </div>
               {detail.fields.length > 0 ? (
