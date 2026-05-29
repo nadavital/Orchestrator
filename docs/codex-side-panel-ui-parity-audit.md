@@ -10144,3 +10144,13 @@ Implemented: shared Workbench tree rows now synthesize an anchored context-menu 
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `node -c scripts/suggest-ui-smoke-targets.mjs`, `pnpm run smoke:ui:suggest`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --files` passed. Files evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1780054759606.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1780054759606.png`.
 
 Remaining: this closes keyboard access to Files row context menus only. Broader WorkbenchTree keyboard traversal, Review row keyboard menus, live Codex focus timing, and provider/source-backed Files gaps remain separate work.
+
+### 2026-05-29 - Review Row Keyboard Context Menus
+
+Product evidence: the Review changed-file tree is a daily coding surface, but row-level actions were still only available indirectly through the selected-file toolbar. Files rows already had direct Add/Open/Copy/Reveal row menus, so Review felt less complete for keyboard-driven review work.
+
+Implemented: Review changed-file rows now expose a row context menu through the shared Workbench tree keyboard path (`Shift+F10` or Menu key). The menu selects the target row, anchors to the row with viewport clamping, and exposes Open in Workbench, Copy path, and Reveal file. Copy path uses the existing Review clipboard/status channel. The focused Review smoke now gates `reviewRowKeyboardContextMenu=true`, and `smoke:ui:suggest` maps Review row-menu diffs to `--diff-core`.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `node -c scripts/suggest-ui-smoke-targets.mjs`, `git diff --check`, `pnpm run smoke:ui:suggest`, and elevated `node scripts/run-automated-ui-smoke.mjs --diff-core` passed. Review evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-core-1780055920173.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-core-1780055920173.png`.
+
+Remaining: this closes local Review changed-file row menu access only. Provider-backed Review checkpoint Undo, hosted/cloud source metadata, comments/blame adapters, and broader Workbench tab-body traversal remain separate Phase 1 work.

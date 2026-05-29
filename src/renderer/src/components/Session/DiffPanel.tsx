@@ -9,7 +9,7 @@ import { Badge, Button, IconButton, MenuItem, MenuMessage, MenuRow, MenuSection,
 import Icon, { type IconName } from '../shared/Icon'
 import { FilePreview } from './FilesPanel'
 import StructuredDataPreview from './StructuredDataPreview'
-import WorkbenchTree, { type WorkbenchTreeRow } from './WorkbenchTree'
+import WorkbenchTree, { type WorkbenchTreeContextMenuEvent, type WorkbenchTreeRow } from './WorkbenchTree'
 
 interface Props {
   sessionId: string
@@ -99,6 +99,7 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
   const [reviewMetadataOpen, setReviewMetadataOpen] = useState<ReviewMetadataPanel | null>(null)
   const [loadedReviewMetadata, setLoadedReviewMetadata] = useState<ReviewMetadata | undefined>(undefined)
   const [reviewGitActionMessage, setReviewGitActionMessage] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
+  const [reviewRowMenu, setReviewRowMenu] = useState<{ path: string; x: number; y: number } | null>(null)
   const [codexReviewStartPending, setCodexReviewStartPending] = useState(false)
   const [customReviewInstructions, setCustomReviewInstructions] = useState('')
   const rootRef = useRef<HTMLDivElement | null>(null)
@@ -198,6 +199,7 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
     return counts
   }, [reviewCommentsByPath])
   const selectedChange = selectedFile ? sourceFiles.find((file) => file.path === selectedFile) ?? null : null
+  const reviewRowMenuChange = reviewRowMenu ? sourceFiles.find((file) => file.path === reviewRowMenu.path) ?? null : null
   const selectedFileIndex = selectedFile ? filteredFiles.findIndex((file) => file.path === selectedFile) : -1
   const canSelectPreviousFile = selectedFileIndex > 0
   const canSelectNextFile = selectedFileIndex >= 0 && selectedFileIndex < filteredFiles.length - 1
@@ -279,7 +281,8 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
       dataReviewPath: file.path,
       dataReviewSearchActive: reviewSearchActivePath === file.path,
       onSelect: () => setSelectedFile(file.path),
-      onOpen: file.status === 'D' ? undefined : () => openRightPanelFileTab(sessionId, file.path, { preview: true })
+      onOpen: file.status === 'D' ? undefined : () => openRightPanelFileTab(sessionId, file.path, { preview: true }),
+      onContextMenu: (event) => openReviewRowContextMenu(event, file)
     }
   })
 
@@ -669,7 +672,13 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
 
   const openSelectedFileTab = (): void => {
     if (!selectedFile || !selectedChange || selectedChange.status === 'D') return
-    openRightPanelFileTab(sessionId, selectedFile, { preview: true })
+    openReviewFileTab(selectedFile)
+  }
+
+  const openReviewFileTab = (path: string): void => {
+    const change = sourceFiles.find((file) => file.path === path)
+    if (!change || change.status === 'D') return
+    openRightPanelFileTab(sessionId, path, { preview: true })
   }
 
   const openFileTabAtLine = (path: string, line: number): void => {
@@ -692,7 +701,13 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
 
   const revealSelectedFile = (): void => {
     if (!selectedFile || !selectedChange || selectedChange.status === 'D') return
-    void window.api.fs.showInFolder(joinPath(workDir, selectedFile))
+    revealReviewFile(selectedFile)
+  }
+
+  const revealReviewFile = (path: string): void => {
+    const change = sourceFiles.find((file) => file.path === path)
+    if (!change || change.status === 'D') return
+    void window.api.fs.showInFolder(joinPath(workDir, path))
   }
 
   const writeReviewClipboardText = async (text: string): Promise<void> => {
@@ -706,13 +721,38 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
 
   const copySelectedPath = async (): Promise<void> => {
     if (!selectedFile || !selectedChange) return
+    await copyReviewPath(selectedFile)
+  }
+
+  const copyReviewPath = async (path: string): Promise<void> => {
     setReviewGitActionMessage({ text: 'Copying path', tone: 'info' })
     try {
-      await writeReviewClipboardText(selectedFile)
+      await writeReviewClipboardText(path)
       setReviewGitActionMessage({ text: 'Path copied', tone: 'info' })
     } catch {
       setReviewGitActionMessage({ text: 'Copy path failed', tone: 'danger' })
     }
+  }
+
+  const openReviewRowContextMenu = (event: WorkbenchTreeContextMenuEvent, file: FileChange): void => {
+    event.preventDefault()
+    event.stopPropagation()
+    const rect = event.currentTarget.getBoundingClientRect()
+    const x = Number.isFinite(event.clientX) && event.clientX !== 0
+      ? event.clientX
+      : rect.left + Math.min(24, Math.max(1, rect.width / 2))
+    const y = Number.isFinite(event.clientY) && event.clientY !== 0
+      ? event.clientY
+      : rect.top + Math.min(14, Math.max(4, rect.height / 2))
+    setSelectedFile(file.path)
+    setReviewOptionsOpen(false)
+    setFileJumpOpen(false)
+    setReviewMetadataOpen(null)
+    setReviewRowMenu({
+      path: file.path,
+      x: Math.min(x, Math.max(8, window.innerWidth - 214)),
+      y: Math.min(y, Math.max(8, window.innerHeight - 176))
+    })
   }
 
   const copyGitApplyCommand = async (): Promise<void> => {
@@ -1518,6 +1558,50 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
                 stickyDirectories
                 revealActiveRow
               />
+              {reviewRowMenu && (
+                <MenuSurface
+                  onClose={() => setReviewRowMenu(null)}
+                  className="review-row-context-menu"
+                  style={{ position: 'fixed', left: reviewRowMenu.x, top: reviewRowMenu.y, width: 206, zIndex: 110 }}
+                >
+                  <div
+                    data-testid="review-row-context-menu"
+                    data-review-row-context-path={reviewRowMenuChange?.path ?? ''}
+                    data-review-row-context-status={reviewRowMenuChange?.status ?? ''}
+                  >
+                    <MenuItem
+                      icon="file"
+                      label="Open in Workbench"
+                      disabled={!reviewRowMenuChange || reviewRowMenuChange.status === 'D'}
+                      dataTestId="review-row-open-workbench"
+                      onClick={() => {
+                        openReviewFileTab(reviewRowMenu.path)
+                        setReviewRowMenu(null)
+                      }}
+                    />
+                    <MenuItem
+                      icon="copy"
+                      label="Copy path"
+                      disabled={!reviewRowMenuChange}
+                      dataTestId="review-row-copy-path"
+                      onClick={() => {
+                        void copyReviewPath(reviewRowMenu.path)
+                        setReviewRowMenu(null)
+                      }}
+                    />
+                    <MenuItem
+                      icon="folder"
+                      label="Reveal file"
+                      disabled={!reviewRowMenuChange || reviewRowMenuChange.status === 'D'}
+                      dataTestId="review-row-reveal-file"
+                      onClick={() => {
+                        revealReviewFile(reviewRowMenu.path)
+                        setReviewRowMenu(null)
+                      }}
+                    />
+                  </div>
+                </MenuSurface>
+              )}
               </>
             )}
           </div>

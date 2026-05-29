@@ -11958,7 +11958,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   diffRows().length > 0 &&
                   diffRows().every((row) => row.getBoundingClientRect().height <= 42);
                 const primaryTextDiffRowAfterKeyboard =
-                  document.querySelector('.diff-panel-root[data-embedded="true"] [data-review-path="data-preview-smoke.json"]') ??
+                  document.querySelector('.diff-panel-root[data-embedded="true"] .diff-panel-list [data-review-path="data-preview-smoke.json"]') ??
                   [...document.querySelectorAll('.diff-panel-root[data-embedded="true"] .diff-file-row, .diff-panel-root[data-embedded="true"] button')]
                     .find((candidate) => candidate.textContent?.includes('data-preview-smoke.json'));
                 if (primaryTextDiffRowAfterKeyboard instanceof HTMLElement) {
@@ -12543,6 +12543,80 @@ function runAutomatedFocusedSurfaceSmoke(
                     row.getAttribute('title') === null
                   ) &&
                   [...document.querySelectorAll('.diff-panel-list [data-native-title-free][title]')].length === 0;
+                let reviewRowKeyboardContextMenuWorks = false;
+                let reviewRowKeyboardContextMenuDebug = {};
+                const reviewRowContextTarget =
+                  document.querySelector('.diff-panel-root[data-embedded="true"] .diff-panel-list [data-review-path="data-preview-smoke.json"]') ??
+                  [...document.querySelectorAll('.diff-panel-root[data-embedded="true"] .diff-file-row, .diff-panel-root[data-embedded="true"] button')]
+                    .find((button) => button.textContent?.includes('data-preview-smoke.json'));
+                if (reviewRowContextTarget instanceof HTMLElement) {
+                  const targetRect = reviewRowContextTarget.getBoundingClientRect();
+                  reviewRowContextTarget.focus({ preventScroll: true });
+                  reviewRowContextTarget.dispatchEvent(new KeyboardEvent('keydown', {
+                    key: 'F10',
+                    code: 'F10',
+                    shiftKey: true,
+                    bubbles: true,
+                    cancelable: true
+                  }));
+                  await sleep(140);
+                  const keyboardReviewRowMenu = document.querySelector('[data-testid="review-row-context-menu"]');
+                  const keyboardReviewRowSurface = keyboardReviewRowMenu?.closest('.orchestrator-menu-surface');
+                  const reviewRowCopyPath = keyboardReviewRowMenu?.querySelector('[data-testid="review-row-copy-path"]');
+                  const reviewRowOpenWorkbench = keyboardReviewRowMenu?.querySelector('[data-testid="review-row-open-workbench"]');
+                  const reviewRowRevealFile = keyboardReviewRowMenu?.querySelector('[data-testid="review-row-reveal-file"]');
+                  const keyboardReviewRowSurfaceLeft = keyboardReviewRowSurface instanceof HTMLElement
+                    ? keyboardReviewRowSurface.getBoundingClientRect().left
+                    : null;
+                  if (reviewRowCopyPath instanceof HTMLButtonElement) {
+                    reviewRowCopyPath.click();
+                    await sleep(220);
+                  }
+                  const copiedReviewRowPath = await window.api.clipboard.readText().catch(() => '');
+                  const reviewRowStatusText = document.querySelector('[data-testid="review-floating-action-status"], [data-testid="review-action-status-pill"]')?.textContent ?? '';
+                  const expectedReviewRowMenuX = Math.min(
+                    targetRect.left + Math.min(24, Math.max(1, targetRect.width / 2)),
+                    Math.max(8, window.innerWidth - 214)
+                  );
+                  reviewRowKeyboardContextMenuDebug = {
+                    targetFound: true,
+                    targetPath: reviewRowContextTarget.getAttribute('data-review-path') ?? null,
+                    menuFound: keyboardReviewRowMenu instanceof HTMLElement,
+                    menuPath: keyboardReviewRowMenu instanceof HTMLElement ? keyboardReviewRowMenu.getAttribute('data-review-row-context-path') : null,
+                    menuStatus: keyboardReviewRowMenu instanceof HTMLElement ? keyboardReviewRowMenu.getAttribute('data-review-row-context-status') : null,
+                    surfaceFound: keyboardReviewRowSurface instanceof HTMLElement,
+                    hasOpen: reviewRowOpenWorkbench instanceof HTMLButtonElement,
+                    hasCopy: reviewRowCopyPath instanceof HTMLButtonElement,
+                    hasReveal: reviewRowRevealFile instanceof HTMLButtonElement,
+                    copiedReviewRowPath,
+                    reviewRowStatusText,
+                    text: keyboardReviewRowMenu instanceof HTMLElement ? keyboardReviewRowMenu.textContent : null,
+                    expectedReviewRowMenuX,
+                    surfaceLeft: keyboardReviewRowSurfaceLeft,
+                    surfaceLeftDelta: typeof keyboardReviewRowSurfaceLeft === 'number'
+                      ? Math.abs(keyboardReviewRowSurfaceLeft - expectedReviewRowMenuX)
+                      : null
+                  };
+                  reviewRowKeyboardContextMenuWorks =
+                    keyboardReviewRowMenu instanceof HTMLElement &&
+                    keyboardReviewRowMenu.getAttribute('data-review-row-context-path') === 'data-preview-smoke.json' &&
+                    keyboardReviewRowMenu.getAttribute('data-review-row-context-status') === 'M' &&
+                    keyboardReviewRowSurface instanceof HTMLElement &&
+                    reviewRowOpenWorkbench instanceof HTMLButtonElement &&
+                    reviewRowRevealFile instanceof HTMLButtonElement &&
+                    reviewRowCopyPath instanceof HTMLButtonElement &&
+                    keyboardReviewRowMenu.textContent?.includes('Open in Workbench') === true &&
+                    keyboardReviewRowMenu.textContent?.includes('Copy path') === true &&
+                    keyboardReviewRowMenu.textContent?.includes('Reveal file') === true &&
+                    copiedReviewRowPath === 'data-preview-smoke.json' &&
+                    reviewRowStatusText.includes('Path copied') &&
+                    typeof keyboardReviewRowSurfaceLeft === 'number' &&
+                    Math.abs(keyboardReviewRowSurfaceLeft - expectedReviewRowMenuX) <= 28;
+                  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+                  await sleep(80);
+                } else {
+                  reviewRowKeyboardContextMenuDebug = { targetFound: false };
+                }
                 const reviewTabPanel = document.querySelector('[data-app-shell-tab-panel-controller="right"][data-tab-id="diff"]');
                 const reviewTabPanelFocusRingCalmWorks =
                   reviewTabPanel instanceof HTMLElement &&
@@ -12645,6 +12719,8 @@ function runAutomatedFocusedSurfaceSmoke(
                   diffLineSelectionWorks,
                   reviewDiffLineComposerHandoffWorks,
                   reviewDiffLineComposerHandoffDebug,
+                  reviewRowKeyboardContextMenuWorks,
+                  reviewRowKeyboardContextMenuDebug,
                   diffHunkCollapseWorks,
                   diffModeToggleWorks,
                   diffExpandCollapseWorks,
@@ -14902,6 +14978,58 @@ function runAutomatedFocusedSurfaceSmoke(
                 reviewJumpSelectedFile === 'document-preview-smoke.docx' &&
                 reviewJumpActiveRow === 'file:document-preview-smoke.docx' &&
                 !activeReviewRoot?.querySelector('[data-testid="review-file-jump-search"]');
+              let reviewRowKeyboardContextMenuWorks = false;
+              const reviewRowContextTarget =
+                document.querySelector('.diff-panel-root[data-embedded="true"] .diff-panel-list [data-review-path="review-base.txt"]') ??
+                [...document.querySelectorAll('.diff-panel-root[data-embedded="true"] .diff-file-row, .diff-panel-root[data-embedded="true"] button')]
+                  .find((button) => button.textContent?.includes('review-base.txt'));
+              if (reviewRowContextTarget instanceof HTMLElement) {
+                const targetRect = reviewRowContextTarget.getBoundingClientRect();
+                reviewRowContextTarget.focus({ preventScroll: true });
+                reviewRowContextTarget.dispatchEvent(new KeyboardEvent('keydown', {
+                  key: 'F10',
+                  code: 'F10',
+                  shiftKey: true,
+                  bubbles: true,
+                  cancelable: true
+                }));
+                await sleep(140);
+                const keyboardReviewRowMenu = document.querySelector('[data-testid="review-row-context-menu"]');
+                const keyboardReviewRowSurface = keyboardReviewRowMenu?.closest('.orchestrator-menu-surface');
+                const reviewRowCopyPath = keyboardReviewRowMenu?.querySelector('[data-testid="review-row-copy-path"]');
+                const reviewRowOpenWorkbench = keyboardReviewRowMenu?.querySelector('[data-testid="review-row-open-workbench"]');
+                const reviewRowRevealFile = keyboardReviewRowMenu?.querySelector('[data-testid="review-row-reveal-file"]');
+                const keyboardReviewRowSurfaceLeft = keyboardReviewRowSurface instanceof HTMLElement
+                  ? keyboardReviewRowSurface.getBoundingClientRect().left
+                  : null;
+                if (reviewRowCopyPath instanceof HTMLButtonElement) {
+                  reviewRowCopyPath.click();
+                  await sleep(220);
+                }
+                const copiedReviewRowPath = await window.api.clipboard.readText().catch(() => '');
+                const reviewRowStatusText = document.querySelector('[data-testid="review-floating-action-status"], [data-testid="review-action-status-pill"]')?.textContent ?? '';
+                const expectedReviewRowMenuX = Math.min(
+                  targetRect.left + Math.min(24, Math.max(1, targetRect.width / 2)),
+                  Math.max(8, window.innerWidth - 214)
+                );
+                reviewRowKeyboardContextMenuWorks =
+                  keyboardReviewRowMenu instanceof HTMLElement &&
+                  keyboardReviewRowMenu.getAttribute('data-review-row-context-path') === 'review-base.txt' &&
+                  keyboardReviewRowMenu.getAttribute('data-review-row-context-status') === 'M' &&
+                  keyboardReviewRowSurface instanceof HTMLElement &&
+                  reviewRowOpenWorkbench instanceof HTMLButtonElement &&
+                  reviewRowRevealFile instanceof HTMLButtonElement &&
+                  reviewRowCopyPath instanceof HTMLButtonElement &&
+                  keyboardReviewRowMenu.textContent?.includes('Open in Workbench') === true &&
+                  keyboardReviewRowMenu.textContent?.includes('Copy path') === true &&
+                  keyboardReviewRowMenu.textContent?.includes('Reveal file') === true &&
+                  copiedReviewRowPath === 'review-base.txt' &&
+                  reviewRowStatusText.includes('Path copied') &&
+                  typeof keyboardReviewRowSurfaceLeft === 'number' &&
+                  Math.abs(keyboardReviewRowSurfaceLeft - expectedReviewRowMenuX) <= 28;
+                window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+                await sleep(80);
+              }
               const reviewSidePane = activeReviewRoot?.querySelector('.diff-panel-changed-files-pane');
               const reviewSidePaneHandle = reviewSidePane?.querySelector('[data-testid="review-changed-files-resize"]');
               const reviewSidePaneSearchRow = reviewSidePane?.querySelector('.diff-panel-file-search-row');
@@ -15307,6 +15435,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   reviewMenuMessageWorks,
                   reviewFileJumpMenuStateWorks,
                   reviewFileJumpWorks,
+                  reviewRowKeyboardContextMenuWorks,
                   reviewSidePaneChromeWorks,
                   reviewSidePaneChromeDebug,
                   reviewSidePaneResizeWorks,
@@ -15744,6 +15873,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 reviewGutterActionPopoverWork,
                 reviewMenuMessageWorks,
                 reviewFileJumpWorks,
+                reviewRowKeyboardContextMenuWorks,
                 reviewSidePaneChromeWorks,
                 reviewSidePaneChromeDebug,
                 reviewSidePaneResizeWorks,
