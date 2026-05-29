@@ -30,6 +30,7 @@ export default function GitPanel({ session, embedded = false, onOpenReview }: Pr
 
   const refresh = async (): Promise<void> => {
     setActionState((current) => current === 'idle' ? 'loading' : current)
+    setActionMessage({ text: 'Refreshing Git status', tone: 'info' })
     try {
       const [nextChanges, nextBranches] = await Promise.all([
         window.api.sessions.getChangedFiles(sessionId, 'all').catch(() => []),
@@ -37,6 +38,9 @@ export default function GitPanel({ session, embedded = false, onOpenReview }: Pr
       ])
       setChanges(nextChanges)
       setBranches(nextBranches)
+      setActionMessage({ text: 'Git status refreshed', tone: 'info' })
+    } catch (error) {
+      setActionMessage({ text: error instanceof Error ? error.message : 'Refresh Git status failed', tone: 'danger' })
     } finally {
       setActionState((current) => current === 'loading' ? 'idle' : current)
     }

@@ -9363,6 +9363,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 let workbenchNewTabGitCheckoutWorks = false;
                 let workbenchNewTabGitPrCommandWorks = false;
                 let workbenchNewTabGitPrCommandHandoffWorks = false;
+                let workbenchNewTabGitRefreshStatusWorks = false;
                 let workbenchNewTabGitCommitWorks = false;
                 let workbenchNewTabGitDiscardWorks = false;
                 let workbenchNewTabSingletonSwitchWorks = false;
@@ -9382,6 +9383,31 @@ function runAutomatedFocusedSurfaceSmoke(
                     }
                   }
                   const gitPanelBefore = document.querySelector('[data-testid="git-panel"]');
+                  const gitRefreshButton = document.querySelector('[data-testid="git-refresh"]');
+                  if (gitRefreshButton instanceof HTMLButtonElement && !gitRefreshButton.disabled) {
+                    gitRefreshButton.click();
+                    for (let attempt = 0; attempt < 16; attempt += 1) {
+                      await sleep(100);
+                      const gitPanelAfterRefresh = document.querySelector('[data-testid="git-panel"]');
+                      const gitStatusAfterRefresh = document.querySelector('[data-testid="git-action-status"]');
+                      if (
+                        gitPanelAfterRefresh instanceof HTMLElement &&
+                        gitPanelAfterRefresh.getAttribute('data-git-action-state') === 'idle' &&
+                        gitStatusAfterRefresh instanceof HTMLElement &&
+                        gitStatusAfterRefresh.textContent?.includes('Git status refreshed') === true
+                      ) {
+                        break;
+                      }
+                    }
+                  }
+                  const gitStatusAfterRefresh = document.querySelector('[data-testid="git-action-status"]');
+                  workbenchNewTabGitRefreshStatusWorks =
+                    gitRefreshButton instanceof HTMLButtonElement &&
+                    gitStatusAfterRefresh instanceof HTMLElement &&
+                    gitStatusAfterRefresh.getAttribute('role') === 'status' &&
+                    gitStatusAfterRefresh.getAttribute('aria-live') === 'polite' &&
+                    gitStatusAfterRefresh.getAttribute('aria-atomic') === 'true' &&
+                    gitStatusAfterRefresh.textContent?.includes('Git status refreshed') === true;
                   const gitStageAll = document.querySelector('[data-testid="git-stage-all"]');
                   const gitUnstageAll = document.querySelector('[data-testid="git-unstage-all"]');
                   const gitOpenReview = document.querySelector('[data-testid="git-open-review"]');
@@ -9773,6 +9799,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     workbenchNewTabGitCheckoutWorks &&
                     workbenchNewTabGitPrCommandWorks &&
                     workbenchNewTabGitPrCommandHandoffWorks &&
+                    workbenchNewTabGitRefreshStatusWorks &&
                     gitAfterStageUnstagedCount === 0 &&
                     gitAfterStageStagedCount >= gitChangeCountBefore &&
                     gitAfterUnstageStagedCount === 0 &&
@@ -10266,6 +10293,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   workbenchNewTabGitCheckoutWorks,
                   workbenchNewTabGitPrCommandWorks,
                   workbenchNewTabGitPrCommandHandoffWorks,
+                  workbenchNewTabGitRefreshStatusWorks,
                   workbenchNewTabGitCommitWorks,
                   workbenchNewTabGitDiscardWorks,
                   agentRuntimeEventDetailWorks,
