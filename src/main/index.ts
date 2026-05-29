@@ -10711,6 +10711,8 @@ function runAutomatedFocusedSurfaceSmoke(
                     await sleep(50);
                   }
                   const menu = document.querySelector('.workbench-tab-context-menu');
+                  const boundarySection = document.querySelector('[data-testid="workbench-tab-context-menu-bottom-panel-boundary-section"]');
+                  const boundaryMessage = document.querySelector('[data-testid="workbench-tab-context-menu-bottom-panel-boundary-message"]');
                   const works =
                     menu instanceof HTMLElement &&
                     menu.getAttribute('data-panel-tab-transfer-model') === 'shared' &&
@@ -10718,7 +10720,14 @@ function runAutomatedFocusedSurfaceSmoke(
                     menu.getAttribute('data-panel-tab-transfer-target') === 'bottom' &&
                     menu.getAttribute('data-panel-tab-transfer-kind') === expectedKind &&
                     menu.getAttribute('data-panel-tab-transfer-supported') === 'false' &&
-                    menu.getAttribute('data-panel-tab-transfer-reason') === 'unsupported-tab-kind';
+                    menu.getAttribute('data-panel-tab-transfer-reason') === 'unsupported-tab-kind' &&
+                    boundarySection instanceof HTMLElement &&
+                    boundarySection.getAttribute('data-panel-tab-transfer-kind') === expectedKind &&
+                    boundarySection.getAttribute('data-panel-tab-transfer-supported') === 'false' &&
+                    boundarySection.getAttribute('data-panel-tab-transfer-reason') === 'unsupported-tab-kind' &&
+                    boundaryMessage instanceof HTMLElement &&
+                    boundaryMessage.getAttribute('data-menu-message-state') === 'unsupported-tab-kind' &&
+                    boundaryMessage.textContent?.includes('Bottom panel supports Terminal and Plan tabs.') === true;
                   document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
                   await sleep(60);
                   return works;
@@ -10738,6 +10747,8 @@ function runAutomatedFocusedSurfaceSmoke(
                     await sleep(50);
                   }
                   const browserTabMenu = document.querySelector('.workbench-tab-context-menu');
+                  const browserBoundarySection = document.querySelector('[data-testid="workbench-tab-context-menu-bottom-panel-boundary-section"]');
+                  const browserBoundaryMessage = document.querySelector('[data-testid="workbench-tab-context-menu-bottom-panel-boundary-message"]');
                   rightPanelTransferUnsupportedBoundaryWorks =
                     browserTabMenu instanceof HTMLElement &&
                     browserTabMenu.getAttribute('data-panel-tab-transfer-model') === 'shared' &&
@@ -10746,6 +10757,12 @@ function runAutomatedFocusedSurfaceSmoke(
                     browserTabMenu.getAttribute('data-panel-tab-transfer-kind') === 'browser' &&
                     browserTabMenu.getAttribute('data-panel-tab-transfer-supported') === 'false' &&
                     browserTabMenu.getAttribute('data-panel-tab-transfer-reason') === 'unsupported-tab-kind' &&
+                    browserBoundarySection instanceof HTMLElement &&
+                    browserBoundarySection.getAttribute('data-panel-tab-transfer-kind') === 'browser' &&
+                    browserBoundarySection.getAttribute('data-panel-tab-transfer-supported') === 'false' &&
+                    browserBoundaryMessage instanceof HTMLElement &&
+                    browserBoundaryMessage.getAttribute('data-menu-message-state') === 'unsupported-tab-kind' &&
+                    browserBoundaryMessage.textContent?.includes('Bottom panel supports Terminal and Plan tabs.') === true &&
                     reviewTransferBoundaryWorks &&
                     filesTransferBoundaryWorks;
                   const resetTab = [...document.querySelectorAll('[role="menuitem"]')]

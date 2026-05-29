@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { filePathFromTabId, sideChatContextSnapshot, sideChatIdFromTabId, terminalTabIdFromTabId, useSessionStore } from '../../store/sessions'
 import type { RightPanelTabId, RightPanelTabKind } from '../../store/sessions'
-import { derivePlanStates, derivePlanStatesFromMessages, resolvePanelTabTransferAvailability } from '../../types'
+import { bottomPanelTransferPolicyLabel, derivePlanStates, derivePlanStatesFromMessages, resolvePanelTabTransferAvailability } from '../../types'
 import type { AgentNode, Session, SessionRunEventRecord } from '../../types'
 import BrowserPanel from './BrowserPanel'
 import DiffPanel from './DiffPanel'
@@ -14,7 +14,7 @@ import GitPanel from './GitPanel'
 import PlanPanel from './PlanPanel'
 import SideQuestionPanel from './SideQuestionPanel'
 import TerminalView from './TerminalView'
-import { AppShellPanel, IconButton, MenuItem, MenuSection, MenuSectionLabel, MenuSurface, PanelResizeHandle, PanelTabStrip, exitFullscreenForPanelTab, panelTabDomId, panelTabPanelDomId, useAppShellResizeController, useAppShellSidePanelLayout } from '../shared/designSystem'
+import { AppShellPanel, IconButton, MenuItem, MenuMessage, MenuSection, MenuSectionLabel, MenuSurface, PanelResizeHandle, PanelTabStrip, exitFullscreenForPanelTab, panelTabDomId, panelTabPanelDomId, useAppShellResizeController, useAppShellSidePanelLayout } from '../shared/designSystem'
 import { deriveSessionAgentNodes } from './agentNodes'
 import Icon, { type IconName } from '../shared/Icon'
 
@@ -672,6 +672,26 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
                   setTabMenu(null)
                 }}
               />
+            </MenuSection>
+          )}
+          {tabMenuTransferAvailability && !tabMenuTransferAvailability.supported && tabMenuTransferAvailability.reason === 'unsupported-tab-kind' && (
+            <MenuSection
+              dataTestId="workbench-tab-context-menu-bottom-panel-boundary-section"
+              data-panel-tab-transfer-model="shared"
+              data-panel-tab-transfer-source="right"
+              data-panel-tab-transfer-target="bottom"
+              data-panel-tab-transfer-kind={tabMenuTransferAvailability.tabKind}
+              data-panel-tab-transfer-supported="false"
+              data-panel-tab-transfer-reason={tabMenuTransferAvailability.reason}
+            >
+              <MenuSectionLabel>Bottom panel</MenuSectionLabel>
+              <MenuMessage
+                compact
+                state={tabMenuTransferAvailability.reason}
+                dataTestId="workbench-tab-context-menu-bottom-panel-boundary-message"
+              >
+                {bottomPanelTransferPolicyLabel()}
+              </MenuMessage>
             </MenuSection>
           )}
           <MenuSection dataTestId="workbench-tab-context-menu-manage-section">

@@ -2203,9 +2203,12 @@ export type {
   ComposerSendState
 } from './sessionControls'
 export {
+  BOTTOM_PANEL_TRANSFER_TAB_KINDS,
+  bottomPanelTransferPolicyLabel,
   canCloseBottomPanelTab,
   closePanelTab,
   filePanelTabId,
+  isBottomPanelTransferTabKind,
   movePanelTabByDirection,
   parseFilePanelTabId,
   pinPanelTab,
@@ -2225,6 +2228,7 @@ export type {
   PanelCloseTarget,
   PanelBrowserCommandAvailability,
   PanelBrowserCommandTarget,
+  BottomPanelTransferTabKind,
   PanelFindAvailability,
   PanelFindTarget,
   PanelNewTabAvailability,

@@ -1,9 +1,12 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  BOTTOM_PANEL_TRANSFER_TAB_KINDS,
+  bottomPanelTransferPolicyLabel,
   canCloseBottomPanelTab,
   closePanelTab,
   filePanelTabId,
+  isBottomPanelTransferTabKind,
   movePanelTabByDirection,
   parseFilePanelTabId,
   pinPanelTab,
@@ -135,6 +138,12 @@ test('panel tab transfer preserves source and target when the tab cannot be move
 })
 
 test('panel tab transfer availability exposes the shared shell boundary', () => {
+  assert.deepEqual([...BOTTOM_PANEL_TRANSFER_TAB_KINDS], ['terminal', 'plan'])
+  assert.equal(isBottomPanelTransferTabKind('terminal'), true)
+  assert.equal(isBottomPanelTransferTabKind('plan'), true)
+  assert.equal(isBottomPanelTransferTabKind('browser'), false)
+  assert.equal(bottomPanelTransferPolicyLabel(), 'Bottom panel supports Terminal and Plan tabs.')
+
   assert.deepEqual(resolvePanelTabTransferAvailability('bottom', 'right', 'terminal'), {
     model: 'shared',
     sourcePanel: 'bottom',
@@ -149,6 +158,15 @@ test('panel tab transfer availability exposes the shared shell boundary', () => 
     sourcePanel: 'right',
     targetPanel: 'bottom',
     tabKind: 'terminal',
+    supported: true,
+    reason: 'available'
+  })
+
+  assert.deepEqual(resolvePanelTabTransferAvailability('right', 'bottom', 'plan'), {
+    model: 'shared',
+    sourcePanel: 'right',
+    targetPanel: 'bottom',
+    tabKind: 'plan',
     supported: true,
     reason: 'available'
   })

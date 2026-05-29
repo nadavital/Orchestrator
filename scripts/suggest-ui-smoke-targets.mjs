@@ -48,6 +48,12 @@ const diffRules = [
     label: 'Terminal',
     filePatterns: [/^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
     diffPatterns: [/terminal/i, /bottomPanel/, /bottom-panel/]
+  },
+  {
+    flag: '--right-panel',
+    label: 'Right Workbench shell',
+    filePatterns: [/^src\/renderer\/src\/components\/Session\/ContextSidebar\.tsx$/],
+    diffPatterns: [/tabMenu/, /context-menu/, /workbench-tab-context-menu/, /panel-tab-transfer/, /resolvePanelTabTransferAvailability/]
   }
 ]
 
@@ -155,6 +161,7 @@ function suggestTargets(paths) {
   suppressCoveredTarget(matched, '--settings', '--settings-providers')
   suppressCoveredTarget(matched, '--settings', '--pets')
   suppressCoveredTarget(matched, '--right-panel', '--workbench-launcher')
+  restoreDiffTargets(matched, paths)
 
   return { targets: Array.from(matched.values()), unmatched, broadReasons }
 }
@@ -230,6 +237,17 @@ function suppressCoveredTarget(matched, broadFlag, focusedFlag) {
   if (!broad || !focused) return
   const focusedFiles = new Set(focused.files)
   if (broad.files.every((file) => focusedFiles.has(file))) matched.delete(broadFlag)
+}
+
+function restoreDiffTargets(matched, paths) {
+  for (const file of paths) {
+    for (const rule of diffRules) {
+      if (!rule.filePatterns.some((pattern) => pattern.test(file))) continue
+      const diff = diffForFile(file)
+      if (!rule.diffPatterns.some((pattern) => pattern.test(diff))) continue
+      addMatchedTarget(matched, rule, file)
+    }
+  }
 }
 
 function printSuggestions(paths, suggestions, plan) {
