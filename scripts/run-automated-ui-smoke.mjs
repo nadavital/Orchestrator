@@ -2486,6 +2486,7 @@ child.on('exit', async (code) => {
           workbenchNewTabGitAction: result.workbenchNewTabGitActionWorks === true,
           workbenchNewTabGitFileActions: result.workbenchNewTabGitFileActionsWorks === true,
           workbenchNewTabGitFileCopyPath: result.workbenchNewTabGitFileCopyPathWorks === true,
+          workbenchNewTabGitFileInsertTerminal: result.workbenchNewTabGitFileInsertTerminalWorks === true,
           workbenchNewTabGitFileOpenWorkbench: result.workbenchNewTabGitFileOpenWorkbenchWorks === true,
           workbenchNewTabGitFileDiscard: result.workbenchNewTabGitFileDiscardWorks === true,
           workbenchNewTabGitBranch: result.workbenchNewTabGitBranchWorks === true,

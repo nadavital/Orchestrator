@@ -9470,6 +9470,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 let workbenchNewTabGitActionWorks = false;
                 let workbenchNewTabGitFileActionsWorks = false;
                 let workbenchNewTabGitFileCopyPathWorks = false;
+                let workbenchNewTabGitFileInsertTerminalWorks = false;
                 let workbenchNewTabGitFileOpenWorkbenchWorks = false;
                 let workbenchNewTabGitFileDiscardWorks = false;
                 let workbenchNewTabGitBranchWorks = false;
@@ -9629,6 +9630,47 @@ function runAutomatedFocusedSurfaceSmoke(
                       gitStatusAfterFileCopyPath.textContent?.includes('File path copied') === true &&
                       copiedGitFilePath === firstStageableFilePath;
                   }
+                  const firstInsertFilePathTerminalButton = rowAfterFileActions instanceof HTMLElement
+                    ? rowAfterFileActions.querySelector('[data-testid="git-file-insert-terminal"]')
+                    : null;
+                  if (firstStageableFilePath.length > 0 && firstInsertFilePathTerminalButton instanceof HTMLButtonElement && !firstInsertFilePathTerminalButton.disabled) {
+                    firstInsertFilePathTerminalButton.click();
+                    for (let attempt = 0; attempt < 24; attempt += 1) {
+                      await sleep(100);
+                      const gitStatusAfterFileTerminal = document.querySelector('[data-testid="git-action-status"]');
+                      const terminalId = window.__orchestratorLastGitFileTerminalIdForSmoke ?? '';
+                      const terminalPath = window.__orchestratorLastGitFileTerminalPathForSmoke ?? '';
+                      const terminalBuffer = terminalId
+                        ? await window.api?.terminal?.getBuffer?.(terminalId).catch(() => '') ?? ''
+                        : '';
+                      if (
+                        gitStatusAfterFileTerminal instanceof HTMLElement &&
+                        gitStatusAfterFileTerminal.textContent?.includes('File path inserted in terminal') === true &&
+                        terminalPath === firstStageableFilePath &&
+                        terminalBuffer.includes(firstStageableFilePath)
+                      ) {
+                        break;
+                      }
+                    }
+                    const gitStatusAfterFileTerminal = document.querySelector('[data-testid="git-action-status"]');
+                    const terminalId = window.__orchestratorLastGitFileTerminalIdForSmoke ?? '';
+                    const terminalPath = window.__orchestratorLastGitFileTerminalPathForSmoke ?? '';
+                    const terminalBuffer = terminalId
+                      ? await window.api?.terminal?.getBuffer?.(terminalId).catch(() => '') ?? ''
+                      : '';
+                    const bottomPanelAfterFileTerminal = document.querySelector('[data-testid="session-bottom-panel"]');
+                    workbenchNewTabGitFileInsertTerminalWorks =
+                      gitStatusAfterFileTerminal instanceof HTMLElement &&
+                      gitStatusAfterFileTerminal.getAttribute('role') === 'status' &&
+                      gitStatusAfterFileTerminal.getAttribute('aria-live') === 'polite' &&
+                      gitStatusAfterFileTerminal.textContent?.includes('File path inserted in terminal') === true &&
+                      terminalPath === firstStageableFilePath &&
+                      terminalBuffer.includes(firstStageableFilePath) &&
+                      bottomPanelAfterFileTerminal instanceof HTMLElement &&
+                      bottomPanelAfterFileTerminal.getAttribute('data-bottom-panel-active-terminal-id') === terminalId;
+                    document.querySelector('[aria-label="Hide bottom panel"]')?.click();
+                    await sleep(120);
+                  }
                   const firstOpenWorkbenchButton = rowAfterFileActions instanceof HTMLElement
                     ? rowAfterFileActions.querySelector('[data-testid="git-file-open-workbench"]')
                     : null;
@@ -9743,7 +9785,6 @@ function runAutomatedFocusedSurfaceSmoke(
                   const gitPrCommandInput = document.querySelector('[data-testid="git-pr-command"]');
                   const gitCopyPrCommand = document.querySelector('[data-testid="git-copy-pr-command"]');
                   const gitAddPrCommandToChat = document.querySelector('[data-testid="git-add-pr-command-to-chat"]');
-                  const gitInsertPrCommandTerminal = document.querySelector('[data-testid="git-insert-pr-command-terminal"]');
                   if (
                     workbenchNewTabGitBranchWorks &&
                     gitPrCard instanceof HTMLElement &&
@@ -9797,12 +9838,13 @@ function runAutomatedFocusedSurfaceSmoke(
                       composerAfterPrCommand.textContent?.includes('gh pr create') === true &&
                       composerAfterPrCommand.textContent?.includes(smokeBranchName) === true;
                   }
+                  const gitInsertPrCommandTerminalFresh = document.querySelector('[data-testid="git-insert-pr-command-terminal"]');
                   if (
                     workbenchNewTabGitPrCommandWorks &&
-                    gitInsertPrCommandTerminal instanceof HTMLButtonElement &&
-                    !gitInsertPrCommandTerminal.disabled
+                    gitInsertPrCommandTerminalFresh instanceof HTMLButtonElement &&
+                    !gitInsertPrCommandTerminalFresh.disabled
                   ) {
-                    gitInsertPrCommandTerminal.click();
+                    gitInsertPrCommandTerminalFresh.click();
                     for (let attempt = 0; attempt < 24; attempt += 1) {
                       await sleep(100);
                       const gitStatusAfterPrTerminal = document.querySelector('[data-testid="git-action-status"]');
@@ -10021,6 +10063,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   workbenchNewTabGitActionWorks =
                     workbenchNewTabGitFileActionsWorks &&
                     workbenchNewTabGitFileCopyPathWorks &&
+                    workbenchNewTabGitFileInsertTerminalWorks &&
                     workbenchNewTabGitFileOpenWorkbenchWorks &&
                     workbenchNewTabGitFileDiscardWorks &&
                     workbenchNewTabGitBranchWorks &&
@@ -10569,6 +10612,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   workbenchNewTabGitActionWorks,
                   workbenchNewTabGitFileActionsWorks,
                   workbenchNewTabGitFileCopyPathWorks,
+                  workbenchNewTabGitFileInsertTerminalWorks,
                   workbenchNewTabGitFileOpenWorkbenchWorks,
                   workbenchNewTabGitFileDiscardWorks,
                   workbenchNewTabGitBranchWorks,

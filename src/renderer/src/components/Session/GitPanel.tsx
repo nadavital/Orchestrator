@@ -352,6 +352,36 @@ export default function GitPanel({
     }
   }
 
+  const insertChangedFilePathInTerminal = async (path: string): Promise<void> => {
+    if (!path || busy) return
+    setActionState('terminal')
+    setActionMessage({ text: 'Opening terminal for file path', tone: 'info' })
+    try {
+      const state = useSessionStore.getState()
+      const currentPanel = state.uiState[sessionId]?.terminalPanel
+      const existingTab = typeof currentPanel?.activeTabId === 'number'
+        ? currentPanel.activeTabId
+        : currentPanel?.tabs.find((tab): tab is number => typeof tab === 'number')
+      const tabId = existingTab ?? addTerminalTab(sessionId)
+      setShowTerminal(sessionId, true)
+      setActiveTerminalTab(sessionId, tabId)
+      const terminalId = `${sessionId}-${tabId}`
+      const globals = window as typeof window & {
+        __orchestratorLastGitFileTerminalPathForSmoke?: string
+        __orchestratorLastGitFileTerminalIdForSmoke?: string
+      }
+      globals.__orchestratorLastGitFileTerminalPathForSmoke = path
+      globals.__orchestratorLastGitFileTerminalIdForSmoke = terminalId
+      await window.api.terminal.spawn(terminalId, workDir)
+      await window.api.terminal.write(terminalId, shellQuote(path))
+      setActionMessage({ text: 'File path inserted in terminal', tone: 'info' })
+    } catch (error) {
+      setActionMessage({ text: error instanceof Error ? error.message : 'Insert file path in terminal failed', tone: 'danger' })
+    } finally {
+      setActionState('idle')
+    }
+  }
+
   const openChangedFileInWorkbench = (path: string): void => {
     if (!path || busy) return
     openRightPanelFileTab(sessionId, path, { preview: true })
@@ -724,6 +754,14 @@ export default function GitPanel({
                   dataTestId="git-file-copy-path"
                   disabled={busy}
                   onClick={() => { void copyChangedFilePath(change.path) }}
+                />
+                <IconButton
+                  icon="terminal"
+                  label={`Insert ${change.path} in terminal`}
+                  size="xs"
+                  dataTestId="git-file-insert-terminal"
+                  disabled={busy}
+                  onClick={() => { void insertChangedFilePathInTerminal(change.path) }}
                 />
                 <IconButton
                   icon="trash"

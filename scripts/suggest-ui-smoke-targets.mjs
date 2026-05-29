@@ -309,6 +309,7 @@ function suggestTargets(paths) {
   suppressTerminalForToolActivityCommandDiff(matched, paths)
   suppressComposerForWorkbenchGitHandoffDiff(matched, paths)
   suppressTerminalForWorkbenchGitPrTerminalHandoffDiff(matched, paths)
+  suppressTerminalForWorkbenchGitFileTerminalHandoffDiff(matched, paths)
   suppressComposerForBrowserHandoffDiff(matched, paths)
   suppressTerminalForFilesPathTerminalHandoffDiff(matched, paths)
   suppressTerminalForReviewPathTerminalHandoffDiff(matched, paths)
@@ -690,6 +691,20 @@ function suppressTerminalForWorkbenchGitPrTerminalHandoffDiff(matched, paths) {
   matched.delete('--terminal')
 }
 
+function suppressTerminalForWorkbenchGitFileTerminalHandoffDiff(matched, paths) {
+  const terminal = matched.get('--terminal')
+  const workbench = matched.get('--workbench-new-tab')
+  if (!terminal || !workbench) return
+  if (!terminal.files.every((file) => file === 'src/renderer/src/components/Session/GitPanel.tsx' || file === 'scripts/run-automated-ui-smoke.mjs' || file === 'src/main/index.ts')) return
+  const diff = [
+    paths.includes('src/renderer/src/components/Session/GitPanel.tsx') ? diffForFile('src/renderer/src/components/Session/GitPanel.tsx') : '',
+    paths.includes('scripts/run-automated-ui-smoke.mjs') ? diffForFile('scripts/run-automated-ui-smoke.mjs') : '',
+    paths.includes('src/main/index.ts') ? diffForFile('src/main/index.ts') : ''
+  ].join('\n')
+  if (!/workbenchNewTabGitFileInsertTerminal|git-file-insert-terminal|File path inserted in terminal|__orchestratorLastGitFileTerminal/.test(diff)) return
+  matched.delete('--terminal')
+}
+
 function suppressTerminalForFilesPathTerminalHandoffDiff(matched, paths) {
   const terminal = matched.get('--terminal')
   const files = matched.get('--files')
@@ -746,7 +761,7 @@ function suppressEnvironmentForGitFileWorkflowDiff(matched, paths) {
     paths.includes('src/main/index.ts') ? diffForFile('src/main/index.ts') : '',
     paths.includes('src/renderer/src/components/Session/GitPanel.tsx') ? diffForFile('src/renderer/src/components/Session/GitPanel.tsx') : ''
   ].join('\n')
-  if (!/workbenchNewTabGitFile(?:CopyPath|OpenWorkbench)|git-file-(?:copy-path|open-workbench)|Copy path for|Open .* in Workbench/.test(diff)) return
+  if (!/workbenchNewTabGitFile(?:CopyPath|InsertTerminal|OpenWorkbench)|git-file-(?:copy-path|insert-terminal|open-workbench)|Copy path for|Insert .* in terminal|File path inserted in terminal|__orchestratorLastGitFileTerminal|Open .* in Workbench/.test(diff)) return
   matched.delete('--environment')
 }
 
