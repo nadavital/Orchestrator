@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
+import { flushSync } from 'react-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { adjacentFileChangePath, buildFileChangeTreeRows, diffForPathFromUnifiedDiff, fileStatusLabel, isBinaryDiffText, parseFileChangesFromUnifiedDiff, resolveReviewDiffRenderWindow, shouldPreferTextDiff } from '../../types'
@@ -3043,6 +3044,7 @@ function DiffLines({
     return Array.from(next).slice(0, 200)
   }, [lineMetadata])
   const [selectedLine, setSelectedLine] = useState<SelectedDiffLine | null>(null)
+  const [activeDiffFocusId, setActiveDiffFocusId] = useState<string | null>(null)
   const [blameVisible, setBlameVisible] = useState(false)
   const [lineBlame, setLineBlame] = useState<GitLineBlameResult | null>(null)
   const [lineBlameByLine, setLineBlameByLine] = useState<Map<number, GitLineBlameResult>>(() => new Map())
@@ -3069,8 +3071,68 @@ function DiffLines({
   const totalHiddenContextLineCount = hiddenContextSegments.reduce((total, segment) => total + segment.count, 0)
   const allHiddenContextExpanded = hiddenContextSegments.length > 0 &&
     hiddenContextSegments.every((segment) => expandedHiddenContext.has(segment.key))
+  const selectableDiffLines = useMemo<Array<SelectedDiffLine & { focusId: string }>>(() => {
+    const next: Array<SelectedDiffLine & { focusId: string }> = []
+    lines.forEach((line, index) => {
+      const type = diffLineType(line)
+      if (type === 'hunk') return
+      const metadata = lineMetadata[index]
+      const hunkIndex = metadata?.hunkIndex
+      if (hunkIndex !== undefined && collapsedHunks.has(hunkIndex)) return
+      if (mode === 'split') {
+        if (type !== 'addition' && metadata?.oldLine !== undefined) next.push({ side: 'old', lineNumber: metadata.oldLine, focusId: `split:${index}:old` })
+        if (type !== 'deletion' && metadata?.newLine !== undefined) next.push({ side: 'new', lineNumber: metadata.newLine, focusId: `split:${index}:new` })
+        return
+      }
+      if (metadata?.newLine !== undefined) {
+        next.push({ side: 'new', lineNumber: metadata.newLine, focusId: `unified:${index}:new` })
+      } else if (metadata?.oldLine !== undefined) {
+        next.push({ side: 'old', lineNumber: metadata.oldLine, focusId: `unified:${index}:old` })
+      }
+    })
+    return next
+  }, [collapsedHunks, lineMetadata, lines, mode])
+  const focusableDiffLine = selectableDiffLines.find((line) => activeDiffFocusId !== null && line.focusId === activeDiffFocusId) ??
+    selectableDiffLines.find((line) => selectedLine !== null && sameDiffLine(line, selectedLine)) ??
+    selectableDiffLines[0] ??
+    null
+  const isFocusableDiffLine = useCallback((focusId: string | undefined): boolean =>
+    focusId !== undefined && focusableDiffLine !== null && focusableDiffLine.focusId === focusId, [focusableDiffLine])
+  const focusDiffLine = useCallback((line: SelectedDiffLine & { focusId: string }): void => {
+    const lineSelector = `[data-review-diff-focus-id="${line.focusId}"]`
+    const target =
+      diffSearchContainerRef.current?.querySelector<HTMLElement>(`${lineSelector}[data-review-line-focusable="true"]`) ??
+      diffSearchContainerRef.current?.querySelector<HTMLElement>(lineSelector)
+    target?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+    target?.focus({ preventScroll: true })
+  }, [])
+  const navigateDiffLine = useCallback((currentLine: SelectedDiffLine | null, currentFocusId: string | undefined, key: string): void => {
+    if (selectableDiffLines.length === 0) return
+    const currentIndex = currentFocusId !== undefined
+      ? selectableDiffLines.findIndex((line) => line.focusId === currentFocusId)
+      : currentLine === null
+        ? selectableDiffLines.findIndex((line) => focusableDiffLine !== null && line.focusId === focusableDiffLine.focusId)
+      : selectableDiffLines.findIndex((line) => sameDiffLine(line, currentLine))
+    const fallbackIndex = currentIndex >= 0 ? currentIndex : 0
+    const nextIndex = key === 'Home'
+      ? 0
+      : key === 'End'
+        ? selectableDiffLines.length - 1
+        : key === 'ArrowUp'
+          ? Math.max(0, fallbackIndex - 1)
+          : key === 'ArrowDown'
+            ? Math.min(selectableDiffLines.length - 1, fallbackIndex + 1)
+            : fallbackIndex
+    const nextLine = selectableDiffLines[nextIndex]
+    flushSync(() => {
+      setActiveDiffFocusId(nextLine.focusId)
+      setSelectedLine({ side: nextLine.side, lineNumber: nextLine.lineNumber })
+    })
+    focusDiffLine(nextLine)
+  }, [focusDiffLine, focusableDiffLine, selectableDiffLines])
   useEffect(() => {
     setSelectedLine(null)
+    setActiveDiffFocusId(null)
     onCommentsChange((current) => current.filter((comment) => comment.status === 'provider'))
     setBlameVisible(false)
     setLineBlame(null)
@@ -3247,7 +3309,8 @@ function DiffLines({
       )}
     </div>
   ) : null
-  const selectLine = (line: SelectedDiffLine | null): void => {
+  const selectLine = (line: SelectedDiffLine | null, focusId?: string): void => {
+    setActiveDiffFocusId(focusId ?? null)
     setSelectedLine((current) => {
       if (line !== null && current?.side === line.side && current.lineNumber === line.lineNumber) return null
       return line
@@ -3300,6 +3363,8 @@ function DiffLines({
     return Array.from({ length: segment.count }, (_, index) => {
       const oldLine = segment.oldStart + index
       const newLine = segment.newStart + index
+      const oldFocusId = `hidden:${segment.key}:${index}:old`
+      const newFocusId = `hidden:${segment.key}:${index}:new`
       const text = hiddenContextSourceLines[newLine - 1] ?? ''
       if (renderMode === 'split') {
         return (
@@ -3317,7 +3382,10 @@ function DiffLines({
               lineNumber={oldLine}
               lineNumberSide="old"
               selectedLine={selectedLine}
+              focusId={oldFocusId}
+              focusable={isFocusableDiffLine(oldFocusId)}
               onSelectLine={selectLine}
+              onNavigateLine={navigateDiffLine}
               comments={commentsForLine('old', oldLine)}
               onAddComment={addComment}
               onUpdateComment={updateComment}
@@ -3334,7 +3402,10 @@ function DiffLines({
               lineNumber={newLine}
               lineNumberSide="new"
               selectedLine={selectedLine}
+              focusId={newFocusId}
+              focusable={isFocusableDiffLine(newFocusId)}
               onSelectLine={selectLine}
+              onNavigateLine={navigateDiffLine}
               comments={commentsForLine('new', newLine)}
               onAddComment={addComment}
               onUpdateComment={updateComment}
@@ -3355,7 +3426,10 @@ function DiffLines({
           lineNumber={newLine}
           lineNumberSide="new"
           selectedLine={selectedLine}
+          focusId={newFocusId}
+          focusable={isFocusableDiffLine(newFocusId)}
           onSelectLine={selectLine}
+          onNavigateLine={navigateDiffLine}
           comments={commentsForLine('new', newLine)}
           onAddComment={addComment}
           onUpdateComment={updateComment}
@@ -3494,6 +3568,7 @@ function DiffLines({
         data-review-large-diff-changed-bytes={renderWindow.changedBytes}
         data-review-large-diff-max-line-bytes={renderWindow.maxChangedLineBytes}
         data-review-large-diff-expanded={largeDiffExpanded ? 'true' : 'false'}
+        data-review-diff-keyboard-navigation="roving"
         data-review-merge-conflict-count={conflictBlocks.length}
         style={{ fontSize: 11, userSelect: 'text' }}
       >
@@ -3557,6 +3632,8 @@ function DiffLines({
           if (hunkIndex !== undefined && collapsedHunks.has(hunkIndex)) return null
           const left = type === 'addition' ? '' : line
           const right = type === 'deletion' ? '' : line
+          const leftFocusId = left ? `split:${i}:old` : undefined
+          const rightFocusId = right ? `split:${i}:new` : undefined
           const conflictHelper = mergeConflictHelperForLine(line, metadata, i)
           const searchLineState = diffSearchState.byLine.get(i)
           return (
@@ -3573,7 +3650,10 @@ function DiffLines({
                 lineNumber={left ? metadata?.oldLine : undefined}
                 lineNumberSide="old"
                 selectedLine={selectedLine}
+                focusId={leftFocusId}
+                focusable={isFocusableDiffLine(leftFocusId)}
                 onSelectLine={selectLine}
+                onNavigateLine={navigateDiffLine}
                 comments={left ? commentsForLine('old', metadata?.oldLine) : []}
                 onAddComment={addComment}
                 onUpdateComment={updateComment}
@@ -3595,7 +3675,10 @@ function DiffLines({
                 lineNumber={right ? metadata?.newLine : undefined}
                 lineNumberSide="new"
                 selectedLine={selectedLine}
+                focusId={rightFocusId}
+                focusable={isFocusableDiffLine(rightFocusId)}
                 onSelectLine={selectLine}
+                onNavigateLine={navigateDiffLine}
                 comments={right ? commentsForLine('new', metadata?.newLine) : []}
                 onAddComment={addComment}
                 onUpdateComment={updateComment}
@@ -3646,6 +3729,7 @@ function DiffLines({
       data-review-large-diff-changed-bytes={renderWindow.changedBytes}
       data-review-large-diff-max-line-bytes={renderWindow.maxChangedLineBytes}
       data-review-large-diff-expanded={largeDiffExpanded ? 'true' : 'false'}
+      data-review-diff-keyboard-navigation="roving"
       data-review-merge-conflict-count={conflictBlocks.length}
       style={{ fontSize: 11, userSelect: 'text' }}
     >
@@ -3695,6 +3779,11 @@ function DiffLines({
           )
         }
         if (hunkIndex !== undefined && collapsedHunks.has(hunkIndex)) return null
+        const lineFocusId = metadata?.newLine !== undefined
+          ? `unified:${i}:new`
+          : metadata?.oldLine !== undefined
+            ? `unified:${i}:old`
+            : undefined
         const conflictHelper = mergeConflictHelperForLine(line, metadata, i)
         const searchLineState = diffSearchState.byLine.get(i)
         return (
@@ -3706,7 +3795,10 @@ function DiffLines({
             lineNumber={metadata?.newLine ?? metadata?.oldLine}
             lineNumberSide={metadata?.newLine !== undefined ? 'new' : metadata?.oldLine !== undefined ? 'old' : undefined}
             selectedLine={selectedLine}
+            focusId={lineFocusId}
+            focusable={isFocusableDiffLine(lineFocusId)}
             onSelectLine={selectLine}
+            onNavigateLine={navigateDiffLine}
             comments={commentsForLine(
               metadata?.newLine !== undefined ? 'new' : metadata?.oldLine !== undefined ? 'old' : undefined,
               metadata?.newLine ?? metadata?.oldLine
@@ -3991,7 +4083,10 @@ function DiffLineCell({
   lineNumber,
   lineNumberSide,
   selectedLine,
+  focusId,
+  focusable,
   onSelectLine,
+  onNavigateLine,
   comments,
   onAddComment,
   onUpdateComment,
@@ -4013,7 +4108,10 @@ function DiffLineCell({
   lineNumber?: number
   lineNumberSide?: 'old' | 'new'
   selectedLine: SelectedDiffLine | null
-  onSelectLine: (line: SelectedDiffLine | null) => void
+  focusId?: string
+  focusable: boolean
+  onSelectLine: (line: SelectedDiffLine | null, focusId?: string) => void
+  onNavigateLine: (line: SelectedDiffLine | null, focusId: string | undefined, key: string) => void
   comments: ReviewDiffComment[]
   onAddComment: (line: SelectedDiffLine | null) => void
   onUpdateComment: (id: string, body: string) => void
@@ -4050,21 +4148,30 @@ function DiffLineCell({
   const displayValue = displayDiffLineValue(value, type)
   const gutterLineType = diffGutterLineType(type)
   const handleSelect = (): void => {
-    onSelectLine(lineKey)
+    onSelectLine(lineKey, focusId)
   }
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>): void => {
+    if (['ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) {
+      event.preventDefault()
+      onNavigateLine(lineKey, focusId, event.key)
+      return
+    }
     if (event.key !== 'Enter' && event.key !== ' ') return
     event.preventDefault()
     handleSelect()
   }
+  const reviewDiffLineKey = lineKey !== null ? `${lineKey.side}:${lineKey.lineNumber}` : undefined
   return (
     <div
       className={side ? `review-diff-line-cell review-split-diff-cell review-split-diff-cell-${side}` : 'review-diff-line-cell'}
       data-line-type={type}
       data-line-number={lineNumber}
       data-line-number-side={lineNumberSide}
+      data-review-diff-line-key={reviewDiffLineKey}
+      data-review-diff-focus-id={focusId}
       data-review-diff-indicators="bars"
       data-review-diff-gutter-line-type={gutterLineType}
+      data-review-line-focusable={focusable ? 'true' : undefined}
       data-review-selected-line={isSelected ? 'true' : undefined}
       data-review-search-line-match={isSearchMatch ? 'true' : undefined}
       data-review-search-line-match-count={searchMatch?.matchCount}
@@ -4074,7 +4181,7 @@ function DiffLineCell({
       data-review-line-comment-count={comments.length}
       data-review-line-has-comment={comments.length > 0 ? 'true' : undefined}
       aria-selected={isSelected ? 'true' : undefined}
-      tabIndex={lineKey !== null ? 0 : undefined}
+      tabIndex={focusable ? 0 : lineKey !== null ? -1 : undefined}
       role={lineKey !== null ? 'button' : undefined}
       onClick={lineKey !== null ? handleSelect : undefined}
       onKeyDown={lineKey !== null ? handleKeyDown : undefined}

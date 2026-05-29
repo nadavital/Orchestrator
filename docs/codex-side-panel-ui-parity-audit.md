@@ -10174,3 +10174,13 @@ Implemented: `TextSourcePreview` now uses a roving source-line focus model. The 
 Verification: `pnpm run smoke:ui:changed` ran the targeted static plan (`git diff --check`, `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and `node -c scripts/suggest-ui-smoke-targets.mjs`) before hitting the known sandbox `listen EPERM 127.0.0.1` boundary on Electron. Elevated `node scripts/run-automated-ui-smoke.mjs --files` passed with `fileSourceLineKeyboardNavigation=true`; evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1780057501697.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1780057501697.png`.
 
 Remaining: this closes local source-preview line traversal only. Review diff-line traversal, exact live Codex focus timing, and provider-backed source metadata remain separate Phase 1 work.
+
+### 2026-05-29 - Review Diff-Line Keyboard Navigation
+
+Product evidence: after Files/Review tree traversal and source-line traversal landed, Review diff bodies still made each selectable diff line independently tabbable and only had pointer-first line movement. That kept line review work less consistent than the file/source panels during keyboard-only coding workflows.
+
+Implemented: `DiffLines` now uses a roving diff-line focus model. The selected rendered line, or the first visible diff line when nothing is selected, is the single active line stop. ArrowUp/ArrowDown move relative to the rendered diff-line focus id, Home jumps to the first visible line, and line selection remains synced with the selected-line toolbar/composer handoff. The focused Review smoke now gates this under `reviewDiffLineKeyboardNavigation=true` inside `--diff-core`.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `node -c scripts/suggest-ui-smoke-targets.mjs`, `git diff --check`, `pnpm run smoke:ui:suggest`, and elevated `node scripts/run-automated-ui-smoke.mjs --diff-core` passed. Review evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-core-1780058751265.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-core-1780058751265.png`.
+
+Remaining: this closes local Review diff-line traversal only. Exact live Codex focus timing, provider-backed comments/blame/source metadata, and broader hosted Review checkpoint behavior remain separate Phase 1 work.

@@ -12312,6 +12312,97 @@ function runAutomatedFocusedSurfaceSmoke(
                   await sleep(160);
                 }
                 const selectedUnifiedLine = activeReviewSectionForLine?.querySelector('[data-testid="review-unified-diff"] [data-review-selected-line="true"]');
+                let reviewDiffLineKeyboardNavigationWorks = false;
+                let reviewDiffLineKeyboardNavigationDebug = {};
+                if (selectedUnifiedLine instanceof HTMLElement) {
+                  const diffKeyboardRoot = selectedUnifiedLine.closest('[data-testid="review-unified-diff"]');
+                  const selectedLineKeyBefore = selectedUnifiedLine.getAttribute('data-review-diff-line-key') ?? '';
+                  const selectedLineTabIndexBefore = selectedUnifiedLine.getAttribute('tabindex') ?? '';
+                  const focusableLinesBefore = [...(diffKeyboardRoot?.querySelectorAll('[data-review-line-focusable="true"]') ?? [])]
+                    .filter((line) => line instanceof HTMLElement);
+                  selectedUnifiedLine.focus({ preventScroll: true });
+                  selectedUnifiedLine.dispatchEvent(new KeyboardEvent('keydown', {
+                    key: 'ArrowDown',
+                    code: 'ArrowDown',
+                    bubbles: true,
+                    cancelable: true
+                  }));
+                  await sleep(260);
+                  const focusedLineAfterArrow = document.activeElement instanceof HTMLElement
+                    ? document.activeElement.closest('.review-diff-line-cell')
+                    : null;
+                  const selectedLineAfterArrow = diffKeyboardRoot?.querySelector('[data-review-selected-line="true"]');
+                  const focusableLinesAfterArrow = [...(diffKeyboardRoot?.querySelectorAll('[data-review-line-focusable="true"]') ?? [])]
+                    .filter((line) => line instanceof HTMLElement);
+                  const focusedLineKeyAfterArrow = focusedLineAfterArrow instanceof HTMLElement
+                    ? focusedLineAfterArrow.getAttribute('data-review-diff-line-key') ?? ''
+                    : '';
+                  const focusedLineFocusIdAfterArrow = focusedLineAfterArrow instanceof HTMLElement
+                    ? focusedLineAfterArrow.getAttribute('data-review-diff-focus-id') ?? ''
+                    : '';
+                  if (focusedLineAfterArrow instanceof HTMLElement) {
+                    focusedLineAfterArrow.dispatchEvent(new KeyboardEvent('keydown', {
+                      key: 'Home',
+                      code: 'Home',
+                      bubbles: true,
+                      cancelable: true
+                    }));
+                    await sleep(160);
+                  }
+                  const focusedLineAfterHome = document.activeElement instanceof HTMLElement
+                    ? document.activeElement.closest('.review-diff-line-cell')
+                    : null;
+                  const selectedLineAfterHome = diffKeyboardRoot?.querySelector('[data-review-selected-line="true"]');
+                  const firstDiffLineKey = diffKeyboardRoot?.querySelector('.review-diff-line-cell[data-review-diff-line-key]')?.getAttribute('data-review-diff-line-key') ?? '';
+                  const focusableLinesAfterHome = [...(diffKeyboardRoot?.querySelectorAll('[data-review-line-focusable="true"]') ?? [])]
+                    .filter((line) => line instanceof HTMLElement);
+                  const selectedLineKeyAfterArrow = selectedLineAfterArrow instanceof HTMLElement ? selectedLineAfterArrow.getAttribute('data-review-diff-line-key') ?? '' : '';
+                  const focusableLineFocusIdAfterArrow = focusableLinesAfterArrow[0] instanceof HTMLElement ? focusableLinesAfterArrow[0].getAttribute('data-review-diff-focus-id') ?? '' : '';
+                  const focusedLineKeyAfterHome = focusedLineAfterHome instanceof HTMLElement ? focusedLineAfterHome.getAttribute('data-review-diff-line-key') ?? '' : '';
+                  const selectedLineKeyAfterHome = selectedLineAfterHome instanceof HTMLElement ? selectedLineAfterHome.getAttribute('data-review-diff-line-key') ?? '' : '';
+                  reviewDiffLineKeyboardNavigationDebug = {
+                    rootContract: diffKeyboardRoot instanceof HTMLElement ? diffKeyboardRoot.getAttribute('data-review-diff-keyboard-navigation') : null,
+                    selectedLineKeyBefore,
+                    selectedLineTabIndexBefore,
+                    focusableBefore: focusableLinesBefore.length,
+                    focusedLineKeyAfterArrow,
+                    focusedLineFocusIdAfterArrow,
+                    focusedLineTabIndexAfterArrow: focusedLineAfterArrow instanceof HTMLElement ? focusedLineAfterArrow.getAttribute('tabindex') : null,
+                    focusedLineFocusableAfterArrow: focusedLineAfterArrow instanceof HTMLElement ? focusedLineAfterArrow.getAttribute('data-review-line-focusable') : null,
+                    selectedLineKeyAfterArrow,
+                    focusableLineKeyAfterArrow: focusableLinesAfterArrow[0] instanceof HTMLElement ? focusableLinesAfterArrow[0].getAttribute('data-review-diff-line-key') : null,
+                    focusableLineFocusIdAfterArrow,
+                    focusableLineTabIndexAfterArrow: focusableLinesAfterArrow[0] instanceof HTMLElement ? focusableLinesAfterArrow[0].getAttribute('tabindex') : null,
+                    focusableLineTabIndexPropertyAfterArrow: focusableLinesAfterArrow[0] instanceof HTMLElement ? focusableLinesAfterArrow[0].tabIndex : null,
+                    focusableAfterArrow: focusableLinesAfterArrow.length,
+                    firstDiffLineKey,
+                    focusedLineKeyAfterHome,
+                    focusedLineTabIndexAfterHome: focusedLineAfterHome instanceof HTMLElement ? focusedLineAfterHome.getAttribute('tabindex') : null,
+                    selectedLineKeyAfterHome,
+                    focusableAfterHome: focusableLinesAfterHome.length
+                  };
+                  reviewDiffLineKeyboardNavigationWorks =
+                    diffKeyboardRoot instanceof HTMLElement &&
+                    diffKeyboardRoot.getAttribute('data-review-diff-keyboard-navigation') === 'roving' &&
+                    selectedLineKeyBefore.length > 0 &&
+                    focusableLinesBefore.length === 1 &&
+                    selectedLineTabIndexBefore === '0' &&
+                    focusableLinesAfterArrow.length === 1 &&
+                    focusedLineKeyAfterArrow.length > 0 &&
+                    focusedLineKeyAfterArrow !== selectedLineKeyBefore &&
+                    selectedLineKeyAfterArrow === focusedLineKeyAfterArrow &&
+                    focusedLineFocusIdAfterArrow.length > 0 &&
+                    focusedLineFocusIdAfterArrow === focusableLineFocusIdAfterArrow &&
+                    focusableLinesAfterHome.length === 1 &&
+                    firstDiffLineKey.length > 0 &&
+                    focusedLineKeyAfterHome === firstDiffLineKey &&
+                    selectedLineKeyAfterHome === firstDiffLineKey;
+                  if (selectedLineAfterHome instanceof HTMLElement &&
+                    selectedLineAfterHome.getAttribute('data-review-diff-line-key') !== selectedLineKeyBefore) {
+                    selectedUnifiedLine.click();
+                    await sleep(160);
+                  }
+                }
                 const reviewDiffGutterUtilityButton = document.querySelector('[data-testid="review-unified-diff"] .review-diff-line-cell [data-gutter-utility-slot] [data-utility-button]');
                 const reviewDiffGutterUtilitySlot = reviewDiffGutterUtilityButton instanceof HTMLElement
                   ? reviewDiffGutterUtilityButton.closest('[data-gutter-utility-slot]')
@@ -12761,6 +12852,8 @@ function runAutomatedFocusedSurfaceSmoke(
                   reviewToolbarFileNavigationWorks,
                   diffLineNumbersWork,
                   diffLineSelectionWorks,
+                  reviewDiffLineKeyboardNavigationWorks,
+                  reviewDiffLineKeyboardNavigationDebug,
                   reviewDiffLineComposerHandoffWorks,
                   reviewDiffLineComposerHandoffDebug,
                   reviewRowKeyboardContextMenuWorks,
