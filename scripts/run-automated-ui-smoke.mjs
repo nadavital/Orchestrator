@@ -2427,9 +2427,10 @@ child.on('exit', async (code) => {
           rightPanelShellOwnership: result.rightPanelShellOwnershipWorks === true,
           workbenchLauncherDiscovery: result.workbenchLauncherDiscoveryWorks === true,
           workbenchLauncherEnvironmentAction: result.workbenchLauncherEnvironmentActionWorks === true,
+          workbenchLauncherPlanAction: result.workbenchLauncherPlanActionWorks === true,
           workbenchLauncherExtensionsAction: result.workbenchLauncherExtensionsActionWorks === true,
           workbenchLauncherOpenState: result.workbenchLauncherOpenStateWorks === true,
-          workbenchLauncherCards: Number(result.workbenchLauncherActionCount ?? 0) >= 9,
+          workbenchLauncherCards: Number(result.workbenchLauncherActionCount ?? 0) >= 10,
           workbenchLauncherNoHorizontalOverflow: result.workbenchLauncherNoHorizontalOverflow === true
         }
     : captureView === 'workbench-new-tab'

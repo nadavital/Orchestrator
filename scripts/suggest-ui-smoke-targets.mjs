@@ -47,13 +47,19 @@ const diffRules = [
     flag: '--terminal',
     label: 'Terminal',
     filePatterns: [/^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
-    diffPatterns: [/terminal/i, /bottomPanel/, /bottom-panel/]
+    diffPatterns: [/Terminal/, /terminal[A-Z]/, /bottomPanel/, /bottom-panel/]
   },
   {
     flag: '--right-panel',
     label: 'Right Workbench shell',
     filePatterns: [/^src\/renderer\/src\/components\/Session\/ContextSidebar\.tsx$/],
     diffPatterns: [/tabMenu/, /context-menu/, /workbench-tab-context-menu/, /panel-tab-transfer/, /resolvePanelTabTransferAvailability/]
+  },
+  {
+    flag: '--workbench-launcher',
+    label: 'Workbench launcher',
+    filePatterns: [/^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
+    diffPatterns: [/workbenchLauncher/, /workbench-launcher/, /Workbench launcher/]
   }
 ]
 

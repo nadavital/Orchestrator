@@ -8803,6 +8803,26 @@ function runAutomatedFocusedSurfaceSmoke(
                 rightPanelChromeRectForSeam.height >= 30 &&
                 rightPanelChromeRectForSeam.height <= 44;
               if (smokeView === 'workbench-launcher') {
+                const activeSmokeSessionForLauncher = (await window.api.sessions.list())[0];
+                if (
+                  activeSmokeSessionForLauncher &&
+                  typeof window.__orchestratorAppendSessionEventsForSmoke === 'function'
+                ) {
+                  window.__orchestratorAppendSessionEventsForSmoke(activeSmokeSessionForLauncher.id, [{
+                    id: 'workbench-launcher-plan-smoke',
+                    timestamp: Date.now(),
+                    event: {
+                      type: 'goal.updated',
+                      goal: {
+                        providerId: 'codex',
+                        sessionId: activeSmokeSessionForLauncher.id,
+                        objective: 'Expose Plan from the Workbench launcher.',
+                        status: 'active'
+                      }
+                    }
+                  }]);
+                  await sleep(180);
+                }
                 const openLauncher = async () => {
                   const activeTab = document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-active-tab') ?? '';
                   if (activeTab !== 'new-tab') {
@@ -8823,7 +8843,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 const launcherCardIds = launcher.cards
                   .map((card) => card.getAttribute('data-workbench-new-tab-action'))
                   .filter(Boolean);
-                const requiredLauncherIds = ['files', 'environment', 'side-chat', 'browser', 'git', 'review', 'agents', 'extensions', 'terminal'];
+                const requiredLauncherIds = ['files', 'environment', 'plan', 'side-chat', 'browser', 'git', 'review', 'agents', 'extensions', 'terminal'];
                 const launcherDiscoveryWorks =
                   launcher.panel instanceof HTMLElement &&
                   launcher.grid instanceof HTMLElement &&
@@ -8857,9 +8877,11 @@ function runAutomatedFocusedSurfaceSmoke(
                   return false;
                 };
                 const workbenchLauncherEnvironmentActionWorks = await activateLauncherAction('environment', 'environment', '[data-testid="codex-environment-panel"]');
+                const workbenchLauncherPlanActionWorks = await activateLauncherAction('plan', 'plan', '[data-testid="plan-panel"]');
                 const workbenchLauncherExtensionsActionWorks = await activateLauncherAction('extensions', 'extensions', '[role="tabpanel"][data-tab-id="extensions"]');
                 const finalLauncher = await openLauncher();
                 const finalEnvironmentAction = document.querySelector('[data-testid="workbench-new-tab-action-environment"]');
+                const finalPlanAction = document.querySelector('[data-testid="workbench-new-tab-action-plan"]');
                 const finalExtensionsAction = document.querySelector('[data-testid="workbench-new-tab-action-extensions"]');
                 const finalRightPanel = document.querySelector('[data-testid="session-right-panel"]');
                 return {
@@ -8870,6 +8892,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   rightPanelShellOwnershipWorks,
                   workbenchLauncherDiscoveryWorks: launcherDiscoveryWorks,
                   workbenchLauncherEnvironmentActionWorks,
+                  workbenchLauncherPlanActionWorks,
                   workbenchLauncherExtensionsActionWorks,
                   workbenchLauncherOpenStateWorks:
                     finalLauncher.panel instanceof HTMLElement &&
@@ -8878,6 +8901,9 @@ function runAutomatedFocusedSurfaceSmoke(
                     finalEnvironmentAction instanceof HTMLElement &&
                     finalEnvironmentAction.getAttribute('data-workbench-new-tab-action-state') === 'open' &&
                     finalEnvironmentAction.textContent?.includes('Open') === true &&
+                    finalPlanAction instanceof HTMLElement &&
+                    finalPlanAction.getAttribute('data-workbench-new-tab-action-state') === 'open' &&
+                    finalPlanAction.textContent?.includes('Open') === true &&
                     finalExtensionsAction instanceof HTMLElement &&
                     finalExtensionsAction.getAttribute('data-workbench-new-tab-action-state') === 'open' &&
                     finalExtensionsAction.textContent?.includes('Open') === true,

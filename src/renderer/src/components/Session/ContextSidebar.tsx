@@ -117,6 +117,7 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
   const hasFilesTab = rightPanel?.tabs.some((tab) => tab.id === 'files') ?? false
   const hasBrowserTab = rightPanel?.tabs.some((tab) => tab.id === 'browser') ?? false
   const hasNewTab = rightPanel?.tabs.some((tab) => tab.id === 'new-tab') ?? false
+  const hasPlanTab = rightPanel?.tabs.some((tab) => tab.id === 'plan') ?? false
   const hasBottomPanelPlanTab = ui?.terminalPanel?.tabs.includes('plan') ?? false
   const sideChatTabs = (rightPanel?.tabs ?? [])
     .filter((tab) => tab.kind === 'sidechat')
@@ -334,6 +335,9 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
       tabId
     })
   }
+  const openPlanTab = (): void => {
+    setShowPlan(session.id, true)
+  }
   const showWorkbenchAddTabButton = effectiveTab !== 'new-tab'
   const newTabActions: WorkbenchNewTabAction[] = [
     {
@@ -352,6 +356,14 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
       state: hasEnvironmentTab ? 'open' : 'new',
       onSelect: () => openToolTab('environment')
     },
+    ...(hasPlan && !hasBottomPanelPlanTab ? [{
+      id: 'plan',
+      title: 'Plan',
+      description: ui?.showPlan || hasPlanTab ? 'Switch to open Plan tab' : 'View goal and task state',
+      icon: 'plan' as const,
+      state: ui?.showPlan || hasPlanTab ? 'open' as const : 'new' as const,
+      onSelect: openPlanTab
+    }] : []),
     {
       id: 'side-chat',
       title: 'Side chat',
