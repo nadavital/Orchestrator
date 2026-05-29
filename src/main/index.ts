@@ -5799,12 +5799,15 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             var sideChatDraftPersistenceWorks = false;
             var sideChatComposerCompactWorks = false;
             var sideChatMultilineDraftWorks = false;
+            var sideChatInputFocusOnOpenWorks = false;
             if (sideChatTabs.length >= 2) {
               const firstSideTab = sideChatTabs[0];
               const secondSideTab = sideChatTabs[1];
               secondSideTab.click();
               await sleep(80);
               let sideInput = document.querySelector('[data-testid="side-chat-input"]');
+              const secondInputFocusedOnOpen = sideInput instanceof HTMLTextAreaElement &&
+                document.activeElement === sideInput;
               if (sideInput instanceof HTMLTextAreaElement) {
                 setNativeValue(sideInput, 'draft for second side chat');
                 sideInput.dispatchEvent(new Event('input', { bubbles: true }));
@@ -5813,6 +5816,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               firstSideTab.click();
               await sleep(80);
               sideInput = document.querySelector('[data-testid="side-chat-input"]');
+              const firstInputFocusedOnOpen = sideInput instanceof HTMLTextAreaElement &&
+                document.activeElement === sideInput;
               if (sideInput instanceof HTMLTextAreaElement) {
                 setNativeValue(sideInput, 'draft for first side chat\\nwith more context');
                 sideInput.dispatchEvent(new Event('input', { bubbles: true }));
@@ -5834,6 +5839,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 firstDraftRestored &&
                 document.querySelector('[data-testid="side-chat-panel"]')?.getAttribute('data-side-chat-message-count') === '0';
               sideChatMultilineDraftWorks = firstDraftRestored;
+              sideChatInputFocusOnOpenWorks = secondInputFocusedOnOpen && firstInputFocusedOnOpen;
               sideChatComposerCompactWorks =
                 sideChatComposer instanceof HTMLElement &&
                 sideChatSend instanceof HTMLElement &&
@@ -8158,6 +8164,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             agentRuntimeEventCopyWorks: typeof agentRuntimeEventCopyWorks === 'boolean' ? agentRuntimeEventCopyWorks : null,
             agentRuntimeFailureGroupAddToChatWorks: typeof agentRuntimeFailureGroupAddToChatWorks === 'boolean' ? agentRuntimeFailureGroupAddToChatWorks : null,
             sideChatTabsWork: typeof sideChatTabsWork === 'boolean' ? sideChatTabsWork : null,
+            sideChatInputFocusOnOpenWorks: typeof sideChatInputFocusOnOpenWorks === 'boolean' ? sideChatInputFocusOnOpenWorks : null,
             sideChatComposerCompactWorks: typeof sideChatComposerCompactWorks === 'boolean' ? sideChatComposerCompactWorks : null,
             sideChatDraftPersistenceWorks: typeof sideChatDraftPersistenceWorks === 'boolean' ? sideChatDraftPersistenceWorks : null,
             sideChatMultilineDraftWorks: typeof sideChatMultilineDraftWorks === 'boolean' ? sideChatMultilineDraftWorks : null,
@@ -19430,18 +19437,23 @@ function runAutomatedFocusedSurfaceSmoke(
               let sideChatDraftPersistenceWorks = false;
               let sideChatComposerCompactWorks = false;
               let sideChatMultilineDraftWorks = false;
+              let sideChatInputFocusOnOpenWorks = false;
               if (sideChatTabs.length >= 2) {
                 const firstTab = sideChatTabs[0];
                 const secondTab = sideChatTabs[1];
                 secondTab.click();
                 await sleep(80);
                 let sideInput = document.querySelector('[data-testid="side-chat-input"]');
+                const secondInputFocusedOnOpen = sideInput instanceof HTMLTextAreaElement &&
+                  document.activeElement === sideInput;
                 if (sideInput instanceof HTMLTextAreaElement) {
                   await fillSideChatInput(sideInput, 'draft for second side chat');
                 }
                 firstTab.click();
                 await sleep(80);
                 sideInput = document.querySelector('[data-testid="side-chat-input"]');
+                const firstInputFocusedOnOpen = sideInput instanceof HTMLTextAreaElement &&
+                  document.activeElement === sideInput;
                 if (sideInput instanceof HTMLTextAreaElement) {
                   await fillSideChatInput(sideInput, 'draft for first side chat\\nwith more context');
                 }
@@ -19461,6 +19473,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   secondDraftRestored &&
                   firstDraftRestored;
                 sideChatMultilineDraftWorks = firstDraftRestored;
+                sideChatInputFocusOnOpenWorks = secondInputFocusedOnOpen && firstInputFocusedOnOpen;
                 sideChatComposerCompactWorks =
                   composer instanceof HTMLElement &&
                   send instanceof HTMLElement &&
@@ -19618,6 +19631,7 @@ function runAutomatedFocusedSurfaceSmoke(
               return {
                 profile,
                 sideChatTabsWork,
+                sideChatInputFocusOnOpenWorks,
                 sideChatComposerCompactWorks,
                 sideChatDraftPersistenceWorks,
                 sideChatMultilineDraftWorks,

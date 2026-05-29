@@ -11,7 +11,7 @@ const targetRules = [
   { flag: '--transcript-layout', label: 'Transcript', patterns: [/^src\/renderer\/src\/components\/Session\/(Transcript|ChatView|ChatMessage|MessageActions)/, /^src\/renderer\/src\/components\/Session\/Tool/, /^src\/renderer\/src\/stores\/.*message/i] },
   { flag: '--transcript-file-reference', label: 'Transcript file references', patterns: [/^src\/renderer\/src\/components\/Session\/FileReference/, /^src\/renderer\/src\/components\/Session\/.*Reference/] },
   { flag: '--transcript-permission', label: 'Transcript permissions', patterns: [/^src\/renderer\/src\/components\/Session\/.*Permission/, /^src\/main\/.*permission/i, /^src\/main\/providers\/.*permission/i] },
-  { flag: '--side-chat', label: 'Side chat', patterns: [/^src\/renderer\/src\/components\/Session\/SideChat/] },
+  { flag: '--side-chat', label: 'Side chat', patterns: [/^src\/renderer\/src\/components\/Session\/(SideChat|SideQuestion)/] },
   { flag: '--right-panel', label: 'Right Workbench shell', patterns: [/^src\/renderer\/src\/components\/Session\/(WorkbenchPanel|RightPanel|ContextSidebar)/, /^src\/renderer\/src\/components\/Session\/.*Workbench/, /^src\/renderer\/src\/components\/ui\/ToolbarButton/] },
   { flag: '--workbench-launcher', label: 'Workbench launcher', patterns: [/^src\/renderer\/src\/components\/Session\/ContextSidebar/, /^src\/renderer\/src\/components\/Session\/WorkbenchNewTab/] },
   { flag: '--workbench-new-tab', label: 'Workbench New Tab full workflow', patterns: [/^src\/renderer\/src\/components\/Session\/(WorkbenchNewTab|GitPanel|AgentsPanel|EnvironmentPanel)/, /^src\/main\/git/] },

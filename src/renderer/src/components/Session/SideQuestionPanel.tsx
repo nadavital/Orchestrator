@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Session } from '../../types'
 import type { SideChatContextSnapshot } from '../../store/sessions'
 import { sideChatContextSnapshot, useSessionStore } from '../../store/sessions'
@@ -19,6 +19,7 @@ export default function SideQuestionPanel({ session, chatId, embedded }: Props):
   const { uiState, appendSideQuestion, updateSideQuestion, appendSideChatMessage, updateSideChatMessage, setSideChatDraft } = useSessionStore()
   const [legacyQuestion, setLegacyQuestion] = useState('')
   const [actionStatus, setActionStatus] = useState<SideChatActionStatus | null>(null)
+  const inputRef = useRef<HTMLTextAreaElement | null>(null)
   const ui = uiState[session.id]
   const sideChat = chatId ? ui?.sideChats?.find((chat) => chat.id === chatId) : null
   const messages = sideChat?.messages ?? ui?.sideQuestions ?? []
@@ -27,6 +28,11 @@ export default function SideQuestionPanel({ session, chatId, embedded }: Props):
   const question = chatId ? sideChat?.draft ?? '' : legacyQuestion
   const context = chatId ? sideChat?.context ?? sideChatContextSnapshot(session, 'restored') : null
   const visibleActionStatus = sideChatVisibleActionStatus(messages, actionStatus)
+
+  useEffect(() => {
+    if (pending) return
+    inputRef.current?.focus({ preventScroll: true })
+  }, [chatId, pending])
 
   const setQuestion = (value: string): void => {
     if (chatId) setSideChatDraft(session.id, chatId, value)
@@ -218,6 +224,7 @@ export default function SideQuestionPanel({ session, chatId, embedded }: Props):
         }}
       >
         <textarea
+          ref={inputRef}
           data-testid={chatId ? 'side-chat-input' : 'side-question-input'}
           value={question}
           onChange={(event) => setQuestion(event.target.value)}

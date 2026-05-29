@@ -2661,6 +2661,7 @@ child.on('exit', async (code) => {
       ? {
           isolatedProfile: result.profile?.isIsolated === true,
           sideChatTabs: result.sideChatTabsWork === true,
+          sideChatInputFocusOnOpen: result.sideChatInputFocusOnOpenWorks === true,
           sideChatComposerCompact: result.sideChatComposerCompactWorks === true,
           sideChatDraftPersistence: result.sideChatDraftPersistenceWorks === true,
           sideChatMultilineDraft: result.sideChatMultilineDraftWorks === true,
@@ -2967,6 +2968,7 @@ child.on('exit', async (code) => {
         planAgentTabShimmer: captureView !== 'plan' || result.planAgentTabShimmerWorks === true,
         planAgentStatLabelsCalm: captureView !== 'plan' || result.planAgentStatLabelsCalm === true,
         sideChatTabs: captureView !== 'inspector' || result.sideChatTabsWork === true,
+        sideChatInputFocusOnOpen: captureView !== 'inspector' || result.sideChatInputFocusOnOpenWorks === true,
         sideChatComposerCompact: captureView !== 'inspector' || result.sideChatComposerCompactWorks === true,
         sideChatDraftPersistence: captureView !== 'inspector' || result.sideChatDraftPersistenceWorks === true,
         sideChatMultilineDraft: captureView !== 'inspector' || result.sideChatMultilineDraftWorks === true,

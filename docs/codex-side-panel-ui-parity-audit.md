@@ -10244,3 +10244,13 @@ Implemented: Codex sidebar metadata refresh now clears stale results, shows an i
 Verification: `pnpm run smoke:ui:changed:static` passed the generated static plan (`git diff --check` and `pnpm exec tsc --noEmit`). Elevated `pnpm run smoke:ui:changed:smoke` ran only `node scripts/run-automated-ui-smoke.mjs --settings-providers` and `node scripts/run-automated-ui-smoke.mjs --design-system`; both passed. Provider Settings evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-providers-1780060867130.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-providers-1780060867130.png`. Design-system evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-design-system-1780060879869.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-design-system-1780060879869.png`.
 
 Remaining: this closes local Provider Settings refresh feedback only. Provider-native account/runtime adapters, remote-host sync, and broader provider-backed sidebar reconciliation remain separate Phase 1 work.
+
+### 2026-05-29 - Side Chat Input Focus
+
+Product evidence: Side chat is a fast coding workflow for `/btw` follow-ups, but opening or switching a side-chat tab did not explicitly land focus in the side-chat composer. That made the workflow feel less direct than Codex-style panel actions, where opening a scoped input should leave the user ready to type.
+
+Implemented: `SideQuestionPanel` now focuses its textarea when a side chat mounts or switches, while avoiding focus theft during pending answers. The changed-files smoke planner now maps `SideQuestionPanel.tsx` to `--side-chat`, and the focused side-chat smoke gates tab-open/switch focus under `sideChatInputFocusOnOpen=true`.
+
+Verification: `pnpm run smoke:ui:changed:static` passed the generated static plan (`git diff --check`, `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and `node -c scripts/suggest-ui-smoke-targets.mjs`). Elevated `pnpm run smoke:ui:changed:smoke` ran only `node scripts/run-automated-ui-smoke.mjs --side-chat` and passed with `sideChatInputFocusOnOpen=true`. Side-chat evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-side-chat-1780061137238.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-side-chat-1780061137238.png`.
+
+Remaining: this closes local side-chat open/switch focus only. Richer provider-backed side-chat context and live non-Codex side-chat behavior remain separate Phase 1 work.
