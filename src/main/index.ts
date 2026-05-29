@@ -20970,6 +20970,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
             var browserCommentPreviewOriginalWorks = false;
             var browserCommentDesignTweakWorks = false;
             var browserCommentScreenshotContextWorks = false;
+            var browserCommentScreenshotAttachmentWorks = false;
             const browserContextViewportFrame = document.querySelector('[data-testid="browser-viewport-frame"]');
             if (browserContextViewportFrame instanceof HTMLElement) {
               const frameBounds = browserContextViewportFrame.getBoundingClientRect();
@@ -21198,6 +21199,18 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                     commentScreenshotPath.endsWith('.png') &&
                     composerAfterDesignTweak instanceof HTMLTextAreaElement &&
                     composerAfterDesignTweak.value.includes('Screenshot: ' + commentScreenshotPath);
+                  let commentScreenshotAttached = false;
+                  if (browserCommentScreenshotContextWorks) {
+                    for (let index = 0; index < 20; index += 1) {
+                      commentScreenshotAttached = [...document.querySelectorAll('.attachment-pill')]
+                        .some((attachment) => attachment.getAttribute('title') === commentScreenshotPath);
+                      if (commentScreenshotAttached) break;
+                      await sleep(80);
+                    }
+                  }
+                  browserCommentScreenshotAttachmentWorks =
+                    browserCommentScreenshotContextWorks &&
+                    commentScreenshotAttached;
                   if (browserCommentDesignTweakWorks && composerAfterDesignTweak instanceof HTMLTextAreaElement) {
                     const composerSetter = Object.getOwnPropertyDescriptor(composerAfterDesignTweak.constructor.prototype, 'value')?.set;
                     composerSetter?.call(composerAfterDesignTweak, composerBeforePreview);
@@ -22267,6 +22280,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserCommentPreviewOriginalWorks,
               browserCommentDesignTweakWorks,
               browserCommentScreenshotContextWorks,
+              browserCommentScreenshotAttachmentWorks,
               browserCommentUnavailableWorks,
               browserDomPaneCompactWorks,
               browserTargetsPaneWorks,

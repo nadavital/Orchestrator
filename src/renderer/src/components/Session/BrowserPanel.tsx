@@ -1139,6 +1139,9 @@ export default function BrowserPanel({
         : '',
       pendingComment.visibleStructure ? `\nVisible page structure:\n${pendingComment.visibleStructure}` : ''
     ].filter(Boolean)
+    if (artifactPath) {
+      addArtifactToChat(artifactPath)
+    }
     window.dispatchEvent(new CustomEvent('orchestrator:add-composer-text', {
       detail: { text: lines.join('\n') }
     }))
