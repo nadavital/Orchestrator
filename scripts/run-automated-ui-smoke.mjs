@@ -38,6 +38,8 @@ const captureView = process.argv.includes('--settings-deeplink')
         ? 'right-panel'
       : process.argv.includes('--workbench-perf')
         ? 'workbench-perf'
+      : process.argv.includes('--cross-panel-keyboard')
+        ? 'cross-panel-keyboard'
       : process.argv.includes('--diff-entry')
         ? 'diff-entry'
       : process.argv.includes('--diff-empty')
@@ -126,7 +128,7 @@ const profile = 'automated-ui-smoke'
 const userDataDir = join(tmpdir(), 'orchestrator-profiles', `${profile}-${captureView}`)
 const workspaceDir = join(tmpdir(), 'orchestrator-automated-ui-workspace')
 const isDiffCaptureView = captureView === 'diff' || captureView.startsWith('diff-')
-const fixtureWorkspaceViews = new Set(['inspector', 'right-panel', 'workbench-new-tab', 'environment', 'workbench-perf', 'diff', 'diff-entry', 'diff-empty', 'diff-loading', 'diff-conflict', 'diff-narrow', 'diff-core', 'diff-last-turn', 'diff-source', 'diff-preview', 'files', 'side-chat', 'browser'])
+const fixtureWorkspaceViews = new Set(['inspector', 'right-panel', 'workbench-new-tab', 'environment', 'workbench-perf', 'cross-panel-keyboard', 'diff', 'diff-entry', 'diff-empty', 'diff-loading', 'diff-conflict', 'diff-narrow', 'diff-core', 'diff-last-turn', 'diff-source', 'diff-preview', 'files', 'side-chat', 'browser'])
 const resetWorkspaceViews = new Set([...fixtureWorkspaceViews, 'sidebar', 'multi-window-focus', 'worktree-lifecycle'])
 const outputPath = join(tmpdir(), `orchestrator-automated-ui-smoke-${captureView}-${Date.now()}.json`)
 const screenshotPath = join(tmpdir(), `orchestrator-automated-ui-smoke-${captureView}-${Date.now()}.png`)
@@ -2487,6 +2489,17 @@ child.on('exit', async (code) => {
           workbenchFrameGapAcceptable: result.maxFrameGapMs !== null && result.maxFrameGapMs <= 80,
           workbenchNoHorizontalOverflow: result.workbenchNoHorizontalOverflow === true,
           workbenchCommitCountsBounded: result.workbenchCommitCount !== null && result.workbenchCommitCount <= 50
+        }
+    : captureView === 'cross-panel-keyboard'
+      ? {
+          isolatedProfile: result.profile?.isIsolated === true,
+          crossPanelKeyboardSessionActive: result.crossPanelKeyboardSessionActive === true,
+          crossPanelFocusAreasPresent: result.crossPanelFocusAreasPresent === true,
+          crossPanelRightFocusRoutesClose: result.crossPanelRightFocusRoutesClose === true,
+          crossPanelRightClosePreservesBottom: result.crossPanelRightClosePreservesBottom === true,
+          crossPanelBottomFocusRoutesClose: result.crossPanelBottomFocusRoutesClose === true,
+          crossPanelBottomClosePreservesRight: result.crossPanelBottomClosePreservesRight === true,
+          crossPanelKeyboardNoHorizontalOverflow: result.crossPanelKeyboardNoHorizontalOverflow === true
         }
     : isDiffCaptureView
       ? buildDiffChecks(result, captureView)

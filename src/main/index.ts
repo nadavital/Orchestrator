@@ -612,6 +612,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
     runAutomatedWorkbenchPerfSmoke(win, outputPath, screenshotPath)
     return
   }
+  if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'cross-panel-keyboard') {
+    runAutomatedCrossPanelKeyboardSmoke(win, outputPath, screenshotPath)
+    return
+  }
   if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'motion-reduced') {
     runAutomatedReducedMotionSmoke(win, outputPath, screenshotPath)
     return
@@ -26851,6 +26855,196 @@ function runAutomatedWorkbenchPerfSmoke(win: BrowserWindow, outputPath: string, 
           writeFileSync(screenshotPath, image.toPNG())
         }
         writeFileSync(outputPath, JSON.stringify({ ok: true, result: payload, screenshotPath }, null, 2))
+        app.quit()
+      } catch (error) {
+        writeFileSync(outputPath, JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2))
+        app.quit()
+      }
+    }, 700)
+  })
+}
+
+function runAutomatedCrossPanelKeyboardSmoke(win: BrowserWindow, outputPath: string, screenshotPath?: string): void {
+  win.webContents.once('did-finish-load', () => {
+    setTimeout(async () => {
+      try {
+        const result = await win.webContents.executeJavaScript(`
+          (async () => {
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            const buttonLabel = (button) =>
+              button.getAttribute('aria-label') ??
+              button.getAttribute('data-tooltip-label') ??
+              button.getAttribute('title') ??
+              button.textContent?.trim() ??
+              '';
+            const findButton = (label) =>
+              [...document.querySelectorAll('button')]
+                .find((button) => buttonLabel(button) === label);
+            const tabIds = (selector, attr) =>
+              (document.querySelector(selector)?.getAttribute(attr) ?? '')
+                .split(',')
+                .map((id) => id.trim())
+                .filter(Boolean);
+            const pressModKey = async (target, key, code) => {
+              target.focus?.({ preventScroll: true });
+              await sleep(60);
+              target.dispatchEvent(new KeyboardEvent('keydown', {
+                key,
+                code,
+                metaKey: true,
+                bubbles: true,
+                cancelable: true
+              }));
+              await sleep(260);
+            };
+            const openRightPanel = async () => {
+              const visiblePanel = document.querySelector('[data-testid="session-right-panel"]');
+              if (visiblePanel instanceof HTMLElement && visiblePanel.getBoundingClientRect().width > 120) return;
+              const sidebarButton = document.querySelector('[data-testid="titlebar-toggle-sidebar"]') ?? findButton('Toggle side panel');
+              if (sidebarButton instanceof HTMLElement) {
+                sidebarButton.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+              }
+              for (let index = 0; index < 30; index += 1) {
+                const panel = document.querySelector('[data-testid="session-right-panel"]');
+                if (panel instanceof HTMLElement && panel.getBoundingClientRect().width > 120) return;
+                await sleep(80);
+              }
+            };
+            const openPanelTab = async (tabId, label) => {
+              await openRightPanel();
+              const existingById = document.querySelector('[data-app-shell-tab-controller="right"][role="tab"][data-tab-id="' + tabId + '"]');
+              const existingByLabel = [...document.querySelectorAll('[data-app-shell-tab-controller="right"][role="tab"]')]
+                .find((tab) => tab.textContent?.trim().includes(label));
+              const existing = existingById ?? existingByLabel;
+              if (existing instanceof HTMLElement) {
+                existing.click();
+                await sleep(120);
+                return existing;
+              }
+              const directActionId = tabId === 'files' ? 'files' : tabId === 'browser' ? 'browser' : null;
+              const directNewTabAction = directActionId === null ? null : document.querySelector('[data-testid="workbench-new-tab-action-' + directActionId + '"]');
+              if (directNewTabAction instanceof HTMLElement && directNewTabAction.getAttribute('aria-disabled') !== 'true') {
+                directNewTabAction.click();
+                await sleep(220);
+                return document.querySelector('[data-app-shell-tab-controller="right"][role="tab"][data-tab-id="' + tabId + '"]');
+              }
+              const addButton = findButton('Add Workbench tab');
+              if (addButton instanceof HTMLElement) {
+                addButton.click();
+                await sleep(120);
+                const actionId = tabId === 'files' ? 'files' : tabId === 'browser' ? 'browser' : null;
+                const newTabAction = actionId === null ? null : document.querySelector('[data-testid="workbench-new-tab-action-' + actionId + '"]');
+                if (newTabAction instanceof HTMLElement && newTabAction.getAttribute('aria-disabled') !== 'true') {
+                  newTabAction.click();
+                } else {
+                  const menuItem = [...document.querySelectorAll('[role="menuitem"]')]
+                    .find((item) => item.textContent?.includes(label));
+                  if (menuItem instanceof HTMLElement) menuItem.click();
+                }
+                await sleep(220);
+              }
+              return document.querySelector('[data-app-shell-tab-controller="right"][role="tab"][data-tab-id="' + tabId + '"]');
+            };
+            const openBottomTerminal = async () => {
+              const panel = document.querySelector('[data-testid="session-bottom-panel"]');
+              if (panel instanceof HTMLElement) return;
+              const toggle = document.querySelector('[data-testid="titlebar-toggle-terminal"]') ?? findButton('Toggle terminal');
+              if (toggle instanceof HTMLElement) toggle.click();
+              for (let index = 0; index < 30; index += 1) {
+                if (document.querySelector('[data-testid="session-bottom-panel"]')) return;
+                await sleep(80);
+              }
+            };
+            const ensureBottomTerminalTabs = async (minimum) => {
+              await openBottomTerminal();
+              for (let index = 0; index < 4; index += 1) {
+                const count = tabIds('[data-testid="session-bottom-panel"]', 'data-bottom-panel-tabs').length;
+                if (count >= minimum) return;
+                const newTerminal = findButton('New terminal');
+                if (newTerminal instanceof HTMLElement) newTerminal.click();
+                await sleep(260);
+              }
+            };
+
+            await sleep(850);
+            await openPanelTab('files', 'Files');
+            await openPanelTab('browser', 'Browser');
+            await ensureBottomTerminalTabs(2);
+
+            const profile = await window.api.app.getProfile();
+            const rightPanelBefore = document.querySelector('[data-testid="session-right-panel"]');
+            const bottomPanelBefore = document.querySelector('[data-testid="session-bottom-panel"]');
+            const rightTabsBefore = tabIds('[data-testid="session-right-panel"]', 'data-right-panel-tabs');
+            const bottomTabsBefore = tabIds('[data-testid="session-bottom-panel"]', 'data-bottom-panel-tabs');
+            const browserTab = document.querySelector('[data-app-shell-tab-controller="right"][role="tab"][data-tab-id="browser"]');
+            if (browserTab instanceof HTMLElement) {
+              browserTab.click();
+              await sleep(120);
+              await pressModKey(browserTab, 'w', 'KeyW');
+            }
+            const rightPanelAfterRightClose = document.querySelector('[data-testid="session-right-panel"]');
+            const bottomPanelAfterRightClose = document.querySelector('[data-testid="session-bottom-panel"]');
+            const rightTabsAfterRightClose = tabIds('[data-testid="session-right-panel"]', 'data-right-panel-tabs');
+            const bottomTabsAfterRightClose = tabIds('[data-testid="session-bottom-panel"]', 'data-bottom-panel-tabs');
+
+            const activeBottomTab = document.querySelector('[data-testid="session-bottom-panel"] [role="tab"][data-active="true"]');
+            if (activeBottomTab instanceof HTMLElement) {
+              await pressModKey(activeBottomTab, 'w', 'KeyW');
+            }
+            const rightPanelAfterBottomClose = document.querySelector('[data-testid="session-right-panel"]');
+            const bottomPanelAfterBottomClose = document.querySelector('[data-testid="session-bottom-panel"]');
+            const rightTabsAfterBottomClose = tabIds('[data-testid="session-right-panel"]', 'data-right-panel-tabs');
+            const bottomTabsAfterBottomClose = tabIds('[data-testid="session-bottom-panel"]', 'data-bottom-panel-tabs');
+            const rightTabRow = document.querySelector('[data-testid="workbench-panel-tab-row"]');
+            const bottomTabRow = document.querySelector('[data-testid="terminal-panel-tab-row"]');
+
+            return {
+              profile,
+              crossPanelKeyboardSessionActive: document.querySelector('[data-testid="active-session-title"]') instanceof HTMLElement,
+              crossPanelFocusAreasPresent:
+                rightPanelBefore instanceof HTMLElement &&
+                bottomPanelBefore instanceof HTMLElement &&
+                rightPanelBefore.getAttribute('data-app-shell-focus-area') === 'right-panel' &&
+                bottomPanelBefore.getAttribute('data-app-shell-focus-area') === 'bottom-panel',
+              rightTabsBefore,
+              bottomTabsBefore,
+              rightTabsAfterRightClose,
+              bottomTabsAfterRightClose,
+              rightTabsAfterBottomClose,
+              bottomTabsAfterBottomClose,
+              crossPanelRightFocusRoutesClose:
+                browserTab instanceof HTMLElement &&
+                rightTabsBefore.includes('browser') &&
+                !rightTabsAfterRightClose.includes('browser') &&
+                rightTabsAfterRightClose.length === Math.max(0, rightTabsBefore.length - 1) &&
+                rightPanelAfterRightClose instanceof HTMLElement,
+              crossPanelRightClosePreservesBottom:
+                bottomPanelAfterRightClose instanceof HTMLElement &&
+                bottomTabsAfterRightClose.join(',') === bottomTabsBefore.join(','),
+              crossPanelBottomFocusRoutesClose:
+                activeBottomTab instanceof HTMLElement &&
+                bottomTabsBefore.length >= 2 &&
+                bottomTabsAfterBottomClose.length === bottomTabsAfterRightClose.length - 1 &&
+                bottomPanelAfterBottomClose instanceof HTMLElement,
+              crossPanelBottomClosePreservesRight:
+                rightPanelAfterBottomClose instanceof HTMLElement &&
+                rightTabsAfterBottomClose.join(',') === rightTabsAfterRightClose.join(','),
+              crossPanelKeyboardNoHorizontalOverflow:
+                rightPanelAfterBottomClose instanceof HTMLElement &&
+                bottomPanelAfterBottomClose instanceof HTMLElement &&
+                rightPanelAfterBottomClose.scrollWidth <= rightPanelAfterBottomClose.clientWidth + 2 &&
+                bottomPanelAfterBottomClose.scrollWidth <= bottomPanelAfterBottomClose.clientWidth + 2 &&
+                (!(rightTabRow instanceof HTMLElement) || rightTabRow.scrollWidth <= rightTabRow.clientWidth + 72) &&
+                (!(bottomTabRow instanceof HTMLElement) || bottomTabRow.scrollWidth <= bottomTabRow.clientWidth + 72)
+            };
+          })()
+        `)
+
+        if (screenshotPath) {
+          const image = await win.webContents.capturePage()
+          writeFileSync(screenshotPath, image.toPNG())
+        }
+        writeFileSync(outputPath, JSON.stringify({ ok: true, result, screenshotPath }, null, 2))
         app.quit()
       } catch (error) {
         writeFileSync(outputPath, JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2))
