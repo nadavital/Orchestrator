@@ -5,7 +5,7 @@ import { adjacentFileChangePath, buildFileChangeTreeRows, diffForPathFromUnified
 import type { FileChange, GitLineBlameResult, GitRefOption, ReviewCheckStatus, ReviewDiffSource, ReviewMetadata, ReviewProviderComment, SessionRunEventRecord } from '../../types'
 import type { FilePreviewResult } from '../../env'
 import { useSessionStore } from '../../store/sessions'
-import { Badge, Button, DialogContent, DialogFooter, DialogHeader, IconButton, MenuItem, MenuMessage, MenuRow, MenuSection, MenuSectionLabel, MenuSurface, MotionOverlay, PanelHeader, PanelNotice, PanelResizeHandle, PanelToolbar, WorkbenchSearchField, useAppShellResizeController } from '../shared/designSystem'
+import { Badge, Button, IconButton, MenuItem, MenuMessage, MenuRow, MenuSection, MenuSectionLabel, MenuSurface, PanelHeader, PanelNotice, PanelResizeHandle, PanelToolbar, WorkbenchSearchField, useAppShellResizeController } from '../shared/designSystem'
 import Icon, { type IconName } from '../shared/Icon'
 import { FilePreview } from './FilesPanel'
 import StructuredDataPreview from './StructuredDataPreview'
@@ -60,7 +60,6 @@ const REVIEW_SIDE_PANE_VISIBLE_STORAGE_PREFIX = 'orchestrator.review.sidePaneVis
 const REVIEW_SIDE_PANE_MIN_WIDTH = 200
 const REVIEW_SIDE_PANE_DEFAULT_WIDTH = 220
 const REVIEW_SIDE_PANE_MAX_RATIO = 0.6
-const REVIEW_REVERT_CONFIRM_SKIP_STORAGE_KEY = 'orchestrator.review.revert.confirm.skip'
 const REVIEW_SEARCH_MATCH_CAP = 250
 const REVIEW_OPTIONS_MENU_ID = 'review-options-menu-surface'
 const REVIEW_FILE_JUMP_MENU_ID = 'review-file-jump-menu-surface'
@@ -99,10 +98,7 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
   const [commitRefQuery, setCommitRefQuery] = useState('')
   const [reviewMetadataOpen, setReviewMetadataOpen] = useState<ReviewMetadataPanel | null>(null)
   const [loadedReviewMetadata, setLoadedReviewMetadata] = useState<ReviewMetadata | undefined>(undefined)
-  const [reviewGitActionStatus, setReviewGitActionStatus] = useState<'idle' | 'staging' | 'unstaging' | 'reverting'>('idle')
   const [reviewGitActionMessage, setReviewGitActionMessage] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
-  const [reviewRevertConfirmOpen, setReviewRevertConfirmOpen] = useState(false)
-  const [reviewRevertSkipConfirm, setReviewRevertSkipConfirm] = useState(() => readStoredReviewRevertConfirmSkip())
   const rootRef = useRef<HTMLDivElement | null>(null)
   const reviewSearchInputRef = useRef<HTMLInputElement | null>(null)
   const openRightPanelTab = useSessionStore((state) => state.openRightPanelTab)
@@ -214,22 +210,7 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
   const reviewPatchFileCount = useMemo(() => sourceFiles
     .filter((file) => (reviewFileContentByPath[file.path]?.diff ?? '').trim().length > 0)
     .length, [reviewFileContentByPath, sourceFiles])
-  const reviewStageablePaths = useMemo(() => (
-    isLocalMutableReviewSource(reviewSource)
-      ? sourceFiles.filter((file) => file.unstaged === true).map((file) => file.path)
-      : []
-  ), [reviewSource, sourceFiles])
-  const reviewUnstageablePaths = useMemo(() => (
-    isLocalMutableReviewSource(reviewSource)
-      ? sourceFiles.filter((file) => file.staged === true).map((file) => file.path)
-      : []
-  ), [reviewSource, sourceFiles])
-  const reviewRevertPaths = useMemo(() => (
-    isLocalMutableReviewSource(reviewSource) && reviewSource !== 'staged'
-      ? sourceFiles.map((file) => file.path)
-      : []
-  ), [reviewSource, sourceFiles])
-  const showReviewGitActionPill = reviewRevertPaths.length > 0 || reviewStageablePaths.length > 0 || reviewUnstageablePaths.length > 0
+  const showReviewGitHandoff = isLocalMutableReviewSource(reviewSource) && sourceFiles.length > 0
   const reviewRows: WorkbenchTreeRow[] = fileTreeRows.map((row) => {
     if (row.type === 'directory') {
       return {
@@ -733,66 +714,6 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
     }
   }
 
-  const runReviewGitAction = async (action: 'stage' | 'unstage' | 'revert'): Promise<void> => {
-    const paths = action === 'stage'
-      ? reviewStageablePaths
-      : action === 'unstage'
-        ? reviewUnstageablePaths
-        : reviewRevertPaths
-    if (paths.length === 0 || reviewGitActionStatus !== 'idle') return
-    const countLabel = `${paths.length} ${paths.length === 1 ? 'file' : 'files'}`
-    setReviewGitActionStatus(action === 'stage' ? 'staging' : action === 'unstage' ? 'unstaging' : 'reverting')
-    setReviewGitActionMessage({
-      text: action === 'stage'
-        ? `Staging ${countLabel}`
-        : action === 'unstage'
-          ? `Unstaging ${countLabel}`
-          : `Reverting ${countLabel}`,
-      tone: 'info'
-    })
-    try {
-      const result = action === 'stage'
-        ? await window.api.git.stagePaths(workDir, paths)
-        : action === 'unstage'
-          ? await window.api.git.unstagePaths(workDir, paths)
-          : await window.api.sessions.undoChangedFiles(sessionId, paths)
-      if (result.ok) {
-        setReviewGitActionMessage({
-          text: action === 'stage'
-            ? `Staged ${countLabel}`
-            : action === 'unstage'
-              ? `Unstaged ${countLabel}`
-              : `Reverted ${countLabel}`,
-          tone: 'info'
-        })
-        setLocalReviewFiles(result.changedFiles)
-        const refreshed = await window.api.sessions.getChangedFiles(sessionId, reviewApiSource, activeReviewRef || undefined)
-        setFiles(refreshed)
-        setSelectedFile((current) => (
-          current && refreshed.some((file) => file.path === current)
-            ? current
-            : refreshed[0]?.path ?? null
-        ))
-      } else {
-        setReviewGitActionMessage({
-          text: result.error || (action === 'stage'
-            ? `Stage failed for ${countLabel}`
-            : action === 'unstage'
-              ? `Unstage failed for ${countLabel}`
-              : `Revert failed for ${countLabel}`),
-          tone: 'danger'
-        })
-      }
-    } catch (error) {
-      setReviewGitActionMessage({
-        text: error instanceof Error ? error.message : 'Review git action failed',
-        tone: 'danger'
-      })
-    } finally {
-      setReviewGitActionStatus('idle')
-    }
-  }
-
   const refreshReviewFileAfterMutation = async (path: string): Promise<void> => {
     if (!reviewSourceSupported || reviewSource === 'last-turn') return
     const absolutePath = joinPath(workDir, path)
@@ -813,21 +734,6 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
         ? current
         : refreshedFiles.find((file) => file.path === path)?.path ?? refreshedFiles[0]?.path ?? null
     ))
-  }
-
-  const requestReviewRevertAll = (): void => {
-    if (reviewRevertPaths.length === 0 || reviewGitActionStatus !== 'idle') return
-    if (reviewRevertSkipConfirm) {
-      void runReviewGitAction('revert')
-      return
-    }
-    setReviewRevertConfirmOpen(true)
-  }
-
-  const confirmReviewRevertAll = (): void => {
-    if (reviewRevertSkipConfirm) writeStoredReviewRevertConfirmSkip(true)
-    setReviewRevertConfirmOpen(false)
-    void runReviewGitAction('revert')
   }
 
   const canTogglePreview = Boolean(selectedChange && filePreview && (shouldPreferTextDiff(fileDiff) || isBinaryDiffText(fileDiff)) && hasReviewPreview(filePreview))
@@ -1327,60 +1233,20 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
       {reviewGitActionMessage.text}
     </span>
   ) : null
-  const reviewFloatingGitActions = showReviewGitActionPill ? (
+  const reviewFloatingGitActions = showReviewGitHandoff ? (
     <div
       className="review-floating-action-pill"
       data-testid="review-floating-action-pill"
-      data-review-floating-action-pill="local-git"
+      data-review-floating-action-pill="git-handoff"
       data-review-floating-action-anchor="panel-root"
-      data-review-revertable-count={reviewRevertPaths.length}
-      data-review-stageable-count={reviewStageablePaths.length}
-      data-review-unstageable-count={reviewUnstageablePaths.length}
-      data-review-git-action-status={reviewGitActionStatus}
+      data-review-git-handoff-count={sourceFiles.length}
       data-review-git-action-message={reviewGitActionMessage?.text ?? ''}
       data-review-git-action-tone={reviewGitActionMessage?.tone ?? ''}
     >
-      {reviewRevertPaths.length > 0 && (
-        <Button
-          variant="ghost"
-          className="review-floating-action-button review-floating-action-button-danger"
-          dataTestId="review-revert-all"
-          disabled={reviewGitActionStatus !== 'idle'}
-          onClick={requestReviewRevertAll}
-        >
-          <Icon name="undo" size={12} />
-          <span>Revert all</span>
-        </Button>
-      )}
-      {reviewStageablePaths.length > 0 && (
-        <Button
-          variant="ghost"
-          className="review-floating-action-button"
-          dataTestId="review-stage-all"
-          disabled={reviewGitActionStatus !== 'idle'}
-          onClick={() => { void runReviewGitAction('stage') }}
-        >
-          <Icon name="plus" size={12} />
-          <span>Stage all</span>
-        </Button>
-      )}
-      {reviewUnstageablePaths.length > 0 && (
-        <Button
-          variant="ghost"
-          className="review-floating-action-button"
-          dataTestId="review-unstage-all"
-          disabled={reviewGitActionStatus !== 'idle'}
-          onClick={() => { void runReviewGitAction('unstage') }}
-        >
-          <Icon name="eraser" size={12} />
-          <span>Unstage all</span>
-        </Button>
-      )}
       <Button
         variant="ghost"
         className="review-floating-action-button"
         dataTestId="review-open-git-tab"
-        disabled={reviewGitActionStatus !== 'idle'}
         onClick={() => openRightPanelTab(sessionId, 'git')}
       >
         <Icon name="branch" size={12} />
@@ -1389,13 +1255,12 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
       {reviewActionStatus}
     </div>
   ) : null
-  const reviewFloatingActionStatus = !showReviewGitActionPill && reviewActionStatus ? (
+  const reviewFloatingActionStatus = !showReviewGitHandoff && reviewActionStatus ? (
     <div
       className="review-floating-action-pill review-floating-action-pill-status-only"
       data-testid="review-action-status-pill"
       data-review-floating-action-pill="status"
       data-review-floating-action-anchor="panel-root"
-      data-review-git-action-status={reviewGitActionStatus}
       data-review-git-action-message={reviewGitActionMessage?.text ?? ''}
       data-review-git-action-tone={reviewGitActionMessage?.tone ?? ''}
     >
@@ -1582,44 +1447,6 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
           {reviewFloatingGitActions}
           {reviewFloatingActionStatus}
         </div>
-      )}
-      {reviewRevertConfirmOpen && (
-        <MotionOverlay
-          onClose={() => setReviewRevertConfirmOpen(false)}
-          surfaceClassName="orchestrator-dialog-surface"
-        >
-          <DialogContent dataTestId="review-revert-confirm-dialog">
-            <DialogHeader
-              title="Revert changes?"
-              description="This action removes all of these changes."
-            />
-            <label className="review-revert-confirm-skip">
-              <input
-                type="checkbox"
-                checked={reviewRevertSkipConfirm}
-                onChange={(event) => setReviewRevertSkipConfirm(event.currentTarget.checked)}
-                data-testid="review-revert-confirm-skip"
-              />
-              <span>Don&apos;t ask again</span>
-            </label>
-            <DialogFooter>
-              <Button
-                variant="ghost"
-                dataTestId="review-revert-confirm-cancel"
-                onClick={() => setReviewRevertConfirmOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="danger"
-                dataTestId="review-revert-confirm-submit"
-                onClick={confirmReviewRevertAll}
-              >
-                Confirm
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </MotionOverlay>
       )}
     </div>
   )
@@ -2468,22 +2295,6 @@ function readStoredReviewSidePaneVisible(workDir: string): boolean {
 function writeStoredReviewSidePaneVisible(workDir: string, visible: boolean): void {
   try {
     window.localStorage.setItem(reviewSidePaneVisibleStorageKey(workDir), visible ? 'true' : 'false')
-  } catch {
-    // Storage persistence is a convenience; Review still works without it.
-  }
-}
-
-function readStoredReviewRevertConfirmSkip(): boolean {
-  try {
-    return window.localStorage.getItem(REVIEW_REVERT_CONFIRM_SKIP_STORAGE_KEY) === 'true'
-  } catch {
-    return false
-  }
-}
-
-function writeStoredReviewRevertConfirmSkip(skip: boolean): void {
-  try {
-    window.localStorage.setItem(REVIEW_REVERT_CONFIRM_SKIP_STORAGE_KEY, skip ? 'true' : 'false')
   } catch {
     // Storage persistence is a convenience; Review still works without it.
   }

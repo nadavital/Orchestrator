@@ -9545,6 +9545,16 @@ Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.
 
 Remaining: this closes the local provider-suggestion copy/apply path only. Live PR creation, provider-hosted Git metadata, exact live Codex timing, and retiring Review's temporary local-git bridge remain separate PP-054 follow-ups.
 
+### 2026-05-29 - Review Git Bridge Retirement
+
+Product evidence: the dedicated Git Workbench tab now owns local stage, unstage, discard, commit, branch creation, branch checkout, and PR-command handoff. Keeping Stage all, Unstage all, and Revert all in Review duplicated that workflow and drifted away from the Codex-shaped Review surface, where Review stays focused on reading diffs, copy/apply commands, and review comments.
+
+Implemented: Review's floating local-git mutation bridge is retired. The bottom Review pill now renders as a `git-handoff` surface with only `Open Git` plus copy/apply status feedback. Stage all, Unstage all, Revert all, and the Review-specific revert confirmation dialog were removed from Review; Git mutation ownership remains in the dedicated Git Workbench tab.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --diff-core` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-core-1780024835038.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-core-1780024835038.png`. The focused smoke now gates `reviewFloatingGitBridgeRetired=true`, `reviewFloatingGitActions=true`, `reviewFloatingGitActionStatus=true`, and `reviewFloatingGitOpenTab=true`.
+
+Remaining: live PR creation, provider-hosted Git metadata, and exact live Codex timing remain separate PP-054 follow-ups.
+
 ### 2026-05-28 - Thread Link Copy
 
 Product evidence: PP-037 tracks route-backed session identity as a daily reliability requirement. Orchestrator had app-protocol `Copy deeplink` and `Open in new window`, but the action menu did not expose a normal in-app `/threads/{id}` or `#/threads/{id}` route for sharing or browser/app route testing.

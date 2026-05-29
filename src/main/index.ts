@@ -10714,7 +10714,7 @@ function runAutomatedFocusedSurfaceSmoke(
               let reviewFloatingGitActionsWork = false;
               let reviewFloatingGitActionStatusWorks = false;
               let reviewFloatingGitOpenTabWorks = false;
-              let reviewRevertAllConfirmationWorks = false;
+              let reviewFloatingGitBridgeRetiredWorks = false;
               const actionMenuButton = [...document.querySelectorAll('button')]
                 .find((button) => button.getAttribute('aria-label') === 'Review options');
               if (actionMenuButton instanceof HTMLButtonElement) {
@@ -10910,9 +10910,6 @@ function runAutomatedFocusedSurfaceSmoke(
                       styles.backgroundColor !== 'rgba(0, 0, 0, 0)';
                   });
                 const reviewFloatingActionPill = document.querySelector('[data-testid="review-floating-action-pill"]');
-                const reviewFloatingRevertButton = document.querySelector('[data-testid="review-revert-all"]');
-                const reviewFloatingStageButton = document.querySelector('[data-testid="review-stage-all"]');
-                const reviewFloatingUnstageButton = document.querySelector('[data-testid="review-unstage-all"]');
                 const reviewFloatingOpenGitButton = document.querySelector('[data-testid="review-open-git-tab"]');
                 const reviewRootForFloatingActions = document.querySelector('.diff-panel-root');
                 const floatingActionPillRect = reviewFloatingActionPill instanceof HTMLElement
@@ -10927,22 +10924,22 @@ function runAutomatedFocusedSurfaceSmoke(
                 const floatingPillCenterDelta = floatingActionPillRect !== null && reviewRootRect !== null
                   ? Math.abs((floatingActionPillRect.left + floatingActionPillRect.width / 2) - (reviewRootRect.left + reviewRootRect.width / 2))
                   : Number.POSITIVE_INFINITY;
-                const floatingActionButtonRects = [reviewFloatingRevertButton, reviewFloatingStageButton, reviewFloatingUnstageButton, reviewFloatingOpenGitButton]
+                const retiredReviewGitBridgeButtonsAbsent =
+                  document.querySelector('[data-testid="review-revert-all"]') === null &&
+                  document.querySelector('[data-testid="review-stage-all"]') === null &&
+                  document.querySelector('[data-testid="review-unstage-all"]') === null &&
+                  !document.body.innerText.includes('Revert all') &&
+                  !document.body.innerText.includes('Stage all') &&
+                  !document.body.innerText.includes('Unstage all');
+                const floatingActionButtonRects = [reviewFloatingOpenGitButton]
                   .map((button) => button instanceof HTMLElement ? button.getBoundingClientRect() : null);
                 reviewFloatingGitActionsWork =
                   reviewFloatingActionPill instanceof HTMLElement &&
-                  reviewFloatingActionPill.getAttribute('data-review-floating-action-pill') === 'local-git' &&
+                  reviewFloatingActionPill.getAttribute('data-review-floating-action-pill') === 'git-handoff' &&
                   reviewFloatingActionPill.getAttribute('data-review-floating-action-anchor') === 'panel-root' &&
-                  Number(reviewFloatingActionPill.getAttribute('data-review-revertable-count') ?? '0') > 0 &&
-                  reviewFloatingRevertButton instanceof HTMLButtonElement &&
-                  Number(reviewFloatingActionPill.getAttribute('data-review-stageable-count') ?? '0') > 0 &&
-                  Number(reviewFloatingActionPill.getAttribute('data-review-unstageable-count') ?? '0') > 0 &&
-                  reviewFloatingStageButton instanceof HTMLButtonElement &&
-                  reviewFloatingUnstageButton instanceof HTMLButtonElement &&
+                  Number(reviewFloatingActionPill.getAttribute('data-review-git-handoff-count') ?? '0') > 0 &&
+                  retiredReviewGitBridgeButtonsAbsent &&
                   reviewFloatingOpenGitButton instanceof HTMLButtonElement &&
-                  reviewFloatingRevertButton.textContent?.includes('Revert all') === true &&
-                  reviewFloatingStageButton.textContent?.includes('Stage all') === true &&
-                  reviewFloatingUnstageButton.textContent?.includes('Unstage all') === true &&
                   reviewFloatingOpenGitButton.textContent?.includes('Open Git') === true &&
                   floatingActionPillRect !== null &&
                   reviewRootRect !== null &&
@@ -10956,58 +10953,28 @@ function runAutomatedFocusedSurfaceSmoke(
                   reviewFloatingActionStyle.position === 'absolute' &&
                   Number.parseFloat(reviewFloatingActionStyle.borderRadius || '0') >= 20 &&
                   ((reviewFloatingActionStyle.backdropFilter || reviewFloatingActionStyle.webkitBackdropFilter || '').includes('blur'));
-                if (reviewFloatingRevertButton instanceof HTMLButtonElement) {
-                  reviewFloatingRevertButton.click();
-                  await sleep(120);
-                  const revertDialog = document.querySelector('[data-testid="review-revert-confirm-dialog"]');
-                  const revertSkip = document.querySelector('[data-testid="review-revert-confirm-skip"]');
-                  const revertCancel = document.querySelector('[data-testid="review-revert-confirm-cancel"]');
-                  const revertConfirm = document.querySelector('[data-testid="review-revert-confirm-submit"]');
-                  reviewRevertAllConfirmationWorks =
-                    revertDialog instanceof HTMLElement &&
-                    revertDialog.textContent?.includes('Revert changes?') === true &&
-                    revertDialog.textContent?.includes('This action removes all of these changes.') === true &&
-                    revertSkip instanceof HTMLInputElement &&
-                    revertSkip.checked === false &&
-                    revertDialog.textContent?.includes("Don't ask again") === true &&
-                    revertCancel instanceof HTMLButtonElement &&
-                    revertCancel.textContent?.includes('Cancel') === true &&
-                    revertConfirm instanceof HTMLButtonElement &&
-                    revertConfirm.textContent?.includes('Confirm') === true;
-                  if (revertCancel instanceof HTMLButtonElement) {
-                    revertCancel.click();
-                    await sleep(80);
-                    reviewRevertAllConfirmationWorks =
-                      reviewRevertAllConfirmationWorks &&
-                      document.querySelector('[data-testid="review-revert-confirm-dialog"]') === null &&
-                      document.querySelector('[data-testid="review-floating-action-pill"]') instanceof HTMLElement;
-                  }
-                }
-                if (reviewFloatingStageButton instanceof HTMLButtonElement) {
-                  reviewFloatingStageButton.click();
-                  await sleep(420);
-                  const reviewFloatingActionPillAfterStage = document.querySelector('[data-testid="review-floating-action-pill"]');
-                  const reviewFloatingActionStatus = document.querySelector('[data-testid="review-floating-action-status"]');
-                  const reviewFloatingActionMessage = reviewFloatingActionPillAfterStage instanceof HTMLElement
-                    ? reviewFloatingActionPillAfterStage.getAttribute('data-review-git-action-message') ?? ''
-                    : '';
-                  const reviewFloatingActionTone = reviewFloatingActionPillAfterStage instanceof HTMLElement
-                    ? reviewFloatingActionPillAfterStage.getAttribute('data-review-git-action-tone') ?? ''
-                    : '';
-                  reviewFloatingGitActionStatusWorks =
-                    reviewFloatingActionPillAfterStage instanceof HTMLElement &&
-                    reviewFloatingActionPillAfterStage.getAttribute('data-review-git-action-status') === 'idle' &&
-                    reviewFloatingActionMessage.includes('Staged ') &&
-                    reviewFloatingActionTone === 'info' &&
-                    reviewFloatingActionStatus instanceof HTMLElement &&
-                    reviewFloatingActionStatus.getAttribute('role') === 'status' &&
-                    reviewFloatingActionStatus.getAttribute('aria-live') === 'polite' &&
-                    reviewFloatingActionStatus.getAttribute('aria-atomic') === 'true' &&
-                    reviewFloatingActionStatus.textContent?.includes('Staged ') === true;
-                }
-                const reviewFloatingOpenGitButtonAfterStage = document.querySelector('[data-testid="review-open-git-tab"]');
-                if (reviewFloatingOpenGitButtonAfterStage instanceof HTMLButtonElement && !reviewFloatingOpenGitButtonAfterStage.disabled) {
-                  reviewFloatingOpenGitButtonAfterStage.click();
+                reviewFloatingGitBridgeRetiredWorks =
+                  retiredReviewGitBridgeButtonsAbsent &&
+                  document.querySelector('[data-testid="review-revert-confirm-dialog"]') === null;
+                const reviewFloatingActionPillAfterCopy = document.querySelector('[data-testid="review-floating-action-pill"]');
+                const reviewFloatingActionStatus = document.querySelector('[data-testid="review-floating-action-status"]');
+                const reviewFloatingActionMessage = reviewFloatingActionPillAfterCopy instanceof HTMLElement
+                  ? reviewFloatingActionPillAfterCopy.getAttribute('data-review-git-action-message') ?? ''
+                  : '';
+                const reviewFloatingActionTone = reviewFloatingActionPillAfterCopy instanceof HTMLElement
+                  ? reviewFloatingActionPillAfterCopy.getAttribute('data-review-git-action-tone') ?? ''
+                  : '';
+                reviewFloatingGitActionStatusWorks =
+                  reviewFloatingActionPillAfterCopy instanceof HTMLElement &&
+                  reviewFloatingActionMessage.includes('Git apply command copied') &&
+                  reviewFloatingActionTone === 'info' &&
+                  reviewFloatingActionStatus instanceof HTMLElement &&
+                  reviewFloatingActionStatus.getAttribute('role') === 'status' &&
+                  reviewFloatingActionStatus.getAttribute('aria-live') === 'polite' &&
+                  reviewFloatingActionStatus.getAttribute('aria-atomic') === 'true' &&
+                  reviewFloatingActionStatus.textContent?.includes('Git apply command copied') === true;
+                if (reviewFloatingOpenGitButton instanceof HTMLButtonElement && !reviewFloatingOpenGitButton.disabled) {
+                  reviewFloatingOpenGitButton.click();
                   for (let attempt = 0; attempt < 12; attempt += 1) {
                     await sleep(100);
                     const gitPanel = document.querySelector('[data-testid="git-panel"]');
@@ -11481,7 +11448,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   reviewFloatingGitActionsWork,
                   reviewFloatingGitActionStatusWorks,
                   reviewFloatingGitOpenTabWorks,
-                  reviewRevertAllConfirmationWorks
+                  reviewFloatingGitBridgeRetiredWorks
                 };
               }
               if (smokeView === 'diff-preview') {

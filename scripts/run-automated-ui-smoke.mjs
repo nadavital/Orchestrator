@@ -211,7 +211,7 @@ function buildDiffChecks(result, view) {
     reviewFloatingGitActions: result.reviewFloatingGitActionsWork === true,
     reviewFloatingGitActionStatus: result.reviewFloatingGitActionStatusWorks === true,
     reviewFloatingGitOpenTab: result.reviewFloatingGitOpenTabWorks === true,
-    reviewRevertAllConfirmation: result.reviewRevertAllConfirmationWorks === true,
+    reviewFloatingGitBridgeRetired: result.reviewFloatingGitBridgeRetiredWorks === true,
     reviewLastTurnGitApplyCommand: result.reviewLastTurnGitApplyCommandWorks === true,
     reviewLastTurnGitApplyCopyStatus: result.reviewLastTurnGitApplyCopyStatusWorks === true,
     reviewSearch: result.reviewSearchWorks === true,
@@ -310,7 +310,7 @@ function buildDiffChecks(result, view) {
       'reviewFloatingGitActions',
       'reviewFloatingGitActionStatus',
       'reviewFloatingGitOpenTab',
-      'reviewRevertAllConfirmation'
+      'reviewFloatingGitBridgeRetired'
     ],
     'diff-last-turn': [
       'isolatedProfile',
