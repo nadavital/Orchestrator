@@ -11783,6 +11783,18 @@
     font-weight: 750;
   }
 
+  .provider-sidebar-refresh-status {
+    min-width: 0;
+    padding: 7px 0;
+    color: var(--color-text-muted);
+    font-size: 12px;
+    line-height: 1.35;
+  }
+
+  .provider-sidebar-refresh-status[data-provider-sidebar-refresh-status-tone="danger"] {
+    color: var(--state-danger);
+  }
+
   .provider-setup-card {
     display: grid;
     min-width: 0;

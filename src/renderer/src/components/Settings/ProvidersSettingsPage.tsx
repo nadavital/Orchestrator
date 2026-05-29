@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type CSSProperties, type Dispatch, type ReactNode, type SetStateAction } from 'react'
+import { useCallback, useEffect, useId, useRef, useState, type CSSProperties, type Dispatch, type ReactNode, type SetStateAction } from 'react'
 import {
   DndContext, closestCenter, type DragEndEvent,
   KeyboardSensor, PointerSensor, useSensor, useSensors
@@ -154,8 +154,16 @@ export default function ProvidersSettingsPage({
   const refreshSidebarMetadata = async (): Promise<void> => {
     const cwd = sessions.find((session) => session.provider === selectedId)?.workDir ?? sessions[0]?.workDir
     setSidebarSyncLoading(true)
+    setSidebarSyncResult(null)
     try {
       setSidebarSyncResult(await window.api.providers.refreshSidebarMetadata(selectedId, cwd))
+    } catch (error) {
+      setSidebarSyncResult({
+        ok: false,
+        providerId: selectedId,
+        changed: 0,
+        error: errorText(error)
+      })
     } finally {
       setSidebarSyncLoading(false)
     }
@@ -407,8 +415,15 @@ function ProviderStatusDetails({
   sidebarSyncLoading?: boolean
   onRefreshSidebarMetadata?: () => Promise<void>
 }): JSX.Element {
+  const providerSidebarStatusId = useId()
+  const sidebarSyncStatus = sidebarSyncStatusState(sidebarSyncLoading === true, sidebarSyncResult)
   return (
-    <div className="provider-status-card" data-testid="provider-status-card">
+    <div
+      className="provider-status-card"
+      data-testid="provider-status-card"
+      data-provider-sidebar-refresh-status={sidebarSyncStatus?.text ?? ''}
+      data-provider-sidebar-refresh-status-tone={sidebarSyncStatus?.tone ?? ''}
+    >
       <div className="provider-status-section">
         <div className="provider-status-section-title">
           <span>Status</span>
@@ -419,6 +434,7 @@ function ProviderStatusDetails({
               data-testid="provider-sidebar-metadata-refresh"
               onClick={() => { void onRefreshSidebarMetadata() }}
               disabled={sidebarSyncLoading === true}
+              aria-describedby={sidebarSyncStatus ? providerSidebarStatusId : undefined}
             >
               {sidebarSyncLoading ? 'Refreshing...' : 'Refresh chats'}
             </button>
@@ -431,10 +447,18 @@ function ProviderStatusDetails({
         ) : (
           <InlineMutedText>Open details to check local CLI status.</InlineMutedText>
         )}
-        {onRefreshSidebarMetadata && sidebarSyncResult && (
-          <InlineMutedText>
-            {sidebarSyncStatusText(sidebarSyncResult)}
-          </InlineMutedText>
+        {onRefreshSidebarMetadata && sidebarSyncStatus && (
+          <div
+            id={providerSidebarStatusId}
+            className="provider-sidebar-refresh-status"
+            data-testid="provider-sidebar-metadata-refresh-status"
+            data-provider-sidebar-refresh-status-tone={sidebarSyncStatus.tone}
+            role={sidebarSyncStatus.tone === 'danger' ? 'alert' : 'status'}
+            aria-live={sidebarSyncStatus.tone === 'danger' ? 'assertive' : 'polite'}
+            aria-atomic="true"
+          >
+            {sidebarSyncStatus.text}
+          </div>
         )}
       </div>
       <div className="provider-status-section">
@@ -466,6 +490,15 @@ function sidebarSyncStatusText(result: ProviderSidebarSyncResult): string {
   if (result.skipped === 'unsupported-provider') return 'This provider does not expose sidebar metadata refresh.'
   if (result.changed === 0) return 'Chat metadata is already up to date.'
   return `Updated ${result.changed} chat${result.changed === 1 ? '' : 's'}.`
+}
+
+function sidebarSyncStatusState(
+  loading: boolean,
+  result: ProviderSidebarSyncResult | null | undefined
+): { text: string; tone: 'info' | 'danger' } | null {
+  if (loading) return { text: 'Refreshing chats', tone: 'info' }
+  if (!result) return null
+  return { text: sidebarSyncStatusText(result), tone: result.ok ? 'info' : 'danger' }
 }
 
 function ProviderPermissionContract({

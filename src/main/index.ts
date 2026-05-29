@@ -1221,13 +1221,32 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               }
               const sidebarMetadataRefreshButton = document.querySelector('[data-testid="provider-sidebar-metadata-refresh"]');
               const codexStatusCard = document.querySelector('[data-testid="provider-status-card"]');
+              let sidebarRefreshStatus = null;
+              if (sidebarMetadataRefreshButton instanceof HTMLButtonElement) {
+                sidebarMetadataRefreshButton.click();
+                for (let index = 0; index < 16; index += 1) {
+                  sidebarRefreshStatus = document.querySelector('[data-testid="provider-sidebar-metadata-refresh-status"]');
+                  if (sidebarRefreshStatus instanceof HTMLElement && sidebarRefreshStatus.textContent?.trim()) break;
+                  await sleep(100);
+                }
+              }
+              const sidebarRefreshTone = sidebarRefreshStatus instanceof HTMLElement
+                ? sidebarRefreshStatus.getAttribute('data-provider-sidebar-refresh-status-tone')
+                : null;
+              const sidebarRefreshLive = sidebarRefreshTone === 'danger' ? 'assertive' : 'polite';
               var settingsProviderSidebarRefreshWorks =
                 codexProviderSelect instanceof HTMLSelectElement &&
                 codexProviderSelect.value === 'codex' &&
                 sidebarMetadataRefreshButton instanceof HTMLButtonElement &&
-                sidebarMetadataRefreshButton.textContent?.trim() === 'Refresh chats' &&
-                sidebarMetadataRefreshButton.disabled === false &&
-                codexStatusCard instanceof HTMLElement;
+                codexStatusCard instanceof HTMLElement &&
+                sidebarRefreshStatus instanceof HTMLElement &&
+                (codexStatusCard.getAttribute('data-provider-sidebar-refresh-status') ?? '').length > 0 &&
+                codexStatusCard.getAttribute('data-provider-sidebar-refresh-status-tone') === sidebarRefreshTone &&
+                ['info', 'danger'].includes(sidebarRefreshTone ?? '') &&
+                (sidebarRefreshStatus.getAttribute('role') === 'status' || sidebarRefreshStatus.getAttribute('role') === 'alert') &&
+                sidebarRefreshStatus.getAttribute('aria-live') === sidebarRefreshLive &&
+                sidebarRefreshStatus.getAttribute('aria-atomic') === 'true' &&
+                ['Refresh chats', 'Refreshing...'].includes(sidebarMetadataRefreshButton.textContent?.trim() ?? '');
               const providerSettingsScroll = document.querySelector('.settings-scroll');
               if (providerSettingsScroll instanceof HTMLElement) {
                 providerSettingsScroll.scrollTo({ top: 0, left: 0 });
