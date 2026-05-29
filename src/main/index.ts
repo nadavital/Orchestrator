@@ -22079,6 +22079,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
             var browserCommentDesignTweakWorks = false;
             var browserCommentScreenshotContextWorks = false;
             var browserCommentScreenshotAttachmentWorks = false;
+            var browserCommentHistoryWorks = false;
             const browserContextViewportFrame = document.querySelector('[data-testid="browser-viewport-frame"]');
             if (browserContextViewportFrame instanceof HTMLElement) {
               const frameBounds = browserContextViewportFrame.getBoundingClientRect();
@@ -22371,6 +22372,22 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                   await sleep(260);
                   const composerTextarea = document.querySelector('textarea');
                   const panelAfterComment = document.querySelector('[data-testid="browser-panel"]');
+                  const commentHistory = document.querySelector('[data-testid="browser-comment-history"]');
+                  const commentHistoryList = document.querySelector('[data-testid="browser-comment-history-list"]');
+                  const commentHistoryRows = [...document.querySelectorAll('[data-testid="browser-comment-history-item"]')];
+                  const latestCommentHistoryRow = commentHistoryRows[0];
+                  const latestCommentHistoryCopy = latestCommentHistoryRow instanceof HTMLElement
+                    ? latestCommentHistoryRow.querySelector('[data-testid="browser-comment-history-copy"]')
+                    : null;
+                  if (latestCommentHistoryCopy instanceof HTMLButtonElement) {
+                    latestCommentHistoryCopy.click();
+                    await sleep(180);
+                  }
+                  const copiedAnnotation =
+                    await window.api?.clipboard?.readText?.().catch(() => '') ??
+                    await navigator.clipboard?.readText?.().catch(() => '') ??
+                    '';
+                  const commentHistoryStatus = document.querySelector('[data-testid="browser-comment-history-status"]');
                   browserCommentModeWorks =
                     browserCommentEditorWorks &&
                     composerTextarea instanceof HTMLTextAreaElement &&
@@ -22381,6 +22398,26 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                     (panelAfterComment?.getAttribute('data-browser-comment-mode') ?? '') === 'false' &&
                     (panelAfterComment?.getAttribute('data-browser-comment-editor-open') ?? '') === 'false' &&
                     (panelAfterComment?.getAttribute('data-browser-last-comment') ?? '').includes(',');
+                  browserCommentHistoryWorks =
+                    browserCommentModeWorks &&
+                    panelAfterComment?.getAttribute('data-browser-comment-history-count') === '2' &&
+                    panelAfterComment?.getAttribute('data-browser-comment-history-latest') === 'check the responsive hero copy' &&
+                    commentHistory instanceof HTMLElement &&
+                    commentHistory.getAttribute('data-browser-comment-history-count') === '2' &&
+                    commentHistoryList instanceof HTMLElement &&
+                    commentHistoryList.getAttribute('role') === 'list' &&
+                    commentHistoryRows.length >= 2 &&
+                    latestCommentHistoryRow instanceof HTMLElement &&
+                    latestCommentHistoryRow.getAttribute('role') === 'listitem' &&
+                    latestCommentHistoryRow.getAttribute('data-browser-comment-history-intent') === 'comment' &&
+                    latestCommentHistoryRow.textContent?.includes('check the responsive hero copy') === true &&
+                    latestCommentHistoryCopy instanceof HTMLButtonElement &&
+                    copiedAnnotation.includes('Comment on this browser page:') &&
+                    copiedAnnotation.includes('Comment: check the responsive hero copy') &&
+                    commentHistoryStatus instanceof HTMLElement &&
+                    commentHistoryStatus.getAttribute('role') === 'status' &&
+                    commentHistoryStatus.getAttribute('aria-live') === 'polite' &&
+                    commentHistoryStatus.textContent?.includes('Annotation copied') === true;
                 }
               }
             }
@@ -23390,6 +23427,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserCommentDesignTweakWorks,
               browserCommentScreenshotContextWorks,
               browserCommentScreenshotAttachmentWorks,
+              browserCommentHistoryWorks,
               browserCommentUnavailableWorks,
               browserDomPaneCompactWorks,
               browserTargetsPaneWorks,

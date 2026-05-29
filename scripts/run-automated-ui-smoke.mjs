@@ -2338,6 +2338,7 @@ child.on('exit', async (code) => {
           browserCommentDesignTweak: result.browserCommentDesignTweakWorks === true,
           browserCommentScreenshotContext: result.browserCommentScreenshotContextWorks === true,
           browserCommentScreenshotAttachment: result.browserCommentScreenshotAttachmentWorks === true,
+          browserCommentHistory: result.browserCommentHistoryWorks === true,
           browserCommentUnavailable: result.browserCommentUnavailableWorks === true,
           browserDomPaneCompact: result.browserDomPaneCompactWorks === true,
           browserTargetsPane: result.browserTargetsPaneWorks === true,

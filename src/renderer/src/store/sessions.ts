@@ -56,6 +56,18 @@ export interface RightPanelState {
 
 export type BrowserApprovalMode = 'alwaysAsk' | 'alwaysAllow'
 
+export interface BrowserAnnotationState {
+  id: string
+  intent: 'comment' | 'design-tweak'
+  url: string
+  title: string | null
+  scope: string
+  body: string
+  text: string
+  screenshotPath: string | null
+  createdAt: number
+}
+
 export interface BrowserWorkbenchState {
   findVisible: boolean
   findQuery: string
@@ -75,6 +87,7 @@ export interface BrowserWorkbenchState {
   commentMode: boolean
   commentCoachmarkDismissed: boolean
   commentPreviewOriginal: boolean
+  commentAnnotations: BrowserAnnotationState[]
   visible: boolean
   activeTabId: string
   tabs: BrowserTabState[]
@@ -372,6 +385,7 @@ function defaultBrowserWorkbench(): BrowserWorkbenchState {
     commentMode: false,
     commentCoachmarkDismissed: false,
     commentPreviewOriginal: false,
+    commentAnnotations: [],
     visible: true,
     activeTabId: 'tab-1',
     tabs: [{
@@ -1704,7 +1718,8 @@ function cloneBrowserWorkbenchForTransfer(
     blockedUploadOrigins: [...workbench.blockedUploadOrigins],
     hiddenLocalTargets: [...workbench.hiddenLocalTargets],
     localServerRoutes: workbench.localServerRoutes.map((route) => ({ ...route })),
-    hiddenLocalServerRoutes: [...workbench.hiddenLocalServerRoutes]
+    hiddenLocalServerRoutes: [...workbench.hiddenLocalServerRoutes],
+    commentAnnotations: workbench.commentAnnotations.map((annotation) => ({ ...annotation }))
   }
 }
 

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { MouseEvent as ReactMouseEvent, MutableRefObject, PointerEvent as ReactPointerEvent } from 'react'
-import type { BrowserApprovalMode, BrowserDeviceMode, BrowserHistoryEntry, BrowserLocalServerRoute, BrowserTabState, BrowserUseCursorState, BrowserUseSurfaceBounds, BrowserUseSurfaceSize, BrowserWorkbenchState } from '../../store/sessions'
+import type { BrowserAnnotationState, BrowserApprovalMode, BrowserDeviceMode, BrowserHistoryEntry, BrowserLocalServerRoute, BrowserTabState, BrowserUseCursorState, BrowserUseSurfaceBounds, BrowserUseSurfaceSize, BrowserWorkbenchState } from '../../store/sessions'
 import type { BrowserUsePolicy } from '../../types'
 import { browserWebviewPartitionForHost, DEFAULT_BROWSER_USE_POLICY, normalizeBrowserUsePolicy } from '../../types'
 import { Badge, Button, IconButton, InspectorDisclosure, InspectorRow, InspectorSection, MenuItem, MenuMessage, MenuRow, MenuSection, MenuSectionLabel, MenuSurface, PanelMessage, PanelNotice, PanelTabStrip, PanelToolbar, ToolbarButton, WorkbenchSearchField } from '../shared/designSystem'
@@ -257,8 +257,10 @@ export default function BrowserPanel({
   const [pendingComment, setPendingComment] = useState<BrowserPendingComment | null>(null)
   const [commentDraft, setCommentDraft] = useState('')
   const [commentIntent, setCommentIntent] = useState<BrowserCommentIntent>('comment')
+  const [commentHistoryStatus, setCommentHistoryStatus] = useState<BrowserActionStatus | null>(null)
   const [commentDragRegion, setCommentDragRegion] = useState<BrowserCommentRegion | null>(null)
   const [commentPreviewOriginalLocal, setCommentPreviewOriginalLocal] = useState(false)
+  const commentHistoryStatusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const commentDragStartRef = useRef<{ clientX: number; clientY: number; bounds: DOMRect } | null>(null)
   const suppressNextCommentClickRef = useRef(false)
   const [localTargetSort, setLocalTargetSort] = useState<'recent' | 'port'>('recent')
@@ -273,6 +275,7 @@ export default function BrowserPanel({
   const commentModeUnavailable = !currentUrl || !visible || Boolean(error)
   const commentModeUnavailableReason = commentUnavailableReason(currentUrl, visible, error)
   const commentPreviewOriginal = Boolean(workbench.commentPreviewOriginal) || commentPreviewOriginalLocal
+  const commentAnnotations = workbench.commentAnnotations ?? []
   const commentCoachmarkVisible = workbench.commentMode && !workbench.commentCoachmarkDismissed && pendingComment === null && !commentPreviewOriginal
   const pendingCommentScope = pendingComment?.region
     ? `Region ${pendingComment.region.xPercent}%, ${pendingComment.region.yPercent}% - ${pendingComment.region.widthPercent}% x ${pendingComment.region.heightPercent}%`
@@ -948,6 +951,15 @@ export default function BrowserPanel({
     await navigator.clipboard.writeText(text)
   }
 
+  const setBrowserCommentHistoryStatus = (status: BrowserActionStatus): void => {
+    if (commentHistoryStatusTimeoutRef.current) window.clearTimeout(commentHistoryStatusTimeoutRef.current)
+    setCommentHistoryStatus(status)
+    commentHistoryStatusTimeoutRef.current = window.setTimeout(() => {
+      setCommentHistoryStatus(null)
+      commentHistoryStatusTimeoutRef.current = null
+    }, 2200)
+  }
+
   const copyCurrentUrl = async (): Promise<void> => {
     if (!currentUrl) return
     if (copyUrlStatusTimeoutRef.current) window.clearTimeout(copyUrlStatusTimeoutRef.current)
@@ -1145,11 +1157,25 @@ export default function BrowserPanel({
         : '',
       pendingComment.visibleStructure ? `\nVisible page structure:\n${pendingComment.visibleStructure}` : ''
     ].filter(Boolean)
+    const text = lines.join('\n')
+    const annotation: BrowserAnnotationState = {
+      id: `browser-comment-${Date.now()}`,
+      intent: commentIntent,
+      url: currentUrl,
+      title: title || null,
+      scope: pendingComment.region
+        ? `Region ${pendingComment.region.xPercent}%, ${pendingComment.region.yPercent}% - ${pendingComment.region.widthPercent}% x ${pendingComment.region.heightPercent}%`
+        : `Point ${pendingComment.xPercent}%, ${pendingComment.yPercent}%`,
+      body,
+      text,
+      screenshotPath: artifactPath,
+      createdAt: Date.now()
+    }
     if (artifactPath) {
       addArtifactToChat(artifactPath)
     }
     window.dispatchEvent(new CustomEvent('orchestrator:add-composer-text', {
-      detail: { text: lines.join('\n') }
+      detail: { text }
     }))
     setLastCommentPoint(pendingComment.region
       ? `${pendingComment.region.xPercent},${pendingComment.region.yPercent},${pendingComment.region.widthPercent},${pendingComment.region.heightPercent}`
@@ -1158,7 +1184,27 @@ export default function BrowserPanel({
     setCommentDraft('')
     setCommentIntent('comment')
     setCommentPreviewOriginalLocal(false)
-    patchWorkbench({ commentMode: false, commentCoachmarkDismissed: true, commentPreviewOriginal: false })
+    patchWorkbench({
+      commentMode: false,
+      commentCoachmarkDismissed: true,
+      commentPreviewOriginal: false,
+      commentAnnotations: [annotation, ...commentAnnotations.filter((item) => item.id !== annotation.id)].slice(0, 20)
+    })
+  }
+
+  const addBrowserAnnotationToChat = (annotation: BrowserAnnotationState): void => {
+    if (annotation.screenshotPath) addArtifactToChat(annotation.screenshotPath)
+    window.dispatchEvent(new CustomEvent('orchestrator:add-composer-text', {
+      detail: { text: annotation.text }
+    }))
+    setBrowserCommentHistoryStatus({ text: 'Annotation added to chat', tone: 'info' })
+  }
+
+  const copyBrowserAnnotation = (annotation: BrowserAnnotationState): void => {
+    setBrowserCommentHistoryStatus({ text: 'Copying annotation', tone: 'info' })
+    void writeBrowserClipboardText(annotation.text)
+      .then(() => setBrowserCommentHistoryStatus({ text: 'Annotation copied', tone: 'info' }))
+      .catch(() => setBrowserCommentHistoryStatus({ text: 'Copy annotation failed', tone: 'danger' }))
   }
 
   const cancelPointComment = (): void => {
@@ -1629,6 +1675,8 @@ export default function BrowserPanel({
       data-browser-comment-pending-region={pendingComment?.region ? `${pendingComment.region.xPercent},${pendingComment.region.yPercent},${pendingComment.region.widthPercent},${pendingComment.region.heightPercent}` : ''}
       data-browser-comment-screenshot-path={artifactPath ?? ''}
       data-browser-last-comment={lastCommentPoint}
+      data-browser-comment-history-count={commentAnnotations.length}
+      data-browser-comment-history-latest={commentAnnotations[0]?.body ?? ''}
       data-browser-webview-host-id={hostId}
       data-browser-webview-source-host-id={browserWebviewHostId}
       data-browser-webview-partition={browserPartition}
@@ -2667,9 +2715,13 @@ export default function BrowserPanel({
                   artifactPath={artifactPath}
                   screenshot={screenshot}
                   screenshotStatus={screenshotStatus}
+                  annotations={commentAnnotations}
+                  annotationStatus={commentHistoryStatus}
                   onAddScreenshot={() => addScreenshotToChat(artifactPath)}
                   onCopyScreenshotPath={() => copyScreenshotPath(artifactPath)}
                   onRevealScreenshot={() => revealScreenshotArtifact(artifactPath)}
+                  onAddAnnotation={addBrowserAnnotationToChat}
+                  onCopyAnnotation={copyBrowserAnnotation}
                   onClear={() => setLogs([])}
                 />
               )}
@@ -2791,18 +2843,26 @@ function ConsolePane({
   artifactPath,
   screenshot,
   screenshotStatus,
+  annotations,
+  annotationStatus,
   onAddScreenshot,
   onCopyScreenshotPath,
   onRevealScreenshot,
+  onAddAnnotation,
+  onCopyAnnotation,
   onClear
 }: {
   logs: BrowserLogEntry[]
   artifactPath: string | null
   screenshot: string | null
   screenshotStatus: BrowserScreenshotActionStatus | null
+  annotations: BrowserAnnotationState[]
+  annotationStatus: BrowserActionStatus | null
   onAddScreenshot: () => void
   onCopyScreenshotPath: () => void
   onRevealScreenshot: () => void
+  onAddAnnotation: (annotation: BrowserAnnotationState) => void
+  onCopyAnnotation: (annotation: BrowserAnnotationState) => void
   onClear: () => void
 }): JSX.Element {
   return (
@@ -2877,6 +2937,12 @@ function ConsolePane({
           style={{ borderColor: 'var(--border-subtle)' }}
         />
       )}
+      <BrowserAnnotationHistory
+        annotations={annotations}
+        status={annotationStatus}
+        onAddAnnotation={onAddAnnotation}
+        onCopyAnnotation={onCopyAnnotation}
+      />
       <div className="space-y-1">
         {logs.length === 0 ? (
           <PanelMessage compact dataTestId="browser-console-empty" state="empty">
@@ -2890,6 +2956,96 @@ function ConsolePane({
         ))}
       </div>
     </div>
+  )
+}
+
+function BrowserAnnotationHistory({
+  annotations,
+  status,
+  onAddAnnotation,
+  onCopyAnnotation
+}: {
+  annotations: BrowserAnnotationState[]
+  status: BrowserActionStatus | null
+  onAddAnnotation: (annotation: BrowserAnnotationState) => void
+  onCopyAnnotation: (annotation: BrowserAnnotationState) => void
+}): JSX.Element {
+  return (
+    <section className="space-y-1" data-testid="browser-comment-history" data-browser-comment-history-count={annotations.length}>
+      <div className="flex items-center gap-2">
+        <Badge tone={annotations.length > 0 ? 'accent' : 'neutral'}>annotations {annotations.length}</Badge>
+        <span className="min-w-0 truncate text-[11px]" style={{ color: 'var(--text-tertiary)' }}>
+          {annotations.length > 0 ? 'Saved visual comments for this Browser tab' : 'No saved visual comments'}
+        </span>
+      </div>
+      {status && (
+        <div
+          className="browser-comment-history-status"
+          data-testid="browser-comment-history-status"
+          data-browser-comment-history-status-tone={status.tone}
+          role={status.tone === 'danger' ? 'alert' : 'status'}
+          aria-live={status.tone === 'danger' ? 'assertive' : 'polite'}
+          aria-atomic="true"
+        >
+          {status.text}
+        </div>
+      )}
+      {annotations.length === 0 ? (
+        <PanelMessage compact dataTestId="browser-comment-history-empty" state="empty">
+          Browser comments you send will stay here for reuse.
+        </PanelMessage>
+      ) : (
+        <div className="space-y-1" data-testid="browser-comment-history-list" role="list" aria-label="Browser annotation history">
+          {annotations.slice(0, 5).map((annotation) => (
+            <div
+              key={annotation.id}
+              className="rounded-md px-2 py-1.5"
+              data-testid="browser-comment-history-item"
+              data-browser-comment-history-intent={annotation.intent}
+              data-browser-comment-history-scope={annotation.scope}
+              data-browser-comment-history-screenshot={annotation.screenshotPath ?? ''}
+              role="listitem"
+              style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)' }}
+            >
+              <div className="flex min-w-0 items-start gap-2">
+                <div className="min-w-0 flex-1">
+                  <div className="flex min-w-0 items-center gap-1.5">
+                    <span className="text-[11px] font-medium" style={{ color: 'var(--text-primary)' }}>
+                      {annotation.intent === 'design-tweak' ? 'Design tweak' : 'Comment'}
+                    </span>
+                    <span className="min-w-0 truncate text-[10px]" style={{ color: 'var(--text-tertiary)' }}>
+                      {annotation.scope}
+                    </span>
+                    {annotation.screenshotPath && <Badge tone="success">screenshot</Badge>}
+                  </div>
+                  <div className="mt-0.5 line-clamp-2 text-[11px]" style={{ color: 'var(--text-secondary)' }}>
+                    {annotation.body || shortUrl(annotation.url)}
+                  </div>
+                </div>
+                <div className="flex shrink-0 items-center gap-1" role="group" aria-label="Browser annotation actions">
+                  <IconButton
+                    icon="paperclip"
+                    label="Add annotation to chat"
+                    size="sm"
+                    variant="toolbar"
+                    dataTestId="browser-comment-history-add-chat"
+                    onClick={() => onAddAnnotation(annotation)}
+                  />
+                  <IconButton
+                    icon="copy"
+                    label="Copy annotation"
+                    size="sm"
+                    variant="toolbar"
+                    dataTestId="browser-comment-history-copy"
+                    onClick={() => onCopyAnnotation(annotation)}
+                  />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
   )
 }
 
@@ -3354,6 +3510,7 @@ function normalizeWorkbench(state: BrowserWorkbenchState | undefined, initialUrl
     commentMode: state?.commentMode ?? false,
     commentCoachmarkDismissed: state?.commentCoachmarkDismissed ?? false,
     commentPreviewOriginal: state?.commentPreviewOriginal ?? false,
+    commentAnnotations: normalizeBrowserAnnotations(state?.commentAnnotations ?? []),
     visible: state?.visible ?? true,
     activeTabId: tabs.some((tab) => tab.id === state?.activeTabId) ? state!.activeTabId : tabs[0].id,
     tabs,
@@ -3439,6 +3596,31 @@ function normalizeBrowserUseSurfaceBounds(bounds: BrowserUseSurfaceBounds | null
     height: clampViewportSize(bounds.height, 'height'),
     ...(Number.isFinite(scale) && scale > 0 ? { scale: Math.round(scale * 1000) / 1000 } : {})
   }
+}
+
+function normalizeBrowserAnnotations(annotations: BrowserAnnotationState[] | null | undefined): BrowserAnnotationState[] {
+  if (!Array.isArray(annotations)) return []
+  return annotations
+    .filter((annotation): annotation is BrowserAnnotationState =>
+      annotation !== null &&
+      typeof annotation === 'object' &&
+      typeof annotation.id === 'string' &&
+      typeof annotation.url === 'string' &&
+      typeof annotation.text === 'string' &&
+      (annotation.intent === 'comment' || annotation.intent === 'design-tweak')
+    )
+    .map((annotation) => ({
+      id: annotation.id,
+      intent: annotation.intent,
+      url: annotation.url,
+      title: typeof annotation.title === 'string' ? annotation.title : null,
+      scope: typeof annotation.scope === 'string' ? annotation.scope : 'Point',
+      body: typeof annotation.body === 'string' ? annotation.body : '',
+      text: annotation.text,
+      screenshotPath: typeof annotation.screenshotPath === 'string' ? annotation.screenshotPath : null,
+      createdAt: Number.isFinite(annotation.createdAt) ? annotation.createdAt : 0
+    }))
+    .slice(0, 20)
 }
 
 function normalizeLocalServerRoutes(routes: BrowserLocalServerRoute[] | null | undefined): BrowserLocalServerRoute[] {
