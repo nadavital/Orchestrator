@@ -2503,6 +2503,7 @@ child.on('exit', async (code) => {
           workbenchNewTabGitPrCommandTerminalHandoff: result.workbenchNewTabGitPrCommandTerminalHandoffWorks === true,
           workbenchNewTabGitRefreshStatus: result.workbenchNewTabGitRefreshStatusWorks === true,
           workbenchNewTabGitStatusHandoff: result.workbenchNewTabGitStatusHandoffWorks === true,
+          workbenchNewTabGitCommitDraftHandoff: result.workbenchNewTabGitCommitDraftHandoffWorks === true,
           workbenchNewTabGitCommit: result.workbenchNewTabGitCommitWorks === true,
           workbenchNewTabGitDiscard: result.workbenchNewTabGitDiscardWorks === true,
           agentRuntimeEventDetail: result.agentRuntimeEventDetailWorks === true,

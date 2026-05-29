@@ -247,6 +247,27 @@ export default function GitPanel({
     }
   }
 
+  const addCommitDraftToChat = (): void => {
+    if (busy || stagedPaths.length === 0) return
+    const stagedChanges = changes.filter((change) => change.staged)
+    const fileLines = stagedChanges.slice(0, 12).map((change) =>
+      `- ${change.path} (${fileStatusLabel(change.status)}, +${change.additions}, -${change.deletions})`
+    )
+    const text = [
+      'Draft a concise commit message for these staged changes:',
+      `Workspace: ${workDir}`,
+      `Branch: ${currentBranch}`,
+      `Staged files: ${stagedPaths.length}`,
+      ...(fileLines.length > 0 ? ['Files:', ...fileLines] : ['Files: none'])
+    ].join('\n')
+    const globals = window as typeof window & { __orchestratorLastGitCommitDraftForSmoke?: string }
+    globals.__orchestratorLastGitCommitDraftForSmoke = text
+    window.dispatchEvent(new CustomEvent('orchestrator:add-composer-text', {
+      detail: { text }
+    }))
+    setActionMessage({ text: 'Commit draft request added to chat', tone: 'info' })
+  }
+
   const openPullRequest = (): void => {
     if (!pullRequestUrl || busy) return
     setActionMessage({ text: 'Opening pull request', tone: 'info' })
@@ -694,6 +715,15 @@ export default function GitPanel({
               aria-label="Commit message"
               onChange={(event) => setCommitMessage(event.target.value)}
             />
+            <Button
+              type="button"
+              variant="ghost"
+              dataTestId="git-add-commit-draft-to-chat"
+              disabled={busy || stagedPaths.length === 0}
+              onClick={addCommitDraftToChat}
+            >
+              Draft message
+            </Button>
             <Button
               type="submit"
               variant="primary"

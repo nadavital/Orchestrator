@@ -9632,6 +9632,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 let workbenchNewTabGitPrCommandTerminalHandoffWorks = false;
                 let workbenchNewTabGitRefreshStatusWorks = false;
                 let workbenchNewTabGitStatusHandoffWorks = false;
+                let workbenchNewTabGitCommitDraftHandoffWorks = false;
                 let workbenchNewTabGitCommitWorks = false;
                 let workbenchNewTabGitDiscardWorks = false;
                 let workbenchNewTabSingletonSwitchWorks = false;
@@ -10192,6 +10193,31 @@ function runAutomatedFocusedSurfaceSmoke(
                   const gitBeforeCommitStagedCount = gitPanelBeforeCommit instanceof HTMLElement
                     ? Number(gitPanelBeforeCommit.getAttribute('data-git-staged-count') ?? '0')
                     : -1;
+                  const gitAddCommitDraftToChat = document.querySelector('[data-testid="git-add-commit-draft-to-chat"]');
+                  if (
+                    gitPanelBeforeCommit instanceof HTMLElement &&
+                    gitAddCommitDraftToChat instanceof HTMLButtonElement &&
+                    !gitAddCommitDraftToChat.disabled &&
+                    gitBeforeCommitStagedCount >= gitChangeCountBefore
+                  ) {
+                    gitAddCommitDraftToChat.click();
+                    await sleep(160);
+                    const gitStatusAfterCommitDraft = document.querySelector('[data-testid="git-action-status"]');
+                    const composerAfterCommitDraft = document.querySelector('[data-testid="composer-shell"]');
+                    const commitDraftText = window.__orchestratorLastGitCommitDraftForSmoke ?? '';
+                    workbenchNewTabGitCommitDraftHandoffWorks =
+                      gitStatusAfterCommitDraft instanceof HTMLElement &&
+                      gitStatusAfterCommitDraft.getAttribute('role') === 'status' &&
+                      gitStatusAfterCommitDraft.getAttribute('aria-live') === 'polite' &&
+                      gitStatusAfterCommitDraft.textContent?.includes('Commit draft request added to chat') === true &&
+                      composerAfterCommitDraft instanceof HTMLElement &&
+                      composerAfterCommitDraft.textContent?.includes('Draft a concise commit message for these staged changes:') === true &&
+                      composerAfterCommitDraft.textContent?.includes(initialGitBranchName) === true &&
+                      commitDraftText.includes('Draft a concise commit message for these staged changes:') &&
+                      commitDraftText.includes('Branch: ' + initialGitBranchName) &&
+                      commitDraftText.includes('Staged files:') &&
+                      commitDraftText.includes('data-preview-smoke.json');
+                  }
                   const gitCommitMessage = document.querySelector('[data-testid="git-commit-message"]');
                   const gitCommitButton = document.querySelector('[data-testid="git-commit-staged"]');
                   if (
@@ -10246,6 +10272,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     workbenchNewTabGitPrCommandTerminalHandoffWorks &&
                     workbenchNewTabGitRefreshStatusWorks &&
                     workbenchNewTabGitStatusHandoffWorks &&
+                    workbenchNewTabGitCommitDraftHandoffWorks &&
                     workbenchNewTabGitCommitWorks &&
                     workbenchNewTabGitDiscardWorks;
                   const newTabAfterGit = document.querySelector('[data-testid="workbench-panel-tabbar"] [role="tab"][data-tab-id="new-tab"]');
@@ -10820,6 +10847,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   workbenchNewTabGitPrCommandTerminalHandoffWorks,
                   workbenchNewTabGitRefreshStatusWorks,
                   workbenchNewTabGitStatusHandoffWorks,
+                  workbenchNewTabGitCommitDraftHandoffWorks,
                   workbenchNewTabGitCommitWorks,
                   workbenchNewTabGitDiscardWorks,
                   agentRuntimeEventDetailWorks,
