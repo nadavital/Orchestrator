@@ -102,6 +102,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   const [historyCursor, setHistoryCursor] = useState<number | null>(null)
   const [composerEnterBehavior, setComposerEnterBehavior] = useState<ComposerEnterBehavior>('send')
   const [draftSource, setDraftSource] = useState<ComposerDraftSource>(null)
+  const [draftSourceActionStatus, setDraftSourceActionStatus] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const agentButtonRef = useRef<HTMLButtonElement>(null)
   const permissionButtonRef = useRef<HTMLButtonElement>(null)
@@ -242,6 +243,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     setRunActionStatus(null)
     setPermissionRulesStatus(null)
     setDraftSource(null)
+    setDraftSourceActionStatus(null)
     setHistoryCursor(null)
     draftBeforeHistoryRef.current = ''
     pendingSettingsUpdateRef.current = Promise.resolve()
@@ -889,6 +891,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
             }
           })()
         : null)
+      setDraftSourceActionStatus(null)
       setSlashIndex(0)
       setDismissedSlashQuery(null)
       textareaRef.current?.focus()
@@ -1149,6 +1152,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
                   setComposerText(draftSource.previousDraft.text)
                   setComposerAttachments(session.id, draftSource.previousDraft.attachments.map(cloneAttachmentForDraft))
                   setDraftSource(null)
+                  setDraftSourceActionStatus('Previous draft restored')
                   textareaRef.current?.focus()
                   window.setTimeout(() => {
                     if (!textareaRef.current) return
@@ -1174,6 +1178,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
                 setComposerText('')
                 setComposerAttachments(session.id, [])
                 setDraftSource(null)
+                setDraftSourceActionStatus('Edited draft cleared')
                 if (textareaRef.current) textareaRef.current.style.height = 'auto'
                 textareaRef.current?.focus()
               }}
@@ -1185,6 +1190,17 @@ function InputBar({ session, isNew }: Props): JSX.Element {
             >
               Clear
             </button>
+          </div>
+        )}
+        {draftSourceActionStatus && (
+          <div
+            className="composer-draft-source-action-status mx-4 mb-2"
+            data-testid="composer-draft-source-action-status"
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            {draftSourceActionStatus}
           </div>
         )}
         {attachmentStatus && (

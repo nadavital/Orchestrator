@@ -8,7 +8,7 @@ const root = resolve(fileURLToPath(new URL('..', import.meta.url)))
 
 const targetRules = [
   { flag: '--composer', label: 'Composer', patterns: [/^src\/renderer\/src\/components\/Session\/InputBar\.tsx$/, /^src\/renderer\/src\/components\/Session\/Composer/, /^src\/renderer\/src\/components\/Session\/ChatComposer/, /^src\/renderer\/src\/components\/Session\/ComposerToolbar/, /^src\/renderer\/src\/store\/.*composer/i, /^src\/renderer\/src\/stores\/.*composer/i] },
-  { flag: '--transcript-layout', label: 'Transcript', patterns: [/^src\/renderer\/src\/components\/Session\/(Transcript|ChatMessage|MessageActions)/, /^src\/renderer\/src\/components\/Session\/Tool/, /^src\/renderer\/src\/stores\/.*message/i] },
+  { flag: '--transcript-layout', label: 'Transcript', patterns: [/^src\/renderer\/src\/components\/Session\/(Transcript|ChatView|ChatMessage|MessageActions)/, /^src\/renderer\/src\/components\/Session\/Tool/, /^src\/renderer\/src\/stores\/.*message/i] },
   { flag: '--transcript-file-reference', label: 'Transcript file references', patterns: [/^src\/renderer\/src\/components\/Session\/FileReference/, /^src\/renderer\/src\/components\/Session\/.*Reference/] },
   { flag: '--transcript-permission', label: 'Transcript permissions', patterns: [/^src\/renderer\/src\/components\/Session\/.*Permission/, /^src\/main\/.*permission/i, /^src\/main\/providers\/.*permission/i] },
   { flag: '--side-chat', label: 'Side chat', patterns: [/^src\/renderer\/src\/components\/Session\/SideChat/] },
@@ -54,6 +54,12 @@ const diffRules = [
     label: 'Composer',
     filePatterns: [/^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
     diffPatterns: [/composer[A-Z]/, /Composer/, /orchestrator:add-composer-text/, /composer-/]
+  },
+  {
+    flag: '--transcript-layout',
+    label: 'Transcript',
+    filePatterns: [/^src\/renderer\/src\/components\/Session\/InputBar\.tsx$/, /^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
+    diffPatterns: [/chatUserMessageEdit/, /message-edit-draft/, /composer-draft-source/]
   },
   {
     flag: '--right-panel',

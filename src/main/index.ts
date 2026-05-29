@@ -25592,11 +25592,42 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
               await sleep(160);
             }
             const composerTextareaAfterRestore = document.querySelector('[data-testid="composer-textarea"]');
+            const composerDraftSourceActionStatusAfterRestore = document.querySelector('[data-testid="composer-draft-source-action-status"]');
             const chatUserMessageEditDraftRestore =
               composerTextareaAfterRestore instanceof HTMLTextAreaElement &&
               composerTextareaAfterRestore.value === 'Existing unsent draft before editing an older prompt' &&
               document.querySelector('[data-testid="composer-draft-source-status"]') === null &&
-              document.querySelector('[data-testid="composer-shell"]')?.textContent?.includes('AGENTS.md') !== true;
+              document.querySelector('[data-testid="composer-shell"]')?.textContent?.includes('AGENTS.md') !== true &&
+              composerDraftSourceActionStatusAfterRestore instanceof HTMLElement &&
+              composerDraftSourceActionStatusAfterRestore.textContent?.includes('Previous draft restored') === true &&
+              composerDraftSourceActionStatusAfterRestore.getAttribute('role') === 'status' &&
+              composerDraftSourceActionStatusAfterRestore.getAttribute('aria-live') === 'polite' &&
+              composerDraftSourceActionStatusAfterRestore.getAttribute('aria-atomic') === 'true';
+            const userEditButtonForClear = document.querySelector('[data-testid="chat-user-message-edit"]');
+            if (userEditButtonForClear instanceof HTMLButtonElement) {
+              userEditButtonForClear.click();
+              await sleep(180);
+            }
+            const composerDraftSourceClearAfterReopen = document.querySelector('[data-testid="composer-draft-source-clear"]');
+            if (composerDraftSourceClearAfterReopen instanceof HTMLButtonElement) {
+              composerDraftSourceClearAfterReopen.click();
+              await sleep(160);
+            }
+            const composerTextareaAfterClear = document.querySelector('[data-testid="composer-textarea"]');
+            const composerDraftSourceActionStatusAfterClear = document.querySelector('[data-testid="composer-draft-source-action-status"]');
+            const chatUserMessageEditDraftClear =
+              userEditButtonForClear instanceof HTMLButtonElement &&
+              composerDraftSourceClearAfterReopen instanceof HTMLButtonElement &&
+              composerTextareaAfterClear instanceof HTMLTextAreaElement &&
+              document.activeElement === composerTextareaAfterClear &&
+              composerTextareaAfterClear.value === '' &&
+              document.querySelector('[data-testid="composer-draft-source-status"]') === null &&
+              document.querySelector('[data-testid="composer-shell"]')?.textContent?.includes('AGENTS.md') !== true &&
+              composerDraftSourceActionStatusAfterClear instanceof HTMLElement &&
+              composerDraftSourceActionStatusAfterClear.textContent?.includes('Edited draft cleared') === true &&
+              composerDraftSourceActionStatusAfterClear.getAttribute('role') === 'status' &&
+              composerDraftSourceActionStatusAfterClear.getAttribute('aria-live') === 'polite' &&
+              composerDraftSourceActionStatusAfterClear.getAttribute('aria-atomic') === 'true';
             let composerReserveContractWorks = false;
             let composerReserveDebug = {};
             for (let index = 0; index < 10; index += 1) {
@@ -25728,6 +25759,7 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
               chatUserMessageEditAttachments,
               chatUserMessageEditDraftSourceStatus,
               chatUserMessageEditDraftRestore,
+              chatUserMessageEditDraftClear,
               relativeProseCardSuppressed,
               absoluteMissingFileCardDisabled,
               fileReferenceOpenOutcomeWorks,
