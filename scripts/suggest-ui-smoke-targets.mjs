@@ -50,10 +50,24 @@ const broadTriggers = [
   /^pnpm-lock\.yaml$/
 ]
 
-const files = resolveFiles(process.argv.slice(2))
+const args = process.argv.slice(2)
+const shouldRun = args.includes('--run')
+const shouldPrintJson = args.includes('--json')
+if (shouldRun && shouldPrintJson) {
+  console.error('Use --json or --run, not both.')
+  process.exit(1)
+}
+const files = resolveFiles(args)
 const suggestions = suggestTargets(files)
+const plan = buildValidationPlan(files, suggestions)
 
-printSuggestions(files, suggestions)
+if (shouldPrintJson) {
+  printJson(files, suggestions, plan)
+} else {
+  printSuggestions(files, suggestions, plan)
+}
+
+if (shouldRun) runPlan(plan, suggestions)
 
 function resolveFiles(args) {
   const explicit = args.filter((arg) => !arg.startsWith('-'))
@@ -103,6 +117,48 @@ function suggestTargets(paths) {
   return { targets: Array.from(matched.values()), unmatched, broadReasons }
 }
 
+function buildValidationPlan(paths, suggestions) {
+  const checks = []
+  if (paths.length === 0) return checks
+
+  checks.push({
+    kind: 'static',
+    label: 'Diff whitespace',
+    command: 'git',
+    args: ['diff', '--check']
+  })
+
+  if (paths.some((file) => file.startsWith('src/') || file === 'package.json')) {
+    checks.push({
+      kind: 'static',
+      label: 'TypeScript',
+      command: 'pnpm',
+      args: ['exec', 'tsc', '--noEmit']
+    })
+  }
+
+  for (const file of paths.filter((candidate) => candidate.startsWith('scripts/') && candidate.endsWith('.mjs'))) {
+    checks.push({
+      kind: 'static',
+      label: `Syntax: ${file}`,
+      command: 'node',
+      args: ['-c', file]
+    })
+  }
+
+  for (const target of suggestions.targets) {
+    checks.push({
+      kind: 'ui-smoke',
+      label: target.label,
+      command: 'node',
+      args: ['scripts/run-automated-ui-smoke.mjs', target.flag],
+      flag: target.flag
+    })
+  }
+
+  return checks
+}
+
 function suppressCoveredTarget(matched, broadFlag, focusedFlag) {
   const broad = matched.get(broadFlag)
   const focused = matched.get(focusedFlag)
@@ -111,7 +167,7 @@ function suppressCoveredTarget(matched, broadFlag, focusedFlag) {
   if (broad.files.every((file) => focusedFiles.has(file))) matched.delete(broadFlag)
 }
 
-function printSuggestions(paths, suggestions) {
+function printSuggestions(paths, suggestions, plan) {
   console.log('Focused smoke suggestion')
   console.log('')
 
@@ -125,25 +181,24 @@ function printSuggestions(paths, suggestions) {
   for (const file of paths) console.log(`  - ${file}`)
   console.log('')
 
-  console.log('Always run:')
-  console.log('  - git diff --check')
-  if (paths.some((file) => file.startsWith('src/') || file === 'package.json')) {
-    console.log('  - pnpm exec tsc --noEmit')
-  }
-  if (paths.some((file) => file.startsWith('scripts/') && file.endsWith('.mjs'))) {
-    console.log('  - node -c <changed-script>')
+  console.log('Targeted validation plan:')
+  for (const check of plan.filter((candidate) => candidate.kind === 'static')) {
+    console.log(`  - ${formatCommand(check)}`)
   }
   console.log('')
 
-  if (suggestions.targets.length > 0) {
-    console.log('Suggested focused UI smoke:')
-    for (const target of suggestions.targets) {
-      console.log(`  - node scripts/run-automated-ui-smoke.mjs ${target.flag}  # ${target.label}`)
-    }
+  const smokeChecks = plan.filter((candidate) => candidate.kind === 'ui-smoke')
+  if (smokeChecks.length > 0) {
+    console.log('Focused UI smoke:')
+    for (const check of smokeChecks) console.log(`  - ${formatCommand(check)}  # ${check.label}`)
   } else {
-    console.log('Suggested focused UI smoke:')
+    console.log('Focused UI smoke:')
     console.log('  - none from path rules')
   }
+
+  console.log('')
+  console.log('Run this exact plan:')
+  console.log('  - pnpm run smoke:ui:changed')
 
   if (suggestions.broadReasons.length > 0) {
     console.log('')
@@ -161,4 +216,47 @@ function printSuggestions(paths, suggestions) {
     console.log('')
     console.log('Warning: smoke runner not found at scripts/run-automated-ui-smoke.mjs')
   }
+}
+
+function printJson(paths, suggestions, plan) {
+  console.log(JSON.stringify({
+    changedFiles: paths,
+    checks: plan.map((check) => ({
+      kind: check.kind,
+      label: check.label,
+      command: formatCommand(check),
+      flag: check.flag ?? null
+    })),
+    broadReviewNeeded: suggestions.broadReasons,
+    unmatchedFiles: suggestions.unmatched
+  }, null, 2))
+}
+
+function runPlan(plan, suggestions) {
+  if (plan.length === 0) return
+
+  console.log('')
+  console.log('Running targeted validation plan')
+  for (const check of plan) {
+    console.log(`\n> ${formatCommand(check)}`)
+    const result = spawnSync(check.command, check.args, {
+      cwd: root,
+      encoding: 'utf8',
+      stdio: 'inherit'
+    })
+    if (result.status !== 0) process.exit(result.status ?? 1)
+  }
+
+  if (suggestions.broadReasons.length > 0) {
+    console.log('')
+    console.log('Broad-smoke review was flagged, but no no-flag smoke was run automatically.')
+  }
+}
+
+function formatCommand(check) {
+  return [check.command, ...check.args].map(shellQuote).join(' ')
+}
+
+function shellQuote(value) {
+  return /^[A-Za-z0-9_./:=@-]+$/.test(value) ? value : JSON.stringify(value)
 }
