@@ -72,6 +72,15 @@ function shellQuote(value: string): string {
   return /^[A-Za-z0-9._/@:-]+$/.test(value) ? value : `'${value.replace(/'/g, `'\\''`)}'`
 }
 
+function shellAnsiQuote(value: string): string {
+  return `$'${value
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/\r/g, '\\r')
+    .replace(/\n/g, '\\n')
+    .replace(/\t/g, '\\t')}'`
+}
+
 export default function DiffPanel({ sessionId, workDir, embedded = false, focusPath = null, focusRequest }: Props): JSX.Element {
   const [files, setFiles] = useState<FileChange[]>([])
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
@@ -841,10 +850,15 @@ export default function DiffPanel({ sessionId, workDir, embedded = false, focusP
     })
   }
 
-  const copyGitApplyCommand = async (): Promise<void> => {
-    if (!reviewPatchText.trim()) return
+  const buildGitApplyCommand = (): string | null => {
+    if (!reviewPatchText.trim()) return null
     const patch = reviewPatchText.endsWith('\n') ? reviewPatchText : `${reviewPatchText}\n`
-    const command = `git apply <<'PATCH'\n${patch}PATCH`
+    return `git apply <<'PATCH'\n${patch}PATCH`
+  }
+
+  const copyGitApplyCommand = async (): Promise<void> => {
+    const command = buildGitApplyCommand()
+    if (!command) return
     const globals = window as typeof window & { __orchestratorLastReviewGitApplyCommandForSmoke?: string }
     globals.__orchestratorLastReviewGitApplyCommandForSmoke = command
     setReviewGitActionMessage({ text: 'Copying git apply command', tone: 'info' })
@@ -854,6 +868,37 @@ export default function DiffPanel({ sessionId, workDir, embedded = false, focusP
     } catch {
       setReviewGitActionMessage({ text: 'Copy git apply command failed', tone: 'danger' })
     }
+  }
+
+  const insertGitApplyCommandInTerminal = (): void => {
+    if (!reviewPatchText.trim()) return
+    const patch = reviewPatchText.endsWith('\n') ? reviewPatchText : `${reviewPatchText}\n`
+    const command = `printf %s ${shellAnsiQuote(patch)} | git apply -`
+    setReviewGitActionMessage({ text: 'Opening terminal for git apply command', tone: 'info' })
+    void (async () => {
+      try {
+        const state = useSessionStore.getState()
+        const currentPanel = state.uiState[sessionId]?.terminalPanel
+        const existingTab = typeof currentPanel?.activeTabId === 'number'
+          ? currentPanel.activeTabId
+          : currentPanel?.tabs.find((tab): tab is number => typeof tab === 'number')
+        const tabId = existingTab ?? addTerminalTab(sessionId)
+        setShowTerminal(sessionId, true)
+        setActiveTerminalTab(sessionId, tabId)
+        const terminalId = `${sessionId}-${tabId}`
+        const globals = window as typeof window & {
+          __orchestratorLastReviewGitApplyTerminalCommandForSmoke?: string
+          __orchestratorLastReviewGitApplyTerminalIdForSmoke?: string
+        }
+        globals.__orchestratorLastReviewGitApplyTerminalCommandForSmoke = command
+        globals.__orchestratorLastReviewGitApplyTerminalIdForSmoke = terminalId
+        await window.api.terminal.spawn(terminalId, workDir)
+        await window.api.terminal.write(terminalId, command)
+        setReviewGitActionMessage({ text: 'Git apply command inserted in terminal', tone: 'info' })
+      } catch {
+        setReviewGitActionMessage({ text: 'Insert git apply command in terminal failed', tone: 'danger' })
+      }
+    })()
   }
 
   const runReviewPathAction = async (action: 'stage' | 'unstage', path = selectedFile ?? ''): Promise<void> => {
@@ -1305,6 +1350,13 @@ export default function DiffPanel({ sessionId, workDir, embedded = false, focusP
             disabled={!reviewPatchText.trim()}
             dataTestId="review-copy-git-apply-command"
             onClick={() => { void copyGitApplyCommand(); setReviewOptionsOpen(false) }}
+          />
+          <MenuItem
+            icon="terminal"
+            label="Insert git apply in terminal"
+            disabled={!reviewPatchText.trim()}
+            dataTestId="review-insert-git-apply-terminal"
+            onClick={() => { insertGitApplyCommandInTerminal(); setReviewOptionsOpen(false) }}
           />
           <div className="review-options-divider" />
           <MenuItem

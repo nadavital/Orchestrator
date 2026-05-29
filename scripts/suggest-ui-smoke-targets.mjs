@@ -125,7 +125,7 @@ const diffRules = [
     flag: '--diff-core',
     label: 'Review local diff',
     filePatterns: [/^src\/renderer\/src\/components\/Session\/DiffPanel\.tsx$/, /^src\/renderer\/src\/components\/Session\/GitPanel\.tsx$/, /^src\/renderer\/src\/components\/Session\/ContextSidebar\.tsx$/, /^src\/renderer\/src\/components\/Session\/WorkbenchTree\.tsx$/, /^src\/renderer\/src\/index\.css$/, /^src\/renderer\/src\/store\/sessions\.ts$/, /^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
-    diffPatterns: [/reviewRowKeyboardContextMenu/, /reviewRowAddToChat/, /reviewRowInsertPathTerminal/, /reviewTreeKeyboardNavigation/, /data-keyboard-navigation/, /review-row-context-menu/, /review-row-copy-path/, /review-row-add-chat/, /review-row-insert-terminal/, /Added .* to chat/, /Review path inserted in terminal/, /reviewSelectedGitPathActions/, /review-stage-selected-file/, /review-unstage-selected-file/, /reviewGitHandoffSelectedFile/, /gitReviewHandoffSelectedFile/, /gitFocusPath/, /reviewFocusPath/, /git-file-row-focused/, /git-file-open-review/]
+    diffPatterns: [/reviewRowKeyboardContextMenu/, /reviewRowAddToChat/, /reviewRowInsertPathTerminal/, /reviewGitApplyTerminalHandoff/, /reviewTreeKeyboardNavigation/, /data-keyboard-navigation/, /review-row-context-menu/, /review-row-copy-path/, /review-row-add-chat/, /review-row-insert-terminal/, /review-insert-git-apply-terminal/, /Added .* to chat/, /Review path inserted in terminal/, /Git apply command inserted in terminal/, /__orchestratorLastReviewGitApplyTerminal/, /reviewSelectedGitPathActions/, /review-stage-selected-file/, /review-unstage-selected-file/, /reviewGitHandoffSelectedFile/, /gitReviewHandoffSelectedFile/, /gitFocusPath/, /reviewFocusPath/, /git-file-row-focused/, /git-file-open-review/]
   },
   {
     flag: '--terminal',
@@ -863,7 +863,7 @@ function suppressTerminalForReviewPathTerminalHandoffDiff(matched, paths) {
     paths.includes('scripts/run-automated-ui-smoke.mjs') ? diffForFile('scripts/run-automated-ui-smoke.mjs') : '',
     paths.includes('src/main/index.ts') ? diffForFile('src/main/index.ts') : ''
   ].join('\n')
-  if (!/reviewRowInsertPathTerminal|review-row-insert-terminal|Review path inserted in terminal|__orchestratorLastReviewTerminal/.test(diff)) return
+  if (!/reviewRowInsertPathTerminal|reviewGitApplyTerminalHandoff|review-row-insert-terminal|review-insert-git-apply-terminal|Review path inserted in terminal|Git apply command inserted in terminal|__orchestratorLastReviewTerminal|__orchestratorLastReviewGitApplyTerminal/.test(diff)) return
   matched.delete('--terminal')
 }
 

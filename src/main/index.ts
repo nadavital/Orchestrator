@@ -12817,6 +12817,8 @@ function runAutomatedFocusedSurfaceSmoke(
               let diffActionMenuMaterialWorks = false;
               let reviewGitApplyCommandCoversAllWorks = false;
               let reviewGitApplyCopyStatusWorks = false;
+              let reviewGitApplyTerminalHandoffWorks = false;
+              let reviewGitApplyTerminalHandoffDebug = null;
               let reviewSelectedGitPathActionsWorks = false;
               let reviewFloatingGitActionsWork = false;
               let reviewFloatingGitActionStatusWorks = false;
@@ -12852,6 +12854,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   menuLabels.some((label) => label.includes('word diffs')) &&
                   menuLabels.includes('Load full files') &&
                   menuLabels.includes('Copy git apply command') &&
+                  menuLabels.includes('Insert git apply in terminal') &&
                   menuLabels.includes('Open file') &&
                   menuLabels.includes('Reveal file') &&
                   menuLabels.includes('Copy path');
@@ -12892,6 +12895,69 @@ function runAutomatedFocusedSurfaceSmoke(
                 }
                 window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
                 await sleep(80);
+              }
+              const gitApplyTerminalMenuButton = [...document.querySelectorAll('button')]
+                .find((button) => button.getAttribute('aria-label') === 'Review options');
+              if (gitApplyTerminalMenuButton instanceof HTMLButtonElement) {
+                gitApplyTerminalMenuButton.click();
+                await sleep(100);
+                const gitApplyTerminalMenuItem = document.querySelector('[data-testid="review-insert-git-apply-terminal"]');
+                if (gitApplyTerminalMenuItem instanceof HTMLButtonElement && !gitApplyTerminalMenuItem.disabled) {
+                  gitApplyTerminalMenuItem.click();
+                  for (let attempt = 0; attempt < 24; attempt += 1) {
+                    await sleep(100);
+                    const statusText = document.querySelector('[data-testid="review-floating-action-status"], [data-testid="review-action-status-pill"]')?.textContent ?? '';
+                    const terminalId = window.__orchestratorLastReviewGitApplyTerminalIdForSmoke ?? '';
+                    const terminalCommand = window.__orchestratorLastReviewGitApplyTerminalCommandForSmoke ?? '';
+                    const terminalBuffer = terminalId
+                      ? await window.api?.terminal?.getBuffer?.(terminalId).catch(() => '') ?? ''
+                      : '';
+                    if (
+                      statusText.includes('Git apply command inserted in terminal') &&
+                      terminalCommand.startsWith('printf %s $') &&
+                      terminalCommand.includes('| git apply -') &&
+                      terminalCommand.includes('Nested Folder/nested note.md') &&
+                      terminalCommand.includes('data-preview-smoke.json')
+                    ) {
+                      break;
+                    }
+                  }
+                  const statusElement = document.querySelector('[data-testid="review-floating-action-status"], [data-testid="review-action-status-pill"]');
+                  const terminalId = window.__orchestratorLastReviewGitApplyTerminalIdForSmoke ?? '';
+                  const terminalCommand = window.__orchestratorLastReviewGitApplyTerminalCommandForSmoke ?? '';
+                  const terminalBuffer = terminalId
+                    ? await window.api?.terminal?.getBuffer?.(terminalId).catch(() => '') ?? ''
+                    : '';
+                  const bottomPanelAfterGitApplyInsert = document.querySelector('[data-testid="session-bottom-panel"]');
+                  reviewGitApplyTerminalHandoffDebug = {
+                    statusFound: statusElement instanceof HTMLElement,
+                    statusText: statusElement?.textContent ?? null,
+                    statusRole: statusElement instanceof HTMLElement ? statusElement.getAttribute('role') : null,
+                    statusLive: statusElement instanceof HTMLElement ? statusElement.getAttribute('aria-live') : null,
+                    terminalId,
+                    terminalCommandPrefix: terminalCommand.slice(0, 80),
+                    terminalCommandHasGitApply: terminalCommand.includes('| git apply -'),
+                    terminalCommandHasNested: terminalCommand.includes('Nested Folder/nested note.md'),
+                    terminalCommandHasJson: terminalCommand.includes('data-preview-smoke.json'),
+                    terminalBufferPreview: terminalBuffer.slice(0, 160),
+                    terminalBufferHasGitApply: terminalBuffer.includes('git apply -'),
+                    bottomPanelFound: bottomPanelAfterGitApplyInsert instanceof HTMLElement,
+                    bottomPanelActiveTerminalId: bottomPanelAfterGitApplyInsert instanceof HTMLElement ? bottomPanelAfterGitApplyInsert.getAttribute('data-bottom-panel-active-terminal-id') : null
+                  };
+                  reviewGitApplyTerminalHandoffWorks =
+                    statusElement instanceof HTMLElement &&
+                    statusElement.getAttribute('role') === 'status' &&
+                    statusElement.getAttribute('aria-live') === 'polite' &&
+                    statusElement.textContent?.includes('Git apply command inserted in terminal') === true &&
+                    terminalCommand.startsWith('printf %s $') &&
+                    terminalCommand.includes('| git apply -') &&
+                    terminalCommand.includes('Nested Folder/nested note.md') &&
+                    terminalCommand.includes('data-preview-smoke.json') &&
+                    bottomPanelAfterGitApplyInsert instanceof HTMLElement &&
+                    bottomPanelAfterGitApplyInsert.getAttribute('data-bottom-panel-active-terminal-id') === terminalId;
+                  document.querySelector('[aria-label="Hide bottom panel"]')?.click();
+                  await sleep(120);
+                }
               }
               if (smokeView === 'diff-core') {
                 const activeReviewPath = () => {
@@ -13089,13 +13155,15 @@ function runAutomatedFocusedSurfaceSmoke(
                   : '';
 	                reviewFloatingGitActionStatusWorks =
 	                  reviewFloatingActionPillAfterCopy instanceof HTMLElement &&
-	                  reviewFloatingActionMessage.includes('Git apply command copied') &&
-	                  reviewFloatingActionTone === 'info' &&
-	                  reviewFloatingActionStatus instanceof HTMLElement &&
-	                  reviewFloatingActionStatus.getAttribute('role') === 'status' &&
-	                  reviewFloatingActionStatus.getAttribute('aria-live') === 'polite' &&
-	                  reviewFloatingActionStatus.getAttribute('aria-atomic') === 'true' &&
-	                  reviewFloatingActionStatus.textContent?.includes('Git apply command copied') === true;
+                  (reviewFloatingActionMessage.includes('Git apply command copied') ||
+                    reviewFloatingActionMessage.includes('Git apply command inserted in terminal')) &&
+                  reviewFloatingActionTone === 'info' &&
+                  reviewFloatingActionStatus instanceof HTMLElement &&
+                  reviewFloatingActionStatus.getAttribute('role') === 'status' &&
+                  reviewFloatingActionStatus.getAttribute('aria-live') === 'polite' &&
+                  reviewFloatingActionStatus.getAttribute('aria-atomic') === 'true' &&
+                  (reviewFloatingActionStatus.textContent?.includes('Git apply command copied') === true ||
+                    reviewFloatingActionStatus.textContent?.includes('Git apply command inserted in terminal') === true);
                 const reviewStageSelectedButton = document.querySelector('[data-testid="review-stage-selected-file"]');
                 const reviewUnstageSelectedButton = document.querySelector('[data-testid="review-unstage-selected-file"]');
                 const selectedGitPathRootBefore = document.querySelector('.diff-panel-root');
@@ -14140,6 +14208,8 @@ function runAutomatedFocusedSurfaceSmoke(
                   diffActionMenuMaterialWorks,
                   reviewGitApplyCommandCoversAllWorks,
                   reviewGitApplyCopyStatusWorks,
+                  reviewGitApplyTerminalHandoffWorks,
+                  reviewGitApplyTerminalHandoffDebug,
                   reviewSelectedGitPathActionsWorks,
                   reviewFloatingGitActionsWork,
                   reviewFloatingGitActionStatusWorks,
