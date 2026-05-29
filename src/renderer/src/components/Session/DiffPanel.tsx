@@ -16,6 +16,8 @@ interface Props {
   sessionId: string
   workDir: string
   embedded?: boolean
+  focusPath?: string | null
+  focusRequest?: number
 }
 
 type ReviewDiffMode = 'unified' | 'split'
@@ -66,7 +68,7 @@ const REVIEW_OPTIONS_MENU_ID = 'review-options-menu-surface'
 const REVIEW_FILE_JUMP_MENU_ID = 'review-file-jump-menu-surface'
 const REVIEW_METADATA_MENU_ID = 'review-metadata-menu-surface'
 
-export default function DiffPanel({ sessionId, workDir, embedded = false }: Props): JSX.Element {
+export default function DiffPanel({ sessionId, workDir, embedded = false, focusPath = null, focusRequest }: Props): JSX.Element {
   const [files, setFiles] = useState<FileChange[]>([])
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
   const [reviewFileContentByPath, setReviewFileContentByPath] = useState<Record<string, ReviewFileContent>>({})
@@ -202,6 +204,7 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
     return counts
   }, [reviewCommentsByPath])
   const selectedChange = selectedFile ? sourceFiles.find((file) => file.path === selectedFile) ?? null : null
+  const focusedReviewPath = focusPath && sourceFiles.some((file) => file.path === focusPath) ? focusPath : null
   const reviewRowMenuChange = reviewRowMenu ? sourceFiles.find((file) => file.path === reviewRowMenu.path) ?? null : null
   const selectedFileIndex = selectedFile ? filteredFiles.findIndex((file) => file.path === selectedFile) : -1
   const canSelectPreviousFile = selectedFileIndex > 0
@@ -645,6 +648,17 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
     setCommitRefPickerOpen(false)
     writeStoredReviewSource(workDir, source)
   }
+
+  useEffect(() => {
+    if (!focusPath || focusRequest === undefined) return
+    if (sourceFiles.some((file) => file.path === focusPath)) {
+      setSelectedFile(focusPath)
+      return
+    }
+    if (isLocalMutableReviewSource(reviewSource) && reviewSource !== 'all') {
+      setReviewSource('all')
+    }
+  }, [focusPath, focusRequest, reviewSource, sourceFiles])
 
   useEffect(() => {
     const handleReviewOpenRequest = (event: Event): void => {
@@ -1510,6 +1524,9 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
       data-review-diff-expanded={diffExpanded ? 'true' : 'false'}
       data-review-source={reviewSource}
       data-review-selected-file={selectedFile ?? ''}
+      data-review-focus-path={focusPath ?? ''}
+      data-review-focus-request={focusRequest ?? ''}
+      data-review-focus-path-found={focusedReviewPath ? 'true' : 'false'}
       data-review-selected-staged={selectedChange?.staged === true ? 'true' : 'false'}
       data-review-selected-unstaged={selectedChange?.unstaged === true ? 'true' : 'false'}
       data-review-selected-conflicted={selectedChange?.conflicted === true ? 'true' : 'false'}

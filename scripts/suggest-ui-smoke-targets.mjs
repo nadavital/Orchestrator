@@ -113,7 +113,7 @@ const diffRules = [
     flag: '--diff-core',
     label: 'Review local diff',
     filePatterns: [/^src\/renderer\/src\/components\/Session\/DiffPanel\.tsx$/, /^src\/renderer\/src\/components\/Session\/GitPanel\.tsx$/, /^src\/renderer\/src\/components\/Session\/ContextSidebar\.tsx$/, /^src\/renderer\/src\/components\/Session\/WorkbenchTree\.tsx$/, /^src\/renderer\/src\/index\.css$/, /^src\/renderer\/src\/store\/sessions\.ts$/, /^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
-    diffPatterns: [/reviewRowKeyboardContextMenu/, /reviewTreeKeyboardNavigation/, /data-keyboard-navigation/, /review-row-context-menu/, /review-row-copy-path/, /reviewSelectedGitPathActions/, /review-stage-selected-file/, /review-unstage-selected-file/, /reviewGitHandoffSelectedFile/, /gitFocusPath/, /git-file-row-focused/]
+    diffPatterns: [/reviewRowKeyboardContextMenu/, /reviewTreeKeyboardNavigation/, /data-keyboard-navigation/, /review-row-context-menu/, /review-row-copy-path/, /reviewSelectedGitPathActions/, /review-stage-selected-file/, /review-unstage-selected-file/, /reviewGitHandoffSelectedFile/, /gitReviewHandoffSelectedFile/, /gitFocusPath/, /reviewFocusPath/, /git-file-row-focused/, /git-file-open-review/]
   },
   {
     flag: '--terminal',
@@ -575,7 +575,7 @@ function suppressWorkbenchForReviewGitHandoffDiff(matched, paths) {
     )
     .map(diffForFile)
     .join('\n')
-  if (!/reviewGitHandoffSelectedFile|focusRightPanelGitPath|gitFocusPath|git-file-row-focused/.test(diff)) return
+  if (!/reviewGitHandoffSelectedFile|gitReviewHandoffSelectedFile|focusRightPanelGitPath|focusRightPanelReviewPath|gitFocusPath|reviewFocusPath|git-file-row-focused|git-file-open-review/.test(diff)) return
   for (const flag of ['--right-panel', '--workbench-launcher', '--workbench-new-tab', '--design-system']) {
     const target = matched.get(flag)
     if (!target) continue

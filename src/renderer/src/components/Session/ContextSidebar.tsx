@@ -79,6 +79,7 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
     moveRightPanelTab,
     resetRightPanelTabState,
     pinRightPanelTab,
+    focusRightPanelReviewPath,
     updateRightPanelFileTabState,
     setRightPanelBrowserUrl,
     openRightPanelBrowserUrl,
@@ -204,6 +205,7 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
   const effectiveFilePath = filePathFromTabId(effectiveTab ?? 'plan')
   const effectiveFileTab = rightPanel?.tabs.find((tab) => tab.id === effectiveTab && tab.kind === 'file') ?? null
   const effectiveGitTab = rightPanel?.tabs.find((tab) => tab.id === 'git' && tab.kind === 'git') ?? null
+  const effectiveDiffTab = rightPanel?.tabs.find((tab) => tab.id === 'diff' && tab.kind === 'diff') ?? null
   const effectiveTabLabel = tabs.find((tab) => tab.id === effectiveTab)?.label ?? 'Workbench'
   const rightPanelOpen = rightPanel?.open ?? false
   const effectiveTerminalTabId = terminalTabIdFromTabId(effectiveTab ?? 'plan')
@@ -699,7 +701,13 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
             embedded
             focusPath={effectiveGitTab?.gitFocusPath ?? null}
             focusRequest={effectiveGitTab?.gitFocusRequest}
-            onOpenReview={() => setShowDiff(session.id, true)}
+            onOpenReview={(path) => {
+              if (path) {
+                focusRightPanelReviewPath(session.id, path)
+              } else {
+                setShowDiff(session.id, true)
+              }
+            }}
           />
         )}
         {effectiveTab === 'plan' && <PlanPanel session={session} embedded />}
@@ -741,7 +749,15 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
             onFileTabStateChange={(tabId, patch) => updateRightPanelFileTabState(session.id, tabId, patch)}
           />
         )}
-        {effectiveTab === 'diff' && <DiffPanel sessionId={session.id} workDir={session.workDir} embedded />}
+        {effectiveTab === 'diff' && (
+          <DiffPanel
+            sessionId={session.id}
+            workDir={session.workDir}
+            embedded
+            focusPath={effectiveDiffTab?.reviewFocusPath ?? null}
+            focusRequest={effectiveDiffTab?.reviewFocusRequest}
+          />
+        )}
         {effectiveTab === 'side' && <SideQuestionPanel session={session} embedded />}
         {sideChatIdFromTabId(effectiveTab ?? 'plan') && (
           <SideQuestionPanel session={session} chatId={sideChatIdFromTabId(effectiveTab ?? 'plan') ?? undefined} embedded />

@@ -12142,6 +12142,7 @@ function runAutomatedFocusedSurfaceSmoke(
               let reviewFloatingGitActionStatusWorks = false;
               let reviewFloatingGitOpenTabWorks = false;
               let reviewGitHandoffSelectedFileWorks = false;
+              let gitReviewHandoffSelectedFileWorks = false;
               let reviewFloatingGitBridgeRetiredWorks = false;
               const actionMenuButton = [...document.querySelectorAll('button')]
                 .find((button) => button.getAttribute('aria-label') === 'Review options');
@@ -12541,7 +12542,41 @@ function runAutomatedFocusedSurfaceSmoke(
                     gitFocusFound: gitPanelFromReview instanceof HTMLElement ? gitPanelFromReview.getAttribute('data-git-focus-path-found') : null,
                     focusedRowFound: focusedGitRowFromReview instanceof HTMLElement
                   };
-                  if (reviewTab instanceof HTMLElement) {
+                  const gitOpenSelectedInReviewButton = focusedGitRowFromReview instanceof HTMLElement
+                    ? focusedGitRowFromReview.querySelector('[data-testid="git-file-open-review"]')
+                    : null;
+                  if (gitOpenSelectedInReviewButton instanceof HTMLButtonElement && !gitOpenSelectedInReviewButton.disabled) {
+                    gitOpenSelectedInReviewButton.click();
+                    for (let attempt = 0; attempt < 16; attempt += 1) {
+                      await sleep(100);
+                      const reviewRootAfterGitHandoff = document.querySelector('.diff-panel-root');
+                      if (
+                        document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-active-tab') === 'diff' &&
+                        reviewRootAfterGitHandoff instanceof HTMLElement &&
+                        reviewRootAfterGitHandoff.getAttribute('data-review-selected-file') === selectedGitPath &&
+                        reviewRootAfterGitHandoff.getAttribute('data-review-focus-path') === selectedGitPath &&
+                        reviewRootAfterGitHandoff.getAttribute('data-review-focus-path-found') === 'true' &&
+                        (
+                          document.querySelector('[data-testid="review-unified-diff"] .review-diff-line-cell') instanceof HTMLElement ||
+                          document.querySelector('[data-testid="review-split-diff"] .review-diff-line-cell') instanceof HTMLElement
+                        )
+                      ) {
+                        break;
+                      }
+                    }
+                    const reviewRootAfterGitHandoff = document.querySelector('.diff-panel-root');
+                    const focusedReviewRowFromGit = document.querySelector('.diff-file-row[data-active="true"]');
+                    gitReviewHandoffSelectedFileWorks =
+                      selectedGitPath.length > 0 &&
+                      reviewRootAfterGitHandoff instanceof HTMLElement &&
+                      reviewRootAfterGitHandoff.getAttribute('data-review-selected-file') === selectedGitPath &&
+                      reviewRootAfterGitHandoff.getAttribute('data-review-focus-path') === selectedGitPath &&
+                      reviewRootAfterGitHandoff.getAttribute('data-review-focus-path-found') === 'true' &&
+                      Number(reviewRootAfterGitHandoff.getAttribute('data-review-focus-request') ?? '0') > 0 &&
+                      focusedReviewRowFromGit instanceof HTMLElement &&
+                      focusedReviewRowFromGit.getAttribute('data-review-path') === selectedGitPath;
+                  }
+                  if (!gitReviewHandoffSelectedFileWorks && reviewTab instanceof HTMLElement) {
                     reviewTab.click();
                     for (let attempt = 0; attempt < 12; attempt += 1) {
                       await sleep(100);
@@ -13289,6 +13324,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   reviewFloatingGitActionStatusWorks,
                   reviewFloatingGitOpenTabWorks,
                   reviewGitHandoffSelectedFileWorks,
+                  gitReviewHandoffSelectedFileWorks,
                   reviewFloatingGitOpenTabDebug,
                   reviewFloatingGitBridgeRetiredWorks
                 };

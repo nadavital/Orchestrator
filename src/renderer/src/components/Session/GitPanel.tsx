@@ -9,7 +9,7 @@ interface Props {
   embedded?: boolean
   focusPath?: string | null
   focusRequest?: number
-  onOpenReview: () => void
+  onOpenReview: (path?: string) => void
 }
 
 type GitActionState = 'idle' | 'loading' | 'staging' | 'unstaging' | 'branching' | 'checking-out' | 'committing' | 'discarding'
@@ -331,7 +331,7 @@ export default function GitPanel({ session, embedded = false, focusPath = null, 
             icon="diff"
             label="Changes"
             dataTestId="git-changes-row"
-            onClick={onOpenReview}
+            onClick={() => onOpenReview()}
             action="open-review"
             title="Open Review"
             trailing={(
@@ -376,7 +376,7 @@ export default function GitPanel({ session, embedded = false, focusPath = null, 
             >
               Unstage all
             </Button>
-            <Button variant="ghost" dataTestId="git-open-review" onClick={onOpenReview}>
+            <Button variant="ghost" dataTestId="git-open-review" onClick={() => onOpenReview(focusedReviewPath ?? undefined)}>
               Open Review
             </Button>
             <Button
@@ -580,6 +580,14 @@ export default function GitPanel({ session, embedded = false, focusPath = null, 
                   dataTestId="git-file-discard"
                   disabled={busy}
                   onClick={() => requestDiscard([change.path])}
+                />
+                <IconButton
+                  icon="diff"
+                  label={`Open ${change.path} in Review`}
+                  size="xs"
+                  dataTestId="git-file-open-review"
+                  disabled={busy}
+                  onClick={() => onOpenReview(change.path)}
                 />
               </span>
             </div>

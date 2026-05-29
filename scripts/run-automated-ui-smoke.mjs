@@ -174,6 +174,7 @@ function buildDiffChecks(result, view) {
     reviewFloatingGitActionStatus: result.reviewFloatingGitActionStatusWorks === true,
     reviewFloatingGitOpenTab: result.reviewFloatingGitOpenTabWorks === true,
     reviewGitHandoffSelectedFile: result.reviewGitHandoffSelectedFileWorks === true,
+    gitReviewHandoffSelectedFile: result.gitReviewHandoffSelectedFileWorks === true,
     reviewFloatingGitBridgeRetired: result.reviewFloatingGitBridgeRetiredWorks === true,
     reviewLastTurnGitApplyCommand: result.reviewLastTurnGitApplyCommandWorks === true,
     reviewLastTurnGitApplyCopyStatus: result.reviewLastTurnGitApplyCopyStatusWorks === true,
@@ -284,6 +285,7 @@ function buildDiffChecks(result, view) {
       'reviewFloatingGitActionStatus',
       'reviewFloatingGitOpenTab',
       'reviewGitHandoffSelectedFile',
+      'gitReviewHandoffSelectedFile',
       'reviewFloatingGitBridgeRetired'
     ],
     'diff-last-turn': [

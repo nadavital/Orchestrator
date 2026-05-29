@@ -38,6 +38,8 @@ export interface RightPanelTabState {
   sourceRevealRequest?: number
   gitFocusPath?: string | null
   gitFocusRequest?: number
+  reviewFocusPath?: string | null
+  reviewFocusRequest?: number
 }
 
 export interface RightPanelState {
@@ -271,6 +273,7 @@ interface SessionState {
   setRightPanelFullWidth: (id: string, fullWidth: boolean) => void
   openRightPanelTab: (id: string, tabId: RightPanelTabId) => void
   focusRightPanelGitPath: (id: string, path: string) => void
+  focusRightPanelReviewPath: (id: string, path: string) => void
   openRightPanelFileTab: (id: string, filePath: string, options?: { preview?: boolean; line?: number; root?: string }) => void
   updateRightPanelFileTabState: (id: string, tabId: RightPanelTabId, patch: Pick<Partial<RightPanelTabState>, 'fileViewMode' | 'sourceWrap' | 'selectedSourceLine' | 'sourceSearchQuery' | 'sourceSearchIndex' | 'sourceAnnotations' | 'sourceBlameVisible' | 'sourceRevealLine' | 'sourceRevealRequest'>) => void
   pinRightPanelTab: (id: string, tabId: RightPanelTabId) => void
@@ -901,6 +904,34 @@ export const useSessionStore = create<SessionState>((set, get) => ({
                   : tab
               )
             }
+          }
+        }
+      }
+    }),
+
+  focusRightPanelReviewPath: (id, path) =>
+    set((s) => {
+      const current = s.uiState[id] ?? defaultUI
+      const nextPanel = syncRightPanelTab(syncRightPanelTab(current.rightPanel, 'environment', true), 'diff', true)
+      const request = Date.now()
+      return {
+        uiState: {
+          ...s.uiState,
+          [id]: {
+            ...current,
+            rightPanel: {
+              ...nextPanel,
+              tabs: nextPanel.tabs.map((tab) =>
+                tab.id === 'diff'
+                  ? { ...tab, reviewFocusPath: path, reviewFocusRequest: request }
+                  : tab
+              )
+            },
+            showDiff: true,
+            showPlan: false,
+            showEvents: false,
+            showExtensions: false,
+            showSideQuestions: false
           }
         }
       }
