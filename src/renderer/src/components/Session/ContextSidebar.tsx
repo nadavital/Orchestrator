@@ -159,7 +159,9 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
     ...fileTabs,
     ...sideChatTabs,
     ...terminalTabs,
-    ...(hasPlan && !hasBottomPanelPlanTab ? [{ id: 'plan' as const, label: 'Plan', icon: 'plan' as const, count: plans.length }] : []),
+    ...(hasPlan && !hasBottomPanelPlanTab && (ui?.showPlan || hasPlanTab)
+      ? [{ id: 'plan' as const, label: 'Plan', icon: 'plan' as const, count: plans.length }]
+      : []),
     ...((ui?.showEvents || hasOpenAgent || hasLiveAgent) ? [{ id: 'agents' as const, label: 'Agents', icon: 'agents' as const, count: agents.length, shimmering: hasLiveAgent }] : []),
     ...(ui?.showExtensions ? [{ id: 'extensions' as const, label: 'Extensions', icon: 'extensions' as const }] : []),
     ...(hasSideQuestions ? [{ id: 'side' as const, label: 'Side', icon: 'chat' as const, count: ui?.sideQuestions?.length ?? 0 }] : [])

@@ -8878,6 +8878,53 @@ function runAutomatedFocusedSurfaceSmoke(
                 };
                 const workbenchLauncherEnvironmentActionWorks = await activateLauncherAction('environment', 'environment', '[data-testid="codex-environment-panel"]');
                 const workbenchLauncherPlanActionWorks = await activateLauncherAction('plan', 'plan', '[data-testid="plan-panel"]');
+                const workbenchLauncherPlanCloseReopenWorks = await (async () => {
+                  const planTab = document.querySelector('[data-app-shell-tab-controller="right"][data-tab-id="plan"]');
+                  const closeButton = planTab?.querySelector('.motion-tab-close');
+                  if (!(planTab instanceof HTMLElement) || !(closeButton instanceof HTMLButtonElement)) return false;
+                  closeButton.click();
+                  let closed = false;
+                  for (let attempt = 0; attempt < 16; attempt += 1) {
+                    await sleep(100);
+                    const panel = document.querySelector('[data-testid="session-right-panel"]');
+                    const planTabAfterClose = document.querySelector('[data-app-shell-tab-controller="right"][data-tab-id="plan"]');
+                    if (
+                      panel instanceof HTMLElement &&
+                      panel.getAttribute('data-right-panel-tabs')?.includes('plan') !== true &&
+                      !(planTabAfterClose instanceof HTMLElement)
+                    ) {
+                      closed = true;
+                      break;
+                    }
+                  }
+                  if (!closed) return false;
+                  const reopenedLauncher = await openLauncher();
+                  const planActionAfterClose = document.querySelector('[data-testid="workbench-new-tab-action-plan"]');
+                  if (
+                    !(reopenedLauncher.panel instanceof HTMLElement) ||
+                    !(planActionAfterClose instanceof HTMLButtonElement) ||
+                    planActionAfterClose.disabled ||
+                    planActionAfterClose.getAttribute('data-workbench-new-tab-action-state') !== 'new'
+                  ) {
+                    return false;
+                  }
+                  planActionAfterClose.click();
+                  for (let attempt = 0; attempt < 16; attempt += 1) {
+                    await sleep(100);
+                    const panel = document.querySelector('[data-testid="session-right-panel"]');
+                    const tabPanel = document.querySelector('[role="tabpanel"][data-tab-id="plan"]');
+                    if (
+                      panel instanceof HTMLElement &&
+                      panel.getAttribute('data-right-panel-active-tab') === 'plan' &&
+                      panel.getAttribute('data-right-panel-tabs')?.includes('plan') === true &&
+                      tabPanel instanceof HTMLElement &&
+                      document.querySelector('[data-testid="plan-panel"]') instanceof HTMLElement
+                    ) {
+                      return true;
+                    }
+                  }
+                  return false;
+                })();
                 const workbenchLauncherExtensionsActionWorks = await activateLauncherAction('extensions', 'extensions', '[role="tabpanel"][data-tab-id="extensions"]');
                 const finalLauncher = await openLauncher();
                 const finalEnvironmentAction = document.querySelector('[data-testid="workbench-new-tab-action-environment"]');
@@ -8893,6 +8940,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   workbenchLauncherDiscoveryWorks: launcherDiscoveryWorks,
                   workbenchLauncherEnvironmentActionWorks,
                   workbenchLauncherPlanActionWorks,
+                  workbenchLauncherPlanCloseReopenWorks,
                   workbenchLauncherExtensionsActionWorks,
                   workbenchLauncherOpenStateWorks:
                     finalLauncher.panel instanceof HTMLElement &&

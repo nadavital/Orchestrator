@@ -2428,6 +2428,7 @@ child.on('exit', async (code) => {
           workbenchLauncherDiscovery: result.workbenchLauncherDiscoveryWorks === true,
           workbenchLauncherEnvironmentAction: result.workbenchLauncherEnvironmentActionWorks === true,
           workbenchLauncherPlanAction: result.workbenchLauncherPlanActionWorks === true,
+          workbenchLauncherPlanCloseReopen: result.workbenchLauncherPlanCloseReopenWorks === true,
           workbenchLauncherExtensionsAction: result.workbenchLauncherExtensionsActionWorks === true,
           workbenchLauncherOpenState: result.workbenchLauncherOpenStateWorks === true,
           workbenchLauncherCards: Number(result.workbenchLauncherActionCount ?? 0) >= 10,

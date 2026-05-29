@@ -10084,3 +10084,13 @@ Implemented: when a session has goal, plan, or review-mode state and Plan is not
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `pnpm run smoke:ui:suggest`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --workbench-launcher` passed. Workbench launcher evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-workbench-launcher-1780051042787.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-workbench-launcher-1780051042787.png`.
 
 Remaining: this closes Plan discovery from the Workbench launcher when Plan state exists. It does not change provider-native plan editing or the bottom-panel ownership policy.
+
+### 2026-05-29 - Workbench Launcher Plan Close/Reopen
+
+Product evidence: after Plan became discoverable from the Workbench launcher, the close lifecycle still behaved like a derived status surface rather than a real tab. Because Plan was auto-added to the tabstrip whenever goal/plan/review-mode state existed, closing the right Workbench Plan tab could immediately leave it visible again. That undermined the Codex-style tab lifecycle where closing a surface should dismiss it while leaving a clear way to reopen it.
+
+Implemented: the right Workbench tabstrip now shows Plan only when it is explicitly open or persisted in right-panel state, while the Workbench launcher keeps showing the Plan action whenever goal/plan/review-mode state exists and Plan is not bottom-hosted. Closing Plan removes the right tab, the launcher row returns to `New`, and selecting it reopens Plan through the same singleton path.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `pnpm run smoke:ui:suggest`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --workbench-launcher` passed. Workbench launcher evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-workbench-launcher-1780051493371.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-workbench-launcher-1780051493372.png`. The focused smoke now gates `workbenchLauncherPlanCloseReopen=true` without running the broad UI suite.
+
+Remaining: this closes the right Workbench Plan close/reopen lifecycle. Provider-native plan editing and broader cross-panel mixed-surface stress remain separate Phase 1 follow-ups.
