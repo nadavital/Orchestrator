@@ -9595,6 +9595,16 @@ Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.
 
 Remaining: this closes the high-frequency local Provider Settings subtarget path. Shortcuts per-control search depth, provider-native account/runtime adapters, real remote-host Settings adapters, and exact live Codex Settings timing remain separate PP-058 follow-ups.
 
+### 2026-05-29 - Shortcuts Settings In-Page Search Targets
+
+Product evidence: PP-058 still tracked broader per-control Settings search coverage, and keyboard shortcut discovery/editing is part of daily coding usability. A query such as `keybinding` previously only routed to the Shortcuts page and left the user to find the search/edit bindings table.
+
+Implemented: Settings search now includes a Shortcut bindings subtarget. The Shortcuts page exposes a matching focusable anchor around the keyboard-shortcut search/edit table, so matched search results scroll and focus the exact Shortcuts control group with the same `data-settings-search-active="true"` affordance used by General, Browser, and Providers.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --settings` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1780029723853.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1780029723853.png`. The focused Settings smoke now gates `settingsShortcutsInPageSearchTarget=true` by searching `keybinding`, verifying the chip targets `shortcut-bindings`, and confirming the Shortcuts bindings group receives focus plus active-search state.
+
+Remaining: this closes the local Shortcuts Settings subtarget path. Provider-native shortcut sync, real remote-host Settings adapters, exact live Codex Settings timing, and broader whole-app keyboard traversal remain separate PP-058 follow-ups.
+
 ### 2026-05-29 - Browser Hidden Page Identity
 
 Product evidence: PP-058 still tracked Browser lifecycle parity. Orchestrator already preserved hidden Browser webviews and resynced lifecycle state when shown again, but the hidden state itself only said `Hidden` and `The page is still loaded`. For day-to-day coding, a hidden Browser panel should still identify which page is loaded so users can decide whether to resume, reset, or switch context.

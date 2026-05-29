@@ -60,6 +60,7 @@ const SETTINGS_SEARCH_ITEMS: Array<{
   { section: 'providers', label: 'Providers', description: 'Default provider, models, permissions, and diagnostics', keywords: 'model agent permission diagnostics runtime codex claude openai' },
   { section: 'automations', label: 'Automations', description: 'Scheduled follow-ups and run history', keywords: 'schedule reminder heartbeat cron run history pause' },
   { section: 'worktrees', label: 'Worktrees', description: 'Managed isolated workspaces', keywords: 'git branch fork workspace isolated cleanup' },
+  { section: 'shortcuts', label: 'Shortcut bindings', description: 'Search, edit, clear, and reset keyboard shortcuts', keywords: 'shortcut shortcuts keybinding keybindings keyboard command commands hotkey hotkeys edit clear reset capture binding bindings', anchor: 'shortcut-bindings' },
   { section: 'shortcuts', label: 'Shortcuts', description: 'Keyboard commands and bindings', keywords: 'keybinding command hotkey keyboard' },
   { section: 'personalization', label: 'Personalization', description: 'Custom instructions and coding preferences', keywords: 'memory instructions preferences pet overlay' },
   { section: 'browser', label: 'Browser', description: 'Browser data, permissions, and site policies', keywords: 'cookies cache history policy webview localhost origin' },

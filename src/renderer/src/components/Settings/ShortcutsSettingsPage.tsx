@@ -187,7 +187,12 @@ export default function ShortcutsSettingsPage({
           subtitle="Customize keyboard shortcuts for shared app, Workbench, Browser, Review, and Terminal commands."
           dataTestId="settings-content-layout-shortcuts"
         >
-          <SettingsContentGroup>
+          <SettingsContentGroup
+            rootAttrs={{
+              tabIndex: -1,
+              'data-settings-search-anchor': 'shortcut-bindings'
+            }}
+          >
             <SettingsGroupContent>
               <SettingsSurface className="settings-shortcuts-table">
                 <div className="settings-shortcuts-search">
