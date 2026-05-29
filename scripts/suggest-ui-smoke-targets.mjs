@@ -174,7 +174,7 @@ const diffRules = [
     flag: '--agent-inspector',
     label: 'Agent Activity inspector',
     filePatterns: [/^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
-    diffPatterns: [/agent-inspector/, /agentRuntimeEvent/, /agentRuntimeFailureGroup/, /agentTransportLog/, /agentSessionContext/, /agentSelectedTranscript/, /agent-session-context-add-to-chat/, /agent-runtime-failure-group/, /agent-transport-log/, /agent-selected-add-to-chat/, /agent-event-detail/, /focus-waiting-card/, /Open approval in chat/, /Failure group copied/, /Transport log copied/]
+    diffPatterns: [/agent-inspector/, /agentRuntimeEvent/, /agentRuntimeFailureGroup/, /agentTransportLog/, /agentSessionContext/, /agentSelectedTranscript/, /agent-session-context-add-to-chat/, /agent-runtime-failure-group/, /agent-transport-log/, /agent-selected-add-to-chat/, /agent-selected-copy/, /agent-event-detail/, /focus-waiting-card/, /Open approval in chat/, /Failure group copied/, /Transport log copied/, /Agent transcript copied/]
   },
   {
     flag: '--extensions',

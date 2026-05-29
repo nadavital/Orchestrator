@@ -2527,6 +2527,7 @@ child.on('exit', async (code) => {
           agentTransportLog: result.agentTransportLogWorks === true,
           agentTransportLogCopy: result.agentTransportLogCopyWorks === true,
           agentTransportLogAddToChat: result.agentTransportLogAddToChatWorks === true,
+          agentSelectedTranscriptCopy: result.agentSelectedTranscriptCopyWorks === true,
           agentSelectedTranscriptAddToChat: result.agentSelectedTranscriptAddToChatWorks === true,
           workbenchNewTabCards: Number(result.workbenchNewTabActionCount ?? 0) >= 5,
           workbenchNewTabNoHorizontalOverflow: result.workbenchNewTabNoHorizontalOverflow === true
@@ -2557,6 +2558,7 @@ child.on('exit', async (code) => {
           agentTransportLog: result.agentTransportLogWorks === true,
           agentTransportLogCopy: result.agentTransportLogCopyWorks === true,
           agentTransportLogAddToChat: result.agentTransportLogAddToChatWorks === true,
+          agentSelectedTranscriptCopy: result.agentSelectedTranscriptCopyWorks === true,
           agentSelectedTranscriptAddToChat: result.agentSelectedTranscriptAddToChatWorks === true,
           workbenchNewTabNoHorizontalOverflow: result.workbenchNewTabNoHorizontalOverflow === true
         }

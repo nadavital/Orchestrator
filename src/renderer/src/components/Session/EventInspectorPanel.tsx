@@ -1122,6 +1122,28 @@ function AgentConversation({ session, agent, events }: { session: Session; agent
   const displaySummary = summary && summary !== agent.role && summary !== agent.name ? summary : undefined
   const timelineEvents = useMemo(() => selectedAgentTimeline(agent, events), [agent, events])
   const handoffText = transcript || displaySummary || ''
+  const buildAgentTranscriptText = (): string => [
+    'Use this agent transcript context:',
+    `Thread: ${session.title || session.id}`,
+    `Agent: ${agentDisplayName(agent)}`,
+    `Status: ${agent.status}`,
+    `Runtime: ${[agent.providerId, agent.model].filter(Boolean).join(' / ') || [session.provider, session.model].filter(Boolean).join(' / ') || 'Unknown runtime'}`,
+    `Workspace: ${session.workDir || 'Unknown workspace'}`,
+    '',
+    boundedAgentTranscript(handoffText)
+  ].join('\n')
+  const copyAgentTranscript = async (): Promise<void> => {
+    if (!handoffText) {
+      setActionStatus('No agent transcript available')
+      return
+    }
+    try {
+      await writeClipboardText(buildAgentTranscriptText())
+      setActionStatus('Agent transcript copied')
+    } catch {
+      setActionStatus('Unable to copy agent transcript')
+    }
+  }
   const addAgentTranscriptToChat = (): void => {
     if (!handoffText) {
       setActionStatus('No agent transcript available')
@@ -1129,16 +1151,7 @@ function AgentConversation({ session, agent, events }: { session: Session; agent
     }
     window.dispatchEvent(new CustomEvent('orchestrator:add-composer-text', {
       detail: {
-        text: [
-          'Use this agent transcript context:',
-          `Thread: ${session.title || session.id}`,
-          `Agent: ${agentDisplayName(agent)}`,
-          `Status: ${agent.status}`,
-          `Runtime: ${[agent.providerId, agent.model].filter(Boolean).join(' / ') || [session.provider, session.model].filter(Boolean).join(' / ') || 'Unknown runtime'}`,
-          `Workspace: ${session.workDir || 'Unknown workspace'}`,
-          '',
-          boundedAgentTranscript(handoffText)
-        ].join('\n')
+        text: buildAgentTranscriptText()
       }
     }))
     setActionStatus('Agent transcript added to chat')
@@ -1166,15 +1179,26 @@ function AgentConversation({ session, agent, events }: { session: Session; agent
             </div>
           )}
         </div>
-        <ToolbarButton
-          icon="chat"
-          label="Add agent transcript to chat"
-          dataTestId="agent-selected-add-to-chat"
-          onClick={addAgentTranscriptToChat}
-          disabled={!handoffText}
-          size="sm"
-          variant="toolbar"
-        />
+        <div className="flex shrink-0 items-center gap-1">
+          <ToolbarButton
+            icon="copy"
+            label="Copy agent transcript"
+            dataTestId="agent-selected-copy"
+            onClick={() => { void copyAgentTranscript() }}
+            disabled={!handoffText}
+            size="sm"
+            variant="toolbar"
+          />
+          <ToolbarButton
+            icon="chat"
+            label="Add agent transcript to chat"
+            dataTestId="agent-selected-add-to-chat"
+            onClick={addAgentTranscriptToChat}
+            disabled={!handoffText}
+            size="sm"
+            variant="toolbar"
+          />
+        </div>
       </div>
       {actionStatus && (
         <div

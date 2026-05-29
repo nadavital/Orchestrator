@@ -10543,6 +10543,30 @@ function runAutomatedFocusedSurfaceSmoke(
                   selectedAgentTimeline.textContent?.includes('Runtime inspector smoke') === true &&
                   selectedAgentTimeline.textContent?.includes('Collected runtime diagnostics timeline') === true &&
                   selectedAgentTimeline.textContent?.includes('Agent text completed') === true;
+                const selectedAgentCopy = document.querySelector('[data-testid="agent-selected-copy"]');
+                let copiedSelectedAgentTranscript = '';
+                if (selectedAgentCopy instanceof HTMLButtonElement) {
+                  selectedAgentCopy.click();
+                  await sleep(160);
+                  copiedSelectedAgentTranscript = await window.api.clipboard?.readText().catch(() => '') ?? '';
+                }
+                const selectedAgentCopyStatus = document.querySelector('[data-testid="agent-selected-action-status"]');
+                const selectedAgentConversationAfterCopy = document.querySelector('[data-testid="agent-selected-conversation"]');
+                const agentSelectedTranscriptCopyWorks =
+                  selectedAgentCopy instanceof HTMLButtonElement &&
+                  selectedAgentCopy.getAttribute('data-icon') === 'copy' &&
+                  selectedAgentCopy.getAttribute('data-icon-button-variant') === 'toolbar' &&
+                  selectedAgentCopyStatus instanceof HTMLElement &&
+                  selectedAgentCopyStatus.getAttribute('role') === 'status' &&
+                  selectedAgentCopyStatus.getAttribute('aria-live') === 'polite' &&
+                  selectedAgentCopyStatus.getAttribute('aria-atomic') === 'true' &&
+                  selectedAgentCopyStatus.textContent?.includes('Agent transcript copied') === true &&
+                  selectedAgentConversationAfterCopy instanceof HTMLElement &&
+                  selectedAgentConversationAfterCopy.getAttribute('data-agent-action-status') === 'Agent transcript copied' &&
+                  copiedSelectedAgentTranscript.includes('Use this agent transcript context:') &&
+                  copiedSelectedAgentTranscript.includes('Agent: Runtime inspector smoke') &&
+                  copiedSelectedAgentTranscript.includes('Status: failed') &&
+                  copiedSelectedAgentTranscript.includes('Collected runtime diagnostics timeline.');
                 const selectedAgentAddToChat = document.querySelector('[data-testid="agent-selected-add-to-chat"]');
                 if (selectedAgentAddToChat instanceof HTMLButtonElement) {
                   selectedAgentAddToChat.click();
@@ -11024,6 +11048,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   agentTransportLogCopyWorks,
                   agentTransportLogAddToChatWorks,
                   agentSelectedTimelineWorks,
+                  agentSelectedTranscriptCopyWorks,
                   agentSelectedTranscriptAddToChatWorks,
                   agentRuntimeEventFacetFiltersWork,
                   agentRuntimeEventFacetFilterError,
