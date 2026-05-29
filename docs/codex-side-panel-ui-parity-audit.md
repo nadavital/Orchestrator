@@ -10264,3 +10264,13 @@ Implemented: `SideQuestionPanel` now labels the embedded side-chat send control 
 Verification: `pnpm run smoke:ui:changed:static` passed the generated static plan (`git diff --check`, `pnpm exec tsc --noEmit`, and `node -c scripts/run-automated-ui-smoke.mjs`). Elevated `pnpm run smoke:ui:changed:smoke` ran only `node scripts/run-automated-ui-smoke.mjs --side-chat` and passed with `sideChatSendLabel=true`. Side-chat evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-side-chat-1780061390344.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-side-chat-1780061390344.png`.
 
 Remaining: this closes side-chat send-control naming only. Broader side-chat provider-backed behavior and cross-provider live context remain separate Phase 1 work.
+
+### 2026-05-29 - Worktrees Refresh Status
+
+Product evidence: Worktrees Settings is part of the daily coding path because it reconciles app-managed workspaces and linked chats. Create/delete/open already had focused feedback coverage, but the Inventory `Refresh` action was silent, so a user could not tell whether the worktree list had been rechecked or whether the action failed.
+
+Implemented: the Worktrees refresh action now disables while running, publishes `Refreshing worktrees`, and then publishes a visible polite status for success or failure. The refresh control points at the status region with `aria-describedby`, and the focused Settings smoke exposes the contract as `settingsWorktreesRefresh=true` while still folding it into the broader Worktrees action accessibility gate.
+
+Verification: `pnpm run smoke:ui:suggest` selected only the focused Settings smoke for this UI path. `pnpm run smoke:ui:changed:static` passed the generated static plan (`git diff --check`, `pnpm exec tsc --noEmit`, and `node -c scripts/run-automated-ui-smoke.mjs`). Elevated `pnpm run smoke:ui:changed:smoke` ran only `node scripts/run-automated-ui-smoke.mjs --settings` and passed with `settingsWorktreesRefresh=true` and `settingsWorktreesActionA11y=true`. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1780061695439.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1780061695439.png`. The planner still flagged a broad-smoke review because the shared smoke harness changed, but this slice stayed inside the Settings Worktrees assertion path, so no no-flag smoke was run.
+
+Remaining: this closes local Worktrees refresh feedback only. Provider-native/worktree adapter reconciliation, remote-host lifecycle proof, and broader day-to-day Settings polish remain separate Phase 1 work.

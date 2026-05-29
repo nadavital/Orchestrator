@@ -23,9 +23,11 @@ export default function WorktreesSettingsPage({ onClose }: WorktreesSettingsPage
   const [baseRef, setBaseRef] = useState('HEAD')
   const [branchName, setBranchName] = useState('')
   const [createBusy, setCreateBusy] = useState(false)
+  const [refreshBusy, setRefreshBusy] = useState(false)
   const [busyIds, setBusyIds] = useState<Record<string, boolean>>({})
   const [status, setStatus] = useState<string | null>(null)
   const [pendingDeleteWorktree, setPendingDeleteWorktree] = useState<WorktreeInventoryItem | null>(null)
+  const statusId = useId()
   const addSession = useSessionStore((state) => state.addSession)
   const updateSessionName = useSessionStore((state) => state.updateName)
   const setActiveSession = useSessionStore((state) => state.setActiveSession)
@@ -36,9 +38,26 @@ export default function WorktreesSettingsPage({ onClose }: WorktreesSettingsPage
   const activeCount = worktrees.filter((worktree) => worktree.state === 'ready').length
   const pendingCount = worktrees.filter((worktree) => worktree.state !== 'ready').length
 
-  const refreshWorktrees = useCallback(async (): Promise<void> => {
-    const next = await window.api.worktrees.list()
-    setWorktrees(next)
+  const refreshWorktrees = useCallback(async (options: { announce?: boolean } = {}): Promise<void> => {
+    if (options.announce) {
+      setRefreshBusy(true)
+      setStatus('Refreshing worktrees')
+    }
+    try {
+      const next = await window.api.worktrees.list()
+      setWorktrees(next)
+      if (options.announce) {
+        setStatus(`Worktrees refreshed: ${next.length} workspace${next.length === 1 ? '' : 's'}`)
+      }
+    } catch (error) {
+      if (options.announce) {
+        setStatus(`Refresh failed: ${error instanceof Error ? error.message : String(error)}`)
+      } else {
+        throw error
+      }
+    } finally {
+      if (options.announce) setRefreshBusy(false)
+    }
   }, [])
 
   useEffect(() => {
@@ -186,8 +205,15 @@ export default function WorktreesSettingsPage({ onClose }: WorktreesSettingsPage
                   label="Worktrees"
                   description={`${activeCount} ready, ${pendingCount} pending or failed`}
                   control={(
-                    <button type="button" className="settings-action-button" onClick={() => { void refreshWorktrees() }}>
-                      Refresh
+                    <button
+                      type="button"
+                      className="settings-action-button"
+                      data-testid="worktrees-refresh"
+                      disabled={refreshBusy}
+                      aria-describedby={status ? statusId : undefined}
+                      onClick={() => { void refreshWorktrees({ announce: true }) }}
+                    >
+                      {refreshBusy ? 'Refreshing...' : 'Refresh'}
                     </button>
                   )}
                 />
@@ -237,6 +263,7 @@ export default function WorktreesSettingsPage({ onClose }: WorktreesSettingsPage
               role="status"
               aria-live="polite"
               aria-atomic="true"
+              id={statusId}
               data-testid="worktrees-status"
             >
               {status}

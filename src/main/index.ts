@@ -2459,8 +2459,29 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 worktreesSection.querySelector('.compact-setting') === null;
               var settingsWorktreesCreateWorks = false;
               var settingsWorktreesActionA11yWorks = false;
+              var worktreesRefreshStatusA11y = false;
               var worktreesCreateStatusA11y = false;
               var worktreesDeleteStatusA11y = false;
+              const refreshWorktreesButton = document.querySelector('[data-testid="worktrees-refresh"]');
+              if (refreshWorktreesButton instanceof HTMLButtonElement) {
+                refreshWorktreesButton.click();
+                for (let index = 0; index < 40; index += 1) {
+                  const refreshStatus = document.querySelector('[data-testid="worktrees-status"]');
+                  if (
+                    refreshStatus instanceof HTMLElement &&
+                    refreshStatus.textContent?.includes('Worktrees refreshed') === true
+                  ) {
+                    worktreesRefreshStatusA11y =
+                      refreshStatus.getAttribute('role') === 'status' &&
+                      refreshStatus.getAttribute('aria-live') === 'polite' &&
+                      refreshStatus.getAttribute('aria-atomic') === 'true' &&
+                      refreshWorktreesButton.disabled === false &&
+                      refreshWorktreesButton.getAttribute('aria-describedby') === refreshStatus.id;
+                    break;
+                  }
+                  await sleep(50);
+                }
+              }
               const smokeWorktreeBranch = 'orchestrator/settings-smoke-created-' + Date.now();
               const smokeWorktreeName = 'Worktree: ' + smokeWorktreeBranch;
               if (
@@ -2552,6 +2573,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               }
               settingsWorktreesActionA11yWorks =
                 worktreeRowsHaveA11y &&
+                worktreesRefreshStatusA11y &&
                 worktreesCreateStatusA11y &&
                 worktreesDeleteStatusA11y;
               const shortcutsButton = [...document.querySelectorAll('button')]
@@ -8307,6 +8329,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             settingsWorktreesCreateWorks: typeof settingsWorktreesCreateWorks === 'boolean' ? settingsWorktreesCreateWorks : null,
             settingsWorktreesDeleteWorks: typeof settingsWorktreesDeleteWorks === 'boolean' ? settingsWorktreesDeleteWorks : null,
             settingsWorktreesOpenWorks: typeof settingsWorktreesOpenWorks === 'boolean' ? settingsWorktreesOpenWorks : null,
+            settingsWorktreesRefreshWorks: typeof worktreesRefreshStatusA11y === 'boolean' ? worktreesRefreshStatusA11y : null,
             settingsWorktreesActionA11yWorks: typeof settingsWorktreesActionA11yWorks === 'boolean' ? settingsWorktreesActionA11yWorks : null,
             settingsShortcutsSurfaceWorks: typeof settingsShortcutsSurfaceWorks === 'boolean' ? settingsShortcutsSurfaceWorks : null,
             settingsShortcutsCompactWorks: typeof settingsShortcutsCompactWorks === 'boolean' ? settingsShortcutsCompactWorks : null,
