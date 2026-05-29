@@ -13608,6 +13608,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     secondFocusedRow === secondFocusableRows[0];
                 }
                 let reviewRowKeyboardContextMenuWorks = false;
+                let reviewRowAddToChatWorks = false;
                 let reviewRowInsertPathTerminalWorks = false;
                 let reviewRowKeyboardContextMenuDebug = {};
                 const reviewRowContextTarget =
@@ -13629,6 +13630,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   const keyboardReviewRowSurface = keyboardReviewRowMenu?.closest('.orchestrator-menu-surface');
                   const reviewRowCopyPath = keyboardReviewRowMenu?.querySelector('[data-testid="review-row-copy-path"]');
                   const reviewRowOpenWorkbench = keyboardReviewRowMenu?.querySelector('[data-testid="review-row-open-workbench"]');
+                  const reviewRowAddChat = keyboardReviewRowMenu?.querySelector('[data-testid="review-row-add-chat"]');
                   const reviewRowInsertTerminal = keyboardReviewRowMenu?.querySelector('[data-testid="review-row-insert-terminal"]');
                   const reviewRowRevealFile = keyboardReviewRowMenu?.querySelector('[data-testid="review-row-reveal-file"]');
                   const keyboardReviewRowSurfaceLeft = keyboardReviewRowSurface instanceof HTMLElement
@@ -13653,6 +13655,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     surfaceFound: keyboardReviewRowSurface instanceof HTMLElement,
                     hasOpen: reviewRowOpenWorkbench instanceof HTMLButtonElement,
                     hasCopy: reviewRowCopyPath instanceof HTMLButtonElement,
+                    hasAddChat: reviewRowAddChat instanceof HTMLButtonElement,
                     hasInsertTerminal: reviewRowInsertTerminal instanceof HTMLButtonElement,
                     hasReveal: reviewRowRevealFile instanceof HTMLButtonElement,
                     copiedReviewRowPath,
@@ -13672,9 +13675,11 @@ function runAutomatedFocusedSurfaceSmoke(
                     reviewRowOpenWorkbench instanceof HTMLButtonElement &&
                     reviewRowRevealFile instanceof HTMLButtonElement &&
                     reviewRowCopyPath instanceof HTMLButtonElement &&
+                    reviewRowAddChat instanceof HTMLButtonElement &&
                     reviewRowInsertTerminal instanceof HTMLButtonElement &&
                     keyboardReviewRowMenu.textContent?.includes('Open in Workbench') === true &&
                     keyboardReviewRowMenu.textContent?.includes('Copy path') === true &&
+                    keyboardReviewRowMenu.textContent?.includes('Add to chat') === true &&
                     keyboardReviewRowMenu.textContent?.includes('Insert in terminal') === true &&
                     keyboardReviewRowMenu.textContent?.includes('Reveal file') === true &&
                     copiedReviewRowPath === 'data-preview-smoke.json' &&
@@ -13683,6 +13688,31 @@ function runAutomatedFocusedSurfaceSmoke(
                     Math.abs(keyboardReviewRowSurfaceLeft - expectedReviewRowMenuX) <= 28;
                   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
                   await sleep(80);
+                  reviewRowContextTarget.dispatchEvent(new KeyboardEvent('keydown', {
+                    key: 'F10',
+                    code: 'F10',
+                    shiftKey: true,
+                    bubbles: true,
+                    cancelable: true
+                  }));
+                  await sleep(140);
+                  const addChatReviewRowMenu = document.querySelector('[data-testid="review-row-context-menu"]');
+                  const addChatReviewRowAction = addChatReviewRowMenu?.querySelector('[data-testid="review-row-add-chat"]');
+                  if (addChatReviewRowAction instanceof HTMLButtonElement) {
+                    addChatReviewRowAction.click();
+                    await sleep(180);
+                    const statusElement = document.querySelector('[data-testid="review-floating-action-status"], [data-testid="review-action-status-pill"]');
+                    const composerAfterReviewRowAdd = document.querySelector('[data-testid="composer-shell"]');
+                    reviewRowAddToChatWorks =
+                      statusElement instanceof HTMLElement &&
+                      statusElement.getAttribute('role') === 'status' &&
+                      statusElement.getAttribute('aria-live') === 'polite' &&
+                      statusElement.textContent?.includes('Added data-preview-smoke.json to chat') === true &&
+                      composerAfterReviewRowAdd instanceof HTMLElement &&
+                      composerAfterReviewRowAdd.getAttribute('data-composer-attachment-status') === 'Attached data-preview-smoke.json' &&
+                      [...document.querySelectorAll('.attachment-pill')]
+                        .some((attachment) => attachment.textContent?.includes('data-preview-smoke.json'));
+                  }
                   reviewRowContextTarget.dispatchEvent(new KeyboardEvent('keydown', {
                     key: 'F10',
                     code: 'F10',
@@ -13840,6 +13870,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   reviewDiffLineComposerHandoffWorks,
                   reviewDiffLineComposerHandoffDebug,
                   reviewRowKeyboardContextMenuWorks,
+                  reviewRowAddToChatWorks,
                   reviewRowInsertPathTerminalWorks,
                   reviewRowKeyboardContextMenuDebug,
                   diffHunkCollapseWorks,

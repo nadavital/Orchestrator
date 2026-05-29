@@ -761,6 +761,22 @@ export default function DiffPanel({ sessionId, workDir, embedded = false, focusP
     }
   }
 
+  const addReviewFileToChat = (path: string): void => {
+    const change = sourceFiles.find((file) => file.path === path)
+    if (!change || change.status === 'D') {
+      setReviewGitActionMessage({ text: 'Select an available Review file to add to chat', tone: 'danger' })
+      return
+    }
+    const name = basename(path)
+    window.dispatchEvent(new CustomEvent('orchestrator:add-composer-attachment', {
+      detail: {
+        path: joinPath(workDir, path),
+        name
+      }
+    }))
+    setReviewGitActionMessage({ text: `Added ${name} to chat`, tone: 'info' })
+  }
+
   const insertReviewPathInTerminal = (path: string): void => {
     const change = sourceFiles.find((file) => file.path === path)
     if (!change) {
@@ -811,7 +827,7 @@ export default function DiffPanel({ sessionId, workDir, embedded = false, focusP
     setReviewRowMenu({
       path: file.path,
       x: Math.min(x, Math.max(8, window.innerWidth - 214)),
-      y: Math.min(y, Math.max(8, window.innerHeight - 176))
+      y: Math.min(y, Math.max(8, window.innerHeight - 204))
     })
   }
 
@@ -1724,6 +1740,16 @@ export default function DiffPanel({ sessionId, workDir, embedded = false, focusP
                       dataTestId="review-row-copy-path"
                       onClick={() => {
                         void copyReviewPath(reviewRowMenu.path)
+                        setReviewRowMenu(null)
+                      }}
+                    />
+                    <MenuItem
+                      icon="paperclip"
+                      label="Add to chat"
+                      disabled={!reviewRowMenuChange || reviewRowMenuChange.status === 'D'}
+                      dataTestId="review-row-add-chat"
+                      onClick={() => {
+                        addReviewFileToChat(reviewRowMenu.path)
                         setReviewRowMenu(null)
                       }}
                     />

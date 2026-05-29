@@ -113,7 +113,7 @@ const diffRules = [
     flag: '--diff-core',
     label: 'Review local diff',
     filePatterns: [/^src\/renderer\/src\/components\/Session\/DiffPanel\.tsx$/, /^src\/renderer\/src\/components\/Session\/GitPanel\.tsx$/, /^src\/renderer\/src\/components\/Session\/ContextSidebar\.tsx$/, /^src\/renderer\/src\/components\/Session\/WorkbenchTree\.tsx$/, /^src\/renderer\/src\/index\.css$/, /^src\/renderer\/src\/store\/sessions\.ts$/, /^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
-    diffPatterns: [/reviewRowKeyboardContextMenu/, /reviewRowInsertPathTerminal/, /reviewTreeKeyboardNavigation/, /data-keyboard-navigation/, /review-row-context-menu/, /review-row-copy-path/, /review-row-insert-terminal/, /Review path inserted in terminal/, /reviewSelectedGitPathActions/, /review-stage-selected-file/, /review-unstage-selected-file/, /reviewGitHandoffSelectedFile/, /gitReviewHandoffSelectedFile/, /gitFocusPath/, /reviewFocusPath/, /git-file-row-focused/, /git-file-open-review/]
+    diffPatterns: [/reviewRowKeyboardContextMenu/, /reviewRowAddToChat/, /reviewRowInsertPathTerminal/, /reviewTreeKeyboardNavigation/, /data-keyboard-navigation/, /review-row-context-menu/, /review-row-copy-path/, /review-row-add-chat/, /review-row-insert-terminal/, /Added .* to chat/, /Review path inserted in terminal/, /reviewSelectedGitPathActions/, /review-stage-selected-file/, /review-unstage-selected-file/, /reviewGitHandoffSelectedFile/, /gitReviewHandoffSelectedFile/, /gitFocusPath/, /reviewFocusPath/, /git-file-row-focused/, /git-file-open-review/]
   },
   {
     flag: '--terminal',
@@ -314,6 +314,7 @@ function suggestTargets(paths) {
   suppressComposerForBrowserHandoffDiff(matched, paths)
   suppressTerminalForFilesPathTerminalHandoffDiff(matched, paths)
   suppressTerminalForReviewPathTerminalHandoffDiff(matched, paths)
+  suppressComposerAndFilesForReviewRowAddToChatDiff(matched, paths)
   suppressEnvironmentForGitFileWorkflowDiff(matched, paths)
   suppressWorkbenchForReviewGitHandoffDiff(matched, paths)
   suppressWorkbenchForEnvironmentCreatePrDiff(matched, paths)
@@ -746,6 +747,25 @@ function suppressTerminalForReviewPathTerminalHandoffDiff(matched, paths) {
   ].join('\n')
   if (!/reviewRowInsertPathTerminal|review-row-insert-terminal|Review path inserted in terminal|__orchestratorLastReviewTerminal/.test(diff)) return
   matched.delete('--terminal')
+}
+
+function suppressComposerAndFilesForReviewRowAddToChatDiff(matched, paths) {
+  const diffCore = matched.get('--diff-core')
+  if (!diffCore) return
+  const diff = [
+    paths.includes('src/renderer/src/components/Session/DiffPanel.tsx') ? diffForFile('src/renderer/src/components/Session/DiffPanel.tsx') : '',
+    paths.includes('scripts/run-automated-ui-smoke.mjs') ? diffForFile('scripts/run-automated-ui-smoke.mjs') : '',
+    paths.includes('src/main/index.ts') ? diffForFile('src/main/index.ts') : ''
+  ].join('\n')
+  if (!/reviewRowAddToChat|review-row-add-chat|Added .* to chat/.test(diff)) return
+  const composer = matched.get('--composer')
+  if (composer && composer.files.every((file) => file === 'scripts/run-automated-ui-smoke.mjs' || file === 'src/main/index.ts')) {
+    matched.delete('--composer')
+  }
+  const files = matched.get('--files')
+  if (files && files.files.every((file) => file === 'scripts/run-automated-ui-smoke.mjs' || file === 'src/main/index.ts')) {
+    matched.delete('--files')
+  }
 }
 
 function suppressComposerForBrowserHandoffDiff(matched, paths) {
