@@ -65,7 +65,7 @@ const diffRules = [
     flag: '--transcript-layout',
     label: 'Transcript',
     filePatterns: [/^src\/renderer\/src\/components\/Session\/InputBar\.tsx$/, /^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
-    diffPatterns: [/chatUserMessageEdit/, /message-edit-draft/, /composer-draft-source/, /CodeBlock/, /chat-code-block/, /codeBlockCopy/]
+    diffPatterns: [/chatUserMessageEdit/, /message-edit-draft/, /composer-draft-source/, /CodeBlock/, /chat-code-block/, /codeBlockCopy/, /toolActivityCommand/]
   },
   {
     flag: '--transcript-stress',
@@ -273,6 +273,7 @@ function suggestTargets(paths) {
   suppressTranscriptForkForCodeBlockDiff(matched, paths)
   suppressComposerForWorktreeLifecycleDiff(matched, paths)
   suppressComposerForTerminalHandoffDiff(matched, paths)
+  suppressComposerForToolActivityCommandDiff(matched, paths)
 
   const broadReasons = broadCandidates.filter((file) => !isBroadCandidateCovered(file, matched))
   const coveredBroadReasons = broadCandidates.filter((file) => isBroadCandidateCovered(file, matched))
@@ -524,6 +525,16 @@ function suppressComposerForTerminalHandoffDiff(matched, paths) {
   if (!composer.files.every((file) => file === 'src/main/index.ts')) return
   const diff = paths.includes('src/main/index.ts') ? diffForFile('src/main/index.ts') : ''
   if (!/terminalOutputAddToChat|terminalCommandOutputAddToChat|terminal-add-output-to-chat|terminal-add-command-output-to-chat|Terminal output|terminal command output|Latest command output/.test(diff)) return
+  matched.delete('--composer')
+}
+
+function suppressComposerForToolActivityCommandDiff(matched, paths) {
+  const composer = matched.get('--composer')
+  const transcript = matched.get('--transcript-layout')
+  if (!composer || !transcript) return
+  if (!composer.files.every((file) => file === 'src/main/index.ts')) return
+  const diff = paths.includes('src/main/index.ts') ? diffForFile('src/main/index.ts') : ''
+  if (!/toolActivityCommand|tool-activity-command/.test(diff)) return
   matched.delete('--composer')
 }
 

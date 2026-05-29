@@ -26172,6 +26172,27 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
               commandCopyStatus.textContent?.includes('Copied command') === true &&
               copiedCommandText.includes('printf') &&
               copiedCommandText.includes('TRANSCRIPT_LAYOUT_SMOKE_');
+            const commandAddToChatButton = toolBody?.querySelector('[data-testid="tool-activity-command-add-to-chat"]');
+            if (commandAddToChatButton instanceof HTMLButtonElement) {
+              commandAddToChatButton.click();
+              await sleep(160);
+            }
+            const commandAddToChatStatus = document.querySelector('[data-testid="tool-activity-command-add-to-chat-status"]');
+            const composerShellAfterToolCommand = document.querySelector('[data-testid="composer-shell"]');
+            const toolActivityCommandAddToChatWorks =
+              commandAddToChatButton instanceof HTMLButtonElement &&
+              commandAddToChatButton.getAttribute('aria-label') === 'Added command to chat' &&
+              commandAddToChatButton.getAttribute('data-icon-button-variant') === 'toolbar' &&
+              commandAddToChatStatus instanceof HTMLElement &&
+              commandAddToChatStatus.getAttribute('role') === 'status' &&
+              commandAddToChatStatus.getAttribute('aria-live') === 'polite' &&
+              commandAddToChatStatus.getAttribute('aria-atomic') === 'true' &&
+              commandAddToChatStatus.textContent?.includes('Added command to chat') === true &&
+              composerShellAfterToolCommand instanceof HTMLElement &&
+              composerShellAfterToolCommand.textContent?.includes('Use this command context:') === true &&
+              composerShellAfterToolCommand.textContent?.includes('Tool:') === true &&
+              composerShellAfterToolCommand.textContent?.includes('printf') === true &&
+              composerShellAfterToolCommand.textContent?.includes('TRANSCRIPT_LAYOUT_SMOKE_') === true;
             const transcriptText = scroller.innerText;
             document.querySelector('[aria-label="Close transcript search"]')?.click();
             await sleep(80);
@@ -26249,6 +26270,7 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
               toolSummaryBounded,
               toolSummaryScrollable,
               toolActivityCommandCopyWorks,
+              toolActivityCommandAddToChatWorks,
               rawEventsHiddenFromTranscript: !transcriptText.includes('RAW_TRANSCRIPT_EVENT_SHOULD_NOT_RENDER'),
               documentNoHorizontalOverflowAfterExpand: expandedDocScrollWidth <= viewportWidth + 2,
               docScrollWidth,

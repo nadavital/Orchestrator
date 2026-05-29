@@ -3088,13 +3088,24 @@ function toolCommandText(tool: ToolUseMessage): string | null {
   return null
 }
 
+function toolCommandComposerText(tool: ToolUseMessage, command: string): string {
+  return [
+    'Use this command context:',
+    `Tool: ${tool.toolName}`,
+    `Command: ${command}`
+  ].join('\n')
+}
+
 function ToolActivityCommandCopy({ tool }: { tool: ToolUseMessage }): JSX.Element | null {
   const command = toolCommandText(tool)
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'error'>('idle')
+  const [chatStatus, setChatStatus] = useState<'idle' | 'added'>('idle')
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const chatTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => () => {
     if (timeoutRef.current) window.clearTimeout(timeoutRef.current)
+    if (chatTimeoutRef.current) window.clearTimeout(chatTimeoutRef.current)
   }, [])
 
   const copyCommand = useCallback(async (event: React.MouseEvent) => {
@@ -3123,6 +3134,21 @@ function ToolActivityCommandCopy({ tool }: { tool: ToolUseMessage }): JSX.Elemen
     }
   }, [command])
 
+  const addCommandToChat = useCallback((event: React.MouseEvent) => {
+    event.preventDefault()
+    event.stopPropagation()
+    if (!command) return
+    if (chatTimeoutRef.current) window.clearTimeout(chatTimeoutRef.current)
+    window.dispatchEvent(new CustomEvent('orchestrator:add-composer-text', {
+      detail: { text: toolCommandComposerText(tool, command) }
+    }))
+    setChatStatus('added')
+    chatTimeoutRef.current = window.setTimeout(() => {
+      setChatStatus('idle')
+      chatTimeoutRef.current = null
+    }, 1500)
+  }, [command, tool])
+
   if (!command) return null
 
   return (
@@ -3136,6 +3162,15 @@ function ToolActivityCommandCopy({ tool }: { tool: ToolUseMessage }): JSX.Elemen
         dataTestId="tool-activity-command-copy"
         onClick={copyCommand}
       />
+      <IconButton
+        icon={chatStatus === 'added' ? 'check' : 'chat'}
+        label={chatStatus === 'added' ? 'Added command to chat' : 'Add command to chat'}
+        size="xs"
+        variant="toolbar"
+        tone={chatStatus === 'added' ? 'success' : 'neutral'}
+        dataTestId="tool-activity-command-add-to-chat"
+        onClick={addCommandToChat}
+      />
       {copyStatus !== 'idle' && (
         <span
           className="sr-only"
@@ -3146,6 +3181,18 @@ function ToolActivityCommandCopy({ tool }: { tool: ToolUseMessage }): JSX.Elemen
           aria-atomic="true"
         >
           {copyStatus === 'copied' ? 'Copied command' : 'Unable to copy command'}
+        </span>
+      )}
+      {chatStatus !== 'idle' && (
+        <span
+          className="sr-only"
+          data-testid="tool-activity-command-add-to-chat-status"
+          data-command-chat-state={chatStatus}
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          Added command to chat
         </span>
       )}
     </>
