@@ -2157,6 +2157,7 @@ child.on('exit', async (code) => {
         chatUserMessageEditToDraft: result.chatUserMessageEditToDraft === true,
         chatUserMessageEditAttachments: result.chatUserMessageEditAttachments === true,
         chatUserMessageEditDraftSourceStatus: result.chatUserMessageEditDraftSourceStatus === true,
+        chatUserMessageEditDraftRestore: result.chatUserMessageEditDraftRestore === true,
         errorRecoveryRetry: result.errorRecoveryRetryWorks === true,
         errorRecoveryRetryA11y: result.errorRecoveryRetryA11yWorks === true,
         errorRecoveryRetryPrepareFailure: result.errorRecoveryRetryPrepareFailure === true,

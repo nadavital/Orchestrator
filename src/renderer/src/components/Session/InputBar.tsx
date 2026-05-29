@@ -29,6 +29,11 @@ type ComposerDraftSource = {
   kind: 'message-edit-draft'
   messageId: string
   attachmentCount: number
+  previousDraft: {
+    text: string
+    attachments: Attachment[]
+    attachmentCount: number
+  } | null
 } | null
 
 function shouldNavigatePromptHistory(textarea: HTMLTextAreaElement, direction: 'previous' | 'next'): boolean {
@@ -826,11 +831,22 @@ function InputBar({ session, isNew }: Props): JSX.Element {
       setComposerText(nextText)
       if (nextAttachments) setComposerAttachments(session.id, nextAttachments)
       setDraftSource(detail?.source?.kind === 'message-edit-draft' && typeof detail.source.messageId === 'string'
-        ? {
-            kind: 'message-edit-draft',
-            messageId: detail.source.messageId,
-            attachmentCount: Number.isFinite(detail.source.attachmentCount) ? Math.max(0, Math.floor(detail.source.attachmentCount ?? 0)) : nextAttachments?.length ?? 0
-          }
+        ? (() => {
+            const previousAttachments = attachments.map(cloneAttachmentForDraft)
+            const hasPreviousDraft = text.trim().length > 0 || previousAttachments.length > 0
+            return {
+              kind: 'message-edit-draft',
+              messageId: detail.source.messageId,
+              attachmentCount: Number.isFinite(detail.source.attachmentCount) ? Math.max(0, Math.floor(detail.source.attachmentCount ?? 0)) : nextAttachments?.length ?? 0,
+              previousDraft: hasPreviousDraft
+                ? {
+                    text,
+                    attachments: previousAttachments,
+                    attachmentCount: previousAttachments.length
+                  }
+                : null
+            }
+          })()
         : null)
       setSlashIndex(0)
       setDismissedSlashQuery(null)
@@ -843,7 +859,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     }
     window.addEventListener('orchestrator:set-composer-text', onSetComposerText)
     return () => window.removeEventListener('orchestrator:set-composer-text', onSetComposerText)
-  }, [session.id, setComposerAttachments])
+  }, [attachments, session.id, setComposerAttachments, text])
 
   const expandedCommandPrompt = (value: string): string | null => {
     const match = value.match(/^(\/\S+)(?:\s+([\s\S]*))?$/)
@@ -1066,6 +1082,8 @@ function InputBar({ session, isNew }: Props): JSX.Element {
             data-composer-draft-source={draftSource.kind}
             data-composer-draft-source-message-id={draftSource.messageId}
             data-composer-draft-source-attachment-count={draftSource.attachmentCount}
+            data-composer-draft-source-has-previous={draftSource.previousDraft ? 'true' : 'false'}
+            data-composer-draft-source-previous-attachment-count={draftSource.previousDraft?.attachmentCount ?? 0}
             role="status"
             aria-live="polite"
             aria-atomic="true"
@@ -1077,8 +1095,35 @@ function InputBar({ session, isNew }: Props): JSX.Element {
           >
             <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>Editing a copy</span>
             <span className="min-w-0 flex-1 truncate">
-              Original message stays in the transcript{draftSource.attachmentCount > 0 ? ` with ${draftSource.attachmentCount} ${draftSource.attachmentCount === 1 ? 'attachment' : 'attachments'}` : ''}.
+              Original message stays in the transcript{draftSource.attachmentCount > 0 ? ` with ${draftSource.attachmentCount} ${draftSource.attachmentCount === 1 ? 'attachment' : 'attachments'}` : ''}{draftSource.previousDraft ? '; previous draft saved.' : '.'}
             </span>
+            {draftSource.previousDraft && (
+              <button
+                type="button"
+                className="shrink-0 rounded-md px-1.5 py-0.5 font-semibold"
+                data-testid="composer-draft-source-restore"
+                aria-label="Restore previous draft"
+                onClick={() => {
+                  if (!draftSource.previousDraft) return
+                  setComposerText(draftSource.previousDraft.text)
+                  setComposerAttachments(session.id, draftSource.previousDraft.attachments.map(cloneAttachmentForDraft))
+                  setDraftSource(null)
+                  textareaRef.current?.focus()
+                  window.setTimeout(() => {
+                    if (!textareaRef.current) return
+                    resizeTextarea(textareaRef.current)
+                    moveTextareaCursorToEnd(textareaRef.current)
+                  }, 0)
+                }}
+                style={{
+                  background: 'var(--surface-bg)',
+                  border: '1px solid var(--border-subtle)',
+                  color: 'var(--text-primary)'
+                }}
+              >
+                Restore
+              </button>
+            )}
             <button
               type="button"
               className="shrink-0 rounded-md px-1.5 py-0.5 font-semibold"

@@ -23633,6 +23633,14 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
             scroller.scrollTop = 0;
             scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
             await sleep(180);
+            const composerBeforeEdit = document.querySelector('[data-testid="composer-textarea"]');
+            if (composerBeforeEdit instanceof HTMLTextAreaElement) {
+              const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
+              setter?.call(composerBeforeEdit, 'Existing unsent draft before editing an older prompt');
+              composerBeforeEdit.dispatchEvent(new Event('input', { bubbles: true }));
+              composerBeforeEdit.dispatchEvent(new Event('change', { bubbles: true }));
+              await sleep(120);
+            }
             const userEditButton = document.querySelector('[data-testid="chat-user-message-edit"]');
             if (userEditButton instanceof HTMLButtonElement) {
               userEditButton.click();
@@ -23642,6 +23650,7 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
             const editDraftStatus = document.querySelector('[data-testid="transcript-action-status"]');
             const composerDraftSourceStatus = document.querySelector('[data-testid="composer-draft-source-status"]');
             const composerDraftSourceClear = document.querySelector('[data-testid="composer-draft-source-clear"]');
+            const composerDraftSourceRestore = document.querySelector('[data-testid="composer-draft-source-restore"]');
             const chatUserMessageEditToDraft =
               userEditButton instanceof HTMLButtonElement &&
               composerTextarea instanceof HTMLTextAreaElement &&
@@ -23662,10 +23671,25 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
               composerDraftSourceStatus.getAttribute('data-composer-draft-source') === 'message-edit-draft' &&
               composerDraftSourceStatus.getAttribute('data-composer-draft-source-message-id') === 'transcript-layout-user' &&
               composerDraftSourceStatus.getAttribute('data-composer-draft-source-attachment-count') === '1' &&
+              composerDraftSourceStatus.getAttribute('data-composer-draft-source-has-previous') === 'true' &&
+              composerDraftSourceStatus.getAttribute('data-composer-draft-source-previous-attachment-count') === '0' &&
               composerDraftSourceStatus.textContent?.includes('Editing a copy') === true &&
               composerDraftSourceStatus.textContent?.includes('Original message stays in the transcript') === true &&
+              composerDraftSourceStatus.textContent?.includes('previous draft saved') === true &&
+              composerDraftSourceRestore instanceof HTMLButtonElement &&
+              composerDraftSourceRestore.getAttribute('aria-label') === 'Restore previous draft' &&
               composerDraftSourceClear instanceof HTMLButtonElement &&
               composerDraftSourceClear.getAttribute('aria-label') === 'Clear edited draft';
+            if (composerDraftSourceRestore instanceof HTMLButtonElement) {
+              composerDraftSourceRestore.click();
+              await sleep(160);
+            }
+            const composerTextareaAfterRestore = document.querySelector('[data-testid="composer-textarea"]');
+            const chatUserMessageEditDraftRestore =
+              composerTextareaAfterRestore instanceof HTMLTextAreaElement &&
+              composerTextareaAfterRestore.value === 'Existing unsent draft before editing an older prompt' &&
+              document.querySelector('[data-testid="composer-draft-source-status"]') === null &&
+              document.querySelector('[data-testid="composer-shell"]')?.textContent?.includes('AGENTS.md') !== true;
             let composerReserveContractWorks = false;
             let composerReserveDebug = {};
             for (let index = 0; index < 10; index += 1) {
@@ -23786,6 +23810,7 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
               chatUserMessageEditToDraft,
               chatUserMessageEditAttachments,
               chatUserMessageEditDraftSourceStatus,
+              chatUserMessageEditDraftRestore,
               relativeProseCardSuppressed,
               absoluteMissingFileCardDisabled,
               partialResponseStatusWorks,
