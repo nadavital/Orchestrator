@@ -1235,6 +1235,64 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                   await sleep(80);
                 }
               }
+              var settingsSearchNavigationWorks = false;
+              const settingsSearchInput = document.querySelector('[data-testid="settings-search"]');
+              const setSettingsSearchValue = (value) => {
+                if (!(settingsSearchInput instanceof HTMLInputElement)) return;
+                const setter = Object.getOwnPropertyDescriptor(settingsSearchInput.constructor.prototype, 'value')?.set;
+                setter?.call(settingsSearchInput, value);
+                settingsSearchInput.dispatchEvent(new Event('input', { bubbles: true }));
+              };
+              if (settingsSearchInput instanceof HTMLInputElement) {
+                setSettingsSearchValue('browser');
+                await sleep(120);
+                const settingsSearchMatch = document.querySelector('[data-testid="settings-search-match"]');
+                settingsSearchInput.dispatchEvent(new KeyboardEvent('keydown', {
+                  key: 'Enter',
+                  code: 'Enter',
+                  bubbles: true,
+                  cancelable: true
+                }));
+                for (let index = 0; index < 25; index += 1) {
+                  const shell = document.querySelector('.settings-shell');
+                  const routeMatches = window.location.protocol === 'file:'
+                    ? window.location.hash.startsWith('#/settings/browser')
+                    : window.location.pathname === '/settings/browser';
+                  if (
+                    shell instanceof HTMLElement &&
+                    shell.getAttribute('data-settings-active-section') === 'browser' &&
+                    settingsSearchMatch instanceof HTMLButtonElement &&
+                    settingsSearchMatch.getAttribute('data-settings-search-target') === 'browser' &&
+                    routeMatches
+                  ) {
+                    break;
+                  }
+                  await sleep(80);
+                }
+                setSettingsSearchValue('general');
+                await sleep(120);
+                settingsSearchInput.dispatchEvent(new KeyboardEvent('keydown', {
+                  key: 'Enter',
+                  code: 'Enter',
+                  bubbles: true,
+                  cancelable: true
+                }));
+                for (let index = 0; index < 25; index += 1) {
+                  const shell = document.querySelector('.settings-shell');
+                  const routeMatches = window.location.protocol === 'file:'
+                    ? window.location.hash.startsWith('#/settings/general')
+                    : window.location.pathname === '/settings/general';
+                  if (
+                    shell instanceof HTMLElement &&
+                    shell.getAttribute('data-settings-active-section') === 'general' &&
+                    routeMatches
+                  ) {
+                    settingsSearchNavigationWorks = true;
+                    break;
+                  }
+                  await sleep(80);
+                }
+              }
               const settingsContentLayoutMatches = (testId, title, subtitleIncludes) => {
                 const layout = document.querySelector('[data-testid="' + testId + '"]');
                 const titleNode = layout?.querySelector('.settings-content-layout-title');
@@ -7399,6 +7457,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             settingsCloseFocusRestoredWorks: typeof settingsCloseFocusRestoredWorks === 'boolean' ? settingsCloseFocusRestoredWorks : null,
             settingsRouteOwnedWorks: typeof settingsRouteOwnedWorks === 'boolean' ? settingsRouteOwnedWorks : null,
             settingsSectionHistoryNavigationWorks: typeof settingsSectionHistoryNavigationWorks === 'boolean' ? settingsSectionHistoryNavigationWorks : null,
+            settingsSearchNavigationWorks: typeof settingsSearchNavigationWorks === 'boolean' ? settingsSearchNavigationWorks : null,
             settingsDeepLinkRouteWorks: typeof settingsDeepLinkRouteWorks === 'boolean' ? settingsDeepLinkRouteWorks : null,
             settingsDeepLinkRouteDebug: typeof settingsDeepLinkRouteDebug === 'object' ? settingsDeepLinkRouteDebug : null,
             settingsHostContextWorks: typeof settingsHostContextWorks === 'boolean' ? settingsHostContextWorks : null,

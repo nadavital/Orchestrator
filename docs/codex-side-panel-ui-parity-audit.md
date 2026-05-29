@@ -9394,3 +9394,13 @@ Implemented: `SessionPane` now renders a shared `PanelNotice` directly below the
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --worktree-lifecycle` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-worktree-lifecycle-1780013752364.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-worktree-lifecycle-1780013752364.png`. The focused smoke gates `pendingWorktreeNotice=true`, `failedWorktreeNotice=true`, and `failedWorktreeRetry=true` in an isolated git-backed workspace.
 
 Remaining: this closes the active-chat pending/failed local lifecycle gap only. Start-vs-fork metadata richness, source-turn ownership, browser-transfer metadata, side-chat worktree flows, raw Git worktree switching, provider-native worktree adapters, and exact live Codex visual timing remain separate PP-038 follow-ups.
+
+### 2026-05-28 - Settings Topbar Search
+
+Product evidence: Settings is a Phase 1 daily-use surface for provider, runtime, browser, shell, shortcut, data, and personalization preferences. The left Settings nav was usable, but moving between sections still required scanning grouped nav labels. Codex-style Settings surfaces are route-backed and quick to traverse; Orchestrator already had section routes, but no Settings-level search/jump affordance.
+
+Implemented: Settings now renders a compact shared `WorkbenchSearchField` in the topbar. It searches the visible section catalog for the selected host, including common control keywords such as model, permission, browser, worktree, shortcuts, data, composer, and editor. Pressing Enter routes to the matched section through the same owned `/settings/{section}` path as sidebar navigation, and the inline target chip exposes the matched section for screen/smoke proof.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --settings` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1780014386620.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1780014386620.png`. The focused Settings smoke gates `settingsSearchNavigation=true` by searching `browser`, verifying the Browser settings route, then searching `general` and returning to General.
+
+Remaining: this closes local Settings section search/jump only. Exact live Codex Settings pixel/timing evidence, richer in-page control search, and provider-native remote-host Settings adapters remain separate follow-ups.

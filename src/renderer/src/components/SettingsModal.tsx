@@ -10,6 +10,8 @@ import {
   normalizeSettingsSectionForHostKind,
   settingsHostAdapterState,
   settingsHostOptionsFromSessions,
+  settingsNavigationGroupsForHostKind,
+  settingsRouteUrlForLocation,
   settingsSectionScope
 } from '../../../types'
 import { useSessionStore } from '../store/sessions'
@@ -34,12 +36,31 @@ import {
   SettingsIntro,
   SettingsPageSection,
   SettingsSurface,
-  Tooltip
+  Tooltip,
+  WorkbenchSearchField
 } from './shared/designSystem'
 import { applyAppearance, type Accent, type Appearance, type AppearanceTheme, type ChromeTheme, type Density, type TranscriptStyle } from '../theme'
 
 type PreferredEditor = PreferredOpenTarget
 type ComposerEnterBehavior = 'send' | 'newline'
+
+const SETTINGS_SEARCH_ITEMS: Array<{
+  section: SettingsSection
+  label: string
+  description: string
+  keywords: string
+}> = [
+  { section: 'general', label: 'General', description: 'Editor and composer defaults', keywords: 'files editor handoff composer enter send newline' },
+  { section: 'appearance', label: 'Appearance', description: 'Theme, density, color, and fonts', keywords: 'theme accent density font motion chrome code' },
+  { section: 'providers', label: 'Providers', description: 'Default provider, models, permissions, and diagnostics', keywords: 'model agent permission diagnostics runtime codex claude openai' },
+  { section: 'automations', label: 'Automations', description: 'Scheduled follow-ups and run history', keywords: 'schedule reminder heartbeat cron run history pause' },
+  { section: 'worktrees', label: 'Worktrees', description: 'Managed isolated workspaces', keywords: 'git branch fork workspace isolated cleanup' },
+  { section: 'shortcuts', label: 'Shortcuts', description: 'Keyboard commands and bindings', keywords: 'keybinding command hotkey keyboard' },
+  { section: 'personalization', label: 'Personalization', description: 'Custom instructions and coding preferences', keywords: 'memory instructions preferences pet overlay' },
+  { section: 'browser', label: 'Browser', description: 'Browser data, permissions, and site policies', keywords: 'cookies cache history policy webview localhost origin' },
+  { section: 'pets', label: 'Pet overlay', description: 'Pet overlay selection and import', keywords: 'pet companion overlay import codex' },
+  { section: 'data', label: 'Data controls', description: 'Archived chats and local storage', keywords: 'archive restore delete data storage path' }
+]
 
 interface Props {
   section: SettingsSection
@@ -85,12 +106,27 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
   const [personalizationEnabled, setPersonalizationEnabled] = useState(false)
   const [personalizationCustomInstructions, setPersonalizationCustomInstructions] = useState('')
   const [personalizationCodingPreferences, setPersonalizationCodingPreferences] = useState('')
+  const [settingsSearchQuery, setSettingsSearchQuery] = useState('')
   const settingsHostOptions = useMemo(() => settingsHostOptionsFromSessions(sessions), [sessions])
   const normalizedSettingsHostId = normalizeSettingsHostId(selectedSettingsHostId, settingsHostOptions)
   const selectedSettingsHost = settingsHostOptions.find((host) => host.id === normalizedSettingsHostId) ?? settingsHostOptions[0]
   const effectiveSection = normalizeSettingsSectionForHostKind(section, selectedSettingsHost.kind)
   const contentScope = settingsSectionScope(effectiveSection)
   const hostAdapterState = settingsHostAdapterState(effectiveSection, selectedSettingsHost.kind)
+  const visibleSettingsSections = useMemo(() => new Set(
+    settingsNavigationGroupsForHostKind(selectedSettingsHost.kind)
+      .flatMap((group) => group.sections)
+  ), [selectedSettingsHost.kind])
+  const settingsSearchMatch = useMemo(() => {
+    const query = settingsSearchQuery.trim().toLowerCase()
+    if (!query) return null
+    return SETTINGS_SEARCH_ITEMS
+      .filter((item) => visibleSettingsSections.has(item.section))
+      .find((item) => {
+        const haystack = `${item.label} ${item.description} ${item.keywords} ${item.section}`.toLowerCase()
+        return haystack.includes(query)
+      }) ?? null
+  }, [settingsSearchQuery, visibleSettingsSections])
   const settingsScrollRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
@@ -422,6 +458,23 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
     window.api.settings.set('monoFont', value)
   }
 
+  const navigateSettingsSection = (nextSection: SettingsSection): void => {
+    const normalizedSection = normalizeSettingsSectionForHostKind(nextSection, selectedSettingsHost.kind)
+    if (normalizedSection !== effectiveSection) {
+      window.history.pushState(
+        { orchestratorRoute: 'settings', section: normalizedSection, hostId: normalizedSettingsHostId },
+        '',
+        settingsRouteUrlForLocation(normalizedSection, normalizedSettingsHostId, window.location)
+      )
+    }
+    setSettingsSection(normalizedSection)
+  }
+
+  const submitSettingsSearch = (): void => {
+    if (!settingsSearchMatch) return
+    navigateSettingsSection(settingsSearchMatch.section)
+  }
+
   return (
     <div
       className="settings-shell"
@@ -434,7 +487,41 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
       data-settings-route-owned="true"
     >
       <PanelToolbar className="settings-topbar" dataTestId="settings-topbar" ariaLabel="Settings toolbar">
-        <span className="settings-topbar-title">{settingsTitle(effectiveSection)}</span>
+        <div className="settings-topbar-leading">
+          <span className="settings-topbar-title">{settingsTitle(effectiveSection)}</span>
+          <WorkbenchSearchField
+            value={settingsSearchQuery}
+            onChange={setSettingsSearchQuery}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault()
+                submitSettingsSearch()
+              }
+              if (event.key === 'Escape') {
+                event.preventDefault()
+                setSettingsSearchQuery('')
+              }
+            }}
+            placeholder="Search settings"
+            clearLabel="Clear settings search"
+            dataTestId="settings-search"
+            clearDataTestId="settings-search-clear"
+            className="settings-topbar-search"
+            ariaLabel="Search settings"
+            trailing={settingsSearchQuery.trim().length > 0 && (
+              <button
+                type="button"
+                className="settings-search-match"
+                disabled={!settingsSearchMatch}
+                data-testid="settings-search-match"
+                data-settings-search-target={settingsSearchMatch?.section ?? ''}
+                onClick={submitSettingsSearch}
+              >
+                {settingsSearchMatch?.label ?? 'No match'}
+              </button>
+            )}
+          />
+        </div>
         <div className="settings-topbar-actions">
           <Tooltip label="Back to chat">
             <button

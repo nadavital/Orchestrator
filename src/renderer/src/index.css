@@ -9116,7 +9116,16 @@
     -webkit-app-region: drag;
   }
 
+  .settings-topbar-leading {
+    display: inline-flex;
+    min-width: 0;
+    flex: 1;
+    align-items: center;
+    gap: 12px;
+  }
+
   .settings-topbar-title {
+    flex: 0 0 auto;
     min-width: 0;
     overflow: hidden;
     color: var(--text-primary);
@@ -9125,6 +9134,47 @@
     line-height: 1;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .settings-topbar-search {
+    width: min(360px, 46vw);
+    height: 28px;
+    -webkit-app-region: no-drag;
+  }
+
+  .settings-topbar-search .workbench-search-input {
+    font-size: 12px;
+  }
+
+  .settings-search-match {
+    display: inline-flex;
+    max-width: 128px;
+    min-width: 0;
+    height: 20px;
+    align-items: center;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    color: var(--text-secondary);
+    padding: 0 6px;
+    font-size: 11px;
+    font-weight: 520;
+    line-height: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .settings-search-match:disabled {
+    background: transparent;
+    color: var(--text-tertiary);
+  }
+
+  .settings-search-match:not(:disabled):hover,
+  .settings-search-match:not(:disabled):focus-visible {
+    background: color-mix(in srgb, var(--accent) 18%, transparent);
+    color: var(--text-primary);
+    outline: none;
   }
 
   .settings-topbar-actions {
