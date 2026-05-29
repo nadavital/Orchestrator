@@ -2574,6 +2574,69 @@
     white-space: nowrap;
   }
 
+  .git-action-status {
+    margin: 0 10px 8px;
+    border: 1px solid color-mix(in srgb, var(--accent) 20%, var(--border-subtle));
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--accent) 8%, var(--surface-bg));
+    color: var(--accent);
+    font-size: 11px;
+    line-height: 16px;
+    padding: 5px 8px;
+  }
+
+  .git-action-status[data-git-action-status-tone='danger'] {
+    border-color: color-mix(in srgb, var(--state-danger) 32%, var(--border-subtle));
+    background: color-mix(in srgb, var(--state-danger) 9%, var(--surface-bg));
+    color: var(--state-danger);
+  }
+
+  .git-actions-row {
+    display: flex;
+    min-width: 0;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 10px;
+  }
+
+  .git-file-row {
+    display: grid;
+    min-width: 0;
+    min-height: 30px;
+    grid-template-columns: 42px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+    border-top: 1px solid color-mix(in srgb, var(--border-subtle) 48%, transparent);
+    color: var(--text-secondary);
+    font-size: 12px;
+    line-height: 16px;
+    padding: 0 12px;
+  }
+
+  .git-file-status {
+    color: var(--text-tertiary);
+    font-size: 11px;
+  }
+
+  .git-file-path {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .git-file-delta {
+    color: var(--text-tertiary);
+    font-size: 11px;
+  }
+
+  .git-empty-state {
+    color: var(--text-tertiary);
+    font-size: 12px;
+    line-height: 18px;
+    padding: 10px 12px;
+  }
+
   .environment-additions {
     color: var(--color-green);
     font-variant-numeric: tabular-nums;

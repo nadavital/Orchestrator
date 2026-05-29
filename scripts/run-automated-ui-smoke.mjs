@@ -2433,6 +2433,7 @@ child.on('exit', async (code) => {
           workbenchNewTabListLauncher: result.workbenchNewTabListLauncher === true,
           workbenchNewTabFinalCapture: result.workbenchNewTabFinalCapture === true,
           workbenchNewTabAgentsAction: result.workbenchNewTabAgentsActionWorks === true,
+          workbenchNewTabGitAction: result.workbenchNewTabGitActionWorks === true,
           agentRuntimeEventDetail: result.agentRuntimeEventDetailWorks === true,
           agentRuntimeEventCopy: result.agentRuntimeEventCopyWorks === true,
           agentRuntimeEventAddToChat: result.agentRuntimeEventAddToChatWorks === true,

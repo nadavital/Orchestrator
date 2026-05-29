@@ -6622,6 +6622,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               newTabActions.includes('files') &&
               newTabActions.includes('side-chat') &&
               newTabActions.includes('browser') &&
+              newTabActions.includes('git') &&
               newTabActions.includes('review') &&
               newTabActions.includes('agents') &&
               newTabActions.includes('terminal');
@@ -8146,9 +8147,103 @@ function runAutomatedFocusedSurfaceSmoke(
                   newTabCardIds.includes('files') &&
                   newTabCardIds.includes('side-chat') &&
                   newTabCardIds.includes('browser') &&
+                  newTabCardIds.includes('git') &&
                   newTabCardIds.includes('review') &&
                   newTabCardIds.includes('agents') &&
                   newTabCardIds.includes('terminal');
+                let workbenchNewTabGitActionWorks = false;
+                const gitAction = document.querySelector('[data-testid="workbench-new-tab-action-git"]');
+                if (gitAction instanceof HTMLButtonElement) {
+                  gitAction.click();
+                  for (let attempt = 0; attempt < 16; attempt += 1) {
+                    await sleep(100);
+                    const gitPanel = document.querySelector('[data-testid="git-panel"]');
+                    if (
+                      gitPanel instanceof HTMLElement &&
+                      document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-active-tab') === 'git' &&
+                      Number(gitPanel.getAttribute('data-git-change-count') ?? '0') >= 3 &&
+                      gitPanel.getAttribute('data-git-action-state') === 'idle'
+                    ) {
+                      break;
+                    }
+                  }
+                  const gitPanelBefore = document.querySelector('[data-testid="git-panel"]');
+                  const gitStageAll = document.querySelector('[data-testid="git-stage-all"]');
+                  const gitUnstageAll = document.querySelector('[data-testid="git-unstage-all"]');
+                  const gitOpenReview = document.querySelector('[data-testid="git-open-review"]');
+                  const gitBranch = document.querySelector('[data-testid="git-current-branch"]');
+                  const gitFileRowsBefore = [...document.querySelectorAll('[data-testid="git-file-row"]')]
+                    .filter((row) => row instanceof HTMLElement);
+                  const gitChangeCountBefore = gitPanelBefore instanceof HTMLElement
+                    ? Number(gitPanelBefore.getAttribute('data-git-change-count') ?? '0')
+                    : 0;
+                  if (gitStageAll instanceof HTMLButtonElement && !gitStageAll.disabled) {
+                    gitStageAll.click();
+                    for (let attempt = 0; attempt < 20; attempt += 1) {
+                      await sleep(100);
+                      const gitPanelAfterStage = document.querySelector('[data-testid="git-panel"]');
+                      if (
+                        gitPanelAfterStage instanceof HTMLElement &&
+                        gitPanelAfterStage.getAttribute('data-git-action-state') === 'idle' &&
+                        Number(gitPanelAfterStage.getAttribute('data-git-unstaged-count') ?? '-1') === 0 &&
+                        Number(gitPanelAfterStage.getAttribute('data-git-staged-count') ?? '0') >= gitChangeCountBefore
+                      ) {
+                        break;
+                      }
+                    }
+                  }
+                  const gitPanelAfterStage = document.querySelector('[data-testid="git-panel"]');
+                  const gitAfterStageStagedCount = gitPanelAfterStage instanceof HTMLElement
+                    ? Number(gitPanelAfterStage.getAttribute('data-git-staged-count') ?? '0')
+                    : -1;
+                  const gitAfterStageUnstagedCount = gitPanelAfterStage instanceof HTMLElement
+                    ? Number(gitPanelAfterStage.getAttribute('data-git-unstaged-count') ?? '0')
+                    : -1;
+                  const gitUnstageAllAfterStage = document.querySelector('[data-testid="git-unstage-all"]');
+                  if (gitUnstageAllAfterStage instanceof HTMLButtonElement && !gitUnstageAllAfterStage.disabled) {
+                    gitUnstageAllAfterStage.click();
+                    for (let attempt = 0; attempt < 20; attempt += 1) {
+                      await sleep(100);
+                      const gitPanelAfterUnstage = document.querySelector('[data-testid="git-panel"]');
+                      if (
+                        gitPanelAfterUnstage instanceof HTMLElement &&
+                        gitPanelAfterUnstage.getAttribute('data-git-action-state') === 'idle' &&
+                        Number(gitPanelAfterUnstage.getAttribute('data-git-staged-count') ?? '-1') === 0 &&
+                        Number(gitPanelAfterUnstage.getAttribute('data-git-unstaged-count') ?? '0') >= gitChangeCountBefore
+                      ) {
+                        break;
+                      }
+                    }
+                  }
+                  const gitPanelAfterUnstage = document.querySelector('[data-testid="git-panel"]');
+                  const gitAfterUnstageStagedCount = gitPanelAfterUnstage instanceof HTMLElement
+                    ? Number(gitPanelAfterUnstage.getAttribute('data-git-staged-count') ?? '0')
+                    : -1;
+                  const gitAfterUnstageUnstagedCount = gitPanelAfterUnstage instanceof HTMLElement
+                    ? Number(gitPanelAfterUnstage.getAttribute('data-git-unstaged-count') ?? '0')
+                    : -1;
+                  const gitStatus = document.querySelector('[data-testid="git-action-status"]');
+                  workbenchNewTabGitActionWorks =
+                    gitPanelBefore instanceof HTMLElement &&
+                    gitPanelAfterStage instanceof HTMLElement &&
+                    gitPanelAfterUnstage instanceof HTMLElement &&
+                    gitBranch instanceof HTMLElement &&
+                    gitOpenReview instanceof HTMLButtonElement &&
+                    gitFileRowsBefore.length >= 3 &&
+                    gitChangeCountBefore >= 3 &&
+                    gitAfterStageUnstagedCount === 0 &&
+                    gitAfterStageStagedCount >= gitChangeCountBefore &&
+                    gitAfterUnstageStagedCount === 0 &&
+                    gitAfterUnstageUnstagedCount >= gitChangeCountBefore &&
+                    gitStatus instanceof HTMLElement &&
+                    gitStatus.getAttribute('role') === 'status' &&
+                    gitStatus.textContent?.includes('Unstaged') === true;
+                  const newTabAfterGit = document.querySelector('[data-testid="workbench-panel-tabbar"] [role="tab"][data-tab-id="new-tab"]');
+                  if (newTabAfterGit instanceof HTMLElement) {
+                    newTabAfterGit.click();
+                    await sleep(140);
+                  }
+                }
                 const agentsAction = document.querySelector('[data-testid="workbench-new-tab-action-agents"]');
                 if (agentsAction instanceof HTMLButtonElement) {
                   agentsAction.click();
@@ -8530,6 +8625,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     finalNewTabGrid instanceof HTMLElement &&
                     finalActiveNewTab instanceof HTMLElement,
                   workbenchNewTabAgentsActionWorks,
+                  workbenchNewTabGitActionWorks,
                   agentRuntimeEventDetailWorks,
                   agentRuntimeEventCopyWorks,
                   agentRuntimeEventAddToChatWorks,
@@ -8890,6 +8986,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   newTabActions.includes('files') &&
                   newTabActions.includes('side-chat') &&
                   newTabActions.includes('browser') &&
+                  newTabActions.includes('git') &&
                   newTabActions.includes('review') &&
                   newTabActions.includes('agents') &&
                   newTabActions.includes('terminal');
