@@ -1314,6 +1314,18 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
       </div>
     </PanelToolbar>
   )
+  const reviewActionStatus = reviewGitActionMessage ? (
+    <span
+      className="review-floating-action-status"
+      data-testid="review-floating-action-status"
+      role={reviewGitActionMessage.tone === 'danger' ? 'alert' : 'status'}
+      aria-live={reviewGitActionMessage.tone === 'danger' ? 'assertive' : 'polite'}
+      aria-atomic="true"
+      data-review-floating-action-status-tone={reviewGitActionMessage.tone}
+    >
+      {reviewGitActionMessage.text}
+    </span>
+  ) : null
   const reviewFloatingGitActions = showReviewGitActionPill ? (
     <div
       className="review-floating-action-pill"
@@ -1363,18 +1375,20 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
           <span>Unstage all</span>
         </Button>
       )}
-      {reviewGitActionMessage && (
-        <span
-          className="review-floating-action-status"
-          data-testid="review-floating-action-status"
-          role={reviewGitActionMessage.tone === 'danger' ? 'alert' : 'status'}
-          aria-live={reviewGitActionMessage.tone === 'danger' ? 'assertive' : 'polite'}
-          aria-atomic="true"
-          data-review-floating-action-status-tone={reviewGitActionMessage.tone}
-        >
-          {reviewGitActionMessage.text}
-        </span>
-      )}
+      {reviewActionStatus}
+    </div>
+  ) : null
+  const reviewFloatingActionStatus = !showReviewGitActionPill && reviewActionStatus ? (
+    <div
+      className="review-floating-action-pill review-floating-action-pill-status-only"
+      data-testid="review-action-status-pill"
+      data-review-floating-action-pill="status"
+      data-review-floating-action-anchor="panel-root"
+      data-review-git-action-status={reviewGitActionStatus}
+      data-review-git-action-message={reviewGitActionMessage?.text ?? ''}
+      data-review-git-action-tone={reviewGitActionMessage?.tone ?? ''}
+    >
+      {reviewActionStatus}
     </div>
   ) : null
   return (
@@ -1555,6 +1569,7 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
             </div>
           </div>
           {reviewFloatingGitActions}
+          {reviewFloatingActionStatus}
         </div>
       )}
       {reviewRevertConfirmOpen && (

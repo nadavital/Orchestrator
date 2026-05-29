@@ -11827,6 +11827,7 @@ function runAutomatedFocusedSurfaceSmoke(
 	              let lastTurnSourceActive = '';
 	              let lastTurnSourceWorks = false;
 	              let reviewLastTurnGitApplyCommandWorks = false;
+	              let reviewLastTurnGitApplyCopyStatusWorks = false;
 	              let reviewLastTurnGitApplyCommandDebug = {};
 	              let reviewTranscriptCardLastTurnWorks = false;
 	              if (smokeView === 'diff-source' || smokeView === 'diff-last-turn') {
@@ -11893,6 +11894,8 @@ function runAutomatedFocusedSurfaceSmoke(
 	                      window.__orchestratorLastReviewGitApplyCommandForSmoke ??
 	                      await navigator.clipboard?.readText().catch(() => '') ??
 	                      '';
+	                    const lastTurnGitApplyStatus = document.querySelector('[data-testid="review-floating-action-status"]');
+	                    const lastTurnGitApplyStatusPill = document.querySelector('[data-testid="review-action-status-pill"]');
 	                    lastTurnGitApplyPatchFileCount = (lastTurnGitApplyCommand.match(/^diff --git /gm) ?? []).length;
 	                    reviewLastTurnGitApplyCommandWorks =
 	                      lastTurnGitApplyOptionsOpened &&
@@ -11903,6 +11906,18 @@ function runAutomatedFocusedSurfaceSmoke(
 	                      lastTurnGitApplyPatchFileCount === lastTurnExpectedGitApplyFileCount &&
 	                      lastTurnGitApplyCommand.includes('review-base.txt') &&
 	                      lastTurnGitApplyCommand.includes('last turn smoke');
+	                    reviewLastTurnGitApplyCopyStatusWorks =
+	                      lastTurnGitApplyStatus instanceof HTMLElement &&
+	                      lastTurnGitApplyStatus.textContent?.includes('Git apply command copied') === true &&
+	                      lastTurnGitApplyStatus.getAttribute('role') === 'status' &&
+	                      lastTurnGitApplyStatus.getAttribute('aria-live') === 'polite' &&
+	                      lastTurnGitApplyStatus.getAttribute('aria-atomic') === 'true' &&
+	                      lastTurnGitApplyStatus.getAttribute('data-review-floating-action-status-tone') === 'info' &&
+	                      lastTurnGitApplyStatusPill instanceof HTMLElement &&
+	                      lastTurnGitApplyStatusPill.getAttribute('data-review-floating-action-pill') === 'status' &&
+	                      lastTurnGitApplyStatusPill.getAttribute('data-review-floating-action-anchor') === 'panel-root' &&
+	                      lastTurnGitApplyStatusPill.getAttribute('data-review-git-action-message')?.includes('Git apply command copied') === true &&
+	                      document.querySelector('[data-testid="review-floating-action-pill"][data-review-floating-action-pill="local-git"]') === null;
 	                  }
 	                  reviewLastTurnGitApplyCommandDebug = {
 	                    lastTurnGitApplyOptionsOpened,
@@ -11913,7 +11928,8 @@ function runAutomatedFocusedSurfaceSmoke(
 	                    patchFileCount: lastTurnGitApplyPatchFileCount,
 	                    commandStarts: lastTurnGitApplyCommand.slice(0, 80),
 	                    hasReviewBase: lastTurnGitApplyCommand.includes('review-base.txt'),
-	                    hasLastTurnText: lastTurnGitApplyCommand.includes('last turn smoke')
+	                    hasLastTurnText: lastTurnGitApplyCommand.includes('last turn smoke'),
+	                    copyStatusWorks: reviewLastTurnGitApplyCopyStatusWorks
 	                  };
 	                  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
 	                  await sleep(80);
@@ -13929,6 +13945,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   reviewProviderSourceUnavailableReasonsWork,
 	                  reviewTranscriptCardLastTurnWorks,
 	                  reviewLastTurnGitApplyCommandWorks,
+	                  reviewLastTurnGitApplyCopyStatusWorks,
 	                  reviewLastTurnGitApplyCommandDebug,
 	                  reviewWorktreeProviderSourceWorks,
 	                  reviewWorktreeProviderSourceDebug,
@@ -14327,6 +14344,7 @@ function runAutomatedFocusedSurfaceSmoke(
 	                reviewMetadataMenuStateWorks,
 	                reviewTranscriptCardLastTurnWorks,
 	                reviewLastTurnGitApplyCommandWorks,
+	                reviewLastTurnGitApplyCopyStatusWorks,
 	                reviewTranscriptCardWorks: reviewTranscriptCardWorks && reviewTranscriptCardActionWorks,
                 reviewTranscriptCardUndoWorks,
                 reviewEnvironmentPanelWorks,

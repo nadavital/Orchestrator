@@ -9495,6 +9495,16 @@ Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.
 
 Remaining: live PR creation, provider-hosted Git metadata, exact live Codex UI timing, and retiring Review's temporary local-git bridge once the Git tab fully owns local Git actions.
 
+### 2026-05-28 - Review Copy Status Without Local Git Bridge
+
+Product evidence: Review `Copy git apply command` is a daily coding handoff, and Last turn/provider Review sources can have a patch without any local mutable Git actions. Before this slice, copy feedback reused the local-git floating action pill, so provider-source copy success could be invisible when that bridge was absent.
+
+Implemented: Review now builds one shared action-status element and renders it inside the local Git action pill when local Stage/Unstage/Revert actions exist, or inside a status-only bottom pill when the active Review source has no local Git actions. This keeps existing local Review git feedback intact while making provider Last turn copy feedback independent from the temporary local-git bridge.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, elevated `node scripts/run-automated-ui-smoke.mjs --diff-source`, and elevated `node scripts/run-automated-ui-smoke.mjs --diff-core` passed. Source evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-source-1780021424055.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-source-1780021424055.png`. Core evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-core-1780021472816.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-core-1780021472816.png`. The focused smokes now gate `reviewLastTurnGitApplyCopyStatus=true`, `reviewGitApplyCopyStatus=true`, and `reviewFloatingGitActionStatus=true`.
+
+Remaining: live PR creation, provider-hosted Git metadata, exact live Codex UI timing, and retiring Review's temporary local-git bridge once the Git tab fully owns local Git actions remain separate follow-ups.
+
 ### 2026-05-28 - Review Provider Suggestions
 
 Product evidence: PP-054 still had an actionable Review gap after the Git tab picked up local branch/commit/PR-command ownership: provider inline comments could be displayed, but GitHub suggestion fences were passive text. For daily coding, Review should let users copy or apply a concrete suggestion without leaving the right Workbench panel.
