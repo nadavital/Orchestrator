@@ -255,6 +255,7 @@ function suggestTargets(paths) {
   suppressTranscriptLayoutForForkDiff(matched, paths)
   suppressTranscriptForkForCodeBlockDiff(matched, paths)
   suppressComposerForWorktreeLifecycleDiff(matched, paths)
+  suppressComposerForTerminalHandoffDiff(matched, paths)
 
   return { targets: Array.from(matched.values()), unmatched, broadReasons }
 }
@@ -426,6 +427,16 @@ function suppressComposerForWorktreeLifecycleDiff(matched, paths) {
   if (!composer.files.every((file) => file === 'src/main/index.ts')) return
   const diff = paths.includes('src/main/index.ts') ? diffForFile('src/main/index.ts') : ''
   if (!/worktree-lifecycle|worktreeRetry|WorktreeLifecycleNotice/.test(diff)) return
+  matched.delete('--composer')
+}
+
+function suppressComposerForTerminalHandoffDiff(matched, paths) {
+  const composer = matched.get('--composer')
+  const terminal = matched.get('--terminal')
+  if (!composer || !terminal) return
+  if (!composer.files.every((file) => file === 'src/main/index.ts')) return
+  const diff = paths.includes('src/main/index.ts') ? diffForFile('src/main/index.ts') : ''
+  if (!/terminalOutputAddToChat|terminal-add-output-to-chat|Terminal output/.test(diff)) return
   matched.delete('--composer')
 }
 

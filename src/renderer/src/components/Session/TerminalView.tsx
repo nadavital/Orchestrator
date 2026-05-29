@@ -11,6 +11,7 @@ interface Props {
   workDir: string
   onNewTab?: () => void
   onOpenUrl?: (url: string) => void
+  onOutputChange?: (terminalId: string, output: string) => void
 }
 
 interface TerminalAppearance {
@@ -31,7 +32,7 @@ export default function TerminalView(props: Props): JSX.Element {
   )
 }
 
-function TerminalSurface({ terminalId, workDir, onNewTab, onOpenUrl }: Props): JSX.Element {
+function TerminalSurface({ terminalId, workDir, onNewTab, onOpenUrl, onOutputChange }: Props): JSX.Element {
   const surfaceRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
@@ -43,6 +44,10 @@ function TerminalSurface({ terminalId, workDir, onNewTab, onOpenUrl }: Props): J
   const [reloadKey, setReloadKey] = useState(0)
   const [clipboardStatus, setClipboardStatus] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
   const clipboardStatusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    onOutputChange?.(terminalId, plainOutput)
+  }, [onOutputChange, plainOutput, terminalId])
 
   const openTerminalUrl = useCallback((url: string): void => {
     if (!onOpenUrl) return

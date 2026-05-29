@@ -41,6 +41,7 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
   const openRightPanelBrowserUrl = useSessionStore((state) => state.openRightPanelBrowserUrl)
   const [terminalMenu, setTerminalMenu] = useState<{ tabId: BottomPanelTabId; x: number; y: number } | null>(null)
   const [terminalActionStatus, setTerminalActionStatus] = useState<TerminalActionStatus | null>(null)
+  const [terminalOutputs, setTerminalOutputs] = useState<Record<string, string>>({})
   const terminalActionStatusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const terminalPanel = ui.terminalPanel ?? { height: DEFAULT_TERMINAL_HEIGHT, tabs: [0], activeTabId: 0, nextTabId: 1 }
   const terminalResizeController = useAppShellResizeController({
@@ -76,6 +77,8 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
     closeLabel: bottomPanelTabCloseLabel(tabId)
   }))
   const activeTabKind = bottomPanelTabKind(activeTab)
+  const activeTerminalId = typeof activeTab === 'number' ? terminalId(activeTab) : null
+  const activeTerminalOutput = activeTerminalId ? terminalOutputs[activeTerminalId] ?? '' : ''
 
   useEffect(() => () => {
     if (terminalActionStatusTimeoutRef.current) window.clearTimeout(terminalActionStatusTimeoutRef.current)
@@ -122,6 +125,36 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
       .then(() => setPanelActionStatus({ text: 'Terminal cleared', tone: 'info' }))
       .catch(() => setPanelActionStatus({ text: 'Clear failed', tone: 'danger' }))
   }, [activeTab, session.id, setPanelActionStatus])
+
+  const handleTerminalOutputChange = useCallback((id: string, output: string): void => {
+    setTerminalOutputs((current) => current[id] === output ? current : { ...current, [id]: output })
+  }, [])
+
+  const addActiveTerminalOutputToChat = useCallback((): void => {
+    if (activeTabKind !== 'terminal') {
+      setPanelActionStatus({ text: 'No active terminal output to add', tone: 'danger' })
+      return
+    }
+    const output = activeTerminalOutput.trim()
+    if (!output) {
+      setPanelActionStatus({ text: 'Terminal output is empty', tone: 'danger' })
+      return
+    }
+    const clippedOutput = output.split('\n').slice(-120).join('\n').slice(-12_000)
+    const lines = [
+      'Review this terminal output:',
+      `Working dir: ${session.workDir}`,
+      activeTerminalId ? `Terminal: ${activeTerminalId}` : '',
+      '',
+      '```text',
+      clippedOutput,
+      '```'
+    ].filter(Boolean)
+    window.dispatchEvent(new CustomEvent('orchestrator:add-composer-text', {
+      detail: { text: lines.join('\n') }
+    }))
+    setPanelActionStatus({ text: 'Terminal output added to chat', tone: 'info' })
+  }, [activeTabKind, activeTerminalId, activeTerminalOutput, session.workDir, setPanelActionStatus])
 
   const closeTab = (tabId: BottomPanelTabId): void => {
     exitFullscreenForPanelTab('bottom', tabId)
@@ -271,6 +304,15 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
                     onClick={openPlanTab}
                   />
                   <ToolbarButton
+                    icon="chat"
+                    label="Add terminal output to chat"
+                    size="sm"
+                    variant="toolbar"
+                    disabled={activeTabKind !== 'terminal' || !activeTerminalOutput.trim()}
+                    dataTestId="terminal-add-output-to-chat"
+                    onClick={addActiveTerminalOutputToChat}
+                  />
+                  <ToolbarButton
                     icon="eraser"
                     label="Clear terminal"
                     size="sm"
@@ -376,6 +418,7 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
                 workDir={session.workDir}
                 onNewTab={addTab}
                 onOpenUrl={openTerminalUrl}
+                onOutputChange={handleTerminalOutputChange}
               />
             ) : (
               <PlanPanel session={session} embedded />

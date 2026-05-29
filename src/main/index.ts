@@ -3276,6 +3276,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             var terminalTabPanelA11yWorks = false;
             var terminalFailureStateA11yWorks = false;
             var terminalClipboardStatusWorks = false;
+            var terminalOutputAddToChatWorks = false;
             var terminalClearActionStatusWorks = false;
             var terminalFullscreenCleanupWorks = false;
             var terminalTabTelemetryWorks = false;
@@ -3572,6 +3573,30 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 terminalClipboardStatus.getAttribute('aria-atomic') === 'true' &&
                 terminalView.getAttribute('data-terminal-clipboard-status') === 'Pasted into terminal' &&
                 terminalView.getAttribute('data-terminal-clipboard-status-tone') === 'info';
+              let terminalOutputButton = document.querySelector('[data-testid="terminal-add-output-to-chat"]');
+              for (let index = 0; index < 16 && terminalOutputButton instanceof HTMLButtonElement && terminalOutputButton.disabled; index += 1) {
+                await sleep(80);
+                terminalOutputButton = document.querySelector('[data-testid="terminal-add-output-to-chat"]');
+              }
+              if (terminalOutputButton instanceof HTMLButtonElement && !terminalOutputButton.disabled) {
+                terminalOutputButton.click();
+                await sleep(160);
+                const composer = document.querySelector('[data-testid="composer-textarea"]');
+                const terminalOutputStatusHost = document.querySelector('[data-testid="session-bottom-panel"]');
+                const terminalOutputStatus = document.querySelector('[data-testid="terminal-panel-action-status"]');
+                terminalOutputAddToChatWorks =
+                  composer instanceof HTMLTextAreaElement &&
+                  composer.value.includes('Review this terminal output:') &&
+                  composer.value.includes('Working dir:') &&
+                  composer.value.includes(String.fromCharCode(96).repeat(3) + 'text') &&
+                  terminalOutputStatusHost instanceof HTMLElement &&
+                  terminalOutputStatusHost.getAttribute('data-terminal-action-status') === 'Terminal output added to chat' &&
+                  terminalOutputStatus instanceof HTMLElement &&
+                  terminalOutputStatus.textContent?.includes('Terminal output added to chat') === true &&
+                  terminalOutputStatus.getAttribute('role') === 'status' &&
+                  terminalOutputStatus.getAttribute('aria-live') === 'polite' &&
+                  terminalOutputButton.getAttribute('aria-label') === 'Add terminal output to chat';
+              }
               if (visibleTerminalId.length > 0) {
                 await window.api.terminal.write(visibleTerminalId, String.fromCharCode(3));
                 await sleep(120);
@@ -8250,6 +8275,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             terminalTabPanelA11yWorks: typeof terminalTabPanelA11yWorks === 'boolean' ? terminalTabPanelA11yWorks : null,
             terminalFailureStateA11yWorks: typeof terminalFailureStateA11yWorks === 'boolean' ? terminalFailureStateA11yWorks : null,
             terminalClipboardStatusWorks: typeof terminalClipboardStatusWorks === 'boolean' ? terminalClipboardStatusWorks : null,
+            terminalOutputAddToChatWorks: typeof terminalOutputAddToChatWorks === 'boolean' ? terminalOutputAddToChatWorks : null,
             terminalClearActionStatusWorks: typeof terminalClearActionStatusWorks === 'boolean' ? terminalClearActionStatusWorks : null,
             terminalTabActionStatusWorks: typeof terminalTabActionStatusWorks === 'boolean' ? terminalTabActionStatusWorks : null,
             terminalHideFocusRestoredWorks: typeof terminalHideFocusRestoredWorks === 'boolean' ? terminalHideFocusRestoredWorks : null,
