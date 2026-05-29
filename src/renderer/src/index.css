@@ -3574,6 +3574,17 @@
     height: 22px;
   }
 
+  .review-diff-selected-line-status {
+    max-width: 128px;
+    overflow: hidden;
+    color: var(--text-tertiary);
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 18px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .review-source-selected-blame {
     min-width: 0;
     overflow: hidden;

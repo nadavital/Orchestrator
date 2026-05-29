@@ -12008,6 +12008,63 @@ function runAutomatedFocusedSurfaceSmoke(
                   selectedUnifiedLine instanceof HTMLElement &&
                   selectedUnifiedLine.getAttribute('aria-selected') === 'true' &&
                   selectedUnifiedLine.getAttribute('data-line-number-side') === 'new';
+                const selectedUnifiedLineNumber = selectedUnifiedLine instanceof HTMLElement
+                  ? selectedUnifiedLine.getAttribute('data-line-number') ?? ''
+                  : '';
+                const reviewLineHandoffActionsCore = activeReviewSectionForLine?.querySelector('[data-testid="review-diff-selected-line-actions"]');
+                const reviewLineCopyButtonCore = activeReviewSectionForLine?.querySelector('[data-testid="review-diff-line-copy-reference"]');
+                const reviewLineAddToChatButtonCore = activeReviewSectionForLine?.querySelector('[data-testid="review-diff-line-add-chat"]');
+                if (reviewLineCopyButtonCore instanceof HTMLButtonElement) {
+                  reviewLineCopyButtonCore.click();
+                  await sleep(180);
+                }
+                const copiedReviewLineReferenceCore = await window.api.clipboard.readText().catch(() => '');
+                if (reviewLineAddToChatButtonCore instanceof HTMLButtonElement) {
+                  reviewLineAddToChatButtonCore.click();
+                  await sleep(220);
+                }
+                const composerAfterReviewLineAddCore = document.querySelector('[data-testid="composer-textarea"]');
+                const reviewLineHandoffActionsAfterAddCore = activeReviewSectionForLine?.querySelector('[data-testid="review-diff-selected-line-actions"]');
+                const activeReviewPathForLine = activeReviewSectionForLine instanceof HTMLElement
+                  ? activeReviewSectionForLine.getAttribute('data-review-path') ?? ''
+                  : '';
+                const expectedReviewLineReferenceCore = activeReviewPathForLine && selectedUnifiedLineNumber
+                  ? activeReviewPathForLine + ':' + selectedUnifiedLineNumber
+                  : '';
+                const reviewDiffLineComposerHandoffWorks =
+                  selectedUnifiedLine instanceof HTMLElement &&
+                  reviewLineHandoffActionsCore instanceof HTMLElement &&
+                  reviewLineCopyButtonCore instanceof HTMLButtonElement &&
+                  reviewLineAddToChatButtonCore instanceof HTMLButtonElement &&
+                  reviewLineCopyButtonCore.disabled === false &&
+                  reviewLineAddToChatButtonCore.disabled === false &&
+                  expectedReviewLineReferenceCore.length > 0 &&
+                  copiedReviewLineReferenceCore === expectedReviewLineReferenceCore &&
+                  reviewLineHandoffActionsAfterAddCore instanceof HTMLElement &&
+                  reviewLineHandoffActionsAfterAddCore.getAttribute('data-review-selected-line-reference') === expectedReviewLineReferenceCore &&
+                  reviewLineHandoffActionsAfterAddCore.getAttribute('data-review-selected-line-copied-reference') === expectedReviewLineReferenceCore &&
+                  reviewLineHandoffActionsAfterAddCore.getAttribute('data-review-selected-line-added-reference') === expectedReviewLineReferenceCore &&
+                  reviewLineHandoffActionsAfterAddCore.getAttribute('data-review-selected-line-action-status') === 'Added selected line to chat' &&
+                  reviewLineHandoffActionsAfterAddCore.querySelector('[role="status"][aria-live="polite"][aria-atomic="true"]') instanceof HTMLElement &&
+                  composerAfterReviewLineAddCore instanceof HTMLTextAreaElement &&
+                  composerAfterReviewLineAddCore.value.includes('Review line ' + expectedReviewLineReferenceCore) &&
+                  composerAfterReviewLineAddCore.value.length > expectedReviewLineReferenceCore.length;
+                const reviewDiffLineComposerHandoffDebug = {
+                  selectedLine: selectedUnifiedLine instanceof HTMLElement,
+                  actions: reviewLineHandoffActionsCore instanceof HTMLElement,
+                  copyButton: reviewLineCopyButtonCore instanceof HTMLButtonElement,
+                  addButton: reviewLineAddToChatButtonCore instanceof HTMLButtonElement,
+                  copyDisabled: reviewLineCopyButtonCore instanceof HTMLButtonElement ? reviewLineCopyButtonCore.disabled : null,
+                  addDisabled: reviewLineAddToChatButtonCore instanceof HTMLButtonElement ? reviewLineAddToChatButtonCore.disabled : null,
+                  expectedReviewLineReference: expectedReviewLineReferenceCore,
+                  copiedReviewLineReference: copiedReviewLineReferenceCore,
+                  actionReference: reviewLineHandoffActionsAfterAddCore instanceof HTMLElement ? reviewLineHandoffActionsAfterAddCore.getAttribute('data-review-selected-line-reference') : null,
+                  copiedReference: reviewLineHandoffActionsAfterAddCore instanceof HTMLElement ? reviewLineHandoffActionsAfterAddCore.getAttribute('data-review-selected-line-copied-reference') : null,
+                  addedReference: reviewLineHandoffActionsAfterAddCore instanceof HTMLElement ? reviewLineHandoffActionsAfterAddCore.getAttribute('data-review-selected-line-added-reference') : null,
+                  actionStatus: reviewLineHandoffActionsAfterAddCore instanceof HTMLElement ? reviewLineHandoffActionsAfterAddCore.getAttribute('data-review-selected-line-action-status') : null,
+                  statusRole: reviewLineHandoffActionsAfterAddCore instanceof HTMLElement ? reviewLineHandoffActionsAfterAddCore.querySelector('[role="status"]') instanceof HTMLElement : false,
+                  composerValue: composerAfterReviewLineAddCore instanceof HTMLTextAreaElement ? composerAfterReviewLineAddCore.value.slice(0, 180) : null
+                };
                 const unifiedModeToggle = document.querySelector('[data-testid="review-diff-mode-toggle"]');
                 const diffModeToggleWorks =
                   unifiedDiffBefore instanceof HTMLElement &&
@@ -12208,6 +12265,8 @@ function runAutomatedFocusedSurfaceSmoke(
                   reviewToolbarFileNavigationWorks,
                   diffLineNumbersWork,
                   diffLineSelectionWorks,
+                  reviewDiffLineComposerHandoffWorks,
+                  reviewDiffLineComposerHandoffDebug,
                   diffHunkCollapseWorks,
                   diffModeToggleWorks,
                   diffExpandCollapseWorks,
@@ -14650,6 +14709,41 @@ function runAutomatedFocusedSurfaceSmoke(
               const selectedReviewFileTabLineNumber = selectedReviewFileTabLine instanceof HTMLElement
                 ? selectedReviewFileTabLine.getAttribute('data-line-number') ?? ''
                 : '';
+              const reviewLineHandoffActionsSource = selectedReviewSection?.querySelector('[data-testid="review-diff-selected-line-actions"]');
+              const reviewLineCopyButtonSource = selectedReviewSection?.querySelector('[data-testid="review-diff-line-copy-reference"]');
+              const reviewLineAddToChatButtonSource = selectedReviewSection?.querySelector('[data-testid="review-diff-line-add-chat"]');
+              if (reviewLineCopyButtonSource instanceof HTMLButtonElement) {
+                reviewLineCopyButtonSource.click();
+                await sleep(180);
+              }
+              const copiedReviewLineReferenceSource = await window.api.clipboard.readText().catch(() => '');
+              if (reviewLineAddToChatButtonSource instanceof HTMLButtonElement) {
+                reviewLineAddToChatButtonSource.click();
+                await sleep(220);
+              }
+              const composerAfterReviewLineAddSource = document.querySelector('[data-testid="composer-textarea"]');
+              const reviewLineHandoffActionsAfterAddSource = selectedReviewSection?.querySelector('[data-testid="review-diff-selected-line-actions"]');
+              const expectedReviewLineReferenceSource = selectedReviewFileTabLineNumber.length > 0
+                ? 'review-base.txt:' + selectedReviewFileTabLineNumber
+                : '';
+              const reviewDiffLineComposerHandoffWorks =
+                selectedReviewFileTabLine instanceof HTMLElement &&
+                reviewLineHandoffActionsSource instanceof HTMLElement &&
+                reviewLineCopyButtonSource instanceof HTMLButtonElement &&
+                reviewLineAddToChatButtonSource instanceof HTMLButtonElement &&
+                reviewLineCopyButtonSource.disabled === false &&
+                reviewLineAddToChatButtonSource.disabled === false &&
+                expectedReviewLineReferenceSource.length > 0 &&
+                copiedReviewLineReferenceSource === expectedReviewLineReferenceSource &&
+                reviewLineHandoffActionsAfterAddSource instanceof HTMLElement &&
+                reviewLineHandoffActionsAfterAddSource.getAttribute('data-review-selected-line-reference') === expectedReviewLineReferenceSource &&
+                reviewLineHandoffActionsAfterAddSource.getAttribute('data-review-selected-line-copied-reference') === expectedReviewLineReferenceSource &&
+                reviewLineHandoffActionsAfterAddSource.getAttribute('data-review-selected-line-added-reference') === expectedReviewLineReferenceSource &&
+                reviewLineHandoffActionsAfterAddSource.getAttribute('data-review-selected-line-action-status') === 'Added selected line to chat' &&
+                reviewLineHandoffActionsAfterAddSource.querySelector('[role="status"][aria-live="polite"][aria-atomic="true"]') instanceof HTMLElement &&
+                composerAfterReviewLineAddSource instanceof HTMLTextAreaElement &&
+                composerAfterReviewLineAddSource.value.includes('Review line ' + expectedReviewLineReferenceSource) &&
+                composerAfterReviewLineAddSource.value.includes('after review');
               const reviewOpenLineWorkbenchButton = selectedReviewSection?.querySelector('[data-testid="review-diff-line-open-workbench"]');
               if (reviewOpenLineWorkbenchButton instanceof HTMLButtonElement) {
                 reviewOpenLineWorkbenchButton.click();
@@ -15267,6 +15361,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 reviewAnnotatedSelectionCalmWork,
                 reviewSidePaneCommentCountWork,
                 reviewLineBlameWork,
+                reviewDiffLineComposerHandoffWorks,
                 reviewGutterBlameSummaryWork,
                 reviewGutterActionPopoverWork,
                 reviewMenuMessageWorks,

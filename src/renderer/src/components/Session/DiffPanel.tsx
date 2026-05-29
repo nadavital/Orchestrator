@@ -2966,6 +2966,9 @@ function DiffLines({
   const [expandedHiddenContext, setExpandedHiddenContext] = useState<Set<string>>(() => new Set())
   const [hiddenContextSource, setHiddenContextSource] = useState<string | null>(null)
   const [hiddenContextLoading, setHiddenContextLoading] = useState<string | null>(null)
+  const [selectedLineActionStatus, setSelectedLineActionStatus] = useState('')
+  const [copiedSelectedLineReference, setCopiedSelectedLineReference] = useState('')
+  const [addedSelectedLineReference, setAddedSelectedLineReference] = useState('')
   const hiddenContextSourceLines = useMemo(() => hiddenContextSource?.split(/\r?\n/) ?? [], [hiddenContextSource])
   const [conflictSourceText, setConflictSourceText] = useState<string | null>(null)
   const [conflictActionStatus, setConflictActionStatus] = useState<string | null>(null)
@@ -3071,15 +3074,67 @@ function DiffLines({
     if (selectedLine?.side === 'new' && selectedLine.lineNumber === lineNumber && lineBlame !== null) return lineBlame
     return lineBlameByLine.get(lineNumber) ?? null
   }
+  const selectedCurrentLine = selectedLine?.side === 'new'
+    ? reviewDiffSelectedCurrentLine(lines, lineMetadata, selectedLine.lineNumber)
+    : null
+  const selectedCurrentLineReference = selectedCurrentLine ? `${filePath}:${selectedCurrentLine.lineNumber}` : ''
+  const writeDiffClipboardText = async (text: string): Promise<void> => {
+    if (typeof window.api.clipboard?.writeText === 'function') {
+      const didWrite = await window.api.clipboard.writeText(text)
+      if (!didWrite) throw new Error('Clipboard write failed')
+      return
+    }
+    await navigator.clipboard.writeText(text)
+  }
+  const copySelectedCurrentLineReference = (): void => {
+    if (!selectedCurrentLine) return
+    setCopiedSelectedLineReference(selectedCurrentLineReference)
+    setSelectedLineActionStatus('Copying line reference')
+    void writeDiffClipboardText(selectedCurrentLineReference)
+      .then(() => setSelectedLineActionStatus('Line reference copied'))
+      .catch(() => setSelectedLineActionStatus('Copy failed'))
+  }
+  const addSelectedCurrentLineToChat = (): void => {
+    if (!selectedCurrentLine) return
+    setAddedSelectedLineReference(selectedCurrentLineReference)
+    setSelectedLineActionStatus('Added selected line to chat')
+    window.dispatchEvent(new CustomEvent('orchestrator:add-composer-text', {
+      detail: {
+        text: `Review line ${selectedCurrentLineReference}:\n\n\`\`\`\n${selectedCurrentLine.text}\n\`\`\``
+      }
+    }))
+  }
   const selectedLineActions = selectedLine !== null ? (
     <div
       className="review-diff-selected-line-actions"
       data-testid="review-diff-selected-line-actions"
       data-review-selected-line-actions-for={`${selectedLine.side}:${selectedLine.lineNumber}`}
+      data-review-selected-line-action-status={selectedLineActionStatus}
+      data-review-selected-line-reference={selectedCurrentLineReference}
+      data-review-selected-line-copied-reference={copiedSelectedLineReference}
+      data-review-selected-line-added-reference={addedSelectedLineReference}
     >
       <span className="review-diff-selected-line-label">
         {selectedLine.side === 'new' ? 'Current' : 'Previous'} L{selectedLine.lineNumber}
       </span>
+      <IconButton
+        icon="copy"
+        label="Copy selected line reference"
+        size="sm"
+        variant="toolbar"
+        disabled={!selectedCurrentLine}
+        dataTestId="review-diff-line-copy-reference"
+        onClick={copySelectedCurrentLineReference}
+      />
+      <IconButton
+        icon="chat"
+        label="Add selected line to chat"
+        size="sm"
+        variant="toolbar"
+        disabled={!selectedCurrentLine}
+        dataTestId="review-diff-line-add-chat"
+        onClick={addSelectedCurrentLineToChat}
+      />
       <IconButton
         icon="file"
         label="Open selected line in Workbench"
@@ -3101,6 +3156,11 @@ function DiffLines({
         dataTestId="review-diff-line-toggle-blame"
         onClick={() => setBlameVisible((visible) => !visible)}
       />
+      {selectedLineActionStatus && (
+        <span className="review-diff-selected-line-status" role="status" aria-live="polite" aria-atomic="true">
+          {selectedLineActionStatus}
+        </span>
+      )}
     </div>
   ) : null
   const selectLine = (line: SelectedDiffLine | null): void => {
@@ -4509,6 +4569,11 @@ interface DiffLineMetadata {
   hunkIndex?: number
 }
 
+interface ReviewSelectedCurrentLine {
+  lineNumber: number
+  text: string
+}
+
 interface DiffHunkHeader {
   oldStart: number
   oldCount: number
@@ -4557,6 +4622,20 @@ function annotateDiffLines(lines: string[]): DiffLineMetadata[] {
     newLine += 1
   })
   return metadata
+}
+
+function reviewDiffSelectedCurrentLine(
+  lines: string[],
+  metadata: DiffLineMetadata[],
+  lineNumber: number
+): ReviewSelectedCurrentLine | null {
+  const index = metadata.findIndex((line) => line.newLine === lineNumber)
+  if (index === -1) return null
+  const rawLine = lines[index] ?? ''
+  return {
+    lineNumber,
+    text: displayDiffLineValue(rawLine, diffLineType(rawLine))
+  }
 }
 
 function summarizeDiffHunks(lines: string[], metadata: DiffLineMetadata[]): Map<number, { changedLineCount: number }> {
