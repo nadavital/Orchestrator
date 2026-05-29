@@ -2879,6 +2879,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             const goalProgress = document.querySelector('[data-testid="plan-goal-progress"]');
             const goalProgressBar = document.querySelector('[data-testid="plan-goal-progress-bar"]');
             const goalClear = document.querySelector('[data-testid="plan-goal-clear"]');
+            const planAddToChat = document.querySelector('[data-testid="plan-add-to-chat"]');
             const reviewModeTitle = document.querySelector('[data-testid="plan-review-mode-title"]');
             const reviewModeSummary = document.querySelector('[data-testid="plan-review-mode-summary"]');
             const reviewModeOpen = document.querySelector('[data-testid="plan-review-mode-open"]');
@@ -2938,6 +2939,29 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               goalProgress.textContent?.includes('62%') === true &&
               goalProgressBar instanceof HTMLElement &&
               goalProgressBar.style.width === '62%';
+            var planAddToChatWorks = false;
+            if (planAddToChat instanceof HTMLButtonElement) {
+              planAddToChat.click();
+              for (let index = 0; index < 20; index += 1) {
+                const addStatus = document.querySelector('[data-testid="plan-add-to-chat-status"]');
+                const composer = document.querySelector('[data-testid="composer-textarea"]');
+                if (
+                  addStatus instanceof HTMLElement &&
+                  addStatus.getAttribute('role') === 'status' &&
+                  addStatus.getAttribute('aria-live') === 'polite' &&
+                  addStatus.textContent?.includes('Plan context added to chat') === true &&
+                  composer instanceof HTMLTextAreaElement &&
+                  composer.value.includes('Use this plan context:') &&
+                  composer.value.includes('Goal:') &&
+                  composer.value.includes('Review mode:') &&
+                  composer.value.includes('Reduce Plan panel verbosity')
+                ) {
+                  planAddToChatWorks = true;
+                  break;
+                }
+                await sleep(80);
+              }
+            }
             var planGoalClearActionWorks = false;
             if (goalClear instanceof HTMLButtonElement) {
               goalClear.click();
@@ -2966,6 +2990,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               compactTaskRowsWork &&
               planGoalToggleCompactWorks &&
               planGoalPersistedMetricsWorks &&
+              planAddToChatWorks &&
               planGoalClearActionWorks &&
               document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-active-tab') === 'plan' &&
               document.body.innerText.includes('Reduce Plan panel verbosity') &&
@@ -7881,6 +7906,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             planReviewModeWorks: typeof planReviewModeWorks === 'boolean' ? planReviewModeWorks : null,
             planReviewModeOpenWorks: typeof planReviewModeOpenWorks === 'boolean' ? planReviewModeOpenWorks : null,
             planGoalPersistedMetricsWorks: typeof planGoalPersistedMetricsWorks === 'boolean' ? planGoalPersistedMetricsWorks : null,
+            planAddToChatWorks: typeof planAddToChatWorks === 'boolean' ? planAddToChatWorks : null,
             planGoalClearActionWorks: typeof planGoalClearActionWorks === 'boolean' ? planGoalClearActionWorks : null,
             planAgentTabShimmerWorks: typeof planAgentTabShimmerWorks === 'boolean' ? planAgentTabShimmerWorks : null,
             planAgentStatLabelsCalm: typeof planAgentStatLabelsCalm === 'boolean' ? planAgentStatLabelsCalm : null,

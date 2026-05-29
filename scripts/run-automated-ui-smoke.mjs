@@ -2932,6 +2932,7 @@ child.on('exit', async (code) => {
         planReviewMode: captureView !== 'plan' || result.planReviewModeWorks === true,
         planReviewModeOpen: captureView !== 'plan' || result.planReviewModeOpenWorks === true,
         planGoalPersistedMetrics: captureView !== 'plan' || result.planGoalPersistedMetricsWorks === true,
+        planAddToChat: captureView !== 'plan' || result.planAddToChatWorks === true,
         planGoalClearAction: captureView !== 'plan' || result.planGoalClearActionWorks === true,
         planAgentTabShimmer: captureView !== 'plan' || result.planAgentTabShimmerWorks === true,
         planAgentStatLabelsCalm: captureView !== 'plan' || result.planAgentStatLabelsCalm === true,

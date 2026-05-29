@@ -13,6 +13,7 @@ interface Props {
 
 export default function PlanPanel({ session, embedded = false }: Props): JSX.Element {
   const { eventBuffers, setShowDiff } = useSessionStore()
+  const [contextStatus, setContextStatus] = useState<string | null>(null)
   const events = eventBuffers[session.id] ?? []
   const plans = useMemo(() => [
     ...derivePlanStatesFromMessages(session, session.messages),
@@ -22,6 +23,12 @@ export default function PlanPanel({ session, embedded = false }: Props): JSX.Ele
   const goal = useMemo(() => latestGoal(events) ?? latestGoalFromMessages(session, session.messages), [events, session])
   const reviewMode = useMemo(() => latestReviewMode(events) ?? latestReviewModeFromMessages(session, session.messages), [events, session])
   const hasContent = Boolean(current || goal || reviewMode)
+  const addPlanContextToChat = (): void => {
+    window.dispatchEvent(new CustomEvent('orchestrator:add-composer-text', {
+      detail: { text: planContextSummary(session, goal, reviewMode, current) }
+    }))
+    setContextStatus('Plan context added to chat')
+  }
 
   return (
     <section
@@ -44,6 +51,7 @@ export default function PlanPanel({ session, embedded = false }: Props): JSX.Ele
         </EmptyText>
       ) : (
         <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
+          <PlanContextActions status={contextStatus} onAdd={addPlanContextToChat} />
           {goal && <GoalBlock goal={goal} session={session} />}
           {reviewMode && <ReviewModeBlock mode={reviewMode} onOpenReview={() => setShowDiff(session.id, true)} />}
           {current && <PlanBlock plan={current} />}
@@ -73,6 +81,93 @@ function latestReviewMode(records: SessionRunEventRecord[]): ReviewModeEvent | n
     }
   }
   return current
+}
+
+function PlanContextActions({ status, onAdd }: { status: string | null; onAdd: () => void }): JSX.Element {
+  return (
+    <PlanSection>
+      <div className="flex min-w-0 items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-[11px] font-semibold tracking-normal" style={{ color: 'var(--color-text)' }}>
+            Context handoff
+          </div>
+          <div className="mt-0.5 text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
+            Send the current goal, review, and task state to the composer.
+          </div>
+        </div>
+        <Button
+          variant="ghost"
+          className="h-7 shrink-0 px-2 text-[11px]"
+          dataTestId="plan-add-to-chat"
+          ariaLabel="Add plan context to chat"
+          onClick={onAdd}
+        >
+          Add to chat
+        </Button>
+      </div>
+      {status && (
+        <div
+          className="mt-2 text-[11px]"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          data-testid="plan-add-to-chat-status"
+          style={{ color: 'var(--accent)' }}
+        >
+          {status}
+        </div>
+      )}
+    </PlanSection>
+  )
+}
+
+function planContextSummary(
+  session: Session,
+  goal: GoalEvent | null,
+  reviewMode: ReviewModeEvent | null,
+  plan: PlanState | null
+): string {
+  const lines = [
+    'Use this plan context:',
+    `Thread: ${session.title || session.id}`,
+    `Runtime: ${[session.provider, session.model].filter(Boolean).join(' / ') || 'Unknown runtime'}`,
+    `Status: ${session.status}`,
+    `Workspace: ${session.workDir || 'Unknown workspace'}`
+  ]
+
+  if (goal) {
+    lines.push(
+      '',
+      'Goal:',
+      goal.objective.trim(),
+      `Goal status: ${goal.status ?? 'unknown'}`
+    )
+    if (typeof goal.tokensUsed === 'number') lines.push(`Tokens used: ${goal.tokensUsed}`)
+    if (typeof goal.tokenBudget === 'number') lines.push(`Token budget: ${goal.tokenBudget}`)
+    if (typeof goal.timeUsedSeconds === 'number') lines.push(`Elapsed: ${formatDuration(goal.timeUsedSeconds)}`)
+  }
+
+  if (reviewMode) {
+    lines.push(
+      '',
+      'Review mode:',
+      reviewMode.review?.trim() ? reviewMode.review.trim() : 'Active'
+    )
+  }
+
+  if (plan) {
+    const title = plan.title ?? (plan.items.length > 0 ? 'Tasks' : plan.mode === 'plan' ? 'Planning' : 'Plan')
+    lines.push('', `Plan: ${title}`)
+    if (plan.mode) lines.push(`Mode: ${plan.mode}`)
+    if (plan.summary?.trim()) lines.push('', plan.summary.trim())
+    if (plan.items.length > 0) {
+      lines.push('', 'Tasks:')
+      lines.push(...plan.items.slice(0, 12).map((item) => `- [${statusLabel(item.status)}] ${item.content}`))
+      if (plan.items.length > 12) lines.push(`- ... ${plan.items.length - 12} more`)
+    }
+  }
+
+  return lines.join('\n')
 }
 
 function GoalBlock({ goal, session }: { goal: GoalEvent; session: Session }): JSX.Element {

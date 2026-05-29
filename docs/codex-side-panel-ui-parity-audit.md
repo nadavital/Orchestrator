@@ -9974,3 +9974,13 @@ Implemented: `scripts/suggest-ui-smoke-targets.mjs` now builds a concrete target
 Verification: `node -c scripts/suggest-ui-smoke-targets.mjs`, `node scripts/suggest-ui-smoke-targets.mjs --json scripts/suggest-ui-smoke-targets.mjs package.json`, `pnpm run smoke:ui:suggest`, and `pnpm run smoke:ui:changed` passed. For this helper/package-only slice, the changed-files runner executed `git diff --check`, `pnpm exec tsc --noEmit`, and `node -c scripts/suggest-ui-smoke-targets.mjs`, flagged `package.json` for broad-smoke review, and correctly ran no Electron UI smoke.
 
 Remaining: this improves cadence and repeatability only. It does not replace focused UI smokes for touched app surfaces or the full side-panel visual inventory when a change affects coordinated header/sidebar/right/bottom-panel behavior.
+
+### 2026-05-29 - Plan Context Add To Chat
+
+Product evidence: the Plan Workbench tab had become a useful status surface for goals, Review mode, and task progress, but unlike Environment and Agents it did not have a direct handoff back into the main composer. For daily coding use, users should be able to ask the agent to continue from the current goal/plan/review state without manually selecting and copying several separate rows.
+
+Implemented: the embedded Plan panel now exposes a compact `Add to chat` action in a context-handoff row. The action inserts a bounded summary into the main composer with thread/runtime/workspace status, active goal details, review-mode summary, plan title/mode/summary, and up to 12 task rows, then announces `Plan context added to chat` through a polite status region. The focused Plan smoke now gates `planAddToChat=true`.
+
+Verification: `pnpm run smoke:ui:suggest` selected `--plan`; `pnpm run smoke:ui:changed` ran `git diff --check`, `pnpm exec tsc --noEmit`, and `node -c scripts/run-automated-ui-smoke.mjs` before hitting the known sandbox `listen EPERM 127.0.0.1:5173` boundary for Electron. The focused elevated rerun `node scripts/run-automated-ui-smoke.mjs --plan` passed with `planAddToChat=true`; evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-plan-1780044146805.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-plan-1780044146805.png`.
+
+Remaining: this closes local Plan-to-composer context handoff only. Provider-native plan editing, richer `/goal` update forms, and live Codex Review/Goal timing remain separate app-server follow-ups.
