@@ -150,6 +150,12 @@ const diffRules = [
     label: 'Workbench New Tab full workflow',
     filePatterns: [/^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
     diffPatterns: [/workbenchNewTabGit/, /git-pr-command/, /Git PR command/]
+  },
+  {
+    flag: '--workbench-new-tab',
+    label: 'Workbench New Tab full workflow',
+    filePatterns: [/^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
+    diffPatterns: [/agentRuntimeEvent/, /agent-event-detail/, /focus-waiting-card/, /Open approval in chat/]
   }
 ]
 
@@ -265,6 +271,7 @@ function suggestTargets(paths) {
   suppressCoveredTarget(matched, '--right-panel', '--workbench-launcher')
   suppressHeaderForRightPanelCloseDiff(matched, paths)
   suppressHeaderForTerminalCloseDiff(matched, paths)
+  suppressHeaderForSmokeHelperDiff(matched, paths)
   restoreDiffTargets(matched, paths)
   suppressWorkbenchLauncherForContextSidebarTabDiff(matched, paths)
   suppressRightPanelForContextSidebarTerminalDiff(matched, paths)
@@ -274,9 +281,11 @@ function suggestTargets(paths) {
   suppressTranscriptLayoutForLongThreadDiff(matched, paths)
   suppressTranscriptLayoutForPermissionDiff(matched, paths)
   suppressTranscriptPermissionForSettingsDiff(matched, paths)
+  suppressTranscriptPermissionForAgentEventFocusDiff(matched, paths)
   suppressTranscriptLayoutForForkDiff(matched, paths)
   suppressDesignSystemForSettingsCssDiff(matched, paths)
   suppressTranscriptForkForCodeBlockDiff(matched, paths)
+  suppressTranscriptLayoutForAgentEventFocusDiff(matched, paths)
   suppressComposerForWorktreeLifecycleDiff(matched, paths)
   suppressComposerForTerminalHandoffDiff(matched, paths)
   suppressComposerForToolActivityCommandDiff(matched, paths)
@@ -389,6 +398,16 @@ function suppressHeaderForTerminalCloseDiff(matched, paths) {
   matched.delete('--header')
 }
 
+function suppressHeaderForSmokeHelperDiff(matched, paths) {
+  const header = matched.get('--header')
+  const workbench = matched.get('--workbench-new-tab')
+  if (!header || !workbench) return
+  if (!header.files.every((file) => file === 'src/renderer/src/App.tsx')) return
+  const appDiff = paths.includes('src/renderer/src/App.tsx') ? diffForFile('src/renderer/src/App.tsx') : ''
+  if (!/__orchestratorAppendSessionMessagesForSmoke/.test(appDiff)) return
+  matched.delete('--header')
+}
+
 function suppressWorkbenchLauncherForContextSidebarTabDiff(matched, paths) {
   const launcher = matched.get('--workbench-launcher')
   if (!launcher) return
@@ -469,6 +488,18 @@ function suppressTranscriptForkForCodeBlockDiff(matched, paths) {
   matched.delete('--transcript-fork')
 }
 
+function suppressTranscriptLayoutForAgentEventFocusDiff(matched, paths) {
+  const transcript = matched.get('--transcript-layout')
+  const workbench = matched.get('--workbench-new-tab')
+  if (!transcript || !workbench) return
+  if (!transcript.files.every((file) => file === 'src/renderer/src/components/Session/ChatView.tsx')) return
+  const diff = paths.includes('src/renderer/src/components/Session/ChatView.tsx')
+    ? diffForFile('src/renderer/src/components/Session/ChatView.tsx')
+    : ''
+  if (!/orchestrator:focus-waiting-card|data-transcript-focused-message|focusedMessageId|Permission request opened in chat|User input request opened in chat/.test(diff)) return
+  matched.delete('--transcript-layout')
+}
+
 function suppressTranscriptLayoutForPermissionDiff(matched, paths) {
   const transcript = matched.get('--transcript-layout')
   const permission = matched.get('--transcript-permission')
@@ -491,6 +522,24 @@ function suppressTranscriptPermissionForSettingsDiff(matched, paths) {
     paths.includes('scripts/run-automated-ui-smoke.mjs') ? diffForFile('scripts/run-automated-ui-smoke.mjs') : ''
   ].join('\n')
   if (!/settingsSearch|settings-search|settings[A-Z]/.test(diff)) return
+  matched.delete('--transcript-permission')
+}
+
+function suppressTranscriptPermissionForAgentEventFocusDiff(matched, paths) {
+  const permission = matched.get('--transcript-permission')
+  const workbench = matched.get('--workbench-new-tab')
+  if (!permission || !workbench) return
+  if (!permission.files.every((file) =>
+    file === 'src/main/index.ts' ||
+    file === 'scripts/run-automated-ui-smoke.mjs' ||
+    file === 'src/renderer/src/components/Session/ChatView.tsx'
+  )) return
+  const diff = [
+    paths.includes('src/main/index.ts') ? diffForFile('src/main/index.ts') : '',
+    paths.includes('scripts/run-automated-ui-smoke.mjs') ? diffForFile('scripts/run-automated-ui-smoke.mjs') : '',
+    paths.includes('src/renderer/src/components/Session/ChatView.tsx') ? diffForFile('src/renderer/src/components/Session/ChatView.tsx') : ''
+  ].join('\n')
+  if (!/agentRuntimeEventOpenInChat|agent-event-detail-open-in-chat|focus-waiting-card|Open approval in chat/.test(diff)) return
   matched.delete('--transcript-permission')
 }
 

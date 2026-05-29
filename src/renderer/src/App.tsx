@@ -19,7 +19,7 @@ import { markRendererStart, recordRendererMetric } from './performance'
 import { APP_COMMANDS, appMenuCommandForKeyboardEvent, commandShortcuts, formatShortcutSequence } from '../../types/appCommands'
 import type { AppCommandAvailability, AppMenuCommand, ShortcutOverrides, StableAppCommand } from '../../types/appCommands'
 import { browserManagerPatchFromEvents, parseSessionRouteLocation, parseSettingsRouteLocation, resolvePanelBrowserCommandTarget, resolvePanelCloseTarget, resolvePanelFindTarget, resolvePanelNewTabTarget, sessionRouteUrlForLocation, settingsRouteExitUrl, settingsRouteUrlForLocation } from '../../types'
-import type { PanelFindTarget, SessionRunEventRecord } from '../../types'
+import type { ChatMessage, PanelFindTarget, SessionRunEventRecord } from '../../types'
 import type { PanelCloseFocusArea } from '../../types'
 
 type ShellFocusArea = PanelCloseFocusArea
@@ -297,6 +297,7 @@ export default function App(): JSX.Element {
     const globals = window as typeof window & {
       __orchestratorAppendSessionEventsForSmoke?: (sessionId: string, events: SessionRunEventRecord[]) => boolean
       __orchestratorAppendSessionRawForSmoke?: (sessionId: string, data: string) => boolean
+      __orchestratorAppendSessionMessagesForSmoke?: (sessionId: string, messages: ChatMessage[]) => boolean
       __orchestratorSetActiveSessionForSmoke?: (sessionId: string) => boolean
       __orchestratorSetSessionUnreadForSmoke?: (sessionId: string, unread: boolean) => boolean
     }
@@ -307,6 +308,10 @@ export default function App(): JSX.Element {
     }
     globals.__orchestratorAppendSessionRawForSmoke = (sessionId, data) => {
       appendRaw(sessionId, data)
+      return true
+    }
+    globals.__orchestratorAppendSessionMessagesForSmoke = (sessionId, messages) => {
+      appendMessages(sessionId, messages)
       return true
     }
     globals.__orchestratorSetActiveSessionForSmoke = (sessionId) => {
@@ -326,6 +331,7 @@ export default function App(): JSX.Element {
     return () => {
       delete globals.__orchestratorAppendSessionEventsForSmoke
       delete globals.__orchestratorAppendSessionRawForSmoke
+      delete globals.__orchestratorAppendSessionMessagesForSmoke
       delete globals.__orchestratorSetActiveSessionForSmoke
       delete globals.__orchestratorSetSessionUnreadForSmoke
     }

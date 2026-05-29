@@ -552,6 +552,18 @@ function EventDetailCard({ session, record }: { session: Session; record: Sessio
     }))
     setCopyStatus('Event added to chat')
   }
+  const waitingCardKind = record.event.type === 'permission.requested'
+    ? 'permission'
+    : record.event.type === 'user_input.requested'
+      ? 'user_input'
+      : null
+  const openWaitingCardInChat = (): void => {
+    if (!waitingCardKind) return
+    window.dispatchEvent(new CustomEvent('orchestrator:focus-waiting-card', {
+      detail: { sessionId: session.id, kind: waitingCardKind }
+    }))
+    setCopyStatus(waitingCardKind === 'user_input' ? 'User input request opened in chat' : 'Permission request opened in chat')
+  }
 
   return (
     <InspectorSection title="Event detail" dataTestId="agent-event-detail">
@@ -583,6 +595,16 @@ function EventDetailCard({ session, record }: { session: Session; record: Sessio
           size="sm"
           variant="toolbar"
         />
+        {waitingCardKind && (
+          <ToolbarButton
+            icon="arrowRight"
+            label={waitingCardKind === 'user_input' ? 'Open question in chat' : 'Open approval in chat'}
+            dataTestId="agent-event-detail-open-in-chat"
+            onClick={openWaitingCardInChat}
+            size="sm"
+            variant="toolbar"
+          />
+        )}
         {copyStatus && (
           <span
             className="min-w-0 truncate rounded-md px-2 py-1 text-[11px]"

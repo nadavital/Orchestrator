@@ -1,5 +1,5 @@
 import { isValidElement, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useCallback } from 'react'
-import type { ReactNode, WheelEvent } from 'react'
+import type { CSSProperties, ReactNode, WheelEvent } from 'react'
 import { createPortal } from 'react-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -119,6 +119,7 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
   const [scrollMetrics, setScrollMetrics] = useState({ top: 0, height: 0, listOffsetTop: 0 })
   const [rowMeasurementVersion, setRowMeasurementVersion] = useState(0)
   const [transcriptActionStatus, setTranscriptActionStatus] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
+  const [focusedMessageId, setFocusedMessageId] = useState<string | null>(null)
 
   useEffect(() => {
     const globals = window as typeof window & { __orchestratorChatViewCommitCount?: number }
@@ -168,6 +169,7 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
 
   useEffect(() => {
     setTranscriptActionStatus(null)
+    setFocusedMessageId(null)
   }, [session.id])
 
   const steerQueuedMessage = useCallback(async (messageId: string): Promise<void> => {
@@ -260,6 +262,26 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
         : nextMetrics
     ))
   }, [])
+
+  const focusTranscriptMessage = useCallback((messageId: string, statusText: string): void => {
+    setRenderLimit((current) => Math.max(current, session.messages.length))
+    setFocusedMessageId(messageId)
+    setTranscriptActionStatus({ text: statusText, tone: 'info' })
+    window.setTimeout(() => {
+      const targetOffset = transcriptItemOffset(messageId, groupTranscriptMessages(session.messages), measuredRowHeightsRef.current)
+      const scroller = scrollContainerRef.current
+      if (scroller && targetOffset !== null) {
+        scroller.scrollTop = Math.max(0, (transcriptListRef.current?.offsetTop ?? 0) + targetOffset - Math.round(scroller.clientHeight * 0.35))
+        updateScrollMetrics()
+      }
+      window.requestAnimationFrame(() => {
+        const target = findTranscriptElementForMessage(messageId)
+        target?.scrollIntoView({ block: 'center' })
+        if (target instanceof HTMLElement) target.focus({ preventScroll: true })
+        updateScrollMetrics()
+      })
+    }, 0)
+  }, [session.messages, updateScrollMetrics])
 
   useLayoutEffect(() => {
     updateScrollMetrics()
@@ -742,6 +764,33 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
   }, [handleJumpToSearchResult, searchResults, session.id, sharedSearchActiveResultIndex])
 
   useEffect(() => {
+    const onFocusWaitingCard = (event: Event): void => {
+      const detail = (event as CustomEvent<{ sessionId?: string; kind?: 'permission' | 'user_input' }>).detail
+      if (detail?.sessionId !== session.id) return
+      const kind = detail.kind ?? 'permission'
+      const target = session.messages
+        .slice()
+        .reverse()
+        .find((message) => (
+          message.type === 'result' &&
+          (kind === 'user_input'
+            ? (message.userInputQuestions?.length ?? 0) > 0
+            : (message.permissionDenials?.length ?? 0) > 0)
+        ))
+      if (!target) {
+        setTranscriptActionStatus({
+          text: kind === 'user_input' ? 'No user input card found in chat' : 'No permission card found in chat',
+          tone: 'danger'
+        })
+        return
+      }
+      focusTranscriptMessage(target.id, kind === 'user_input' ? 'User input request opened in chat' : 'Permission request opened in chat')
+    }
+    window.addEventListener('orchestrator:focus-waiting-card', onFocusWaitingCard)
+    return () => window.removeEventListener('orchestrator:focus-waiting-card', onFocusWaitingCard)
+  }, [focusTranscriptMessage, session.id, session.messages])
+
+  useEffect(() => {
     if (!sharedFindActive) return
     window.dispatchEvent(new CustomEvent('orchestrator:thread-find-status', {
       detail: {
@@ -886,6 +935,7 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
             data-testid="virtualized-transcript"
             data-rendered-message-count={visibleMessages.length}
             data-total-message-count={totalMessageCount}
+            data-focused-message-id={focusedMessageId ?? ''}
             className="relative min-w-0"
             style={{ height: virtualWindow.totalHeight }}
           >
@@ -906,6 +956,7 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
                       <MessageRow
                         msg={item.message}
                         session={session}
+                        isFocused={focusedMessageId === item.message.id}
                         fileReferenceRoots={fileReferenceRoots}
                         preferredEditor={preferredEditor}
                         canCopy={item.message.id === lastAssistantTextId}
@@ -1848,9 +1899,21 @@ function makeMarkdownComponents(isUser: boolean): Components {
 const assistantComponents = makeMarkdownComponents(false)
 const userComponents = makeMarkdownComponents(true)
 
+function transcriptFocusStyle(isFocused: boolean): CSSProperties {
+  return isFocused
+    ? {
+        outline: '2px solid var(--accent)',
+        outlineOffset: 4,
+        borderRadius: 12,
+        scrollMarginBlock: 96
+      }
+    : { scrollMarginBlock: 96 }
+}
+
 function MessageRow({
   msg,
   session,
+  isFocused,
   fileReferenceRoots,
   preferredEditor,
   canCopy,
@@ -1863,6 +1926,7 @@ function MessageRow({
 }: {
   msg: ChatMessage
   session: Session
+  isFocused: boolean
   fileReferenceRoots: string[]
   preferredEditor: PreferredEditor
   canCopy: boolean
@@ -1875,6 +1939,17 @@ function MessageRow({
 }): JSX.Element | null {
   const [isUserMessageExpanded, setIsUserMessageExpanded] = useState(false)
   const openRightPanelFileTab = useSessionStore((state) => state.openRightPanelFileTab)
+  const wrapResultCard = (card: JSX.Element): JSX.Element => (
+    <div
+      data-message-id={msg.id}
+      data-transcript-focused-message={isFocused ? 'true' : 'false'}
+      tabIndex={isFocused ? -1 : undefined}
+      className="min-w-0 w-full"
+      style={transcriptFocusStyle(isFocused)}
+    >
+      {card}
+    </div>
+  )
 
   if (msg.type === 'text') {
     const isUser = msg.role === 'user'
@@ -1904,7 +1979,10 @@ function MessageRow({
     return (
       <div
         data-message-id={msg.id}
+        data-transcript-focused-message={isFocused ? 'true' : 'false'}
+        tabIndex={isFocused ? -1 : undefined}
         className={`flex min-w-0 w-full ${isUser ? 'justify-end' : 'justify-start'}`}
+        style={transcriptFocusStyle(isFocused)}
       >
         <div
           className="min-w-0"
@@ -2090,16 +2168,16 @@ function MessageRow({
 
   if (msg.type === 'result') {
     if (msg.subtype === 'waiting_for_user') {
-      return <UserInputCard msg={msg} sessionId={session.id} sessionStatus={session.status} />
+      return wrapResultCard(<UserInputCard msg={msg} sessionId={session.id} sessionStatus={session.status} />)
     }
     if (msg.permissionDenials && msg.permissionDenials.length > 0) {
-      return <PermissionCard msg={msg} sessionId={session.id} sessionStatus={session.status} />
+      return wrapResultCard(<PermissionCard msg={msg} sessionId={session.id} sessionStatus={session.status} />)
     }
     if (msg.subtype === 'status') {
-      return <StatusCard content={msg.content} session={session} />
+      return wrapResultCard(<StatusCard content={msg.content} session={session} />)
     }
     if (msg.subtype === 'success') return null
-    return <ErrorRecoveryCard msg={msg} session={session} />
+    return wrapResultCard(<ErrorRecoveryCard msg={msg} session={session} />)
   }
 
   return null

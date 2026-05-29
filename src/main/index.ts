@@ -8446,6 +8446,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             planAgentStatLabelsCalm: typeof planAgentStatLabelsCalm === 'boolean' ? planAgentStatLabelsCalm : null,
             agentRuntimeEventDetailWorks: typeof agentRuntimeEventDetailWorks === 'boolean' ? agentRuntimeEventDetailWorks : null,
             agentRuntimeEventCopyWorks: typeof agentRuntimeEventCopyWorks === 'boolean' ? agentRuntimeEventCopyWorks : null,
+            agentRuntimeEventOpenInChatWorks: typeof agentRuntimeEventOpenInChatWorks === 'boolean' ? agentRuntimeEventOpenInChatWorks : null,
             agentRuntimeFailureGroupAddToChatWorks: typeof agentRuntimeFailureGroupAddToChatWorks === 'boolean' ? agentRuntimeFailureGroupAddToChatWorks : null,
             sideChatTabsWork: typeof sideChatTabsWork === 'boolean' ? sideChatTabsWork : null,
             sideChatInputFocusOnOpenWorks: typeof sideChatInputFocusOnOpenWorks === 'boolean' ? sideChatInputFocusOnOpenWorks : null,
@@ -9932,8 +9933,28 @@ function runAutomatedFocusedSurfaceSmoke(
                 const activeSmokeSession = (await window.api.sessions.list())[0];
                 const appendEventsForSmoke = window.__orchestratorAppendSessionEventsForSmoke;
                 const appendRawForSmoke = window.__orchestratorAppendSessionRawForSmoke;
+                const appendMessagesForSmoke = window.__orchestratorAppendSessionMessagesForSmoke;
                 if (activeSmokeSession && typeof appendEventsForSmoke === 'function') {
                   const now = Date.now();
+                  const permissionDenials = [{
+                    tool_name: 'Bash',
+                    tool_use_id: 'agent-inspector-smoke-permission-tool',
+                    tool_input: {
+                      command: 'git status --short',
+                      cwd: activeSmokeSession.workDir
+                    }
+                  }];
+                  if (typeof appendMessagesForSmoke === 'function') {
+                    appendMessagesForSmoke(activeSmokeSession.id, [{
+                      id: 'agent-inspector-smoke-permission-message',
+                      role: 'system',
+                      type: 'result',
+                      content: 'Allow inspecting runtime diagnostics?',
+                      subtype: 'error_during_execution',
+                      timestamp: now,
+                      permissionDenials
+                    }]);
+                  }
                   appendEventsForSmoke(activeSmokeSession.id, [
                     {
                       id: 'agent-inspector-smoke-started',
@@ -9959,14 +9980,7 @@ function runAutomatedFocusedSurfaceSmoke(
                       event: {
                         type: 'permission.requested',
                         content: 'Allow inspecting runtime diagnostics?',
-                        denials: [{
-                          tool_name: 'Bash',
-                          tool_use_id: 'agent-inspector-smoke-permission-tool',
-                          tool_input: {
-                            command: 'git status --short',
-                            cwd: activeSmokeSession.workDir
-                          }
-                        }]
+                        denials: permissionDenials
                       }
                     },
                     {
@@ -10166,25 +10180,32 @@ function runAutomatedFocusedSurfaceSmoke(
                 const eventPayload = document.querySelector('[data-testid="agent-event-detail-payload"]');
                 const eventDetailCopy = document.querySelector('[data-testid="agent-event-detail-copy"]');
                 const eventDetailAddToChat = document.querySelector('[data-testid="agent-event-detail-add-to-chat"]');
+                const eventDetailOpenInChat = document.querySelector('[data-testid="agent-event-detail-open-in-chat"]');
                 const eventDetailActions = document.querySelector('[data-testid="agent-event-detail-actions"]');
-                const eventDetailActionButtons = [eventDetailCopy, eventDetailAddToChat]
+                const eventDetailActionButtons = [eventDetailCopy, eventDetailAddToChat, eventDetailOpenInChat]
                   .filter((button) => button instanceof HTMLButtonElement);
                 const agentRuntimeEventActionChromeWorks =
                   eventDetailActions instanceof HTMLElement &&
                   eventDetailActions.getAttribute('aria-label') === 'Runtime event actions' &&
-                  eventDetailActionButtons.length === 2 &&
+                  eventDetailActionButtons.length === 3 &&
                   eventDetailActionButtons.every((button) =>
                     button instanceof HTMLButtonElement &&
                     button.getAttribute('data-icon-button-variant') === 'toolbar' &&
                     button.getAttribute('data-icon-button-size') === 'sm' &&
                     button.getAttribute('data-native-title-free') === 'true' &&
                     button.getAttribute('title') === null &&
-                    (button.getAttribute('data-tooltip-label') === 'Copy payload' || button.getAttribute('data-tooltip-label') === 'Add to chat')
+                    (
+                      button.getAttribute('data-tooltip-label') === 'Copy payload' ||
+                      button.getAttribute('data-tooltip-label') === 'Add to chat' ||
+                      button.getAttribute('data-tooltip-label') === 'Open approval in chat'
+                    )
                   ) &&
                   eventDetailCopy instanceof HTMLButtonElement &&
                   eventDetailCopy.getAttribute('data-icon') === 'copy' &&
                   eventDetailAddToChat instanceof HTMLButtonElement &&
-                  eventDetailAddToChat.getAttribute('data-icon') === 'chat';
+                  eventDetailAddToChat.getAttribute('data-icon') === 'chat' &&
+                  eventDetailOpenInChat instanceof HTMLButtonElement &&
+                  eventDetailOpenInChat.getAttribute('data-icon') === 'arrowRight';
                 if (eventDetailCopy instanceof HTMLButtonElement) {
                   eventDetailCopy.click();
                 }
@@ -10232,6 +10253,42 @@ function runAutomatedFocusedSurfaceSmoke(
                   eventDetailAddStatus.getAttribute('aria-live') === 'polite' &&
                   eventDetailAddStatus.getAttribute('aria-atomic') === 'true' &&
                   eventDetailAddStatus.textContent?.includes('Event added to chat') === true;
+                if (eventDetailOpenInChat instanceof HTMLButtonElement) {
+                  eventDetailOpenInChat.click();
+                }
+                let transcriptAfterOpenEvent = null;
+                let focusedPermissionMessage = null;
+                let eventDetailOpenStatus = null;
+                let transcriptOpenStatus = null;
+                for (let attempt = 0; attempt < 14; attempt += 1) {
+                  await sleep(80);
+                  transcriptAfterOpenEvent = document.querySelector('[data-testid="virtualized-transcript"]');
+                  focusedPermissionMessage = document.querySelector('[data-message-id="agent-inspector-smoke-permission-message"][data-transcript-focused-message="true"]');
+                  eventDetailOpenStatus = document.querySelector('[data-testid="agent-event-detail-copy-status"]');
+                  transcriptOpenStatus = document.querySelector('[data-testid="transcript-action-status"]');
+                  if (
+                    transcriptAfterOpenEvent instanceof HTMLElement &&
+                    transcriptAfterOpenEvent.getAttribute('data-focused-message-id') === 'agent-inspector-smoke-permission-message' &&
+                    focusedPermissionMessage instanceof HTMLElement &&
+                    eventDetailOpenStatus instanceof HTMLElement &&
+                    transcriptOpenStatus instanceof HTMLElement
+                  ) {
+                    break;
+                  }
+                }
+                const agentRuntimeEventOpenInChatWorks =
+                  eventDetailOpenInChat instanceof HTMLButtonElement &&
+                  transcriptAfterOpenEvent instanceof HTMLElement &&
+                  transcriptAfterOpenEvent.getAttribute('data-focused-message-id') === 'agent-inspector-smoke-permission-message' &&
+                  focusedPermissionMessage instanceof HTMLElement &&
+                  focusedPermissionMessage.textContent?.includes('Permission required') === true &&
+                  focusedPermissionMessage.textContent?.includes('git status --short') === true &&
+                  eventDetailOpenStatus instanceof HTMLElement &&
+                  eventDetailOpenStatus.textContent?.includes('Permission request opened in chat') === true &&
+                  transcriptOpenStatus instanceof HTMLElement &&
+                  transcriptOpenStatus.getAttribute('role') === 'status' &&
+                  transcriptOpenStatus.getAttribute('aria-live') === 'polite' &&
+                  transcriptOpenStatus.textContent?.includes('Permission request opened in chat') === true;
                 const agentRuntimeEventDetailWorks =
                   agentsPanel instanceof HTMLElement &&
                   recentEventRows.length >= 3 &&
@@ -10243,7 +10300,8 @@ function runAutomatedFocusedSurfaceSmoke(
                   eventDetail instanceof HTMLElement &&
                   eventPayload instanceof HTMLElement &&
                   eventDetail.textContent?.includes('permission.requested') === true &&
-                  eventPayload.textContent?.includes('git status --short') === true;
+                  eventPayload.textContent?.includes('git status --short') === true &&
+                  agentRuntimeEventOpenInChatWorks;
                 const agentRuntimeEventCopyWorks =
                   agentRuntimeEventDetailWorks &&
                   eventDetailCopy instanceof HTMLButtonElement &&
@@ -10377,6 +10435,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   agentRuntimeEventCopyWorks,
                   agentRuntimeEventAddToChatWorks,
                   agentRuntimeEventAddToChatContextWorks,
+                  agentRuntimeEventOpenInChatWorks,
                   agentRuntimeEventActionChromeWorks,
                   agentRuntimeFailureGroupAddToChatWorks,
                   agentRuntimeFailureGroupsWorks,

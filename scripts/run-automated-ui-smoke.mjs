@@ -2491,6 +2491,7 @@ child.on('exit', async (code) => {
           agentRuntimeEventCopy: result.agentRuntimeEventCopyWorks === true,
           agentRuntimeEventAddToChat: result.agentRuntimeEventAddToChatWorks === true,
           agentRuntimeEventAddToChatContext: result.agentRuntimeEventAddToChatContextWorks === true,
+          agentRuntimeEventOpenInChat: result.agentRuntimeEventOpenInChatWorks === true,
           agentRuntimeEventActionChrome: result.agentRuntimeEventActionChromeWorks === true,
           agentRuntimeFailureGroupAddToChat: result.agentRuntimeFailureGroupAddToChatWorks === true,
           agentSelectedTimeline: result.agentSelectedTimelineWorks === true,
