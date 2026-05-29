@@ -703,6 +703,7 @@ export function reviewThreadCommentMetadataFromGitHub(
     if (!resolved) unresolved += 1
     const path = stringValue(thread.path)
     const lineNumber = numberValue(thread.line) ?? numberValue(thread.originalLine)
+    const startLine = numberValue(thread.startLine) ?? numberValue(thread.originalStartLine)
     const side = reviewThreadCommentSide(thread.diffSide)
     const comments = asRecord(thread.comments)
     const commentNodes = Array.isArray(comments?.nodes) ? comments.nodes : []
@@ -722,6 +723,7 @@ export function reviewThreadCommentMetadataFromGitHub(
         source: 'github' as const,
         path,
         side,
+        ...(startLine !== undefined && startLine !== lineNumber ? { startLine } : {}),
         lineNumber,
         body,
         ...(author ? { author } : {}),

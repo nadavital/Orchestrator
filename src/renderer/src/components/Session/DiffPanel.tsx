@@ -40,6 +40,7 @@ interface ReviewFileContent {
 }
 
 type ReviewDiffCommentUpdater = ReviewDiffComment[] | ((current: ReviewDiffComment[]) => ReviewDiffComment[])
+type ReviewSuggestionStatus = 'copied' | 'applying' | 'applied' | 'failed'
 
 const REVIEW_DIFF_SOURCES: Array<{ id: ReviewDiffSource; label: string; ariaLabel: string; group: 'local' | 'provider' }> = [
   { id: 'all', label: 'All', ariaLabel: 'Show all changes', group: 'local' },
@@ -3008,6 +3009,7 @@ function DiffLines({
   const [conflictSourceText, setConflictSourceText] = useState<string | null>(null)
   const [conflictActionStatus, setConflictActionStatus] = useState<string | null>(null)
   const [conflictActionError, setConflictActionError] = useState<string | null>(null)
+  const [suggestionStatusById, setSuggestionStatusById] = useState<Record<string, ReviewSuggestionStatus>>({})
   const conflictBlocks = useMemo(() => parseMergeConflictBlocks(conflictSourceText ?? ''), [conflictSourceText])
   const conflictBlockByStartLine = useMemo(() => {
     const byLine = new Map<number, MergeConflictBlock>()
@@ -3297,6 +3299,28 @@ function DiffLines({
   const deleteComment = (id: string): void => {
     onCommentsChange((current) => current.filter((comment) => comment.id !== id))
   }
+  const copySuggestion = async (comment: ReviewDiffComment, suggestion: ReviewSuggestionBlock): Promise<void> => {
+    setSuggestionStatusById((current) => ({ ...current, [comment.id]: 'applying' }))
+    try {
+      await writeClipboardText(suggestion.text)
+      setSuggestionStatusById((current) => ({ ...current, [comment.id]: 'copied' }))
+    } catch {
+      setSuggestionStatusById((current) => ({ ...current, [comment.id]: 'failed' }))
+    }
+  }
+  const applySuggestion = async (comment: ReviewDiffComment, suggestion: ReviewSuggestionBlock): Promise<void> => {
+    if (!canApplyReviewSuggestion(comment)) return
+    setSuggestionStatusById((current) => ({ ...current, [comment.id]: 'applying' }))
+    try {
+      const currentText = await window.api.fs.readFile(absolutePath)
+      const nextText = applyReviewSuggestionToText(currentText ?? '', comment, suggestion.text)
+      await window.api.fs.writeFile(absolutePath, nextText)
+      await onConflictResolved()
+      setSuggestionStatusById((current) => ({ ...current, [comment.id]: 'applied' }))
+    } catch {
+      setSuggestionStatusById((current) => ({ ...current, [comment.id]: 'failed' }))
+    }
+  }
   const commentsForLine = (lineNumberSide?: 'old' | 'new', lineNumber?: number): ReviewDiffComment[] => {
     if (lineNumberSide === undefined || lineNumber === undefined) return []
     return comments.filter((comment) => comment.side === lineNumberSide && comment.lineNumber === lineNumber)
@@ -3450,6 +3474,9 @@ function DiffLines({
                 onUpdateComment={updateComment}
                 onSaveComment={saveComment}
                 onDeleteComment={deleteComment}
+                suggestionStatusById={suggestionStatusById}
+                onCopySuggestion={copySuggestion}
+                onApplySuggestion={applySuggestion}
                 blameVisible={blameVisible}
                 blameResult={blameResultForLine('old', left ? metadata?.oldLine : undefined)}
                 wordParts={left ? wordDiffParts.byLine.get(i) : undefined}
@@ -3469,6 +3496,9 @@ function DiffLines({
                 onUpdateComment={updateComment}
                 onSaveComment={saveComment}
                 onDeleteComment={deleteComment}
+                suggestionStatusById={suggestionStatusById}
+                onCopySuggestion={copySuggestion}
+                onApplySuggestion={applySuggestion}
                 blameVisible={blameVisible}
                 blameResult={blameResultForLine('new', right ? metadata?.newLine : undefined)}
                 wordParts={right ? wordDiffParts.byLine.get(i) : undefined}
@@ -3580,6 +3610,9 @@ function DiffLines({
             onUpdateComment={updateComment}
             onSaveComment={saveComment}
             onDeleteComment={deleteComment}
+            suggestionStatusById={suggestionStatusById}
+            onCopySuggestion={copySuggestion}
+            onApplySuggestion={applySuggestion}
             blameVisible={blameVisible}
             blameResult={blameResultForLine(
               metadata?.newLine !== undefined ? 'new' : metadata?.oldLine !== undefined ? 'old' : undefined,
@@ -3859,6 +3892,9 @@ function DiffLineCell({
   onUpdateComment,
   onSaveComment,
   onDeleteComment,
+  suggestionStatusById = {},
+  onCopySuggestion,
+  onApplySuggestion,
   blameVisible,
   blameResult,
   wordParts,
@@ -3878,6 +3914,9 @@ function DiffLineCell({
   onUpdateComment: (id: string, body: string) => void
   onSaveComment: (id: string) => void
   onDeleteComment: (id: string) => void
+  suggestionStatusById?: Record<string, ReviewSuggestionStatus>
+  onCopySuggestion?: (comment: ReviewDiffComment, suggestion: ReviewSuggestionBlock) => void | Promise<void>
+  onApplySuggestion?: (comment: ReviewDiffComment, suggestion: ReviewSuggestionBlock) => void | Promise<void>
   blameVisible: boolean
   blameResult: GitLineBlameResult | null
   wordParts?: WordDiffPart[]
@@ -4004,6 +4043,9 @@ function DiffLineCell({
           onChange={onUpdateComment}
           onSave={onSaveComment}
           onDelete={onDeleteComment}
+          suggestionStatusById={suggestionStatusById}
+          onCopySuggestion={onCopySuggestion}
+          onApplySuggestion={onApplySuggestion}
         />
       )}
       {conflictHelper !== undefined && (
@@ -4148,111 +4190,241 @@ function ReviewDiffCommentStack({
   comments,
   onChange,
   onSave,
-  onDelete
+  onDelete,
+  suggestionStatusById = {},
+  onCopySuggestion,
+  onApplySuggestion
 }: {
   comments: ReviewDiffComment[]
   onChange: (id: string, body: string) => void
   onSave: (id: string) => void
   onDelete: (id: string) => void
+  suggestionStatusById?: Record<string, ReviewSuggestionStatus>
+  onCopySuggestion?: (comment: ReviewDiffComment, suggestion: ReviewSuggestionBlock) => void | Promise<void>
+  onApplySuggestion?: (comment: ReviewDiffComment, suggestion: ReviewSuggestionBlock) => void | Promise<void>
 }): JSX.Element {
   return (
     <span className="review-diff-comments" data-testid="review-diff-comments">
-      {comments.map((comment) => (
-        <span
-          key={comment.id}
-          className="review-diff-comment-card"
-          data-testid="review-diff-comment-card"
-          data-review-comment-id={comment.id}
-          data-review-comment-side={comment.side}
-          data-review-comment-line={comment.lineNumber}
-          data-review-comment-status={comment.status}
-          data-review-comment-provider-source={comment.source ?? ''}
-          data-review-comment-author={comment.author ?? ''}
-          data-review-comment-url={comment.url ?? ''}
-          data-review-comment-resolved={comment.resolved === undefined ? '' : comment.resolved ? 'true' : 'false'}
-          data-review-comment-outdated={comment.outdated === undefined ? '' : comment.outdated ? 'true' : 'false'}
-          data-review-comment-blame-source={comment.blame?.source ?? ''}
-          data-review-comment-blame-commit={comment.blame?.commit ?? ''}
-          data-review-comment-blame-author={comment.blame?.author ?? ''}
-          data-review-comment-blame-date={comment.blame?.authoredAt ?? ''}
-        >
-          <span className="review-diff-comment-header">
-            <span>{comment.status === 'provider' ? `${comment.author ?? 'GitHub'} review` : 'Review comment'}</span>
-            <span>{comment.side === 'new' ? '+' : '-'}{comment.lineNumber}</span>
-          </span>
-          {comment.status === 'draft' ? (
-            <>
-              <textarea
-                className="review-diff-comment-input"
-                data-testid="review-diff-comment-input"
-                aria-label={`Review comment for ${comment.side} line ${comment.lineNumber}`}
-                placeholder="Add a review note"
-                value={comment.body}
-                rows={2}
-                onClick={(event) => event.stopPropagation()}
-                onChange={(event) => onChange(comment.id, event.target.value)}
-              />
-              <span className="review-diff-comment-actions">
-                <IconButton
-                  icon="check"
-                  label="Save review comment"
-                  size="sm"
-                  variant="toolbar"
-                  disabled={comment.body.trim().length === 0}
-                  dataTestId="review-diff-comment-save"
-                  onClick={(event) => {
-                    event.stopPropagation()
-                    onSave(comment.id)
-                  }}
+      {comments.map((comment) => {
+        const suggestion = extractReviewSuggestionBlocks(comment.body)[0] ?? null
+        const suggestionStatus = suggestionStatusById[comment.id] ?? ''
+        const suggestionApplicable = suggestion !== null && canApplyReviewSuggestion(comment)
+        return (
+          <span
+            key={comment.id}
+            className="review-diff-comment-card"
+            data-testid="review-diff-comment-card"
+            data-review-comment-id={comment.id}
+            data-review-comment-side={comment.side}
+            data-review-comment-start-line={comment.startLine ?? ''}
+            data-review-comment-line={comment.lineNumber}
+            data-review-comment-status={comment.status}
+            data-review-comment-provider-source={comment.source ?? ''}
+            data-review-comment-author={comment.author ?? ''}
+            data-review-comment-url={comment.url ?? ''}
+            data-review-comment-resolved={comment.resolved === undefined ? '' : comment.resolved ? 'true' : 'false'}
+            data-review-comment-outdated={comment.outdated === undefined ? '' : comment.outdated ? 'true' : 'false'}
+            data-review-comment-suggestion={suggestion ? 'true' : 'false'}
+            data-review-comment-suggestion-status={suggestionStatus}
+            data-review-comment-blame-source={comment.blame?.source ?? ''}
+            data-review-comment-blame-commit={comment.blame?.commit ?? ''}
+            data-review-comment-blame-author={comment.blame?.author ?? ''}
+            data-review-comment-blame-date={comment.blame?.authoredAt ?? ''}
+          >
+            <span className="review-diff-comment-header">
+              <span>{comment.status === 'provider' ? `${comment.author ?? 'GitHub'} review` : 'Review comment'}</span>
+              <span>{comment.side === 'new' ? '+' : '-'}{comment.startLine && comment.startLine !== comment.lineNumber ? `${comment.startLine}-` : ''}{comment.lineNumber}</span>
+            </span>
+            {comment.status === 'draft' ? (
+              <>
+                <textarea
+                  className="review-diff-comment-input"
+                  data-testid="review-diff-comment-input"
+                  aria-label={`Review comment for ${comment.side} line ${comment.lineNumber}`}
+                  placeholder="Add a review note"
+                  value={comment.body}
+                  rows={2}
+                  onClick={(event) => event.stopPropagation()}
+                  onChange={(event) => onChange(comment.id, event.target.value)}
                 />
-                <IconButton
-                  icon="close"
-                  label="Delete review comment"
-                  size="sm"
-                  variant="toolbar"
-                  dataTestId="review-diff-comment-delete"
-                  onClick={(event) => {
-                    event.stopPropagation()
-                    onDelete(comment.id)
-                  }}
-                />
-              </span>
-            </>
-          ) : comment.status === 'provider' ? (
-            <>
-              <span className="review-diff-comment-provider-meta" data-testid="review-diff-comment-provider-meta">
-                <span>{comment.source === 'github' ? 'GitHub' : 'Provider'}</span>
-                {comment.resolved === false && <span>Unresolved</span>}
-                {comment.outdated === true && <span>Outdated</span>}
-                {comment.blame && (
-                  <span data-testid="review-diff-comment-provider-blame">
-                    {comment.blame.abbreviatedCommit ?? comment.blame.commit?.slice(0, 8) ?? 'Commit'}
-                    {comment.blame.author ? ` by ${comment.blame.author}` : ''}
-                  </span>
-                )}
-                {comment.url && (
-                  <button
-                    type="button"
-                    className="review-diff-comment-link"
-                    data-testid="review-diff-comment-provider-link"
+                <span className="review-diff-comment-actions">
+                  <IconButton
+                    icon="check"
+                    label="Save review comment"
+                    size="sm"
+                    variant="toolbar"
+                    disabled={comment.body.trim().length === 0}
+                    dataTestId="review-diff-comment-save"
                     onClick={(event) => {
                       event.stopPropagation()
-                      void window.api.browser.openExternal(comment.url ?? '')
+                      onSave(comment.id)
                     }}
+                  />
+                  <IconButton
+                    icon="close"
+                    label="Delete review comment"
+                    size="sm"
+                    variant="toolbar"
+                    dataTestId="review-diff-comment-delete"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      onDelete(comment.id)
+                    }}
+                  />
+                </span>
+              </>
+            ) : comment.status === 'provider' ? (
+              <>
+                <span className="review-diff-comment-provider-meta" data-testid="review-diff-comment-provider-meta">
+                  <span>{comment.source === 'github' ? 'GitHub' : 'Provider'}</span>
+                  {comment.resolved === false && <span>Unresolved</span>}
+                  {comment.outdated === true && <span>Outdated</span>}
+                  {comment.blame && (
+                    <span data-testid="review-diff-comment-provider-blame">
+                      {comment.blame.abbreviatedCommit ?? comment.blame.commit?.slice(0, 8) ?? 'Commit'}
+                      {comment.blame.author ? ` by ${comment.blame.author}` : ''}
+                    </span>
+                  )}
+                  {comment.url && (
+                    <button
+                      type="button"
+                      className="review-diff-comment-link"
+                      data-testid="review-diff-comment-provider-link"
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        void window.api.browser.openExternal(comment.url ?? '')
+                      }}
+                    >
+                      Open
+                    </button>
+                  )}
+                </span>
+                <span className="review-diff-comment-body" data-testid="review-diff-comment-body">{comment.body}</span>
+                {suggestion && (
+                  <span
+                    className="review-diff-comment-suggestion"
+                    data-testid="review-diff-comment-suggestion"
+                    data-review-comment-suggestion-lines={suggestion.lineCount}
                   >
-                    Open
-                  </button>
+                    <span className="review-diff-comment-suggestion-label">Suggested change</span>
+                    <code>{suggestion.preview}</code>
+                    <span className="review-diff-comment-actions">
+                      <button
+                        type="button"
+                        className="review-diff-comment-suggestion-button"
+                        data-testid="review-diff-comment-copy-suggestion"
+                        disabled={!onCopySuggestion || suggestionStatus === 'applying'}
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          void onCopySuggestion?.(comment, suggestion)
+                        }}
+                      >
+                        Copy
+                      </button>
+                      <button
+                        type="button"
+                        className="review-diff-comment-suggestion-button"
+                        data-testid="review-diff-comment-apply-suggestion"
+                        disabled={!onApplySuggestion || !suggestionApplicable || suggestionStatus === 'applying'}
+                        title={suggestionApplicable ? 'Apply suggestion to the local file' : 'Only current, unresolved new-side suggestions can be applied'}
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          void onApplySuggestion?.(comment, suggestion)
+                        }}
+                      >
+                        Apply
+                      </button>
+                      {suggestionStatus && (
+                        <span
+                          className="review-diff-comment-suggestion-status"
+                          data-testid="review-diff-comment-suggestion-status"
+                          role={suggestionStatus === 'failed' ? 'alert' : 'status'}
+                        >
+                          {reviewSuggestionStatusLabel(suggestionStatus)}
+                        </span>
+                      )}
+                    </span>
+                  </span>
                 )}
-              </span>
+              </>
+            ) : (
               <span className="review-diff-comment-body" data-testid="review-diff-comment-body">{comment.body}</span>
-            </>
-          ) : (
-            <span className="review-diff-comment-body" data-testid="review-diff-comment-body">{comment.body}</span>
-          )}
-        </span>
-      ))}
+            )}
+          </span>
+        )
+      })}
     </span>
   )
+}
+
+interface ReviewSuggestionBlock {
+  text: string
+  preview: string
+  lineCount: number
+}
+
+function extractReviewSuggestionBlocks(body: string): ReviewSuggestionBlock[] {
+  const blocks: ReviewSuggestionBlock[] = []
+  const pattern = /```suggestion[^\n\r]*(?:\r?\n)([\s\S]*?)(?:\r?\n)?```/g
+  let match: RegExpExecArray | null
+  while ((match = pattern.exec(body)) !== null) {
+    const text = normalizeSuggestionText(match[1] ?? '')
+    if (!text.trim()) continue
+    const lines = text.split('\n')
+    blocks.push({
+      text,
+      preview: lines.slice(0, 4).join('\n'),
+      lineCount: lines.length
+    })
+  }
+  return blocks
+}
+
+function normalizeSuggestionText(value: string): string {
+  return value.replace(/\r\n/g, '\n').replace(/\r/g, '\n').replace(/\n$/, '')
+}
+
+function canApplyReviewSuggestion(comment: ReviewDiffComment): boolean {
+  return comment.status === 'provider' &&
+    comment.side === 'new' &&
+    comment.resolved !== true &&
+    comment.outdated !== true &&
+    comment.lineNumber > 0 &&
+    (comment.startLine === undefined || comment.startLine > 0) &&
+    (comment.startLine === undefined || comment.startLine <= comment.lineNumber)
+}
+
+function applyReviewSuggestionToText(text: string, comment: ReviewDiffComment, suggestion: string): string {
+  if (!canApplyReviewSuggestion(comment)) throw new Error('Suggestion cannot be applied to this comment')
+  const newline = text.includes('\r\n') ? '\r\n' : '\n'
+  const hasTrailingNewline = /\r?\n$/.test(text)
+  const sourceLines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')
+  if (hasTrailingNewline) sourceLines.pop()
+  const replacementLines = normalizeSuggestionText(suggestion).split('\n')
+  const startLine = comment.startLine ?? comment.lineNumber
+  const startIndex = startLine - 1
+  const deleteCount = comment.lineNumber - startLine + 1
+  if (startIndex < 0 || startIndex >= sourceLines.length || deleteCount < 1) {
+    throw new Error('Suggestion line range is outside the current file')
+  }
+  sourceLines.splice(startIndex, deleteCount, ...replacementLines)
+  return `${sourceLines.join(newline)}${hasTrailingNewline ? newline : ''}`
+}
+
+async function writeClipboardText(text: string): Promise<void> {
+  if (typeof window.api.clipboard?.writeText === 'function') {
+    const didWrite = await window.api.clipboard.writeText(text)
+    if (!didWrite) throw new Error('Clipboard write failed')
+    return
+  }
+  await navigator.clipboard.writeText(text)
+}
+
+function reviewSuggestionStatusLabel(status: ReviewSuggestionStatus): string {
+  if (status === 'copied') return 'Copied'
+  if (status === 'applying') return 'Applying'
+  if (status === 'applied') return 'Applied'
+  return 'Failed'
 }
 
 function mergeProviderReviewComments(
@@ -4280,6 +4452,7 @@ function providerReviewCommentToDiffComment(comment: ReviewProviderComment): Rev
   return {
     id: `provider:${comment.source}:${comment.id}`,
     side: comment.side,
+    startLine: comment.startLine,
     lineNumber: comment.lineNumber,
     body: comment.body,
     status: 'provider',
@@ -4304,6 +4477,7 @@ interface ReviewDiffComment extends SelectedDiffLine {
   body: string
   status: 'draft' | 'saved' | 'provider'
   updatedAt: number
+  startLine?: number
   author?: string
   source?: ReviewProviderComment['source']
   url?: string | null

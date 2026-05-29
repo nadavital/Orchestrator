@@ -161,7 +161,7 @@ function automatedReviewSmokeMetadata(): ReviewMetadata | undefined {
           path: 'review-base.txt',
           side: 'new',
           lineNumber: 2,
-          body: 'Provider inline review from GitHub',
+          body: "Provider inline review from GitHub\n\n```suggestion\nafter review with provider suggestion\n```",
           author: 'Grace',
           url: 'https://github.com/openai/orchestrator/pull/42#discussion_r1',
           resolved: false,

@@ -7297,8 +7297,11 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             reviewSearchWorks: typeof reviewSearchWorks === 'boolean' ? reviewSearchWorks : null,
             reviewSearchProjectionWorks: typeof reviewSearchProjectionWorks === 'boolean' ? reviewSearchProjectionWorks : null,
             reviewSearchContentWorks: typeof reviewSearchContentWorks === 'boolean' ? reviewSearchContentWorks : null,
+            reviewSearchContentDebug: typeof reviewSearchContentDebug === 'object' ? reviewSearchContentDebug : null,
             reviewSearchClearWorks: typeof reviewSearchClearWorks === 'boolean' ? reviewSearchClearWorks : null,
             reviewLineCommentsWork: typeof reviewLineCommentsWork === 'boolean' ? reviewLineCommentsWork : null,
+            reviewProviderSuggestionWork: typeof reviewProviderSuggestionWork === 'boolean' ? reviewProviderSuggestionWork : null,
+            reviewProviderSuggestionDebug: typeof reviewProviderSuggestionDebug === 'object' ? reviewProviderSuggestionDebug : null,
             reviewAnnotatedSelectionCalmWork: typeof reviewAnnotatedSelectionCalmWork === 'boolean' ? reviewAnnotatedSelectionCalmWork : null,
             reviewSidePaneCommentCountWork: typeof reviewSidePaneCommentCountWork === 'boolean' ? reviewSidePaneCommentCountWork : null,
             reviewLineBlameWork: typeof reviewLineBlameWork === 'boolean' ? reviewLineBlameWork : null,
@@ -12142,7 +12145,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 document.querySelector('[data-testid="review-file-section"][data-review-path="review-base.txt"][data-active="true"]') instanceof HTMLElement;
               const reviewContentSearchInput = currentDiffSearch();
               if (reviewContentSearchInput instanceof HTMLInputElement) {
-                setNativeValue(reviewContentSearchInput, 'review tree grouping');
+                setNativeValue(reviewContentSearchInput, 'spaces in paths.');
                 reviewContentSearchInput.dispatchEvent(new Event('input', { bubbles: true }));
                 reviewContentSearchInput.dispatchEvent(new Event('change', { bubbles: true }));
                 await sleep(220);
@@ -12154,7 +12157,20 @@ function runAutomatedFocusedSurfaceSmoke(
               const reviewSearchNextMatch = document.querySelector('[data-testid="review-search-next-match"]');
               if (reviewSearchNextMatch instanceof HTMLButtonElement) {
                 reviewSearchNextMatch.click();
-                await sleep(220);
+                for (let attempt = 0; attempt < 12; attempt += 1) {
+                  await sleep(120);
+                  const candidateRoot = document.querySelector('.diff-panel-root[data-embedded="true"]');
+                  const candidateDiff = document.querySelector('[data-testid="review-unified-diff"], [data-testid="review-split-diff"]');
+                  if (
+                    candidateRoot instanceof HTMLElement &&
+                    candidateRoot.getAttribute('data-review-selected-file') === 'Nested Folder/nested note.md' &&
+                    candidateDiff instanceof HTMLElement &&
+                    candidateDiff.getAttribute('data-review-diff-search-active-visible') === 'true' &&
+                    document.querySelector('[data-review-search-active-line="true"]') instanceof HTMLElement
+                  ) {
+                    break;
+                  }
+                }
               }
               const reviewContentSearchRootAfterNav = document.querySelector('.diff-panel-root[data-embedded="true"]');
               const reviewContentSearchControls = document.querySelector('[data-testid="review-search-match-controls"]');
@@ -12163,7 +12179,7 @@ function runAutomatedFocusedSurfaceSmoke(
               const reviewContentSearchDiffRoot = document.querySelector('[data-testid="review-unified-diff"], [data-testid="review-split-diff"]');
               const reviewSearchContentWorks =
                 reviewContentSearchRoot instanceof HTMLElement &&
-                reviewContentSearchRoot.getAttribute('data-review-tree-query') === 'review tree grouping' &&
+                reviewContentSearchRoot.getAttribute('data-review-tree-query') === 'spaces in paths.' &&
                 Number(reviewContentSearchRoot.getAttribute('data-review-tree-search-match-count') ?? '0') >= 1 &&
                 reviewContentSearchFileRows.length === 1 &&
                 reviewContentSearchFileRows.some((row) => row.textContent?.includes('nested note.md')) &&
@@ -12178,8 +12194,23 @@ function runAutomatedFocusedSurfaceSmoke(
                 reviewContentSearchDiffRoot instanceof HTMLElement &&
                 reviewContentSearchDiffRoot.getAttribute('data-review-diff-search-active-visible') === 'true' &&
                 reviewContentSearchActiveDiff instanceof HTMLElement &&
-                reviewContentSearchActiveDiff.textContent?.includes('review tree grouping') === true &&
+                reviewContentSearchActiveDiff.textContent?.includes('spaces in paths.') === true &&
                 reviewContentSearchActiveDiff.getAttribute('data-review-search-line-match-count') !== null;
+              const reviewSearchContentDebug = {
+                root: reviewContentSearchRoot instanceof HTMLElement,
+                query: reviewContentSearchRoot instanceof HTMLElement ? reviewContentSearchRoot.getAttribute('data-review-tree-query') ?? '' : '',
+                matchCount: reviewContentSearchRoot instanceof HTMLElement ? reviewContentSearchRoot.getAttribute('data-review-tree-search-match-count') ?? '' : '',
+                fileRows: reviewContentSearchFileRows.map((row) => row.textContent ?? ''),
+                badge: reviewContentSearchBadge instanceof HTMLElement ? reviewContentSearchBadge.getAttribute('data-review-file-search-match-count') ?? '' : '',
+                controlsActivePath: reviewContentSearchControls instanceof HTMLElement ? reviewContentSearchControls.getAttribute('data-review-search-active-path') ?? '' : '',
+                rootActivePath: reviewContentSearchRootAfterNav instanceof HTMLElement ? reviewContentSearchRootAfterNav.getAttribute('data-review-tree-search-active-path') ?? '' : '',
+                selectedFile: reviewContentSearchRootAfterNav instanceof HTMLElement ? reviewContentSearchRootAfterNav.getAttribute('data-review-selected-file') ?? '' : '',
+                activeRow: reviewContentSearchActiveRow instanceof HTMLElement,
+                diffRoot: reviewContentSearchDiffRoot instanceof HTMLElement ? reviewContentSearchDiffRoot.getAttribute('data-testid') ?? '' : '',
+                activeVisible: reviewContentSearchDiffRoot instanceof HTMLElement ? reviewContentSearchDiffRoot.getAttribute('data-review-diff-search-active-visible') ?? '' : '',
+                activeText: reviewContentSearchActiveDiff instanceof HTMLElement ? reviewContentSearchActiveDiff.textContent ?? '' : '',
+                activeLineMatchCount: reviewContentSearchActiveDiff instanceof HTMLElement ? reviewContentSearchActiveDiff.getAttribute('data-review-search-line-match-count') ?? '' : ''
+              };
               const reviewFullSourceSearchInput = currentDiffSearch();
               if (reviewFullSourceSearchInput instanceof HTMLInputElement) {
                 setNativeValue(reviewFullSourceSearchInput, 'review-base');
@@ -12322,6 +12353,20 @@ function runAutomatedFocusedSurfaceSmoke(
               const providerReviewCommentBody = providerReviewCommentCard?.querySelector('[data-testid="review-diff-comment-body"]');
               const providerReviewCommentMeta = providerReviewCommentCard?.querySelector('[data-testid="review-diff-comment-provider-meta"]');
               const providerReviewCommentBlame = providerReviewCommentCard?.querySelector('[data-testid="review-diff-comment-provider-blame"]');
+              const providerReviewSuggestion = providerReviewCommentCard?.querySelector('[data-testid="review-diff-comment-suggestion"]');
+              const providerReviewCopySuggestion = providerReviewCommentCard?.querySelector('[data-testid="review-diff-comment-copy-suggestion"]');
+              const providerReviewApplySuggestion = providerReviewCommentCard?.querySelector('[data-testid="review-diff-comment-apply-suggestion"]');
+              if (providerReviewCopySuggestion instanceof HTMLButtonElement) {
+                providerReviewCopySuggestion.click();
+                await sleep(180);
+              }
+              const providerSuggestionCopiedStatus = providerReviewCommentCard?.querySelector('[data-testid="review-diff-comment-suggestion-status"]');
+              const providerSuggestionCopiedStatusText = providerSuggestionCopiedStatus instanceof HTMLElement
+                ? providerSuggestionCopiedStatus.textContent ?? ''
+                : '';
+              const copiedProviderSuggestion = typeof window.api?.clipboard?.readText === 'function'
+                ? await window.api.clipboard.readText()
+                : '';
               const reviewCommentButton = activeReviewSectionForLine?.querySelector('[data-testid="review-diff-line-add-comment"]');
               if (reviewCommentButton instanceof HTMLButtonElement) {
                 reviewCommentButton.click();
@@ -12457,6 +12502,41 @@ function runAutomatedFocusedSurfaceSmoke(
                 reviewGutterBlameBox !== null &&
                 reviewGutterBlameBox.width <= 24 &&
                 reviewGutterBlameBox.height <= 14;
+              if (providerReviewApplySuggestion instanceof HTMLButtonElement) {
+                providerReviewApplySuggestion.click();
+                await sleep(520);
+              }
+              const providerReviewCommentCardAfterSuggestion = activeReviewSectionForLine?.querySelector('[data-testid="review-diff-comment-card"][data-review-comment-status="provider"]');
+              const providerSuggestionAppliedStatus = providerReviewCommentCardAfterSuggestion?.querySelector('[data-testid="review-diff-comment-suggestion-status"]');
+              const activeReviewSessionId = document.querySelector('[data-session-id][aria-current="page"]')?.getAttribute('data-session-id') ?? '';
+              const activeReviewSession = activeReviewSessionId ? await window.api.sessions.get(activeReviewSessionId) : undefined;
+              const providerSuggestionFileText = activeReviewSession?.workDir
+                ? await window.api.fs.readFile(activeReviewSession.workDir + '/review-base.txt').catch(() => '')
+                : '';
+              const reviewProviderSuggestionWork =
+                providerReviewSuggestion instanceof HTMLElement &&
+                providerReviewSuggestion.getAttribute('data-review-comment-suggestion-lines') === '1' &&
+                providerReviewCopySuggestion instanceof HTMLButtonElement &&
+                providerReviewApplySuggestion instanceof HTMLButtonElement &&
+                providerReviewApplySuggestion.disabled === false &&
+                providerSuggestionCopiedStatusText.includes('Copied') &&
+                copiedProviderSuggestion.includes('after review with provider suggestion') &&
+                providerSuggestionAppliedStatus instanceof HTMLElement &&
+                providerSuggestionAppliedStatus.textContent?.includes('Applied') === true &&
+                providerSuggestionFileText.includes('after review with provider suggestion');
+              const reviewProviderSuggestionDebug = {
+                hasSuggestion: providerReviewSuggestion instanceof HTMLElement,
+                suggestionLines: providerReviewSuggestion instanceof HTMLElement ? providerReviewSuggestion.getAttribute('data-review-comment-suggestion-lines') ?? '' : '',
+                hasCopy: providerReviewCopySuggestion instanceof HTMLButtonElement,
+                hasApply: providerReviewApplySuggestion instanceof HTMLButtonElement,
+                applyDisabled: providerReviewApplySuggestion instanceof HTMLButtonElement ? providerReviewApplySuggestion.disabled : null,
+                copiedStatus: providerSuggestionCopiedStatusText,
+                copiedText: copiedProviderSuggestion,
+                appliedStatus: providerSuggestionAppliedStatus instanceof HTMLElement ? providerSuggestionAppliedStatus.textContent ?? '' : '',
+                fileHasSuggestion: providerSuggestionFileText.includes('after review with provider suggestion'),
+                activeReviewSessionId,
+                activeReviewWorkDir: activeReviewSession?.workDir ?? ''
+              };
               const hunkToggle = document.querySelector('[data-testid="review-hunk-toggle"]');
               const unifiedLineCellsBeforeHunkCollapse = [...document.querySelectorAll('[data-testid="review-unified-diff"] .review-diff-line-cell')]
                 .filter((cell) => cell instanceof HTMLElement);
@@ -13688,6 +13768,7 @@ function runAutomatedFocusedSurfaceSmoke(
 	                  reviewSearchWorks,
 	                  reviewSearchProjectionWorks,
                     reviewSearchContentWorks,
+                    reviewSearchContentDebug,
                   reviewSourceModesWork,
                   reviewSourceModesDebug,
                   reviewOptionsMenuStateWorks,
@@ -13707,6 +13788,8 @@ function runAutomatedFocusedSurfaceSmoke(
                   reviewLoadFullFileWorks,
                   reviewSearchClearWorks: reviewSourceSearchClearWorks,
                   reviewLineCommentsWork,
+                  reviewProviderSuggestionWork,
+                  reviewProviderSuggestionDebug,
                   reviewAnnotatedSelectionCalmWork,
                   reviewSidePaneCommentCountWork,
                   reviewLineBlameWork,
@@ -14131,6 +14214,8 @@ function runAutomatedFocusedSurfaceSmoke(
                 diffLineNumbersWork,
                 diffLineSelectionWorks,
                 reviewLineCommentsWork,
+                reviewProviderSuggestionWork,
+                reviewProviderSuggestionDebug,
                 reviewAnnotatedSelectionCalmWork,
                 reviewSidePaneCommentCountWork,
                 reviewLineBlameWork,
@@ -27200,7 +27285,7 @@ function seedAutomatedReviewCardSmokeSession(sessionId: string): void {
               path: 'review-base.txt',
               side: 'new',
               lineNumber: 2,
-              body: 'Provider inline review from GitHub',
+              body: "Provider inline review from GitHub\n\n```suggestion\nafter review with provider suggestion\n```",
               author: 'Grace',
               url: 'https://github.com/openai/orchestrator/pull/42#discussion_r1',
               resolved: false,

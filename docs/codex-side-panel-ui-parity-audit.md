@@ -9409,11 +9409,11 @@ Remaining: this closes local Settings section search/jump only. Exact live Codex
 
 Product evidence: PP-054 tracks the split between Codex-shaped Review and provider-agnostic Git workflows. Review should stay focused on reading diffs and copy/apply review actions; staging and future commit/PR/discard actions need a separate daily-use Git surface instead of continuing to grow Review-specific controls.
 
-Implemented: the Workbench New tab launcher now includes `Git`. The Git tab shows current branch, change/staged/unstaged counts, local changed files, and first actions for `Stage all`, `Unstage all`, and `Open Review`. It reuses the existing provider-neutral git IPC and Review data model, so it does not introduce Codex-specific staging behavior. Review's existing floating local-git bridge remains for now, but the new tab is the intended ownership point for expanding commit, branch, PR, revert/discard, and apply-suggestion workflows.
+Implemented: the Workbench New tab launcher now includes `Git`. The Git tab shows current branch, change/staged/unstaged counts, local changed files, and first actions for `Stage all`, `Unstage all`, and `Open Review`. It reuses the existing provider-neutral git IPC and Review data model, so it does not introduce Codex-specific staging behavior. Review's existing floating local-git bridge remains for now, but the new tab is the intended ownership point for expanding commit, branch, PR, revert/discard, and provider-backed Git workflows.
 
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --workbench-new-tab` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-workbench-new-tab-1780015277484.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-workbench-new-tab-1780015277484.png`. The focused smoke now gates `workbenchNewTabGitAction=true` by opening the Git tab and exercising Stage all / Unstage all against the fixture repo while keeping the Workbench New Tab, Agents inspector, runtime event copy/add-to-chat, filtering, issue triage, selected-agent timeline, and transport-log checks green.
 
-Remaining: this is the first dedicated local Git surface slice only. Commit message/commit, branch/PR creation, revert/discard confirmations, apply-suggestion flows, provider-hosted Git metadata, and exact live Codex UI timing remain open.
+Remaining: this is the first dedicated local Git surface slice only. Commit message/commit, branch/PR creation, revert/discard confirmations, provider-hosted Git metadata, and exact live Codex UI timing remain open.
 
 ### 2026-05-28 - Git Workbench Commit
 
@@ -9423,7 +9423,7 @@ Implemented: `git:commitStaged` now runs through main-process Git IPC with empty
 
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `node --test out-test/src/main/__tests__/gitChanges.test.js`, and elevated `node scripts/run-automated-ui-smoke.mjs --workbench-new-tab` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-workbench-new-tab-1780015734717.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-workbench-new-tab-1780015734717.png`. The focused smoke now gates `workbenchNewTabGitCommit=true` by opening Git from the right Workbench launcher, staging/unstaging fixture changes, staging again, typing a commit message, committing, and proving the fixture repo is clean afterward.
 
-Remaining: live PR creation, apply-suggestion flows, provider-hosted Git metadata, exact live Codex UI timing, and retiring Review's temporary local-git bridge once the Git tab fully owns local Git actions.
+Remaining: live PR creation, provider-hosted Git metadata, exact live Codex UI timing, and retiring Review's temporary local-git bridge once the Git tab fully owns local Git actions.
 
 ### 2026-05-28 - Git Workbench Discard
 
@@ -9433,7 +9433,7 @@ Implemented: the Git tab now exposes `Discard all` as a danger action in the Wor
 
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, `node --test out-test/src/main/__tests__/gitChanges.test.js`, and elevated `node scripts/run-automated-ui-smoke.mjs --workbench-new-tab` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-workbench-new-tab-1780016316039.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-workbench-new-tab-1780016316039.png`. The focused smoke gates `workbenchNewTabGitDiscard=true` by opening the discard confirmation from the Git tab against a dirty fixture, verifying the destructive copy and cancel path, then continuing through stage/unstage/commit. The Git unit suite covers actual discard mutation for tracked, staged, and untracked files plus unsafe-path refusal.
 
-Remaining: live PR creation, apply-suggestion flows, provider-hosted Git metadata, exact live Codex UI timing, and retiring Review's temporary local-git bridge once the Git tab fully owns local Git actions.
+Remaining: live PR creation, provider-hosted Git metadata, exact live Codex UI timing, and retiring Review's temporary local-git bridge once the Git tab fully owns local Git actions.
 
 ### 2026-05-28 - Git Workbench Branch
 
@@ -9443,7 +9443,7 @@ Implemented: the Git tab now exposes a Branch card with a branch-name input and 
 
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, `node --test out-test/src/main/__tests__/gitChanges.test.js`, and elevated `node scripts/run-automated-ui-smoke.mjs --workbench-new-tab` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-workbench-new-tab-1780016736246.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-workbench-new-tab-1780016736246.png`. The focused smoke gates `workbenchNewTabGitBranch=true` by creating a unique branch from the right Workbench Git tab before continuing through discard confirmation, stage/unstage, and commit. The Git unit suite covers empty-name validation, checkout, current branch marking, and dirty-file preservation.
 
-Remaining: live PR creation, apply-suggestion flows, provider-hosted Git metadata, exact live Codex UI timing, and retiring Review's temporary local-git bridge once the Git tab fully owns local Git actions.
+Remaining: live PR creation, provider-hosted Git metadata, exact live Codex UI timing, and retiring Review's temporary local-git bridge once the Git tab fully owns local Git actions.
 
 ### 2026-05-28 - Git Workbench PR Command
 
@@ -9453,4 +9453,14 @@ Implemented: the Git tab now includes a Pull Request card. When session PR metad
 
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, `node --test out-test/src/main/__tests__/gitChanges.test.js`, and elevated `node scripts/run-automated-ui-smoke.mjs --workbench-new-tab` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-workbench-new-tab-1780017110971.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-workbench-new-tab-1780017110971.png`. The focused smoke gates `workbenchNewTabGitPrCommand=true` by creating a unique branch from the right Workbench Git tab, copying the generated command, and verifying the app clipboard contains `gh pr create` plus the smoke branch.
 
-Remaining: live PR creation, apply-suggestion flows, provider-hosted Git metadata, exact live Codex UI timing, and retiring Review's temporary local-git bridge once the Git tab fully owns local Git actions.
+Remaining: live PR creation, provider-hosted Git metadata, exact live Codex UI timing, and retiring Review's temporary local-git bridge once the Git tab fully owns local Git actions.
+
+### 2026-05-28 - Review Provider Suggestions
+
+Product evidence: PP-054 still had an actionable Review gap after the Git tab picked up local branch/commit/PR-command ownership: provider inline comments could be displayed, but GitHub suggestion fences were passive text. For daily coding, Review should let users copy or apply a concrete suggestion without leaving the right Workbench panel.
+
+Implemented: GitHub review-thread parsing now preserves `startLine` / `originalStartLine` metadata for multi-line suggestions. Provider comment cards detect fenced `suggestion` blocks, render a compact suggested-change preview, expose `Copy` and `Apply` actions, and apply current unresolved new-side suggestions to the local file through the existing file write plus Review refresh path. The focused Review smoke also tightened its content-search fixture to target deletion-only diff text instead of Markdown preview text, making the search gate directly prove diff-row activation.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, `node --test out-test/src/main/__tests__/gitChanges.test.js`, and elevated `node scripts/run-automated-ui-smoke.mjs --diff-source` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-source-1780018233948.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-source-1780018233948.png`. The focused smoke now gates `reviewProviderSuggestion=true` while keeping Review source modes, provider comments, line comments, blame, file jump, source loading, hidden context, and large-diff checks green.
+
+Remaining: this closes the local provider-suggestion copy/apply path only. Live PR creation, provider-hosted Git metadata, exact live Codex timing, and retiring Review's temporary local-git bridge remain separate PP-054 follow-ups.

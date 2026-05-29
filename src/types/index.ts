@@ -1242,6 +1242,7 @@ export interface ReviewProviderComment {
   source: 'github'
   path: string
   side: 'old' | 'new'
+  startLine?: number
   lineNumber: number
   body: string
   author?: string
