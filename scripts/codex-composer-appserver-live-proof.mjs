@@ -19,20 +19,32 @@ const model = process.env.CODEX_COMPOSER_PROOF_MODEL ?? 'gpt-5.4-mini'
 const effort = process.env.CODEX_COMPOSER_PROOF_EFFORT ?? 'low'
 const executionPolicy = process.env.CODEX_COMPOSER_PROOF_POLICY ?? 'default'
 const requireApproval = process.env.CODEX_COMPOSER_PROOF_REQUIRE_APPROVAL === '1'
+const requireUserInput = process.env.CODEX_COMPOSER_PROOF_REQUIRE_USER_INPUT === '1'
 const expectedToken = 'CODEX_COMPOSER_LIVE_OK'
-const proofFileName = requireApproval ? 'live-composer-approval-proof.txt' : 'live-composer-permission-proof.txt'
-const proofToken = requireApproval ? 'CODEX_COMPOSER_APPROVAL_OK' : 'CODEX_COMPOSER_PERMISSION_OK'
+const proofFileName = requireUserInput
+  ? 'live-composer-user-input-proof.txt'
+  : requireApproval
+    ? 'live-composer-approval-proof.txt'
+    : 'live-composer-permission-proof.txt'
+const proofToken = requireUserInput
+  ? 'CODEX_COMPOSER_USER_INPUT_OK'
+  : requireApproval
+    ? 'CODEX_COMPOSER_APPROVAL_OK'
+    : 'CODEX_COMPOSER_PERMISSION_OK'
 const proofFilePath = requireApproval ? join(artifactRoot, proofFileName) : join(workspaceDir, proofFileName)
 const workspaceSeedFileName = 'live-composer-permission-proof.txt'
 const commandText = requireApproval
   ? `printf '${proofToken}\\n' > ../${proofFileName}`
   : `printf '${proofToken}\\n' > ${proofFileName}`
 const prompt = process.env.CODEX_COMPOSER_PROOF_PROMPT ?? [
-  requireApproval
-    ? 'This is a live Orchestrator/Codex app-server approval-card proof in a disposable git workspace.'
-    : 'This is a live Orchestrator/Codex app-server Composer model and permission proof in a disposable git workspace.',
-  'Use command execution to run exactly this command:',
-  commandText,
+  requireUserInput
+    ? 'This is a live Orchestrator/Codex app-server user-input proof in a disposable git workspace.'
+    : requireApproval
+      ? 'This is a live Orchestrator/Codex app-server approval-card proof in a disposable git workspace.'
+      : 'This is a live Orchestrator/Codex app-server Composer model and permission proof in a disposable git workspace.',
+  requireUserInput
+    ? 'First use the native user-input request tool to ask exactly this question: Which proof token should I write? Use a single question id named proof-token if the tool allows ids. After the client answers, use command execution to write exactly the answer you received followed by a newline to live-composer-user-input-proof.txt in the current workspace.'
+    : `Use command execution to run exactly this command: ${commandText}`,
   'Do not edit any other file.',
   `After the command succeeds, reply with exactly ${expectedToken}.`
 ].join(' ')
@@ -73,6 +85,8 @@ const events = []
 const serverRequests = []
 const permissionRequests = []
 const permissionResponses = []
+const userInputRequests = []
+const userInputResponses = []
 const commandExecutions = []
 const turnIds = new Set()
 
@@ -140,7 +154,7 @@ try {
   if (turnStartResult?.turn?.id) turnIds.add(turnStartResult.turn.id)
 
   await waitForCompletion()
-  const fileText = readProofFile()
+  const fileText = safeReadProofFile()
   const gitDiff = requireApproval ? '' : runGit(['diff', '--', proofFileName])
   const assistantSawOk = assistantText.includes(expectedToken)
   const editApplied = fileText.includes(proofToken) && (requireApproval || gitDiff.includes(proofToken))
@@ -154,20 +168,33 @@ try {
     permissionResponses.length > 0 &&
     permissionRequests.some((request) => request.method === 'item/commandExecution/requestApproval')
   )
+  const userInputRoundTrip = !requireUserInput || (
+    userInputRequests.length > 0 &&
+    userInputResponses.length > 0 &&
+    userInputRequests.some((request) => request.method === 'item/tool/requestUserInput')
+  )
   const threadPolicyMatches = threadStartResult?.model === model &&
     threadStartResult?.approvalPolicy === policy.approvalPolicy &&
     threadStartResult?.approvalsReviewer === policy.approvalsReviewer &&
     sandboxMatches(threadStartResult?.sandbox, policy.sandboxMode) &&
     (effort ? threadStartResult?.reasoningEffort === effort : true)
+  const userInputUnavailable = requireUserInput &&
+    /request_user_input is unavailable/i.test(`${stderr}\n${assistantText}`)
 
-  if (editApplied && assistantSawOk && commandCompleted && threadPolicyMatches && approvalRoundTrip) {
-    finish(true, requireApproval
-      ? 'live Codex app-server requested command approval, accepted the client response, and completed the approved command'
-      : 'live Codex app-server accepted composer model/policy config and completed command execution under the managed permission profile')
+  if (editApplied && assistantSawOk && commandCompleted && threadPolicyMatches && approvalRoundTrip && userInputRoundTrip) {
+    finish(true, requireUserInput
+      ? 'live Codex app-server requested user input, accepted the client answer, and completed the answer-dependent command'
+      : requireApproval
+        ? 'live Codex app-server requested command approval, accepted the client response, and completed the approved command'
+        : 'live Codex app-server accepted composer model/policy config and completed command execution under the managed permission profile')
   } else if (!threadPolicyMatches) {
     finish(false, 'live Codex app-server thread/start response did not match the requested model/policy config')
   } else if (!approvalRoundTrip) {
     finish(false, 'live Codex app-server did not complete a command approval request/response round trip')
+  } else if (userInputUnavailable) {
+    finish(false, 'live Codex app-server reported request_user_input is unavailable in Default mode')
+  } else if (!userInputRoundTrip) {
+    finish(false, 'live Codex app-server did not complete a user-input request/response round trip')
   } else if (!commandCompleted) {
     finish(false, 'live Codex app-server completed without a completed commandExecution item for the proof command')
   } else if (!editApplied) {
@@ -286,6 +313,24 @@ function answerServerRequest(message, requestSummary) {
     send({ id: message.id, result: { action: 'decline', content: null, _meta: null } })
     return
   }
+  if (message.method === 'item/tool/requestUserInput') {
+    userInputRequests.push(requestSummary)
+    const questions = Array.isArray(message.params?.questions) ? message.params.questions : []
+    const answers = {}
+    for (const question of questions) {
+      const id = typeof question?.id === 'string' && question.id.length > 0
+        ? question.id
+        : typeof question?.question === 'string' && question.question.length > 0
+          ? question.question
+          : 'answer'
+      answers[id] = { answers: [proofToken] }
+    }
+    if (Object.keys(answers).length === 0) answers.answer = { answers: [proofToken] }
+    const result = { answers }
+    userInputResponses.push({ id: message.id, result })
+    send({ id: message.id, result })
+    return
+  }
   send({ id: message.id, error: { code: -32601, message: 'Orchestrator composer live proof does not implement this client request.' } })
 }
 
@@ -350,6 +395,7 @@ function writeArtifacts(result) {
     effort,
     executionPolicy,
     requireApproval,
+    requireUserInput,
     policy,
     prompt,
     threadId,
@@ -363,6 +409,8 @@ function writeArtifacts(result) {
     serverRequests,
     permissionRequests,
     permissionResponses,
+    userInputRequests,
+    userInputResponses,
     commandExecutions,
     eventTypes: [...new Set(events.map((event) => event.type))],
     events,
@@ -409,7 +457,9 @@ function finish(ok, reason) {
     effort: result.effort,
     executionPolicy: result.executionPolicy,
     requireApproval: result.requireApproval,
+    requireUserInput: result.requireUserInput,
     permissionRequestCount: result.permissionRequests.length,
+    userInputRequestCount: result.userInputRequests.length,
     commandExecutionCount: result.commandExecutions.length,
     methods: result.methods
   }
