@@ -170,6 +170,10 @@ export default function FileTabPanel({
     onFileTabStateChange(tabId, patch)
   }
 
+  const pinPreviewTabForPersistentWork = (): void => {
+    if (isPreview) onPin(tabId)
+  }
+
   const writeFileTabClipboardText = async (text: string): Promise<void> => {
     if (typeof window.api.clipboard?.writeText === 'function') {
       const didWrite = await window.api.clipboard.writeText(text)
@@ -340,6 +344,7 @@ export default function FileTabPanel({
 
   const addSourceAnnotation = (line: number | null): void => {
     if (line === null) return
+    pinPreviewTabForPersistentWork()
     const existing = sourceAnnotations.find((annotation) => annotation.line === line)
     if (existing) {
       updateFileTabState({

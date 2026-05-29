@@ -14840,6 +14840,7 @@ function runAutomatedFocusedSurfaceSmoke(
               let fileOpenTargetOutcomeDiagnosticWorks = false;
               let fileSourceAddToChatWorks = false;
               let fileSourceLineBlameWorks = false;
+              let fileSourceAnnotationPinsTabWorks = false;
               let filesSearchHistoryWorks = false;
               const fileActionMenuButton = findButton('File actions');
               if (fileActionMenuButton instanceof HTMLButtonElement) {
@@ -17428,6 +17429,8 @@ function runAutomatedFocusedSurfaceSmoke(
                 await sleep(160);
               }
               const sourceFileTabAfterAnnotation = document.querySelector('[data-testid="workbench-file-tab"]');
+              const sourceFileTabButtonAfterAnnotation = [...document.querySelectorAll('[role="tab"][data-tab-id^="file:"]')]
+                .find((button) => button instanceof HTMLElement && button.textContent?.includes('review-base.txt'));
               const sourcePreviewAfterAnnotation = document.querySelector('[data-testid="workbench-file-tab"] [data-testid="workspace-text-preview"]');
               const annotatedSourceLine = document.querySelector('[data-testid="workbench-file-tab"] [data-source-line-number="2"]');
               const annotationSlot = document.querySelector('[data-testid="workspace-source-line-annotation-slot"]');
@@ -17449,6 +17452,14 @@ function runAutomatedFocusedSurfaceSmoke(
                 annotationCard.getAttribute('data-source-annotation-status') === 'saved' &&
                 annotationBody instanceof HTMLElement &&
                 annotationBody.textContent?.includes('review note from smoke') === true;
+              fileSourceAnnotationPinsTabWorks =
+                fileSourceAnnotationsWorks &&
+                sourceFileTabAfterAnnotation instanceof HTMLElement &&
+                sourceFileTabAfterAnnotation.getAttribute('data-file-tab-preview') === 'false' &&
+                sourceFileTabButtonAfterAnnotation instanceof HTMLElement &&
+                sourceFileTabButtonAfterAnnotation.getAttribute('data-preview') === 'false' &&
+                sourceFileTabButtonAfterAnnotation.getAttribute('data-pinned') === 'true' &&
+                !findButton('Pin file tab');
               const sourceWrapToggle = document.querySelector('[data-testid="workbench-file-tab-wrap-source"]');
               const sourceWrapBefore = sourcePreview instanceof HTMLElement
                 ? sourcePreview.getAttribute('data-source-wrap') ?? ''
@@ -17767,6 +17778,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 fileSourceGutterBlameWorks,
                 fileSourceInlineGutterUtilitiesWorks,
                 fileSourceAnnotationsWorks,
+                fileSourceAnnotationPinsTabWorks,
                 fileSourceWrapToggleWorks,
                 fileSourceTabStateWorks,
                 fileSourceSearchWorks,

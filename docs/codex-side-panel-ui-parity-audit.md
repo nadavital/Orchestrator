@@ -9655,6 +9655,16 @@ Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.
 
 Remaining: this closes visible file-tab root identity only. Richer preview-mode/cwd semantics at non-tab call sites, optional custom editor targets, broader source-tab screenshot gates, and exact live Codex file-tab timing remain separate follow-ups.
 
+### 2026-05-29 - Source Annotation Pins Preview Tabs
+
+Product evidence: PP-048 tracks richer preview-mode semantics for file/source tabs. Source annotations are persistent work inside a file tab, but a preview tab could still be replaced by the next preview-file open after the user started an annotation. That made annotation work less durable than other first-class source-tab actions.
+
+Implemented: creating a source annotation now pins the file tab first when the current tab is still a preview tab. The existing annotation state path remains unchanged, but the tab moves from preview to pinned before the draft annotation is stored.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --files` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1780030998435.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1780030998435.png`. The focused Files smoke now gates `fileSourceAnnotationPinsTab=true` while preserving source annotations, source tab state, file-tab reset/pin, open-target diagnostics, blame, source search, and artifact preview gates.
+
+Remaining: this closes annotation-driven preview tab durability only. Other preview-mode semantics at non-tab call sites, optional custom editor target discovery, and provider-native file metadata remain separate PP-048 follow-ups.
+
 ### 2026-05-29 - Transcript File Reference Open Outcomes
 
 Product evidence: PP-048 also applies outside the Files panel. Assistant transcript file-reference cards resolved missing/existing paths and could call `fs.openPath`, but they threw away the structured target/method/opened-with result that file/source tabs already surfaced. That made chat-to-editor handoff less diagnosable than Workbench file tabs.
