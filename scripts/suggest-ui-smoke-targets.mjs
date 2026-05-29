@@ -56,6 +56,12 @@ const diffRules = [
     diffPatterns: [/tabMenu/, /context-menu/, /workbench-tab-context-menu/, /panel-tab-transfer/, /resolvePanelTabTransferAvailability/]
   },
   {
+    flag: '--right-panel',
+    label: 'Right Workbench shell',
+    filePatterns: [/^src\/renderer\/src\/App\.tsx$/, /^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
+    diffPatterns: [/closeActivePanelTab/, /restoreRightPanelToggleFocus/, /rightPanelLastTabShortcutFocusRestored/, /rightPanelClose[A-Z]/]
+  },
+  {
     flag: '--workbench-launcher',
     label: 'Workbench launcher',
     filePatterns: [/^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
@@ -167,6 +173,7 @@ function suggestTargets(paths) {
   suppressCoveredTarget(matched, '--settings', '--settings-providers')
   suppressCoveredTarget(matched, '--settings', '--pets')
   suppressCoveredTarget(matched, '--right-panel', '--workbench-launcher')
+  suppressHeaderForRightPanelCloseDiff(matched, paths)
   restoreDiffTargets(matched, paths)
 
   return { targets: Array.from(matched.values()), unmatched, broadReasons }
@@ -243,6 +250,16 @@ function suppressCoveredTarget(matched, broadFlag, focusedFlag) {
   if (!broad || !focused) return
   const focusedFiles = new Set(focused.files)
   if (broad.files.every((file) => focusedFiles.has(file))) matched.delete(broadFlag)
+}
+
+function suppressHeaderForRightPanelCloseDiff(matched, paths) {
+  const header = matched.get('--header')
+  const rightPanel = matched.get('--right-panel')
+  if (!header || !rightPanel) return
+  if (!header.files.every((file) => file === 'src/renderer/src/App.tsx')) return
+  const appDiff = paths.includes('src/renderer/src/App.tsx') ? diffForFile('src/renderer/src/App.tsx') : ''
+  if (!/closeActivePanelTab|restoreRightPanelToggleFocus/.test(appDiff)) return
+  matched.delete('--header')
 }
 
 function restoreDiffTargets(matched, paths) {

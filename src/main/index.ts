@@ -10072,6 +10072,7 @@ function runAutomatedFocusedSurfaceSmoke(
               let rightPanelMiddleClickCloseWorks = false;
               let rightPanelCloseFallbackFromMainWorks = false;
               let rightPanelLastTabCloseFocusRestoredWorks = false;
+              let rightPanelLastTabShortcutFocusRestoredWorks = false;
               let rightPanelTabPanelA11yWorks = false;
               let rightPanelTabListLabelWorks = false;
               let rightPanelTabRovingFocusWorks = false;
@@ -11230,6 +11231,40 @@ function runAutomatedFocusedSurfaceSmoke(
                     (rightPanel.getAttribute('data-right-panel-tabs') ?? '') === '';
                   await openPanelTab('files', 'Files');
                   await openPanelTab('browser', 'Browser');
+                  for (let attempt = 0; attempt < 10; attempt += 1) {
+                    const panelTabs = [...document.querySelectorAll('[data-testid="workbench-panel-tabbar"] [role="tab"]')]
+                      .filter((tab) => tab instanceof HTMLElement);
+                    if (panelTabs.length <= 1) break;
+                    const tabToClose = panelTabs.find((tab) => tab.getAttribute('data-active') !== 'true') ?? panelTabs[0];
+                    const closeButton = tabToClose?.querySelector('.motion-tab-close');
+                    if (!(closeButton instanceof HTMLButtonElement)) break;
+                    closeButton.click();
+                    await sleep(180);
+                  }
+                  const shortcutRemainingTabs = [...document.querySelectorAll('[data-testid="workbench-panel-tabbar"] [role="tab"]')]
+                    .filter((tab) => tab instanceof HTMLElement);
+                  const shortcutRemainingTab = shortcutRemainingTabs[0];
+                  if (shortcutRemainingTabs.length === 1 && shortcutRemainingTab instanceof HTMLElement) {
+                    shortcutRemainingTab.focus({ preventScroll: true });
+                    await sleep(80);
+                    shortcutRemainingTab.dispatchEvent(new KeyboardEvent('keydown', {
+                      key: 'w',
+                      code: 'KeyW',
+                      metaKey: true,
+                      bubbles: true,
+                      cancelable: true
+                    }));
+                    await sleep(260);
+                    const shortcutRestoredToggle = document.querySelector('[data-testid="titlebar-toggle-sidebar"]');
+                    rightPanelLastTabShortcutFocusRestoredWorks =
+                      shortcutRestoredToggle instanceof HTMLButtonElement &&
+                      document.activeElement === shortcutRestoredToggle &&
+                      shortcutRestoredToggle.getAttribute('aria-expanded') === 'false' &&
+                      rightPanel.getAttribute('data-right-panel-open') === 'false' &&
+                      (rightPanel.getAttribute('data-right-panel-tabs') ?? '') === '';
+                    await openPanelTab('files', 'Files');
+                    await openPanelTab('browser', 'Browser');
+                  }
                 }
               }
               const titlebarActions = document.querySelector('[data-testid="titlebar-actions"]');
@@ -11315,6 +11350,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 rightPanelMiddleClickCloseWorks,
                 rightPanelCloseFallbackFromMainWorks,
                 rightPanelLastTabCloseFocusRestoredWorks,
+                rightPanelLastTabShortcutFocusRestoredWorks,
                 rightPanelTabPanelA11yWorks,
                 rightPanelTabListLabelWorks,
                 rightPanelTabRovingFocusWorks,

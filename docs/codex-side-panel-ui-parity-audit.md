@@ -10094,3 +10094,13 @@ Implemented: the right Workbench tabstrip now shows Plan only when it is explici
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `pnpm run smoke:ui:suggest`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --workbench-launcher` passed. Workbench launcher evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-workbench-launcher-1780051493371.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-workbench-launcher-1780051493372.png`. The focused smoke now gates `workbenchLauncherPlanCloseReopen=true` without running the broad UI suite.
 
 Remaining: this closes the right Workbench Plan close/reopen lifecycle. Provider-native plan editing and broader cross-panel mixed-surface stress remain separate Phase 1 follow-ups.
+
+### 2026-05-29 - Right Workbench Shortcut Final-Close Focus
+
+Product evidence: the right Workbench already restored focus to the header side-panel toggle when the last tab was closed through the tab close button, but the global close-active-tab command used by Cmd+W-style shortcuts went through a separate app-level path. That left a keyboard-only final close with weaker focus restoration than the pointer close path, which is exactly the kind of shell lifecycle mismatch that makes daily coding use feel unreliable.
+
+Implemented: the app-level `closeActivePanelTab` path now detects when it is closing the final right Workbench tab and restores focus to `titlebar-toggle-sidebar` after the panel closes. The focused right-panel smoke now exercises both final-tab close paths: the tab close button and the keyboard/menu close-active-tab command.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `node -c scripts/suggest-ui-smoke-targets.mjs`, `pnpm run smoke:ui:suggest`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --right-panel` passed. Right-panel evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1780051960125.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1780051960125.png`. The focused smoke now gates `rightPanelLastTabShortcutFocusRestored=true`.
+
+Remaining: this closes the final-tab keyboard focus-restoration gap for the right Workbench. Whole-app keyboard traversal, exact live Codex focus timing, and broader tab-body keyboard paths remain separate Phase 1 work.
