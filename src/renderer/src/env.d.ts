@@ -252,6 +252,7 @@ declare global {
         listRecentCommits: (dir: string) => Promise<GitRefOption[]>
         stagePaths: (dir: string, paths: string[]) => Promise<GitPathActionResult>
         unstagePaths: (dir: string, paths: string[]) => Promise<GitPathActionResult>
+        discardPaths: (dir: string, paths: string[]) => Promise<GitPathActionResult>
         commitStaged: (dir: string, message: string) => Promise<GitCommitResult>
         blameLine: (dir: string, filePath: string, line: number) => Promise<GitLineBlameResult>
       }

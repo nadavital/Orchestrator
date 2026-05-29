@@ -2,7 +2,7 @@ import { type FormEvent, useEffect, useMemo, useState } from 'react'
 import { fileStatusLabel } from '../../types'
 import type { FileChange, GitRefOption } from '../../types'
 import Icon, { type IconName } from '../shared/Icon'
-import { Button, IconButton } from '../shared/designSystem'
+import { Button, DialogContent, DialogFooter, DialogHeader, IconButton, MotionOverlay } from '../shared/designSystem'
 
 interface Props {
   sessionId: string
@@ -11,7 +11,7 @@ interface Props {
   onOpenReview: () => void
 }
 
-type GitActionState = 'idle' | 'loading' | 'staging' | 'unstaging' | 'committing'
+type GitActionState = 'idle' | 'loading' | 'staging' | 'unstaging' | 'committing' | 'discarding'
 
 export default function GitPanel({ sessionId, workDir, embedded = false, onOpenReview }: Props): JSX.Element {
   const [changes, setChanges] = useState<FileChange[]>([])
@@ -20,6 +20,7 @@ export default function GitPanel({ sessionId, workDir, embedded = false, onOpenR
   const [actionMessage, setActionMessage] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
   const [commitMessage, setCommitMessage] = useState('')
   const [lastCommit, setLastCommit] = useState<string | null>(null)
+  const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false)
 
   const refresh = async (): Promise<void> => {
     setActionState((current) => current === 'idle' ? 'loading' : current)
@@ -54,6 +55,7 @@ export default function GitPanel({ sessionId, workDir, embedded = false, onOpenR
 
   const stagedPaths = useMemo(() => changes.filter((change) => change.staged).map((change) => change.path), [changes])
   const unstagedPaths = useMemo(() => changes.filter((change) => change.unstaged).map((change) => change.path), [changes])
+  const discardablePaths = useMemo(() => changes.map((change) => change.path), [changes])
   const totals = useMemo(() => changes.reduce((acc, change) => ({
     additions: acc.additions + change.additions,
     deletions: acc.deletions + change.deletions
@@ -108,6 +110,33 @@ export default function GitPanel({ sessionId, workDir, embedded = false, onOpenR
       }
     } catch (error) {
       setActionMessage({ text: error instanceof Error ? error.message : 'Commit failed', tone: 'danger' })
+    } finally {
+      setActionState('idle')
+    }
+  }
+
+  const requestDiscard = (): void => {
+    if (discardablePaths.length === 0 || busy) return
+    setDiscardConfirmOpen(true)
+  }
+
+  const runDiscard = async (): Promise<void> => {
+    if (discardablePaths.length === 0 || busy) return
+    const paths = discardablePaths
+    const countLabel = `${paths.length} ${paths.length === 1 ? 'file' : 'files'}`
+    setDiscardConfirmOpen(false)
+    setActionState('discarding')
+    setActionMessage({ text: `Discarding ${countLabel}`, tone: 'info' })
+    try {
+      const result = await window.api.git.discardPaths(workDir, paths)
+      setChanges(result.changedFiles)
+      if (result.ok) {
+        setActionMessage({ text: `Discarded ${countLabel}`, tone: 'info' })
+      } else {
+        setActionMessage({ text: result.error || `Discard failed for ${countLabel}`, tone: 'danger' })
+      }
+    } catch (error) {
+      setActionMessage({ text: error instanceof Error ? error.message : 'Discard failed', tone: 'danger' })
     } finally {
       setActionState('idle')
     }
@@ -205,6 +234,14 @@ export default function GitPanel({ sessionId, workDir, embedded = false, onOpenR
             <Button variant="ghost" dataTestId="git-open-review" onClick={onOpenReview}>
               Open Review
             </Button>
+            <Button
+              variant="danger"
+              dataTestId="git-discard-all"
+              disabled={busy || discardablePaths.length === 0}
+              onClick={requestDiscard}
+            >
+              Discard all
+            </Button>
           </div>
         </div>
 
@@ -263,6 +300,35 @@ export default function GitPanel({ sessionId, workDir, embedded = false, onOpenR
           ))}
         </div>
       </div>
+      {discardConfirmOpen && (
+        <MotionOverlay
+          onClose={() => setDiscardConfirmOpen(false)}
+          surfaceClassName="orchestrator-dialog-surface"
+        >
+          <DialogContent dataTestId="git-discard-confirm-dialog">
+            <DialogHeader
+              title="Discard changes?"
+              description={`This removes local changes in ${discardablePaths.length} ${discardablePaths.length === 1 ? 'file' : 'files'}.`}
+            />
+            <DialogFooter>
+              <Button
+                variant="ghost"
+                dataTestId="git-discard-confirm-cancel"
+                onClick={() => setDiscardConfirmOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="danger"
+                dataTestId="git-discard-confirm-submit"
+                onClick={() => { void runDiscard() }}
+              >
+                Discard
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </MotionOverlay>
+      )}
     </section>
   )
 }

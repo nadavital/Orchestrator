@@ -2435,6 +2435,7 @@ child.on('exit', async (code) => {
           workbenchNewTabAgentsAction: result.workbenchNewTabAgentsActionWorks === true,
           workbenchNewTabGitAction: result.workbenchNewTabGitActionWorks === true,
           workbenchNewTabGitCommit: result.workbenchNewTabGitCommitWorks === true,
+          workbenchNewTabGitDiscard: result.workbenchNewTabGitDiscardWorks === true,
           agentRuntimeEventDetail: result.agentRuntimeEventDetailWorks === true,
           agentRuntimeEventCopy: result.agentRuntimeEventCopyWorks === true,
           agentRuntimeEventAddToChat: result.agentRuntimeEventAddToChatWorks === true,

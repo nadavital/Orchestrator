@@ -8153,6 +8153,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   newTabCardIds.includes('terminal');
                 let workbenchNewTabGitActionWorks = false;
                 let workbenchNewTabGitCommitWorks = false;
+                let workbenchNewTabGitDiscardWorks = false;
                 const gitAction = document.querySelector('[data-testid="workbench-new-tab-action-git"]');
                 if (gitAction instanceof HTMLButtonElement) {
                   gitAction.click();
@@ -8178,6 +8179,31 @@ function runAutomatedFocusedSurfaceSmoke(
                   const gitChangeCountBefore = gitPanelBefore instanceof HTMLElement
                     ? Number(gitPanelBefore.getAttribute('data-git-change-count') ?? '0')
                     : 0;
+                  const gitDiscardBeforeStage = document.querySelector('[data-testid="git-discard-all"]');
+                  if (gitDiscardBeforeStage instanceof HTMLButtonElement && !gitDiscardBeforeStage.disabled) {
+                    gitDiscardBeforeStage.click();
+                    await sleep(120);
+                    const discardDialog = document.querySelector('[data-testid="git-discard-confirm-dialog"]');
+                    const discardCancel = document.querySelector('[data-testid="git-discard-confirm-cancel"]');
+                    const discardConfirm = document.querySelector('[data-testid="git-discard-confirm-submit"]');
+                    const gitDiscardDialogWorks =
+                      discardDialog instanceof HTMLElement &&
+                      discardDialog.textContent?.includes('Discard changes?') === true &&
+                      discardDialog.textContent?.includes('This removes local changes') === true &&
+                      discardCancel instanceof HTMLButtonElement &&
+                      discardConfirm instanceof HTMLButtonElement &&
+                      discardConfirm.textContent?.includes('Discard') === true;
+                    if (discardCancel instanceof HTMLButtonElement) {
+                      discardCancel.click();
+                      await sleep(120);
+                      const gitPanelAfterDiscardCancel = document.querySelector('[data-testid="git-panel"]');
+                      workbenchNewTabGitDiscardWorks =
+                        gitDiscardDialogWorks &&
+                        document.querySelector('[data-testid="git-discard-confirm-dialog"]') === null &&
+                        gitPanelAfterDiscardCancel instanceof HTMLElement &&
+                        Number(gitPanelAfterDiscardCancel.getAttribute('data-git-change-count') ?? '0') >= gitChangeCountBefore;
+                    }
+                  }
                   if (gitStageAll instanceof HTMLButtonElement && !gitStageAll.disabled) {
                     gitStageAll.click();
                     for (let attempt = 0; attempt < 20; attempt += 1) {
@@ -8297,6 +8323,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     gitAfterUnstageStagedCount === 0 &&
                     gitAfterUnstageUnstagedCount >= gitChangeCountBefore &&
                     workbenchNewTabGitCommitWorks &&
+                    workbenchNewTabGitDiscardWorks &&
                     gitStatus instanceof HTMLElement &&
                     gitStatus.getAttribute('role') === 'status' &&
                     gitStatus.textContent?.includes('Committed') === true;
@@ -8689,6 +8716,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   workbenchNewTabAgentsActionWorks,
                   workbenchNewTabGitActionWorks,
                   workbenchNewTabGitCommitWorks,
+                  workbenchNewTabGitDiscardWorks,
                   agentRuntimeEventDetailWorks,
                   agentRuntimeEventCopyWorks,
                   agentRuntimeEventAddToChatWorks,

@@ -292,6 +292,8 @@ const api = {
       ipcRenderer.invoke('git:stagePaths', dir, paths),
     unstagePaths: (dir: string, paths: string[]): Promise<GitPathActionResult> =>
       ipcRenderer.invoke('git:unstagePaths', dir, paths),
+    discardPaths: (dir: string, paths: string[]): Promise<GitPathActionResult> =>
+      ipcRenderer.invoke('git:discardPaths', dir, paths),
     commitStaged: (dir: string, message: string): Promise<GitCommitResult> =>
       ipcRenderer.invoke('git:commitStaged', dir, message),
     blameLine: (dir: string, filePath: string, line: number): Promise<GitLineBlameResult> =>

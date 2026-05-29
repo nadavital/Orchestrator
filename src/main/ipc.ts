@@ -3062,6 +3062,9 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('git:unstagePaths', (_, dir: string, paths: string[]): Promise<GitPathActionResult> =>
     gitManager.unstagePaths(dir, Array.isArray(paths) ? paths : [])
   )
+  ipcMain.handle('git:discardPaths', (_, dir: string, paths: string[]): Promise<GitPathActionResult> =>
+    gitManager.discardPaths(dir, Array.isArray(paths) ? paths : [])
+  )
   ipcMain.handle('git:commitStaged', (_, dir: string, message: string): Promise<GitCommitResult> =>
     gitManager.commitStaged(dir, typeof message === 'string' ? message : '')
   )

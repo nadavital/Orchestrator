@@ -9423,4 +9423,14 @@ Implemented: `git:commitStaged` now runs through main-process Git IPC with empty
 
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `node --test out-test/src/main/__tests__/gitChanges.test.js`, and elevated `node scripts/run-automated-ui-smoke.mjs --workbench-new-tab` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-workbench-new-tab-1780015734717.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-workbench-new-tab-1780015734717.png`. The focused smoke now gates `workbenchNewTabGitCommit=true` by opening Git from the right Workbench launcher, staging/unstaging fixture changes, staging again, typing a commit message, committing, and proving the fixture repo is clean afterward.
 
-Remaining: branch/PR creation, revert/discard confirmations, apply-suggestion flows, provider-hosted Git metadata, exact live Codex UI timing, and retiring Review's temporary local-git bridge once the Git tab fully owns local Git actions.
+Remaining: branch/PR creation, apply-suggestion flows, provider-hosted Git metadata, exact live Codex UI timing, and retiring Review's temporary local-git bridge once the Git tab fully owns local Git actions.
+
+### 2026-05-28 - Git Workbench Discard
+
+Product evidence: after stage/unstage/commit moved into the Git Workbench tab, destructive cleanup was still owned by Review's temporary local-git bridge. For day-to-day coding, the dedicated Git surface needs to own the confirmed discard flow so Review can remain focused on reading diffs and copy/apply review actions.
+
+Implemented: the Git tab now exposes `Discard all` as a danger action in the Workbench Git actions card. It opens a confirmation dialog before mutating files, calls new `git:discardPaths` IPC backed by the existing safe `gitManager.discardPaths`, refreshes changed-file state afterward, and keeps the Review bridge intact until the Git tab owns all remaining local Git actions.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, `node --test out-test/src/main/__tests__/gitChanges.test.js`, and elevated `node scripts/run-automated-ui-smoke.mjs --workbench-new-tab` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-workbench-new-tab-1780016316039.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-workbench-new-tab-1780016316039.png`. The focused smoke gates `workbenchNewTabGitDiscard=true` by opening the discard confirmation from the Git tab against a dirty fixture, verifying the destructive copy and cancel path, then continuing through stage/unstage/commit. The Git unit suite covers actual discard mutation for tracked, staged, and untracked files plus unsafe-path refusal.
+
+Remaining: branch/PR creation, apply-suggestion flows, provider-hosted Git metadata, exact live Codex UI timing, and retiring Review's temporary local-git bridge once the Git tab fully owns local Git actions.
