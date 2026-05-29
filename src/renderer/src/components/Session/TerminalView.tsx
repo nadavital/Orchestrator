@@ -13,6 +13,7 @@ interface Props {
   onOpenUrl?: (url: string) => void
   onOutputChange?: (terminalId: string, output: string) => void
   onCommandSubmitted?: (terminalId: string, command: string, outputOffset: number) => void
+  onSelectionChange?: (terminalId: string, selection: string) => void
 }
 
 interface TerminalAppearance {
@@ -33,7 +34,7 @@ export default function TerminalView(props: Props): JSX.Element {
   )
 }
 
-function TerminalSurface({ terminalId, workDir, onNewTab, onOpenUrl, onOutputChange, onCommandSubmitted }: Props): JSX.Element {
+function TerminalSurface({ terminalId, workDir, onNewTab, onOpenUrl, onOutputChange, onCommandSubmitted, onSelectionChange }: Props): JSX.Element {
   const surfaceRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
@@ -181,17 +182,38 @@ function TerminalSurface({ terminalId, workDir, onNewTab, onOpenUrl, onOutputCha
       window.api.terminal.write(terminalId, data)
     })
 
+    const selectionDisposable = term.onSelectionChange(() => {
+      onSelectionChange?.(terminalId, term.getSelection())
+    })
+
+    const globals = window as typeof window & {
+      __orchestratorSelectTerminalOutputForSmokeById?: Record<string, () => void>
+    }
+    const selectTerminalOutputForSmoke = (): void => {
+      term.selectAll()
+      onSelectionChange?.(terminalId, term.getSelection())
+    }
+    globals.__orchestratorSelectTerminalOutputForSmokeById = {
+      ...(globals.__orchestratorSelectTerminalOutputForSmokeById ?? {}),
+      [terminalId]: selectTerminalOutputForSmoke
+    }
+
     return () => {
       observer.disconnect()
       unsub()
       unsubExit()
       unsubError()
+      selectionDisposable.dispose()
       term.dispose()
       termRef.current = null
       fitRef.current = null
+      onSelectionChange?.(terminalId, '')
+      if (globals.__orchestratorSelectTerminalOutputForSmokeById?.[terminalId] === selectTerminalOutputForSmoke) {
+        delete globals.__orchestratorSelectTerminalOutputForSmokeById[terminalId]
+      }
       // shell persists — call kill() explicitly via tab close or session removal
     }
-  }, [onOpenUrl, openTerminalUrl, terminalId, workDir, reloadKey, trackTerminalInput])
+  }, [onOpenUrl, onSelectionChange, openTerminalUrl, terminalId, workDir, reloadKey, trackTerminalInput])
 
   useEffect(() => {
     let disposed = false

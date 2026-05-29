@@ -47,6 +47,7 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
   const [terminalMenu, setTerminalMenu] = useState<{ tabId: BottomPanelTabId; x: number; y: number } | null>(null)
   const [terminalActionStatus, setTerminalActionStatus] = useState<TerminalActionStatus | null>(null)
   const [terminalOutputs, setTerminalOutputs] = useState<Record<string, string>>({})
+  const [terminalSelections, setTerminalSelections] = useState<Record<string, string>>({})
   const [terminalCommandStates, setTerminalCommandStates] = useState<Record<string, TerminalCommandState>>({})
   const terminalActionStatusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const terminalPanel = ui.terminalPanel ?? { height: DEFAULT_TERMINAL_HEIGHT, tabs: [0], activeTabId: 0, nextTabId: 1 }
@@ -85,6 +86,7 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
   const activeTabKind = bottomPanelTabKind(activeTab)
   const activeTerminalId = typeof activeTab === 'number' ? terminalId(activeTab) : null
   const activeTerminalOutput = activeTerminalId ? terminalOutputs[activeTerminalId] ?? '' : ''
+  const activeTerminalSelection = activeTerminalId ? terminalSelections[activeTerminalId] ?? '' : ''
   const activeCommandState = activeTerminalId ? terminalCommandStates[activeTerminalId] : undefined
   const activeCommandOutput = activeCommandState
     ? activeTerminalOutput.slice(Math.max(0, Math.min(activeCommandState.outputOffset, activeTerminalOutput.length))).trim()
@@ -147,6 +149,10 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
     setTerminalOutputs((current) => current[id] === output ? current : { ...current, [id]: output })
   }, [])
 
+  const handleTerminalSelectionChange = useCallback((id: string, selection: string): void => {
+    setTerminalSelections((current) => current[id] === selection ? current : { ...current, [id]: selection })
+  }, [])
+
   const handleTerminalCommandSubmitted = useCallback((id: string, command: string, outputOffset: number): void => {
     setTerminalCommandStates((current) => ({ ...current, [id]: { command, outputOffset } }))
   }, [])
@@ -197,6 +203,32 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
     }))
     setPanelActionStatus({ text: 'Terminal output added to chat', tone: 'info' })
   }, [activeTabKind, activeTerminalId, activeTerminalOutput, session.workDir, setPanelActionStatus])
+
+  const addActiveTerminalSelectionToChat = useCallback((): void => {
+    if (activeTabKind !== 'terminal') {
+      setPanelActionStatus({ text: 'No active terminal selection to add', tone: 'danger' })
+      return
+    }
+    const selection = activeTerminalSelection.trim()
+    if (!selection) {
+      setPanelActionStatus({ text: 'Terminal selection is empty', tone: 'danger' })
+      return
+    }
+    const clippedSelection = selection.split('\n').slice(-80).join('\n').slice(-8_000)
+    const lines = [
+      'Review this selected terminal output:',
+      `Working dir: ${session.workDir}`,
+      activeTerminalId ? `Terminal: ${activeTerminalId}` : '',
+      '',
+      '```text',
+      clippedSelection,
+      '```'
+    ].filter(Boolean)
+    window.dispatchEvent(new CustomEvent('orchestrator:add-composer-text', {
+      detail: { text: lines.join('\n') }
+    }))
+    setPanelActionStatus({ text: 'Selected terminal output added to chat', tone: 'info' })
+  }, [activeTabKind, activeTerminalId, activeTerminalSelection, session.workDir, setPanelActionStatus])
 
   const addActiveTerminalCommandOutputToChat = useCallback((): void => {
     if (activeTabKind !== 'terminal') {
@@ -337,6 +369,7 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
             data-bottom-panel-active-terminal-id={activeTerminalId ?? ''}
             data-terminal-last-command={activeCommandState?.command ?? ''}
             data-terminal-latest-command-output-lines={activeCommandOutput ? activeCommandOutput.split('\n').length : 0}
+            data-terminal-selected-output-lines={activeTerminalSelection.trim() ? activeTerminalSelection.trim().split('\n').length : 0}
             data-terminal-action-status={terminalActionStatus?.text ?? ''}
             data-terminal-action-status-tone={terminalActionStatus?.tone ?? ''}
           >
@@ -387,6 +420,15 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
                     disabled={activeTabKind !== 'terminal' || !activeTerminalOutput.trim()}
                     dataTestId="terminal-add-output-to-chat"
                     onClick={addActiveTerminalOutputToChat}
+                  />
+                  <ToolbarButton
+                    icon="copy"
+                    label="Add selected terminal output to chat"
+                    size="sm"
+                    variant="toolbar"
+                    disabled={activeTabKind !== 'terminal' || !activeTerminalSelection.trim()}
+                    dataTestId="terminal-add-selected-output-to-chat"
+                    onClick={addActiveTerminalSelectionToChat}
                   />
                   <ToolbarButton
                     icon="terminal"
@@ -504,6 +546,7 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
                 onNewTab={addTab}
                 onOpenUrl={openTerminalUrl}
                 onOutputChange={handleTerminalOutputChange}
+                onSelectionChange={handleTerminalSelectionChange}
                 onCommandSubmitted={handleTerminalCommandSubmitted}
               />
             ) : (

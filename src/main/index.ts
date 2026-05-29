@@ -3301,6 +3301,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             var terminalFailureStateA11yWorks = false;
             var terminalClipboardStatusWorks = false;
             var terminalOutputAddToChatWorks = false;
+            var terminalSelectedOutputAddToChatWorks = false;
             var terminalCommandOutputAddToChatWorks = false;
             var terminalClearActionStatusWorks = false;
             var terminalFullscreenCleanupWorks = false;
@@ -3316,6 +3317,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             var terminalRightPanelNewTabShortcutWorks = false;
             var terminalRightPanelCloseShortcutWorks = false;
             var terminalRightPanelOutputAddToChatWorks = false;
+            var terminalRightPanelSelectedOutputAddToChatWorks = false;
             var terminalRightPanelCommandOutputAddToChatWorks = false;
             var terminalMoveBackToBottomWorks = false;
             var terminalBottomPanelLabelsWorks = false;
@@ -3613,18 +3615,56 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 const composer = document.querySelector('[data-testid="composer-textarea"]');
                 const terminalOutputStatusHost = document.querySelector('[data-testid="session-bottom-panel"]');
                 const terminalOutputStatus = document.querySelector('[data-testid="terminal-panel-action-status"]');
-                terminalOutputAddToChatWorks =
-                  composer instanceof HTMLTextAreaElement &&
-                  composer.value.includes('Review this terminal output:') &&
-                  composer.value.includes('Working dir:') &&
-                  composer.value.includes(String.fromCharCode(96).repeat(3) + 'text') &&
+                  terminalOutputAddToChatWorks =
+                    composer instanceof HTMLTextAreaElement &&
+                    composer.value.includes('Review this terminal output:') &&
+                    composer.value.includes('Working dir:') &&
+                    composer.value.includes(String.fromCharCode(96).repeat(3) + 'text') &&
                   terminalOutputStatusHost instanceof HTMLElement &&
                   terminalOutputStatusHost.getAttribute('data-terminal-action-status') === 'Terminal output added to chat' &&
                   terminalOutputStatus instanceof HTMLElement &&
                   terminalOutputStatus.textContent?.includes('Terminal output added to chat') === true &&
                   terminalOutputStatus.getAttribute('role') === 'status' &&
-                  terminalOutputStatus.getAttribute('aria-live') === 'polite' &&
-                  terminalOutputButton.getAttribute('aria-label') === 'Add terminal output to chat';
+                    terminalOutputStatus.getAttribute('aria-live') === 'polite' &&
+                    terminalOutputButton.getAttribute('aria-label') === 'Add terminal output to chat';
+              }
+              const selectTerminalOutputForSmoke = visibleTerminalId.length > 0
+                ? window.__orchestratorSelectTerminalOutputForSmokeById?.[visibleTerminalId]
+                : null;
+              if (typeof selectTerminalOutputForSmoke === 'function') {
+                selectTerminalOutputForSmoke();
+                for (let index = 0; index < 16; index += 1) {
+                  const terminalSelectionButton = document.querySelector('[data-testid="terminal-add-selected-output-to-chat"]');
+                  const terminalSelectionHost = document.querySelector('[data-testid="session-bottom-panel"]');
+                  if (
+                    terminalSelectionButton instanceof HTMLButtonElement &&
+                    !terminalSelectionButton.disabled &&
+                    Number(terminalSelectionHost?.getAttribute('data-terminal-selected-output-lines') ?? '0') > 0
+                  ) {
+                    break;
+                  }
+                  await sleep(80);
+                }
+                const terminalSelectionButton = document.querySelector('[data-testid="terminal-add-selected-output-to-chat"]');
+                if (terminalSelectionButton instanceof HTMLButtonElement && !terminalSelectionButton.disabled) {
+                  terminalSelectionButton.click();
+                  await sleep(160);
+                  const composerAfterSelection = document.querySelector('[data-testid="composer-textarea"]');
+                  const terminalSelectionStatusHost = document.querySelector('[data-testid="session-bottom-panel"]');
+                  const terminalSelectionStatus = document.querySelector('[data-testid="terminal-panel-action-status"]');
+                  terminalSelectedOutputAddToChatWorks =
+                    composerAfterSelection instanceof HTMLTextAreaElement &&
+                    composerAfterSelection.value.includes('Review this selected terminal output:') &&
+                    composerAfterSelection.value.includes('Working dir:') &&
+                    composerAfterSelection.value.includes(String.fromCharCode(96).repeat(3) + 'text') &&
+                    terminalSelectionStatusHost instanceof HTMLElement &&
+                    terminalSelectionStatusHost.getAttribute('data-terminal-action-status') === 'Selected terminal output added to chat' &&
+                    terminalSelectionStatus instanceof HTMLElement &&
+                    terminalSelectionStatus.textContent?.includes('Selected terminal output added to chat') === true &&
+                    terminalSelectionStatus.getAttribute('role') === 'status' &&
+                    terminalSelectionStatus.getAttribute('aria-live') === 'polite' &&
+                    terminalSelectionButton.getAttribute('aria-label') === 'Add selected terminal output to chat';
+                }
               }
               const activeTerminalIdForCommand =
                 document.querySelector('[data-testid="session-bottom-panel"]')?.getAttribute('data-bottom-panel-active-terminal-id') ??
@@ -4050,6 +4090,41 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                       rightTerminalStatusHost instanceof HTMLElement &&
                       rightTerminalStatusHost.getAttribute('data-right-panel-terminal-action-status') === 'Terminal output added to chat' &&
                       rightTerminalOutputButton.getAttribute('aria-label') === 'Add terminal output to chat';
+                  }
+                  const selectRightTerminalOutputForSmoke = window.__orchestratorSelectTerminalOutputForSmokeById?.[activeRightTerminalIdForCommand];
+                  if (typeof selectRightTerminalOutputForSmoke === 'function') {
+                    selectRightTerminalOutputForSmoke();
+                    for (let index = 0; index < 16; index += 1) {
+                      const rightTerminalSelectionButton = document.querySelector('[data-testid="right-terminal-add-selected-output-to-chat"]');
+                      const rightTerminalHost = document.querySelector('[data-testid="session-right-panel"]');
+                      if (
+                        rightTerminalSelectionButton instanceof HTMLButtonElement &&
+                        !rightTerminalSelectionButton.disabled &&
+                        Number(rightTerminalHost?.getAttribute('data-right-panel-terminal-selected-output-lines') ?? '0') > 0
+                      ) {
+                        break;
+                      }
+                      await sleep(80);
+                    }
+                    const rightTerminalSelectionButton = document.querySelector('[data-testid="right-terminal-add-selected-output-to-chat"]');
+                    if (rightTerminalSelectionButton instanceof HTMLButtonElement && !rightTerminalSelectionButton.disabled) {
+                      rightTerminalSelectionButton.click();
+                      await sleep(160);
+                      const composerAfterRightSelection = document.querySelector('[data-testid="composer-textarea"]');
+                      const rightTerminalStatusHost = document.querySelector('[data-testid="session-right-panel"]');
+                      const rightTerminalStatus = document.querySelector('[data-testid="right-terminal-action-status"]');
+                      terminalRightPanelSelectedOutputAddToChatWorks =
+                        composerAfterRightSelection instanceof HTMLTextAreaElement &&
+                        composerAfterRightSelection.value.includes('Review this selected terminal output:') &&
+                        composerAfterRightSelection.value.includes('RIGHT_PANEL_COMMAND_SMOKE') &&
+                        rightTerminalStatusHost instanceof HTMLElement &&
+                        rightTerminalStatusHost.getAttribute('data-right-panel-terminal-action-status') === 'Selected terminal output added to chat' &&
+                        rightTerminalStatus instanceof HTMLElement &&
+                        rightTerminalStatus.textContent?.includes('Selected terminal output added to chat') === true &&
+                        rightTerminalStatus.getAttribute('role') === 'status' &&
+                        rightTerminalStatus.getAttribute('aria-live') === 'polite' &&
+                        rightTerminalSelectionButton.getAttribute('aria-label') === 'Add selected terminal output to chat';
+                    }
                   }
                   const rightTerminalCommandButton = document.querySelector('[data-testid="right-terminal-add-command-output-to-chat"]');
                   if (rightTerminalCommandButton instanceof HTMLButtonElement && !rightTerminalCommandButton.disabled) {
@@ -8411,6 +8486,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             terminalFailureStateA11yWorks: typeof terminalFailureStateA11yWorks === 'boolean' ? terminalFailureStateA11yWorks : null,
             terminalClipboardStatusWorks: typeof terminalClipboardStatusWorks === 'boolean' ? terminalClipboardStatusWorks : null,
             terminalOutputAddToChatWorks: typeof terminalOutputAddToChatWorks === 'boolean' ? terminalOutputAddToChatWorks : null,
+            terminalSelectedOutputAddToChatWorks: typeof terminalSelectedOutputAddToChatWorks === 'boolean' ? terminalSelectedOutputAddToChatWorks : null,
             terminalCommandOutputAddToChatWorks: typeof terminalCommandOutputAddToChatWorks === 'boolean' ? terminalCommandOutputAddToChatWorks : null,
             terminalClearActionStatusWorks: typeof terminalClearActionStatusWorks === 'boolean' ? terminalClearActionStatusWorks : null,
             terminalTabActionStatusWorks: typeof terminalTabActionStatusWorks === 'boolean' ? terminalTabActionStatusWorks : null,
@@ -8424,6 +8500,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             terminalRightPanelNewTabShortcutWorks: typeof terminalRightPanelNewTabShortcutWorks === 'boolean' ? terminalRightPanelNewTabShortcutWorks : null,
             terminalRightPanelCloseShortcutWorks: typeof terminalRightPanelCloseShortcutWorks === 'boolean' ? terminalRightPanelCloseShortcutWorks : null,
             terminalRightPanelOutputAddToChatWorks: typeof terminalRightPanelOutputAddToChatWorks === 'boolean' ? terminalRightPanelOutputAddToChatWorks : null,
+            terminalRightPanelSelectedOutputAddToChatWorks: typeof terminalRightPanelSelectedOutputAddToChatWorks === 'boolean' ? terminalRightPanelSelectedOutputAddToChatWorks : null,
             terminalRightPanelCommandOutputAddToChatWorks: typeof terminalRightPanelCommandOutputAddToChatWorks === 'boolean' ? terminalRightPanelCommandOutputAddToChatWorks : null,
             terminalMoveBackToBottomWorks: typeof terminalMoveBackToBottomWorks === 'boolean' ? terminalMoveBackToBottomWorks : null,
             terminalBottomPanelLabelsWorks: typeof terminalBottomPanelLabelsWorks === 'boolean' ? terminalBottomPanelLabelsWorks : null,

@@ -125,7 +125,7 @@ const diffRules = [
     flag: '--terminal',
     label: 'Terminal',
     filePatterns: [/^src\/renderer\/src\/components\/Session\/ContextSidebar\.tsx$/, /^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
-    diffPatterns: [/right-terminal/, /effectiveTerminal/, /terminalRightPanel.*AddToChat/, /Terminal command output/]
+    diffPatterns: [/right-terminal/, /effectiveTerminal/, /terminalRightPanel.*AddToChat/, /Terminal command output/, /selected terminal output/i]
   },
   {
     flag: '--right-panel',
@@ -409,7 +409,7 @@ function suppressRightPanelForContextSidebarTerminalDiff(matched, paths) {
   const diff = paths.includes('src/renderer/src/components/Session/ContextSidebar.tsx')
     ? diffForFile('src/renderer/src/components/Session/ContextSidebar.tsx')
     : ''
-  if (!/right-terminal|effectiveTerminal|Terminal command output/.test(diff)) return
+  if (!/right-terminal|effectiveTerminal|Terminal command output|selected terminal output/i.test(diff)) return
   matched.delete('--right-panel')
 }
 
@@ -421,7 +421,7 @@ function suppressWorkbenchLauncherForContextSidebarTerminalDiff(matched, paths) 
   const diff = paths.includes('src/renderer/src/components/Session/ContextSidebar.tsx')
     ? diffForFile('src/renderer/src/components/Session/ContextSidebar.tsx')
     : ''
-  if (!/right-terminal|effectiveTerminal|Terminal command output/.test(diff)) return
+  if (!/right-terminal|effectiveTerminal|Terminal command output|selected terminal output/i.test(diff)) return
   matched.delete('--workbench-launcher')
 }
 
@@ -532,7 +532,7 @@ function suppressComposerForTerminalHandoffDiff(matched, paths) {
   if (!composer || !terminal) return
   if (!composer.files.every((file) => file === 'src/main/index.ts')) return
   const diff = paths.includes('src/main/index.ts') ? diffForFile('src/main/index.ts') : ''
-  if (!/terminalOutputAddToChat|terminalCommandOutputAddToChat|terminal-add-output-to-chat|terminal-add-command-output-to-chat|Terminal output|terminal command output|Latest command output/.test(diff)) return
+  if (!/terminalOutputAddToChat|terminalSelectedOutputAddToChat|terminalCommandOutputAddToChat|terminal-add-output-to-chat|terminal-add-selected-output-to-chat|terminal-add-command-output-to-chat|Terminal output|selected terminal output|terminal command output|Latest command output/i.test(diff)) return
   matched.delete('--composer')
 }
 

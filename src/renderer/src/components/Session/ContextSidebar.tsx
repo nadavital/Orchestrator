@@ -93,6 +93,7 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
   } = useSessionStore()
   const [tabMenu, setTabMenu] = useState<{ tabId: ContextTab; x: number; y: number } | null>(null)
   const [terminalOutputs, setTerminalOutputs] = useState<Record<string, string>>({})
+  const [terminalSelections, setTerminalSelections] = useState<Record<string, string>>({})
   const [terminalCommandStates, setTerminalCommandStates] = useState<Record<string, TerminalCommandState>>({})
   const [terminalActionStatus, setTerminalActionStatus] = useState<TerminalActionStatus | null>(null)
   const terminalActionStatusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -211,6 +212,7 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
   const effectiveTerminalTabId = terminalTabIdFromTabId(effectiveTab ?? 'plan')
   const effectiveTerminalId = effectiveTerminalTabId !== null ? `${session.id}-${effectiveTerminalTabId}` : null
   const effectiveTerminalOutput = effectiveTerminalId ? terminalOutputs[effectiveTerminalId] ?? '' : ''
+  const effectiveTerminalSelection = effectiveTerminalId ? terminalSelections[effectiveTerminalId] ?? '' : ''
   const effectiveTerminalCommandState = effectiveTerminalId ? terminalCommandStates[effectiveTerminalId] : undefined
   const effectiveTerminalCommandOutput = effectiveTerminalCommandState
     ? effectiveTerminalOutput.slice(Math.max(0, Math.min(effectiveTerminalCommandState.outputOffset, effectiveTerminalOutput.length))).trim()
@@ -231,6 +233,10 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
 
   const handleTerminalOutputChange = useCallback((id: string, output: string): void => {
     setTerminalOutputs((current) => current[id] === output ? current : { ...current, [id]: output })
+  }, [])
+
+  const handleTerminalSelectionChange = useCallback((id: string, selection: string): void => {
+    setTerminalSelections((current) => current[id] === selection ? current : { ...current, [id]: selection })
   }, [])
 
   const handleTerminalCommandSubmitted = useCallback((id: string, command: string, outputOffset: number): void => {
@@ -283,6 +289,32 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
     }))
     setRightTerminalActionStatus({ text: 'Terminal output added to chat', tone: 'info' })
   }, [effectiveTerminalId, effectiveTerminalOutput, session.workDir, setRightTerminalActionStatus])
+
+  const addRightTerminalSelectionToChat = useCallback((): void => {
+    if (!effectiveTerminalId) {
+      setRightTerminalActionStatus({ text: 'No active terminal selection to add', tone: 'danger' })
+      return
+    }
+    const selection = effectiveTerminalSelection.trim()
+    if (!selection) {
+      setRightTerminalActionStatus({ text: 'Terminal selection is empty', tone: 'danger' })
+      return
+    }
+    const clippedSelection = selection.split('\n').slice(-80).join('\n').slice(-8_000)
+    const lines = [
+      'Review this selected terminal output:',
+      `Working dir: ${session.workDir}`,
+      `Terminal: ${effectiveTerminalId}`,
+      '',
+      '```text',
+      clippedSelection,
+      '```'
+    ]
+    window.dispatchEvent(new CustomEvent('orchestrator:add-composer-text', {
+      detail: { text: lines.join('\n') }
+    }))
+    setRightTerminalActionStatus({ text: 'Selected terminal output added to chat', tone: 'info' })
+  }, [effectiveTerminalId, effectiveTerminalSelection, session.workDir, setRightTerminalActionStatus])
 
   const addRightTerminalCommandOutputToChat = useCallback((): void => {
     if (!effectiveTerminalId) {
@@ -594,6 +626,7 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
         data-right-panel-active-terminal-id={effectiveTerminalId ?? ''}
         data-right-panel-terminal-last-command={effectiveTerminalCommandState?.command ?? ''}
         data-right-panel-terminal-latest-command-output-lines={effectiveTerminalCommandOutput ? effectiveTerminalCommandOutput.split('\n').length : 0}
+        data-right-panel-terminal-selected-output-lines={effectiveTerminalSelection.trim() ? effectiveTerminalSelection.trim().split('\n').length : 0}
         data-right-panel-terminal-action-status={terminalActionStatus?.text ?? ''}
         data-right-panel-terminal-action-status-tone={terminalActionStatus?.tone ?? ''}
       >
@@ -650,6 +683,15 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
                   disabled={!effectiveTerminalOutput.trim()}
                   dataTestId="right-terminal-add-output-to-chat"
                   onClick={addRightTerminalOutputToChat}
+                />
+                <ToolbarButton
+                  icon="copy"
+                  label="Add selected terminal output to chat"
+                  size="sm"
+                  variant="toolbar"
+                  disabled={!effectiveTerminalSelection.trim()}
+                  dataTestId="right-terminal-add-selected-output-to-chat"
+                  onClick={addRightTerminalSelectionToChat}
                 />
                 <ToolbarButton
                   icon="terminal"
@@ -768,6 +810,7 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
             workDir={session.workDir}
             onOpenUrl={openTerminalUrl}
             onOutputChange={handleTerminalOutputChange}
+            onSelectionChange={handleTerminalSelectionChange}
             onCommandSubmitted={handleTerminalCommandSubmitted}
             onNewTab={() => {
               const newTabId = addTerminalTab(session.id)
