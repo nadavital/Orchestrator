@@ -2537,6 +2537,7 @@ child.on('exit', async (code) => {
           environmentCommitOpensGit: result.environmentCommitOpensGitWorks === true,
           environmentSources: result.environmentSourcesWork === true,
           environmentAddToChat: result.environmentAddToChatWorks === true,
+          environmentWorkspacePathActions: result.environmentWorkspacePathActionsWork === true,
           environmentSourceBoundary: result.environmentSourceBoundaryWorks === true,
           environmentDisabledRowsA11y: result.environmentDisabledRowsA11yWorks === true,
           environmentCreatePrOpensGit: result.environmentCreatePrOpensGitWorks === true,

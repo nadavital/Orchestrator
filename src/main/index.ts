@@ -10895,6 +10895,8 @@ function runAutomatedFocusedSurfaceSmoke(
                 const environmentCreatePrRow = document.querySelector('[data-testid="codex-environment-create-pr"]');
                 const environmentAddToChatButton = document.querySelector('[data-testid="codex-environment-add-to-chat"]');
                 const environmentSettingsButton = document.querySelector('[data-testid="codex-environment-settings"]');
+                const environmentCopyWorkspacePathButton = document.querySelector('[data-testid="codex-environment-copy-workspace-path"]');
+                const environmentInsertWorkspaceTerminalButton = document.querySelector('[data-testid="codex-environment-insert-workspace-terminal"]');
                 const environmentSourcesCard = document.querySelector('[data-testid="codex-environment-sources-card"]');
                 const environmentWebSearchRow = document.querySelector('[data-testid="codex-environment-web-search"]');
                 const environmentRect = environmentPanel instanceof HTMLElement ? environmentPanel.getBoundingClientRect() : null;
@@ -10922,6 +10924,61 @@ function runAutomatedFocusedSurfaceSmoke(
                     environmentActionStatus.getAttribute('aria-atomic') === 'true' &&
                     environmentActionStatus.textContent?.includes('Environment context added to chat') === true;
                 }
+                let environmentWorkspacePathActionsWork = false;
+                if (environmentCopyWorkspacePathButton instanceof HTMLButtonElement) {
+                  environmentCopyWorkspacePathButton.click();
+                  for (let attempt = 0; attempt < 12; attempt += 1) {
+                    const status = document.querySelector('[data-testid="codex-environment-action-status"]');
+                    if (
+                      status instanceof HTMLElement &&
+                      status.textContent?.includes('Workspace path copied') === true &&
+                      window.__orchestratorLastEnvironmentCopiedPathForSmoke?.includes('orchestrator-automated-ui-workspace') === true
+                    ) {
+                      break;
+                    }
+                    await sleep(100);
+                  }
+                }
+                if (environmentInsertWorkspaceTerminalButton instanceof HTMLButtonElement) {
+                  environmentInsertWorkspaceTerminalButton.click();
+                  for (let attempt = 0; attempt < 20; attempt += 1) {
+                    const status = document.querySelector('[data-testid="codex-environment-action-status"]');
+                    const terminalId = window.__orchestratorLastEnvironmentTerminalIdForSmoke ?? '';
+                    const terminalPath = window.__orchestratorLastEnvironmentTerminalPathForSmoke ?? '';
+                    const bottomPanel = document.querySelector('[data-testid="session-bottom-panel"]');
+                    if (
+                      status instanceof HTMLElement &&
+                      status.textContent?.includes('Workspace path inserted in terminal') === true &&
+                      terminalPath.includes('orchestrator-automated-ui-workspace') &&
+                      bottomPanel instanceof HTMLElement &&
+                      bottomPanel.getAttribute('data-bottom-panel-active-terminal-id') === terminalId
+                    ) {
+                      break;
+                    }
+                    await sleep(100);
+                  }
+                }
+                const environmentWorkspaceStatus = document.querySelector('[data-testid="codex-environment-action-status"]');
+                const environmentTerminalId = window.__orchestratorLastEnvironmentTerminalIdForSmoke ?? '';
+                const environmentTerminalPath = window.__orchestratorLastEnvironmentTerminalPathForSmoke ?? '';
+                const environmentCopiedPath = window.__orchestratorLastEnvironmentCopiedPathForSmoke ?? '';
+                const bottomPanelAfterEnvironmentTerminal = document.querySelector('[data-testid="session-bottom-panel"]');
+                environmentWorkspacePathActionsWork =
+                  environmentCopyWorkspacePathButton instanceof HTMLButtonElement &&
+                  environmentCopyWorkspacePathButton.getAttribute('aria-label') === 'Copy workspace path' &&
+                  environmentInsertWorkspaceTerminalButton instanceof HTMLButtonElement &&
+                  environmentInsertWorkspaceTerminalButton.getAttribute('aria-label') === 'Insert workspace path in terminal' &&
+                  environmentCopiedPath.includes('orchestrator-automated-ui-workspace') &&
+                  environmentTerminalPath.includes('orchestrator-automated-ui-workspace') &&
+                  environmentWorkspaceStatus instanceof HTMLElement &&
+                  environmentWorkspaceStatus.getAttribute('role') === 'status' &&
+                  environmentWorkspaceStatus.getAttribute('aria-live') === 'polite' &&
+                  environmentWorkspaceStatus.getAttribute('aria-atomic') === 'true' &&
+                  environmentWorkspaceStatus.textContent?.includes('Workspace path inserted in terminal') === true &&
+                  bottomPanelAfterEnvironmentTerminal instanceof HTMLElement &&
+                  bottomPanelAfterEnvironmentTerminal.getAttribute('data-bottom-panel-active-terminal-id') === environmentTerminalId;
+                document.querySelector('[aria-label="Hide bottom panel"]')?.click();
+                await sleep(120);
                 const environmentActionRowsWork =
                   environmentPanel instanceof HTMLElement &&
                   Number(environmentPanel.getAttribute('data-environment-staged-count') ?? '0') >= 1 &&
@@ -10968,7 +11025,16 @@ function runAutomatedFocusedSurfaceSmoke(
                     branchCardAfterOpen.getAttribute('data-git-focused-target') === 'true' &&
                     branchInputAfterOpen instanceof HTMLInputElement;
                   await openPanelTab('environment', 'Environment');
-                  await sleep(120);
+                  for (let attempt = 0; attempt < 12; attempt += 1) {
+                    const reloadedEnvironmentPanel = document.querySelector('[data-testid="codex-environment-panel"]');
+                    const reloadedCommitRow = document.querySelector('[data-testid="codex-environment-commit"]');
+                    if (
+                      reloadedEnvironmentPanel instanceof HTMLElement &&
+                      Number(reloadedEnvironmentPanel.getAttribute('data-environment-change-count') ?? '0') >= 3 &&
+                      reloadedCommitRow instanceof HTMLButtonElement
+                    ) break;
+                    await sleep(100);
+                  }
                 }
                 let environmentCommitOpensGitWorks = false;
                 const environmentCommitRowForOpen = document.querySelector('[data-testid="codex-environment-commit"]');
@@ -11096,6 +11162,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     environmentSourcesCard.textContent?.includes('Sources') === true &&
                     environmentSourcesCard.textContent?.includes('Web search') === true,
                   environmentAddToChatWorks,
+                  environmentWorkspacePathActionsWork,
                   environmentSourceBoundaryWorks:
                     environmentWebSearchRow instanceof HTMLElement &&
                     environmentWebSearchRow.getAttribute('data-environment-row-disabled') === 'true' &&

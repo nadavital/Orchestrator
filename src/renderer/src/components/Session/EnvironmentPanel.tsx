@@ -20,6 +20,9 @@ export default function EnvironmentPanel({ session, embedded = false, onOpenRevi
   const setShowSettings = useSessionStore((state) => state.setShowSettings)
   const setShowCapabilities = useSessionStore((state) => state.setShowCapabilities)
   const setSettingsSection = useSessionStore((state) => state.setSettingsSection)
+  const setShowTerminal = useSessionStore((state) => state.setShowTerminal)
+  const addTerminalTab = useSessionStore((state) => state.addTerminalTab)
+  const setActiveTerminalTab = useSessionStore((state) => state.setActiveTerminalTab)
 
   useEffect(() => {
     let cancelled = false
@@ -87,6 +90,49 @@ export default function EnvironmentPanel({ session, embedded = false, onOpenRevi
   const openGitForBranch = (): void => {
     onOpenGit('branch')
     setActionStatus('Opening Git branch controls')
+  }
+
+  const copyWorkspacePath = async (): Promise<void> => {
+    setActionStatus('Copying workspace path')
+    try {
+      if (typeof window.api.clipboard?.writeText === 'function') {
+        const didWrite = await window.api.clipboard.writeText(session.workDir)
+        if (!didWrite) throw new Error('Clipboard write failed')
+      } else {
+        await navigator.clipboard.writeText(session.workDir)
+      }
+      const globals = window as typeof window & { __orchestratorLastEnvironmentCopiedPathForSmoke?: string }
+      globals.__orchestratorLastEnvironmentCopiedPathForSmoke = session.workDir
+      setActionStatus('Workspace path copied')
+    } catch {
+      setActionStatus('Copy workspace path failed')
+    }
+  }
+
+  const insertWorkspacePathInTerminal = async (): Promise<void> => {
+    setActionStatus('Opening terminal for workspace path')
+    try {
+      const state = useSessionStore.getState()
+      const currentPanel = state.uiState[session.id]?.terminalPanel
+      const existingTab = typeof currentPanel?.activeTabId === 'number'
+        ? currentPanel.activeTabId
+        : currentPanel?.tabs.find((tab): tab is number => typeof tab === 'number')
+      const tabId = existingTab ?? addTerminalTab(session.id)
+      setShowTerminal(session.id, true)
+      setActiveTerminalTab(session.id, tabId)
+      const terminalId = `${session.id}-${tabId}`
+      const globals = window as typeof window & {
+        __orchestratorLastEnvironmentTerminalPathForSmoke?: string
+        __orchestratorLastEnvironmentTerminalIdForSmoke?: string
+      }
+      globals.__orchestratorLastEnvironmentTerminalPathForSmoke = session.workDir
+      globals.__orchestratorLastEnvironmentTerminalIdForSmoke = terminalId
+      await window.api.terminal.spawn(terminalId, session.workDir)
+      await window.api.terminal.write(terminalId, shellQuote(session.workDir))
+      setActionStatus('Workspace path inserted in terminal')
+    } catch {
+      setActionStatus('Insert workspace path in terminal failed')
+    }
   }
 
   const addEnvironmentToChat = (): void => {
@@ -177,7 +223,27 @@ export default function EnvironmentPanel({ session, embedded = false, onOpenRevi
             icon="monitor"
             label="Local"
             dataTestId="codex-environment-local"
-            trailing={session.provider ? <span className="environment-row-muted">{session.provider}</span> : undefined}
+            trailing={(
+              <span className="flex min-w-0 items-center gap-1">
+                {session.provider && <span className="environment-row-muted">{session.provider}</span>}
+                <IconButton
+                  icon="copy"
+                  label="Copy workspace path"
+                  size="xs"
+                  variant="ghost"
+                  dataTestId="codex-environment-copy-workspace-path"
+                  onClick={() => { void copyWorkspacePath() }}
+                />
+                <IconButton
+                  icon="terminal"
+                  label="Insert workspace path in terminal"
+                  size="xs"
+                  variant="ghost"
+                  dataTestId="codex-environment-insert-workspace-terminal"
+                  onClick={() => { void insertWorkspacePathInTerminal() }}
+                />
+              </span>
+            )}
           />
           <EnvironmentRow
             icon="branch"
@@ -287,4 +353,8 @@ function EnvironmentRow({
       {content}
     </div>
   )
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, `'\\''`)}'`
 }

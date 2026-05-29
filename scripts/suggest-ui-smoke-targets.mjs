@@ -179,7 +179,7 @@ const diffRules = [
     flag: '--environment',
     label: 'Environment panel',
     filePatterns: [/^src\/renderer\/src\/components\/Session\/EnvironmentPanel\.tsx$/, /^src\/renderer\/src\/components\/Session\/ContextSidebar\.tsx$/, /^src\/renderer\/src\/components\/Session\/GitPanel\.tsx$/, /^src\/renderer\/src\/store\/sessions\.ts$/, /^src\/renderer\/src\/App\.tsx$/, /^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
-    diffPatterns: [/environmentCreatePrOpensGit/, /environmentCommitOpensGit/, /environmentBranchOpensGit/, /open-git-pr/, /open-git-commit/, /open-git-branch/, /Open Git to create a pull request/, /Open Git to commit changes/, /Open Git branch controls/, /gitFocusTarget/, /GitFocusTarget/, /data-git-focus-target/, /data-git-focused-target/, /focusTarget/, /focusRightPanelGitTarget/, /__orchestratorSetSessionReviewMetadataForSmoke/, /onOpenGit/]
+    diffPatterns: [/environmentCreatePrOpensGit/, /environmentCommitOpensGit/, /environmentBranchOpensGit/, /environmentWorkspacePathActions/, /open-git-pr/, /open-git-commit/, /open-git-branch/, /codex-environment-(?:copy-workspace-path|insert-workspace-terminal)/, /Workspace path (?:copied|inserted in terminal)/, /__orchestratorLastEnvironment/, /Open Git to create a pull request/, /Open Git to commit changes/, /Open Git branch controls/, /gitFocusTarget/, /GitFocusTarget/, /data-git-focus-target/, /data-git-focused-target/, /focusTarget/, /focusRightPanelGitTarget/, /__orchestratorSetSessionReviewMetadataForSmoke/, /onOpenGit/]
   }
 ]
 
@@ -332,6 +332,7 @@ function suggestTargets(paths) {
   suppressTerminalForFilesPathTerminalHandoffDiff(matched, paths)
   suppressTerminalForFileTabPathTerminalHandoffDiff(matched, paths)
   suppressTerminalForReviewPathTerminalHandoffDiff(matched, paths)
+  suppressTerminalForEnvironmentPathHandoffDiff(matched, paths)
   suppressTerminalForWorktreesSettingsPathHandoffDiff(matched, paths)
   suppressTerminalForProviderSettingsCommandHandoffDiff(matched, paths)
   suppressFilesAndTerminalForFileReferenceDiff(matched, paths)
@@ -867,6 +868,20 @@ function suppressTerminalForReviewPathTerminalHandoffDiff(matched, paths) {
   matched.delete('--terminal')
 }
 
+function suppressTerminalForEnvironmentPathHandoffDiff(matched, paths) {
+  const terminal = matched.get('--terminal')
+  const environment = matched.get('--environment')
+  if (!terminal || !environment) return
+  if (!terminal.files.every((file) => file === 'scripts/run-automated-ui-smoke.mjs' || file === 'src/main/index.ts')) return
+  const diff = [
+    paths.includes('src/renderer/src/components/Session/EnvironmentPanel.tsx') ? diffForFile('src/renderer/src/components/Session/EnvironmentPanel.tsx') : '',
+    paths.includes('scripts/run-automated-ui-smoke.mjs') ? diffForFile('scripts/run-automated-ui-smoke.mjs') : '',
+    paths.includes('src/main/index.ts') ? diffForFile('src/main/index.ts') : ''
+  ].join('\n')
+  if (!/environmentWorkspacePathActions|codex-environment-insert-workspace-terminal|Workspace path inserted in terminal|__orchestratorLastEnvironmentTerminal/.test(diff)) return
+  matched.delete('--terminal')
+}
+
 function suppressTerminalForWorktreesSettingsPathHandoffDiff(matched, paths) {
   const terminal = matched.get('--terminal')
   const settings = matched.get('--settings')
@@ -986,7 +1001,7 @@ function suppressWorkbenchForEnvironmentCreatePrDiff(matched, paths) {
     )
     .map(diffForFile)
     .join('\n')
-  if (!/environmentCreatePrOpensGit|environmentCommitOpensGit|environmentBranchOpensGit|open-git-pr|open-git-commit|open-git-branch|Open Git to create a pull request|Open Git to commit changes|Open Git branch controls|gitFocusTarget|GitFocusTarget|data-git-focus-target|data-git-focused-target|focusTarget|focusRightPanelGitTarget|__orchestratorSetSessionReviewMetadataForSmoke|onOpenGit/.test(diff)) return
+  if (!/environmentCreatePrOpensGit|environmentCommitOpensGit|environmentBranchOpensGit|environmentWorkspacePathActions|open-git-pr|open-git-commit|open-git-branch|codex-environment-(?:copy-workspace-path|insert-workspace-terminal)|Workspace path (?:copied|inserted in terminal)|__orchestratorLastEnvironment|Open Git to create a pull request|Open Git to commit changes|Open Git branch controls|gitFocusTarget|GitFocusTarget|data-git-focus-target|data-git-focused-target|focusTarget|focusRightPanelGitTarget|__orchestratorSetSessionReviewMetadataForSmoke|onOpenGit/.test(diff)) return
   for (const flag of ['--right-panel', '--workbench-launcher', '--workbench-new-tab']) {
     const target = matched.get(flag)
     if (!target) continue
