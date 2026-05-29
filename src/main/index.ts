@@ -1479,6 +1479,38 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                   }
                   await sleep(80);
                 }
+                var settingsWorktreesInPageSearchTargetWorks = false;
+                activeSettingsSearchInput = setSettingsSearchValue('base ref') ?? activeSettingsSearchInput;
+                await sleep(120);
+                const worktreesCreateSearchMatch = document.querySelector('[data-testid="settings-search-match"]');
+                activeSettingsSearchInput.dispatchEvent(new KeyboardEvent('keydown', {
+                  key: 'Enter',
+                  code: 'Enter',
+                  bubbles: true,
+                  cancelable: true
+                }));
+                for (let index = 0; index < 25; index += 1) {
+                  const shell = document.querySelector('.settings-shell');
+                  const worktreesCreateAnchor = document.querySelector('[data-settings-search-anchor="worktrees-create"]');
+                  const routeMatches = window.location.protocol === 'file:'
+                    ? window.location.hash.startsWith('#/settings/worktrees')
+                    : window.location.pathname === '/settings/worktrees';
+                  if (
+                    shell instanceof HTMLElement &&
+                    shell.getAttribute('data-settings-active-section') === 'worktrees' &&
+                    worktreesCreateSearchMatch instanceof HTMLButtonElement &&
+                    worktreesCreateSearchMatch.getAttribute('data-settings-search-target') === 'worktrees' &&
+                    worktreesCreateSearchMatch.getAttribute('data-settings-search-target-anchor') === 'worktrees-create' &&
+                    worktreesCreateAnchor instanceof HTMLElement &&
+                    worktreesCreateAnchor.getAttribute('data-settings-search-active') === 'true' &&
+                    document.activeElement === worktreesCreateAnchor &&
+                    routeMatches
+                  ) {
+                    settingsWorktreesInPageSearchTargetWorks = true;
+                    break;
+                  }
+                  await sleep(80);
+                }
                 activeSettingsSearchInput = setSettingsSearchValue('general') ?? activeSettingsSearchInput;
                 await sleep(120);
                 activeSettingsSearchInput.dispatchEvent(new KeyboardEvent('keydown', {
@@ -7715,6 +7747,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             settingsBrowserInPageSearchTargetWorks: typeof settingsBrowserInPageSearchTargetWorks === 'boolean' ? settingsBrowserInPageSearchTargetWorks : null,
             settingsProviderInPageSearchTargetWorks: typeof settingsProviderInPageSearchTargetWorks === 'boolean' ? settingsProviderInPageSearchTargetWorks : null,
             settingsShortcutsInPageSearchTargetWorks: typeof settingsShortcutsInPageSearchTargetWorks === 'boolean' ? settingsShortcutsInPageSearchTargetWorks : null,
+            settingsWorktreesInPageSearchTargetWorks: typeof settingsWorktreesInPageSearchTargetWorks === 'boolean' ? settingsWorktreesInPageSearchTargetWorks : null,
             settingsDeepLinkRouteWorks: typeof settingsDeepLinkRouteWorks === 'boolean' ? settingsDeepLinkRouteWorks : null,
             settingsDeepLinkRouteDebug: typeof settingsDeepLinkRouteDebug === 'object' ? settingsDeepLinkRouteDebug : null,
             settingsHostContextWorks: typeof settingsHostContextWorks === 'boolean' ? settingsHostContextWorks : null,

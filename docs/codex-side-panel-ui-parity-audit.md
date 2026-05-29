@@ -9605,6 +9605,16 @@ Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.
 
 Remaining: this closes the local Shortcuts Settings subtarget path. Provider-native shortcut sync, real remote-host Settings adapters, exact live Codex Settings timing, and broader whole-app keyboard traversal remain separate PP-058 follow-ups.
 
+### 2026-05-29 - Worktrees Settings In-Page Search Target
+
+Product evidence: PP-055/PP-058 still tracked Worktrees Settings as a daily coding-use surface and broader per-control Settings search coverage. The Worktrees page can create app-managed local worktree chats, but a query such as `base ref` previously only routed to Worktrees and left the user to scan for the create controls.
+
+Implemented: Settings search now includes a Worktree create subtarget. The Worktrees page exposes a matching focusable anchor around the project/base ref/branch creation group, so matched search results scroll and focus the exact Worktrees control group with the same `data-settings-search-active="true"` affordance used by General, Browser, Providers, and Shortcuts.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --settings` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1780031328081.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1780031328081.png`. The focused Settings smoke now gates `settingsWorktreesInPageSearchTarget=true` by searching `base ref`, verifying the chip targets `worktrees-create`, and confirming the Worktree create group receives focus plus active-search state.
+
+Remaining: this closes the local Worktrees Settings subtarget path only. Raw Git worktree switching, provider-native worktree adapters, local-environment metadata, real remote-host Settings adapters, and exact live Codex Settings timing remain separate PP-055/PP-058 follow-ups.
+
 ### 2026-05-29 - Browser Hidden Page Identity
 
 Product evidence: PP-058 still tracked Browser lifecycle parity. Orchestrator already preserved hidden Browser webviews and resynced lifecycle state when shown again, but the hidden state itself only said `Hidden` and `The page is still loaded`. For day-to-day coding, a hidden Browser panel should still identify which page is loaded so users can decide whether to resume, reset, or switch context.

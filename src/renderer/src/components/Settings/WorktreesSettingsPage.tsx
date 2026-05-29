@@ -117,7 +117,13 @@ export default function WorktreesSettingsPage({ onClose }: WorktreesSettingsPage
           subtitle="Inspect app-managed worktrees, linked chats, and cleanup state before deleting a workspace."
           dataTestId="settings-content-layout-worktrees"
         >
-          <SettingsContentGroup className="worktrees-settings-content-group">
+          <SettingsContentGroup
+            className="worktrees-settings-content-group"
+            rootAttrs={{
+              tabIndex: -1,
+              'data-settings-search-anchor': 'worktrees-create'
+            }}
+          >
             <div className="settings-content-heading">
               <div className="settings-content-title">Create</div>
               <div className="settings-content-description">Create an app-managed worktree chat from a project, base ref, and optional branch name.</div>
