@@ -65,6 +65,7 @@ export default function FileTabPanel({
   const absolutePath = joinPath(fileRoot, filePath)
   const name = basename(filePath)
   const workspaceName = basename(fileRoot)
+  const lineReferencePath = samePathRoot(fileRoot, workDir) ? filePath : absolutePath
   const sourceMode = fileViewMode === 'source'
 
   useEffect(() => {
@@ -187,7 +188,7 @@ export default function FileTabPanel({
 
   const copySelectedLineReference = (): void => {
     if (selectedSourceLine === null) return
-    const reference = `${filePath}:${selectedSourceLine}`
+    const reference = `${lineReferencePath}:${selectedSourceLine}`
     setCopiedLineReference(reference)
     setFileActionStatus('Copying line reference')
     void writeFileTabClipboardText(reference)
@@ -197,7 +198,7 @@ export default function FileTabPanel({
 
   const addSelectedLineToChat = (line = selectedSourceLine): void => {
     if (line === null || preview?.text === undefined) return
-    const reference = `${filePath}:${line}`
+    const reference = `${lineReferencePath}:${line}`
     const lineText = sourceLineText(preview.text, line)
     setAddedLineReference(reference)
     setFileActionStatus('Added selected line to chat')
@@ -916,6 +917,10 @@ function sourceLineText(text: string, line: number): string {
 
 function basename(path: string): string {
   return path.split('/').filter(Boolean).at(-1) ?? path
+}
+
+function samePathRoot(a: string, b: string): boolean {
+  return a.replace(/\/+$/, '') === b.replace(/\/+$/, '')
 }
 
 function normalizePreferredOpenTarget(value: unknown): PreferredOpenTarget {

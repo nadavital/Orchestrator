@@ -24579,6 +24579,26 @@ function runAutomatedTranscriptFileReferenceSmoke(win: BrowserWindow, outputPath
               additionalRootFileTab.getAttribute('data-file-tab-selected-source-line') === '1' &&
               additionalRootFileTab.getAttribute('data-file-tab-source-reveal-line') === '1';
 
+            const additionalRootLineAddButton = additionalRootFileTab instanceof HTMLElement
+              ? additionalRootFileTab.querySelector('[data-testid="workspace-source-line-action-add-chat"]')
+              : null;
+            if (additionalRootLineAddButton instanceof HTMLButtonElement) {
+              additionalRootLineAddButton.click();
+              await sleep(180);
+            }
+            const composerAfterAdditionalRootLine = document.querySelector('[data-testid="composer-textarea"]');
+            const additionalRootLineReference = '/orchestrator-automated-ui-workspace-additional-root/shared/additional-root-fixture.ts:1';
+            const fileReferenceAdditionalRootLineAddToChatWorks =
+              additionalRootFileTab instanceof HTMLElement &&
+              additionalRootLineAddButton instanceof HTMLButtonElement &&
+              additionalRootLineAddButton.disabled === false &&
+              additionalRootFileTab.getAttribute('data-file-tab-added-line-reference')?.endsWith(additionalRootLineReference) === true &&
+              additionalRootFileTab.getAttribute('data-file-tab-action-status') === 'Added selected line to chat' &&
+              composerAfterAdditionalRootLine instanceof HTMLTextAreaElement &&
+              composerAfterAdditionalRootLine.value.includes('Source line ') &&
+              composerAfterAdditionalRootLine.value.includes(additionalRootLineReference) &&
+              composerAfterAdditionalRootLine.value.includes('export const additionalRootFixture = true');
+
             const attachButton = additionalRootCard instanceof HTMLElement
               ? additionalRootCard.querySelector('[data-testid="file-reference-attach-chat"]')
               : null;
@@ -24621,6 +24641,7 @@ function runAutomatedTranscriptFileReferenceSmoke(win: BrowserWindow, outputPath
               fileReferenceOpenOutcomeWorks,
               fileReferenceOpenWorkbenchWorks,
               fileReferenceAdditionalRootWorkbenchWorks,
+              fileReferenceAdditionalRootLineAddToChatWorks,
               fileReferenceAttachToChatWorks,
               fileReferenceMissingActionsDisabled
             };
