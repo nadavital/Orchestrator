@@ -2648,6 +2648,7 @@ function FileReferenceCard({
   const [error, setError] = useState<string | null>(null)
   const [lastOpenResult, setLastOpenResult] = useState<OpenPathResult | null>(null)
   const [workbenchOpenStatus, setWorkbenchOpenStatus] = useState('')
+  const [attachStatus, setAttachStatus] = useState('')
   const displayPath = resolvedPath ?? file.path
   const displayLabel = resolvedPath ? fileName(resolvedPath) : file.label
   const targetLabel = file.line ? `:${file.line}${file.column ? `:${file.column}` : ''}` : ''
@@ -2666,6 +2667,7 @@ function FileReferenceCard({
     setError(null)
     setLastOpenResult(null)
     setWorkbenchOpenStatus('')
+    setAttachStatus('')
 
     const resolve = async (): Promise<void> => {
       try {
@@ -2725,6 +2727,18 @@ function FileReferenceCard({
     setWorkbenchOpenStatus(file.line ? `Opened in Workbench at line ${file.line}` : 'Opened in Workbench')
   }
 
+  const attachToChat = (): void => {
+    if (exists !== true || !resolvedPath) return
+    const name = fileName(resolvedPath)
+    window.dispatchEvent(new CustomEvent('orchestrator:add-composer-attachment', {
+      detail: {
+        path: resolvedPath,
+        name
+      }
+    }))
+    setAttachStatus(`Attached ${name} to chat`)
+  }
+
   if (exists === false && file.source === 'relative') return <></>
 
   return (
@@ -2742,6 +2756,8 @@ function FileReferenceCard({
       data-file-reference-workbench-root={workbenchTarget?.root ?? ''}
       data-file-reference-workbench-path={workbenchTarget?.filePath ?? ''}
       data-file-reference-workbench-opened={workbenchOpenStatus ? 'true' : 'false'}
+      data-file-reference-attachment-path={attachStatus ? resolvedPath ?? '' : ''}
+      data-file-reference-attached={attachStatus ? 'true' : 'false'}
       className="min-w-0 max-w-full overflow-hidden rounded-lg px-3 py-2 text-xs"
       style={{
         background: 'var(--color-surface)',
@@ -2764,49 +2780,68 @@ function FileReferenceCard({
             missing
           </span>
         )}
-        <button
-          type="button"
-          onClick={openPath}
-          disabled={exists === false}
-          className="shrink-0 rounded-md px-2 py-1 transition-colors"
-          style={{
-            color: exists === false ? 'var(--color-text-muted)' : 'var(--color-accent)',
-            background: 'transparent',
-            border: '1px solid var(--color-border)',
-            opacity: exists === false ? 0.5 : 1
-          }}
-        >
-          {openButtonLabel(preferredEditor)}
-        </button>
-        <button
-          type="button"
-          onClick={openInWorkbench}
-          disabled={!canOpenInWorkbench}
-          data-testid="file-reference-open-workbench"
-          className="shrink-0 rounded-md px-2 py-1 transition-colors"
-          style={{
-            color: canOpenInWorkbench ? 'var(--color-text)' : 'var(--color-text-muted)',
-            background: 'transparent',
-            border: '1px solid var(--color-border)',
-            opacity: canOpenInWorkbench ? 1 : 0.5
-          }}
-        >
-          Workbench
-        </button>
-        <button
-          type="button"
-          onClick={revealPath}
-          disabled={exists === false}
-          className="shrink-0 rounded-md px-2 py-1 transition-colors"
-          style={{
-            color: exists === false ? 'var(--color-text-muted)' : 'var(--color-text)',
-            background: 'transparent',
-            border: '1px solid var(--color-border)',
-            opacity: exists === false ? 0.5 : 1
-          }}
-        >
-          Reveal
-        </button>
+        <div className="flex shrink-0 flex-wrap justify-end gap-1">
+          <button
+            type="button"
+            onClick={openPath}
+            disabled={exists === false}
+            data-testid="file-reference-open-external"
+            className="shrink-0 rounded-md px-2 py-1 transition-colors"
+            style={{
+              color: exists === false ? 'var(--color-text-muted)' : 'var(--color-accent)',
+              background: 'transparent',
+              border: '1px solid var(--color-border)',
+              opacity: exists === false ? 0.5 : 1
+            }}
+          >
+            {openButtonLabel(preferredEditor)}
+          </button>
+          <button
+            type="button"
+            onClick={openInWorkbench}
+            disabled={!canOpenInWorkbench}
+            data-testid="file-reference-open-workbench"
+            className="shrink-0 rounded-md px-2 py-1 transition-colors"
+            style={{
+              color: canOpenInWorkbench ? 'var(--color-text)' : 'var(--color-text-muted)',
+              background: 'transparent',
+              border: '1px solid var(--color-border)',
+              opacity: canOpenInWorkbench ? 1 : 0.5
+            }}
+          >
+            Workbench
+          </button>
+          <button
+            type="button"
+            onClick={attachToChat}
+            disabled={exists !== true || !resolvedPath}
+            data-testid="file-reference-attach-chat"
+            className="shrink-0 rounded-md px-2 py-1 transition-colors"
+            style={{
+              color: exists === true && resolvedPath ? 'var(--color-text)' : 'var(--color-text-muted)',
+              background: 'transparent',
+              border: '1px solid var(--color-border)',
+              opacity: exists === true && resolvedPath ? 1 : 0.5
+            }}
+          >
+            Attach
+          </button>
+          <button
+            type="button"
+            onClick={revealPath}
+            disabled={exists === false}
+            data-testid="file-reference-reveal"
+            className="shrink-0 rounded-md px-2 py-1 transition-colors"
+            style={{
+              color: exists === false ? 'var(--color-text-muted)' : 'var(--color-text)',
+              background: 'transparent',
+              border: '1px solid var(--color-border)',
+              opacity: exists === false ? 0.5 : 1
+            }}
+          >
+            Reveal
+          </button>
+        </div>
       </div>
       {error && (
         <div className="mt-1" style={{ color: 'var(--color-red)', fontSize: 10 }}>
@@ -2835,6 +2870,18 @@ function FileReferenceCard({
           style={{ color: 'var(--color-text-muted)', fontSize: 10 }}
         >
           {workbenchOpenStatus}
+        </div>
+      )}
+      {attachStatus && (
+        <div
+          className="mt-1"
+          data-testid="file-reference-attachment-status"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          style={{ color: 'var(--color-text-muted)', fontSize: 10 }}
+        >
+          {attachStatus}
         </div>
       )}
     </div>

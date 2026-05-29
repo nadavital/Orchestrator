@@ -2205,6 +2205,7 @@ child.on('exit', async (code) => {
         fileReferenceOpenOutcome: result.fileReferenceOpenOutcomeWorks === true,
         fileReferenceOpenWorkbench: result.fileReferenceOpenWorkbenchWorks === true,
         fileReferenceAdditionalRootWorkbench: result.fileReferenceAdditionalRootWorkbenchWorks === true,
+        fileReferenceAttachToChat: result.fileReferenceAttachToChatWorks === true,
         fileReferenceMissingActionsDisabled: result.fileReferenceMissingActionsDisabled === true
       }
     : captureView === 'transcript-tool-jump'

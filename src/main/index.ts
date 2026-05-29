@@ -24579,6 +24579,34 @@ function runAutomatedTranscriptFileReferenceSmoke(win: BrowserWindow, outputPath
               additionalRootFileTab.getAttribute('data-file-tab-selected-source-line') === '1' &&
               additionalRootFileTab.getAttribute('data-file-tab-source-reveal-line') === '1';
 
+            const attachButton = additionalRootCard instanceof HTMLElement
+              ? additionalRootCard.querySelector('[data-testid="file-reference-attach-chat"]')
+              : null;
+            if (attachButton instanceof HTMLButtonElement) {
+              attachButton.click();
+              for (let index = 0; index < 12; index += 1) {
+                await sleep(80);
+                const composerShell = document.querySelector('[data-testid="composer-shell"]');
+                if (composerShell?.getAttribute('data-composer-attachment-status')?.includes('additional-root-fixture.ts')) break;
+              }
+            }
+            const attachmentStatus = additionalRootCard instanceof HTMLElement
+              ? additionalRootCard.querySelector('[data-testid="file-reference-attachment-status"]')
+              : null;
+            const composerShell = document.querySelector('[data-testid="composer-shell"]');
+            const fileReferenceAttachToChatWorks =
+              additionalRootCard instanceof HTMLElement &&
+              attachButton instanceof HTMLButtonElement &&
+              attachButton.disabled === false &&
+              additionalRootCard.getAttribute('data-file-reference-attached') === 'true' &&
+              additionalRootCard.getAttribute('data-file-reference-attachment-path')?.endsWith('/orchestrator-automated-ui-workspace-additional-root/shared/additional-root-fixture.ts') === true &&
+              attachmentStatus instanceof HTMLElement &&
+              attachmentStatus.getAttribute('role') === 'status' &&
+              attachmentStatus.textContent?.includes('Attached additional-root-fixture.ts to chat') === true &&
+              composerShell instanceof HTMLElement &&
+              composerShell.getAttribute('data-composer-attachment-status') === 'Attached additional-root-fixture.ts' &&
+              document.querySelector('[title$="/orchestrator-automated-ui-workspace-additional-root/shared/additional-root-fixture.ts"]') instanceof HTMLElement;
+
             const missingCard = [...document.querySelectorAll('[data-testid="file-reference-card"]')]
               .find((card) => card instanceof HTMLElement && card.textContent?.includes('explicit-missing-file.ts'));
             const missingButtons = missingCard instanceof HTMLElement ? [...missingCard.querySelectorAll('button')] : [];
@@ -24593,6 +24621,7 @@ function runAutomatedTranscriptFileReferenceSmoke(win: BrowserWindow, outputPath
               fileReferenceOpenOutcomeWorks,
               fileReferenceOpenWorkbenchWorks,
               fileReferenceAdditionalRootWorkbenchWorks,
+              fileReferenceAttachToChatWorks,
               fileReferenceMissingActionsDisabled
             };
           })()
