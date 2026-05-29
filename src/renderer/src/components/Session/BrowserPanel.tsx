@@ -759,6 +759,26 @@ export default function BrowserPanel({
     setScreenshotStatus({ text: 'Screenshot attached', tone: 'info' })
   }
 
+  const copyScreenshotPath = (path: string | null): void => {
+    if (!path) {
+      setScreenshotStatus({ text: 'No screenshot path', tone: 'danger' })
+      return
+    }
+    setScreenshotStatus({ text: 'Copying screenshot path', tone: 'info' })
+    void writeBrowserClipboardText(path)
+      .then(() => setScreenshotStatus({ text: 'Screenshot path copied', tone: 'info' }))
+      .catch(() => setScreenshotStatus({ text: 'Copy screenshot path failed', tone: 'danger' }))
+  }
+
+  const revealScreenshotArtifact = (path: string | null): void => {
+    if (!path) {
+      setScreenshotStatus({ text: 'No screenshot file', tone: 'danger' })
+      return
+    }
+    setScreenshotStatus({ text: 'Revealing screenshot', tone: 'info' })
+    void window.api.fs.showInFolder(path)
+  }
+
   const searchInPage = (query: string): void => {
     setFindMatches(0)
     setFindActiveMatch(0)
@@ -2593,6 +2613,8 @@ export default function BrowserPanel({
                   screenshot={screenshot}
                   screenshotStatus={screenshotStatus}
                   onAddScreenshot={() => addScreenshotToChat(artifactPath)}
+                  onCopyScreenshotPath={() => copyScreenshotPath(artifactPath)}
+                  onRevealScreenshot={() => revealScreenshotArtifact(artifactPath)}
                   onClear={() => setLogs([])}
                 />
               )}
@@ -2715,6 +2737,8 @@ function ConsolePane({
   screenshot,
   screenshotStatus,
   onAddScreenshot,
+  onCopyScreenshotPath,
+  onRevealScreenshot,
   onClear
 }: {
   logs: BrowserLogEntry[]
@@ -2722,6 +2746,8 @@ function ConsolePane({
   screenshot: string | null
   screenshotStatus: BrowserScreenshotActionStatus | null
   onAddScreenshot: () => void
+  onCopyScreenshotPath: () => void
+  onRevealScreenshot: () => void
   onClear: () => void
 }): JSX.Element {
   return (
@@ -2730,14 +2756,38 @@ function ConsolePane({
         <Badge tone="neutral">console {logs.length}</Badge>
         {artifactPath && <Badge tone="success">screenshot saved</Badge>}
         {artifactPath && (
-          <button
-            type="button"
-            className="text-xs font-semibold"
-            style={{ color: 'var(--accent)' }}
-            onClick={onAddScreenshot}
+          <div
+            className="flex min-w-0 items-center gap-1"
+            data-testid="browser-screenshot-actions"
+            role="group"
+            aria-label="Browser screenshot actions"
+            data-browser-screenshot-artifact-path={artifactPath}
           >
-            Add screenshot
-          </button>
+            <IconButton
+              icon="paperclip"
+              label="Add screenshot to chat"
+              size="sm"
+              variant="toolbar"
+              dataTestId="browser-screenshot-add-chat"
+              onClick={onAddScreenshot}
+            />
+            <IconButton
+              icon="copy"
+              label="Copy screenshot path"
+              size="sm"
+              variant="toolbar"
+              dataTestId="browser-screenshot-copy-path"
+              onClick={onCopyScreenshotPath}
+            />
+            <IconButton
+              icon="folder"
+              label="Reveal screenshot file"
+              size="sm"
+              variant="toolbar"
+              dataTestId="browser-screenshot-reveal"
+              onClick={onRevealScreenshot}
+            />
+          </div>
         )}
         <button type="button" className="ml-auto text-xs" style={{ color: 'var(--text-secondary)' }} onClick={onClear}>Clear</button>
       </div>
@@ -2753,7 +2803,16 @@ function ConsolePane({
           {screenshotStatus.text}
         </div>
       )}
-      {artifactPath && <div className="truncate" style={{ color: 'var(--text-tertiary)' }}>{artifactPath}</div>}
+      {artifactPath && (
+        <div
+          className="truncate"
+          data-testid="browser-screenshot-artifact-path"
+          data-browser-screenshot-artifact-path={artifactPath}
+          style={{ color: 'var(--text-tertiary)' }}
+        >
+          {artifactPath}
+        </div>
+      )}
       {screenshot && (
         <img
           data-testid="browser-screenshot-preview"

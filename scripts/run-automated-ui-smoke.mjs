@@ -2257,6 +2257,8 @@ child.on('exit', async (code) => {
           browserToolbarExternal: result.browserToolbarExternalWorks === true,
           browserToolbarScreenshot: result.browserToolbarScreenshotWorks === true,
           browserScreenshotStatusA11y: result.browserScreenshotStatusA11yWorks === true,
+          browserScreenshotPathActions: result.browserScreenshotPathActionsWorks === true,
+          browserScreenshotAttachment: result.browserScreenshotAttachmentWorks === true,
           browserLoaded: result.browserLoaded === true,
           browserWebviewManagerBoundary: result.browserWebviewManagerBoundaryWorks === true,
           browserFind: result.browserFindWorks === true,

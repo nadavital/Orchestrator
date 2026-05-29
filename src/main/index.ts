@@ -19597,6 +19597,8 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               !menuOpenExternalButton.disabled;
             var browserToolbarScreenshotWorks = false;
             var browserScreenshotStatusA11yWorks = false;
+            var browserScreenshotPathActionsWorks = false;
+            var browserScreenshotAttachmentWorks = false;
             var browserFallbackMessagesSharedWorks = false;
             var browserAssetsBundleSharedWorks = false;
             var browserAssetsSharedContainersWorks = false;
@@ -19623,6 +19625,49 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                 browserScreenshotStatus.getAttribute('aria-live') === 'polite' &&
                 browserScreenshotStatus.getAttribute('aria-atomic') === 'true' &&
                 browserScreenshotStatus.getAttribute('data-browser-screenshot-status-tone') === 'info';
+              const screenshotActions = document.querySelector('[data-testid="browser-screenshot-actions"]');
+              const screenshotPath = document.querySelector('[data-testid="browser-screenshot-artifact-path"]');
+              const copyScreenshotPath = document.querySelector('[data-testid="browser-screenshot-copy-path"]');
+              const revealScreenshot = document.querySelector('[data-testid="browser-screenshot-reveal"]');
+              const addBrowserScreenshotButton = document.querySelector('[data-testid="browser-screenshot-add-chat"]');
+              const artifactPath =
+                screenshotPath instanceof HTMLElement
+                  ? screenshotPath.getAttribute('data-browser-screenshot-artifact-path') ?? screenshotPath.textContent?.trim() ?? ''
+                  : '';
+              if (copyScreenshotPath instanceof HTMLButtonElement) {
+                copyScreenshotPath.click();
+                await sleep(160);
+              }
+              const copiedScreenshotPath = await window.api?.clipboard?.readText?.().catch(() => '') ?? '';
+              const copiedScreenshotStatus = document.querySelector('[data-testid="browser-screenshot-status"]');
+              browserScreenshotPathActionsWorks =
+                screenshotActions instanceof HTMLElement &&
+                screenshotPath instanceof HTMLElement &&
+                copyScreenshotPath instanceof HTMLButtonElement &&
+                revealScreenshot instanceof HTMLButtonElement &&
+                addBrowserScreenshotButton instanceof HTMLButtonElement &&
+                artifactPath.endsWith('.png') &&
+                copiedScreenshotPath === artifactPath &&
+                copiedScreenshotStatus instanceof HTMLElement &&
+                copiedScreenshotStatus.textContent?.trim() === 'Screenshot path copied' &&
+                copiedScreenshotStatus.getAttribute('role') === 'status' &&
+                copiedScreenshotStatus.getAttribute('aria-live') === 'polite' &&
+                copiedScreenshotStatus.getAttribute('aria-atomic') === 'true' &&
+                copiedScreenshotStatus.getAttribute('data-browser-screenshot-status-tone') === 'info';
+              if (addBrowserScreenshotButton instanceof HTMLButtonElement) {
+                addBrowserScreenshotButton.click();
+                await sleep(160);
+              }
+              const browserScreenshotAttachedStatus = document.querySelector('[data-testid="browser-screenshot-status"]');
+              browserScreenshotAttachmentWorks =
+                browserScreenshotAttachedStatus instanceof HTMLElement &&
+                browserScreenshotAttachedStatus.textContent?.trim() === 'Screenshot attached' &&
+                browserScreenshotAttachedStatus.getAttribute('role') === 'status' &&
+                browserScreenshotAttachedStatus.getAttribute('aria-live') === 'polite' &&
+                browserScreenshotAttachedStatus.getAttribute('aria-atomic') === 'true' &&
+                browserScreenshotAttachedStatus.getAttribute('data-browser-screenshot-status-tone') === 'info' &&
+                [...document.querySelectorAll('.attachment-pill')]
+                  .some((attachment) => attachment.textContent?.includes('browser-'));
               const assetsInspectorButton = document.querySelector('[data-testid="browser-inspector-assets"]');
               if (assetsInspectorButton instanceof HTMLButtonElement) {
                 assetsInspectorButton.click();
@@ -21149,6 +21194,8 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserToolbarExternalWorks,
               browserToolbarScreenshotWorks,
               browserScreenshotStatusA11yWorks,
+              browserScreenshotPathActionsWorks,
+              browserScreenshotAttachmentWorks,
               browserLoaded: browserLoadedWorks,
               browserWebviewManagerBoundaryWorks,
               browserFindWorks,
