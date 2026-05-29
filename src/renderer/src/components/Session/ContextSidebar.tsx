@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { filePathFromTabId, sideChatContextSnapshot, sideChatIdFromTabId, terminalTabIdFromTabId, useSessionStore } from '../../store/sessions'
 import type { RightPanelTabId, RightPanelTabKind } from '../../store/sessions'
 import { derivePlanStates, derivePlanStatesFromMessages, resolvePanelTabTransferAvailability } from '../../types'
@@ -637,19 +637,68 @@ interface WorkbenchNewTabAction {
 }
 
 function WorkbenchNewTabPanel({ actions }: { actions: WorkbenchNewTabAction[] }): JSX.Element {
+  const firstEnabledActionId = actions.find((action) => !action.disabled)?.id ?? null
+  const [focusedActionId, setFocusedActionId] = useState<string | null>(firstEnabledActionId)
+
+  useEffect(() => {
+    if (!focusedActionId || actions.some((action) => action.id === focusedActionId && !action.disabled)) return
+    setFocusedActionId(firstEnabledActionId)
+  }, [actions, firstEnabledActionId, focusedActionId])
+
+  const moveActionFocus = (currentTarget: HTMLElement, direction: 'next' | 'previous' | 'first' | 'last'): void => {
+    const enabledButtons = [...currentTarget.querySelectorAll<HTMLButtonElement>('[data-workbench-new-tab-action]:not(:disabled)')]
+    if (enabledButtons.length === 0) return
+    const activeIndex = enabledButtons.findIndex((button) => button === document.activeElement)
+    const nextIndex = direction === 'first'
+      ? 0
+      : direction === 'last'
+        ? enabledButtons.length - 1
+        : direction === 'next'
+          ? (Math.max(0, activeIndex) + 1) % enabledButtons.length
+          : activeIndex <= 0
+            ? enabledButtons.length - 1
+            : activeIndex - 1
+    const nextButton = enabledButtons[nextIndex]
+    setFocusedActionId(nextButton?.dataset.workbenchNewTabAction ?? null)
+    nextButton?.focus({ preventScroll: true })
+  }
+
   return (
     <div className="workbench-new-tab-panel" data-testid="workbench-new-tab-panel" aria-label="Workbench tab actions">
       <div className="workbench-new-tab-content">
-        <div className="workbench-new-tab-list" data-testid="workbench-new-tab-action-grid" role="list">
+        <div
+          className="workbench-new-tab-list"
+          data-testid="workbench-new-tab-action-grid"
+          data-workbench-new-tab-keyboard="roving"
+          role="list"
+          onKeyDown={(event) => {
+            if (event.key === 'ArrowDown' || event.key === 'ArrowRight') {
+              event.preventDefault()
+              moveActionFocus(event.currentTarget, 'next')
+            } else if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') {
+              event.preventDefault()
+              moveActionFocus(event.currentTarget, 'previous')
+            } else if (event.key === 'Home') {
+              event.preventDefault()
+              moveActionFocus(event.currentTarget, 'first')
+            } else if (event.key === 'End') {
+              event.preventDefault()
+              moveActionFocus(event.currentTarget, 'last')
+            }
+          }}
+        >
           {actions.map((action) => (
             <div key={action.id} className="workbench-new-tab-action-item" role="listitem">
               <button
                 type="button"
                 className="workbench-new-tab-action"
                 disabled={action.disabled}
+                tabIndex={!action.disabled && (focusedActionId === action.id || (!focusedActionId && firstEnabledActionId === action.id)) ? 0 : -1}
                 data-testid={`workbench-new-tab-action-${action.id}`}
                 data-workbench-new-tab-action={action.id}
+                data-workbench-new-tab-keyboard-selected={!action.disabled && focusedActionId === action.id ? 'true' : 'false'}
                 aria-label={`${action.title}: ${action.description}`}
+                onFocus={() => setFocusedActionId(action.id)}
                 onClick={action.onSelect}
               >
                 <span className="workbench-new-tab-action-icon">

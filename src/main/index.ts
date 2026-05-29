@@ -8454,12 +8454,36 @@ function runAutomatedFocusedSurfaceSmoke(
                   newTabGrid instanceof HTMLElement &&
                   newTabGrid.classList.contains('workbench-new-tab-list') &&
                   newTabGrid.getAttribute('role') === 'list' &&
+                  newTabGrid.getAttribute('data-workbench-new-tab-keyboard') === 'roving' &&
                   newTabCards.length >= 6 &&
                   newTabCards.every((card) =>
                     card instanceof HTMLElement &&
                     card.closest('[role="listitem"]') instanceof HTMLElement &&
                     card.getAttribute('aria-label')?.includes(':') === true
                   );
+                const enabledNewTabCards = newTabCards
+                  .filter((card) => card instanceof HTMLButtonElement && !card.disabled);
+                let workbenchNewTabKeyboardNavigationWorks = false;
+                if (newTabGrid instanceof HTMLElement && enabledNewTabCards.length >= 2) {
+                  const firstEnabledCard = enabledNewTabCards[0];
+                  const secondEnabledCard = enabledNewTabCards[1];
+                  firstEnabledCard.focus({ preventScroll: true });
+                  await sleep(60);
+                  firstEnabledCard.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }));
+                  await sleep(80);
+                  const secondSelectedAfterArrow =
+                    secondEnabledCard.getAttribute('data-workbench-new-tab-keyboard-selected') === 'true' &&
+                    document.activeElement === secondEnabledCard;
+                  const lastEnabledCard = enabledNewTabCards[enabledNewTabCards.length - 1];
+                  secondEnabledCard.dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true, cancelable: true }));
+                  await sleep(80);
+                  workbenchNewTabKeyboardNavigationWorks =
+                    newTabGrid.getAttribute('data-workbench-new-tab-keyboard') === 'roving' &&
+                    firstEnabledCard.getAttribute('tabindex') === '-1' &&
+                    secondSelectedAfterArrow &&
+                    lastEnabledCard.getAttribute('data-workbench-new-tab-keyboard-selected') === 'true' &&
+                    document.activeElement === lastEnabledCard;
+                }
                 const workbenchPanelNewTabPageWorks =
                   rightPanel instanceof HTMLElement &&
                   rightPanel.getAttribute('data-right-panel-active-tab') === 'new-tab' &&
@@ -9276,6 +9300,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     newTabCardRects.length >= 6 &&
                     newTabCardRects.every((rect) => rect.height <= 56),
                   workbenchNewTabListLauncher: newTabActionListLauncher,
+                  workbenchNewTabKeyboardNavigation: workbenchNewTabKeyboardNavigationWorks,
                   workbenchNewTabFinalCapture:
                     finalNewTabPanel instanceof HTMLElement &&
                     finalNewTabGrid instanceof HTMLElement &&
