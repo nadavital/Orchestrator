@@ -3080,6 +3080,78 @@ function fileReferenceSearchContent(message: ChatMessage): string | null {
   return null
 }
 
+function toolCommandText(tool: ToolUseMessage): string | null {
+  const command = tool.toolInput.command
+  if (typeof command === 'string' && command.trim()) return command
+  const cmd = tool.toolInput.cmd
+  if (typeof cmd === 'string' && cmd.trim()) return cmd
+  return null
+}
+
+function ToolActivityCommandCopy({ tool }: { tool: ToolUseMessage }): JSX.Element | null {
+  const command = toolCommandText(tool)
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'error'>('idle')
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => () => {
+    if (timeoutRef.current) window.clearTimeout(timeoutRef.current)
+  }, [])
+
+  const copyCommand = useCallback(async (event: React.MouseEvent) => {
+    event.preventDefault()
+    event.stopPropagation()
+    if (!command) return
+    if (timeoutRef.current) window.clearTimeout(timeoutRef.current)
+    try {
+      if (typeof window.api.clipboard?.writeText === 'function') {
+        const didWrite = await window.api.clipboard.writeText(command)
+        if (!didWrite) throw new Error('Clipboard write failed')
+      } else {
+        await navigator.clipboard.writeText(command)
+      }
+      setCopyStatus('copied')
+      timeoutRef.current = window.setTimeout(() => {
+        setCopyStatus('idle')
+        timeoutRef.current = null
+      }, 1500)
+    } catch {
+      setCopyStatus('error')
+      timeoutRef.current = window.setTimeout(() => {
+        setCopyStatus('idle')
+        timeoutRef.current = null
+      }, 2200)
+    }
+  }, [command])
+
+  if (!command) return null
+
+  return (
+    <>
+      <IconButton
+        icon={copyStatus === 'copied' ? 'check' : 'copy'}
+        label={copyStatus === 'error' ? 'Copy command failed' : copyStatus === 'copied' ? 'Copied command' : 'Copy command'}
+        size="xs"
+        variant="toolbar"
+        tone={copyStatus === 'copied' ? 'success' : copyStatus === 'error' ? 'danger' : 'neutral'}
+        dataTestId="tool-activity-command-copy"
+        onClick={copyCommand}
+      />
+      {copyStatus !== 'idle' && (
+        <span
+          className="sr-only"
+          data-testid="tool-activity-command-copy-status"
+          data-copy-state={copyStatus}
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          {copyStatus === 'copied' ? 'Copied command' : 'Unable to copy command'}
+        </span>
+      )}
+    </>
+  )
+}
+
 function ToolActivitySummary({ messages, session }: { messages: Array<ToolUseMessage | ToolResultMessage>; session: Session }): JSX.Element {
   const activities = pairToolActivities(messages)
   const orphanResults = messages.filter((message): message is ToolResultMessage => message.type === 'tool_result' && !activities.some((activity) => activity.result?.id === message.id))
@@ -3123,6 +3195,7 @@ function ToolActivitySummary({ messages, session }: { messages: Array<ToolUseMes
                   <span className="min-w-0 flex-1 truncate" title={describeToolActivity(activity.tool)}>
                     {describeToolActivity(activity.tool)}
                   </span>
+                  <ToolActivityCommandCopy tool={activity.tool} />
                 </div>
               ))}
               {orphanResults.map((result) => (

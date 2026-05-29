@@ -25886,6 +25886,27 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
             const toolSummaryExpanded = toolButton instanceof HTMLElement && toolButton.getAttribute('aria-expanded') === 'true' && Boolean(toolBody);
             const toolSummaryBounded = toolBody instanceof HTMLElement && isInsideScroller(toolBody) && toolBody.clientHeight <= 240;
             const toolSummaryScrollable = toolBody instanceof HTMLElement && toolBody.scrollHeight > toolBody.clientHeight + 24;
+            const commandCopyButton = toolBody?.querySelector('[data-testid="tool-activity-command-copy"]');
+            if (commandCopyButton instanceof HTMLButtonElement) {
+              commandCopyButton.click();
+              await sleep(160);
+            }
+            const commandCopyStatus = document.querySelector('[data-testid="tool-activity-command-copy-status"]');
+            const copiedCommandText =
+              await window.api?.clipboard?.readText?.().catch(() => '') ??
+              await navigator.clipboard?.readText?.().catch(() => '') ??
+              '';
+            const toolActivityCommandCopyWorks =
+              commandCopyButton instanceof HTMLButtonElement &&
+              commandCopyButton.getAttribute('aria-label') === 'Copied command' &&
+              commandCopyButton.getAttribute('data-icon-button-variant') === 'toolbar' &&
+              commandCopyStatus instanceof HTMLElement &&
+              commandCopyStatus.getAttribute('role') === 'status' &&
+              commandCopyStatus.getAttribute('aria-live') === 'polite' &&
+              commandCopyStatus.getAttribute('aria-atomic') === 'true' &&
+              commandCopyStatus.textContent?.includes('Copied command') === true &&
+              copiedCommandText.includes('printf') &&
+              copiedCommandText.includes('TRANSCRIPT_LAYOUT_SMOKE_');
             const transcriptText = scroller.innerText;
             document.querySelector('[aria-label="Close transcript search"]')?.click();
             await sleep(80);
@@ -25962,6 +25983,7 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
               toolSummaryExpanded,
               toolSummaryBounded,
               toolSummaryScrollable,
+              toolActivityCommandCopyWorks,
               rawEventsHiddenFromTranscript: !transcriptText.includes('RAW_TRANSCRIPT_EVENT_SHOULD_NOT_RENDER'),
               documentNoHorizontalOverflowAfterExpand: expandedDocScrollWidth <= viewportWidth + 2,
               docScrollWidth,

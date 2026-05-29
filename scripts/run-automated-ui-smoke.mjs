@@ -2167,6 +2167,7 @@ child.on('exit', async (code) => {
         toolSummaryExpanded: result.toolSummaryExpanded === true,
         toolSummaryBounded: result.toolSummaryBounded === true,
         toolSummaryScrollable: result.toolSummaryScrollable === true,
+        toolActivityCommandCopy: result.toolActivityCommandCopyWorks === true,
         documentNoHorizontalOverflowAfterExpand: result.documentNoHorizontalOverflowAfterExpand === true
       }
     : captureView === 'transcript-reserve'
