@@ -80,6 +80,8 @@ const captureView = process.argv.includes('--settings-deeplink')
               ? 'transcript-live-model-switch'
             : process.argv.includes('--transcript-reserve')
               ? 'transcript-reserve'
+            : process.argv.includes('--transcript-file-reference')
+              ? 'transcript-file-reference'
             : process.argv.includes('--transcript-tool-jump')
               ? 'transcript-tool-jump'
             : process.argv.includes('--transcript-layout')
@@ -2195,6 +2197,14 @@ child.on('exit', async (code) => {
         transcriptFound: result.transcriptFound === true,
         composerReserveContract: result.composerReserveContractWorks === true,
         composerReserveFollowBottom: result.composerReserveFollowBottomWorks === true
+      }
+    : captureView === 'transcript-file-reference'
+    ? {
+        isolatedProfile: result.profile?.isIsolated === true,
+        transcriptFound: result.transcriptFound === true,
+        fileReferenceOpenOutcome: result.fileReferenceOpenOutcomeWorks === true,
+        fileReferenceOpenWorkbench: result.fileReferenceOpenWorkbenchWorks === true,
+        fileReferenceMissingActionsDisabled: result.fileReferenceMissingActionsDisabled === true
       }
     : captureView === 'transcript-tool-jump'
     ? {

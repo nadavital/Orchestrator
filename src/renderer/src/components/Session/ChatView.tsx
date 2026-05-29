@@ -1767,6 +1767,7 @@ function MessageRow({
   onForkFromMessage: (messageId: string, mode?: SessionForkMode) => Promise<void>
 }): JSX.Element | null {
   const [isUserMessageExpanded, setIsUserMessageExpanded] = useState(false)
+  const openRightPanelFileTab = useSessionStore((state) => state.openRightPanelFileTab)
 
   if (msg.type === 'text') {
     const isUser = msg.role === 'user'
@@ -1856,7 +1857,15 @@ function MessageRow({
                 <span className="min-w-0 truncate">Partial response stopped</span>
               </div>
             )}
-            {fileReferences.length > 0 && <FileReferenceList files={fileReferences} cwd={session.workDir} searchRoots={fileReferenceRoots} preferredEditor={preferredEditor} />}
+            {fileReferences.length > 0 && (
+              <FileReferenceList
+                files={fileReferences}
+                cwd={session.workDir}
+                searchRoots={fileReferenceRoots}
+                preferredEditor={preferredEditor}
+                onOpenWorkbenchFile={(filePath, line) => openRightPanelFileTab(session.id, filePath, { preview: true, line })}
+              />
+            )}
             {isUser && msg.attachments && msg.attachments.length > 0 && <MessageAttachmentList attachments={msg.attachments} />}
             {shouldCollapseUserMessage && (
               <div className="mt-2 flex justify-end">
@@ -2592,25 +2601,59 @@ function MessageAttachmentList({ attachments }: { attachments: Attachment[] }): 
   )
 }
 
-function FileReferenceList({ files, cwd, searchRoots, preferredEditor }: { files: FileReference[]; cwd: string; searchRoots: string[]; preferredEditor: PreferredEditor }): JSX.Element {
+function FileReferenceList({
+  files,
+  cwd,
+  searchRoots,
+  preferredEditor,
+  onOpenWorkbenchFile
+}: {
+  files: FileReference[]
+  cwd: string
+  searchRoots: string[]
+  preferredEditor: PreferredEditor
+  onOpenWorkbenchFile: (filePath: string, line?: number) => void
+}): JSX.Element {
   return (
     <div className="mt-3 min-w-0 max-w-full space-y-1.5" aria-label="Referenced files" data-testid="file-reference-list">
       {files.map((file) => (
-        <FileReferenceCard key={`${file.path}:${file.line ?? ''}:${file.column ?? ''}`} file={file} cwd={cwd} searchRoots={searchRoots} preferredEditor={preferredEditor} />
+        <FileReferenceCard
+          key={`${file.path}:${file.line ?? ''}:${file.column ?? ''}`}
+          file={file}
+          cwd={cwd}
+          searchRoots={searchRoots}
+          preferredEditor={preferredEditor}
+          onOpenWorkbenchFile={onOpenWorkbenchFile}
+        />
       ))}
     </div>
   )
 }
 
-function FileReferenceCard({ file, cwd, searchRoots, preferredEditor }: { file: FileReference; cwd: string; searchRoots: string[]; preferredEditor: PreferredEditor }): JSX.Element {
+function FileReferenceCard({
+  file,
+  cwd,
+  searchRoots,
+  preferredEditor,
+  onOpenWorkbenchFile
+}: {
+  file: FileReference
+  cwd: string
+  searchRoots: string[]
+  preferredEditor: PreferredEditor
+  onOpenWorkbenchFile: (filePath: string, line?: number) => void
+}): JSX.Element {
   const [exists, setExists] = useState<boolean | null>(null)
   const [resolvedPath, setResolvedPath] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [lastOpenResult, setLastOpenResult] = useState<OpenPathResult | null>(null)
+  const [workbenchOpenStatus, setWorkbenchOpenStatus] = useState('')
   const displayPath = resolvedPath ?? file.path
   const displayLabel = resolvedPath ? fileName(resolvedPath) : file.label
   const targetLabel = file.line ? `:${file.line}${file.column ? `:${file.column}` : ''}` : ''
   const openStatus = lastOpenResult ? fileReferenceOpenResultStatus(lastOpenResult) : ''
+  const workbenchFilePath = resolvedPath ? relativePathWithinRoot(cwd, resolvedPath) : file.source === 'relative' ? file.path : null
+  const canOpenInWorkbench = exists === true && workbenchFilePath !== null
 
   useEffect(() => {
     let cancelled = false
@@ -2618,6 +2661,7 @@ function FileReferenceCard({ file, cwd, searchRoots, preferredEditor }: { file: 
     setResolvedPath(null)
     setError(null)
     setLastOpenResult(null)
+    setWorkbenchOpenStatus('')
 
     const resolve = async (): Promise<void> => {
       try {
@@ -2671,6 +2715,12 @@ function FileReferenceCard({ file, cwd, searchRoots, preferredEditor }: { file: 
     await window.api.fs.showInFolder(displayPath)
   }
 
+  const openInWorkbench = (): void => {
+    if (!workbenchFilePath) return
+    onOpenWorkbenchFile(workbenchFilePath, file.line)
+    setWorkbenchOpenStatus(file.line ? `Opened in Workbench at line ${file.line}` : 'Opened in Workbench')
+  }
+
   if (exists === false && file.source === 'relative') return <></>
 
   return (
@@ -2685,6 +2735,8 @@ function FileReferenceCard({ file, cwd, searchRoots, preferredEditor }: { file: 
       data-file-reference-open-result-column={lastOpenResult?.column ?? ''}
       data-file-reference-open-result-fallback-from={lastOpenResult?.fallbackFrom ?? ''}
       data-file-reference-open-result-opened-with={lastOpenResult?.openedWith ?? ''}
+      data-file-reference-workbench-path={workbenchFilePath ?? ''}
+      data-file-reference-workbench-opened={workbenchOpenStatus ? 'true' : 'false'}
       className="min-w-0 max-w-full overflow-hidden rounded-lg px-3 py-2 text-xs"
       style={{
         background: 'var(--color-surface)',
@@ -2723,6 +2775,21 @@ function FileReferenceCard({ file, cwd, searchRoots, preferredEditor }: { file: 
         </button>
         <button
           type="button"
+          onClick={openInWorkbench}
+          disabled={!canOpenInWorkbench}
+          data-testid="file-reference-open-workbench"
+          className="shrink-0 rounded-md px-2 py-1 transition-colors"
+          style={{
+            color: canOpenInWorkbench ? 'var(--color-text)' : 'var(--color-text-muted)',
+            background: 'transparent',
+            border: '1px solid var(--color-border)',
+            opacity: canOpenInWorkbench ? 1 : 0.5
+          }}
+        >
+          Workbench
+        </button>
+        <button
+          type="button"
           onClick={revealPath}
           disabled={exists === false}
           className="shrink-0 rounded-md px-2 py-1 transition-colors"
@@ -2753,12 +2820,32 @@ function FileReferenceCard({ file, cwd, searchRoots, preferredEditor }: { file: 
           {openStatus}
         </div>
       )}
+      {workbenchOpenStatus && (
+        <div
+          className="mt-1"
+          data-testid="file-reference-workbench-status"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          style={{ color: 'var(--color-text-muted)', fontSize: 10 }}
+        >
+          {workbenchOpenStatus}
+        </div>
+      )}
     </div>
   )
 }
 
 function fileName(filePath: string): string {
   return filePath.split('/').filter(Boolean).at(-1) ?? filePath
+}
+
+function relativePathWithinRoot(root: string, absolutePath: string): string | null {
+  const normalizedRoot = root.replace(/\/+$/, '')
+  const normalizedPath = absolutePath.replace(/\/+$/, '')
+  if (normalizedPath === normalizedRoot) return null
+  const prefix = `${normalizedRoot}/`
+  return normalizedPath.startsWith(prefix) ? normalizedPath.slice(prefix.length) : null
 }
 
 function normalizePreferredEditor(value: unknown): PreferredEditor {

@@ -546,6 +546,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
     runAutomatedTranscriptReserveSmoke(win, outputPath, screenshotPath)
     return
   }
+  if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-file-reference') {
+    runAutomatedTranscriptFileReferenceSmoke(win, outputPath, screenshotPath)
+    return
+  }
   if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-tool-jump') {
     runAutomatedTranscriptToolJumpSmoke(win, outputPath, screenshotPath)
     return
@@ -24065,8 +24069,8 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
             let recoveryCards = [];
             let recoveryCard = null;
             let retryLastButton = null;
-            for (let index = 0; index < 14; index += 1) {
-              scroller.scrollTop = Math.max(0, scroller.scrollHeight - scroller.clientHeight) * (index / 13);
+            for (let index = 0; index < 24; index += 1) {
+              scroller.scrollTop = Math.max(0, scroller.scrollHeight - scroller.clientHeight) * (index / 23);
               scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
               await sleep(120);
               recoveryCards = [...document.querySelectorAll('[data-testid="chat-error-recovery-card"]')]
@@ -24087,6 +24091,11 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
                 retryLastButton = recoveryCard.querySelector('[data-testid="chat-error-retry-last"]');
                 break;
               }
+            }
+            if (recoveryCard instanceof HTMLElement) {
+              recoveryCard.scrollIntoView({ block: 'center' });
+              await sleep(80);
+              retryLastButton = recoveryCard.querySelector('[data-testid="chat-error-retry-last"]');
             }
             if (activeSessionId && retryLastButton instanceof HTMLButtonElement && !retryLastButton.disabled) {
               retryLastButton.focus();
@@ -24437,6 +24446,118 @@ function runAutomatedTranscriptReserveSmoke(win: BrowserWindow, outputPath: stri
               composerReserveFollowBottomWorks,
               composerReserveDebug: { before, after },
               bodyText: document.body.innerText
+            };
+          })()
+        `)
+        if (screenshotPath) {
+          const image = await win.webContents.capturePage()
+          writeFileSync(screenshotPath, image.toPNG())
+        }
+        writeFileSync(outputPath, JSON.stringify({ ok: true, result: { profile, ...result }, screenshotPath }, null, 2))
+        app.quit()
+      } catch (error) {
+        writeFileSync(outputPath, JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2))
+        app.quit()
+      }
+    }, 700)
+  })
+}
+
+function runAutomatedTranscriptFileReferenceSmoke(win: BrowserWindow, outputPath: string, screenshotPath?: string): void {
+  win.webContents.once('did-finish-load', () => {
+    setTimeout(async () => {
+      try {
+        win.setMinimumSize(520, 600)
+        win.setSize(860, 720)
+        const profile = getAppProfile()
+        const session = sessionManager.list().find((candidate) => candidate.name === 'Transcript layout smoke')
+        if (session) {
+          win.webContents.send('pet:navigate', session.id)
+          await new Promise((resolve) => setTimeout(resolve, 260))
+        }
+        const result = await win.webContents.executeJavaScript(`
+          (async () => {
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            const waitForCards = async () => {
+              for (let index = 0; index < 40; index += 1) {
+                const cards = [...document.querySelectorAll('[data-testid="file-reference-card"]')];
+                if (
+                  cards.some((card) => card.textContent?.includes('transcript-layout-fixture.ts:1')) &&
+                  cards.some((card) => card.textContent?.includes('explicit-missing-file.ts'))
+                ) return cards;
+                await sleep(80);
+              }
+              return [...document.querySelectorAll('[data-testid="file-reference-card"]')];
+            };
+            const cards = await waitForCards();
+            const lineCard = cards.find((card) =>
+              card instanceof HTMLElement &&
+              card.textContent?.includes('transcript-layout-fixture.ts:1')
+            );
+            const openButton = lineCard instanceof HTMLElement
+              ? [...lineCard.querySelectorAll('button')].find((button) => button.textContent?.includes('Open'))
+              : null;
+            if (openButton instanceof HTMLButtonElement) {
+              openButton.click();
+              await sleep(200);
+            }
+            const openStatus = lineCard instanceof HTMLElement
+              ? lineCard.querySelector('[data-testid="file-reference-open-status"]')
+              : null;
+            const fileReferenceOpenOutcomeWorks =
+              lineCard instanceof HTMLElement &&
+              openButton instanceof HTMLButtonElement &&
+              lineCard.getAttribute('data-file-reference-resolved-path')?.endsWith('/transcript-layout-fixture.ts') === true &&
+              lineCard.getAttribute('data-file-reference-open-result-ok') === 'true' &&
+              (lineCard.getAttribute('data-file-reference-open-result-target') ?? '').length > 0 &&
+              (lineCard.getAttribute('data-file-reference-open-result-method') ?? '').length > 0 &&
+              lineCard.getAttribute('data-file-reference-open-result-line') === '1' &&
+              (lineCard.getAttribute('data-file-reference-open-result-opened-with') ?? '').length > 0 &&
+              openStatus instanceof HTMLElement &&
+              openStatus.getAttribute('role') === 'status' &&
+              openStatus.getAttribute('aria-live') === 'polite' &&
+              openStatus.textContent?.includes('Opened in ') === true;
+
+            const workbenchOpenButton = lineCard instanceof HTMLElement
+              ? lineCard.querySelector('[data-testid="file-reference-open-workbench"]')
+              : null;
+            if (workbenchOpenButton instanceof HTMLButtonElement) {
+              workbenchOpenButton.click();
+              await sleep(420);
+            }
+            const workbenchOpenedFileTab = document.querySelector('[data-testid="workbench-file-tab"]');
+            const workbenchOpenStatus = lineCard instanceof HTMLElement
+              ? lineCard.querySelector('[data-testid="file-reference-workbench-status"]')
+              : null;
+            const fileReferenceOpenWorkbenchWorks =
+              lineCard instanceof HTMLElement &&
+              workbenchOpenButton instanceof HTMLButtonElement &&
+              workbenchOpenButton.disabled === false &&
+              lineCard.getAttribute('data-file-reference-workbench-path')?.endsWith('transcript-layout-fixture.ts') === true &&
+              lineCard.getAttribute('data-file-reference-workbench-opened') === 'true' &&
+              workbenchOpenStatus instanceof HTMLElement &&
+              workbenchOpenStatus.getAttribute('role') === 'status' &&
+              workbenchOpenStatus.getAttribute('aria-live') === 'polite' &&
+              workbenchOpenStatus.textContent?.includes('Opened in Workbench at line 1') === true &&
+              workbenchOpenedFileTab instanceof HTMLElement &&
+              workbenchOpenedFileTab.getAttribute('data-file-tab-path')?.endsWith('transcript-layout-fixture.ts') === true &&
+              workbenchOpenedFileTab.getAttribute('data-file-tab-selected-source-line') === '1' &&
+              workbenchOpenedFileTab.getAttribute('data-file-tab-source-reveal-line') === '1';
+
+            const missingCard = [...document.querySelectorAll('[data-testid="file-reference-card"]')]
+              .find((card) => card instanceof HTMLElement && card.textContent?.includes('explicit-missing-file.ts'));
+            const missingButtons = missingCard instanceof HTMLElement ? [...missingCard.querySelectorAll('button')] : [];
+            const fileReferenceMissingActionsDisabled =
+              missingCard instanceof HTMLElement &&
+              missingCard.textContent?.includes('missing') === true &&
+              missingButtons.length >= 3 &&
+              missingButtons.every((button) => button instanceof HTMLButtonElement && button.disabled);
+
+            return {
+              transcriptFound: document.querySelector('[data-testid="transcript-scroll"]') instanceof HTMLElement,
+              fileReferenceOpenOutcomeWorks,
+              fileReferenceOpenWorkbenchWorks,
+              fileReferenceMissingActionsDisabled
             };
           })()
         `)
@@ -27661,6 +27782,7 @@ async function bootstrapAutomatedUiSmokeState(): Promise<void> {
   } else if (
     process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-layout' ||
     process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-reserve' ||
+    process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-file-reference' ||
     process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-fork'
   ) {
     seedAutomatedTranscriptLayoutSmokeSession(session.id)
@@ -28267,7 +28389,7 @@ function seedAutomatedTranscriptLayoutSmokeSession(sessionId: string): void {
         `| code | ${longToken} |`,
         `| path | ${longPath} |`,
         '',
-        `Referenced fixture: \`${longPath}\``,
+        `Referenced fixture: \`${longPath}:1\``,
         '',
         `Explicit missing fixture: \`${explicitMissingPath}\``,
         'Review prose should not create a card for `DefinitelyMissingRelativeReviewFile.java`.'
