@@ -16259,6 +16259,7 @@ function runAutomatedFocusedSurfaceSmoke(
               let fileSourceAddToChatWorks = false;
               let fileSourceLineBlameWorks = false;
               let fileSourceAnnotationPinsTabWorks = false;
+              let fileSourceAnnotationStatusWorks = false;
               let filesSearchHistoryWorks = false;
               const fileActionMenuButton = findButton('File actions');
               if (fileActionMenuButton instanceof HTMLButtonElement) {
@@ -18973,6 +18974,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 await sleep(160);
               }
               const sourceFileTabAfterAnnotation = document.querySelector('[data-testid="workbench-file-tab"]');
+              const sourceActionStatusAfterAnnotation = document.querySelector('[data-testid="workbench-file-tab-action-status"]');
               const sourceFileTabButtonAfterAnnotation = [...document.querySelectorAll('[role="tab"][data-tab-id^="file:"]')]
                 .find((button) => button instanceof HTMLElement && button.textContent?.includes('review-base.txt'));
               const sourcePreviewAfterAnnotation = document.querySelector('[data-testid="workbench-file-tab"] [data-testid="workspace-text-preview"]');
@@ -18996,6 +18998,14 @@ function runAutomatedFocusedSurfaceSmoke(
                 annotationCard.getAttribute('data-source-annotation-status') === 'saved' &&
                 annotationBody instanceof HTMLElement &&
                 annotationBody.textContent?.includes('review note from smoke') === true;
+              fileSourceAnnotationStatusWorks =
+                fileSourceAnnotationsWorks &&
+                sourceFileTabAfterAnnotation instanceof HTMLElement &&
+                sourceFileTabAfterAnnotation.getAttribute('data-file-tab-action-status') === 'Saved source comment on line 2' &&
+                sourceActionStatusAfterAnnotation instanceof HTMLElement &&
+                sourceActionStatusAfterAnnotation.getAttribute('role') === 'status' &&
+                sourceActionStatusAfterAnnotation.getAttribute('aria-live') === 'polite' &&
+                sourceActionStatusAfterAnnotation.textContent?.includes('Saved source comment on line 2') === true;
               fileSourceAnnotationPinsTabWorks =
                 fileSourceAnnotationsWorks &&
                 sourceFileTabAfterAnnotation instanceof HTMLElement &&
@@ -19325,6 +19335,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 fileSourceGutterBlameWorks,
                 fileSourceInlineGutterUtilitiesWorks,
                 fileSourceAnnotationsWorks,
+                fileSourceAnnotationStatusWorks,
                 fileSourceAnnotationPinsTabWorks,
                 fileSourceWrapToggleWorks,
                 fileSourceTabStateWorks,

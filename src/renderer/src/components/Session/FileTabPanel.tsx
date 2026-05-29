@@ -347,6 +347,7 @@ export default function FileTabPanel({
     pinPreviewTabForPersistentWork()
     const existing = sourceAnnotations.find((annotation) => annotation.line === line)
     if (existing) {
+      setFileActionStatus(`Opened source comment on line ${line}`)
       updateFileTabState({
         sourceAnnotations: sourceAnnotations.map((annotation) =>
           annotation.id === existing.id ? { ...annotation, status: 'draft', updatedAt: Date.now() } : annotation
@@ -354,6 +355,7 @@ export default function FileTabPanel({
       })
       return
     }
+    setFileActionStatus(`Added source comment on line ${line}`)
     updateFileTabState({
       sourceAnnotations: [
         ...sourceAnnotations,
@@ -377,6 +379,12 @@ export default function FileTabPanel({
   }
 
   const saveSourceAnnotation = (id: string): void => {
+    const target = sourceAnnotations.find((annotation) => annotation.id === id)
+    const body = target?.body.trim() ?? ''
+    const lineSuffix = target ? ` on line ${target.line}` : ''
+    setFileActionStatus(body.length === 0
+      ? `Removed empty source comment${lineSuffix}`
+      : `Saved source comment${lineSuffix}`)
     updateFileTabState({
       sourceAnnotations: sourceAnnotations.flatMap((annotation) => {
         if (annotation.id !== id) return [annotation]
@@ -387,6 +395,8 @@ export default function FileTabPanel({
   }
 
   const deleteSourceAnnotation = (id: string): void => {
+    const target = sourceAnnotations.find((annotation) => annotation.id === id)
+    setFileActionStatus(`Deleted source comment${target ? ` on line ${target.line}` : ''}`)
     updateFileTabState({
       sourceAnnotations: sourceAnnotations.filter((annotation) => annotation.id !== id)
     })
