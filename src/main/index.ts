@@ -21260,6 +21260,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
             let browserZoomPresetWorks = false;
             let browserActionsMenuMaterialWorks = false;
             let browserActionsMenuTriggerStateWorks = false;
+            let browserActionsPageContextWorks = false;
             if (browserActionsButton instanceof HTMLButtonElement) {
               const browserActionsMenuClosedStateWorks =
                 browserActionsButton.getAttribute('aria-haspopup') === 'menu' &&
@@ -21283,6 +21284,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                 : [];
               const copyUrlItem = [...document.querySelectorAll('[role="menuitem"]')]
                 .find((item) => item.textContent?.includes('Copy URL'));
+              const addPageContextItem = document.querySelector('[data-testid="browser-menu-add-page-context"]');
               const clearDataItem = document.querySelector('[data-testid="browser-clear-data"]');
               const clearCacheItem = document.querySelector('[data-testid="browser-clear-cache"]');
               const clearCookiesItem = document.querySelector('[data-testid="browser-clear-cookies"]');
@@ -21366,6 +21368,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                 historyItems.some((item) => item.textContent?.includes('127.0.0.1')) &&
                 clearHistoryItem instanceof HTMLElement &&
                 copyUrlItem instanceof HTMLElement &&
+                addPageContextItem instanceof HTMLElement &&
                 clearDataItem instanceof HTMLElement &&
                 clearCacheItem instanceof HTMLElement &&
                 clearCookiesItem instanceof HTMLElement &&
@@ -21374,7 +21377,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                 browserActionsMenu instanceof HTMLElement &&
                 browserPageActions instanceof HTMLElement &&
                 browserDataActions instanceof HTMLElement &&
-                browserPageActionRows.length === 5 &&
+                browserPageActionRows.length === 6 &&
                 browserDataActionRows.length === 4 &&
                 browserPageActions.scrollWidth <= browserPageActions.clientWidth + 2 &&
                 browserDataActions.scrollWidth <= browserDataActions.clientWidth + 2 &&
@@ -21476,6 +21479,42 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               }
               browserClearDataWorks = clearDataTargetIndex === clearDataTargets.length;
               browserClearDataStatusA11yWorks = clearDataStatusIndex === clearDataTargets.length;
+              if (!document.querySelector('.browser-actions-menu')) {
+                browserActionsButton.click();
+                await sleep(120);
+              }
+              const addPageContextTarget = document.querySelector('[data-testid="browser-menu-add-page-context"]');
+              if (addPageContextTarget instanceof HTMLButtonElement) {
+                const composerBeforeContext = document.querySelector('textarea');
+                const beforeContextValue = composerBeforeContext instanceof HTMLTextAreaElement ? composerBeforeContext.value : '';
+                addPageContextTarget.click();
+                for (let index = 0; index < 20; index += 1) {
+                  const composerAfterContext = document.querySelector('textarea');
+                  const actionStatus = document.querySelector('[data-testid="browser-copy-url-status"]');
+                  if (
+                    composerAfterContext instanceof HTMLTextAreaElement &&
+                    composerAfterContext.value.length > beforeContextValue.length &&
+                    composerAfterContext.value.includes('Review this browser page:') &&
+                    actionStatus?.textContent?.includes('Page context added to chat') === true
+                  ) {
+                    break;
+                  }
+                  await sleep(80);
+                }
+                const composerAfterContext = document.querySelector('textarea');
+                const actionStatus = document.querySelector('[data-testid="browser-copy-url-status"]');
+                browserActionsPageContextWorks =
+                  composerAfterContext instanceof HTMLTextAreaElement &&
+                  composerAfterContext.value.length > beforeContextValue.length &&
+                  composerAfterContext.value.includes('Review this browser page:') &&
+                  composerAfterContext.value.includes(smokeBaseUrl) &&
+                  composerAfterContext.value.includes('Visible page structure:') &&
+                  actionStatus instanceof HTMLElement &&
+                  actionStatus.textContent?.includes('Page context added to chat') === true &&
+                  actionStatus.getAttribute('role') === 'status' &&
+                  actionStatus.getAttribute('aria-live') === 'polite' &&
+                  actionStatus.getAttribute('aria-atomic') === 'true';
+              }
               if (document.querySelector('.browser-actions-menu')) {
                 browserActionsButton.click();
               }
@@ -22785,6 +22824,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserToolbarHistoryWorks,
               browserHistoryMenuWorks,
               browserHistoryClearWorks,
+              browserActionsPageContextWorks,
               browserZoomPresetWorks,
               browserActionsMenuCompactWorks: typeof browserActionsMenuCompactWorks === 'boolean' ? browserActionsMenuCompactWorks : null,
               browserActionsMenuTriggerStateWorks,

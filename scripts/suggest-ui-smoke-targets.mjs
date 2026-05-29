@@ -300,6 +300,7 @@ function suggestTargets(paths) {
   suppressComposerForTerminalHandoffDiff(matched, paths)
   suppressComposerForToolActivityCommandDiff(matched, paths)
   suppressComposerForWorkbenchGitHandoffDiff(matched, paths)
+  suppressComposerForBrowserHandoffDiff(matched, paths)
   suppressWorkbenchForReviewGitHandoffDiff(matched, paths)
   suppressWorkbenchForEnvironmentCreatePrDiff(matched, paths)
 
@@ -626,6 +627,20 @@ function suppressComposerForWorkbenchGitHandoffDiff(matched, paths) {
     paths.includes('src/main/index.ts') ? diffForFile('src/main/index.ts') : ''
   ].join('\n')
   if (!/workbenchNewTabGit|git-pr-command|Git PR command/.test(diff)) return
+  matched.delete('--composer')
+}
+
+function suppressComposerForBrowserHandoffDiff(matched, paths) {
+  const composer = matched.get('--composer')
+  const browser = matched.get('--browser')
+  if (!composer || !browser) return
+  if (!composer.files.every((file) => file === 'scripts/run-automated-ui-smoke.mjs' || file === 'src/main/index.ts')) return
+  const diff = [
+    paths.includes('scripts/run-automated-ui-smoke.mjs') ? diffForFile('scripts/run-automated-ui-smoke.mjs') : '',
+    paths.includes('src/main/index.ts') ? diffForFile('src/main/index.ts') : '',
+    paths.includes('src/renderer/src/components/Session/BrowserPanel.tsx') ? diffForFile('src/renderer/src/components/Session/BrowserPanel.tsx') : ''
+  ].join('\n')
+  if (!/browserActionsPageContext|browser-menu-add-page-context|Add page context|Page context added to chat|Review this browser page/.test(diff)) return
   matched.delete('--composer')
 }
 

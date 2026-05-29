@@ -986,6 +986,12 @@ export default function BrowserPanel({
     }))
     setPageContextMenu(null)
     setBrowserMenuOpen(false)
+    if (copyUrlStatusTimeoutRef.current) window.clearTimeout(copyUrlStatusTimeoutRef.current)
+    setCopyUrlStatus({ text: 'Page context added to chat', tone: 'info' })
+    copyUrlStatusTimeoutRef.current = window.setTimeout(() => {
+      setCopyUrlStatus(null)
+      copyUrlStatusTimeoutRef.current = null
+    }, 2200)
   }
 
   const commentRegionFromDrag = (
@@ -1809,6 +1815,14 @@ export default function BrowserPanel({
                     void copyCurrentUrl()
                     setBrowserMenuOpen(false)
                   }}
+                />
+                <MenuItem
+                  icon="chat"
+                  label="Add page context"
+                  ariaLabel="Add browser page context to chat"
+                  disabled={!currentUrl || !visible || Boolean(error)}
+                  dataTestId="browser-menu-add-page-context"
+                  onClick={() => void addPageContextToChat()}
                 />
                 <MenuItem
                   icon="external"
