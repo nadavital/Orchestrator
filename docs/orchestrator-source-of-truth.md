@@ -1,6 +1,6 @@
 # Orchestrator Source Of Truth
 
-Last updated: 2026-05-28
+Last updated: 2026-05-29
 
 This is the canonical execution plan for Orchestrator. Every long-running implementation pass should start here, update this file as work lands, and treat the older docs in `docs/` as supporting research or historical evidence.
 
@@ -10,6 +10,7 @@ For provider-specific implementation work, use `docs/provider-integration-runboo
 
 Recent side-panel parity checkpoint:
 
+- Focused smoke-selection checkpoint: `scripts/run-automated-ui-smoke.mjs --list-views` and `pnpm run smoke:ui:list` now print the available focused UI smoke targets grouped by surface, with scope notes and examples. Use this before validation planning for small UI/product slices, then run the narrowest target plus code-level checks instead of the default broad smoke. Default no-flag smoke remains reserved for shared shell changes that are not covered by a listed target.
 - Codex Review-mode checkpoint: `enteredReviewMode` / `exitedReviewMode` app-server items now normalize into typed `review.mode.changed` events instead of generic status text, persist as `Review mode: active/exited` transcript rows, and make the right Workbench Plan tab available after live events or reload. The Plan panel renders a compact Review mode section with the review summary and an Open Review action. `pnpm run test:providers` gates parser/message normalization, and focused `--plan` smoke gates `planReviewMode=true` plus `planReviewModeOpen=true`; evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-plan-1780034332685.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-plan-1780034332685.png`.
 - Codex Goal command checkpoint: Codex sessions now expose `/goal` as a provider slash command with `runtime="app-server"` and `handler="send-to-provider"`, and the Plan goal block exposes a compact `Clear` action that routes `/goal clear` through the normal session send path with visible/announced status. `pnpm run test:providers` gates the slash-command routing, and focused `--plan` smoke gates `planGoalClearAction=true`; evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-plan-1780033984816.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-plan-1780033984816.png`.
 - Plan goal persisted-metrics checkpoint: the Plan panel now reconstructs status, tokens used, token budget, elapsed time, and progress from persisted `Goal:` transcript status rows after reload, matching the useful context from live `thread/goal/updated` events. Focused `--plan` smoke gates this under `planGoalPersistedMetrics=true`; evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-plan-1780033652489.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-plan-1780033652489.png`.

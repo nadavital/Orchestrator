@@ -8,115 +8,67 @@ import { fileURLToPath } from 'url'
 import { prepareMacSmokeBundle } from './lib/packaged-smoke-bundle.mjs'
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)))
-const captureView = process.argv.includes('--settings-deeplink')
-  ? 'settings-deeplink'
-  : process.argv.includes('--settings-providers')
-  ? 'settings-providers'
-  : process.argv.includes('--settings')
-  ? 'settings'
-  : process.argv.includes('--capabilities')
-    ? 'capabilities'
-    : process.argv.includes('--resources')
-    ? 'resources'
-      : process.argv.includes('--composer')
-        ? 'composer'
-      : process.argv.includes('--pets')
-        ? 'pets'
-      : process.argv.includes('--terminal-visual')
-        ? 'terminal-visual'
-      : process.argv.includes('--header')
-        ? 'header'
-      : process.argv.includes('--multi-window-focus')
-        ? 'multi-window-focus'
-      : process.argv.includes('--worktree-lifecycle')
-        ? 'worktree-lifecycle'
-      : process.argv.includes('--workbench-new-tab')
-        ? 'workbench-new-tab'
-      : process.argv.includes('--environment')
-        ? 'environment'
-      : process.argv.includes('--right-panel')
-        ? 'right-panel'
-      : process.argv.includes('--workbench-perf')
-        ? 'workbench-perf'
-      : process.argv.includes('--cross-panel-keyboard')
-        ? 'cross-panel-keyboard'
-      : process.argv.includes('--diff-entry')
-        ? 'diff-entry'
-      : process.argv.includes('--diff-empty')
-        ? 'diff-empty'
-      : process.argv.includes('--diff-loading')
-        ? 'diff-loading'
-      : process.argv.includes('--diff-conflict')
-        ? 'diff-conflict'
-      : process.argv.includes('--diff-narrow')
-        ? 'diff-narrow'
-      : process.argv.includes('--diff-core')
-        ? 'diff-core'
-      : process.argv.includes('--diff-last-turn')
-        ? 'diff-last-turn'
-      : process.argv.includes('--diff-source')
-        ? 'diff-source'
-      : process.argv.includes('--diff-preview')
-        ? 'diff-preview'
-      : process.argv.includes('--diff')
-        ? 'diff'
-      : process.argv.includes('--files')
-        ? 'files'
-      : process.argv.includes('--side-chat')
-        ? 'side-chat'
-      : process.argv.includes('--motion-reduced')
-          ? 'motion-reduced'
-        : process.argv.includes('--empty-state')
-          ? 'empty-state'
-        : process.argv.includes('--pet-overlay')
-          ? 'pet-overlay'
-          : process.argv.includes('--sidebar')
-            ? 'sidebar'
-            : process.argv.includes('--transcript-live-lifecycle')
-              ? 'transcript-live-lifecycle'
-            : process.argv.includes('--transcript-live-partial-continue')
-              ? 'transcript-live-partial-continue'
-            : process.argv.includes('--transcript-live-model-switch')
-              ? 'transcript-live-model-switch'
-            : process.argv.includes('--transcript-reserve')
-              ? 'transcript-reserve'
-            : process.argv.includes('--transcript-file-reference')
-              ? 'transcript-file-reference'
-            : process.argv.includes('--transcript-tool-jump')
-              ? 'transcript-tool-jump'
-            : process.argv.includes('--transcript-layout')
-              ? 'transcript-layout'
-              : process.argv.includes('--transcript-fork')
-              ? 'transcript-fork'
-              : process.argv.includes('--transcript-user-input')
-                ? 'transcript-user-input'
-              : process.argv.includes('--transcript-permission')
-                ? 'transcript-permission'
-              : process.argv.includes('--transcript-tool-failure')
-                ? 'transcript-tool-failure'
-              : process.argv.includes('--transcript-stress')
-                ? 'transcript-stress'
-                : process.argv.includes('--streaming-drag')
-                  ? 'streaming-drag'
-                : process.argv.includes('--streaming-typing')
-                  ? 'streaming-typing'
-                : process.argv.includes('--session-switch')
-                  ? 'session-switch'
-                  : process.argv.includes('--extensions')
-                    ? 'extensions'
-                    : process.argv.includes('--design-system')
-                      ? 'design-system'
-                      : process.argv.includes('--scroll')
-                        ? 'scroll'
-                        : process.argv.includes('--browser')
-                          ? 'browser'
-                          : process.argv.includes('--plan')
-                            ? 'plan'
-                          : process.argv.includes('--inspector')
-                            ? 'inspector'
-                            : process.argv.includes('--terminal')
-                              ? 'terminal'
-                              : 'main'
+const captureViewOptions = [
+  { flag: '--settings-deeplink', view: 'settings-deeplink', surface: 'Settings', scope: 'Deep-link routing and section recovery' },
+  { flag: '--settings-providers', view: 'settings-providers', surface: 'Settings', scope: 'Provider defaults and provider settings controls' },
+  { flag: '--settings', view: 'settings', surface: 'Settings', scope: 'Settings navigation, search, and focused section behavior' },
+  { flag: '--capabilities', view: 'capabilities', surface: 'Capabilities', scope: 'Capability browser and installed capability controls' },
+  { flag: '--resources', view: 'resources', surface: 'Resources', scope: 'Provider resource browser and resource cards' },
+  { flag: '--composer', view: 'composer', surface: 'Composer', scope: 'Drafts, attachments, send blocking, provider/model controls' },
+  { flag: '--pets', view: 'pets', surface: 'Settings', scope: 'Pet settings and overlay configuration' },
+  { flag: '--terminal-visual', view: 'terminal-visual', surface: 'Terminal', scope: 'Bottom terminal screenshot and visual health only' },
+  { flag: '--header', view: 'header', surface: 'Shell', scope: 'Header/sidebar/right-panel contact contract' },
+  { flag: '--multi-window-focus', view: 'multi-window-focus', surface: 'Shell', scope: 'Window focus and menu routing' },
+  { flag: '--worktree-lifecycle', view: 'worktree-lifecycle', surface: 'Worktrees', scope: 'Pending/failed worktree notices and retry controls' },
+  { flag: '--workbench-new-tab', view: 'workbench-new-tab', surface: 'Workbench', scope: 'New-tab launcher, keyboard navigation, singleton switching' },
+  { flag: '--environment', view: 'environment', surface: 'Workbench', scope: 'Environment panel and add-to-chat context handoff' },
+  { flag: '--right-panel', view: 'right-panel', surface: 'Workbench', scope: 'Right-panel tab shell, transfer boundaries, keyboard routing' },
+  { flag: '--workbench-perf', view: 'workbench-perf', surface: 'Workbench', scope: 'Workbench rendering performance gates' },
+  { flag: '--cross-panel-keyboard', view: 'cross-panel-keyboard', surface: 'Workbench', scope: 'Right/bottom panel keyboard contracts' },
+  { flag: '--diff-entry', view: 'diff-entry', surface: 'Review', scope: 'Review entry card, toolbar metadata, environment handoff' },
+  { flag: '--diff-empty', view: 'diff-empty', surface: 'Review', scope: 'Review empty state only' },
+  { flag: '--diff-loading', view: 'diff-loading', surface: 'Review', scope: 'Review loading state only' },
+  { flag: '--diff-conflict', view: 'diff-conflict', surface: 'Review', scope: 'Merge-conflict helpers' },
+  { flag: '--diff-narrow', view: 'diff-narrow', surface: 'Review', scope: 'Narrow/mobile Review layout' },
+  { flag: '--diff-core', view: 'diff-core', surface: 'Review', scope: 'Local diff layout, file tree, line selection, local git actions' },
+  { flag: '--diff-last-turn', view: 'diff-last-turn', surface: 'Review', scope: 'Provider Last turn diff card and single-column Review state' },
+  { flag: '--diff-source', view: 'diff-source', surface: 'Review', scope: 'Source search, provider metadata, comments, blame, full-file rows' },
+  { flag: '--diff-preview', view: 'diff-preview', surface: 'Review', scope: 'Diff preview renderers and binary/artifact states' },
+  { flag: '--diff', view: 'diff', surface: 'Review', scope: 'Broad Review suite; use only when touching shared Review plumbing' },
+  { flag: '--files', view: 'files', surface: 'Files', scope: 'Files tree, source tabs, previews, open targets, file handoff' },
+  { flag: '--side-chat', view: 'side-chat', surface: 'Side chat', scope: 'Side-chat tabs, drafts, context metadata, retry' },
+  { flag: '--motion-reduced', view: 'motion-reduced', surface: 'Shell', scope: 'Reduced-motion shell behavior' },
+  { flag: '--empty-state', view: 'empty-state', surface: 'Shell', scope: 'No-project/no-session empty state' },
+  { flag: '--pet-overlay', view: 'pet-overlay', surface: 'Shell', scope: 'Pet overlay rendering' },
+  { flag: '--sidebar', view: 'sidebar', surface: 'Sidebar', scope: 'Sidebar actions, pins, projects, deep links' },
+  { flag: '--transcript-live-lifecycle', view: 'transcript-live-lifecycle', surface: 'Transcript', scope: 'Live Codex renderer lifecycle proof' },
+  { flag: '--transcript-live-partial-continue', view: 'transcript-live-partial-continue', surface: 'Transcript', scope: 'Live partial-response continue proof' },
+  { flag: '--transcript-live-model-switch', view: 'transcript-live-model-switch', surface: 'Transcript', scope: 'Live model-switch proof' },
+  { flag: '--transcript-reserve', view: 'transcript-reserve', surface: 'Transcript', scope: 'Composer reserve and scroll-follow contract' },
+  { flag: '--transcript-file-reference', view: 'transcript-file-reference', surface: 'Transcript', scope: 'File-reference cards, Workbench handoff, additional roots' },
+  { flag: '--transcript-tool-jump', view: 'transcript-tool-jump', surface: 'Transcript', scope: 'Virtualized tool-group search jump' },
+  { flag: '--transcript-layout', view: 'transcript-layout', surface: 'Transcript', scope: 'Main chat layout, message actions, transcript ergonomics' },
+  { flag: '--transcript-fork', view: 'transcript-fork', surface: 'Transcript', scope: 'Transcript fork controls' },
+  { flag: '--transcript-user-input', view: 'transcript-user-input', surface: 'Transcript', scope: 'User-input request cards' },
+  { flag: '--transcript-permission', view: 'transcript-permission', surface: 'Transcript', scope: 'Permission request cards' },
+  { flag: '--transcript-tool-failure', view: 'transcript-tool-failure', surface: 'Transcript', scope: 'Tool failure rendering' },
+  { flag: '--transcript-stress', view: 'transcript-stress', surface: 'Transcript', scope: 'Large transcript stress behavior' },
+  { flag: '--streaming-drag', view: 'streaming-drag', surface: 'Transcript', scope: 'Streaming while dragging' },
+  { flag: '--streaming-typing', view: 'streaming-typing', surface: 'Transcript', scope: 'Streaming while typing' },
+  { flag: '--session-switch', view: 'session-switch', surface: 'Sessions', scope: 'Route-backed sessions, unread state, search, recovery' },
+  { flag: '--extensions', view: 'extensions', surface: 'Extensions', scope: 'Extension surfaces' },
+  { flag: '--design-system', view: 'design-system', surface: 'Shell', scope: 'Design-system contract attributes' },
+  { flag: '--scroll', view: 'scroll', surface: 'Transcript', scope: 'Scroll behavior' },
+  { flag: '--browser', view: 'browser', surface: 'Browser', scope: 'Browser tabs, tools, security, history, webview lifecycle' },
+  { flag: '--plan', view: 'plan', surface: 'Plan', scope: 'Goal, plan, review-mode, and agent progress surfaces' },
+  { flag: '--inspector', view: 'inspector', surface: 'Broad shell', scope: 'Broad shell + right-panel + major workbench surfaces' },
+  { flag: '--terminal', view: 'terminal', surface: 'Terminal', scope: 'Terminal lifecycle, transfer model, shortcuts, theme sync' }
+]
+const captureView = resolveCaptureView(process.argv)
+if (process.argv.includes('--list-views')) {
+  printCaptureViewList()
+  process.exit(0)
+}
 const runPackaged = process.argv.includes('--packaged')
 const runInstalled = process.argv.includes('--installed')
 if (runPackaged && runInstalled) {
@@ -3219,6 +3171,35 @@ function installedLaunchCommand() {
     process.exit(1)
   }
   return { bin: executable, args: [] }
+}
+
+function resolveCaptureView(argv) {
+  return captureViewOptions.find((option) => argv.includes(option.flag))?.view ?? 'main'
+}
+
+function printCaptureViewList() {
+  const grouped = new Map()
+  for (const option of captureViewOptions) {
+    const entries = grouped.get(option.surface) ?? []
+    entries.push(option)
+    grouped.set(option.surface, entries)
+  }
+
+  console.log('Focused Orchestrator UI smoke targets')
+  console.log('')
+  console.log('Use the narrowest target that covers the touched surface. Run the default no-flag smoke only for shared shell changes that are not covered below.')
+  console.log('')
+  for (const [surface, options] of grouped.entries()) {
+    console.log(`${surface}:`)
+    for (const option of options) {
+      console.log(`  ${option.flag.padEnd(34)} ${option.scope}`)
+    }
+    console.log('')
+  }
+  console.log('Examples:')
+  console.log('  node scripts/run-automated-ui-smoke.mjs --composer')
+  console.log('  node scripts/run-automated-ui-smoke.mjs --diff-last-turn')
+  console.log('  node scripts/run-side-panel-visual-inventory.mjs --only browser,review-last-turn')
 }
 
 function waitForFile(filePath, timeoutMs) {

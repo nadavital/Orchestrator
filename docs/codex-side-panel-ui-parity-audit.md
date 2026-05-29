@@ -9814,3 +9814,13 @@ Implemented: Codex app-server review-mode items now normalize into a typed `revi
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, `pnpm run test:providers`, and elevated `node scripts/run-automated-ui-smoke.mjs --plan` passed. Provider tests now assert `review.mode.changed` parsing and persisted `Review mode: active` messages. The focused Plan smoke gates `planReviewMode=true` and `planReviewModeOpen=true`; evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-plan-1780034332685.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-plan-1780034332685.png`.
 
 Remaining: this closes first-class local Review-mode state and Plan/Review handoff only. Direct `review/start` controls for uncommitted/base/commit/custom targets and live Codex review-mode timing remain separate app-server follow-ups.
+
+### 2026-05-29 - Focused Smoke Target Discovery
+
+Product evidence: Phase 1 progress was being slowed by repeatedly reaching for broad UI smoke runs even when a slice touched a narrow surface. The runner already had focused captures for Composer, Plan, Browser, Review submodes, Files, Workbench, Terminal, and Transcript, but the discoverability was buried in the script implementation.
+
+Implemented: `scripts/run-automated-ui-smoke.mjs` now owns a focused capture registry and exposes it through `--list-views`. `pnpm run smoke:ui:list` prints the available smoke targets grouped by surface with scope notes and examples, making validation planning explicit before running an Electron smoke. The default no-flag smoke remains available for shared shell work, but the source of truth now says to use the narrowest listed target for small UI/product slices.
+
+Verification: `node -c scripts/run-automated-ui-smoke.mjs`, `node scripts/run-automated-ui-smoke.mjs --list-views`, `pnpm run smoke:ui:list`, and `git diff --check` passed.
+
+Remaining: this improves smoke selection and avoids unnecessary broad runs only. It does not replace the actual focused UI smokes for changed surfaces, and side-panel visual inventory/comparison should still be run intentionally when a slice changes the coordinated header/sidebar/right-panel/bottom-panel contract.

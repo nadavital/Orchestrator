@@ -78,12 +78,12 @@ Local Codex CLI: `codex-cli 0.128.0`
 | Assistant streaming | Supported | Handles `item/agentMessage/delta` and suppresses duplicate final text. |
 | Tool items | Parsed | Handles command, file change, MCP tool, dynamic tool, web search, image view/generation, review-mode, reasoning, hook, and compaction item shapes through existing generic cards/status messages. |
 | Plan mode / plan updates | Supported | Handles `turn/plan/updated`; renders through existing plan state/UI path. |
-| Goal updates | Parsed | Handles `thread/goal/updated` and `thread/goal/cleared` as status messages. No persistent goal panel yet. |
+| Goal updates | Partial | Handles `thread/goal/updated` and `thread/goal/cleared`; Plan reconstructs live and persisted goal metrics and exposes `/goal clear` routing for Codex sessions. Richer update controls and live clear proof remain. |
 | Subagents / multi-agent | Parsed | Handles `collabAgentToolCall` as `agent.started/completed/failed`. Agent transcript depth still depends on emitted items we map. |
 | Token usage | Partial | `thread/tokenUsage/updated` is currently a status message, not a full `UsageSummary` rollup. |
-| Diff updates | Parsed | App-server `turn/diff/updated` becomes a `diff.updated` event/status and preserves provider session, turn, and optional checkpoint ids. Orchestrator Diff panel still reads workspace git diff. |
+| Diff updates | Partial | App-server `turn/diff/updated` becomes a `diff.updated` event/status, preserves provider session, turn, and optional checkpoint ids, and feeds Last turn Review cards/panel state from the provider unified diff. Workspace git diff remains the default local Review source. |
 | Side questions | External | `/btw` exists as Orchestrator-owned detached side question. It is not a Codex app-server same-thread side channel. |
-| Review mode | Parsed | `enteredReviewMode` and `exitedReviewMode` render as status messages; `review/start` is not productized. Existing `/review` still uses Codex headless review. |
+| Review mode | Partial | `enteredReviewMode` and `exitedReviewMode` normalize into typed `review.mode.changed` state, persist through transcript status rows, and surface in the Plan tab with an Open Review action. `review/start` is not productized yet. |
 | Skills/plugins/apps browsers | Partial | App-server settings surfaces list skills, hooks, plugins, and apps; the Capabilities page also discovers file-backed Codex skills, plugins, MCP config, and AGENTS instructions. Native install/configuration UI is still missing. |
 | Browser-use client tools | Partial | Codex desktop has browser-use webview state and turn-route capture/release code in the app bundle, but the live browser-use proof completes without `browser.manager_state`, browser server requests, or dynamic browser tool calls. Orchestrator now advertises renderer-backed `orchestrator.browser_open` and `orchestrator.browser_read` dynamic tools on `thread/start.dynamicTools`, routes supported `item/tool/call` requests to the Browser panel renderer, and preserves the visible unsupported boundary for other client tools. Live provider-emitted browser-use behavior still needs proof. |
 | Account/model/config/filesystem/MCP management | Partial | Read-only app-server settings surfaces cover models, model-provider capabilities, auth/account/rate limits, config, config requirements, MCP status, external agent config detection, and thread lists. Filesystem and mutating management APIs are still not productized. |
@@ -143,11 +143,11 @@ Local Codex CLI: `codex-cli 0.128.0`
 | Errors | `error` | Supported as `run.failed`. |
 | Thread start | `thread/started` | Supported as `session.started`. |
 | Thread status/name/archive/closed | `thread/status/changed`, `thread/archived`, `thread/unarchived`, `thread/closed`, `thread/name/updated` | Parsed as generic status messages. |
-| Goal | `thread/goal/updated`, `thread/goal/cleared` | Parsed into status messages. No dedicated goal UI. |
+| Goal | `thread/goal/updated`, `thread/goal/cleared` | Partial dedicated Goal UI in Plan, including persisted metrics and `/goal clear` request routing. Live clear/update proof and richer update controls remain. |
 | Token usage | `thread/tokenUsage/updated` | Partial; status message only. |
 | Turn lifecycle | `turn/started`, `turn/completed` | Supported/parsed. `turn/completed` drives run completion/failure; `turn/started` is a status message. |
 | Plans | `turn/plan/updated`, `item/plan/delta` | `turn/plan/updated` supported. `item/plan/delta` currently streams text-like deltas. |
-| Diff | `turn/diff/updated` | Parsed as `diff.updated` with provider session, turn, and optional checkpoint metadata; existing Diff panel reads git diff separately. |
+| Diff | `turn/diff/updated` | Parsed as `diff.updated` with provider session, turn, optional checkpoint metadata, and provider unified-diff content for Last turn Review cards/panel state. Existing local Diff remains the workspace git source. |
 | Hook lifecycle | `hook/started`, `hook/completed` | Parsed as generic status messages. |
 | Items | `item/started`, `item/completed` | Parsed for supported item types. |
 | Assistant message streaming | `item/agentMessage/delta` | Supported. |
@@ -222,8 +222,8 @@ Local Codex CLI: `codex-cli 0.128.0`
    - Remaining: add `review/start` controls for uncommitted/base/commit/custom targets and live Codex review-mode timing proof.
 
 4. Native App-Server Diff:
-   - Feed `diff.updated` into the existing Diff panel or a Codex turn-diff card.
-   - Decide how it coexists with the current workspace git-diff panel.
+   - Status: `diff.updated` now feeds transcript Last turn Review cards and the Review panel's Last turn source while local workspace git diff stays the default local source.
+   - Remaining: live provider timing proof for more real Codex diff shapes and any future provider-backed workspace checkpoint restore path.
 
 5. Rich Progress:
    - Replace generic command/file/MCP/reasoning status messages with dedicated progress UI where the product needs it.

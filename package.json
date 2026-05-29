@@ -56,6 +56,7 @@
     "smoke:app": "node scripts/launch-isolated-app.mjs",
     "smoke:app:packaged": "node scripts/launch-isolated-app.mjs --packaged",
     "smoke:ui:auto": "node scripts/run-automated-ui-smoke.mjs",
+    "smoke:ui:list": "node scripts/run-automated-ui-smoke.mjs --list-views",
     "smoke:visual": "node scripts/run-visual-regression.mjs",
     "smoke:visual:side-panels": "node scripts/run-side-panel-visual-inventory.mjs",
     "compare:codex-side-panels": "node scripts/run-codex-side-panel-comparison.mjs",
