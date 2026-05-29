@@ -5,7 +5,7 @@ import { execFile } from 'child_process'
 import { readFileSync } from 'fs'
 import { performance } from 'perf_hooks'
 import { promisify } from 'util'
-import type { Attachment, AutomationPermissionSnapshot, Session, SessionForkMode, SessionForkOptions, SessionListItem, ChatMessage, TextMessage, ProviderRuntimeKind, ProviderSidebarSyncResult, ReviewMetadata, RunEvent, RunRequest, SessionStatus, SideQuestionMessage, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary, WorktreeInventoryItem } from '../types'
+import type { Attachment, AutomationPermissionSnapshot, CodexReviewStartRequest, Session, SessionForkMode, SessionForkOptions, SessionListItem, ChatMessage, TextMessage, ProviderRuntimeKind, ProviderSidebarSyncResult, ReviewMetadata, RunEvent, RunRequest, SessionStatus, SideQuestionMessage, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary, WorktreeInventoryItem } from '../types'
 import { PROVIDER_DEFS, applyAutomationPermissionSnapshot, finalizeInterruptedMessages, getDefaultPermissionMode } from '../types'
 import { gitManager } from './git'
 import { getProvider, PROVIDERS, providerSpawnEnv, resolveProviderBinary, resolveProviderCommand, runCodexAppServerCommandSurfaceRaw } from './providers'
@@ -53,6 +53,11 @@ interface PendingFollowUp {
 interface SendMessageOptions {
   permissionSnapshot?: AutomationPermissionSnapshot | null
   onProviderRunComplete?: (result: { ok: boolean; error?: string | null }) => void
+}
+
+interface CodexReviewStartResult {
+  ok: boolean
+  error?: string
 }
 
 const pendingFollowUps = new Map<string, PendingFollowUp[]>()
@@ -230,6 +235,14 @@ function requestFromSession(session: Session, prompt: string): RunRequest {
     useThinking: session.useThinking,
     useFast: session.useFast
   }
+}
+
+function codexReviewStartLabel(request: CodexReviewStartRequest): string {
+  const target = request.target
+  if (target.type === 'baseBranch') return `Review changes against ${target.branch}`
+  if (target.type === 'commit') return `Review commit ${target.title || target.sha}`
+  if (target.type === 'custom') return 'Review custom instructions'
+  return 'Review uncommitted changes'
 }
 
 function promptWithPersonalization(prompt: string): string {
@@ -1363,6 +1376,55 @@ export const sessionManager = {
       this.updateStatus(sessionId, 'error')
       options.onProviderRunComplete?.({ ok: false, error: message })
       return false
+    }
+  },
+
+  async startCodexReview(sessionId: string, request: CodexReviewStartRequest): Promise<CodexReviewStartResult> {
+    const session = this.get(sessionId)
+    if (!session) return { ok: false, error: `Session ${sessionId} not found` }
+    if ((session.provider ?? 'claude') !== 'codex') return { ok: false, error: 'Native Review mode is only available for Codex sessions.' }
+    if (providerRuntime.hasActiveRun(sessionId)) return { ok: false, error: 'A provider run is already active in this session.' }
+
+    const label = codexReviewStartLabel(request)
+    this.updateStatus(sessionId, 'running')
+    const userMessageId = uuidv4()
+    this.appendMessage(sessionId, [{
+      id: userMessageId,
+      role: 'user',
+      type: 'text',
+      content: label,
+      timestamp: Date.now()
+    }])
+
+    const currentSession = this.get(sessionId) ?? session
+    const provider = getProvider('codex')
+    const runRequest: RunRequest = {
+      ...requestFromSession(currentSession, label),
+      runtime: 'app-server',
+      codexReviewStart: request
+    }
+    const mode = currentSession.providerSessionId ? 'resume' : 'start'
+    try {
+      const started = await this.startProviderRun(sessionId, currentSession, provider, runRequest, mode)
+      if (!started) {
+        this.removeMessage(sessionId, userMessageId)
+        this.updateStatus(sessionId, 'error')
+        return { ok: false, error: 'Codex Review failed to start.' }
+      }
+      return { ok: true }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      this.removeMessage(sessionId, userMessageId)
+      this.appendMessage(sessionId, [{
+        id: uuidv4(),
+        role: 'system',
+        type: 'result',
+        content: message,
+        subtype: 'error_during_execution',
+        timestamp: Date.now()
+      }])
+      this.updateStatus(sessionId, 'error')
+      return { ok: false, error: message }
     }
   },
 

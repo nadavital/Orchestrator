@@ -317,7 +317,38 @@ class CodexAppServerSession implements CodexAppServerRun {
         hostId: threadId
       })
       this.options.onParsedEvents([{ type: 'session.started', providerSessionId: threadId }])
-      this.startTurn(threadId)
+      if (request.codexReviewStart) this.startReview(threadId)
+      else this.startTurn(threadId)
+    }, (error) => {
+      if (this.transportFailed) return
+      this.options.onParsedEvents([{ type: 'run.failed', content: stringifyContent(error) }])
+    })
+  }
+
+  private startReview(threadId: string): void {
+    const request = this.options.request
+    const reviewStart = request.codexReviewStart
+    if (!reviewStart) return
+    this.record(`Codex app-server review/start request: target=${reviewStart.target.type}, delivery=${String(reviewStart.delivery ?? 'inline')}.`, {
+      method: 'review/start',
+      hostId: threadId,
+      severity: 'debug',
+      noisy: true
+    })
+    this.sendRequest('review/start', {
+      threadId,
+      target: reviewStart.target,
+      delivery: reviewStart.delivery ?? 'inline'
+    }, (result) => {
+      const turn = asRecord(result.turn)
+      const turnId = stringValue(turn?.id)
+      if (turnId) this.turnId = turnId
+      const reviewThreadId = stringValue(result.reviewThreadId)
+      if (reviewThreadId) this.threadId = reviewThreadId
+      this.record('Codex app-server started review turn.', {
+        method: 'review/start',
+        hostId: reviewThreadId ?? threadId
+      })
     }, (error) => {
       if (this.transportFailed) return
       this.options.onParsedEvents([{ type: 'run.failed', content: stringifyContent(error) }])

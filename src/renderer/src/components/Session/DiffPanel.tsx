@@ -99,6 +99,7 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
   const [reviewMetadataOpen, setReviewMetadataOpen] = useState<ReviewMetadataPanel | null>(null)
   const [loadedReviewMetadata, setLoadedReviewMetadata] = useState<ReviewMetadata | undefined>(undefined)
   const [reviewGitActionMessage, setReviewGitActionMessage] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
+  const [codexReviewStartPending, setCodexReviewStartPending] = useState(false)
   const rootRef = useRef<HTMLDivElement | null>(null)
   const reviewSearchInputRef = useRef<HTMLInputElement | null>(null)
   const openRightPanelTab = useSessionStore((state) => state.openRightPanelTab)
@@ -1109,11 +1110,48 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
       )}
     </button>
   )
+  const canStartCodexReview = reviewSession?.provider === 'codex' && (reviewSession.runtime ?? 'app-server') === 'app-server'
+  const codexReviewStartDisabled = !canStartCodexReview || codexReviewStartPending || reviewSession?.status === 'running'
+
+  const startCodexReview = async (): Promise<void> => {
+    if (!canStartCodexReview || codexReviewStartPending) return
+    setCodexReviewStartPending(true)
+    setReviewGitActionMessage({ text: 'Starting Codex review', tone: 'info' })
+    try {
+      const result = await window.api.sessions.startCodexReview(sessionId, {
+        target: { type: 'uncommittedChanges' },
+        delivery: 'inline'
+      })
+      if (result.ok) {
+        setReviewGitActionMessage({ text: 'Codex review started', tone: 'info' })
+      } else {
+        setReviewGitActionMessage({ text: result.error ?? 'Codex review failed to start', tone: 'danger' })
+      }
+    } catch (error) {
+      setReviewGitActionMessage({
+        text: error instanceof Error ? error.message : 'Codex review failed to start',
+        tone: 'danger'
+      })
+    } finally {
+      setCodexReviewStartPending(false)
+    }
+  }
 
   const reviewHeaderToolbar = (
     <PanelToolbar className="diff-panel-toolbar" dataTestId="diff-panel-toolbar" ariaLabel="Review toolbar">
       {reviewSourceSummary}
       <div className="diff-panel-action-strip" data-testid="review-toolbar-action-strip" data-review-toolbar-cluster="primary">
+        {canStartCodexReview && (
+          <IconButton
+            icon="sparkles"
+            label={codexReviewStartPending ? 'Starting Codex review' : 'Start Codex review'}
+            size="sm"
+            variant="toolbar"
+            disabled={codexReviewStartDisabled}
+            dataTestId="review-start-codex"
+            onClick={() => { void startCodexReview() }}
+          />
+        )}
         {reviewOptions}
         {fileJumpControl}
         {!reviewSidePaneVisible && (

@@ -6,7 +6,7 @@ import { closeSync, openSync, readFileSync, readSync, writeFileSync, mkdirSync, 
 import { tmpdir } from 'os'
 import { basename, dirname, extname, join } from 'path'
 import { inflateRawSync } from 'zlib'
-import type { Attachment, AutomationUpsertRequest, CapabilityCreateRequest, CapabilityDeleteRequest, CapabilitySyncRequest, CapabilityUpdateRequest, ChatMessage, GitBranchActionResult, GitCommitResult, GitLineBlameResult, GitPathActionResult, OpenPathMethod, OpenPathOptions, OpenPathResult, OpenTargetAvailability, PerformanceMetric, PreferredOpenTarget, ReviewDiffSource, Session, SessionForkMode, SessionForkOptions, SideQuestionMessage, TranscriptPageRequest, WorkspaceSearchRequest } from '../types'
+import type { Attachment, AutomationUpsertRequest, CapabilityCreateRequest, CapabilityDeleteRequest, CapabilitySyncRequest, CapabilityUpdateRequest, ChatMessage, CodexReviewStartRequest, GitBranchActionResult, GitCommitResult, GitLineBlameResult, GitPathActionResult, OpenPathMethod, OpenPathOptions, OpenPathResult, OpenTargetAvailability, PerformanceMetric, PreferredOpenTarget, ReviewDiffSource, Session, SessionForkMode, SessionForkOptions, SideQuestionMessage, TranscriptPageRequest, WorkspaceSearchRequest } from '../types'
 import { browserWebviewPartitionForHost, isOrchestratorBrowserWebviewPartition } from '../types'
 import { projectStore } from './projects'
 import { sessionManager } from './sessions'
@@ -2856,6 +2856,9 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
     }
     return sessionManager.sendMessage(sessionId, prompt, useWorktree, attachments ?? [])
   })
+  ipcMain.handle('sessions:startCodexReview', (_, sessionId: string, request: CodexReviewStartRequest) =>
+    sessionManager.startCodexReview(sessionId, request)
+  )
   ipcMain.handle('sessions:retryLastUserMessage', (_, sessionId: string) =>
     sessionManager.retryLastUserMessage(sessionId)
   )

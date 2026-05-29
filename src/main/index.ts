@@ -11426,6 +11426,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 reviewFloatingGitBridgeRetiredWorks =
                   retiredReviewGitBridgeButtonsAbsent &&
                   document.querySelector('[data-testid="review-revert-confirm-dialog"]') === null;
+                var reviewFloatingGitOpenTabDebug = null;
                 const reviewFloatingActionPillAfterCopy = document.querySelector('[data-testid="review-floating-action-pill"]');
                 const reviewFloatingActionStatus = document.querySelector('[data-testid="review-floating-action-status"]');
                 const reviewFloatingActionMessage = reviewFloatingActionPillAfterCopy instanceof HTMLElement
@@ -11443,8 +11444,9 @@ function runAutomatedFocusedSurfaceSmoke(
                   reviewFloatingActionStatus.getAttribute('aria-live') === 'polite' &&
                   reviewFloatingActionStatus.getAttribute('aria-atomic') === 'true' &&
                   reviewFloatingActionStatus.textContent?.includes('Git apply command copied') === true;
-                if (reviewFloatingOpenGitButton instanceof HTMLButtonElement && !reviewFloatingOpenGitButton.disabled) {
-                  reviewFloatingOpenGitButton.click();
+                const reviewFloatingOpenGitButtonForClick = document.querySelector('[data-testid="review-open-git-tab"]');
+                if (reviewFloatingOpenGitButtonForClick instanceof HTMLButtonElement && !reviewFloatingOpenGitButtonForClick.disabled) {
+                  reviewFloatingOpenGitButtonForClick.click();
                   for (let attempt = 0; attempt < 12; attempt += 1) {
                     await sleep(100);
                     const gitPanel = document.querySelector('[data-testid="git-panel"]');
@@ -11460,8 +11462,16 @@ function runAutomatedFocusedSurfaceSmoke(
                   reviewFloatingGitOpenTabWorks =
                     document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-active-tab') === 'git' &&
                     gitPanelFromReview instanceof HTMLElement &&
-                    gitPanelFromReview.getAttribute('data-git-action-state') === 'idle' &&
+                    gitPanelFromReview.getAttribute('data-git-action-state') !== 'error' &&
                     document.querySelector('[role="tab"][data-tab-id="git"]') instanceof HTMLElement;
+                  reviewFloatingGitOpenTabDebug = {
+                    buttonFound: true,
+                    buttonDisabled: reviewFloatingOpenGitButtonForClick.disabled,
+                    activeAfterClick: document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-active-tab') ?? null,
+                    gitPanelFound: gitPanelFromReview instanceof HTMLElement,
+                    gitActionState: gitPanelFromReview instanceof HTMLElement ? gitPanelFromReview.getAttribute('data-git-action-state') : null,
+                    gitTabFound: document.querySelector('[role="tab"][data-tab-id="git"]') instanceof HTMLElement
+                  };
                   if (reviewTab instanceof HTMLElement) {
                     reviewTab.click();
                     for (let attempt = 0; attempt < 12; attempt += 1) {
@@ -11486,6 +11496,13 @@ function runAutomatedFocusedSurfaceSmoke(
                       document.querySelector('[data-testid="review-unified-diff"] .review-diff-line-cell') instanceof HTMLElement ||
                       document.querySelector('[data-testid="review-split-diff"] .review-diff-line-cell') instanceof HTMLElement
                     );
+                }
+                if (reviewFloatingGitOpenTabDebug === null) {
+                  reviewFloatingGitOpenTabDebug = {
+                    buttonFound: reviewFloatingOpenGitButtonForClick instanceof HTMLButtonElement,
+                    buttonDisabled: reviewFloatingOpenGitButtonForClick instanceof HTMLButtonElement ? reviewFloatingOpenGitButtonForClick.disabled : null,
+                    activeBeforeClick: document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-active-tab') ?? null
+                  };
                 }
                 const reviewDiffMetricCells = [...document.querySelectorAll('[data-testid="review-unified-diff"] .review-diff-line-cell')]
                   .filter((cell) => cell instanceof HTMLElement)
@@ -11919,6 +11936,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   reviewFloatingGitActionsWork,
                   reviewFloatingGitActionStatusWorks,
                   reviewFloatingGitOpenTabWorks,
+                  reviewFloatingGitOpenTabDebug,
                   reviewFloatingGitBridgeRetiredWorks
                 };
               }

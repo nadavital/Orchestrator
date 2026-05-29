@@ -482,6 +482,82 @@ test('codex app-server runtime advertises and answers supported Browser dynamic 
   assert.equal(events.some((event) => event.type === 'assistant.status' && event.content === 'Browser tool requested: orchestrator.browser_read'), true)
 })
 
+test('codex app-server runtime starts native review turns', () => {
+  let fake: FakeAppServerProcess | null = null
+  const spawn: CodexAppServerSpawn = () => {
+    fake = new FakeAppServerProcess()
+    return fake
+  }
+  const manager = new CodexAppServerRuntimeManager(spawn)
+  const events: RunEvent[] = []
+
+  const result = manager.start({
+    sessionId: session.id,
+    session,
+    provider,
+    request: {
+      prompt: 'Review uncommitted changes',
+      cwd: process.cwd(),
+      model: 'gpt-5.4',
+      effort: 'high',
+      providerSessionId: null,
+      executionPolicy: 'default',
+      allowedTools: [],
+      runtime: 'app-server',
+      codexReviewStart: {
+        target: { type: 'uncommittedChanges' },
+        delivery: 'inline'
+      }
+    },
+    mode: 'start',
+    onRawData: () => {},
+    onParsedEvents: (parsed) => events.push(...parsed),
+    onExit: () => {}
+  })
+
+  assert.equal(result.ok, true)
+  assert.ok(fake)
+  const proc = fake as FakeAppServerProcess
+  let writes = writtenJson(proc)
+  proc.emitStdout({ id: writes[0].id, result: { protocolVersion: 'v2' } })
+  writes = writtenJson(proc)
+  proc.emitStdout({
+    id: writes[2].id,
+    result: { thread: { id: 'thread-review-1' }, model: 'gpt-5.4', cwd: process.cwd() }
+  })
+  writes = writtenJson(proc)
+  assert.equal(writes[3].method, 'review/start')
+  assert.deepEqual(writes[3].params, {
+    threadId: 'thread-review-1',
+    target: { type: 'uncommittedChanges' },
+    delivery: 'inline'
+  })
+
+  proc.emitStdout({ id: writes[3].id, result: { turn: { id: 'turn-review-1' }, reviewThreadId: 'thread-review-1' } })
+  proc.emitStdout({
+    jsonrpc: '2.0',
+    method: 'item/completed',
+    params: {
+      threadId: 'thread-review-1',
+      turnId: 'turn-review-1',
+      item: { type: 'enteredReviewMode', id: 'review-mode-1', review: 'current changes' }
+    }
+  })
+  proc.emitStdout({
+    jsonrpc: '2.0',
+    method: 'turn/completed',
+    params: { threadId: 'thread-review-1', turn: { id: 'turn-review-1', status: 'completed' } }
+  })
+
+  assert.equal(events.some((event) => event.type === 'session.started' && event.providerSessionId === 'thread-review-1'), true)
+  assert.equal(events.some((event) =>
+    event.type === 'review.mode.changed' &&
+    event.active === true &&
+    event.review === 'current changes'
+  ), true)
+  assert.equal(events.some((event) => event.type === 'run.completed'), true)
+})
+
 test('codex app-server runtime fails loudly when the process exits before responding', () => {
   let fake: FakeAppServerProcess | null = null
   const spawn: CodexAppServerSpawn = () => {

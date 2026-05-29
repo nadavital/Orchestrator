@@ -925,6 +925,20 @@ export interface RunRequest {
   useFast?: boolean
   providerContext?: ProviderRunContext
   attachments?: Attachment[]
+  codexReviewStart?: CodexReviewStartRequest
+}
+
+export type CodexReviewDelivery = 'inline' | 'detached'
+
+export type CodexReviewStartTarget =
+  | { type: 'uncommittedChanges' }
+  | { type: 'baseBranch'; branch: string }
+  | { type: 'commit'; sha: string; title: string | null }
+  | { type: 'custom'; instructions: string }
+
+export interface CodexReviewStartRequest {
+  target: CodexReviewStartTarget
+  delivery?: CodexReviewDelivery | null
 }
 
 export interface UsageSummary {
