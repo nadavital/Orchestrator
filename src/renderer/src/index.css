@@ -3840,6 +3840,22 @@
     font-weight: 500;
   }
 
+  .diff-directory-meta,
+  .diff-directory-stats {
+    display: inline-flex;
+    min-width: 0;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .diff-directory-stat-additions {
+    color: var(--state-success);
+  }
+
+  .diff-directory-stat-deletions {
+    color: var(--state-danger);
+  }
+
   .diff-directory-row .diff-file-dir,
   .diff-directory-row .diff-file-stats,
   .diff-file-row .diff-file-stats {

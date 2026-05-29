@@ -11044,6 +11044,19 @@ function runAutomatedFocusedSurfaceSmoke(
                   diffDirectoryRows.some((row) => row.textContent?.includes('Nested Folder')) &&
                   [...document.querySelectorAll('.diff-file-row')]
                     .some((row) => row instanceof HTMLElement && row.textContent?.includes('nested note.md'));
+                const nestedDirectoryRow = diffDirectoryRows.find((row) =>
+                  row instanceof HTMLElement &&
+                  row.getAttribute('data-review-group-path') === 'Nested Folder'
+                );
+                const diffDirectoryMetadataWorks =
+                  nestedDirectoryRow instanceof HTMLElement &&
+                  nestedDirectoryRow.getAttribute('data-review-file-count') === '1' &&
+                  Number(nestedDirectoryRow.getAttribute('data-review-additions') ?? '0') > 0 &&
+                  Number(nestedDirectoryRow.getAttribute('data-review-deletions') ?? '0') > 0 &&
+                  nestedDirectoryRow.textContent?.includes('1 file') === true &&
+                  nestedDirectoryRow.textContent?.includes('+') === true &&
+                  nestedDirectoryRow.textContent?.includes('-') === true &&
+                  nestedDirectoryRow.getAttribute('data-native-title-free') === 'true';
                 const keyboardPathBefore = activeReviewPath();
                 const keyboardDiffPanelList = currentDiffPanelList();
                 if (keyboardDiffPanelList instanceof HTMLElement) {
@@ -11683,6 +11696,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   diffWorkbenchTreeNativeTitleFreeWorks,
                   diffRevealSelectedPathWorks,
                   diffTreeGroupingWorks,
+                  diffDirectoryMetadataWorks,
                   diffKeyboardNavigationWorks,
                   reviewToolbarFileNavigationWorks,
                   diffLineNumbersWork,

@@ -9625,6 +9625,16 @@ Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.
 
 Remaining: this closes local screenshot save/attach feedback only. Deeper screenshot comparison, live provider-emitted browser-use proof, richer design-change/timing workflows, and exact live Codex Browser timing remain separate PP-058 follow-ups.
 
+### 2026-05-29 - Review Directory Metadata
+
+Product evidence: PP-036 still tracks Review/files/workspace robustness. Review already rendered grouped directory rows, but each group only exposed a file count even though the app had per-directory additions/deletions available. For coding review work, users should be able to scan which folders carry the larger edits before opening individual files.
+
+Implemented: Review directory rows now render aggregated file count plus additions/deletions, include the same stats in the tooltip label, and expose `data-review-group-path`, `data-review-file-count`, `data-review-additions`, and `data-review-deletions` on the tree row. This keeps the existing Codex-like tree shape while making grouped change magnitude inspectable.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --diff-core` passed. The first focused rerun had the new `diffDirectoryMetadata=true` gate green but failed the existing `reviewFloatingGitOpenTab` timing gate; failed evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-core-1780030663575.json`. Rerun passed with `diffDirectoryMetadata=true`; passed evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-core-1780030681929.json`, screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-core-1780030681929.png`.
+
+Remaining: this closes grouped directory change metadata only. Deeper source/provider diff navigation ergonomics, provider-hosted Git metadata, and exact live Codex Review timing remain separate follow-ups.
+
 ### 2026-05-28 - Thread Link Copy
 
 Product evidence: PP-037 tracks route-backed session identity as a daily reliability requirement. Orchestrator had app-protocol `Copy deeplink` and `Open in new window`, but the action menu did not expose a normal in-app `/threads/{id}` or `#/threads/{id}` route for sharing or browser/app route testing.

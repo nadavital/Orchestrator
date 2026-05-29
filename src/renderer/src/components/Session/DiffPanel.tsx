@@ -219,8 +219,22 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
         kind: 'directory',
         depth: row.depth,
         icon: 'folder',
-        title: row.path,
-        meta: `${row.fileCount} ${row.fileCount === 1 ? 'file' : 'files'}`,
+        title: `${row.path} • ${reviewDirectoryMetadataLabel(row.fileCount, row.additions, row.deletions)}`,
+        meta: (
+          <span className="diff-directory-meta">
+            <span>{row.fileCount} {row.fileCount === 1 ? 'file' : 'files'}</span>
+            {(row.additions > 0 || row.deletions > 0) && (
+              <span className="diff-directory-stats" aria-hidden="true">
+                {row.additions > 0 && <span className="diff-directory-stat-additions">+{row.additions}</span>}
+                {row.deletions > 0 && <span className="diff-directory-stat-deletions">-{row.deletions}</span>}
+              </span>
+            )}
+          </span>
+        ),
+        dataReviewGroupPath: row.path,
+        dataReviewFileCount: row.fileCount,
+        dataReviewAdditions: row.additions,
+        dataReviewDeletions: row.deletions,
         className: 'diff-directory-row'
       }
     }
@@ -2392,6 +2406,13 @@ function reviewSourceSummaryLabel(
     return trimmed ? `Commit: ${trimmed}` : 'Commit'
   }
   return fallbackLabel
+}
+
+function reviewDirectoryMetadataLabel(fileCount: number, additions: number, deletions: number): string {
+  const parts = [`${fileCount} ${fileCount === 1 ? 'file' : 'files'}`]
+  if (additions > 0) parts.push(`+${additions}`)
+  if (deletions > 0) parts.push(`-${deletions}`)
+  return parts.join(', ')
 }
 
 function latestDiffUpdatedContent(records: SessionRunEventRecord[]): string {

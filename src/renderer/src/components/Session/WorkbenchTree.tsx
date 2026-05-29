@@ -25,6 +25,10 @@ export interface WorkbenchTreeRow {
   dataSearchMatchKind?: string
   dataSearchMatchLine?: number | string
   dataReviewSearchActive?: boolean
+  dataReviewGroupPath?: string
+  dataReviewFileCount?: number
+  dataReviewAdditions?: number
+  dataReviewDeletions?: number
   onSelect?: () => void
   onOpen?: () => void
   onContextMenu?: (event: ReactMouseEvent, row: WorkbenchTreeRow) => void
@@ -255,6 +259,10 @@ function WorkbenchTreeRowView({
     'data-search-match-kind': row.dataSearchMatchKind,
     'data-search-match-line': row.dataSearchMatchLine,
     'data-review-search-active': row.dataReviewSearchActive ? 'true' : undefined,
+    'data-review-group-path': row.dataReviewGroupPath,
+    'data-review-file-count': row.dataReviewFileCount,
+    'data-review-additions': row.dataReviewAdditions,
+    'data-review-deletions': row.dataReviewDeletions,
     'data-workbench-tree-row': 'true',
     'data-sticky-row': stickyClone ? 'true' : undefined,
     'data-row-index': index,
