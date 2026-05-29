@@ -107,7 +107,7 @@ const diffRules = [
     flag: '--files',
     label: 'Files and source tabs',
     filePatterns: [/^src\/renderer\/src\/components\/Session\/WorkbenchTree\.tsx$/, /^src\/renderer\/src\/components\/Session\/FilesPanel\.tsx$/, /^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
-    diffPatterns: [/WorkbenchTreeContextMenu/, /onContextMenu/, /filesRowKeyboardContextMenu/, /filesTreeKeyboardNavigation/, /fileSourceLineKeyboardNavigation/, /data-keyboard-navigation/, /files-row-context-menu/]
+    diffPatterns: [/WorkbenchTreeContextMenu/, /onContextMenu/, /filesRowKeyboardContextMenu/, /filesTreeKeyboardNavigation/, /fileSourceLineKeyboardNavigation/, /data-keyboard-navigation/, /files-row-context-menu/, /filesAddToChatStatus/, /Added .* to chat/]
   },
   {
     flag: '--diff-core',

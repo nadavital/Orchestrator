@@ -16879,6 +16879,7 @@ function runAutomatedFocusedSurfaceSmoke(
               let filesRowKeyboardContextMenuWorks = false;
               let filesTreeKeyboardNavigationWorks = false;
               let filesRowCopyPathClipboardWorks = false;
+              let filesAddToChatStatusWorks = false;
               let filesRowContextMenuSharedSectionsWorks = false;
               let filesPreferredOpenTargetWorks = false;
               let workbenchFileTabWorks = false;
@@ -16962,6 +16963,19 @@ function runAutomatedFocusedSurfaceSmoke(
                   Number.parseFloat(menuSurfaceStyle.borderTopWidth || '0') <= 1;
                 if (addToChat instanceof HTMLElement) addToChat.click();
                 await sleep(320);
+                const filesRootAfterAddToChat = document.querySelector('.files-panel-root');
+                const filesAddToChatStatus = document.querySelector('[data-testid="files-panel-action-status"]');
+                filesAddToChatStatusWorks =
+                  filesRootAfterAddToChat instanceof HTMLElement &&
+                  filesRootAfterAddToChat.getAttribute('data-files-action-status')?.includes('Added ') === true &&
+                  filesRootAfterAddToChat.getAttribute('data-files-action-status')?.includes(' to chat') === true &&
+                  filesRootAfterAddToChat.getAttribute('data-files-action-status-tone') === 'info' &&
+                  filesAddToChatStatus instanceof HTMLElement &&
+                  filesAddToChatStatus.textContent?.includes('Added ') === true &&
+                  filesAddToChatStatus.textContent?.includes(' to chat') === true &&
+                  filesAddToChatStatus.getAttribute('role') === 'status' &&
+                  filesAddToChatStatus.getAttribute('aria-live') === 'polite' &&
+                  filesAddToChatStatus.getAttribute('aria-atomic') === 'true';
                 filesActionMenuTriggerStateWorks =
                   filesActionMenuTriggerStateWorks &&
                   fileActionMenuButton.getAttribute('aria-expanded') === 'false' &&
@@ -19954,6 +19968,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 filesRowKeyboardContextMenuWorks,
                 filesTreeKeyboardNavigationWorks,
                 filesRowCopyPathClipboardWorks,
+                filesAddToChatStatusWorks,
                 filesRowContextMenuSharedSectionsWorks,
                 filesPreferredOpenTargetWorks,
                 workbenchFileTabWorks,

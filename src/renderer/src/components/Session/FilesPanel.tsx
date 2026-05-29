@@ -285,7 +285,10 @@ export default function FilesPanel({ sessionId, workDir, embedded = false }: Pro
   )
 
   const addEntryToChat = (entry: WorkspaceSearchEntry | null): void => {
-    if (!entry || entry.kind !== 'file') return
+    if (!entry || entry.kind !== 'file') {
+      setFilesActionStatus({ text: 'Select a file to add to chat', tone: 'danger' })
+      return
+    }
     window.dispatchEvent(new CustomEvent('orchestrator:add-composer-attachment', {
       detail: {
         path: joinPath(workDir, entry.path),
@@ -293,6 +296,7 @@ export default function FilesPanel({ sessionId, workDir, embedded = false }: Pro
         size: entry.size
       }
     }))
+    setFilesActionStatus({ text: `Added ${entry.name} to chat`, tone: 'info' })
   }
 
   const renderFileActionMenu = (

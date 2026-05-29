@@ -2558,6 +2558,7 @@ child.on('exit', async (code) => {
           filesRowKeyboardContextMenu: result.filesRowKeyboardContextMenuWorks === true,
           filesTreeKeyboardNavigation: result.filesTreeKeyboardNavigationWorks === true,
           filesRowCopyPathClipboard: result.filesRowCopyPathClipboardWorks === true,
+          filesAddToChatStatus: result.filesAddToChatStatusWorks === true,
           filesRowContextMenuSharedSections: result.filesRowContextMenuSharedSectionsWorks === true,
           filesPreferredOpenTarget: result.filesPreferredOpenTargetWorks === true,
           workbenchFileTab: result.workbenchFileTabWorks === true,
