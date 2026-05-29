@@ -2080,6 +2080,7 @@ export interface UserInputQuestion {
 
 export interface UserInputAnswerPayload {
   content: string
+  displayContent?: string
   answers?: Record<string, string[]>
 }
 

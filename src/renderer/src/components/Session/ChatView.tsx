@@ -3654,19 +3654,23 @@ function UserInputCard({
     answerInputRef.current?.focus({ preventScroll: true })
   }, [requestIsActive, submitState])
 
-  const buildAnswerPayload = (freeform: string): { content: string; answers: Record<string, string[]> } => {
+  const buildAnswerPayload = (freeform: string): { content: string; displayContent: string; answers: Record<string, string[]> } => {
     const answers: Record<string, string[]> = {}
-    const selectedAnswers = questions.flatMap((question, index) => {
+    const selectedAnswers: string[] = []
+    const displaySelectedAnswers: string[] = []
+    for (const [index, question] of questions.entries()) {
       const selected = questionAnswers[questionInputKey(question, index)]?.map((value) => value.trim()).filter(Boolean) ?? []
-      if (selected.length === 0) return []
+      if (selected.length === 0) continue
       const id = question.id ?? question.question ?? `answer-${index + 1}`
       answers[id] = selected
       const label = question.header ? `${question.header}: ${question.question}` : question.question
-      return [`${label}\nAnswer: ${selected.join(', ')}`]
-    })
+      selectedAnswers.push(`${label}\nAnswer: ${selected.join(', ')}`)
+      displaySelectedAnswers.push(`${label}\nAnswer: ${question.isSecret ? '[secret answer]' : selected.join(', ')}`)
+    }
     const trimmedFreeform = freeform.trim()
+    let freeformTargets: Array<{ question: UserInputQuestion; index: number }> = []
     if (trimmedFreeform) {
-      const freeformTargets = questions
+      freeformTargets = questions
         .map((question, index) => ({ question, index }))
         .filter(({ question }) => question.isOther || question.isSecret || (!question.options?.length && questions.length === 1))
       const targets = freeformTargets.length > 0 ? freeformTargets : selectedAnswers.length === 0 ? questions.map((question, index) => ({ question, index })) : []
@@ -3678,7 +3682,11 @@ function UserInputCard({
     const content = selectedAnswers.length === 0
       ? trimmedFreeform
       : [...selectedAnswers, ...(trimmedFreeform ? [`Additional details:\n${trimmedFreeform}`] : [])].join('\n\n')
-    return { content, answers }
+    const displayFreeform = freeformTargets.some(({ question }) => question.isSecret) ? '[secret answer]' : trimmedFreeform
+    const displayContent = displaySelectedAnswers.length === 0
+      ? displayFreeform
+      : [...displaySelectedAnswers, ...(trimmedFreeform ? [`Additional details:\n${displayFreeform}`] : [])].join('\n\n')
+    return { content, displayContent, answers }
   }
 
   const answerPayload = buildAnswerPayload(answer)
@@ -3692,6 +3700,7 @@ function UserInputCard({
     try {
       const result = await window.api.sessions.answerUserInput(sessionId, {
         content: trimmed,
+        displayContent: answerPayload.displayContent,
         answers: Object.keys(answerPayload.answers).length > 0 ? answerPayload.answers : undefined
       })
       if (result.ok) {

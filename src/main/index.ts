@@ -29670,6 +29670,10 @@ function runAutomatedTranscriptUserInputSmoke(win: BrowserWindow, outputPath: st
                 status.getAttribute('aria-atomic') === 'true' &&
                 status.textContent?.includes('Answer sent') === true
               );
+            const bodyTextAfterSubmit = document.body.innerText;
+            const userInputSecretTranscriptRedacted =
+              bodyTextAfterSubmit.includes('[secret answer]') &&
+              !bodyTextAfterSubmit.includes('deploy-secret');
             const userInputStructuredPayloadWorks =
               updatedForm instanceof HTMLElement &&
               updatedForm.getAttribute('data-user-input-answer-key-count') === '4' &&
@@ -29685,6 +29689,7 @@ function runAutomatedTranscriptUserInputSmoke(win: BrowserWindow, outputPath: st
               userInputOptionDescriptionsA11y,
               userInputMultiSelectWorks,
               userInputStructuredPayloadWorks,
+              userInputSecretTranscriptRedacted,
               userInputStructuredSubmitWorks,
               userInputStructuredStatusLive
             };

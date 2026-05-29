@@ -860,6 +860,7 @@ function asRecord(value: unknown): JsonObject | null {
 function normalizeUserInputAnswer(answer: string | UserInputAnswerPayload): UserInputAnswerPayload {
   if (typeof answer === 'string') return { content: answer.trim() }
   const content = typeof answer.content === 'string' ? answer.content.trim() : ''
+  const displayContent = typeof answer.displayContent === 'string' ? answer.displayContent.trim() : ''
   const answers: Record<string, string[]> = {}
   if (answer.answers && typeof answer.answers === 'object') {
     for (const [key, values] of Object.entries(answer.answers)) {
@@ -868,7 +869,11 @@ function normalizeUserInputAnswer(answer: string | UserInputAnswerPayload): User
       if (cleaned.length > 0) answers[key] = cleaned
     }
   }
-  return { content, answers: Object.keys(answers).length > 0 ? answers : undefined }
+  return {
+    content,
+    displayContent: displayContent && displayContent !== content ? displayContent : undefined,
+    answers: Object.keys(answers).length > 0 ? answers : undefined
+  }
 }
 
 function stringValue(...values: unknown[]): string | undefined {
