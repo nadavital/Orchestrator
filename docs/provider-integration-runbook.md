@@ -1,6 +1,6 @@
 # Provider Integration Runbook
 
-Last updated: 2026-05-26
+Last updated: 2026-05-29
 
 Use this when adding or deepening Claude, Codex, Cursor, Copilot, or a future coding-agent provider. The durable rule is: provider-specific behavior belongs at the adapter/runtime boundary; UI should consume shared Orchestrator events, capabilities, and metadata whenever possible.
 
@@ -49,7 +49,7 @@ Use this when adding or deepening Claude, Codex, Cursor, Copilot, or a future co
 | `npm run live:codex-appserver` | Basic Codex app-server thread/turn completion. | Proves the app-server transport can run a turn. |
 | `npm run live:codex-browser-appserver` | Whether live Codex app-server exposes browser-use events/tools to this client. | Currently blocked at this stdio client boundary; no browser-use surface is exposed. |
 | `npm run live:codex-review-appserver` | Live Codex `turn/diff/updated` and `thread/rollback` behavior. | Emits provider session/turn diff events with no checkpoint id; `thread/rollback` rolls back thread history but not workspace git diff. |
-| `npm run live:codex-review-start` | Native Codex app-server `review/start` behavior. | Proves uncommitted inline review starts a real review turn and emits typed `review.mode.changed` events. Use only for Review slices, not routine UI smoke; normal UI checks should use the focused Review smoke. |
+| `pnpm run live:codex-review-start` | Native Codex app-server `review/start` behavior. | Proves uncommitted inline and base-branch inline review targets start real review turns and emit typed `review.mode.changed` events. Use only for Review slices, not routine UI smoke; normal UI checks should use the focused Review smoke. |
 
 ## Claude Integration Notes
 

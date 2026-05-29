@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { adjacentFileChangePath, buildFileChangeTreeRows, diffForPathFromUnifiedDiff, fileStatusLabel, isBinaryDiffText, parseFileChangesFromUnifiedDiff, resolveReviewDiffRenderWindow, shouldPreferTextDiff } from '../../types'
-import type { FileChange, GitLineBlameResult, GitRefOption, ReviewCheckStatus, ReviewDiffSource, ReviewMetadata, ReviewProviderComment, SessionRunEventRecord } from '../../types'
+import type { CodexReviewStartRequest, FileChange, GitLineBlameResult, GitRefOption, ReviewCheckStatus, ReviewDiffSource, ReviewMetadata, ReviewProviderComment, SessionRunEventRecord } from '../../types'
 import type { FilePreviewResult } from '../../env'
 import { useSessionStore } from '../../store/sessions'
 import { Badge, Button, IconButton, MenuItem, MenuMessage, MenuRow, MenuSection, MenuSectionLabel, MenuSurface, PanelHeader, PanelNotice, PanelResizeHandle, PanelToolbar, WorkbenchSearchField, useAppShellResizeController } from '../shared/designSystem'
@@ -1069,6 +1069,12 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
     lastTurnReviewFiles.length
   )
   const activeReviewSourceLabel = reviewSourceSummaryLabel(reviewSource, activeReviewSource.label, branchReviewRef, commitReviewRef)
+  const canStartCodexReview = reviewSession?.provider === 'codex' && (reviewSession.runtime ?? 'app-server') === 'app-server'
+  const codexReviewStartRequest = resolveCodexReviewStartRequest(reviewSource, activeReviewRef)
+  const codexReviewStartLabel = codexReviewStartRequest?.target.type === 'baseBranch'
+    ? 'Start Codex base review'
+    : 'Start Codex review'
+  const codexReviewStartDisabled = !canStartCodexReview || !codexReviewStartRequest || codexReviewStartPending || reviewSession?.status === 'running'
   const activeReviewSourceStats = sourceFiles.reduce(
     (totals, file) => ({
       additions: totals.additions + file.additions,
@@ -1110,20 +1116,19 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
       )}
     </button>
   )
-  const canStartCodexReview = reviewSession?.provider === 'codex' && (reviewSession.runtime ?? 'app-server') === 'app-server'
-  const codexReviewStartDisabled = !canStartCodexReview || codexReviewStartPending || reviewSession?.status === 'running'
-
   const startCodexReview = async (): Promise<void> => {
-    if (!canStartCodexReview || codexReviewStartPending) return
+    if (!canStartCodexReview || !codexReviewStartRequest || codexReviewStartPending) return
     setCodexReviewStartPending(true)
     setReviewGitActionMessage({ text: 'Starting Codex review', tone: 'info' })
     try {
-      const result = await window.api.sessions.startCodexReview(sessionId, {
-        target: { type: 'uncommittedChanges' },
-        delivery: 'inline'
-      })
+      const result = await window.api.sessions.startCodexReview(sessionId, codexReviewStartRequest)
       if (result.ok) {
-        setReviewGitActionMessage({ text: 'Codex review started', tone: 'info' })
+        setReviewGitActionMessage({
+          text: codexReviewStartRequest.target.type === 'baseBranch'
+            ? `Codex review started against ${codexReviewStartRequest.target.branch}`
+            : 'Codex review started',
+          tone: 'info'
+        })
       } else {
         setReviewGitActionMessage({ text: result.error ?? 'Codex review failed to start', tone: 'danger' })
       }
@@ -1142,15 +1147,22 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
       {reviewSourceSummary}
       <div className="diff-panel-action-strip" data-testid="review-toolbar-action-strip" data-review-toolbar-cluster="primary">
         {canStartCodexReview && (
-          <IconButton
-            icon="sparkles"
-            label={codexReviewStartPending ? 'Starting Codex review' : 'Start Codex review'}
-            size="sm"
-            variant="toolbar"
-            disabled={codexReviewStartDisabled}
-            dataTestId="review-start-codex"
-            onClick={() => { void startCodexReview() }}
-          />
+          <span
+            className="review-start-codex-target"
+            data-testid="review-start-codex-target"
+            data-codex-review-start-target={codexReviewStartRequest?.target.type ?? ''}
+            data-codex-review-start-branch={codexReviewStartRequest?.target.type === 'baseBranch' ? codexReviewStartRequest.target.branch : ''}
+          >
+            <IconButton
+              icon="sparkles"
+              label={codexReviewStartPending ? 'Starting Codex review' : codexReviewStartLabel}
+              size="sm"
+              variant="toolbar"
+              disabled={codexReviewStartDisabled}
+              dataTestId="review-start-codex"
+              onClick={() => { void startCodexReview() }}
+            />
+          </span>
         )}
         {reviewOptions}
         {fileJumpControl}
@@ -4746,6 +4758,15 @@ function resolveMergeConflictBlock(
 
 function joinPath(root: string, filePath: string): string {
   return `${root.replace(/\/+$/, '')}/${filePath.replace(/^\/+/, '')}`
+}
+
+function resolveCodexReviewStartRequest(source: ReviewDiffSource, ref: string): CodexReviewStartRequest | null {
+  if (source === 'branch') {
+    const branch = ref.trim()
+    return branch ? { target: { type: 'baseBranch', branch }, delivery: 'inline' } : null
+  }
+  if (source === 'commit' || source === 'last-turn' || source === 'cloud') return null
+  return { target: { type: 'uncommittedChanges' }, delivery: 'inline' }
 }
 
 function basename(path: string): string {

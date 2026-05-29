@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { spawn, execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { isAbsolute, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url))
@@ -11,9 +11,11 @@ const { PROVIDERS, providerSpawnEnv, resolveProviderCommand } = await import(pro
 
 const provider = PROVIDERS.codex
 const artifactRoot = process.env.CODEX_REVIEW_START_PROOF_ARTIFACT_DIR
-  ? process.env.CODEX_REVIEW_START_PROOF_ARTIFACT_DIR
+  ? absolutePath(process.env.CODEX_REVIEW_START_PROOF_ARTIFACT_DIR)
   : join(repoRoot, 'tmp', 'codex-review-start-live-proof')
-const workspaceDir = process.env.CODEX_REVIEW_START_PROOF_CWD ?? join(artifactRoot, 'workspace')
+const workspaceDir = process.env.CODEX_REVIEW_START_PROOF_CWD
+  ? absolutePath(process.env.CODEX_REVIEW_START_PROOF_CWD)
+  : join(artifactRoot, 'workspace')
 const timeoutMs = Number(process.env.CODEX_REVIEW_START_PROOF_TIMEOUT_MS ?? 180_000)
 const model = process.env.CODEX_REVIEW_START_PROOF_MODEL ?? 'gpt-5.4-mini'
 const delivery = process.env.CODEX_REVIEW_START_PROOF_DELIVERY ?? 'inline'
@@ -29,6 +31,10 @@ if (!resolved) {
 
 resetArtifacts()
 setupWorkspace()
+
+function absolutePath(path) {
+  return isAbsolute(path) ? path : resolve(repoRoot, path)
+}
 
 const child = spawn(resolved.binary, resolved.args, {
   cwd: workspaceDir,
@@ -282,6 +288,10 @@ function setupWorkspace() {
     'After: strict validation is accidentally skipped when the target has trailing whitespace.   ',
     ''
   ].join('\n'))
+  if (targetMode === 'baseBranch' || targetMode === 'commit') {
+    runGit(['add', 'live-review-target.txt'])
+    runGit(['commit', '-m', targetMode === 'baseBranch' ? 'Base branch review target' : 'Commit review target'])
+  }
 }
 
 function runGit(args) {
@@ -316,6 +326,7 @@ function writeArtifacts(result) {
     assistantText,
     turnStatus,
     finalGitDiff: safeGitDiff(),
+    finalBaseBranchDiff: safeBaseBranchDiff(),
     archiveAttempt,
     parseErrors,
     stderr: stderr.trim()
@@ -336,6 +347,14 @@ function safeTargetForArtifacts() {
 function safeGitDiff() {
   try {
     return runGit(['diff', '--', 'live-review-target.txt'])
+  } catch {
+    return ''
+  }
+}
+
+function safeBaseBranchDiff() {
+  try {
+    return runGit(['diff', 'review-base-branch...HEAD', '--', 'live-review-target.txt'])
   } catch {
     return ''
   }

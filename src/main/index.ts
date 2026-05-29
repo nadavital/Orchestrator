@@ -12645,6 +12645,34 @@ function runAutomatedFocusedSurfaceSmoke(
               const branchSourcePersisted = Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index))
                 .filter((key) => typeof key === 'string' && key.startsWith('orchestrator.review.sourceRef:branch:'))
                 .some((key) => key !== null && localStorage.getItem(key) === 'review-base-branch');
+              let reviewCodexBaseStartWorks = false;
+              let reviewCodexBaseStartDebug = {};
+              const activeSessionShellForCodexReview = document.querySelector('[data-session-id][aria-current="page"]');
+              const activeSessionIdForCodexReview = activeSessionShellForCodexReview instanceof HTMLElement
+                ? activeSessionShellForCodexReview.getAttribute('data-session-id') ?? ''
+                : '';
+              if (activeSessionIdForCodexReview) {
+                await window.api.sessions.updateSettings(activeSessionIdForCodexReview, { provider: 'codex', runtime: 'app-server' });
+                await sleep(260);
+              }
+              const codexBaseReviewButton = document.querySelector('[data-testid="review-start-codex"]');
+              const codexBaseReviewTarget = document.querySelector('[data-testid="review-start-codex-target"]');
+              reviewCodexBaseStartWorks =
+                codexBaseReviewButton instanceof HTMLButtonElement &&
+                codexBaseReviewTarget instanceof HTMLElement &&
+                codexBaseReviewButton.getAttribute('aria-label') === 'Start Codex base review' &&
+                codexBaseReviewButton.disabled === false &&
+                codexBaseReviewTarget.getAttribute('data-codex-review-start-target') === 'baseBranch' &&
+                codexBaseReviewTarget.getAttribute('data-codex-review-start-branch') === 'review-base-branch';
+              reviewCodexBaseStartDebug = {
+                activeSessionIdForCodexReview,
+                buttonFound: codexBaseReviewButton instanceof HTMLButtonElement,
+                buttonDisabled: codexBaseReviewButton instanceof HTMLButtonElement ? codexBaseReviewButton.disabled : null,
+                buttonLabel: codexBaseReviewButton instanceof HTMLButtonElement ? codexBaseReviewButton.getAttribute('aria-label') : null,
+                targetFound: codexBaseReviewTarget instanceof HTMLElement,
+                target: codexBaseReviewTarget instanceof HTMLElement ? codexBaseReviewTarget.getAttribute('data-codex-review-start-target') : null,
+                branch: codexBaseReviewTarget instanceof HTMLElement ? codexBaseReviewTarget.getAttribute('data-codex-review-start-branch') : null
+              };
               let commitPickerMenuStateWorks = false;
               let commitPickerClosedStateWorks = false;
               if (await clickReviewSource('commit')) {
@@ -14446,6 +14474,8 @@ function runAutomatedFocusedSurfaceSmoke(
                     reviewSearchContentDebug,
                   reviewSourceModesWork,
                   reviewSourceModesDebug,
+                  reviewCodexBaseStartWorks,
+                  reviewCodexBaseStartDebug,
                   reviewOptionsMenuStateWorks,
                   reviewSourceRefMenuStateWorks:
                     branchPickerMenuStateWorks &&
