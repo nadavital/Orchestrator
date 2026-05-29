@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawnSync } from 'child_process'
-import { existsSync } from 'fs'
+import { existsSync, readFileSync } from 'fs'
 import { resolve } from 'path'
 import { fileURLToPath } from 'url'
 
@@ -347,6 +347,7 @@ function suggestTargets(paths) {
 
   for (const file of paths) {
     let fileMatched = false
+    const packageScriptsOnly = isPackageJsonScriptsOnlyDiff(file)
     for (const rule of [...targetRules, ...sharedRules]) {
       if (rule.patterns.some((pattern) => pattern.test(file))) {
         fileMatched = true
@@ -369,7 +370,10 @@ function suggestTargets(paths) {
     if (file.startsWith('scripts/') && file.endsWith('.mjs')) {
       fileMatched = true
     }
-    if (broadTriggers.some((pattern) => pattern.test(file))) {
+    if (packageScriptsOnly) {
+      fileMatched = true
+    }
+    if (broadTriggers.some((pattern) => pattern.test(file)) && !packageScriptsOnly) {
       broadCandidates.push(file)
     }
     if (!fileMatched) unmatched.push(file)
@@ -453,6 +457,22 @@ function diffForFile(file) {
   const result = spawnSync('git', ['diff', '--unified=0', 'HEAD', '--', file], { cwd: root, encoding: 'utf8' })
   if (result.status !== 0) return ''
   return result.stdout
+}
+
+function isPackageJsonScriptsOnlyDiff(file) {
+  if (file !== 'package.json') return false
+  try {
+    const current = JSON.parse(readFileSync(resolve(root, file), 'utf8'))
+    const baseResult = spawnSync('git', ['show', `HEAD:${file}`], { cwd: root, encoding: 'utf8' })
+    if (baseResult.status !== 0) return false
+    const base = JSON.parse(baseResult.stdout)
+    const { scripts: currentScripts, ...currentRest } = current
+    const { scripts: baseScripts, ...baseRest } = base
+    return JSON.stringify(currentRest) === JSON.stringify(baseRest) &&
+      JSON.stringify(currentScripts ?? {}) !== JSON.stringify(baseScripts ?? {})
+  } catch {
+    return false
+  }
 }
 
 function buildValidationPlan(paths, suggestions) {

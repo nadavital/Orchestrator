@@ -10415,6 +10415,16 @@ Verification: `node -c scripts/suggest-ui-smoke-targets.mjs`, `pnpm run smoke:ui
 
 Remaining: this does not remove full no-flag smoke as a milestone tool. It narrows routine Phase 1 iteration so full smoke is reserved for uncovered broad changes, coordinated shell contracts, or pre-merge confidence checks.
 
+### 2026-05-29 - Package Script Smoke Triage
+
+Product evidence: small validation/tooling slices that only add or adjust `package.json` scripts still showed as unmatched broad-smoke candidates, even when they did not alter runtime dependencies, Electron config, or shipped application code. That made routine proof-harness work look like it needed broader UI smoke review than the actual risk warranted.
+
+Implemented: `scripts/suggest-ui-smoke-targets.mjs` now compares the current `package.json` to `HEAD:package.json` and classifies a package change as low-risk only when the JSON diff is confined to the `scripts` object. Script-only package diffs are treated as matched and no longer create a broad-smoke warning; dependency, config, or metadata changes keep the existing conservative broad-review behavior.
+
+Verification: `node -c scripts/suggest-ui-smoke-targets.mjs`, `pnpm run smoke:ui:suggest`, and `pnpm run smoke:ui:changed:static` passed for the planner-only state. A temporary local `package.json` script-only edit produced a plan with `git diff --check`, `pnpm exec tsc --noEmit`, and the planner syntax check, with no unmatched file and no broad-smoke warning; the temporary edit was removed before commit.
+
+Remaining: this is a validation-loop improvement only. Full/no-flag smoke remains appropriate for actual package dependency/config/runtime changes or pre-merge confidence passes.
+
 ### 2026-05-29 - Right-Panel Terminal Chat Handoff Parity
 
 Product evidence: bottom Terminal tabs could insert whole output and latest-command output into the main composer, but Terminal tabs moved into the right Workbench only rendered the shell. That made right-panel terminals weaker for daily debugging: users had to move the tab back to the bottom panel or manually copy output to preserve cwd/terminal/command context.

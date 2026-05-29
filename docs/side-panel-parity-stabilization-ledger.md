@@ -70,7 +70,7 @@ Before committing a slice:
 4. Run `pnpm exec tsc --noEmit` and `git diff --check` if they were not already included in the generated static plan.
 5. Update docs only with evidence that was produced by the current worktree.
 
-Routine Phase 1 iteration should not run the no-flag/full UI smoke for tiny source diffs. Use the generated focused target first, and reserve full inventory/no-flag smoke for uncovered broad-smoke changes, coordinated shell contracts, or pre-merge confidence checkpoints.
+Routine Phase 1 iteration should not run the no-flag/full UI smoke for tiny source diffs. Use the generated focused target first, and reserve full inventory/no-flag smoke for uncovered broad-smoke changes, coordinated shell contracts, package dependency/config/runtime changes, or pre-merge confidence checkpoints. Package `scripts`-only edits are now classified separately so proof-harness command additions do not create false broad-smoke pressure.
 
 Before considering the stabilization complete:
 
