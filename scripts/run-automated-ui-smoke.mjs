@@ -3173,6 +3173,7 @@ child.on('exit', async (code) => {
         composerQueuedCancel: captureView !== 'composer' || result.composerQueuedCancel === true,
         composerQueuedCancelStatus: captureView !== 'composer' || result.composerQueuedCancelStatusWorks === true,
         composerEmptySuggestionFillsDraft: captureView !== 'composer' || result.composerEmptySuggestionFillsDraft === true,
+        composerRapidContextAppend: captureView !== 'composer' || result.composerRapidContextAppend === true,
         composerPromptHistoryRecall: captureView !== 'composer' || result.composerPromptHistoryRecall === true,
         composerEnterBehaviorSetting: captureView !== 'composer' || result.composerEnterBehaviorSetting === true,
         composerDraftsPerChat: captureView !== 'composer' || result.composerDraftsPerChat === true,

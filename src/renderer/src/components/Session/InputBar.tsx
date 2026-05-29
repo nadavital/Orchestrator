@@ -834,7 +834,8 @@ function InputBar({ session, isNew }: Props): JSX.Element {
       const detail = (event as CustomEvent<{ text?: string }>).detail
       const nextText = detail?.text?.trim()
       if (!nextText) return
-      setComposerText(text ? `${text.trimEnd()}\n\n${nextText}` : nextText)
+      const currentDraft = currentComposerDraft(session.id, text)
+      setComposerText(currentDraft.trim() ? `${currentDraft.trimEnd()}\n\n${nextText}` : nextText)
       setSlashIndex(0)
       setDismissedSlashQuery(null)
       textareaRef.current?.focus()
@@ -866,19 +867,21 @@ function InputBar({ session, isNew }: Props): JSX.Element {
         ? dedupeAttachments(detail.attachments.map(cloneAttachmentForDraft))
         : null
       if (!nextText.trim() && (!nextAttachments || nextAttachments.length === 0)) return
+      const currentUi = useSessionStore.getState().uiState[session.id] ?? defaultUI
+      const previousText = currentUi.composerDraft ?? text
+      const previousAttachments = (currentUi.composerAttachments ?? attachments).map(cloneAttachmentForDraft)
       setComposerText(nextText)
       if (nextAttachments) setComposerAttachments(session.id, nextAttachments)
       setDraftSource(detail?.source?.kind === 'message-edit-draft' && typeof detail.source.messageId === 'string'
         ? (() => {
-            const previousAttachments = attachments.map(cloneAttachmentForDraft)
-            const hasPreviousDraft = text.trim().length > 0 || previousAttachments.length > 0
+            const hasPreviousDraft = previousText.trim().length > 0 || previousAttachments.length > 0
             return {
               kind: 'message-edit-draft',
               messageId: detail.source.messageId,
               attachmentCount: Number.isFinite(detail.source.attachmentCount) ? Math.max(0, Math.floor(detail.source.attachmentCount ?? 0)) : nextAttachments?.length ?? 0,
               previousDraft: hasPreviousDraft
                 ? {
-                    text,
+                    text: previousText,
                     attachments: previousAttachments,
                     attachmentCount: previousAttachments.length
                   }
@@ -2003,6 +2006,10 @@ function formatBytes(value: number): string {
 
 function pathBaseName(path: string): string {
   return path.split(/[\\/]/).filter(Boolean).at(-1) ?? path
+}
+
+function currentComposerDraft(sessionId: string, fallback: string): string {
+  return useSessionStore.getState().uiState[sessionId]?.composerDraft ?? fallback
 }
 
 type ComposerModelChoice = ProviderModelDef & { custom?: boolean }

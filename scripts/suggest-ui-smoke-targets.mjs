@@ -7,7 +7,7 @@ import { fileURLToPath } from 'url'
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)))
 
 const targetRules = [
-  { flag: '--composer', label: 'Composer', patterns: [/^src\/renderer\/src\/components\/Session\/Composer/, /^src\/renderer\/src\/components\/Session\/ChatComposer/, /^src\/renderer\/src\/components\/Session\/ComposerToolbar/, /^src\/renderer\/src\/stores\/.*composer/i] },
+  { flag: '--composer', label: 'Composer', patterns: [/^src\/renderer\/src\/components\/Session\/InputBar\.tsx$/, /^src\/renderer\/src\/components\/Session\/Composer/, /^src\/renderer\/src\/components\/Session\/ChatComposer/, /^src\/renderer\/src\/components\/Session\/ComposerToolbar/, /^src\/renderer\/src\/store\/.*composer/i, /^src\/renderer\/src\/stores\/.*composer/i] },
   { flag: '--transcript-layout', label: 'Transcript', patterns: [/^src\/renderer\/src\/components\/Session\/(Transcript|ChatMessage|MessageActions)/, /^src\/renderer\/src\/components\/Session\/Tool/, /^src\/renderer\/src\/stores\/.*message/i] },
   { flag: '--transcript-file-reference', label: 'Transcript file references', patterns: [/^src\/renderer\/src\/components\/Session\/FileReference/, /^src\/renderer\/src\/components\/Session\/.*Reference/] },
   { flag: '--transcript-permission', label: 'Transcript permissions', patterns: [/^src\/renderer\/src\/components\/Session\/.*Permission/, /^src\/main\/.*permission/i, /^src\/main\/providers\/.*permission/i] },
@@ -48,6 +48,12 @@ const diffRules = [
     label: 'Terminal',
     filePatterns: [/^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
     diffPatterns: [/Terminal/, /terminal[A-Z]/, /bottomPanel/, /bottom-panel/]
+  },
+  {
+    flag: '--composer',
+    label: 'Composer',
+    filePatterns: [/^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
+    diffPatterns: [/composer[A-Z]/, /Composer/, /orchestrator:add-composer-text/, /composer-/]
   },
   {
     flag: '--right-panel',

@@ -10114,3 +10114,13 @@ Implemented: `closeActivePanelTab` now detects right-panel Terminal tab ids, cal
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `node -c scripts/suggest-ui-smoke-targets.mjs`, `pnpm run smoke:ui:suggest`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --terminal` passed. Terminal evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1780052420305.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1780052420305.png`. The focused smoke now gates `terminalRightPanelCloseShortcut=true` while preserving `bottomPanelPlanTransfer=true`, `bottomPanelPlanToolbarAction=true`, and `bottomPanelPlanAddToChat=true`.
 
 Remaining: this closes right-panel Terminal shortcut cleanup only. Exact live Codex terminal animation timing and broader bottom-panel mixed-surface stress remain separate Phase 1 work.
+
+### 2026-05-29 - Composer Rapid Context Handoffs
+
+Product evidence: daily coding workflows often add several small context blocks into the composer from adjacent panels. The `orchestrator:add-composer-text` event previously appended against the current render closure, so two rapid handoff events could race before React re-rendered and the later event could replace the earlier context block.
+
+Implemented: composer add-text handoffs now append against the live per-session composer draft from the store. Edit-as-draft replacement also snapshots the live stored draft/attachments before replacing the composer, so its restore affordance is not dependent on a stale render closure. The changed-files smoke planner now maps `InputBar.tsx` and composer-specific smoke-harness diffs directly to `--composer`, avoiding broad smoke for narrow composer work.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `node -c scripts/suggest-ui-smoke-targets.mjs`, `pnpm run smoke:ui:suggest`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --composer` passed. Composer evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1780052908503.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1780052908503.png`. The focused smoke now gates `composerRapidContextAppend=true`.
+
+Remaining: this closes rapid local context append loss only. Provider-backed lifecycle proof, deterministic live non-command permission fixtures, and deeper permission/context workflows remain separate Phase 1 work.

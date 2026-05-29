@@ -6586,6 +6586,17 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             var composerEmptySuggestionFillsDraft =
               emptyStateSuggestion instanceof HTMLButtonElement &&
               textareaValue()?.includes('Review the current branch') === true;
+            setTextareaValue('rapid context base');
+            await sleep(80);
+            window.dispatchEvent(new CustomEvent('orchestrator:add-composer-text', {
+              detail: { text: 'RAPID_CONTEXT_HANDOFF_ONE' }
+            }));
+            window.dispatchEvent(new CustomEvent('orchestrator:add-composer-text', {
+              detail: { text: 'RAPID_CONTEXT_HANDOFF_TWO' }
+            }));
+            await sleep(180);
+            var composerRapidContextAppend =
+              textareaValue() === 'rapid context base\\n\\nRAPID_CONTEXT_HANDOFF_ONE\\n\\nRAPID_CONTEXT_HANDOFF_TWO';
             setTextareaValue('SEND_PROVIDER_FALSE_SMOKE');
             await sleep(120);
             const sendProviderFalseButton = [...document.querySelectorAll('button')]
@@ -8373,6 +8384,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             composerQueuedCancel: typeof composerQueuedCancel === 'boolean' ? composerQueuedCancel : null,
             composerQueuedCancelStatusWorks: typeof composerQueuedCancelStatusWorks === 'boolean' ? composerQueuedCancelStatusWorks : null,
             composerEmptySuggestionFillsDraft: typeof composerEmptySuggestionFillsDraft === 'boolean' ? composerEmptySuggestionFillsDraft : null,
+            composerRapidContextAppend: typeof composerRapidContextAppend === 'boolean' ? composerRapidContextAppend : null,
             composerPromptHistoryRecall: typeof composerPromptHistoryRecall === 'boolean' ? composerPromptHistoryRecall : null,
             composerEnterBehaviorSetting: typeof composerEnterBehaviorSetting === 'boolean' ? composerEnterBehaviorSetting : null,
             composerDraftsPerChat: typeof composerDraftsPerChat === 'boolean' ? composerDraftsPerChat : null,
