@@ -7792,6 +7792,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             planAgentStatLabelsCalm: typeof planAgentStatLabelsCalm === 'boolean' ? planAgentStatLabelsCalm : null,
             agentRuntimeEventDetailWorks: typeof agentRuntimeEventDetailWorks === 'boolean' ? agentRuntimeEventDetailWorks : null,
             agentRuntimeEventCopyWorks: typeof agentRuntimeEventCopyWorks === 'boolean' ? agentRuntimeEventCopyWorks : null,
+            agentRuntimeFailureGroupAddToChatWorks: typeof agentRuntimeFailureGroupAddToChatWorks === 'boolean' ? agentRuntimeFailureGroupAddToChatWorks : null,
             sideChatTabsWork: typeof sideChatTabsWork === 'boolean' ? sideChatTabsWork : null,
             sideChatComposerCompactWorks: typeof sideChatComposerCompactWorks === 'boolean' ? sideChatComposerCompactWorks : null,
             sideChatDraftPersistenceWorks: typeof sideChatDraftPersistenceWorks === 'boolean' ? sideChatDraftPersistenceWorks : null,
@@ -9151,8 +9152,33 @@ function runAutomatedFocusedSurfaceSmoke(
                 const failureGroups = document.querySelector('[data-testid="agent-runtime-failure-groups"]');
                 const failureGroupRows = [...document.querySelectorAll('[data-testid="agent-runtime-failure-group"]')]
                   .filter((row) => row instanceof HTMLElement);
+                const failureGroupAddButtons = [...document.querySelectorAll('[data-testid="agent-runtime-failure-group-add-to-chat"]')]
+                  .filter((button) => button instanceof HTMLButtonElement);
                 const runtimeIssueRows = [...document.querySelectorAll('[data-testid="agent-runtime-issue"]')]
                   .filter((row) => row instanceof HTMLButtonElement);
+                const providerRunFailureGroupAddButton = failureGroupAddButtons.find((button) =>
+                  button.getAttribute('data-tooltip-label')?.includes('Provider run') === true
+                );
+                if (providerRunFailureGroupAddButton instanceof HTMLButtonElement) {
+                  providerRunFailureGroupAddButton.click();
+                  await sleep(160);
+                }
+                const failureGroupComposerAfterAdd = document.querySelector('textarea');
+                const failureGroupActionStatus = document.querySelector('[data-testid="agent-runtime-issue-action-status"]');
+                const agentRuntimeFailureGroupAddToChatWorks =
+                  providerRunFailureGroupAddButton instanceof HTMLButtonElement &&
+                  providerRunFailureGroupAddButton.getAttribute('data-icon') === 'chat' &&
+                  providerRunFailureGroupAddButton.getAttribute('data-icon-button-variant') === 'toolbar' &&
+                  failureGroupActionStatus instanceof HTMLElement &&
+                  failureGroupActionStatus.getAttribute('role') === 'status' &&
+                  failureGroupActionStatus.getAttribute('aria-live') === 'polite' &&
+                  failureGroupActionStatus.getAttribute('aria-atomic') === 'true' &&
+                  failureGroupActionStatus.textContent?.includes('Failure group added to chat') === true &&
+                  failureGroupComposerAfterAdd instanceof HTMLTextAreaElement &&
+                  failureGroupComposerAfterAdd.value.includes('Investigate this runtime failure group:') &&
+                  failureGroupComposerAfterAdd.value.includes('Cause: Provider run') &&
+                  failureGroupComposerAfterAdd.value.includes('Count: 1') &&
+                  failureGroupComposerAfterAdd.value.includes('Runtime transport failed during diagnostics smoke.');
                 const failedRuntimeIssueRow = runtimeIssueRows.find((row) => row.textContent?.includes('Runtime transport failed'));
                 if (failedRuntimeIssueRow instanceof HTMLButtonElement) {
                   failedRuntimeIssueRow.click();
@@ -9165,7 +9191,8 @@ function runAutomatedFocusedSurfaceSmoke(
                   failureGroupRows.length === 2 &&
                   failureGroups.textContent?.includes('Provider run') === true &&
                   failureGroups.textContent?.includes('Tool: agent-inspector-smoke-tool') === true &&
-                  failureGroups.textContent?.includes('Shell command failed') === true;
+                  failureGroups.textContent?.includes('Shell command failed') === true &&
+                  agentRuntimeFailureGroupAddToChatWorks;
                 const agentRuntimeIssueTriageWorks =
                   runtimeIssues instanceof HTMLElement &&
                   runtimeIssueSummary instanceof HTMLElement &&
@@ -9438,6 +9465,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   agentRuntimeEventAddToChatWorks,
                   agentRuntimeEventAddToChatContextWorks,
                   agentRuntimeEventActionChromeWorks,
+                  agentRuntimeFailureGroupAddToChatWorks,
                   agentRuntimeFailureGroupsWorks,
                   agentTransportLogWorks,
                   agentSelectedTimelineWorks,

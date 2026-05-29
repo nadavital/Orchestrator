@@ -12,6 +12,13 @@ interface Props {
 
 type EventSeverityFilter = 'all' | 'issues' | 'failures' | 'waiting'
 type EventSourceFilter = 'all' | 'agents' | 'tools' | 'approvals' | 'connection'
+type FailureCauseGroup = {
+  cause: string
+  count: number
+  latest: string
+  timestamp: number
+  records: SessionRunEventRecord[]
+}
 
 export default function EventInspectorPanel({ session, embedded = false, activeAgentId = null }: Props): JSX.Element {
   const { eventBuffers, rawBuffers, uiState, setActiveAgent, closeAgentTab } = useSessionStore()
@@ -157,6 +164,7 @@ function SessionContextSummary({
   const [eventQuery, setEventQuery] = useState('')
   const [eventSeverityFilter, setEventSeverityFilter] = useState<EventSeverityFilter>('all')
   const [eventSourceFilter, setEventSourceFilter] = useState<EventSourceFilter>('all')
+  const [issueActionStatus, setIssueActionStatus] = useState<string | null>(null)
   const messageCount = session.messageCount ?? session.messages.length
   const workDirLabel = compactPath(session.workDir)
   const transportLines = useMemo(() => transportLogLines(rawLog), [rawLog])
@@ -187,6 +195,30 @@ function SessionContextSummary({
     }, { failures: 0, waiting: 0 })
   }, [issueEvents])
   const failureCauseGroups = useMemo(() => groupFailureCauses(issueEvents), [issueEvents])
+  const addFailureGroupToChat = (group: FailureCauseGroup): void => {
+    window.dispatchEvent(new CustomEvent('orchestrator:add-composer-text', {
+      detail: {
+        text: [
+          'Investigate this runtime failure group:',
+          `Thread: ${session.title || session.id}`,
+          `Runtime: ${[session.provider, session.model].filter(Boolean).join(' / ') || 'Unknown runtime'}`,
+          `Status: ${session.status}`,
+          `Workspace: ${session.workDir || 'Unknown workspace'}`,
+          `Cause: ${group.cause}`,
+          `Count: ${group.count}`,
+          `Latest: ${group.latest}`,
+          '',
+          'Events:',
+          ...group.records
+            .slice()
+            .sort((a, b) => b.timestamp - a.timestamp)
+            .slice(0, 4)
+            .map((record) => `- ${record.event.type} at ${formatClockTime(record.timestamp)}: ${failureDetail(record)}`)
+        ].join('\n')
+      }
+    }))
+    setIssueActionStatus('Failure group added to chat')
+  }
 
   return (
     <div
@@ -249,9 +281,33 @@ function SessionContextSummary({
                       {group.latest}
                     </div>
                   </div>
+                  <ToolbarButton
+                    icon="chat"
+                    label={`Add ${group.cause} failure group to chat`}
+                    dataTestId="agent-runtime-failure-group-add-to-chat"
+                    onClick={() => addFailureGroupToChat(group)}
+                    size="sm"
+                    variant="toolbar"
+                  />
                   <Badge tone="danger">{group.count}</Badge>
                 </InspectorRow>
               ))}
+            </div>
+          )}
+          {issueActionStatus && (
+            <div
+              className="rounded-md px-2 py-1 text-[11px]"
+              data-testid="agent-runtime-issue-action-status"
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+              style={{
+                color: 'var(--accent)',
+                background: 'color-mix(in srgb, var(--accent) 8%, var(--surface-bg))',
+                border: '1px solid var(--border-subtle)'
+              }}
+            >
+              {issueActionStatus}
             </div>
           )}
           <div className="grid gap-1.5">
@@ -694,8 +750,8 @@ function isRuntimeIssueEvent(record: SessionRunEventRecord): boolean {
     event.type === 'connection.retrying'
 }
 
-function groupFailureCauses(records: SessionRunEventRecord[]): Array<{ cause: string; count: number; latest: string; timestamp: number }> {
-  const groups = new Map<string, { cause: string; count: number; latest: string; timestamp: number }>()
+function groupFailureCauses(records: SessionRunEventRecord[]): FailureCauseGroup[] {
+  const groups = new Map<string, FailureCauseGroup>()
   for (const record of records) {
     if (eventTone(record) !== 'danger') continue
     const cause = failureCause(record)
@@ -705,10 +761,12 @@ function groupFailureCauses(records: SessionRunEventRecord[]): Array<{ cause: st
         cause,
         count: (previous?.count ?? 0) + 1,
         latest: failureDetail(record),
-        timestamp: record.timestamp
+        timestamp: record.timestamp,
+        records: previous ? [...previous.records, record] : [record]
       })
     } else {
       previous.count += 1
+      previous.records.push(record)
     }
   }
   return [...groups.values()].sort((a, b) => b.count - a.count || b.timestamp - a.timestamp)

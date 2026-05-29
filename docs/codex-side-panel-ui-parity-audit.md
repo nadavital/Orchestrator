@@ -9894,3 +9894,13 @@ Implemented: the composer model-choice builder now prepends the active custom/cu
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --composer` passed. Focused Composer evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1780038821637.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1780038821637.png`. The focused smoke gates `composerActiveThreadCustomModelVisible=true`.
 
 Remaining: this closes active custom model visibility only. Provider-native/app-server model catalog promotion, account/runtime-backed model availability, and non-Codex provider lifecycle proof remain separate follow-ups.
+
+### 2026-05-29 - Inspector Failure Group Add To Chat
+
+Product evidence: the Agents inspector already grouped runtime failures by cause, but grouped rows were still passive. For daily coding use, a provider-run failure or repeated tool failure should be easy to hand back into the main chat as context without selecting and copying individual event payloads.
+
+Implemented: runtime failure-group rows now expose a compact `Add to chat` action. The action inserts a bounded failure-group summary into the main composer with thread, runtime, status, workspace, cause, count, latest detail, and the latest matching failure events, then announces `Failure group added to chat`.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --workbench-new-tab` passed. Focused Workbench New Tab evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-workbench-new-tab-1780039280329.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-workbench-new-tab-1780039280329.png`. The focused smoke gates `agentRuntimeFailureGroupAddToChat=true` alongside the existing inspector event detail, copy/add-to-chat, facets, issue triage, selected-agent timeline, and transport-log checks.
+
+Remaining: this closes local grouped-failure handoff only. Live provider-backed runtime diagnostics, richer issue clustering, and non-Codex provider observability remain separate inspector follow-ups.
