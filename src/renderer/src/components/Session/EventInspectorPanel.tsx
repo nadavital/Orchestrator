@@ -164,6 +164,7 @@ function SessionContextSummary({
   const [eventQuery, setEventQuery] = useState('')
   const [eventSeverityFilter, setEventSeverityFilter] = useState<EventSeverityFilter>('all')
   const [eventSourceFilter, setEventSourceFilter] = useState<EventSourceFilter>('all')
+  const [sessionActionStatus, setSessionActionStatus] = useState<string | null>(null)
   const [issueActionStatus, setIssueActionStatus] = useState<string | null>(null)
   const [transportActionStatus, setTransportActionStatus] = useState<string | null>(null)
   const messageCount = session.messageCount ?? session.messages.length
@@ -196,6 +197,20 @@ function SessionContextSummary({
     }, { failures: 0, waiting: 0 })
   }, [issueEvents])
   const failureCauseGroups = useMemo(() => groupFailureCauses(issueEvents), [issueEvents])
+  const addSessionContextToChat = (): void => {
+    window.dispatchEvent(new CustomEvent('orchestrator:add-composer-text', {
+      detail: {
+        text: sessionContextSummaryText({
+          session,
+          stats,
+          events,
+          visibleEvents,
+          transportLines
+        })
+      }
+    }))
+    setSessionActionStatus('Session context added to chat')
+  }
   const addFailureGroupToChat = (group: FailureCauseGroup): void => {
     window.dispatchEvent(new CustomEvent('orchestrator:add-composer-text', {
       detail: {
@@ -245,7 +260,22 @@ function SessionContextSummary({
       data-testid="agent-session-context"
       style={{ borderBottom: '1px solid var(--border-subtle)' }}
     >
-      <InspectorSection title="Session" variant="raised">
+      <InspectorSection
+        title={(
+          <div className="flex min-w-0 items-center justify-between gap-2">
+            <span className="truncate">Session</span>
+            <ToolbarButton
+              icon="chat"
+              label="Add session context to chat"
+              dataTestId="agent-session-context-add-to-chat"
+              onClick={addSessionContextToChat}
+              size="sm"
+              variant="toolbar"
+            />
+          </div>
+        )}
+        variant="raised"
+      >
         <InspectorRow dataTestId="agent-session-runtime">
           <div className="min-w-0 flex-1">
             <div className="truncate text-xs font-semibold" style={{ color: 'var(--color-text)' }}>
@@ -262,6 +292,22 @@ function SessionContextSummary({
           <CompactMetric label="Events" value={events.length} />
           <CompactMetric label="Agents" value={stats.total} />
         </div>
+        {sessionActionStatus && (
+          <div
+            className="rounded-md px-2 py-1 text-[11px]"
+            data-testid="agent-session-context-action-status"
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+            style={{
+              color: 'var(--accent)',
+              background: 'color-mix(in srgb, var(--accent) 8%, var(--surface-bg))',
+              border: '1px solid var(--border-subtle)'
+            }}
+          >
+            {sessionActionStatus}
+          </div>
+        )}
       </InspectorSection>
 
       {issueEvents.length > 0 && (
@@ -789,6 +835,45 @@ function sessionStatusTone(status: Session['status']): 'accent' | 'success' | 'w
   if (status === 'provider_error' || status === 'auth_error' || status === 'model_error' || status === 'quota_error' || status === 'rate_limit_error' || status === 'error') return 'danger'
   if (status === 'idle') return 'accent'
   return 'neutral'
+}
+
+function sessionContextSummaryText({
+  session,
+  stats,
+  events,
+  visibleEvents,
+  transportLines
+}: {
+  session: Session
+  stats: ReturnType<typeof agentStats>
+  events: SessionRunEventRecord[]
+  visibleEvents: SessionRunEventRecord[]
+  transportLines: ReturnType<typeof transportLogLines>
+}): string {
+  const runtime = [session.provider, session.model].filter(Boolean).join(' / ') || 'Unknown runtime'
+  const messageCount = session.messageCount ?? session.messages.length
+  return [
+    'Use this agent activity session context:',
+    `Thread: ${session.title || session.id}`,
+    `Runtime: ${runtime}`,
+    `Status: ${session.status}`,
+    `Workspace: ${session.workDir || 'Unknown workspace'}`,
+    `Messages: ${messageCount}`,
+    `Events: ${events.length}`,
+    `Agents: ${stats.total} total, ${stats.active} active, ${stats.waiting} waiting, ${stats.issues} issues`,
+    '',
+    'Recent visible events:',
+    ...(visibleEvents.length > 0
+      ? visibleEvents.slice(0, 6).map((record) => `- ${record.event.type} at ${formatClockTime(record.timestamp)}: ${failureDetail(record)}`)
+      : ['- None']),
+    ...(transportLines.length > 0
+      ? [
+          '',
+          'Recent redacted transport lines:',
+          ...transportLines.slice(0, 4).map((line) => `- ${line.label}: ${line.preview}`)
+        ]
+      : [])
+  ].join('\n')
 }
 
 function eventTone(record: SessionRunEventRecord): 'accent' | 'success' | 'warning' | 'danger' | 'neutral' {

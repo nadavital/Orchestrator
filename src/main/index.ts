@@ -10471,6 +10471,32 @@ function runAutomatedFocusedSurfaceSmoke(
                   }
                   await sleep(220);
                 }
+                const agentSessionContextAddToChat = document.querySelector('[data-testid="agent-session-context-add-to-chat"]');
+                if (agentSessionContextAddToChat instanceof HTMLButtonElement) {
+                  agentSessionContextAddToChat.click();
+                  await sleep(160);
+                }
+                const agentSessionContextActionStatus = document.querySelector('[data-testid="agent-session-context-action-status"]');
+                const composerAfterSessionContextAdd = document.querySelector('textarea');
+                const agentSessionContextAddToChatWorks =
+                  agentSessionContextAddToChat instanceof HTMLButtonElement &&
+                  agentSessionContextAddToChat.getAttribute('data-icon') === 'chat' &&
+                  agentSessionContextAddToChat.getAttribute('data-icon-button-variant') === 'toolbar' &&
+                  agentSessionContextActionStatus instanceof HTMLElement &&
+                  agentSessionContextActionStatus.getAttribute('role') === 'status' &&
+                  agentSessionContextActionStatus.getAttribute('aria-live') === 'polite' &&
+                  agentSessionContextActionStatus.getAttribute('aria-atomic') === 'true' &&
+                  agentSessionContextActionStatus.textContent?.includes('Session context added to chat') === true &&
+                  composerAfterSessionContextAdd instanceof HTMLTextAreaElement &&
+                  composerAfterSessionContextAdd.value.includes('Use this agent activity session context:') &&
+                  composerAfterSessionContextAdd.value.includes('Runtime: ' + [activeSmokeSession?.provider, activeSmokeSession?.model].filter(Boolean).join(' / ')) &&
+                  composerAfterSessionContextAdd.value.includes('Workspace: ' + activeSmokeSession?.workDir) &&
+                  composerAfterSessionContextAdd.value.includes('Recent visible events:') &&
+                  composerAfterSessionContextAdd.value.includes('run.failed') &&
+                  composerAfterSessionContextAdd.value.includes('Runtime transport failed during diagnostics smoke.') &&
+                  composerAfterSessionContextAdd.value.includes('Recent redacted transport lines:') &&
+                  composerAfterSessionContextAdd.value.includes('[redacted]') &&
+                  composerAfterSessionContextAdd.value.includes('secret-token-smoke') === false;
                 const selectedAgentConversation = document.querySelector('[data-testid="agent-selected-conversation"]');
                 const selectedAgentTimeline = document.querySelector('[data-testid="agent-selected-timeline"]');
                 const selectedAgentTimelineList = document.querySelector('[data-testid="agent-selected-timeline-list"]');
@@ -10903,6 +10929,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   workbenchNewTabGitCommitDraftHandoffWorks,
                   workbenchNewTabGitCommitWorks,
                   workbenchNewTabGitDiscardWorks,
+                  agentSessionContextAddToChatWorks,
                   agentRuntimeEventDetailWorks,
                   agentRuntimeEventCopyWorks,
                   agentRuntimeEventAddToChatWorks,

@@ -173,7 +173,7 @@ const diffRules = [
     flag: '--workbench-new-tab',
     label: 'Workbench New Tab full workflow',
     filePatterns: [/^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
-    diffPatterns: [/agentRuntimeEvent/, /agentSelectedTranscript/, /agent-selected-add-to-chat/, /agent-event-detail/, /focus-waiting-card/, /Open approval in chat/]
+    diffPatterns: [/agentRuntimeEvent/, /agentSessionContext/, /agentSelectedTranscript/, /agent-session-context-add-to-chat/, /agent-selected-add-to-chat/, /agent-event-detail/, /focus-waiting-card/, /Open approval in chat/]
   },
   {
     flag: '--extensions',
@@ -783,7 +783,7 @@ function suppressComposerForAgentInspectorHandoffDiff(matched, paths) {
     paths.includes('scripts/run-automated-ui-smoke.mjs') ? diffForFile('scripts/run-automated-ui-smoke.mjs') : '',
     paths.includes('src/main/index.ts') ? diffForFile('src/main/index.ts') : ''
   ].join('\n')
-  if (!/agentSelectedTranscript|agent-selected-add-to-chat|Use this agent transcript context|Agent transcript added to chat/.test(diff)) return
+  if (!/agentSessionContextAddToChat|agent-session-context-add-to-chat|Use this agent activity session context|Session context added to chat|agentSelectedTranscript|agent-selected-add-to-chat|Use this agent transcript context|Agent transcript added to chat/.test(diff)) return
   matched.delete('--composer')
 }
 
