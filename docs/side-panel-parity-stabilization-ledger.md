@@ -79,6 +79,8 @@ Before considering the stabilization complete:
 3. Run `npm run smoke:visual:side-panels -- --out tmp/side-panel-visual-inventory-current --full`.
 4. Run any packaged checks required by shell/settings changes.
 
+Current completion checkpoint: see `docs/phase-1-daily-coding-completion-audit.md`. Routine Phase 1 work should come from that audit's must-fix list; avoid adding more local copy/status/action affordances unless a daily coding workflow is actually broken.
+
 ## Remaining Goal Gaps
 
 These remain real goal gaps and should not be claimed complete from local fixture smokes:
