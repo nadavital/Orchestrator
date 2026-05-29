@@ -9465,6 +9465,16 @@ Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.
 
 Remaining: live PR creation, provider-hosted Git metadata, exact live Codex UI timing, and retiring Review's temporary local-git bridge once the Git tab fully owns local Git actions.
 
+### 2026-05-28 - Git Workbench Checkout
+
+Product evidence: after branch creation and PR-command copy moved into the Git Workbench tab, the local branch flow still required leaving the app to switch back to an existing branch. For day-to-day coding, the dedicated Git surface should own both creating a topic branch and returning to an existing branch before deeper hosted-provider work.
+
+Implemented: the Git tab Branch card now includes a branch picker and `Checkout` action. Main-process `git:checkoutBranch` validates the selected branch name, checks it out through Git, returns refreshed branch state, and preserves dirty working-tree changes when Git allows the checkout. The Git tab refreshes changed files after checkout, shows a live status message, and exposes `data-git-last-checked-out-branch` plus `git-last-checked-out-branch` smoke metadata.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, `node --test out-test/src/main/__tests__/gitChanges.test.js`, and elevated `node scripts/run-automated-ui-smoke.mjs --workbench-new-tab` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-workbench-new-tab-1780020466988.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-workbench-new-tab-1780020466988.png`. The focused smoke now gates `workbenchNewTabGitCheckout=true` by creating a topic branch, copying its PR command, checking out the original branch, then continuing through discard confirmation, stage/unstage, and commit.
+
+Remaining: live PR creation, provider-hosted Git metadata, exact live Codex UI timing, and retiring Review's temporary local-git bridge once the Git tab fully owns local Git actions.
+
 ### 2026-05-28 - Review Provider Suggestions
 
 Product evidence: PP-054 still had an actionable Review gap after the Git tab picked up local branch/commit/PR-command ownership: provider inline comments could be displayed, but GitHub suggestion fences were passive text. For daily coding, Review should let users copy or apply a concrete suggestion without leaving the right Workbench panel.

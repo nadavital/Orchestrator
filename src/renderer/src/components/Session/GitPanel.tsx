@@ -10,7 +10,7 @@ interface Props {
   onOpenReview: () => void
 }
 
-type GitActionState = 'idle' | 'loading' | 'staging' | 'unstaging' | 'branching' | 'committing' | 'discarding'
+type GitActionState = 'idle' | 'loading' | 'staging' | 'unstaging' | 'branching' | 'checking-out' | 'committing' | 'discarding'
 
 export default function GitPanel({ session, embedded = false, onOpenReview }: Props): JSX.Element {
   const [changes, setChanges] = useState<FileChange[]>([])
@@ -19,8 +19,10 @@ export default function GitPanel({ session, embedded = false, onOpenReview }: Pr
   const [actionMessage, setActionMessage] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
   const [commitMessage, setCommitMessage] = useState('')
   const [branchName, setBranchName] = useState('')
+  const [checkoutBranchName, setCheckoutBranchName] = useState('')
   const [lastCommit, setLastCommit] = useState<string | null>(null)
   const [lastCreatedBranch, setLastCreatedBranch] = useState<string | null>(null)
+  const [lastCheckedOutBranch, setLastCheckedOutBranch] = useState<string | null>(null)
   const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false)
   const sessionId = session.id
   const workDir = session.workDir
@@ -70,9 +72,14 @@ export default function GitPanel({ session, embedded = false, onOpenReview }: Pr
   const prCommand = currentBranch && currentBranch !== defaultBaseBranch
     ? `gh pr create --fill --base ${shellQuote(defaultBaseBranch)} --head ${shellQuote(currentBranch)}`
     : ''
+  const checkoutBranchOptions = useMemo(
+    () => branches.filter((branch) => !branch.current && !branch.description?.startsWith('Remote branch')),
+    [branches]
+  )
   const busy = actionState !== 'idle'
   const commitReady = stagedPaths.length > 0 && commitMessage.trim().length > 0
   const branchReady = branchName.trim().length > 0
+  const checkoutReady = checkoutBranchName.trim().length > 0
 
   const writeGitClipboardText = async (text: string): Promise<void> => {
     if (typeof window.api.clipboard?.writeText === 'function') {
@@ -127,6 +134,31 @@ export default function GitPanel({ session, embedded = false, onOpenReview }: Pr
       }
     } catch (error) {
       setActionMessage({ text: error instanceof Error ? error.message : 'Create branch failed', tone: 'danger' })
+    } finally {
+      setActionState('idle')
+    }
+  }
+
+  const runCheckoutBranch = async (): Promise<void> => {
+    if (!checkoutReady || busy) return
+    const nextBranchName = checkoutBranchName.trim()
+    setActionState('checking-out')
+    setActionMessage({ text: `Checking out ${nextBranchName}`, tone: 'info' })
+    setLastCheckedOutBranch(null)
+    try {
+      const result = await window.api.git.checkoutBranch(workDir, nextBranchName)
+      setBranches(result.branches)
+      if (result.ok) {
+        const checkedOutBranch = result.currentBranch ?? result.branchName ?? nextBranchName
+        setLastCheckedOutBranch(checkedOutBranch)
+        setCheckoutBranchName('')
+        setChanges(await window.api.sessions.getChangedFiles(sessionId, 'all').catch(() => []))
+        setActionMessage({ text: `Checked out ${checkedOutBranch}`, tone: 'info' })
+      } else {
+        setActionMessage({ text: result.error || `Checkout failed for ${nextBranchName}`, tone: 'danger' })
+      }
+    } catch (error) {
+      setActionMessage({ text: error instanceof Error ? error.message : 'Checkout failed', tone: 'danger' })
     } finally {
       setActionState('idle')
     }
@@ -213,6 +245,7 @@ export default function GitPanel({ session, embedded = false, onOpenReview }: Pr
       data-git-action-state={actionState}
       data-git-last-commit={lastCommit ?? ''}
       data-git-last-created-branch={lastCreatedBranch ?? ''}
+      data-git-last-checked-out-branch={lastCheckedOutBranch ?? ''}
       style={{ height: embedded ? '100%' : undefined }}
     >
       <div className="environment-panel-scroll">
@@ -333,6 +366,33 @@ export default function GitPanel({ session, embedded = false, onOpenReview }: Pr
           </div>
           {lastCreatedBranch && (
             <div className="git-commit-meta" data-testid="git-last-created-branch">Current branch {lastCreatedBranch}</div>
+          )}
+          <div className="git-commit-row">
+            <select
+              className="git-commit-input"
+              data-testid="git-checkout-branch"
+              value={checkoutBranchName}
+              disabled={busy || checkoutBranchOptions.length === 0}
+              aria-label="Checkout branch"
+              onChange={(event) => setCheckoutBranchName(event.target.value)}
+            >
+              <option value="">Switch branch</option>
+              {checkoutBranchOptions.map((branch) => (
+                <option key={branch.name} value={branch.name}>{branch.label}</option>
+              ))}
+            </select>
+            <Button
+              type="button"
+              variant="ghost"
+              dataTestId="git-checkout-branch-action"
+              disabled={busy || !checkoutReady}
+              onClick={() => { void runCheckoutBranch() }}
+            >
+              Checkout
+            </Button>
+          </div>
+          {lastCheckedOutBranch && (
+            <div className="git-commit-meta" data-testid="git-last-checked-out-branch">Current branch {lastCheckedOutBranch}</div>
           )}
         </form>
 

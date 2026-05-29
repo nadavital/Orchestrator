@@ -121,6 +121,33 @@ export const gitManager = {
     }
   },
 
+  async checkoutBranch(cwd: string, branchName: string): Promise<GitBranchActionResult> {
+    const cleanBranchName = normalizeBranchName(branchName)
+    if (!cleanBranchName) {
+      return { ok: false, branches: await this.listBranches(cwd), currentBranch: await this.getCurrentBranch(cwd), error: 'Choose a branch.' }
+    }
+
+    try {
+      const git = simpleGit(cwd)
+      await git.raw(['check-ref-format', '--branch', cleanBranchName])
+      await git.raw(['checkout', cleanBranchName])
+      return {
+        ok: true,
+        branchName: cleanBranchName,
+        currentBranch: await this.getCurrentBranch(cwd),
+        branches: await this.listBranches(cwd)
+      }
+    } catch (error) {
+      return {
+        ok: false,
+        branchName: cleanBranchName,
+        currentBranch: await this.getCurrentBranch(cwd),
+        branches: await this.listBranches(cwd),
+        error: error instanceof Error ? error.message : String(error)
+      }
+    }
+  },
+
   async createWorktree(repoRoot: string, sessionId: string, options: CreateWorktreeOptions = {}): Promise<string> {
     const worktreesDir = join(repoRoot, '.orchestrator-worktrees')
     mkdirSync(worktreesDir, { recursive: true })

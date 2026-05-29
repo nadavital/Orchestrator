@@ -105,6 +105,7 @@ test('create branch validates names and checks out the new branch', async () => 
     git(root, 'config', 'user.name', 'Orchestrator Test')
     git(root, 'add', '.')
     git(root, 'commit', '-m', 'baseline')
+    const defaultBranch = spawnSync('git', ['branch', '--show-current'], { cwd: root, encoding: 'utf-8' }).stdout.trim()
     writeFileSync(join(root, 'tracked.txt'), 'before\ndirty\n')
 
     const empty = await gitManager.createBranch(root, '   ')
@@ -119,6 +120,16 @@ test('create branch validates names and checks out the new branch', async () => 
     const current = spawnSync('git', ['branch', '--show-current'], { cwd: root, encoding: 'utf-8' })
     assert.equal(current.status, 0, current.stderr || current.stdout)
     assert.equal(current.stdout.trim(), 'orchestrator/git-panel-test')
+    assert.equal(readFileSync(join(root, 'tracked.txt'), 'utf-8'), 'before\ndirty\n')
+
+    const checkoutEmpty = await gitManager.checkoutBranch(root, '   ')
+    assert.equal(checkoutEmpty.ok, false)
+    assert.match(checkoutEmpty.error ?? '', /choose a branch/i)
+
+    const checkout = await gitManager.checkoutBranch(root, defaultBranch)
+    assert.equal(checkout.ok, true)
+    assert.equal(checkout.currentBranch, defaultBranch)
+    assert.equal(checkout.branches.find((branch) => branch.name === defaultBranch)?.current, true)
     assert.equal(readFileSync(join(root, 'tracked.txt'), 'utf-8'), 'before\ndirty\n')
   } finally {
     rmSync(root, { recursive: true, force: true })

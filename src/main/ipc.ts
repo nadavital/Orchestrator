@@ -3059,6 +3059,9 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('git:createBranch', (_, dir: string, branchName: string): Promise<GitBranchActionResult> =>
     gitManager.createBranch(dir, typeof branchName === 'string' ? branchName : '')
   )
+  ipcMain.handle('git:checkoutBranch', (_, dir: string, branchName: string): Promise<GitBranchActionResult> =>
+    gitManager.checkoutBranch(dir, typeof branchName === 'string' ? branchName : '')
+  )
   ipcMain.handle('git:stagePaths', (_, dir: string, paths: string[]): Promise<GitPathActionResult> =>
     gitManager.stagePaths(dir, Array.isArray(paths) ? paths : [])
   )

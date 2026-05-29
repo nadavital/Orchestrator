@@ -251,6 +251,7 @@ declare global {
         listBranches: (dir: string) => Promise<GitRefOption[]>
         listRecentCommits: (dir: string) => Promise<GitRefOption[]>
         createBranch: (dir: string, branchName: string) => Promise<GitBranchActionResult>
+        checkoutBranch: (dir: string, branchName: string) => Promise<GitBranchActionResult>
         stagePaths: (dir: string, paths: string[]) => Promise<GitPathActionResult>
         unstagePaths: (dir: string, paths: string[]) => Promise<GitPathActionResult>
         discardPaths: (dir: string, paths: string[]) => Promise<GitPathActionResult>

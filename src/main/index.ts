@@ -8156,6 +8156,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   newTabCardIds.includes('terminal');
                 let workbenchNewTabGitActionWorks = false;
                 let workbenchNewTabGitBranchWorks = false;
+                let workbenchNewTabGitCheckoutWorks = false;
                 let workbenchNewTabGitPrCommandWorks = false;
                 let workbenchNewTabGitCommitWorks = false;
                 let workbenchNewTabGitDiscardWorks = false;
@@ -8179,6 +8180,9 @@ function runAutomatedFocusedSurfaceSmoke(
                   const gitUnstageAll = document.querySelector('[data-testid="git-unstage-all"]');
                   const gitOpenReview = document.querySelector('[data-testid="git-open-review"]');
                   const gitBranch = document.querySelector('[data-testid="git-current-branch"]');
+                  const initialGitBranchName = gitBranch instanceof HTMLElement
+                    ? gitBranch.getAttribute('data-git-current-branch') ?? ''
+                    : '';
                   const gitFileRowsBefore = [...document.querySelectorAll('[data-testid="git-file-row"]')]
                     .filter((row) => row instanceof HTMLElement);
                   const gitChangeCountBefore = gitPanelBefore instanceof HTMLElement
@@ -8261,6 +8265,50 @@ function runAutomatedFocusedSurfaceSmoke(
                     gitStatusAfterPrCommand.textContent?.includes('PR command copied') === true &&
                     gitPrClipboardText.includes('gh pr create') &&
                     gitPrClipboardText.includes(smokeBranchName);
+                  const gitCheckoutSelect = document.querySelector('[data-testid="git-checkout-branch"]');
+                  const gitCheckoutButton = document.querySelector('[data-testid="git-checkout-branch-action"]');
+                  if (
+                    workbenchNewTabGitBranchWorks &&
+                    initialGitBranchName.length > 0 &&
+                    gitCheckoutSelect instanceof HTMLSelectElement &&
+                    gitCheckoutButton instanceof HTMLButtonElement
+                  ) {
+                    const checkoutSetter = Object.getOwnPropertyDescriptor(gitCheckoutSelect.constructor.prototype, 'value')?.set;
+                    checkoutSetter?.call(gitCheckoutSelect, initialGitBranchName);
+                    gitCheckoutSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                    await sleep(120);
+                    if (!gitCheckoutButton.disabled) {
+                      gitCheckoutButton.click();
+                      for (let attempt = 0; attempt < 24; attempt += 1) {
+                        await sleep(120);
+                        const gitPanelAfterCheckout = document.querySelector('[data-testid="git-panel"]');
+                        const gitBranchAfterCheckout = document.querySelector('[data-testid="git-current-branch"]');
+                        const gitStatusAfterCheckout = document.querySelector('[data-testid="git-action-status"]');
+                        if (
+                          gitPanelAfterCheckout instanceof HTMLElement &&
+                          gitPanelAfterCheckout.getAttribute('data-git-action-state') === 'idle' &&
+                          gitPanelAfterCheckout.getAttribute('data-git-last-checked-out-branch') === initialGitBranchName &&
+                          gitBranchAfterCheckout instanceof HTMLElement &&
+                          gitBranchAfterCheckout.getAttribute('data-git-current-branch') === initialGitBranchName &&
+                          gitStatusAfterCheckout instanceof HTMLElement &&
+                          gitStatusAfterCheckout.textContent?.includes('Checked out') === true
+                        ) {
+                          break;
+                        }
+                      }
+                    }
+                  }
+                  const gitPanelAfterCheckout = document.querySelector('[data-testid="git-panel"]');
+                  const gitBranchAfterCheckout = document.querySelector('[data-testid="git-current-branch"]');
+                  const gitStatusAfterCheckout = document.querySelector('[data-testid="git-action-status"]');
+                  workbenchNewTabGitCheckoutWorks =
+                    gitPanelAfterCheckout instanceof HTMLElement &&
+                    gitPanelAfterCheckout.getAttribute('data-git-last-checked-out-branch') === initialGitBranchName &&
+                    gitBranchAfterCheckout instanceof HTMLElement &&
+                    gitBranchAfterCheckout.getAttribute('data-git-current-branch') === initialGitBranchName &&
+                    gitStatusAfterCheckout instanceof HTMLElement &&
+                    gitStatusAfterCheckout.getAttribute('role') === 'status' &&
+                    gitStatusAfterCheckout.textContent?.includes('Checked out') === true;
                   const gitDiscardBeforeStage = document.querySelector('[data-testid="git-discard-all"]');
                   if (gitDiscardBeforeStage instanceof HTMLButtonElement && !gitDiscardBeforeStage.disabled) {
                     gitDiscardBeforeStage.click();
@@ -8401,6 +8449,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     gitFileRowsBefore.length >= 3 &&
                     gitChangeCountBefore >= 3 &&
                     workbenchNewTabGitBranchWorks &&
+                    workbenchNewTabGitCheckoutWorks &&
                     workbenchNewTabGitPrCommandWorks &&
                     gitAfterStageUnstagedCount === 0 &&
                     gitAfterStageStagedCount >= gitChangeCountBefore &&
@@ -8800,6 +8849,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   workbenchNewTabAgentsActionWorks,
                   workbenchNewTabGitActionWorks,
                   workbenchNewTabGitBranchWorks,
+                  workbenchNewTabGitCheckoutWorks,
                   workbenchNewTabGitPrCommandWorks,
                   workbenchNewTabGitCommitWorks,
                   workbenchNewTabGitDiscardWorks,

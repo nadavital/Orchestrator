@@ -290,6 +290,8 @@ const api = {
     listRecentCommits: (dir: string): Promise<GitRefOption[]> => ipcRenderer.invoke('git:listRecentCommits', dir),
     createBranch: (dir: string, branchName: string): Promise<GitBranchActionResult> =>
       ipcRenderer.invoke('git:createBranch', dir, branchName),
+    checkoutBranch: (dir: string, branchName: string): Promise<GitBranchActionResult> =>
+      ipcRenderer.invoke('git:checkoutBranch', dir, branchName),
     stagePaths: (dir: string, paths: string[]): Promise<GitPathActionResult> =>
       ipcRenderer.invoke('git:stagePaths', dir, paths),
     unstagePaths: (dir: string, paths: string[]): Promise<GitPathActionResult> =>
