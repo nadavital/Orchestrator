@@ -9374,3 +9374,13 @@ Implemented: grouped tool activity rows now use a stable first-tool virtual row 
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and elevated `node scripts/run-automated-ui-smoke.mjs --transcript-tool-jump` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-transcript-tool-jump-1780012922398.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-transcript-tool-jump-1780012922398.png`. The focused smoke adds `transcriptToolGroupStableKey=true` and `transcriptToolSearchJump=true` using a seeded long transcript where the matching tool result starts outside the initial render window.
 
 Remaining: this closes grouped-tool search-jump reliability only. The broader PP-033 work still includes pending worktree launch states, page-open lifecycle states, a fuller shared `ThreadScrollController`, and broader switch/scroll/search stress gates.
+
+### 2026-05-28 - Transcript Visible Read State
+
+Product evidence: the broader Codex chat/runtime audit called out that Codex marks read from visible active conversation state, while Orchestrator cleared unread during selection/routing. That could make a finished or waiting chat look read before the transcript was actually mounted and inspectable.
+
+Implemented: `setActiveSession` and route/pending-navigation flows no longer clear unread as a side effect. `ChatView` now owns the active-read transition: once the active transcript has rendered visible messages, or confirms a zero-message chat, it clears unread and emits an `orchestrator:active-transcript-visible` event. The transcript scroller exposes a read-sync marker, and sidebar rows expose smoke-visible unread state metadata.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --session-switch` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-session-switch-1780013337276.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-session-switch-1780013337276.png`. The focused run now gates `unreadPreservedBeforeSwitch=true` and `activeReadClearedAfterTranscript=true` while preserving route startup, archived/missing route recovery, lazy-load anchoring, transcript search, virtual row bounds, and switch timing.
+
+Remaining: this closes local active-chat unread timing only. Pending worktree launch state, page-open lifecycle states, a fuller shared `ThreadScrollController`, provider-native read state, and broader scroll/search stress gates remain separate.

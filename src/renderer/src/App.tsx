@@ -272,7 +272,6 @@ export default function App(): JSX.Element {
       setShowSettings(false)
       setShowCapabilities(false)
       setActiveSession(route.sessionId)
-      setHasUnread(route.sessionId, false)
     }
     applyRoute()
     window.addEventListener('hashchange', applyRoute)
@@ -288,6 +287,7 @@ export default function App(): JSX.Element {
       __orchestratorAppendSessionEventsForSmoke?: (sessionId: string, events: SessionRunEventRecord[]) => boolean
       __orchestratorAppendSessionRawForSmoke?: (sessionId: string, data: string) => boolean
       __orchestratorSetActiveSessionForSmoke?: (sessionId: string) => boolean
+      __orchestratorSetSessionUnreadForSmoke?: (sessionId: string, unread: boolean) => boolean
     }
     globals.__orchestratorAppendSessionEventsForSmoke = (sessionId, events) => {
       appendEvents(sessionId, events)
@@ -304,13 +304,19 @@ export default function App(): JSX.Element {
       state.setShowSettings(false)
       state.setShowCapabilities(false)
       state.setActiveSession(sessionId)
-      state.setHasUnread(sessionId, false)
+      return true
+    }
+    globals.__orchestratorSetSessionUnreadForSmoke = (sessionId, unread) => {
+      const state = useSessionStore.getState()
+      if (!state.sessions.some((session) => session.id === sessionId)) return false
+      state.setHasUnread(sessionId, unread)
       return true
     }
     return () => {
       delete globals.__orchestratorAppendSessionEventsForSmoke
       delete globals.__orchestratorAppendSessionRawForSmoke
       delete globals.__orchestratorSetActiveSessionForSmoke
+      delete globals.__orchestratorSetSessionUnreadForSmoke
     }
   }, [appendEvents, appendRaw])
 
@@ -663,7 +669,6 @@ export default function App(): JSX.Element {
       setShowSettings(false)
       setShowCapabilities(false)
       setActiveSession(restored.id)
-      setHasUnread(restored.id, false)
       replaceRouteUrl(sessionRouteUrl(restored.id))
     } catch (error) {
       setSessionRouteNotice({
@@ -1167,7 +1172,6 @@ export default function App(): JSX.Element {
         state.setShowSettings(false)
         state.setShowCapabilities(false)
         state.setActiveSession(sessionId)
-        state.setHasUnread(sessionId, false)
       })
       return true
     }
@@ -1249,7 +1253,6 @@ export default function App(): JSX.Element {
           setShowSettings(false)
           setShowCapabilities(false)
           setActiveSession(effectiveNavigation.sessionId)
-          setHasUnread(effectiveNavigation.sessionId, false)
         } else if (effectiveNavigation?.kind === 'session') {
           const notice = await sessionRouteNoticeForMissingId(effectiveNavigation.sessionId)
           setSessionRouteNotice(notice)

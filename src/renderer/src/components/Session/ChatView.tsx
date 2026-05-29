@@ -103,6 +103,8 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
   const transcriptListRef = useRef<HTMLDivElement>(null)
   const measuredRowHeightsRef = useRef<Record<string, number>>({})
   const prependAnchorRef = useRef<TranscriptPrependAnchor | null>(null)
+  const readSyncedSessionRef = useRef<string | null>(null)
+  const [readSyncedSessionId, setReadSyncedSessionId] = useState<string | null>(null)
   const [showJumpToLatest, setShowJumpToLatest] = useState(false)
   const [preferredEditor, setPreferredEditor] = useState<PreferredEditor>('system')
   const [loadingEarlier, setLoadingEarlier] = useState(false)
@@ -553,6 +555,22 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
     }
   }, [session.id, visibleMessages.length])
 
+  useLayoutEffect(() => {
+    const transcriptReady = totalMessageCount === 0 || visibleMessages.length > 0
+    if (!transcriptReady || readSyncedSessionRef.current === session.id) return
+    if (useSessionStore.getState().activeSessionId !== session.id) return
+    useSessionStore.getState().setHasUnread(session.id, false)
+    readSyncedSessionRef.current = session.id
+    setReadSyncedSessionId(session.id)
+    window.dispatchEvent(new CustomEvent('orchestrator:active-transcript-visible', {
+      detail: {
+        sessionId: session.id,
+        renderedMessages: visibleMessages.length,
+        messageCount: totalMessageCount
+      }
+    }))
+  }, [session.id, totalMessageCount, visibleMessages.length])
+
   useEffect(() => {
     const openSearch = (): void => {
       setSharedFindActive(false)
@@ -801,6 +819,7 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
         onTouchStart={handleTouchStart}
         className="h-full min-w-0 overflow-y-auto overflow-x-hidden px-6 py-5"
         data-composer-reserve-aware="true"
+        data-active-transcript-read-synced={readSyncedSessionId === session.id ? 'true' : 'false'}
         style={{
           userSelect: 'text',
           scrollPaddingBlockEnd: 'var(--composer-reserve-height, 0px)'

@@ -19788,6 +19788,22 @@ function runAutomatedSessionSwitchSmoke(win: BrowserWindow, outputPath: string, 
           }))()
         `)
 
+        const unreadBeforeSwitch = await win.webContents.executeJavaScript(`
+          (async () => {
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            window.__orchestratorSetSessionUnreadForSmoke?.(${JSON.stringify(second.id)}, true);
+            let row = document.querySelector('[data-session-id="' + CSS.escape(${JSON.stringify(second.id)}) + '"]');
+            for (let index = 0; index < 40; index += 1) {
+              row = document.querySelector('[data-session-id="' + CSS.escape(${JSON.stringify(second.id)}) + '"]');
+              if (row?.getAttribute('data-sidebar-has-unread-state') === 'true') break;
+              await sleep(25);
+            }
+            return {
+              unreadPreservedBeforeSwitch: row?.getAttribute('data-sidebar-has-unread-state') === 'true'
+            };
+          })()
+        `)
+
         await win.webContents.executeJavaScript('window.__orchestratorSessionSwitchStart = performance.now()')
         win.webContents.send('pet:navigate', second.id)
         const after = await win.webContents.executeJavaScript(`
@@ -19808,6 +19824,19 @@ function runAutomatedSessionSwitchSmoke(win: BrowserWindow, outputPath: string, 
             }
             const transcriptText = document.querySelector('[data-testid="transcript-scroll"]')?.innerText ?? '';
             const switchElapsedMs = performance.now() - window.__orchestratorSessionSwitchStart;
+            let activeReadClearedAfterTranscript = false;
+            for (let index = 0; index < 60; index += 1) {
+              const scroller = document.querySelector('[data-testid="transcript-scroll"]');
+              const row = document.querySelector('[data-session-id="' + CSS.escape(${JSON.stringify(second.id)}) + '"]');
+              if (
+                scroller?.getAttribute('data-active-transcript-read-synced') === 'true' &&
+                row?.getAttribute('data-sidebar-has-unread-state') === 'false'
+              ) {
+                activeReadClearedAfterTranscript = true;
+                break;
+              }
+              await sleep(20);
+            }
             let fullHydratedAfterSwitch = false;
             const loadEarlierControl = () => document.querySelector('[data-testid="load-earlier-messages"]');
             const loadEarlierHidden = () => Number(loadEarlierControl()?.getAttribute('data-hidden-message-count') ?? 0);
@@ -19890,6 +19919,7 @@ function runAutomatedSessionSwitchSmoke(win: BrowserWindow, outputPath: string, 
             const messageCountFromDom = Number(transcriptList?.getAttribute('data-total-message-count') ?? Number.NaN);
             return {
               secondTranscriptFound: transcriptText.includes('SESSION_SWITCH_SMOKE_TWO'),
+              activeReadClearedAfterTranscript,
               secondTitleFound: document.querySelector('[data-testid="active-session-title"]')?.textContent?.includes(${JSON.stringify(second.name)}) ?? false,
               secondRouteUpdated: window.location.pathname.endsWith(${JSON.stringify(`/threads/${encodeURIComponent(second.id)}`)}) || window.location.hash === ${JSON.stringify(`#/threads/${encodeURIComponent(second.id)}`)},
               longHistoryDeferred: Boolean(document.querySelector('[data-testid="load-earlier-messages"]')),
@@ -19921,7 +19951,7 @@ function runAutomatedSessionSwitchSmoke(win: BrowserWindow, outputPath: string, 
           const image = await win.webContents.capturePage()
           writeFileSync(screenshotPath, image.toPNG())
         }
-        writeFileSync(outputPath, JSON.stringify({ ok: true, result: { profile, ...summaryResult, ...startupRouteResult, ...routeRecoveryResult, ...before, ...after }, screenshotPath }, null, 2))
+        writeFileSync(outputPath, JSON.stringify({ ok: true, result: { profile, ...summaryResult, ...startupRouteResult, ...routeRecoveryResult, ...before, ...unreadBeforeSwitch, ...after }, screenshotPath }, null, 2))
         app.quit()
       } catch (error) {
         writeFileSync(outputPath, JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2))

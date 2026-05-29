@@ -460,10 +460,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         markSessionSwitchStart(id, session?.messageCount ?? session?.messages.length ?? 0)
       }
       return {
-        activeSessionId: id,
-        uiState: id
-          ? { ...s.uiState, [id]: { ...(s.uiState[id] ?? defaultUI), hasUnread: false } }
-          : s.uiState
+        activeSessionId: id
       }
     }),
 

@@ -1805,6 +1805,8 @@ child.on('exit', async (code) => {
         firstTitleFound: result.firstTitleFound === true,
         firstRouteUpdated: result.firstRouteUpdated === true,
         secondTranscriptFound: result.secondTranscriptFound === true,
+        unreadPreservedBeforeSwitch: result.unreadPreservedBeforeSwitch === true,
+        activeReadClearedAfterTranscript: result.activeReadClearedAfterTranscript === true,
         secondTitleFound: result.secondTitleFound === true,
         secondRouteUpdated: result.secondRouteUpdated === true,
         summaryTailBounded: result.summaryTailBounded === true,

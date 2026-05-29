@@ -324,6 +324,7 @@ function SessionItem({ session }: Props): JSX.Element {
         data-sidebar-projectless={projectless ? 'true' : undefined}
         data-sidebar-projectless-thread-id={session.providerProjectlessThreadId ?? undefined}
         data-sidebar-selected-key={rowSelectedKey}
+        data-sidebar-has-unread-state={unread ? 'true' : 'false'}
         onMouseEnter={() => showDetails(true)}
         onMouseLeave={hideDetails}
         onFocus={(event) => {
