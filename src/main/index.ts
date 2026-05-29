@@ -27954,6 +27954,57 @@ function runAutomatedTranscriptFileReferenceSmoke(win: BrowserWindow, outputPath
               additionalRootFileTabAfterCopy.getAttribute('data-file-tab-action-status') === 'Path copied' &&
               copiedAdditionalRootPath.endsWith('/orchestrator-automated-ui-workspace-additional-root/shared/additional-root-fixture.ts');
 
+            const fileReferenceCardCopyButton = additionalRootCard instanceof HTMLElement
+              ? additionalRootCard.querySelector('[data-testid="file-reference-copy-path"]')
+              : null;
+            if (fileReferenceCardCopyButton instanceof HTMLButtonElement) {
+              fileReferenceCardCopyButton.click();
+              await sleep(160);
+            }
+            const copiedFileReferencePath =
+              await window.api?.clipboard?.readText?.().catch(() => '') ??
+              await navigator.clipboard?.readText?.().catch(() => '') ??
+              '';
+            const fileReferenceCardCopyStatus = additionalRootCard instanceof HTMLElement
+              ? additionalRootCard.querySelector('[data-testid="file-reference-copy-status"]')
+              : null;
+            const fileReferenceCardCopyPathWorks =
+              additionalRootCard instanceof HTMLElement &&
+              fileReferenceCardCopyButton instanceof HTMLButtonElement &&
+              fileReferenceCardCopyButton.disabled === false &&
+              additionalRootCard.getAttribute('data-file-reference-copy-status') === 'Path copied' &&
+              fileReferenceCardCopyStatus instanceof HTMLElement &&
+              fileReferenceCardCopyStatus.getAttribute('role') === 'status' &&
+              fileReferenceCardCopyStatus.getAttribute('aria-live') === 'polite' &&
+              fileReferenceCardCopyStatus.textContent?.includes('Path copied') === true &&
+              copiedFileReferencePath.endsWith('/orchestrator-automated-ui-workspace-additional-root/shared/additional-root-fixture.ts');
+
+            const fileReferenceTerminalButton = additionalRootCard instanceof HTMLElement
+              ? additionalRootCard.querySelector('[data-testid="file-reference-insert-terminal"]')
+              : null;
+            if (fileReferenceTerminalButton instanceof HTMLButtonElement) {
+              fileReferenceTerminalButton.click();
+              for (let index = 0; index < 16; index += 1) {
+                await sleep(80);
+                if (additionalRootCard?.getAttribute('data-file-reference-terminal-status') === 'Path inserted in terminal') break;
+              }
+            }
+            const fileReferenceTerminalStatus = additionalRootCard instanceof HTMLElement
+              ? additionalRootCard.querySelector('[data-testid="file-reference-terminal-status"]')
+              : null;
+            const fileReferenceTerminalGlobals = window;
+            const fileReferenceCardInsertTerminalWorks =
+              additionalRootCard instanceof HTMLElement &&
+              fileReferenceTerminalButton instanceof HTMLButtonElement &&
+              fileReferenceTerminalButton.disabled === false &&
+              additionalRootCard.getAttribute('data-file-reference-terminal-status') === 'Path inserted in terminal' &&
+              fileReferenceTerminalStatus instanceof HTMLElement &&
+              fileReferenceTerminalStatus.getAttribute('role') === 'status' &&
+              fileReferenceTerminalStatus.getAttribute('aria-live') === 'polite' &&
+              fileReferenceTerminalStatus.textContent?.includes('Path inserted in terminal') === true &&
+              typeof fileReferenceTerminalGlobals.__orchestratorLastFileReferenceTerminalIdForSmoke === 'string' &&
+              fileReferenceTerminalGlobals.__orchestratorLastFileReferenceTerminalPathForSmoke?.endsWith('/orchestrator-automated-ui-workspace-additional-root/shared/additional-root-fixture.ts') === true;
+
             const attachButton = additionalRootCard instanceof HTMLElement
               ? additionalRootCard.querySelector('[data-testid="file-reference-attach-chat"]')
               : null;
@@ -27999,6 +28050,8 @@ function runAutomatedTranscriptFileReferenceSmoke(win: BrowserWindow, outputPath
               fileReferenceAdditionalRootBlameWorks,
               fileReferenceAdditionalRootLineAddToChatWorks,
               fileReferenceAdditionalRootCopyPathWorks,
+              fileReferenceCardCopyPathWorks,
+              fileReferenceCardInsertTerminalWorks,
               fileReferenceAttachToChatWorks,
               fileReferenceMissingActionsDisabled
             };

@@ -2205,6 +2205,8 @@ child.on('exit', async (code) => {
         fileReferenceAdditionalRootBlame: result.fileReferenceAdditionalRootBlameWorks === true,
         fileReferenceAdditionalRootLineAddToChat: result.fileReferenceAdditionalRootLineAddToChatWorks === true,
         fileReferenceAdditionalRootCopyPath: result.fileReferenceAdditionalRootCopyPathWorks === true,
+        fileReferenceCardCopyPath: result.fileReferenceCardCopyPathWorks === true,
+        fileReferenceCardInsertTerminal: result.fileReferenceCardInsertTerminalWorks === true,
         fileReferenceAttachToChat: result.fileReferenceAttachToChatWorks === true,
         fileReferenceMissingActionsDisabled: result.fileReferenceMissingActionsDisabled === true
       }

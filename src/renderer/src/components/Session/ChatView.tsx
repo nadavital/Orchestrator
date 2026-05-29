@@ -2045,6 +2045,7 @@ function MessageRow({
             {fileReferences.length > 0 && (
               <FileReferenceList
                 files={fileReferences}
+                sessionId={session.id}
                 cwd={session.workDir}
                 searchRoots={fileReferenceRoots}
                 preferredEditor={preferredEditor}
@@ -2788,12 +2789,14 @@ function MessageAttachmentList({ attachments }: { attachments: Attachment[] }): 
 
 function FileReferenceList({
   files,
+  sessionId,
   cwd,
   searchRoots,
   preferredEditor,
   onOpenWorkbenchFile
 }: {
   files: FileReference[]
+  sessionId: string
   cwd: string
   searchRoots: string[]
   preferredEditor: PreferredEditor
@@ -2805,6 +2808,7 @@ function FileReferenceList({
         <FileReferenceCard
           key={`${file.path}:${file.line ?? ''}:${file.column ?? ''}`}
           file={file}
+          sessionId={sessionId}
           cwd={cwd}
           searchRoots={searchRoots}
           preferredEditor={preferredEditor}
@@ -2817,23 +2821,30 @@ function FileReferenceList({
 
 function FileReferenceCard({
   file,
+  sessionId,
   cwd,
   searchRoots,
   preferredEditor,
   onOpenWorkbenchFile
 }: {
   file: FileReference
+  sessionId: string
   cwd: string
   searchRoots: string[]
   preferredEditor: PreferredEditor
   onOpenWorkbenchFile: (root: string, filePath: string, line?: number) => void
 }): JSX.Element {
+  const setShowTerminal = useSessionStore((state) => state.setShowTerminal)
+  const addTerminalTab = useSessionStore((state) => state.addTerminalTab)
+  const setActiveTerminalTab = useSessionStore((state) => state.setActiveTerminalTab)
   const [exists, setExists] = useState<boolean | null>(null)
   const [resolvedPath, setResolvedPath] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [lastOpenResult, setLastOpenResult] = useState<OpenPathResult | null>(null)
   const [workbenchOpenStatus, setWorkbenchOpenStatus] = useState('')
   const [attachStatus, setAttachStatus] = useState('')
+  const [copyStatus, setCopyStatus] = useState('')
+  const [terminalStatus, setTerminalStatus] = useState('')
   const displayPath = resolvedPath ?? file.path
   const displayLabel = resolvedPath ? fileName(resolvedPath) : file.label
   const targetLabel = file.line ? `:${file.line}${file.column ? `:${file.column}` : ''}` : ''
@@ -2853,6 +2864,8 @@ function FileReferenceCard({
     setLastOpenResult(null)
     setWorkbenchOpenStatus('')
     setAttachStatus('')
+    setCopyStatus('')
+    setTerminalStatus('')
 
     const resolve = async (): Promise<void> => {
       try {
@@ -2906,6 +2919,52 @@ function FileReferenceCard({
     await window.api.fs.showInFolder(displayPath)
   }
 
+  const writeFileReferenceClipboardText = async (text: string): Promise<void> => {
+    if (typeof window.api.clipboard?.writeText === 'function') {
+      const didWrite = await window.api.clipboard.writeText(text)
+      if (!didWrite) throw new Error('Clipboard write failed')
+      return
+    }
+    await navigator.clipboard.writeText(text)
+  }
+
+  const copyPath = (): void => {
+    if (exists !== true || !resolvedPath) return
+    setCopyStatus('Copying path')
+    void writeFileReferenceClipboardText(resolvedPath)
+      .then(() => setCopyStatus('Path copied'))
+      .catch(() => setCopyStatus('Copy path failed'))
+  }
+
+  const insertPathInTerminal = (): void => {
+    if (exists !== true || !resolvedPath) return
+    setTerminalStatus('Opening terminal for path')
+    void (async () => {
+      try {
+        const state = useSessionStore.getState()
+        const currentPanel = state.uiState[sessionId]?.terminalPanel
+        const existingTab = typeof currentPanel?.activeTabId === 'number'
+          ? currentPanel.activeTabId
+          : currentPanel?.tabs.find((tab): tab is number => typeof tab === 'number')
+        const tabId = existingTab ?? addTerminalTab(sessionId)
+        setShowTerminal(sessionId, true)
+        setActiveTerminalTab(sessionId, tabId)
+        const terminalId = `${sessionId}-${tabId}`
+        const globals = window as typeof window & {
+          __orchestratorLastFileReferenceTerminalPathForSmoke?: string
+          __orchestratorLastFileReferenceTerminalIdForSmoke?: string
+        }
+        globals.__orchestratorLastFileReferenceTerminalPathForSmoke = resolvedPath
+        globals.__orchestratorLastFileReferenceTerminalIdForSmoke = terminalId
+        await window.api.terminal.spawn(terminalId, cwd)
+        await window.api.terminal.write(terminalId, shellQuote(resolvedPath))
+        setTerminalStatus('Path inserted in terminal')
+      } catch {
+        setTerminalStatus('Insert path in terminal failed')
+      }
+    })()
+  }
+
   const openInWorkbench = (): void => {
     if (!workbenchTarget) return
     onOpenWorkbenchFile(workbenchTarget.root, workbenchTarget.filePath, file.line)
@@ -2943,6 +3002,8 @@ function FileReferenceCard({
       data-file-reference-workbench-opened={workbenchOpenStatus ? 'true' : 'false'}
       data-file-reference-attachment-path={attachStatus ? resolvedPath ?? '' : ''}
       data-file-reference-attached={attachStatus ? 'true' : 'false'}
+      data-file-reference-copy-status={copyStatus}
+      data-file-reference-terminal-status={terminalStatus}
       className="min-w-0 max-w-full overflow-hidden rounded-lg px-3 py-2 text-xs"
       style={{
         background: 'var(--color-surface)',
@@ -3013,6 +3074,36 @@ function FileReferenceCard({
           </button>
           <button
             type="button"
+            onClick={copyPath}
+            disabled={exists !== true || !resolvedPath}
+            data-testid="file-reference-copy-path"
+            className="shrink-0 rounded-md px-2 py-1 transition-colors"
+            style={{
+              color: exists === true && resolvedPath ? 'var(--color-text)' : 'var(--color-text-muted)',
+              background: 'transparent',
+              border: '1px solid var(--color-border)',
+              opacity: exists === true && resolvedPath ? 1 : 0.5
+            }}
+          >
+            Copy
+          </button>
+          <button
+            type="button"
+            onClick={insertPathInTerminal}
+            disabled={exists !== true || !resolvedPath}
+            data-testid="file-reference-insert-terminal"
+            className="shrink-0 rounded-md px-2 py-1 transition-colors"
+            style={{
+              color: exists === true && resolvedPath ? 'var(--color-text)' : 'var(--color-text-muted)',
+              background: 'transparent',
+              border: '1px solid var(--color-border)',
+              opacity: exists === true && resolvedPath ? 1 : 0.5
+            }}
+          >
+            Terminal
+          </button>
+          <button
+            type="button"
             onClick={revealPath}
             disabled={exists === false}
             data-testid="file-reference-reveal"
@@ -3069,12 +3160,40 @@ function FileReferenceCard({
           {attachStatus}
         </div>
       )}
+      {copyStatus && (
+        <div
+          className="mt-1"
+          data-testid="file-reference-copy-status"
+          role={copyStatus.includes('failed') ? 'alert' : 'status'}
+          aria-live={copyStatus.includes('failed') ? 'assertive' : 'polite'}
+          aria-atomic="true"
+          style={{ color: copyStatus.includes('failed') ? 'var(--color-red)' : 'var(--color-text-muted)', fontSize: 10 }}
+        >
+          {copyStatus}
+        </div>
+      )}
+      {terminalStatus && (
+        <div
+          className="mt-1"
+          data-testid="file-reference-terminal-status"
+          role={terminalStatus.includes('failed') ? 'alert' : 'status'}
+          aria-live={terminalStatus.includes('failed') ? 'assertive' : 'polite'}
+          aria-atomic="true"
+          style={{ color: terminalStatus.includes('failed') ? 'var(--color-red)' : 'var(--color-text-muted)', fontSize: 10 }}
+        >
+          {terminalStatus}
+        </div>
+      )}
     </div>
   )
 }
 
 function fileName(filePath: string): string {
   return filePath.split('/').filter(Boolean).at(-1) ?? filePath
+}
+
+function shellQuote(value: string): string {
+  return /^[A-Za-z0-9._/@:-]+$/.test(value) ? value : `'${value.replace(/'/g, `'\\''`)}'`
 }
 
 function relativePathWithinRoots(roots: string[], absolutePath: string): { root: string; filePath: string } | null {

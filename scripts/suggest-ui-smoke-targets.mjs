@@ -68,6 +68,12 @@ const diffRules = [
     diffPatterns: [/chatUserMessageEdit/, /message-edit-draft/, /composer-draft-source/, /CodeBlock/, /chat-code-block/, /codeBlockCopy/, /toolActivityCommand/]
   },
   {
+    flag: '--transcript-file-reference',
+    label: 'Transcript file references',
+    filePatterns: [/^src\/renderer\/src\/components\/Session\/ChatView\.tsx$/, /^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
+    diffPatterns: [/FileReference/, /file-reference/, /fileReference[A-Z]/, /__orchestratorLastFileReference/]
+  },
+  {
     flag: '--transcript-stress',
     label: 'Transcript stress',
     filePatterns: [/^src\/renderer\/src\/components\/Session\/ChatView\.tsx$/, /^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
@@ -297,6 +303,7 @@ function suggestTargets(paths) {
   suppressBrowserForSettingsDiff(matched, paths)
   suppressTranscriptLayoutForLongThreadDiff(matched, paths)
   suppressTranscriptLayoutForPermissionDiff(matched, paths)
+  suppressTranscriptLayoutForFileReferenceDiff(matched, paths)
   suppressTranscriptPermissionForSettingsDiff(matched, paths)
   suppressTranscriptPermissionForAgentEventFocusDiff(matched, paths)
   suppressTranscriptLayoutForForkDiff(matched, paths)
@@ -316,6 +323,7 @@ function suggestTargets(paths) {
   suppressTerminalForFilesPathTerminalHandoffDiff(matched, paths)
   suppressTerminalForFileTabPathTerminalHandoffDiff(matched, paths)
   suppressTerminalForReviewPathTerminalHandoffDiff(matched, paths)
+  suppressFilesAndTerminalForFileReferenceDiff(matched, paths)
   suppressComposerAndFilesForReviewRowAddToChatDiff(matched, paths)
   suppressEnvironmentForGitFileWorkflowDiff(matched, paths)
   suppressWorkbenchForReviewGitHandoffDiff(matched, paths)
@@ -569,6 +577,36 @@ function suppressTranscriptLayoutForPermissionDiff(matched, paths) {
     : ''
   if (!/PermissionCard|permissionRequest|chat-permission/.test(diff)) return
   matched.delete('--transcript-layout')
+}
+
+function suppressTranscriptLayoutForFileReferenceDiff(matched, paths) {
+  const transcript = matched.get('--transcript-layout')
+  const fileReference = matched.get('--transcript-file-reference')
+  if (!transcript || !fileReference) return
+  if (!transcript.files.every((file) => file === 'src/renderer/src/components/Session/ChatView.tsx')) return
+  const diff = paths.includes('src/renderer/src/components/Session/ChatView.tsx')
+    ? diffForFile('src/renderer/src/components/Session/ChatView.tsx')
+    : ''
+  if (!/FileReference|file-reference|fileReference[A-Z]|__orchestratorLastFileReference/.test(diff)) return
+  matched.delete('--transcript-layout')
+}
+
+function suppressFilesAndTerminalForFileReferenceDiff(matched, paths) {
+  const fileReference = matched.get('--transcript-file-reference')
+  if (!fileReference) return
+  const diff = [
+    paths.includes('scripts/run-automated-ui-smoke.mjs') ? diffForFile('scripts/run-automated-ui-smoke.mjs') : '',
+    paths.includes('src/main/index.ts') ? diffForFile('src/main/index.ts') : '',
+    paths.includes('src/renderer/src/components/Session/ChatView.tsx') ? diffForFile('src/renderer/src/components/Session/ChatView.tsx') : ''
+  ].join('\n')
+  if (!/FileReference|file-reference|fileReference[A-Z]|__orchestratorLastFileReference/.test(diff)) return
+  for (const flag of ['--files', '--terminal']) {
+    const target = matched.get(flag)
+    if (!target) continue
+    if (target.files.every((file) => file === 'scripts/run-automated-ui-smoke.mjs' || file === 'src/main/index.ts')) {
+      matched.delete(flag)
+    }
+  }
 }
 
 function suppressTranscriptPermissionForSettingsDiff(matched, paths) {
