@@ -13541,6 +13541,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     secondFocusedRow === secondFocusableRows[0];
                 }
                 let reviewRowKeyboardContextMenuWorks = false;
+                let reviewRowInsertPathTerminalWorks = false;
                 let reviewRowKeyboardContextMenuDebug = {};
                 const reviewRowContextTarget =
                   document.querySelector('.diff-panel-root[data-embedded="true"] .diff-panel-list [data-review-path="data-preview-smoke.json"]') ??
@@ -13561,6 +13562,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   const keyboardReviewRowSurface = keyboardReviewRowMenu?.closest('.orchestrator-menu-surface');
                   const reviewRowCopyPath = keyboardReviewRowMenu?.querySelector('[data-testid="review-row-copy-path"]');
                   const reviewRowOpenWorkbench = keyboardReviewRowMenu?.querySelector('[data-testid="review-row-open-workbench"]');
+                  const reviewRowInsertTerminal = keyboardReviewRowMenu?.querySelector('[data-testid="review-row-insert-terminal"]');
                   const reviewRowRevealFile = keyboardReviewRowMenu?.querySelector('[data-testid="review-row-reveal-file"]');
                   const keyboardReviewRowSurfaceLeft = keyboardReviewRowSurface instanceof HTMLElement
                     ? keyboardReviewRowSurface.getBoundingClientRect().left
@@ -13584,6 +13586,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     surfaceFound: keyboardReviewRowSurface instanceof HTMLElement,
                     hasOpen: reviewRowOpenWorkbench instanceof HTMLButtonElement,
                     hasCopy: reviewRowCopyPath instanceof HTMLButtonElement,
+                    hasInsertTerminal: reviewRowInsertTerminal instanceof HTMLButtonElement,
                     hasReveal: reviewRowRevealFile instanceof HTMLButtonElement,
                     copiedReviewRowPath,
                     reviewRowStatusText,
@@ -13602,8 +13605,10 @@ function runAutomatedFocusedSurfaceSmoke(
                     reviewRowOpenWorkbench instanceof HTMLButtonElement &&
                     reviewRowRevealFile instanceof HTMLButtonElement &&
                     reviewRowCopyPath instanceof HTMLButtonElement &&
+                    reviewRowInsertTerminal instanceof HTMLButtonElement &&
                     keyboardReviewRowMenu.textContent?.includes('Open in Workbench') === true &&
                     keyboardReviewRowMenu.textContent?.includes('Copy path') === true &&
+                    keyboardReviewRowMenu.textContent?.includes('Insert in terminal') === true &&
                     keyboardReviewRowMenu.textContent?.includes('Reveal file') === true &&
                     copiedReviewRowPath === 'data-preview-smoke.json' &&
                     reviewRowStatusText.includes('Path copied') &&
@@ -13611,6 +13616,54 @@ function runAutomatedFocusedSurfaceSmoke(
                     Math.abs(keyboardReviewRowSurfaceLeft - expectedReviewRowMenuX) <= 28;
                   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
                   await sleep(80);
+                  reviewRowContextTarget.dispatchEvent(new KeyboardEvent('keydown', {
+                    key: 'F10',
+                    code: 'F10',
+                    shiftKey: true,
+                    bubbles: true,
+                    cancelable: true
+                  }));
+                  await sleep(140);
+                  const terminalReviewRowMenu = document.querySelector('[data-testid="review-row-context-menu"]');
+                  const terminalReviewRowAction = terminalReviewRowMenu?.querySelector('[data-testid="review-row-insert-terminal"]');
+                  if (terminalReviewRowAction instanceof HTMLButtonElement) {
+                    terminalReviewRowAction.click();
+                    for (let attempt = 0; attempt < 24; attempt += 1) {
+                      await sleep(100);
+                      const statusText = document.querySelector('[data-testid="review-floating-action-status"], [data-testid="review-action-status-pill"]')?.textContent ?? '';
+                      const terminalId = window.__orchestratorLastReviewTerminalIdForSmoke ?? '';
+                      const terminalPath = window.__orchestratorLastReviewTerminalPathForSmoke ?? '';
+                      const terminalBuffer = terminalId
+                        ? await window.api?.terminal?.getBuffer?.(terminalId).catch(() => '') ?? ''
+                        : '';
+                      if (
+                        statusText.includes('Review path inserted in terminal') &&
+                        terminalPath === 'data-preview-smoke.json' &&
+                        terminalBuffer.includes('data-preview-smoke.json')
+                      ) {
+                        break;
+                      }
+                    }
+                    const statusElement = document.querySelector('[data-testid="review-floating-action-status"], [data-testid="review-action-status-pill"]');
+                    const statusText = statusElement?.textContent ?? '';
+                    const terminalId = window.__orchestratorLastReviewTerminalIdForSmoke ?? '';
+                    const terminalPath = window.__orchestratorLastReviewTerminalPathForSmoke ?? '';
+                    const terminalBuffer = terminalId
+                      ? await window.api?.terminal?.getBuffer?.(terminalId).catch(() => '') ?? ''
+                      : '';
+                    const bottomPanelAfterReviewPathInsert = document.querySelector('[data-testid="session-bottom-panel"]');
+                    reviewRowInsertPathTerminalWorks =
+                      statusElement instanceof HTMLElement &&
+                      statusElement.getAttribute('role') === 'status' &&
+                      statusElement.getAttribute('aria-live') === 'polite' &&
+                      statusText.includes('Review path inserted in terminal') &&
+                      terminalPath === 'data-preview-smoke.json' &&
+                      terminalBuffer.includes('data-preview-smoke.json') &&
+                      bottomPanelAfterReviewPathInsert instanceof HTMLElement &&
+                      bottomPanelAfterReviewPathInsert.getAttribute('data-bottom-panel-active-terminal-id') === terminalId;
+                    document.querySelector('[aria-label="Hide bottom panel"]')?.click();
+                    await sleep(120);
+                  }
                 } else {
                   reviewRowKeyboardContextMenuDebug = { targetFound: false };
                 }
@@ -13720,6 +13773,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   reviewDiffLineComposerHandoffWorks,
                   reviewDiffLineComposerHandoffDebug,
                   reviewRowKeyboardContextMenuWorks,
+                  reviewRowInsertPathTerminalWorks,
                   reviewRowKeyboardContextMenuDebug,
                   diffHunkCollapseWorks,
                   diffModeToggleWorks,

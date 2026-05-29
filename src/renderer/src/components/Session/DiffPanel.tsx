@@ -68,6 +68,10 @@ const REVIEW_OPTIONS_MENU_ID = 'review-options-menu-surface'
 const REVIEW_FILE_JUMP_MENU_ID = 'review-file-jump-menu-surface'
 const REVIEW_METADATA_MENU_ID = 'review-metadata-menu-surface'
 
+function shellQuote(value: string): string {
+  return /^[A-Za-z0-9._/@:-]+$/.test(value) ? value : `'${value.replace(/'/g, `'\\''`)}'`
+}
+
 export default function DiffPanel({ sessionId, workDir, embedded = false, focusPath = null, focusRequest }: Props): JSX.Element {
   const [files, setFiles] = useState<FileChange[]>([])
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
@@ -111,6 +115,9 @@ export default function DiffPanel({ sessionId, workDir, embedded = false, focusP
   const openRightPanelTab = useSessionStore((state) => state.openRightPanelTab)
   const focusRightPanelGitPath = useSessionStore((state) => state.focusRightPanelGitPath)
   const openRightPanelFileTab = useSessionStore((state) => state.openRightPanelFileTab)
+  const setShowTerminal = useSessionStore((state) => state.setShowTerminal)
+  const addTerminalTab = useSessionStore((state) => state.addTerminalTab)
+  const setActiveTerminalTab = useSessionStore((state) => state.setActiveTerminalTab)
   const reviewSession = useSessionStore((state) => state.sessions.find((candidate) => candidate.id === sessionId))
   const storeReviewMetadata = useSessionStore((state) => state.sessions.find((candidate) => candidate.id === sessionId)?.reviewMetadata)
   const lastTurnDiff = useSessionStore((state) => latestDiffUpdatedContent(state.eventBuffers[sessionId] ?? []))
@@ -752,6 +759,39 @@ export default function DiffPanel({ sessionId, workDir, embedded = false, focusP
     } catch {
       setReviewGitActionMessage({ text: 'Copy path failed', tone: 'danger' })
     }
+  }
+
+  const insertReviewPathInTerminal = (path: string): void => {
+    const change = sourceFiles.find((file) => file.path === path)
+    if (!change) {
+      setReviewGitActionMessage({ text: 'Select a changed path to insert in terminal', tone: 'danger' })
+      return
+    }
+    setReviewGitActionMessage({ text: 'Opening terminal for Review path', tone: 'info' })
+    void (async () => {
+      try {
+        const state = useSessionStore.getState()
+        const currentPanel = state.uiState[sessionId]?.terminalPanel
+        const existingTab = typeof currentPanel?.activeTabId === 'number'
+          ? currentPanel.activeTabId
+          : currentPanel?.tabs.find((tab): tab is number => typeof tab === 'number')
+        const tabId = existingTab ?? addTerminalTab(sessionId)
+        setShowTerminal(sessionId, true)
+        setActiveTerminalTab(sessionId, tabId)
+        const terminalId = `${sessionId}-${tabId}`
+        const globals = window as typeof window & {
+          __orchestratorLastReviewTerminalPathForSmoke?: string
+          __orchestratorLastReviewTerminalIdForSmoke?: string
+        }
+        globals.__orchestratorLastReviewTerminalPathForSmoke = path
+        globals.__orchestratorLastReviewTerminalIdForSmoke = terminalId
+        await window.api.terminal.spawn(terminalId, workDir)
+        await window.api.terminal.write(terminalId, shellQuote(path))
+        setReviewGitActionMessage({ text: 'Review path inserted in terminal', tone: 'info' })
+      } catch {
+        setReviewGitActionMessage({ text: 'Insert Review path in terminal failed', tone: 'danger' })
+      }
+    })()
   }
 
   const openReviewRowContextMenu = (event: WorkbenchTreeContextMenuEvent, file: FileChange): void => {
@@ -1684,6 +1724,16 @@ export default function DiffPanel({ sessionId, workDir, embedded = false, focusP
                       dataTestId="review-row-copy-path"
                       onClick={() => {
                         void copyReviewPath(reviewRowMenu.path)
+                        setReviewRowMenu(null)
+                      }}
+                    />
+                    <MenuItem
+                      icon="terminal"
+                      label="Insert in terminal"
+                      disabled={!reviewRowMenuChange}
+                      dataTestId="review-row-insert-terminal"
+                      onClick={() => {
+                        insertReviewPathInTerminal(reviewRowMenu.path)
                         setReviewRowMenu(null)
                       }}
                     />
