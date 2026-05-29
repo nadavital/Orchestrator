@@ -9575,6 +9575,16 @@ Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.
 
 Remaining: this closes the local high-frequency Settings subtarget search path for General. Broader per-control search coverage across Providers/Browser/Shortcuts, provider-host Settings adapters, deeper Settings page/window structure, and exact live Codex Settings timing remain separate follow-ups.
 
+### 2026-05-29 - Browser Hidden Page Identity
+
+Product evidence: PP-058 still tracked Browser lifecycle parity. Orchestrator already preserved hidden Browser webviews and resynced lifecycle state when shown again, but the hidden state itself only said `Hidden` and `The page is still loaded`. For day-to-day coding, a hidden Browser panel should still identify which page is loaded so users can decide whether to resume, reset, or switch context.
+
+Implemented: the hidden Browser state now renders the loaded page title plus a shortened URL, carries `data-browser-hidden-title` and `data-browser-hidden-url` attributes for smoke/debug visibility, and clarifies that the loaded page will resume when shown. The hidden webview remains mounted in the offscreen containment host; this slice changes the visible lifecycle surface, not the persistence model.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --browser` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1780025917536.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1780025917536.png`. The focused Browser smoke now gates `browserHiddenIdentity=true` while preserving `browserHiddenWebviewPersistence=true`, `browserLifecycleResync=true`, and `browserHiddenWebviewContainment=true`.
+
+Remaining: this closes the local hidden-state identity gap only. Deeper Browser lifecycle/screenshot comparison, live provider-emitted browser-use proof, richer provider-produced annotation/design-change workflows, and exact live Codex Browser timing remain separate follow-ups.
+
 ### 2026-05-28 - Thread Link Copy
 
 Product evidence: PP-037 tracks route-backed session identity as a daily reliability requirement. Orchestrator had app-protocol `Copy deeplink` and `Open in new window`, but the action menu did not expose a normal in-app `/threads/{id}` or `#/threads/{id}` route for sharing or browser/app route testing.

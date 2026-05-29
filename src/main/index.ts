@@ -5067,6 +5067,27 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             const browserHiddenStateWorks =
               document.querySelector('[data-testid="browser-hidden-state"]') instanceof HTMLElement &&
               document.querySelector('[data-testid="browser-hidden-show"]') instanceof HTMLButtonElement;
+            var browserHiddenIdentityWorks =
+              (() => {
+                const hiddenState = document.querySelector('[data-testid="browser-hidden-state"]');
+                const hiddenPage = document.querySelector('[data-testid="browser-hidden-page"]');
+                const hiddenTitle = hiddenState?.getAttribute('data-browser-hidden-title') ?? '';
+                const hiddenUrl = hiddenState?.getAttribute('data-browser-hidden-url') ?? '';
+                const hiddenText = hiddenPage?.textContent ?? '';
+                const shortHiddenUrl = (() => {
+                  try {
+                    const parsed = new URL(hiddenUrl);
+                    return parsed.hostname + parsed.pathname.replace(/\\/$/, '');
+                  } catch {
+                    return hiddenUrl;
+                  }
+                })();
+                return hiddenState instanceof HTMLElement &&
+                  hiddenPage instanceof HTMLElement &&
+                  hiddenTitle.length > 0 &&
+                  hiddenUrl.length > 0 &&
+                  (hiddenText.includes(hiddenTitle) || (shortHiddenUrl.length > 0 && hiddenText.includes(shortHiddenUrl)));
+              })();
             const showBrowserButton = findButton('Show browser surface');
             if (showBrowserButton instanceof HTMLButtonElement) {
               showBrowserButton.click();
@@ -7418,6 +7439,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             browserInspectorChromeCompactWorks: typeof browserInspectorChromeCompactWorks === 'boolean' ? browserInspectorChromeCompactWorks : null,
             browserVisibilityControlWorks: typeof browserVisibilityControlWorks === 'boolean' ? browserVisibilityControlWorks : null,
             browserHiddenStateWorks: typeof browserHiddenStateWorks === 'boolean' ? browserHiddenStateWorks : null,
+            browserHiddenIdentityWorks: typeof browserHiddenIdentityWorks === 'boolean' ? browserHiddenIdentityWorks : null,
             browserTabResetWorks: typeof browserTabResetWorks === 'boolean' ? browserTabResetWorks : null,
             rightPanelContextMenuWorks: typeof rightPanelContextMenuWorks === 'boolean' ? rightPanelContextMenuWorks : null,
             rightPanelTabReorderWorks: typeof rightPanelTabReorderWorks === 'boolean' ? rightPanelTabReorderWorks : null,
@@ -18615,6 +18637,27 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
             const browserHiddenStateWorks =
               document.querySelector('[data-testid="browser-hidden-state"]') instanceof HTMLElement &&
               document.querySelector('[data-testid="browser-hidden-show"]') instanceof HTMLButtonElement;
+            var browserHiddenIdentityWorks =
+              (() => {
+                const hiddenState = document.querySelector('[data-testid="browser-hidden-state"]');
+                const hiddenPage = document.querySelector('[data-testid="browser-hidden-page"]');
+                const hiddenTitle = hiddenState?.getAttribute('data-browser-hidden-title') ?? '';
+                const hiddenUrl = hiddenState?.getAttribute('data-browser-hidden-url') ?? '';
+                const hiddenText = hiddenPage?.textContent ?? '';
+                const shortHiddenUrl = (() => {
+                  try {
+                    const parsed = new URL(hiddenUrl);
+                    return parsed.hostname + parsed.pathname.replace(/\\/$/, '');
+                  } catch {
+                    return hiddenUrl;
+                  }
+                })();
+                return hiddenState instanceof HTMLElement &&
+                  hiddenPage instanceof HTMLElement &&
+                  hiddenTitle.length > 0 &&
+                  hiddenUrl.length > 0 &&
+                  (hiddenText.includes(hiddenTitle) || (shortHiddenUrl.length > 0 && hiddenText.includes(shortHiddenUrl)));
+              })();
             const showBrowserButton = findButton('Show browser surface');
             if (showBrowserButton instanceof HTMLButtonElement) {
               showBrowserButton.click();
@@ -20260,6 +20303,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserInspectorActionsSharedWorks,
               browserVisibilityControlWorks,
               browserHiddenStateWorks,
+              browserHiddenIdentityWorks,
               browserHiddenWebviewPersistenceWorks,
               browserLifecycleResyncWorks,
               browserHiddenWebviewContainmentWorks,

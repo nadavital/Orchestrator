@@ -286,6 +286,8 @@ export default function BrowserPanel({
   const visibleLocalServerRouteCount = [...localServerRoutesByTarget.values()].reduce((count, routes) => count + routes.length, 0)
   const hiddenLocalServerRouteCount = workbench.hiddenLocalServerRoutes.length
   const addressBadge = browserAddressBadge(currentUrl || address)
+  const hiddenPageTitle = title || activeTab.title || shortUrl(currentUrl) || 'Loaded page'
+  const hiddenPageUrl = currentUrl || activeTab.url || ''
   const browserWebviewTabs = browserTabsWithWebviews(workbench)
   const browserTransferSourceHostId = workbench.webviewTransferSourceHostId
   const browserTransferTargetHostId = workbench.webviewTransferTargetHostId
@@ -2253,7 +2255,12 @@ export default function BrowserPanel({
                 </div>
               )
             ) : (
-              <div className="browser-hidden-state" data-testid="browser-hidden-state">
+              <div
+                className="browser-hidden-state"
+                data-testid="browser-hidden-state"
+                data-browser-hidden-title={hiddenPageTitle}
+                data-browser-hidden-url={hiddenPageUrl}
+              >
                 <div className="browser-hidden-webview-host" aria-hidden="true">
                   <BrowserWebviewManager
                     hostId={hostId}
@@ -2281,8 +2288,12 @@ export default function BrowserPanel({
                 </div>
                 <Icon name="browser" size={26} />
                 <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Hidden</div>
+                <div className="browser-hidden-page" data-testid="browser-hidden-page">
+                  <div className="browser-hidden-page-title">{hiddenPageTitle}</div>
+                  {hiddenPageUrl && <div className="browser-hidden-page-url">{shortUrl(hiddenPageUrl)}</div>}
+                </div>
                 <div className="max-w-56 text-xs" style={{ color: 'var(--text-tertiary)' }}>
-                  The page is still loaded.
+                  The page is still loaded and will resume when shown.
                 </div>
                 <Button
                   ariaLabel="Show browser surface"

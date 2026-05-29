@@ -2344,6 +2344,7 @@ child.on('exit', async (code) => {
           browserInspectorActionsShared: result.browserInspectorActionsSharedWorks === true,
           browserVisibilityControl: result.browserVisibilityControlWorks === true,
           browserHiddenState: result.browserHiddenStateWorks === true,
+          browserHiddenIdentity: result.browserHiddenIdentityWorks === true,
           browserHiddenWebviewPersistence: result.browserHiddenWebviewPersistenceWorks === true,
           browserLifecycleResync: result.browserLifecycleResyncWorks === true,
           browserHiddenWebviewContainment: result.browserHiddenWebviewContainmentWorks === true,
