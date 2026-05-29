@@ -2514,6 +2514,7 @@ child.on('exit', async (code) => {
           agentRuntimeIssueTriage: result.agentRuntimeIssueTriageWorks === true,
           agentTransportLog: result.agentTransportLogWorks === true,
           agentTransportLogAddToChat: result.agentTransportLogAddToChatWorks === true,
+          agentSelectedTranscriptAddToChat: result.agentSelectedTranscriptAddToChatWorks === true,
           workbenchNewTabCards: Number(result.workbenchNewTabActionCount ?? 0) >= 5,
           workbenchNewTabNoHorizontalOverflow: result.workbenchNewTabNoHorizontalOverflow === true
         }

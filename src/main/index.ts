@@ -10256,6 +10256,30 @@ function runAutomatedFocusedSurfaceSmoke(
                   selectedAgentTimeline.textContent?.includes('Runtime inspector smoke') === true &&
                   selectedAgentTimeline.textContent?.includes('Collected runtime diagnostics timeline') === true &&
                   selectedAgentTimeline.textContent?.includes('Agent text completed') === true;
+                const selectedAgentAddToChat = document.querySelector('[data-testid="agent-selected-add-to-chat"]');
+                if (selectedAgentAddToChat instanceof HTMLButtonElement) {
+                  selectedAgentAddToChat.click();
+                  await sleep(160);
+                }
+                const selectedAgentActionStatus = document.querySelector('[data-testid="agent-selected-action-status"]');
+                const selectedAgentConversationAfterAdd = document.querySelector('[data-testid="agent-selected-conversation"]');
+                const composerAfterSelectedAgentAdd = document.querySelector('textarea');
+                const agentSelectedTranscriptAddToChatWorks =
+                  selectedAgentAddToChat instanceof HTMLButtonElement &&
+                  selectedAgentAddToChat.getAttribute('data-icon') === 'chat' &&
+                  selectedAgentAddToChat.getAttribute('data-icon-button-variant') === 'toolbar' &&
+                  selectedAgentActionStatus instanceof HTMLElement &&
+                  selectedAgentActionStatus.getAttribute('role') === 'status' &&
+                  selectedAgentActionStatus.getAttribute('aria-live') === 'polite' &&
+                  selectedAgentActionStatus.getAttribute('aria-atomic') === 'true' &&
+                  selectedAgentActionStatus.textContent?.includes('Agent transcript added to chat') === true &&
+                  selectedAgentConversationAfterAdd instanceof HTMLElement &&
+                  selectedAgentConversationAfterAdd.getAttribute('data-agent-action-status') === 'Agent transcript added to chat' &&
+                  composerAfterSelectedAgentAdd instanceof HTMLTextAreaElement &&
+                  composerAfterSelectedAgentAdd.value.includes('Use this agent transcript context:') &&
+                  composerAfterSelectedAgentAdd.value.includes('Agent: Runtime inspector smoke') &&
+                  composerAfterSelectedAgentAdd.value.includes('Status: failed') &&
+                  composerAfterSelectedAgentAdd.value.includes('Collected runtime diagnostics timeline.');
                 const recentEventRows = [...document.querySelectorAll('[data-testid="agent-recent-event"]')]
                   .filter((row) => row instanceof HTMLButtonElement);
                 const runtimeIssues = document.querySelector('[data-testid="agent-runtime-issues"]');
@@ -10658,6 +10682,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   agentTransportLogWorks,
                   agentTransportLogAddToChatWorks,
                   agentSelectedTimelineWorks,
+                  agentSelectedTranscriptAddToChatWorks,
                   agentRuntimeEventFacetFiltersWork,
                   agentRuntimeEventFacetFilterError,
                   agentRuntimeEventFilterWorks,

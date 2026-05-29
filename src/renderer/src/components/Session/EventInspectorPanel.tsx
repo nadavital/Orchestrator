@@ -94,7 +94,7 @@ export default function EventInspectorPanel({ session, embedded = false, activeA
             </div>
           </div>
 
-          {selectedAgent && <AgentConversation agent={selectedAgent} events={events} />}
+          {selectedAgent && <AgentConversation session={session} agent={selectedAgent} events={events} />}
         </div>
       )}
     </section>
@@ -963,17 +963,41 @@ function AgentTab({
   )
 }
 
-function AgentConversation({ agent, events }: { agent: AgentNode; events: SessionRunEventRecord[] }): JSX.Element {
+function AgentConversation({ session, agent, events }: { session: Session; agent: AgentNode; events: SessionRunEventRecord[] }): JSX.Element {
+  const [actionStatus, setActionStatus] = useState<string | null>(null)
   const transcript = agent.transcript?.trim()
   const summary = agent.summary?.trim()
   const displaySummary = summary && summary !== agent.role && summary !== agent.name ? summary : undefined
   const timelineEvents = useMemo(() => selectedAgentTimeline(agent, events), [agent, events])
+  const handoffText = transcript || displaySummary || ''
+  const addAgentTranscriptToChat = (): void => {
+    if (!handoffText) {
+      setActionStatus('No agent transcript available')
+      return
+    }
+    window.dispatchEvent(new CustomEvent('orchestrator:add-composer-text', {
+      detail: {
+        text: [
+          'Use this agent transcript context:',
+          `Thread: ${session.title || session.id}`,
+          `Agent: ${agentDisplayName(agent)}`,
+          `Status: ${agent.status}`,
+          `Runtime: ${[agent.providerId, agent.model].filter(Boolean).join(' / ') || [session.provider, session.model].filter(Boolean).join(' / ') || 'Unknown runtime'}`,
+          `Workspace: ${session.workDir || 'Unknown workspace'}`,
+          '',
+          boundedAgentTranscript(handoffText)
+        ].join('\n')
+      }
+    }))
+    setActionStatus('Agent transcript added to chat')
+  }
 
   return (
     <div
       className="flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden p-3"
       data-testid="agent-selected-conversation"
       data-agent-id={agent.id}
+      data-agent-action-status={actionStatus ?? ''}
     >
       <div className="flex items-start justify-between gap-3 min-w-0">
         <div className="min-w-0 flex-1">
@@ -990,7 +1014,34 @@ function AgentConversation({ agent, events }: { agent: AgentNode; events: Sessio
             </div>
           )}
         </div>
+        <ToolbarButton
+          icon="chat"
+          label="Add agent transcript to chat"
+          dataTestId="agent-selected-add-to-chat"
+          onClick={addAgentTranscriptToChat}
+          disabled={!handoffText}
+          size="sm"
+          variant="toolbar"
+        />
       </div>
+      {actionStatus && (
+        <div
+          className="mt-2 rounded-md px-2 py-1 text-[11px]"
+          data-testid="agent-selected-action-status"
+          role={actionStatus.startsWith('No ') ? 'alert' : 'status'}
+          aria-live={actionStatus.startsWith('No ') ? 'assertive' : 'polite'}
+          aria-atomic="true"
+          style={{
+            color: actionStatus.startsWith('No ') ? 'var(--state-danger)' : 'var(--accent)',
+            background: actionStatus.startsWith('No ')
+              ? 'color-mix(in srgb, var(--state-danger) 8%, var(--surface-bg))'
+              : 'color-mix(in srgb, var(--accent) 8%, var(--surface-bg))',
+            border: '1px solid var(--border-subtle)'
+          }}
+        >
+          {actionStatus}
+        </div>
+      )}
 
       {timelineEvents.length > 0 && <AgentTimeline agent={agent} events={timelineEvents} />}
 
@@ -1003,6 +1054,18 @@ function AgentConversation({ agent, events }: { agent: AgentNode; events: Sessio
       )}
     </div>
   )
+}
+
+function agentDisplayName(agent: AgentNode): string {
+  return [agent.name ?? agent.role ?? agent.id, agent.id === (agent.name ?? agent.role) ? null : agent.id]
+    .filter(Boolean)
+    .join(' · ')
+}
+
+function boundedAgentTranscript(text: string): string {
+  const trimmed = text.trim()
+  if (trimmed.length <= 2800) return trimmed
+  return `${trimmed.slice(0, 2800)}\n...[truncated]`
 }
 
 function AgentTimeline({ agent, events }: { agent: AgentNode; events: SessionRunEventRecord[] }): JSX.Element {
