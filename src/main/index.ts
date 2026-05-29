@@ -8153,6 +8153,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   newTabCardIds.includes('terminal');
                 let workbenchNewTabGitActionWorks = false;
                 let workbenchNewTabGitBranchWorks = false;
+                let workbenchNewTabGitPrCommandWorks = false;
                 let workbenchNewTabGitCommitWorks = false;
                 let workbenchNewTabGitDiscardWorks = false;
                 const gitAction = document.querySelector('[data-testid="workbench-new-tab-action-git"]');
@@ -8220,6 +8221,43 @@ function runAutomatedFocusedSurfaceSmoke(
                     gitStatusAfterBranch instanceof HTMLElement &&
                     gitStatusAfterBranch.getAttribute('role') === 'status' &&
                     gitStatusAfterBranch.textContent?.includes('Created branch') === true;
+                  const gitPrCard = document.querySelector('[data-testid="git-pr-card"]');
+                  const gitPrCommandInput = document.querySelector('[data-testid="git-pr-command"]');
+                  const gitCopyPrCommand = document.querySelector('[data-testid="git-copy-pr-command"]');
+                  if (
+                    workbenchNewTabGitBranchWorks &&
+                    gitPrCard instanceof HTMLElement &&
+                    gitPrCommandInput instanceof HTMLInputElement &&
+                    gitCopyPrCommand instanceof HTMLButtonElement &&
+                    !gitCopyPrCommand.disabled
+                  ) {
+                    gitCopyPrCommand.click();
+                    for (let attempt = 0; attempt < 16; attempt += 1) {
+                      await sleep(100);
+                      const gitStatusAfterPrCommand = document.querySelector('[data-testid="git-action-status"]');
+                      const clipboardText = await window.api.clipboard.readText().catch(() => '');
+                      if (
+                        gitStatusAfterPrCommand instanceof HTMLElement &&
+                        gitStatusAfterPrCommand.textContent?.includes('PR command copied') === true &&
+                        clipboardText.includes('gh pr create') &&
+                        clipboardText.includes(smokeBranchName)
+                      ) {
+                        break;
+                      }
+                    }
+                  }
+                  const gitStatusAfterPrCommand = document.querySelector('[data-testid="git-action-status"]');
+                  const gitPrClipboardText = await window.api.clipboard.readText().catch(() => '');
+                  workbenchNewTabGitPrCommandWorks =
+                    gitPrCard instanceof HTMLElement &&
+                    gitPrCard.getAttribute('data-git-pr-command')?.includes(smokeBranchName) === true &&
+                    gitPrCommandInput instanceof HTMLInputElement &&
+                    gitPrCommandInput.value.includes(smokeBranchName) &&
+                    gitStatusAfterPrCommand instanceof HTMLElement &&
+                    gitStatusAfterPrCommand.getAttribute('role') === 'status' &&
+                    gitStatusAfterPrCommand.textContent?.includes('PR command copied') === true &&
+                    gitPrClipboardText.includes('gh pr create') &&
+                    gitPrClipboardText.includes(smokeBranchName);
                   const gitDiscardBeforeStage = document.querySelector('[data-testid="git-discard-all"]');
                   if (gitDiscardBeforeStage instanceof HTMLButtonElement && !gitDiscardBeforeStage.disabled) {
                     gitDiscardBeforeStage.click();
@@ -8360,6 +8398,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     gitFileRowsBefore.length >= 3 &&
                     gitChangeCountBefore >= 3 &&
                     workbenchNewTabGitBranchWorks &&
+                    workbenchNewTabGitPrCommandWorks &&
                     gitAfterStageUnstagedCount === 0 &&
                     gitAfterStageStagedCount >= gitChangeCountBefore &&
                     gitAfterUnstageStagedCount === 0 &&
@@ -8758,6 +8797,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   workbenchNewTabAgentsActionWorks,
                   workbenchNewTabGitActionWorks,
                   workbenchNewTabGitBranchWorks,
+                  workbenchNewTabGitPrCommandWorks,
                   workbenchNewTabGitCommitWorks,
                   workbenchNewTabGitDiscardWorks,
                   agentRuntimeEventDetailWorks,

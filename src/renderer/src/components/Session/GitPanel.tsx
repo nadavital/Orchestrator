@@ -1,19 +1,18 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react'
 import { fileStatusLabel } from '../../types'
-import type { FileChange, GitRefOption } from '../../types'
+import type { FileChange, GitRefOption, Session } from '../../types'
 import Icon, { type IconName } from '../shared/Icon'
 import { Button, DialogContent, DialogFooter, DialogHeader, IconButton, MotionOverlay } from '../shared/designSystem'
 
 interface Props {
-  sessionId: string
-  workDir: string
+  session: Session
   embedded?: boolean
   onOpenReview: () => void
 }
 
 type GitActionState = 'idle' | 'loading' | 'staging' | 'unstaging' | 'branching' | 'committing' | 'discarding'
 
-export default function GitPanel({ sessionId, workDir, embedded = false, onOpenReview }: Props): JSX.Element {
+export default function GitPanel({ session, embedded = false, onOpenReview }: Props): JSX.Element {
   const [changes, setChanges] = useState<FileChange[]>([])
   const [branches, setBranches] = useState<GitRefOption[]>([])
   const [actionState, setActionState] = useState<GitActionState>('loading')
@@ -23,6 +22,8 @@ export default function GitPanel({ sessionId, workDir, embedded = false, onOpenR
   const [lastCommit, setLastCommit] = useState<string | null>(null)
   const [lastCreatedBranch, setLastCreatedBranch] = useState<string | null>(null)
   const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false)
+  const sessionId = session.id
+  const workDir = session.workDir
 
   const refresh = async (): Promise<void> => {
     setActionState((current) => current === 'idle' ? 'loading' : current)
@@ -63,9 +64,23 @@ export default function GitPanel({ sessionId, workDir, embedded = false, onOpenR
     deletions: acc.deletions + change.deletions
   }), { additions: 0, deletions: 0 }), [changes])
   const currentBranch = branches.find((branch) => branch.current)?.label ?? 'main'
+  const pullRequest = session.reviewMetadata?.pullRequest
+  const pullRequestUrl = pullRequest?.url?.trim() ?? ''
+  const defaultBaseBranch = pullRequest?.baseBranch ?? inferDefaultBaseBranch(branches)
+  const prCommand = currentBranch && currentBranch !== defaultBaseBranch
+    ? `gh pr create --fill --base ${shellQuote(defaultBaseBranch)} --head ${shellQuote(currentBranch)}`
+    : ''
   const busy = actionState !== 'idle'
   const commitReady = stagedPaths.length > 0 && commitMessage.trim().length > 0
   const branchReady = branchName.trim().length > 0
+
+  const writeGitClipboardText = async (text: string): Promise<void> => {
+    if (typeof window.api.clipboard?.writeText === 'function') {
+      const didWrite = await window.api.clipboard.writeText(text)
+      if (didWrite) return
+    }
+    await navigator.clipboard.writeText(text)
+  }
 
   const runPathAction = async (action: 'stage' | 'unstage'): Promise<void> => {
     const paths = action === 'stage' ? unstagedPaths : stagedPaths
@@ -139,6 +154,25 @@ export default function GitPanel({ sessionId, workDir, embedded = false, onOpenR
       setActionMessage({ text: error instanceof Error ? error.message : 'Commit failed', tone: 'danger' })
     } finally {
       setActionState('idle')
+    }
+  }
+
+  const openPullRequest = (): void => {
+    if (!pullRequestUrl || busy) return
+    setActionMessage({ text: 'Opening pull request', tone: 'info' })
+    void window.api.browser.openExternal(pullRequestUrl)
+  }
+
+  const copyPullRequestCommand = async (): Promise<void> => {
+    if (!prCommand || busy) return
+    setActionMessage({ text: 'Copying PR command', tone: 'info' })
+    try {
+      const globals = window as typeof window & { __orchestratorLastGitPrCommandForSmoke?: string }
+      globals.__orchestratorLastGitPrCommandForSmoke = prCommand
+      await writeGitClipboardText(prCommand)
+      setActionMessage({ text: 'PR command copied', tone: 'info' })
+    } catch (error) {
+      setActionMessage({ text: error instanceof Error ? error.message : 'Copy PR command failed', tone: 'danger' })
     }
   }
 
@@ -302,6 +336,44 @@ export default function GitPanel({ sessionId, workDir, embedded = false, onOpenR
           )}
         </form>
 
+        <div className="environment-card git-pr-card" data-testid="git-pr-card" data-git-pr-command={prCommand}>
+          <div className="environment-card-header">
+            <span>Pull Request</span>
+            <span className="environment-row-muted">{pullRequest?.number ? `PR ${pullRequest.number}` : defaultBaseBranch}</span>
+          </div>
+          {pullRequestUrl ? (
+            <div className="git-actions-row">
+              <Button
+                variant="primary"
+                dataTestId="git-view-pr"
+                disabled={busy}
+                title={pullRequestUrl}
+                onClick={openPullRequest}
+              >
+                View pull request
+              </Button>
+            </div>
+          ) : (
+            <div className="git-commit-row">
+              <input
+                className="git-commit-input"
+                data-testid="git-pr-command"
+                value={prCommand || 'Create or switch to a topic branch first'}
+                readOnly
+                aria-label="Pull request command"
+              />
+              <Button
+                variant="primary"
+                dataTestId="git-copy-pr-command"
+                disabled={busy || !prCommand}
+                onClick={() => { void copyPullRequestCommand() }}
+              >
+                Copy PR command
+              </Button>
+            </div>
+          )}
+        </div>
+
         <form className="environment-card git-commit-card" data-testid="git-commit-card" onSubmit={(event) => { void runCommit(event) }}>
           <div className="environment-card-header">
             <span>Commit</span>
@@ -388,6 +460,17 @@ export default function GitPanel({ sessionId, workDir, embedded = false, onOpenR
       )}
     </section>
   )
+}
+
+function inferDefaultBaseBranch(branches: GitRefOption[]): string {
+  const names = branches.map((branch) => branch.name)
+  if (names.includes('origin/main') || names.includes('main')) return 'main'
+  if (names.includes('origin/master') || names.includes('master')) return 'master'
+  return 'main'
+}
+
+function shellQuote(value: string): string {
+  return /^[A-Za-z0-9._/@:-]+$/.test(value) ? value : `'${value.replace(/'/g, `'\\''`)}'`
 }
 
 function GitRow({

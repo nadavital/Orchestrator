@@ -9423,7 +9423,7 @@ Implemented: `git:commitStaged` now runs through main-process Git IPC with empty
 
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `node --test out-test/src/main/__tests__/gitChanges.test.js`, and elevated `node scripts/run-automated-ui-smoke.mjs --workbench-new-tab` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-workbench-new-tab-1780015734717.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-workbench-new-tab-1780015734717.png`. The focused smoke now gates `workbenchNewTabGitCommit=true` by opening Git from the right Workbench launcher, staging/unstaging fixture changes, staging again, typing a commit message, committing, and proving the fixture repo is clean afterward.
 
-Remaining: PR creation/open ownership, apply-suggestion flows, provider-hosted Git metadata, exact live Codex UI timing, and retiring Review's temporary local-git bridge once the Git tab fully owns local Git actions.
+Remaining: live PR creation, apply-suggestion flows, provider-hosted Git metadata, exact live Codex UI timing, and retiring Review's temporary local-git bridge once the Git tab fully owns local Git actions.
 
 ### 2026-05-28 - Git Workbench Discard
 
@@ -9433,7 +9433,7 @@ Implemented: the Git tab now exposes `Discard all` as a danger action in the Wor
 
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, `node --test out-test/src/main/__tests__/gitChanges.test.js`, and elevated `node scripts/run-automated-ui-smoke.mjs --workbench-new-tab` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-workbench-new-tab-1780016316039.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-workbench-new-tab-1780016316039.png`. The focused smoke gates `workbenchNewTabGitDiscard=true` by opening the discard confirmation from the Git tab against a dirty fixture, verifying the destructive copy and cancel path, then continuing through stage/unstage/commit. The Git unit suite covers actual discard mutation for tracked, staged, and untracked files plus unsafe-path refusal.
 
-Remaining: PR creation/open ownership, apply-suggestion flows, provider-hosted Git metadata, exact live Codex UI timing, and retiring Review's temporary local-git bridge once the Git tab fully owns local Git actions.
+Remaining: live PR creation, apply-suggestion flows, provider-hosted Git metadata, exact live Codex UI timing, and retiring Review's temporary local-git bridge once the Git tab fully owns local Git actions.
 
 ### 2026-05-28 - Git Workbench Branch
 
@@ -9443,4 +9443,14 @@ Implemented: the Git tab now exposes a Branch card with a branch-name input and 
 
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, `node --test out-test/src/main/__tests__/gitChanges.test.js`, and elevated `node scripts/run-automated-ui-smoke.mjs --workbench-new-tab` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-workbench-new-tab-1780016736246.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-workbench-new-tab-1780016736246.png`. The focused smoke gates `workbenchNewTabGitBranch=true` by creating a unique branch from the right Workbench Git tab before continuing through discard confirmation, stage/unstage, and commit. The Git unit suite covers empty-name validation, checkout, current branch marking, and dirty-file preservation.
 
-Remaining: PR creation/open ownership, apply-suggestion flows, provider-hosted Git metadata, exact live Codex UI timing, and retiring Review's temporary local-git bridge once the Git tab fully owns local Git actions.
+Remaining: live PR creation, apply-suggestion flows, provider-hosted Git metadata, exact live Codex UI timing, and retiring Review's temporary local-git bridge once the Git tab fully owns local Git actions.
+
+### 2026-05-28 - Git Workbench PR Command
+
+Product evidence: after local branch creation moved into the Git Workbench tab, the remaining PR gap split into a local handoff and a hosted-provider action. The local handoff is safe to implement now: a user on a topic branch should be able to get the exact `gh pr create` command from the Git tab without switching to Environment or Review. Live hosted PR creation still needs auth/network/provider proof.
+
+Implemented: the Git tab now includes a Pull Request card. When session PR metadata has a URL, it exposes `View pull request`; otherwise it derives a `gh pr create --fill --base <base> --head <branch>` command from the current branch and inferred base branch, displays it read-only, and copies it through the app clipboard bridge with visible status feedback. The command is disabled on the base branch so users are nudged to create/switch to a topic branch first.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, `node --test out-test/src/main/__tests__/gitChanges.test.js`, and elevated `node scripts/run-automated-ui-smoke.mjs --workbench-new-tab` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-workbench-new-tab-1780017110971.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-workbench-new-tab-1780017110971.png`. The focused smoke gates `workbenchNewTabGitPrCommand=true` by creating a unique branch from the right Workbench Git tab, copying the generated command, and verifying the app clipboard contains `gh pr create` plus the smoke branch.
+
+Remaining: live PR creation, apply-suggestion flows, provider-hosted Git metadata, exact live Codex UI timing, and retiring Review's temporary local-git bridge once the Git tab fully owns local Git actions.
