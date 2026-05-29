@@ -8193,6 +8193,16 @@ Verification: `pnpm exec tsc --noEmit` and `node -c scripts/run-automated-ui-smo
 
 Remaining: this closes local file-source action feedback only. Provider-backed comments/blame, provider/global indexed workspace search, live Codex focus/timing proof, and deep artifact renderer fidelity remain open.
 
+### 2026-05-28 - Files Source Line To Chat
+
+Product evidence: selected source lines are daily coding context. Before this slice, source tabs could copy or open a selected line and could attach the whole file, but sending the exact line and text into the composer still required manual copy/paste. That slowed common code-review and debugging prompts.
+
+Implemented: source file tabs now expose `Add selected line to chat` in the selected-line menu and inline selected-line action cluster. The action inserts a compact composer context block with the `path:line` reference and source line text, records `data-file-tab-added-line-reference`, and announces `Added selected line to chat` through the existing file-tab status region.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --files` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1780022815383.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1780022815383.png`. The focused smoke gates `fileSourceLineAddToChat=true` while preserving `fileSourceLineUtilities=true`, `fileSourceActionStatus=true`, `fileSourceAddToChat=true`, source blame, annotations, search, virtualization, file-tab reset, artifact previews, and Files search gates.
+
+Remaining: this closes the local selected-line-to-composer context gap only. Provider/global indexed workspace search, provider-backed comments/blame, live Codex focus/timing proof, and deep artifact renderer fidelity remain open.
+
 ### 2026-05-28 - Files Content Search Opens Matched Line
 
 Product evidence: content search is a daily coding workflow. Finding a text hit in Files should not only identify the file and line metadata; opening that result should land the user on the matched line in a source tab, using the same selected/revealed-line behavior already proven from Review.

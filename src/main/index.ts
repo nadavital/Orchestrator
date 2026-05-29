@@ -17031,6 +17031,7 @@ function runAutomatedFocusedSurfaceSmoke(
               const inlineLineActions = document.querySelector('[data-testid="workbench-file-tab"] [data-testid="workspace-source-line-actions"]');
               const inlineCopyLineButton = document.querySelector('[data-testid="workbench-file-tab"] [data-testid="workspace-source-line-action-copy"]');
               const inlineOpenLineButton = document.querySelector('[data-testid="workbench-file-tab"] [data-testid="workspace-source-line-action-open"]');
+              const inlineAddLineToChatButton = document.querySelector('[data-testid="workbench-file-tab"] [data-testid="workspace-source-line-action-add-chat"]');
               const inlineBlame = document.querySelector('[data-testid="workbench-file-tab"] [data-testid="workspace-source-line-action-blame"]');
               if (inlineCopyLineButton instanceof HTMLButtonElement) {
                 inlineCopyLineButton.click();
@@ -17042,8 +17043,10 @@ function runAutomatedFocusedSurfaceSmoke(
                 inlineLineActions.getAttribute('data-source-line-actions-for') === '2' &&
                 inlineCopyLineButton instanceof HTMLButtonElement &&
                 inlineOpenLineButton instanceof HTMLButtonElement &&
+                inlineAddLineToChatButton instanceof HTMLButtonElement &&
                 inlineCopyLineButton.getAttribute('data-icon-button-variant') === 'toolbar' &&
                 inlineOpenLineButton.getAttribute('data-icon-button-variant') === 'toolbar' &&
+                inlineAddLineToChatButton.getAttribute('data-icon-button-variant') === 'toolbar' &&
                 inlineBlame instanceof HTMLElement &&
                 inlineBlame.getAttribute('data-source-line-action-blame-source') === 'working-tree' &&
                 inlineBlame.textContent?.includes('Working tree') === true &&
@@ -17103,6 +17106,20 @@ function runAutomatedFocusedSurfaceSmoke(
                   sourceActionStatusAfterOpen.getAttribute('aria-live') === 'polite' &&
                   sourceActionStatusAfterOpen.textContent?.includes('Opened in Cursor at line 2 via url-scheme') === true;
               }
+              if (inlineAddLineToChatButton instanceof HTMLButtonElement) {
+                inlineAddLineToChatButton.click();
+                await sleep(180);
+              }
+              const sourceFileTabAfterLineAddToChat = document.querySelector('[data-testid="workbench-file-tab"]');
+              const composerAfterLineAddToChat = document.querySelector('[data-testid="composer-textarea"]');
+              const fileSourceLineAddToChatWorks =
+                inlineAddLineToChatButton instanceof HTMLButtonElement &&
+                sourceFileTabAfterLineAddToChat instanceof HTMLElement &&
+                sourceFileTabAfterLineAddToChat.getAttribute('data-file-tab-added-line-reference') === 'review-base.txt:2' &&
+                sourceFileTabAfterLineAddToChat.getAttribute('data-file-tab-action-status') === 'Added selected line to chat' &&
+                composerAfterLineAddToChat instanceof HTMLTextAreaElement &&
+                composerAfterLineAddToChat.value.includes('Source line review-base.txt:2') &&
+                composerAfterLineAddToChat.value.includes('after review');
               const sourceAddToChatButton = document.querySelector('[data-testid="workbench-file-tab"] button[aria-label="Add file to chat"]');
               if (sourceAddToChatButton instanceof HTMLButtonElement) {
                 sourceAddToChatButton.click();
@@ -17463,6 +17480,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 fileOpenTargetOutcomeDiagnosticWorks,
                 fileSourceLineSelectionWorks,
                 fileSourceLineUtilitiesWorks,
+                fileSourceLineAddToChatWorks,
                 fileSourceActionStatusWorks,
                 fileSourceAddToChatWorks,
                 fileSourceLineBlameWorks,

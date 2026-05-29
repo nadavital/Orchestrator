@@ -53,6 +53,7 @@ export default function FileTabPanel({
 }: Props): JSX.Element {
   const [preview, setPreview] = useState<FilePreviewResult | null>(null)
   const [copiedLineReference, setCopiedLineReference] = useState('')
+  const [addedLineReference, setAddedLineReference] = useState('')
   const [lineBlame, setLineBlame] = useState<GitLineBlameResult | null>(null)
   const [sourceBlameByLine, setSourceBlameByLine] = useState<Map<number, GitLineBlameResult>>(() => new Map())
   const [preferredOpenTarget, setPreferredOpenTarget] = useState<PreferredOpenTarget>('system')
@@ -68,6 +69,7 @@ export default function FileTabPanel({
     let cancelled = false
     setPreview(null)
     setCopiedLineReference('')
+    setAddedLineReference('')
     setFileActionStatus('')
     setLastOpenResult(null)
     setLineBlame(null)
@@ -189,6 +191,19 @@ export default function FileTabPanel({
     void writeFileTabClipboardText(reference)
       .then(() => setFileActionStatus('Line reference copied'))
       .catch(() => setFileActionStatus('Copy failed'))
+  }
+
+  const addSelectedLineToChat = (line = selectedSourceLine): void => {
+    if (line === null || preview?.text === undefined) return
+    const reference = `${filePath}:${line}`
+    const lineText = sourceLineText(preview.text, line)
+    setAddedLineReference(reference)
+    setFileActionStatus('Added selected line to chat')
+    window.dispatchEvent(new CustomEvent('orchestrator:add-composer-text', {
+      detail: {
+        text: `Source line ${reference}:\n\n\`\`\`\n${lineText}\n\`\`\``
+      }
+    }))
   }
 
   const openSelectedLine = (): void => {
@@ -469,6 +484,12 @@ export default function FileTabPanel({
               onClick={() => { copySelectedLineReference(); setFileActionsOpen(false) }}
             />
             <MenuItem
+              icon="chat"
+              label="Add selected line to chat"
+              disabled={selectedSourceLine === null || preview?.text === undefined}
+              onClick={() => { addSelectedLineToChat(); setFileActionsOpen(false) }}
+            />
+            <MenuItem
               icon="external"
               label="Open selected line in editor"
               disabled={selectedSourceLine === null}
@@ -496,6 +517,7 @@ export default function FileTabPanel({
       data-file-tab-view-mode={sourceMode && canToggleSourceMode ? 'source' : 'rich'}
       data-file-tab-selected-source-line={selectedSourceLine ?? ''}
       data-file-tab-copied-line-reference={copiedLineReference}
+      data-file-tab-added-line-reference={addedLineReference}
       data-file-tab-open-target={openTarget.id}
       data-file-tab-artifact-type={artifactPresentation?.artifactType ?? 'none'}
       data-file-tab-artifact-import-kind={artifactPresentation?.importKind ?? 'none'}
@@ -717,6 +739,14 @@ export default function FileTabPanel({
               />
               <IconButton
                 icon="chat"
+                label="Add line to chat"
+                size="sm"
+                variant="toolbar"
+                dataTestId="workspace-source-line-action-add-chat"
+                onClick={() => addSelectedLineToChat(line)}
+              />
+              <IconButton
+                icon="chat"
                 label="Add comment"
                 size="sm"
                 variant="toolbar"
@@ -867,6 +897,10 @@ function collectSourceSearchMatches(text: string, query: string): Array<{ line: 
   return text.split('\n').flatMap((line, index) =>
     line.toLocaleLowerCase().includes(trimmedQuery) ? [{ line: index + 1 }] : []
   )
+}
+
+function sourceLineText(text: string, line: number): string {
+  return text.split('\n')[Math.max(0, line - 1)] ?? ''
 }
 
 function basename(path: string): string {
