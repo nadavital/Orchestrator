@@ -151,7 +151,34 @@ test('pull request create URL uses the GitHub origin remote and branch compare r
 
     assert.equal(result.ok, true)
     assert.equal(result.remoteUrl, 'git@github.com:nadavital/Orchestrator.git')
+    assert.equal(result.remoteName, 'origin')
     assert.equal(result.url, 'https://github.com/nadavital/Orchestrator/compare/main...codex%2Fgit-panel-pr?quick_pull=1')
+    assert.equal(result.branchPublished, false)
+    assert.equal(result.remoteBranch, 'origin/codex/git-panel-pr')
+    assert.equal(result.pushCommand, 'git push -u origin codex/git-panel-pr')
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('pull request create URL marks locally known remote branches as published', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'orchestrator-git-pr-published-'))
+  try {
+    writeFileSync(join(root, 'tracked.txt'), 'before\n')
+    git(root, 'init')
+    git(root, 'config', 'user.email', 'orchestrator-test@example.test')
+    git(root, 'config', 'user.name', 'Orchestrator Test')
+    git(root, 'remote', 'add', 'origin', 'git@github.com:nadavital/Orchestrator.git')
+    git(root, 'add', '.')
+    git(root, 'commit', '-m', 'baseline')
+    git(root, 'update-ref', 'refs/remotes/origin/codex/git-panel-pr', 'HEAD')
+
+    const result = await gitManager.getPullRequestCreateUrl(root, 'main', 'codex/git-panel-pr')
+
+    assert.equal(result.ok, true)
+    assert.equal(result.branchPublished, true)
+    assert.equal(result.remoteBranch, 'origin/codex/git-panel-pr')
+    assert.equal(result.pushCommand, undefined)
   } finally {
     rmSync(root, { recursive: true, force: true })
   }

@@ -1991,8 +1991,13 @@ export interface GitPullRequestCreateUrlResult {
   ok: boolean
   url?: string
   remoteUrl?: string
+  remoteName?: string
   baseBranch?: string
   headBranch?: string
+  branchPublished?: boolean
+  upstreamBranch?: string
+  remoteBranch?: string
+  pushCommand?: string
   error?: string
 }
 

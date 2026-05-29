@@ -161,19 +161,31 @@ export const gitManager = {
     try {
       const git = simpleGit(cwd)
       const remotes = await git.getRemotes(true)
-      const remoteUrl = remotes
-        .flatMap((remote) => [remote.refs.fetch, remote.refs.push])
-        .find((url): url is string => typeof url === 'string' && parseGitHubRemoteUrl(url) !== null)
-      const repositoryUrl = remoteUrl ? parseGitHubRemoteUrl(remoteUrl) : null
-      if (!remoteUrl || !repositoryUrl) {
+      const githubRemote = remotes
+        .map((remote) => {
+          const remoteUrl = [remote.refs.fetch, remote.refs.push]
+            .find((url): url is string => typeof url === 'string' && parseGitHubRemoteUrl(url) !== null)
+          return remoteUrl ? { name: remote.name, url: remoteUrl, repositoryUrl: parseGitHubRemoteUrl(remoteUrl) } : null
+        })
+        .find((remote): remote is { name: string; url: string; repositoryUrl: string } => Boolean(remote?.repositoryUrl))
+      if (!githubRemote) {
         return { ok: false, baseBranch: cleanBase, headBranch: cleanHead, error: 'No GitHub remote found for this workspace.' }
       }
+      const localBranchExists = await gitRefExists(git, `refs/heads/${cleanHead}`)
+      const upstreamBranch = localBranchExists ? await getBranchUpstream(git, cleanHead) : null
+      const remoteBranch = `${githubRemote.name}/${cleanHead}`
+      const branchPublished = Boolean(upstreamBranch) || await gitRefExists(git, `refs/remotes/${githubRemote.name}/${cleanHead}`)
       return {
         ok: true,
-        url: `${repositoryUrl}/compare/${encodeURIComponent(cleanBase)}...${encodeURIComponent(cleanHead)}?quick_pull=1`,
-        remoteUrl,
+        url: `${githubRemote.repositoryUrl}/compare/${encodeURIComponent(cleanBase)}...${encodeURIComponent(cleanHead)}?quick_pull=1`,
+        remoteUrl: githubRemote.url,
+        remoteName: githubRemote.name,
         baseBranch: cleanBase,
-        headBranch: cleanHead
+        headBranch: cleanHead,
+        branchPublished,
+        upstreamBranch: upstreamBranch || undefined,
+        remoteBranch,
+        pushCommand: branchPublished ? undefined : `git push -u ${shellQuote(githubRemote.name)} ${shellQuote(cleanHead)}`
       }
     } catch (error) {
       return {
@@ -909,6 +921,28 @@ function normalizeCommitMessage(message: string): string {
 
 function normalizeBranchName(branchName: string): string {
   return branchName.trim()
+}
+
+async function getBranchUpstream(git: ReturnType<typeof simpleGit>, branchName: string): Promise<string | null> {
+  try {
+    const upstream = await git.raw(['rev-parse', '--abbrev-ref', '--symbolic-full-name', `${branchName}@{upstream}`])
+    return upstream.trim() || null
+  } catch {
+    return null
+  }
+}
+
+async function gitRefExists(git: ReturnType<typeof simpleGit>, refName: string): Promise<boolean> {
+  try {
+    const output = await git.raw(['show-ref', '--verify', refName])
+    return output.trim().length > 0
+  } catch {
+    return false
+  }
+}
+
+function shellQuote(value: string): string {
+  return /^[A-Za-z0-9._/@:-]+$/.test(value) ? value : `'${value.replace(/'/g, `'\\''`)}'`
 }
 
 export function parseGitHubRemoteUrl(remoteUrl: string): string | null {

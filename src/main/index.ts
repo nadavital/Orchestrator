@@ -9705,6 +9705,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 let workbenchNewTabGitCheckoutWorks = false;
                 let workbenchNewTabGitPrCommandWorks = false;
                 let workbenchNewTabGitPrCreateUrlWorks = false;
+                let workbenchNewTabGitPrPushCommandWorks = false;
                 let workbenchNewTabGitPrCommandHandoffWorks = false;
                 let workbenchNewTabGitPrCommandTerminalHandoffWorks = false;
                 let workbenchNewTabGitRefreshStatusWorks = false;
@@ -10071,18 +10072,74 @@ function runAutomatedFocusedSurfaceSmoke(
                     gitStatusAfterPrCommand.textContent?.includes('PR command copied') === true &&
                     gitPrClipboardText.includes('gh pr create') &&
                     gitPrClipboardText.includes(smokeBranchName);
+                  for (let attempt = 0; attempt < 24; attempt += 1) {
+                    await sleep(100);
+                    const pendingGitPrCard = document.querySelector('[data-testid="git-pr-card"]');
+                    const pendingPushCommand = pendingGitPrCard instanceof HTMLElement
+                      ? pendingGitPrCard.getAttribute('data-git-pr-push-command') ?? ''
+                      : '';
+                    if (
+                      pendingGitPrCard instanceof HTMLElement &&
+                      pendingGitPrCard.getAttribute('data-git-pr-branch-published') === 'false' &&
+                      pendingPushCommand.includes(smokeBranchName)
+                    ) {
+                      break;
+                    }
+                  }
                   const gitPrCreateUrl = gitPrCard instanceof HTMLElement
                     ? gitPrCard.getAttribute('data-git-pr-create-url') ?? ''
                     : '';
+                  const gitPrPushCommandInput = document.querySelector('[data-testid="git-pr-push-command"]');
+                  const gitCopyPrPushCommand = document.querySelector('[data-testid="git-copy-pr-push-command"]');
+                  const gitPrPushCommand = gitPrCard instanceof HTMLElement
+                    ? gitPrCard.getAttribute('data-git-pr-push-command') ?? ''
+                    : '';
+                  const gitPrPublishStatus = document.querySelector('[data-testid="git-pr-publish-status"]');
                   workbenchNewTabGitPrCreateUrlWorks =
                     workbenchNewTabGitPrCommandWorks &&
                     gitOpenCreatePr instanceof HTMLButtonElement &&
-                    !gitOpenCreatePr.disabled &&
-                    gitOpenCreatePr.getAttribute('title') === gitPrCreateUrl &&
+                    gitOpenCreatePr.disabled &&
+                    gitOpenCreatePr.getAttribute('title') === 'Push branch before opening create PR' &&
                     gitPrCreateUrl.startsWith('https://github.com/') &&
                     gitPrCreateUrl.includes('/compare/') &&
                     gitPrCreateUrl.includes(encodeURIComponent(smokeBranchName)) &&
-                    gitPrCreateUrl.includes('quick_pull=1');
+                    gitPrCreateUrl.includes('quick_pull=1') &&
+                    gitPrCard instanceof HTMLElement &&
+                    gitPrCard.getAttribute('data-git-pr-branch-published') === 'false' &&
+                    gitPrPublishStatus instanceof HTMLElement &&
+                    gitPrPublishStatus.textContent?.includes('Branch not pushed') === true;
+                  if (
+                    workbenchNewTabGitPrCommandWorks &&
+                    gitPrPushCommandInput instanceof HTMLInputElement &&
+                    gitCopyPrPushCommand instanceof HTMLButtonElement &&
+                    !gitCopyPrPushCommand.disabled
+                  ) {
+                    gitCopyPrPushCommand.click();
+                    for (let attempt = 0; attempt < 16; attempt += 1) {
+                      await sleep(100);
+                      const gitStatusAfterPushCommand = document.querySelector('[data-testid="git-action-status"]');
+                      const clipboardText = await window.api.clipboard.readText().catch(() => '');
+                      if (
+                        gitStatusAfterPushCommand instanceof HTMLElement &&
+                        gitStatusAfterPushCommand.textContent?.includes('Push command copied') === true &&
+                        clipboardText.includes('git push -u origin') &&
+                        clipboardText.includes(smokeBranchName)
+                      ) {
+                        break;
+                      }
+                    }
+                    const gitStatusAfterPushCommand = document.querySelector('[data-testid="git-action-status"]');
+                    const pushClipboardText = await window.api.clipboard.readText().catch(() => '');
+                    workbenchNewTabGitPrPushCommandWorks =
+                      gitPrPushCommandInput.value === gitPrPushCommand &&
+                      gitPrPushCommand.includes('git push -u origin') &&
+                      gitPrPushCommand.includes(smokeBranchName) &&
+                      gitStatusAfterPushCommand instanceof HTMLElement &&
+                      gitStatusAfterPushCommand.getAttribute('role') === 'status' &&
+                      gitStatusAfterPushCommand.textContent?.includes('Push command copied') === true &&
+                      pushClipboardText.includes('git push -u origin') &&
+                      pushClipboardText.includes(smokeBranchName);
+                  }
                   if (
                     workbenchNewTabGitPrCommandWorks &&
                     gitAddPrCommandToChat instanceof HTMLButtonElement &&
@@ -10360,6 +10417,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     workbenchNewTabGitCheckoutWorks &&
                     workbenchNewTabGitPrCommandWorks &&
                     workbenchNewTabGitPrCreateUrlWorks &&
+                    workbenchNewTabGitPrPushCommandWorks &&
                     workbenchNewTabGitPrCommandHandoffWorks &&
                     workbenchNewTabGitPrCommandTerminalHandoffWorks &&
                     workbenchNewTabGitRefreshStatusWorks &&
@@ -11089,6 +11147,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   workbenchNewTabGitCheckoutWorks,
                   workbenchNewTabGitPrCommandWorks,
                   workbenchNewTabGitPrCreateUrlWorks,
+                  workbenchNewTabGitPrPushCommandWorks,
                   workbenchNewTabGitPrCommandHandoffWorks,
                   workbenchNewTabGitPrCommandTerminalHandoffWorks,
                   workbenchNewTabGitRefreshStatusWorks,

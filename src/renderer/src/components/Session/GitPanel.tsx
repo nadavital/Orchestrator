@@ -39,6 +39,10 @@ export default function GitPanel({
   const [lastCheckedOutBranch, setLastCheckedOutBranch] = useState<string | null>(null)
   const [prCreateUrl, setPrCreateUrl] = useState('')
   const [prCreateUrlError, setPrCreateUrlError] = useState<string | null>(null)
+  const [prBranchPublished, setPrBranchPublished] = useState<boolean | null>(null)
+  const [prRemoteBranch, setPrRemoteBranch] = useState('')
+  const [prUpstreamBranch, setPrUpstreamBranch] = useState('')
+  const [prPushCommand, setPrPushCommand] = useState('')
   const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false)
   const [discardTargetPaths, setDiscardTargetPaths] = useState<string[] | null>(null)
   const rootRef = useRef<HTMLElement | null>(null)
@@ -145,10 +149,18 @@ export default function GitPanel({
     let cancelled = false
     setPrCreateUrl('')
     setPrCreateUrlError(null)
+    setPrBranchPublished(null)
+    setPrRemoteBranch('')
+    setPrUpstreamBranch('')
+    setPrPushCommand('')
     if (!prCommand) return
     void window.api.git.getPullRequestCreateUrl(workDir, defaultBaseBranch, currentBranch)
       .then((result) => {
         if (cancelled) return
+        setPrBranchPublished(typeof result.branchPublished === 'boolean' ? result.branchPublished : null)
+        setPrRemoteBranch(result.remoteBranch ?? '')
+        setPrUpstreamBranch(result.upstreamBranch ?? '')
+        setPrPushCommand(result.pushCommand ?? '')
         if (result.ok && result.url) {
           setPrCreateUrl(result.url)
           setPrCreateUrlError(null)
@@ -313,8 +325,21 @@ export default function GitPanel({
     }
   }
 
+  const copyPullRequestPushCommand = async (): Promise<void> => {
+    if (!prPushCommand || busy) return
+    setActionMessage({ text: 'Copying push command', tone: 'info' })
+    try {
+      const globals = window as typeof window & { __orchestratorLastGitPrPushCommandForSmoke?: string }
+      globals.__orchestratorLastGitPrPushCommandForSmoke = prPushCommand
+      await writeGitClipboardText(prPushCommand)
+      setActionMessage({ text: 'Push command copied', tone: 'info' })
+    } catch (error) {
+      setActionMessage({ text: error instanceof Error ? error.message : 'Copy push command failed', tone: 'danger' })
+    }
+  }
+
   const openPullRequestCreateUrl = (): void => {
-    if (!prCreateUrl || busy) return
+    if (!prCreateUrl || prBranchPublished !== true || busy) return
     const globals = window as typeof window & { __orchestratorLastGitPrCreateUrlForSmoke?: string }
     globals.__orchestratorLastGitPrCreateUrlForSmoke = prCreateUrl
     setActionMessage({ text: 'Opening create PR', tone: 'info' })
@@ -675,6 +700,10 @@ export default function GitPanel({
           data-git-pr-command={prCommand}
           data-git-pr-create-url={prCreateUrl}
           data-git-pr-create-error={prCreateUrlError ?? ''}
+          data-git-pr-branch-published={prBranchPublished === null ? 'unknown' : prBranchPublished ? 'true' : 'false'}
+          data-git-pr-remote-branch={prRemoteBranch}
+          data-git-pr-upstream-branch={prUpstreamBranch}
+          data-git-pr-push-command={prPushCommand}
           data-git-focused-target={focusTarget === 'pull-request' ? 'true' : 'false'}
         >
           <div className="environment-card-header">
@@ -705,12 +734,40 @@ export default function GitPanel({
               <Button
                 variant="primary"
                 dataTestId="git-open-create-pr"
-                disabled={busy || !prCreateUrl}
-                title={prCreateUrl || prCreateUrlError || 'Create or switch to a topic branch first'}
+                disabled={busy || !prCreateUrl || prBranchPublished !== true}
+                title={prBranchPublished === false ? 'Push branch before opening create PR' : prBranchPublished === null ? 'Checking branch publish state' : prCreateUrl || prCreateUrlError || 'Create or switch to a topic branch first'}
                 onClick={openPullRequestCreateUrl}
               >
                 Open create PR
               </Button>
+              {prCommand && (
+                <div className="git-commit-meta" data-testid="git-pr-publish-status">
+                  {prBranchPublished === false
+                    ? `Branch not pushed. Push ${prRemoteBranch || currentBranch} before opening hosted PR.`
+                    : prBranchPublished === true
+                      ? `Branch published${prUpstreamBranch ? ` at ${prUpstreamBranch}` : prRemoteBranch ? ` at ${prRemoteBranch}` : ''}.`
+                      : 'Checking branch publish state.'}
+                </div>
+              )}
+              {prPushCommand && (
+                <>
+                  <input
+                    className="git-commit-input"
+                    data-testid="git-pr-push-command"
+                    value={prPushCommand}
+                    readOnly
+                    aria-label="Push branch command"
+                  />
+                  <Button
+                    variant="ghost"
+                    dataTestId="git-copy-pr-push-command"
+                    disabled={busy || !prPushCommand}
+                    onClick={() => { void copyPullRequestPushCommand() }}
+                  >
+                    Copy push command
+                  </Button>
+                </>
+              )}
               <Button
                 variant="ghost"
                 dataTestId="git-copy-pr-command"

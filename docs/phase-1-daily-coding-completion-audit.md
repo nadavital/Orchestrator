@@ -20,7 +20,7 @@ This checkpoint exists to prevent Phase 1 from drifting into low-value parity po
    - `npm run test:providers`
    - `npm run smoke:visual:side-panels -- --out tmp/side-panel-visual-inventory-current --full`
    - Any packaged checks required by shell/settings changes.
-2. Git PR readiness needs one more product pass. The app now opens the hosted GitHub compare/create route, but daily use still needs explicit branch push/upstream state handling so users do not hit the hosted PR screen with an unpushed or ambiguous branch.
+2. Git PR readiness has the required product pass as of this checkpoint: the app opens the hosted GitHub compare/create route only when the branch is known published, and otherwise exposes/copies the exact `git push -u <remote> <branch>` command.
 3. Provider lifecycle boundaries must stay explicit. Codex app-server send/resume/continue/retry/approval/model-switch paths have live proof, but non-Codex provider lifecycle proof and deterministic live non-command permission/user-input fixtures remain open. Do not implement speculative adapters; prove or clearly mark the boundary.
 4. Settings must stay honest about provider/account/runtime adapters. Local settings, personalization, browser policy, provider config, shortcuts, worktrees, automations, and data-control flows have smoke coverage. Provider-native account/runtime sync and real remote-host pages remain known adapter gaps.
 5. Header, right Workbench panel, bottom panel, and route/window focus behavior must pass together in the final visual/contact-sheet check. The user explicitly observed that panels can pass individually while still feeling unlike Codex when they meet the header incorrectly.
@@ -43,12 +43,10 @@ This checkpoint exists to prevent Phase 1 from drifting into low-value parity po
 
 ## Next Slice
 
-The next implementation slice should be Git PR push-state readiness:
+The Git PR push-state readiness slice is implemented:
 
-- Inspect the current Git Workbench PR card and Git manager state shape.
-- Surface whether the branch is pushed/upstream-tracked before showing or alongside `Open create PR`.
-- Provide the smallest safe user action or boundary, such as an explicit push/upstream status and a copy/terminal draft for the correct push command. Avoid automatic network mutation.
-- Prove it with Git manager unit coverage plus the focused Workbench New Tab/Git smoke target selected by `smoke:ui:changed`.
+- `gitManager.getPullRequestCreateUrl` reports remote name, upstream/remote branch, published state, and a safe push command without contacting the network.
+- The Git Pull Request card disables `Open create PR` until the branch is explicitly known published, shows the branch publish state, and copies the push command when unpublished.
+- Verification passed with `pnpm run smoke:ui:changed:static` and the focused `pnpm run smoke:ui:changed:smoke` Workbench New Tab/Git workflow, including `workbenchNewTabGitPrPushCommand=true`.
 
-After that, run the final completion proof gates instead of continuing into another local polish pass.
-
+Next action: run the final completion proof gates instead of continuing into another local polish pass.

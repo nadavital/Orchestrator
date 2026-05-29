@@ -2510,6 +2510,7 @@ child.on('exit', async (code) => {
           workbenchNewTabGitCheckout: result.workbenchNewTabGitCheckoutWorks === true,
           workbenchNewTabGitPrCommand: result.workbenchNewTabGitPrCommandWorks === true,
           workbenchNewTabGitPrCreateUrl: result.workbenchNewTabGitPrCreateUrlWorks === true,
+          workbenchNewTabGitPrPushCommand: result.workbenchNewTabGitPrPushCommandWorks === true,
           workbenchNewTabGitPrCommandHandoff: result.workbenchNewTabGitPrCommandHandoffWorks === true,
           workbenchNewTabGitPrCommandTerminalHandoff: result.workbenchNewTabGitPrCommandTerminalHandoffWorks === true,
           workbenchNewTabGitRefreshStatus: result.workbenchNewTabGitRefreshStatusWorks === true,

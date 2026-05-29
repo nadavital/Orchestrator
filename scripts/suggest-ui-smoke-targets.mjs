@@ -202,7 +202,7 @@ const diffRules = [
       /^src\/renderer\/src\/env\.d\.ts$/,
       /^src\/types\/index\.ts$/
     ],
-    diffPatterns: [/workbenchNewTabGit/, /git-pr-command/, /Git PR command/, /GitPullRequestCreateUrl/, /git:getPullRequestCreateUrl/, /git-open-create-pr/, /data-git-pr-create-url/, /workbenchNewTabGitPrCreateUrl/]
+    diffPatterns: [/workbenchNewTabGit/, /git-pr-command/, /git-pr-push-command/, /Git PR command/, /GitPullRequestCreateUrl/, /git:getPullRequestCreateUrl/, /git-open-create-pr/, /data-git-pr-create-url/, /data-git-pr-branch-published/, /workbenchNewTabGitPrCreateUrl/, /workbenchNewTabGitPrPushCommand/]
   },
   {
     flag: '--agent-inspector',
