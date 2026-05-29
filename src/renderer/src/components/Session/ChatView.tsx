@@ -1863,7 +1863,7 @@ function MessageRow({
                 cwd={session.workDir}
                 searchRoots={fileReferenceRoots}
                 preferredEditor={preferredEditor}
-                onOpenWorkbenchFile={(filePath, line) => openRightPanelFileTab(session.id, filePath, { preview: true, line })}
+                onOpenWorkbenchFile={(root, filePath, line) => openRightPanelFileTab(session.id, filePath, { preview: true, line, root })}
               />
             )}
             {isUser && msg.attachments && msg.attachments.length > 0 && <MessageAttachmentList attachments={msg.attachments} />}
@@ -2612,7 +2612,7 @@ function FileReferenceList({
   cwd: string
   searchRoots: string[]
   preferredEditor: PreferredEditor
-  onOpenWorkbenchFile: (filePath: string, line?: number) => void
+  onOpenWorkbenchFile: (root: string, filePath: string, line?: number) => void
 }): JSX.Element {
   return (
     <div className="mt-3 min-w-0 max-w-full space-y-1.5" aria-label="Referenced files" data-testid="file-reference-list">
@@ -2641,7 +2641,7 @@ function FileReferenceCard({
   cwd: string
   searchRoots: string[]
   preferredEditor: PreferredEditor
-  onOpenWorkbenchFile: (filePath: string, line?: number) => void
+  onOpenWorkbenchFile: (root: string, filePath: string, line?: number) => void
 }): JSX.Element {
   const [exists, setExists] = useState<boolean | null>(null)
   const [resolvedPath, setResolvedPath] = useState<string | null>(null)
@@ -2652,8 +2652,12 @@ function FileReferenceCard({
   const displayLabel = resolvedPath ? fileName(resolvedPath) : file.label
   const targetLabel = file.line ? `:${file.line}${file.column ? `:${file.column}` : ''}` : ''
   const openStatus = lastOpenResult ? fileReferenceOpenResultStatus(lastOpenResult) : ''
-  const workbenchFilePath = resolvedPath ? relativePathWithinRoot(cwd, resolvedPath) : file.source === 'relative' ? file.path : null
-  const canOpenInWorkbench = exists === true && workbenchFilePath !== null
+  const workbenchTarget = resolvedPath
+    ? relativePathWithinRoots(uniqueRoots(cwd, searchRoots), resolvedPath)
+    : file.source === 'relative'
+      ? { root: cwd, filePath: file.path }
+      : null
+  const canOpenInWorkbench = exists === true && workbenchTarget !== null
 
   useEffect(() => {
     let cancelled = false
@@ -2716,8 +2720,8 @@ function FileReferenceCard({
   }
 
   const openInWorkbench = (): void => {
-    if (!workbenchFilePath) return
-    onOpenWorkbenchFile(workbenchFilePath, file.line)
+    if (!workbenchTarget) return
+    onOpenWorkbenchFile(workbenchTarget.root, workbenchTarget.filePath, file.line)
     setWorkbenchOpenStatus(file.line ? `Opened in Workbench at line ${file.line}` : 'Opened in Workbench')
   }
 
@@ -2735,7 +2739,8 @@ function FileReferenceCard({
       data-file-reference-open-result-column={lastOpenResult?.column ?? ''}
       data-file-reference-open-result-fallback-from={lastOpenResult?.fallbackFrom ?? ''}
       data-file-reference-open-result-opened-with={lastOpenResult?.openedWith ?? ''}
-      data-file-reference-workbench-path={workbenchFilePath ?? ''}
+      data-file-reference-workbench-root={workbenchTarget?.root ?? ''}
+      data-file-reference-workbench-path={workbenchTarget?.filePath ?? ''}
       data-file-reference-workbench-opened={workbenchOpenStatus ? 'true' : 'false'}
       className="min-w-0 max-w-full overflow-hidden rounded-lg px-3 py-2 text-xs"
       style={{
@@ -2840,12 +2845,15 @@ function fileName(filePath: string): string {
   return filePath.split('/').filter(Boolean).at(-1) ?? filePath
 }
 
-function relativePathWithinRoot(root: string, absolutePath: string): string | null {
-  const normalizedRoot = root.replace(/\/+$/, '')
+function relativePathWithinRoots(roots: string[], absolutePath: string): { root: string; filePath: string } | null {
   const normalizedPath = absolutePath.replace(/\/+$/, '')
-  if (normalizedPath === normalizedRoot) return null
-  const prefix = `${normalizedRoot}/`
-  return normalizedPath.startsWith(prefix) ? normalizedPath.slice(prefix.length) : null
+  for (const root of roots) {
+    const normalizedRoot = root.replace(/\/+$/, '')
+    if (normalizedPath === normalizedRoot) continue
+    const prefix = `${normalizedRoot}/`
+    if (normalizedPath.startsWith(prefix)) return { root: normalizedRoot, filePath: normalizedPath.slice(prefix.length) }
+  }
+  return null
 }
 
 function normalizePreferredEditor(value: unknown): PreferredEditor {

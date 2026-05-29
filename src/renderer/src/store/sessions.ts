@@ -266,7 +266,7 @@ interface SessionState {
   setRightPanelOpen: (id: string, open: boolean) => void
   setRightPanelFullWidth: (id: string, fullWidth: boolean) => void
   openRightPanelTab: (id: string, tabId: RightPanelTabId) => void
-  openRightPanelFileTab: (id: string, filePath: string, options?: { preview?: boolean; line?: number }) => void
+  openRightPanelFileTab: (id: string, filePath: string, options?: { preview?: boolean; line?: number; root?: string }) => void
   updateRightPanelFileTabState: (id: string, tabId: RightPanelTabId, patch: Pick<Partial<RightPanelTabState>, 'fileViewMode' | 'sourceWrap' | 'selectedSourceLine' | 'sourceSearchQuery' | 'sourceSearchIndex' | 'sourceAnnotations' | 'sourceBlameVisible' | 'sourceRevealLine' | 'sourceRevealRequest'>) => void
   pinRightPanelTab: (id: string, tabId: RightPanelTabId) => void
   closeRightPanelTab: (id: string, tabId: RightPanelTabId) => void
@@ -883,12 +883,13 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       const current = s.uiState[id] ?? defaultUI
       const currentPanel = ensureRightPanel(current.rightPanel)
       const session = s.sessions.find((candidate) => candidate.id === id)
+      const fileRoot = options?.root ?? session?.workDir
       const preview = options?.preview ?? true
       const line = typeof options?.line === 'number' && Number.isFinite(options.line) && options.line > 0
         ? Math.floor(options.line)
         : null
       const tab = {
-        ...rightPanelTab(fileTabId(filePath, session?.workDir)),
+        ...rightPanelTab(fileTabId(filePath, fileRoot)),
         isPreview: preview,
         isPinned: !preview,
         ...(line !== null

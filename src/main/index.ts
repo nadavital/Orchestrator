@@ -24483,6 +24483,7 @@ function runAutomatedTranscriptFileReferenceSmoke(win: BrowserWindow, outputPath
                 const cards = [...document.querySelectorAll('[data-testid="file-reference-card"]')];
                 if (
                   cards.some((card) => card.textContent?.includes('transcript-layout-fixture.ts:1')) &&
+                  cards.some((card) => card.textContent?.includes('additional-root-fixture.ts:1')) &&
                   cards.some((card) => card.textContent?.includes('explicit-missing-file.ts'))
                 ) return cards;
                 await sleep(80);
@@ -24499,7 +24500,10 @@ function runAutomatedTranscriptFileReferenceSmoke(win: BrowserWindow, outputPath
               : null;
             if (openButton instanceof HTMLButtonElement) {
               openButton.click();
-              await sleep(200);
+              for (let index = 0; index < 12; index += 1) {
+                await sleep(80);
+                if ((lineCard?.getAttribute('data-file-reference-open-result-ok') ?? '') !== '') break;
+              }
             }
             const openStatus = lineCard instanceof HTMLElement
               ? lineCard.querySelector('[data-testid="file-reference-open-status"]')
@@ -24533,6 +24537,7 @@ function runAutomatedTranscriptFileReferenceSmoke(win: BrowserWindow, outputPath
               lineCard instanceof HTMLElement &&
               workbenchOpenButton instanceof HTMLButtonElement &&
               workbenchOpenButton.disabled === false &&
+              lineCard.getAttribute('data-file-reference-workbench-root')?.endsWith('/orchestrator-automated-ui-workspace') === true &&
               lineCard.getAttribute('data-file-reference-workbench-path')?.endsWith('transcript-layout-fixture.ts') === true &&
               lineCard.getAttribute('data-file-reference-workbench-opened') === 'true' &&
               workbenchOpenStatus instanceof HTMLElement &&
@@ -24543,6 +24548,36 @@ function runAutomatedTranscriptFileReferenceSmoke(win: BrowserWindow, outputPath
               workbenchOpenedFileTab.getAttribute('data-file-tab-path')?.endsWith('transcript-layout-fixture.ts') === true &&
               workbenchOpenedFileTab.getAttribute('data-file-tab-selected-source-line') === '1' &&
               workbenchOpenedFileTab.getAttribute('data-file-tab-source-reveal-line') === '1';
+
+            const additionalRootCard = [...document.querySelectorAll('[data-testid="file-reference-card"]')]
+              .find((card) => card instanceof HTMLElement && card.textContent?.includes('additional-root-fixture.ts:1'));
+            const additionalRootWorkbenchButton = additionalRootCard instanceof HTMLElement
+              ? additionalRootCard.querySelector('[data-testid="file-reference-open-workbench"]')
+              : null;
+            if (additionalRootWorkbenchButton instanceof HTMLButtonElement) {
+              additionalRootWorkbenchButton.click();
+              await sleep(420);
+            }
+            const additionalRootFileTab = document.querySelector('[data-testid="workbench-file-tab"]');
+            const additionalRootWorkbenchStatus = additionalRootCard instanceof HTMLElement
+              ? additionalRootCard.querySelector('[data-testid="file-reference-workbench-status"]')
+              : null;
+            const fileReferenceAdditionalRootWorkbenchWorks =
+              additionalRootCard instanceof HTMLElement &&
+              additionalRootWorkbenchButton instanceof HTMLButtonElement &&
+              additionalRootWorkbenchButton.disabled === false &&
+              additionalRootCard.getAttribute('data-file-reference-workbench-root')?.endsWith('/orchestrator-automated-ui-workspace-additional-root') === true &&
+              additionalRootCard.getAttribute('data-file-reference-workbench-path') === 'shared/additional-root-fixture.ts' &&
+              additionalRootWorkbenchStatus instanceof HTMLElement &&
+              additionalRootWorkbenchStatus.getAttribute('role') === 'status' &&
+              additionalRootWorkbenchStatus.textContent?.includes('Opened in Workbench at line 1') === true &&
+              additionalRootFileTab instanceof HTMLElement &&
+              additionalRootFileTab.getAttribute('data-file-tab-host')?.endsWith('/orchestrator-automated-ui-workspace-additional-root') === true &&
+              additionalRootFileTab.getAttribute('data-file-tab-workdir')?.endsWith('/orchestrator-automated-ui-workspace-additional-root') === true &&
+              additionalRootFileTab.getAttribute('data-file-tab-path') === 'shared/additional-root-fixture.ts' &&
+              additionalRootFileTab.getAttribute('data-file-tab-absolute-path')?.endsWith('/orchestrator-automated-ui-workspace-additional-root/shared/additional-root-fixture.ts') === true &&
+              additionalRootFileTab.getAttribute('data-file-tab-selected-source-line') === '1' &&
+              additionalRootFileTab.getAttribute('data-file-tab-source-reveal-line') === '1';
 
             const missingCard = [...document.querySelectorAll('[data-testid="file-reference-card"]')]
               .find((card) => card instanceof HTMLElement && card.textContent?.includes('explicit-missing-file.ts'));
@@ -24557,6 +24592,7 @@ function runAutomatedTranscriptFileReferenceSmoke(win: BrowserWindow, outputPath
               transcriptFound: document.querySelector('[data-testid="transcript-scroll"]') instanceof HTMLElement,
               fileReferenceOpenOutcomeWorks,
               fileReferenceOpenWorkbenchWorks,
+              fileReferenceAdditionalRootWorkbenchWorks,
               fileReferenceMissingActionsDisabled
             };
           })()
@@ -28350,11 +28386,16 @@ function seedAutomatedTranscriptLayoutSmokeSession(sessionId: string): void {
   if (!session) return
 
   const baseTime = Date.now()
+  const workspaceRoot = process.env.ORCHESTRATOR_SMOKE_WORKSPACE_DIR ?? '/tmp/orchestrator-automated-ui-workspace'
   const longToken = `TRANSCRIPT_LAYOUT_SMOKE_${'A'.repeat(220)}`
-  const longPath = `${process.env.ORCHESTRATOR_SMOKE_WORKSPACE_DIR ?? '/tmp/orchestrator-automated-ui-workspace'}/src/${'deeply-nested-layout-fixture-segment/'.repeat(5)}transcript-layout-fixture.ts`
-  const explicitMissingPath = `${process.env.ORCHESTRATOR_SMOKE_WORKSPACE_DIR ?? '/tmp/orchestrator-automated-ui-workspace'}/explicit-missing-file.ts`
+  const longPath = `${workspaceRoot}/src/${'deeply-nested-layout-fixture-segment/'.repeat(5)}transcript-layout-fixture.ts`
+  const additionalRoot = `${workspaceRoot}-additional-root`
+  const additionalPath = `${additionalRoot}/shared/additional-root-fixture.ts`
+  const explicitMissingPath = `${workspaceRoot}/explicit-missing-file.ts`
   mkdirSync(dirname(longPath), { recursive: true })
   writeFileSync(longPath, 'export const transcriptLayoutFixture = true\n')
+  mkdirSync(dirname(additionalPath), { recursive: true })
+  writeFileSync(additionalPath, 'export const additionalRootFixture = true\n')
   const messages: ChatMessage[] = [
     {
       id: 'transcript-layout-user',
@@ -28390,6 +28431,8 @@ function seedAutomatedTranscriptLayoutSmokeSession(sessionId: string): void {
         `| path | ${longPath} |`,
         '',
         `Referenced fixture: \`${longPath}:1\``,
+        '',
+        `Additional root fixture: \`${additionalPath}:1\``,
         '',
         `Explicit missing fixture: \`${explicitMissingPath}\``,
         'Review prose should not create a card for `DefinitelyMissingRelativeReviewFile.java`.'
@@ -28456,6 +28499,7 @@ function seedAutomatedTranscriptLayoutSmokeSession(sessionId: string): void {
     ...session,
     name: 'Transcript layout smoke',
     status: 'idle',
+    additionalDirs: [additionalRoot],
     messages,
     createdAt: baseTime,
     latestMessageAt: baseTime + messages.length
