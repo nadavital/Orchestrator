@@ -14,7 +14,8 @@ const targetRules = [
   { flag: '--side-chat', label: 'Side chat', patterns: [/^src\/renderer\/src\/components\/Session\/(SideChat|SideQuestion)/] },
   { flag: '--right-panel', label: 'Right Workbench shell', patterns: [/^src\/renderer\/src\/components\/Session\/(WorkbenchPanel|RightPanel|ContextSidebar)/, /^src\/renderer\/src\/components\/Session\/.*Workbench/, /^src\/renderer\/src\/components\/ui\/ToolbarButton/] },
   { flag: '--workbench-launcher', label: 'Workbench launcher', patterns: [/^src\/renderer\/src\/components\/Session\/ContextSidebar/, /^src\/renderer\/src\/components\/Session\/WorkbenchNewTab/] },
-  { flag: '--workbench-new-tab', label: 'Workbench New Tab full workflow', patterns: [/^src\/renderer\/src\/components\/Session\/(WorkbenchNewTab|GitPanel|AgentsPanel|EventInspectorPanel|EnvironmentPanel)/, /^src\/main\/git/] },
+  { flag: '--workbench-new-tab', label: 'Workbench New Tab full workflow', patterns: [/^src\/renderer\/src\/components\/Session\/(WorkbenchNewTab|GitPanel|EnvironmentPanel)/, /^src\/main\/git/] },
+  { flag: '--agent-inspector', label: 'Agent Activity inspector', patterns: [/^src\/renderer\/src\/components\/Session\/EventInspectorPanel\.tsx$/] },
   { flag: '--environment', label: 'Environment panel', patterns: [/^src\/renderer\/src\/components\/Session\/Environment/] },
   { flag: '--browser', label: 'Browser panel', patterns: [/^src\/renderer\/src\/components\/Session\/Browser/, /^src\/main\/browser/, /^src\/renderer\/src\/.*browser/i] },
   { flag: '--terminal', label: 'Terminal', patterns: [/^src\/renderer\/src\/components\/Session\/Terminal/, /^src\/main\/terminal/, /^src\/preload\/.*terminal/i] },
@@ -170,10 +171,10 @@ const diffRules = [
     diffPatterns: [/workbenchNewTabGit/, /git-pr-command/, /Git PR command/]
   },
   {
-    flag: '--workbench-new-tab',
-    label: 'Workbench New Tab full workflow',
+    flag: '--agent-inspector',
+    label: 'Agent Activity inspector',
     filePatterns: [/^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
-    diffPatterns: [/agentRuntimeEvent/, /agentSessionContext/, /agentSelectedTranscript/, /agent-session-context-add-to-chat/, /agent-selected-add-to-chat/, /agent-event-detail/, /focus-waiting-card/, /Open approval in chat/]
+    diffPatterns: [/agent-inspector/, /agentRuntimeEvent/, /agentSessionContext/, /agentSelectedTranscript/, /agent-session-context-add-to-chat/, /agent-selected-add-to-chat/, /agent-event-detail/, /focus-waiting-card/, /Open approval in chat/]
   },
   {
     flag: '--extensions',
@@ -331,6 +332,7 @@ function suggestTargets(paths) {
   suppressTerminalForToolActivityCommandDiff(matched, paths)
   suppressComposerForWorkbenchGitHandoffDiff(matched, paths)
   suppressComposerForAgentInspectorHandoffDiff(matched, paths)
+  suppressWorkbenchLauncherForAgentInspectorDiff(matched, paths)
   suppressComposerForExtensionsHandoffDiff(matched, paths)
   suppressTerminalForWorkbenchGitPrTerminalHandoffDiff(matched, paths)
   suppressTerminalForWorkbenchGitFileTerminalHandoffDiff(matched, paths)
@@ -771,8 +773,8 @@ function suppressComposerForWorkbenchGitHandoffDiff(matched, paths) {
 
 function suppressComposerForAgentInspectorHandoffDiff(matched, paths) {
   const composer = matched.get('--composer')
-  const workbench = matched.get('--workbench-new-tab')
-  if (!composer || !workbench) return
+  const inspector = matched.get('--agent-inspector')
+  if (!composer || !inspector) return
   if (!composer.files.every((file) =>
     file === 'scripts/run-automated-ui-smoke.mjs' ||
     file === 'src/main/index.ts' ||
@@ -785,6 +787,19 @@ function suppressComposerForAgentInspectorHandoffDiff(matched, paths) {
   ].join('\n')
   if (!/agentSessionContextAddToChat|agent-session-context-add-to-chat|Use this agent activity session context|Session context added to chat|agentSelectedTranscript|agent-selected-add-to-chat|Use this agent transcript context|Agent transcript added to chat/.test(diff)) return
   matched.delete('--composer')
+}
+
+function suppressWorkbenchLauncherForAgentInspectorDiff(matched, paths) {
+  const launcher = matched.get('--workbench-launcher')
+  const inspector = matched.get('--agent-inspector')
+  if (!launcher || !inspector) return
+  if (!launcher.files.every((file) => file === 'scripts/run-automated-ui-smoke.mjs' || file === 'src/main/index.ts')) return
+  const diff = [
+    paths.includes('scripts/run-automated-ui-smoke.mjs') ? diffForFile('scripts/run-automated-ui-smoke.mjs') : '',
+    paths.includes('src/main/index.ts') ? diffForFile('src/main/index.ts') : ''
+  ].join('\n')
+  if (!/agent-inspector|agentSessionContext|agentRuntimeEvent|agentSelectedTranscript|agent-.*add-to-chat/.test(diff)) return
+  matched.delete('--workbench-launcher')
 }
 
 function suppressComposerForExtensionsHandoffDiff(matched, paths) {

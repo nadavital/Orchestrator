@@ -22,6 +22,7 @@ const captureViewOptions = [
   { flag: '--worktree-lifecycle', view: 'worktree-lifecycle', surface: 'Worktrees', scope: 'Pending/failed worktree notices and retry controls' },
   { flag: '--workbench-launcher', view: 'workbench-launcher', surface: 'Workbench', scope: 'New-tab launcher discovery and tab activation' },
   { flag: '--workbench-new-tab', view: 'workbench-new-tab', surface: 'Workbench', scope: 'New-tab launcher, keyboard navigation, singleton switching, Git/agent workflows' },
+  { flag: '--agent-inspector', view: 'agent-inspector', surface: 'Workbench', scope: 'Agent Activity inspector diagnostics and composer handoffs' },
   { flag: '--environment', view: 'environment', surface: 'Workbench', scope: 'Environment panel and add-to-chat context handoff' },
   { flag: '--right-panel', view: 'right-panel', surface: 'Workbench', scope: 'Right-panel tab shell, transfer boundaries, keyboard routing' },
   { flag: '--workbench-perf', view: 'workbench-perf', surface: 'Workbench', scope: 'Workbench rendering performance gates' },
@@ -83,7 +84,7 @@ const profile = 'automated-ui-smoke'
 const userDataDir = join(tmpdir(), 'orchestrator-profiles', `${profile}-${captureView}`)
 const workspaceDir = join(tmpdir(), 'orchestrator-automated-ui-workspace')
 const isDiffCaptureView = captureView === 'diff' || captureView.startsWith('diff-')
-const fixtureWorkspaceViews = new Set(['inspector', 'right-panel', 'workbench-launcher', 'workbench-new-tab', 'environment', 'workbench-perf', 'cross-panel-keyboard', 'diff', 'diff-entry', 'diff-empty', 'diff-loading', 'diff-conflict', 'diff-narrow', 'diff-core', 'diff-last-turn', 'diff-source', 'diff-preview', 'files', 'side-chat', 'browser'])
+const fixtureWorkspaceViews = new Set(['inspector', 'right-panel', 'workbench-launcher', 'workbench-new-tab', 'agent-inspector', 'environment', 'workbench-perf', 'cross-panel-keyboard', 'diff', 'diff-entry', 'diff-empty', 'diff-loading', 'diff-conflict', 'diff-narrow', 'diff-core', 'diff-last-turn', 'diff-source', 'diff-preview', 'files', 'side-chat', 'browser'])
 const resetWorkspaceViews = new Set([...fixtureWorkspaceViews, 'sidebar', 'multi-window-focus', 'worktree-lifecycle'])
 const outputPath = join(tmpdir(), `orchestrator-automated-ui-smoke-${captureView}-${Date.now()}.json`)
 const screenshotPath = join(tmpdir(), `orchestrator-automated-ui-smoke-${captureView}-${Date.now()}.png`)
@@ -2525,6 +2526,32 @@ child.on('exit', async (code) => {
           agentTransportLogAddToChat: result.agentTransportLogAddToChatWorks === true,
           agentSelectedTranscriptAddToChat: result.agentSelectedTranscriptAddToChatWorks === true,
           workbenchNewTabCards: Number(result.workbenchNewTabActionCount ?? 0) >= 5,
+          workbenchNewTabNoHorizontalOverflow: result.workbenchNewTabNoHorizontalOverflow === true
+        }
+    : captureView === 'agent-inspector'
+      ? {
+          isolatedProfile: result.profile?.isIsolated === true,
+          rightPanelState: result.hasRightPanelState === true,
+          rightPanelShellOwnership: result.rightPanelShellOwnershipWorks === true,
+          workbenchPanelNewTabPage: result.workbenchPanelNewTabPageWorks === true,
+          workbenchNewTabListLauncher: result.workbenchNewTabListLauncher === true,
+          workbenchNewTabAgentsAction: result.workbenchNewTabAgentsActionWorks === true,
+          agentSessionContextAddToChat: result.agentSessionContextAddToChatWorks === true,
+          agentRuntimeEventDetail: result.agentRuntimeEventDetailWorks === true,
+          agentRuntimeEventCopy: result.agentRuntimeEventCopyWorks === true,
+          agentRuntimeEventAddToChat: result.agentRuntimeEventAddToChatWorks === true,
+          agentRuntimeEventAddToChatContext: result.agentRuntimeEventAddToChatContextWorks === true,
+          agentRuntimeEventOpenInChat: result.agentRuntimeEventOpenInChatWorks === true,
+          agentRuntimeEventActionChrome: result.agentRuntimeEventActionChromeWorks === true,
+          agentRuntimeFailureGroupAddToChat: result.agentRuntimeFailureGroupAddToChatWorks === true,
+          agentSelectedTimeline: result.agentSelectedTimelineWorks === true,
+          agentRuntimeEventFacetFilters: result.agentRuntimeEventFacetFiltersWork === true,
+          agentRuntimeEventFilter: result.agentRuntimeEventFilterWorks === true,
+          agentRuntimeFailureGroups: result.agentRuntimeFailureGroupsWorks === true,
+          agentRuntimeIssueTriage: result.agentRuntimeIssueTriageWorks === true,
+          agentTransportLog: result.agentTransportLogWorks === true,
+          agentTransportLogAddToChat: result.agentTransportLogAddToChatWorks === true,
+          agentSelectedTranscriptAddToChat: result.agentSelectedTranscriptAddToChatWorks === true,
           workbenchNewTabNoHorizontalOverflow: result.workbenchNewTabNoHorizontalOverflow === true
         }
     : captureView === 'environment'

@@ -634,11 +634,11 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
     return
   }
   const smokeView = process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW ?? ''
-  if (['header', 'right-panel', 'workbench-launcher', 'workbench-new-tab', 'environment', 'diff', 'files', 'side-chat'].includes(smokeView) || smokeView.startsWith('diff-')) {
+  if (['header', 'right-panel', 'workbench-launcher', 'workbench-new-tab', 'agent-inspector', 'environment', 'diff', 'files', 'side-chat'].includes(smokeView) || smokeView.startsWith('diff-')) {
     runAutomatedFocusedSurfaceSmoke(
       win,
       outputPath,
-      (smokeView === 'workbench-launcher' || smokeView === 'workbench-new-tab' || smokeView === 'environment' ? 'right-panel' : smokeView.startsWith('diff-') ? 'diff' : smokeView) as 'header' | 'right-panel' | 'diff' | 'files' | 'side-chat',
+      (smokeView === 'workbench-launcher' || smokeView === 'workbench-new-tab' || smokeView === 'agent-inspector' || smokeView === 'environment' ? 'right-panel' : smokeView.startsWith('diff-') ? 'diff' : smokeView) as 'header' | 'right-panel' | 'diff' | 'files' | 'side-chat',
       screenshotPath
     )
     return
@@ -9601,7 +9601,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   workbenchLauncherActionCount: launcher.cards.length
                 };
               }
-              if (smokeView === 'workbench-new-tab') {
+              if (smokeView === 'workbench-new-tab' || smokeView === 'agent-inspector') {
                 const addButton = document.querySelector('[data-testid="right-panel-add-tab"]');
                 if (addButton instanceof HTMLElement) {
                   addButton.click();
@@ -9689,6 +9689,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 let workbenchNewTabGitCommitWorks = false;
                 let workbenchNewTabGitDiscardWorks = false;
                 let workbenchNewTabSingletonSwitchWorks = false;
+                if (smokeView === 'workbench-new-tab') {
                 const gitAction = document.querySelector('[data-testid="workbench-new-tab-action-git"]');
                 if (gitAction instanceof HTMLButtonElement) {
                   gitAction.click();
@@ -10352,6 +10353,7 @@ function runAutomatedFocusedSurfaceSmoke(
                       await sleep(120);
                     }
                   }
+                }
                 }
                 const agentsAction = document.querySelector('[data-testid="workbench-new-tab-action-agents"]');
                 if (agentsAction instanceof HTMLButtonElement) {
