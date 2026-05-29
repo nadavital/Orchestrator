@@ -1694,6 +1694,7 @@
   .workbench-new-tab-action-copy {
     display: flex;
     min-width: 0;
+    flex: 1 1 auto;
     flex-direction: column;
     gap: 1px;
   }
@@ -1709,6 +1710,17 @@
     color: var(--text-tertiary);
     font-size: 12px;
     line-height: 1.25;
+  }
+
+  .workbench-new-tab-action-state {
+    flex: 0 0 auto;
+    border: 1px solid var(--border-subtle);
+    border-radius: 999px;
+    color: var(--text-tertiary);
+    font-size: 10.5px;
+    font-weight: 560;
+    line-height: 1;
+    padding: 3px 6px;
   }
 
   .terminal-failure-state {

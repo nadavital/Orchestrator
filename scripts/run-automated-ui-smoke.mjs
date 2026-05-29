@@ -2464,6 +2464,7 @@ child.on('exit', async (code) => {
           workbenchNewTabCompactLauncher: result.workbenchNewTabCompactLauncher === true,
           workbenchNewTabListLauncher: result.workbenchNewTabListLauncher === true,
           workbenchNewTabKeyboardNavigation: result.workbenchNewTabKeyboardNavigation === true,
+          workbenchNewTabSingletonSwitch: result.workbenchNewTabSingletonSwitch === true,
           workbenchNewTabFinalCapture: result.workbenchNewTabFinalCapture === true,
           workbenchNewTabAgentsAction: result.workbenchNewTabAgentsActionWorks === true,
           workbenchNewTabGitAction: result.workbenchNewTabGitActionWorks === true,

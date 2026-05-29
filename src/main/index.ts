@@ -8504,6 +8504,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 let workbenchNewTabGitPrCommandWorks = false;
                 let workbenchNewTabGitCommitWorks = false;
                 let workbenchNewTabGitDiscardWorks = false;
+                let workbenchNewTabSingletonSwitchWorks = false;
                 const gitAction = document.querySelector('[data-testid="workbench-new-tab-action-git"]');
                 if (gitAction instanceof HTMLButtonElement) {
                   gitAction.click();
@@ -8903,6 +8904,25 @@ function runAutomatedFocusedSurfaceSmoke(
                   if (newTabAfterGit instanceof HTMLElement) {
                     newTabAfterGit.click();
                     await sleep(140);
+                    const reopenedGitAction = document.querySelector('[data-testid="workbench-new-tab-action-git"]');
+                    const tabsBeforeGitReselect = document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-tabs') ?? '';
+                    if (reopenedGitAction instanceof HTMLButtonElement) {
+                      reopenedGitAction.click();
+                      await sleep(160);
+                      const tabsAfterGitReselect = document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-tabs') ?? '';
+                      workbenchNewTabSingletonSwitchWorks =
+                        reopenedGitAction.disabled === false &&
+                        reopenedGitAction.getAttribute('data-workbench-new-tab-action-state') === 'open' &&
+                        reopenedGitAction.textContent?.includes('Open') === true &&
+                        document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-active-tab') === 'git' &&
+                        tabsBeforeGitReselect.split(',').filter((tab) => tab === 'git').length === 1 &&
+                        tabsAfterGitReselect.split(',').filter((tab) => tab === 'git').length === 1;
+                    }
+                    const newTabAfterGitReselect = document.querySelector('[data-testid="workbench-panel-tabbar"] [role="tab"][data-tab-id="new-tab"]');
+                    if (newTabAfterGitReselect instanceof HTMLElement) {
+                      newTabAfterGitReselect.click();
+                      await sleep(120);
+                    }
                   }
                 }
                 const agentsAction = document.querySelector('[data-testid="workbench-new-tab-action-agents"]');
@@ -9301,6 +9321,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     newTabCardRects.every((rect) => rect.height <= 56),
                   workbenchNewTabListLauncher: newTabActionListLauncher,
                   workbenchNewTabKeyboardNavigation: workbenchNewTabKeyboardNavigationWorks,
+                  workbenchNewTabSingletonSwitch: workbenchNewTabSingletonSwitchWorks,
                   workbenchNewTabFinalCapture:
                     finalNewTabPanel instanceof HTMLElement &&
                     finalNewTabGrid instanceof HTMLElement &&

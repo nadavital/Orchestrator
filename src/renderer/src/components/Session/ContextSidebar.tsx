@@ -318,9 +318,9 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
     {
       id: 'files',
       title: 'Files',
-      description: 'Browse project files',
+      description: hasFilesTab ? 'Switch to open Files tab' : 'Browse project files',
       icon: 'folder',
-      disabled: hasFilesTab,
+      state: hasFilesTab ? 'open' : 'new',
       onSelect: () => openToolTab('files')
     },
     {
@@ -333,33 +333,33 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
     {
       id: 'browser',
       title: 'Browser',
-      description: 'Open a website',
+      description: hasBrowserTab ? 'Switch to open Browser tab' : 'Open a website',
       icon: 'browser',
-      disabled: hasBrowserTab,
+      state: hasBrowserTab ? 'open' : 'new',
       onSelect: () => openToolTab('browser')
     },
     {
       id: 'git',
       title: 'Git',
-      description: 'Stage and review changes',
+      description: hasGitTab ? 'Switch to open Git tab' : 'Stage and review changes',
       icon: 'branch',
-      disabled: hasGitTab,
+      state: hasGitTab ? 'open' : 'new',
       onSelect: () => openToolTab('git')
     },
     {
       id: 'review',
       title: 'Review',
-      description: 'View code changes',
+      description: ui?.showDiff || hasDiffTab ? 'Switch to open Review tab' : 'View code changes',
       icon: 'diff',
-      disabled: ui?.showDiff || hasDiffTab,
+      state: ui?.showDiff || hasDiffTab ? 'open' : 'new',
       onSelect: () => openToolTab('diff')
     },
     {
       id: 'agents',
       title: 'Agents',
-      description: 'Inspect runtime activity',
+      description: ui?.showEvents ? 'Switch to open Agents tab' : 'Inspect runtime activity',
       icon: 'agents',
-      disabled: ui?.showEvents,
+      state: ui?.showEvents ? 'open' : 'new',
       onSelect: () => setShowEvents(session.id, true)
     },
     {
@@ -633,6 +633,7 @@ interface WorkbenchNewTabAction {
   description: string
   icon: IconName
   disabled?: boolean
+  state?: 'new' | 'open'
   onSelect: () => void
 }
 
@@ -696,6 +697,7 @@ function WorkbenchNewTabPanel({ actions }: { actions: WorkbenchNewTabAction[] })
                 tabIndex={!action.disabled && (focusedActionId === action.id || (!focusedActionId && firstEnabledActionId === action.id)) ? 0 : -1}
                 data-testid={`workbench-new-tab-action-${action.id}`}
                 data-workbench-new-tab-action={action.id}
+                data-workbench-new-tab-action-state={action.state ?? 'new'}
                 data-workbench-new-tab-keyboard-selected={!action.disabled && focusedActionId === action.id ? 'true' : 'false'}
                 aria-label={`${action.title}: ${action.description}`}
                 onFocus={() => setFocusedActionId(action.id)}
@@ -708,6 +710,9 @@ function WorkbenchNewTabPanel({ actions }: { actions: WorkbenchNewTabAction[] })
                   <span className="workbench-new-tab-action-title">{action.title}</span>
                   <span className="workbench-new-tab-action-description">{action.description}</span>
                 </span>
+                {action.state === 'open' && (
+                  <span className="workbench-new-tab-action-state">Open</span>
+                )}
               </button>
             </div>
           ))}

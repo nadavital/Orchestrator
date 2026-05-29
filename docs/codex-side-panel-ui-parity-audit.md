@@ -9774,3 +9774,13 @@ Implemented: the Workbench New Tab action list now uses roving keyboard focus. E
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --workbench-new-tab` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-workbench-new-tab-1780032925540.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-workbench-new-tab-1780032925540.png`. The focused smoke now gates `workbenchNewTabKeyboardNavigation=true` while preserving Workbench New Tab visual/no-overflow checks plus Git and Agents action checks.
 
 Remaining: this closes the local keyboard navigation gap for the Workbench launcher only. Full app-shell tab-controller ownership, exact live Codex focus timing, and broader keyboard traversal through every Workbench tab body remain separate PP-026/PP-058 follow-ups.
+
+### 2026-05-29 - Workbench Launcher Switches Open Tabs
+
+Product evidence: after the Workbench New Tab launcher became the primary entry point for coding surfaces, already-open singleton actions such as Git, Files, Browser, Review, and Agents still rendered as disabled cards. That prevented the launcher from serving as a reliable keyboard/click switcher back to an existing tool tab.
+
+Implemented: singleton launcher actions now stay enabled when their tab is already open, update their description to `Switch to open ... tab`, and show an `Open` state chip. Selecting an open singleton switches to the existing tab instead of creating a duplicate or presenting an inert disabled card. New-multiplicity actions such as Side chat and Terminal remain creation actions.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --workbench-new-tab` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-workbench-new-tab-1780033185880.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-workbench-new-tab-1780033185880.png`. The focused smoke now gates `workbenchNewTabSingletonSwitch=true` by reopening Git from the launcher, verifying the action is enabled and marked open, and confirming the Git tab count stays singular while the active tab switches back to Git.
+
+Remaining: this closes the local singleton-switch usability gap for the Workbench launcher only. Full shared tab-controller ownership, non-singleton transfer semantics, and exact live Codex launcher/focus timing remain separate PP-026/PP-058 follow-ups.
