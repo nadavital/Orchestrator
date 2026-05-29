@@ -63,6 +63,7 @@ export default function FileTabPanel({
   const [lastOpenResult, setLastOpenResult] = useState<OpenPathResult | null>(null)
   const absolutePath = joinPath(workDir, filePath)
   const name = basename(filePath)
+  const workspaceName = basename(workDir)
   const sourceMode = fileViewMode === 'source'
 
   useEffect(() => {
@@ -512,7 +513,9 @@ export default function FileTabPanel({
       className="file-tab-panel-root flex h-full min-h-0 min-w-0 flex-col overflow-hidden"
       data-testid="workbench-file-tab"
       data-file-tab-host={fileHost ?? ''}
+      data-file-tab-workdir={workDir}
       data-file-tab-path={filePath}
+      data-file-tab-absolute-path={absolutePath}
       data-file-tab-preview={isPreview ? 'true' : 'false'}
       data-file-tab-view-mode={sourceMode && canToggleSourceMode ? 'source' : 'rich'}
       data-file-tab-selected-source-line={selectedSourceLine ?? ''}
@@ -552,6 +555,13 @@ export default function FileTabPanel({
           {preview?.size !== undefined && (
             <span className="file-tab-meta">{formatBytes(preview.size)}</span>
           )}
+          <span
+            className="file-tab-workspace"
+            data-testid="workbench-file-tab-workspace"
+            title={workDir}
+          >
+            {workspaceName}
+          </span>
           <span
             className="file-tab-open-target"
             data-testid="workbench-file-tab-open-target"

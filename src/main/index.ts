@@ -16842,6 +16842,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   const fileTabToolbar = document.querySelector('[data-testid="workbench-file-tab-toolbar"]');
                   const fileTabActionsCluster = document.querySelector('[data-testid="workbench-file-tab-actions"]');
                   const openTargetBadge = document.querySelector('[data-testid="workbench-file-tab-open-target"]');
+                  const workspaceBadge = document.querySelector('[data-testid="workbench-file-tab-workspace"]');
                   const fileTabToolbarActions = fileTabToolbar instanceof HTMLElement
                     ? [...fileTabToolbar.querySelectorAll('.motion-icon-button')]
                       .filter((button) => button instanceof HTMLElement)
@@ -16865,9 +16866,14 @@ function runAutomatedFocusedSurfaceSmoke(
                   workbenchFileTabWorks =
                     fileTab instanceof HTMLElement &&
                     fileTab.getAttribute('data-file-tab-host')?.endsWith('/orchestrator-automated-ui-workspace') === true &&
+                    fileTab.getAttribute('data-file-tab-workdir')?.endsWith('/orchestrator-automated-ui-workspace') === true &&
                     fileTab.getAttribute('data-file-tab-path') === 'Nested Folder/nested note.md' &&
+                    fileTab.getAttribute('data-file-tab-absolute-path')?.endsWith('/orchestrator-automated-ui-workspace/Nested Folder/nested note.md') === true &&
                     fileTab.getAttribute('data-file-tab-preview') === 'true' &&
                     fileTab.getAttribute('data-file-tab-open-target') === 'cursor' &&
+                    workspaceBadge instanceof HTMLElement &&
+                    workspaceBadge.getAttribute('title')?.endsWith('/orchestrator-automated-ui-workspace') === true &&
+                    workspaceBadge.textContent?.includes('orchestrator-automated-ui-workspace') === true &&
                     openTargetBadge instanceof HTMLElement &&
                     openTargetBadge.getAttribute('data-open-target') === 'cursor' &&
                     openTargetBadge.textContent?.includes('Open in Cursor') === true &&
