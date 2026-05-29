@@ -8,6 +8,7 @@ export type RightPanelTabKind = 'new-tab' | 'environment' | 'git' | 'plan' | 'di
 export type RightPanelTabId = Exclude<RightPanelTabKind, 'file' | 'sidechat' | 'terminal'> | `file:${string}` | `sidechat:${string}` | `terminal:${number}`
 export type BottomPanelTabKind = 'terminal' | 'plan'
 export type BottomPanelTabId = number | 'plan'
+export type GitFocusTarget = 'branch' | 'commit' | 'pull-request'
 
 export interface SourceAnnotationState {
   id: string
@@ -38,6 +39,8 @@ export interface RightPanelTabState {
   sourceRevealRequest?: number
   gitFocusPath?: string | null
   gitFocusRequest?: number
+  gitFocusTarget?: GitFocusTarget | null
+  gitFocusTargetRequest?: number
   reviewFocusPath?: string | null
   reviewFocusRequest?: number
 }
@@ -273,6 +276,7 @@ interface SessionState {
   setRightPanelFullWidth: (id: string, fullWidth: boolean) => void
   openRightPanelTab: (id: string, tabId: RightPanelTabId) => void
   focusRightPanelGitPath: (id: string, path: string) => void
+  focusRightPanelGitTarget: (id: string, target: GitFocusTarget) => void
   focusRightPanelReviewPath: (id: string, path: string) => void
   openRightPanelFileTab: (id: string, filePath: string, options?: { preview?: boolean; line?: number; root?: string }) => void
   updateRightPanelFileTabState: (id: string, tabId: RightPanelTabId, patch: Pick<Partial<RightPanelTabState>, 'fileViewMode' | 'sourceWrap' | 'selectedSourceLine' | 'sourceSearchQuery' | 'sourceSearchIndex' | 'sourceAnnotations' | 'sourceBlameVisible' | 'sourceRevealLine' | 'sourceRevealRequest'>) => void
@@ -901,6 +905,29 @@ export const useSessionStore = create<SessionState>((set, get) => ({
               tabs: nextPanel.tabs.map((tab) =>
                 tab.id === 'git'
                   ? { ...tab, gitFocusPath: path, gitFocusRequest: request }
+                  : tab
+              )
+            }
+          }
+        }
+      }
+    }),
+
+  focusRightPanelGitTarget: (id, target) =>
+    set((s) => {
+      const current = s.uiState[id] ?? defaultUI
+      const nextPanel = syncRightPanelTab(current.rightPanel, 'git', true)
+      const request = Date.now()
+      return {
+        uiState: {
+          ...s.uiState,
+          [id]: {
+            ...current,
+            rightPanel: {
+              ...nextPanel,
+              tabs: nextPanel.tabs.map((tab) =>
+                tab.id === 'git'
+                  ? { ...tab, gitFocusTarget: target, gitFocusTargetRequest: request }
                   : tab
               )
             }

@@ -10470,6 +10470,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 }
                 const environmentPanel = document.querySelector('[data-testid="codex-environment-panel"]');
                 const environmentCard = document.querySelector('[data-testid="codex-environment-card"]');
+                const environmentBranchRow = document.querySelector('[data-testid="codex-environment-branch"]');
                 const environmentCommitRow = document.querySelector('[data-testid="codex-environment-commit"]');
                 const environmentCreatePrRow = document.querySelector('[data-testid="codex-environment-create-pr"]');
                 const environmentAddToChatButton = document.querySelector('[data-testid="codex-environment-add-to-chat"]');
@@ -10505,6 +10506,9 @@ function runAutomatedFocusedSurfaceSmoke(
                   environmentPanel instanceof HTMLElement &&
                   Number(environmentPanel.getAttribute('data-environment-staged-count') ?? '0') >= 1 &&
                   Number(environmentPanel.getAttribute('data-environment-unstaged-count') ?? '0') >= 1 &&
+                  environmentBranchRow instanceof HTMLButtonElement &&
+                  environmentBranchRow.getAttribute('data-environment-row-action') === 'open-git-branch' &&
+                  environmentBranchRow.getAttribute('aria-label')?.endsWith('. Open Git branch controls') === true &&
                   environmentCommitRow instanceof HTMLButtonElement &&
                   environmentCommitRow.getAttribute('data-environment-row-action') === 'open-git-commit' &&
                   environmentCommitRow.getAttribute('aria-label') === 'Commit. Open Git to commit changes' &&
@@ -10513,21 +10517,66 @@ function runAutomatedFocusedSurfaceSmoke(
                   environmentCreatePrRow.textContent?.includes('View pull request') === true &&
                   environmentCreatePrRow.textContent?.includes('PR 42') === true &&
                   environmentPanel.getAttribute('data-environment-pull-request') === 'true';
-                let environmentCommitOpensGitWorks = false;
-                if (environmentCommitRow instanceof HTMLButtonElement) {
-                  environmentCommitRow.click();
+                let environmentBranchOpensGitWorks = false;
+                if (environmentBranchRow instanceof HTMLButtonElement) {
+                  environmentBranchRow.click();
                   for (let attempt = 0; attempt < 12; attempt += 1) {
                     const gitPanel = document.querySelector('[data-testid="git-panel"]');
+                    const branchCard = document.querySelector('[data-testid="git-branch-card"]');
                     const activeTab = document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-active-tab') ?? '';
-                    if (activeTab === 'git' && gitPanel instanceof HTMLElement) break;
+                    if (
+                      activeTab === 'git' &&
+                      gitPanel instanceof HTMLElement &&
+                      gitPanel.getAttribute('data-git-focus-target') === 'branch' &&
+                      branchCard instanceof HTMLElement &&
+                      branchCard.getAttribute('data-git-focused-target') === 'true'
+                    ) {
+                      break;
+                    }
+                    await sleep(100);
+                  }
+                  const rightPanelAfterBranchOpen = document.querySelector('[data-testid="session-right-panel"]');
+                  const gitPanelAfterBranchOpen = document.querySelector('[data-testid="git-panel"]');
+                  const branchCardAfterOpen = document.querySelector('[data-testid="git-branch-card"]');
+                  const branchInputAfterOpen = document.querySelector('[data-testid="git-branch-name"]');
+                  environmentBranchOpensGitWorks =
+                    rightPanelAfterBranchOpen instanceof HTMLElement &&
+                    rightPanelAfterBranchOpen.getAttribute('data-right-panel-active-tab') === 'git' &&
+                    gitPanelAfterBranchOpen instanceof HTMLElement &&
+                    gitPanelAfterBranchOpen.getAttribute('data-git-focus-target') === 'branch' &&
+                    branchCardAfterOpen instanceof HTMLElement &&
+                    branchCardAfterOpen.getAttribute('data-git-focused-target') === 'true' &&
+                    branchInputAfterOpen instanceof HTMLInputElement;
+                  await openPanelTab('environment', 'Environment');
+                  await sleep(120);
+                }
+                let environmentCommitOpensGitWorks = false;
+                const environmentCommitRowForOpen = document.querySelector('[data-testid="codex-environment-commit"]');
+                if (environmentCommitRowForOpen instanceof HTMLButtonElement) {
+                  environmentCommitRowForOpen.click();
+                  for (let attempt = 0; attempt < 12; attempt += 1) {
+                    const gitPanel = document.querySelector('[data-testid="git-panel"]');
+                    const commitCard = document.querySelector('[data-testid="git-commit-card"]');
+                    const activeTab = document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-active-tab') ?? '';
+                    if (
+                      activeTab === 'git' &&
+                      gitPanel instanceof HTMLElement &&
+                      gitPanel.getAttribute('data-git-focus-target') === 'commit' &&
+                      commitCard instanceof HTMLElement &&
+                      commitCard.getAttribute('data-git-focused-target') === 'true'
+                    ) break;
                     await sleep(100);
                   }
                   const rightPanelAfterCommitOpen = document.querySelector('[data-testid="session-right-panel"]');
                   const gitPanelAfterCommitOpen = document.querySelector('[data-testid="git-panel"]');
+                  const commitCardAfterOpen = document.querySelector('[data-testid="git-commit-card"]');
                   environmentCommitOpensGitWorks =
                     rightPanelAfterCommitOpen instanceof HTMLElement &&
                     rightPanelAfterCommitOpen.getAttribute('data-right-panel-active-tab') === 'git' &&
-                    gitPanelAfterCommitOpen instanceof HTMLElement;
+                    gitPanelAfterCommitOpen instanceof HTMLElement &&
+                    gitPanelAfterCommitOpen.getAttribute('data-git-focus-target') === 'commit' &&
+                    commitCardAfterOpen instanceof HTMLElement &&
+                    commitCardAfterOpen.getAttribute('data-git-focused-target') === 'true';
                   await openPanelTab('environment', 'Environment');
                   await sleep(120);
                 }
@@ -10554,20 +10603,31 @@ function runAutomatedFocusedSurfaceSmoke(
                     noPrRow.click();
                     for (let attempt = 0; attempt < 12; attempt += 1) {
                       const gitPanel = document.querySelector('[data-testid="git-panel"]');
+                      const prCard = document.querySelector('[data-testid="git-pr-card"]');
                       const activeTab = document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-active-tab') ?? '';
-                      if (activeTab === 'git' && gitPanel instanceof HTMLElement) break;
+                      if (
+                        activeTab === 'git' &&
+                        gitPanel instanceof HTMLElement &&
+                        gitPanel.getAttribute('data-git-focus-target') === 'pull-request' &&
+                        prCard instanceof HTMLElement &&
+                        prCard.getAttribute('data-git-focused-target') === 'true'
+                      ) break;
                       await sleep(100);
                     }
                   }
                   const rightPanelAfterPrOpen = document.querySelector('[data-testid="session-right-panel"]');
                   const gitPanelAfterPrOpen = document.querySelector('[data-testid="git-panel"]');
+                  const prCardAfterOpen = document.querySelector('[data-testid="git-pr-card"]');
                   environmentCreatePrOpensGitWorks =
                     noPrRow instanceof HTMLButtonElement &&
                     noPrRow.getAttribute('data-environment-row-action') === 'open-git-pr' &&
                     noPrRow.getAttribute('aria-label') === 'Create pull request. Open Git to create a pull request' &&
                     rightPanelAfterPrOpen instanceof HTMLElement &&
                     rightPanelAfterPrOpen.getAttribute('data-right-panel-active-tab') === 'git' &&
-                    gitPanelAfterPrOpen instanceof HTMLElement;
+                    gitPanelAfterPrOpen instanceof HTMLElement &&
+                    gitPanelAfterPrOpen.getAttribute('data-git-focus-target') === 'pull-request' &&
+                    prCardAfterOpen instanceof HTMLElement &&
+                    prCardAfterOpen.getAttribute('data-git-focused-target') === 'true';
                   await openPanelTab('environment', 'Environment');
                   await sleep(120);
                 }
@@ -10609,6 +10669,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     environmentScroll instanceof HTMLElement &&
                     environmentScroll.scrollWidth <= environmentScroll.clientWidth + 2,
                   environmentActionRowsWork,
+                  environmentBranchOpensGitWorks,
                   environmentSourcesWork:
                     environmentSourcesCard instanceof HTMLElement &&
                     environmentWebSearchRow instanceof HTMLElement &&
@@ -16553,7 +16614,7 @@ function runAutomatedFocusedSurfaceSmoke(
 	                  environmentBranchRow instanceof HTMLElement &&
 	                  (environmentBranchRow.textContent ?? '').trim().length > 0 &&
                     environmentCommitRow instanceof HTMLButtonElement &&
-                    environmentCommitRow.getAttribute('data-environment-row-action') === 'open-review' &&
+                    environmentCommitRow.getAttribute('data-environment-row-action') === 'open-git-commit' &&
 	                  environmentCreatePrRow instanceof HTMLButtonElement &&
                     environmentCreatePrRow.getAttribute('data-environment-row-action') === 'open-pull-request' &&
                     environmentCreatePrRow.textContent?.includes('View pull request') === true &&

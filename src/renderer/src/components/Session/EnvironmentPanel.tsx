@@ -4,12 +4,13 @@ import Icon from '../shared/Icon'
 import type { IconName } from '../shared/Icon'
 import { IconButton } from '../shared/designSystem'
 import { useSessionStore } from '../../store/sessions'
+import type { GitFocusTarget } from '../../store/sessions'
 
 interface Props {
   session: Session
   embedded?: boolean
   onOpenReview: () => void
-  onOpenGit: () => void
+  onOpenGit: (target?: GitFocusTarget) => void
 }
 
 export default function EnvironmentPanel({ session, embedded = false, onOpenReview, onOpenGit }: Props): JSX.Element {
@@ -65,7 +66,7 @@ export default function EnvironmentPanel({ session, embedded = false, onOpenRevi
 
   const openPullRequest = (): void => {
     if (!pullRequestUrl) {
-      onOpenGit()
+      onOpenGit('pull-request')
       setActionStatus('Opening Git to create pull request')
       return
     }
@@ -79,8 +80,13 @@ export default function EnvironmentPanel({ session, embedded = false, onOpenRevi
   }
 
   const openGitForCommit = (): void => {
-    onOpenGit()
+    onOpenGit('commit')
     setActionStatus('Opening Git to commit changes')
+  }
+
+  const openGitForBranch = (): void => {
+    onOpenGit('branch')
+    setActionStatus('Opening Git branch controls')
   }
 
   const addEnvironmentToChat = (): void => {
@@ -173,7 +179,15 @@ export default function EnvironmentPanel({ session, embedded = false, onOpenRevi
             dataTestId="codex-environment-local"
             trailing={session.provider ? <span className="environment-row-muted">{session.provider}</span> : undefined}
           />
-          <EnvironmentRow icon="branch" label={currentBranch} dataTestId="codex-environment-branch" />
+          <EnvironmentRow
+            icon="branch"
+            label={currentBranch}
+            dataTestId="codex-environment-branch"
+            action="open-git-branch"
+            title="Open Git branch controls"
+            trailing={<span className="environment-row-muted">Git</span>}
+            onClick={openGitForBranch}
+          />
           <EnvironmentRow
             icon="dot"
             label="Commit"

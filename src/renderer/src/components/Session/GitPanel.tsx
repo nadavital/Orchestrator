@@ -1,6 +1,7 @@
 import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { fileStatusLabel } from '../../types'
 import type { FileChange, GitRefOption, Session } from '../../types'
+import type { GitFocusTarget } from '../../store/sessions'
 import Icon, { type IconName } from '../shared/Icon'
 import { Button, DialogContent, DialogFooter, DialogHeader, IconButton, MotionOverlay } from '../shared/designSystem'
 
@@ -9,12 +10,22 @@ interface Props {
   embedded?: boolean
   focusPath?: string | null
   focusRequest?: number
+  focusTarget?: GitFocusTarget | null
+  focusTargetRequest?: number
   onOpenReview: (path?: string) => void
 }
 
 type GitActionState = 'idle' | 'loading' | 'staging' | 'unstaging' | 'branching' | 'checking-out' | 'committing' | 'discarding'
 
-export default function GitPanel({ session, embedded = false, focusPath = null, focusRequest, onOpenReview }: Props): JSX.Element {
+export default function GitPanel({
+  session,
+  embedded = false,
+  focusPath = null,
+  focusRequest,
+  focusTarget = null,
+  focusTargetRequest,
+  onOpenReview
+}: Props): JSX.Element {
   const [changes, setChanges] = useState<FileChange[]>([])
   const [branches, setBranches] = useState<GitRefOption[]>([])
   const [actionState, setActionState] = useState<GitActionState>('loading')
@@ -28,6 +39,9 @@ export default function GitPanel({ session, embedded = false, focusPath = null, 
   const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false)
   const [discardTargetPaths, setDiscardTargetPaths] = useState<string[] | null>(null)
   const rootRef = useRef<HTMLElement | null>(null)
+  const branchCardRef = useRef<HTMLFormElement | null>(null)
+  const prCardRef = useRef<HTMLDivElement | null>(null)
+  const commitCardRef = useRef<HTMLFormElement | null>(null)
   const sessionId = session.id
   const workDir = session.workDir
 
@@ -104,6 +118,21 @@ export default function GitPanel({ session, embedded = false, focusPath = null, 
       row.scrollIntoView({ block: 'nearest' })
     }
   }, [changes, focusPath, focusRequest])
+
+  useEffect(() => {
+    if (!focusTarget || focusTargetRequest === undefined) return
+    const targetCard = focusTarget === 'branch'
+      ? branchCardRef.current
+      : focusTarget === 'pull-request'
+        ? prCardRef.current
+        : commitCardRef.current
+    if (!targetCard) return
+    targetCard.scrollIntoView({ block: 'nearest' })
+    const focusTargetInput = targetCard.querySelector('input, select, button')
+    if (focusTargetInput instanceof HTMLElement) {
+      focusTargetInput.focus({ preventScroll: true })
+    }
+  }, [focusTarget, focusTargetRequest])
 
   const writeGitClipboardText = async (text: string): Promise<void> => {
     if (typeof window.api.clipboard?.writeText === 'function') {
@@ -297,6 +326,8 @@ export default function GitPanel({ session, embedded = false, focusPath = null, 
       data-git-focus-path={focusPath ?? ''}
       data-git-focus-request={focusRequest ?? ''}
       data-git-focus-path-found={focusedReviewPath ? 'true' : 'false'}
+      data-git-focus-target={focusTarget ?? ''}
+      data-git-focus-target-request={focusTargetRequest ?? ''}
       style={{ height: embedded ? '100%' : undefined }}
     >
       <div className="environment-panel-scroll">
@@ -390,7 +421,13 @@ export default function GitPanel({ session, embedded = false, focusPath = null, 
           </div>
         </div>
 
-        <form className="environment-card git-branch-card" data-testid="git-branch-card" onSubmit={(event) => { void runCreateBranch(event) }}>
+        <form
+          ref={branchCardRef}
+          className="environment-card git-branch-card"
+          data-testid="git-branch-card"
+          data-git-focused-target={focusTarget === 'branch' ? 'true' : 'false'}
+          onSubmit={(event) => { void runCreateBranch(event) }}
+        >
           <div className="environment-card-header">
             <span>Branch</span>
             <span className="environment-row-muted">{currentBranch}</span>
@@ -446,7 +483,13 @@ export default function GitPanel({ session, embedded = false, focusPath = null, 
           )}
         </form>
 
-        <div className="environment-card git-pr-card" data-testid="git-pr-card" data-git-pr-command={prCommand}>
+        <div
+          ref={prCardRef}
+          className="environment-card git-pr-card"
+          data-testid="git-pr-card"
+          data-git-pr-command={prCommand}
+          data-git-focused-target={focusTarget === 'pull-request' ? 'true' : 'false'}
+        >
           <div className="environment-card-header">
             <span>Pull Request</span>
             <span className="environment-row-muted">{pullRequest?.number ? `PR ${pullRequest.number}` : defaultBaseBranch}</span>
@@ -492,7 +535,13 @@ export default function GitPanel({ session, embedded = false, focusPath = null, 
           )}
         </div>
 
-        <form className="environment-card git-commit-card" data-testid="git-commit-card" onSubmit={(event) => { void runCommit(event) }}>
+        <form
+          ref={commitCardRef}
+          className="environment-card git-commit-card"
+          data-testid="git-commit-card"
+          data-git-focused-target={focusTarget === 'commit' ? 'true' : 'false'}
+          onSubmit={(event) => { void runCommit(event) }}
+        >
           <div className="environment-card-header">
             <span>Commit</span>
             <span className="environment-row-muted">{stagedPaths.length} staged</span>

@@ -2511,6 +2511,7 @@ child.on('exit', async (code) => {
           rightPanelShellOwnership: result.rightPanelShellOwnershipWorks === true,
           environmentPanelVisual: result.environmentPanelVisualWorks === true,
           environmentActionRows: result.environmentActionRowsWork === true,
+          environmentBranchOpensGit: result.environmentBranchOpensGitWorks === true,
           environmentCommitOpensGit: result.environmentCommitOpensGitWorks === true,
           environmentSources: result.environmentSourcesWork === true,
           environmentAddToChat: result.environmentAddToChatWorks === true,

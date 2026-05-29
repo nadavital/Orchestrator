@@ -160,8 +160,8 @@ const diffRules = [
   {
     flag: '--environment',
     label: 'Environment panel',
-    filePatterns: [/^src\/renderer\/src\/components\/Session\/EnvironmentPanel\.tsx$/, /^src\/renderer\/src\/components\/Session\/ContextSidebar\.tsx$/, /^src\/renderer\/src\/App\.tsx$/, /^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
-    diffPatterns: [/environmentCreatePrOpensGit/, /environmentCommitOpensGit/, /open-git-pr/, /open-git-commit/, /Open Git to create a pull request/, /Open Git to commit changes/, /__orchestratorSetSessionReviewMetadataForSmoke/, /onOpenGit/]
+    filePatterns: [/^src\/renderer\/src\/components\/Session\/EnvironmentPanel\.tsx$/, /^src\/renderer\/src\/components\/Session\/ContextSidebar\.tsx$/, /^src\/renderer\/src\/components\/Session\/GitPanel\.tsx$/, /^src\/renderer\/src\/store\/sessions\.ts$/, /^src\/renderer\/src\/App\.tsx$/, /^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
+    diffPatterns: [/environmentCreatePrOpensGit/, /environmentCommitOpensGit/, /environmentBranchOpensGit/, /open-git-pr/, /open-git-commit/, /open-git-branch/, /Open Git to create a pull request/, /Open Git to commit changes/, /Open Git branch controls/, /gitFocusTarget/, /GitFocusTarget/, /data-git-focus-target/, /data-git-focused-target/, /focusTarget/, /focusRightPanelGitTarget/, /__orchestratorSetSessionReviewMetadataForSmoke/, /onOpenGit/]
   }
 ]
 
@@ -261,6 +261,9 @@ function suggestTargets(paths) {
       addMatchedTarget(matched, rule, file)
     }
     if (staticValidationRules.some((rule) => rule.patterns.some((pattern) => pattern.test(file)))) {
+      fileMatched = true
+    }
+    if (file.startsWith('docs/')) {
       fileMatched = true
     }
     if (file.startsWith('scripts/') && file.endsWith('.mjs')) {
@@ -660,11 +663,13 @@ function suppressWorkbenchForEnvironmentCreatePrDiff(matched, paths) {
       file === 'scripts/suggest-ui-smoke-targets.mjs' ||
       file === 'src/renderer/src/App.tsx' ||
       file === 'src/renderer/src/components/Session/ContextSidebar.tsx' ||
-      file === 'src/renderer/src/components/Session/EnvironmentPanel.tsx'
+      file === 'src/renderer/src/components/Session/EnvironmentPanel.tsx' ||
+      file === 'src/renderer/src/components/Session/GitPanel.tsx' ||
+      file === 'src/renderer/src/store/sessions.ts'
     )
     .map(diffForFile)
     .join('\n')
-  if (!/environmentCreatePrOpensGit|environmentCommitOpensGit|open-git-pr|open-git-commit|Open Git to create a pull request|Open Git to commit changes|__orchestratorSetSessionReviewMetadataForSmoke|onOpenGit/.test(diff)) return
+  if (!/environmentCreatePrOpensGit|environmentCommitOpensGit|environmentBranchOpensGit|open-git-pr|open-git-commit|open-git-branch|Open Git to create a pull request|Open Git to commit changes|Open Git branch controls|gitFocusTarget|GitFocusTarget|data-git-focus-target|data-git-focused-target|focusTarget|focusRightPanelGitTarget|__orchestratorSetSessionReviewMetadataForSmoke|onOpenGit/.test(diff)) return
   for (const flag of ['--right-panel', '--workbench-launcher', '--workbench-new-tab']) {
     const target = matched.get(flag)
     if (!target) continue

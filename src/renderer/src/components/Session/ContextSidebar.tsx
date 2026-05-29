@@ -79,6 +79,7 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
     moveRightPanelTab,
     resetRightPanelTabState,
     pinRightPanelTab,
+    focusRightPanelGitTarget,
     focusRightPanelReviewPath,
     updateRightPanelFileTabState,
     setRightPanelBrowserUrl,
@@ -735,7 +736,13 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
             session={session}
             embedded
             onOpenReview={() => setShowDiff(session.id, true)}
-            onOpenGit={() => openRightPanelTab(session.id, 'git')}
+            onOpenGit={(target) => {
+              if (target) {
+                focusRightPanelGitTarget(session.id, target)
+              } else {
+                openRightPanelTab(session.id, 'git')
+              }
+            }}
           />
         )}
         {effectiveTab === 'git' && (
@@ -744,6 +751,8 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
             embedded
             focusPath={effectiveGitTab?.gitFocusPath ?? null}
             focusRequest={effectiveGitTab?.gitFocusRequest}
+            focusTarget={effectiveGitTab?.gitFocusTarget ?? null}
+            focusTargetRequest={effectiveGitTab?.gitFocusTargetRequest}
             onOpenReview={(path) => {
               if (path) {
                 focusRightPanelReviewPath(session.id, path)
