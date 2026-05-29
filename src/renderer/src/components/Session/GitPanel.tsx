@@ -213,6 +213,22 @@ export default function GitPanel({ session, embedded = false, onOpenReview }: Pr
     }
   }
 
+  const addPullRequestCommandToChat = (): void => {
+    if (!prCommand || busy) return
+    window.dispatchEvent(new CustomEvent('orchestrator:add-composer-text', {
+      detail: {
+        text: [
+          'Use this pull request command:',
+          `Workspace: ${workDir}`,
+          `Branch: ${currentBranch}`,
+          `Base: ${defaultBaseBranch}`,
+          `Command: ${prCommand}`
+        ].join('\n')
+      }
+    }))
+    setActionMessage({ text: 'PR command added to chat', tone: 'info' })
+  }
+
   const closeDiscardConfirm = (): void => {
     setDiscardConfirmOpen(false)
     setDiscardTargetPaths(null)
@@ -440,6 +456,14 @@ export default function GitPanel({ session, embedded = false, onOpenReview }: Pr
                 onClick={() => { void copyPullRequestCommand() }}
               >
                 Copy PR command
+              </Button>
+              <Button
+                variant="ghost"
+                dataTestId="git-add-pr-command-to-chat"
+                disabled={busy || !prCommand}
+                onClick={addPullRequestCommandToChat}
+              >
+                Add to chat
               </Button>
             </div>
           )}

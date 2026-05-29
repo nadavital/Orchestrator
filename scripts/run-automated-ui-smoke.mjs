@@ -2479,6 +2479,7 @@ child.on('exit', async (code) => {
           workbenchNewTabGitBranch: result.workbenchNewTabGitBranchWorks === true,
           workbenchNewTabGitCheckout: result.workbenchNewTabGitCheckoutWorks === true,
           workbenchNewTabGitPrCommand: result.workbenchNewTabGitPrCommandWorks === true,
+          workbenchNewTabGitPrCommandHandoff: result.workbenchNewTabGitPrCommandHandoffWorks === true,
           workbenchNewTabGitCommit: result.workbenchNewTabGitCommitWorks === true,
           workbenchNewTabGitDiscard: result.workbenchNewTabGitDiscardWorks === true,
           agentRuntimeEventDetail: result.agentRuntimeEventDetailWorks === true,

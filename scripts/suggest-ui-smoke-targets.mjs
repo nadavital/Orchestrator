@@ -144,6 +144,12 @@ const diffRules = [
     label: 'Workbench launcher',
     filePatterns: [/^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
     diffPatterns: [/workbenchLauncher/, /workbench-launcher/, /Workbench launcher/]
+  },
+  {
+    flag: '--workbench-new-tab',
+    label: 'Workbench New Tab full workflow',
+    filePatterns: [/^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
+    diffPatterns: [/workbenchNewTabGit/, /git-pr-command/, /Git PR command/]
   }
 ]
 
@@ -274,6 +280,7 @@ function suggestTargets(paths) {
   suppressComposerForWorktreeLifecycleDiff(matched, paths)
   suppressComposerForTerminalHandoffDiff(matched, paths)
   suppressComposerForToolActivityCommandDiff(matched, paths)
+  suppressComposerForWorkbenchGitHandoffDiff(matched, paths)
 
   const broadReasons = broadCandidates.filter((file) => !isBroadCandidateCovered(file, matched))
   const coveredBroadReasons = broadCandidates.filter((file) => isBroadCandidateCovered(file, matched))
@@ -535,6 +542,19 @@ function suppressComposerForToolActivityCommandDiff(matched, paths) {
   if (!composer.files.every((file) => file === 'src/main/index.ts')) return
   const diff = paths.includes('src/main/index.ts') ? diffForFile('src/main/index.ts') : ''
   if (!/toolActivityCommand|tool-activity-command/.test(diff)) return
+  matched.delete('--composer')
+}
+
+function suppressComposerForWorkbenchGitHandoffDiff(matched, paths) {
+  const composer = matched.get('--composer')
+  const workbench = matched.get('--workbench-new-tab')
+  if (!composer || !workbench) return
+  if (!composer.files.every((file) => file === 'scripts/run-automated-ui-smoke.mjs' || file === 'src/main/index.ts')) return
+  const diff = [
+    paths.includes('scripts/run-automated-ui-smoke.mjs') ? diffForFile('scripts/run-automated-ui-smoke.mjs') : '',
+    paths.includes('src/main/index.ts') ? diffForFile('src/main/index.ts') : ''
+  ].join('\n')
+  if (!/workbenchNewTabGit|git-pr-command|Git PR command/.test(diff)) return
   matched.delete('--composer')
 }
 

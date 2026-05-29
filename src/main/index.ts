@@ -9362,6 +9362,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 let workbenchNewTabGitBranchWorks = false;
                 let workbenchNewTabGitCheckoutWorks = false;
                 let workbenchNewTabGitPrCommandWorks = false;
+                let workbenchNewTabGitPrCommandHandoffWorks = false;
                 let workbenchNewTabGitCommitWorks = false;
                 let workbenchNewTabGitDiscardWorks = false;
                 let workbenchNewTabSingletonSwitchWorks = false;
@@ -9529,6 +9530,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   const gitPrCard = document.querySelector('[data-testid="git-pr-card"]');
                   const gitPrCommandInput = document.querySelector('[data-testid="git-pr-command"]');
                   const gitCopyPrCommand = document.querySelector('[data-testid="git-copy-pr-command"]');
+                  const gitAddPrCommandToChat = document.querySelector('[data-testid="git-add-pr-command-to-chat"]');
                   if (
                     workbenchNewTabGitBranchWorks &&
                     gitPrCard instanceof HTMLElement &&
@@ -9563,6 +9565,25 @@ function runAutomatedFocusedSurfaceSmoke(
                     gitStatusAfterPrCommand.textContent?.includes('PR command copied') === true &&
                     gitPrClipboardText.includes('gh pr create') &&
                     gitPrClipboardText.includes(smokeBranchName);
+                  if (
+                    workbenchNewTabGitPrCommandWorks &&
+                    gitAddPrCommandToChat instanceof HTMLButtonElement &&
+                    !gitAddPrCommandToChat.disabled
+                  ) {
+                    gitAddPrCommandToChat.click();
+                    await sleep(160);
+                    const gitStatusAfterPrCommandHandoff = document.querySelector('[data-testid="git-action-status"]');
+                    const composerAfterPrCommand = document.querySelector('[data-testid="composer-shell"]');
+                    workbenchNewTabGitPrCommandHandoffWorks =
+                      gitStatusAfterPrCommandHandoff instanceof HTMLElement &&
+                      gitStatusAfterPrCommandHandoff.getAttribute('role') === 'status' &&
+                      gitStatusAfterPrCommandHandoff.getAttribute('aria-live') === 'polite' &&
+                      gitStatusAfterPrCommandHandoff.textContent?.includes('PR command added to chat') === true &&
+                      composerAfterPrCommand instanceof HTMLElement &&
+                      composerAfterPrCommand.textContent?.includes('Use this pull request command:') === true &&
+                      composerAfterPrCommand.textContent?.includes('gh pr create') === true &&
+                      composerAfterPrCommand.textContent?.includes(smokeBranchName) === true;
+                  }
                   const gitCheckoutSelect = document.querySelector('[data-testid="git-checkout-branch"]');
                   const gitCheckoutButton = document.querySelector('[data-testid="git-checkout-branch-action"]');
                   if (
@@ -9751,6 +9772,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     workbenchNewTabGitBranchWorks &&
                     workbenchNewTabGitCheckoutWorks &&
                     workbenchNewTabGitPrCommandWorks &&
+                    workbenchNewTabGitPrCommandHandoffWorks &&
                     gitAfterStageUnstagedCount === 0 &&
                     gitAfterStageStagedCount >= gitChangeCountBefore &&
                     gitAfterUnstageStagedCount === 0 &&
@@ -10243,6 +10265,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   workbenchNewTabGitBranchWorks,
                   workbenchNewTabGitCheckoutWorks,
                   workbenchNewTabGitPrCommandWorks,
+                  workbenchNewTabGitPrCommandHandoffWorks,
                   workbenchNewTabGitCommitWorks,
                   workbenchNewTabGitDiscardWorks,
                   agentRuntimeEventDetailWorks,
