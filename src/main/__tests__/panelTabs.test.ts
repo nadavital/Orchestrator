@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  canCloseBottomPanelTab,
   closePanelTab,
   filePanelTabId,
   movePanelTabByDirection,
@@ -15,7 +16,7 @@ import {
   resetPanelTabSet,
   transferPanelTab,
   upsertPanelTab
-} from '../../types'
+} from '../../types/panelTabs'
 
 test('file panel tab ids include host and decode legacy path-only ids', () => {
   const id = filePanelTabId('/Users/nadav/Desktop/Orchestrator', 'Nested Folder/nested note.md')
@@ -331,4 +332,17 @@ test('panel new-tab target routes browser and terminal focus through the shell',
     bottomPanelActiveTabId: null,
     bottomPanelTabCount: 1
   }), null)
+})
+
+test('bottom panel close policy protects single terminals but allows final plan tab', () => {
+  assert.equal(canCloseBottomPanelTab(0, [0]), false)
+  assert.equal(canCloseBottomPanelTab('plan', ['plan']), true)
+  assert.equal(canCloseBottomPanelTab(0, [0, 'plan']), true)
+  assert.equal(canCloseBottomPanelTab('plan', [0, 'plan']), true)
+
+  assert.equal(resolvePanelNewTabTarget('bottom-panel', {
+    bottomPanelOpen: true,
+    bottomPanelActiveTabId: 'plan',
+    bottomPanelTabCount: 1
+  }), 'bottom-terminal')
 })

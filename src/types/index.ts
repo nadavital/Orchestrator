@@ -2203,6 +2203,7 @@ export type {
   ComposerSendState
 } from './sessionControls'
 export {
+  canCloseBottomPanelTab,
   closePanelTab,
   filePanelTabId,
   movePanelTabByDirection,

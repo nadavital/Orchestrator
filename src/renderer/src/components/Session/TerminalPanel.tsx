@@ -3,6 +3,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { DEFAULT_TERMINAL_PANEL_CONTENT_HEIGHT, defaultUI, useSessionStore } from '../../store/sessions'
 import type { BottomPanelTabId, BottomPanelTabKind } from '../../store/sessions'
 import type { Session } from '../../types'
+import { canCloseBottomPanelTab } from '../../../../types/panelTabs'
 import { AppShellPanel, IconButton, MenuItem, MenuSection, MenuSectionLabel, MenuSurface, PanelResizeHandle, PanelTabStrip, ToolbarButton, exitFullscreenForPanelTab, panelTabDomId, panelTabPanelDomId, useAppShellBottomPanelLayout, useAppShellResizeController } from '../shared/designSystem'
 import PlanPanel from './PlanPanel'
 import TerminalView from './TerminalView'
@@ -71,6 +72,7 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
     label: bottomPanelTabLabel(tabId, idx, tabs),
     icon: bottomPanelTabIcon(tabId),
     kind: bottomPanelTabKind(tabId),
+    closable: canCloseBottomPanelTab(tabId, tabs),
     closeLabel: bottomPanelTabCloseLabel(tabId)
   }))
   const activeTabKind = bottomPanelTabKind(activeTab)
@@ -106,9 +108,11 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
   const closeTab = (tabId: BottomPanelTabId): void => {
     exitFullscreenForPanelTab('bottom', tabId)
     if (typeof tabId === 'number') window.api.terminal.kill(terminalId(tabId))
+    const closingFinalTab = tabs.length <= 1
     closeTerminalTab(session.id, tabId)
     setPanelActionStatus({ text: `${bottomPanelTabLabel(tabId, 0, [tabId])} tab closed`, tone: 'info' })
     setTerminalMenu(null)
+    if (closingFinalTab) focusBottomPanelToggle()
   }
 
   const moveTab = (tabId: BottomPanelTabId, direction: 'left' | 'right'): void => {
@@ -214,7 +218,7 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
               activeTabId={activeTab}
               panelId="bottom"
               onActivate={(tabId) => setActiveTerminalTab(session.id, tabId)}
-              onClose={tabs.length > 1 ? closeTab : undefined}
+              onClose={closeTab}
               onContextMenu={(event, tabId) => {
                 event.preventDefault()
                 setTerminalMenu({ tabId, x: event.clientX, y: event.clientY })
@@ -315,7 +319,7 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
                 <MenuItem
                   icon="close"
                   label="Close tab"
-                  disabled={tabs.length <= 1}
+                  disabled={!canCloseBottomPanelTab(terminalMenu.tabId, tabs)}
                   onClick={() => closeTab(terminalMenu.tabId)}
                 />
               </MenuSection>
@@ -372,4 +376,10 @@ function bottomPanelTabLabel(tabId: BottomPanelTabId, index: number, tabs: Botto
 
 function bottomPanelTabCloseLabel(tabId: BottomPanelTabId): string {
   return tabId === 'plan' ? 'Close plan tab' : 'Close terminal'
+}
+
+function focusBottomPanelToggle(): void {
+  window.requestAnimationFrame(() => {
+    document.querySelector<HTMLButtonElement>('[data-testid="titlebar-toggle-terminal"]')?.focus({ preventScroll: true })
+  })
 }

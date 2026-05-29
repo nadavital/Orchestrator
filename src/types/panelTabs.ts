@@ -56,7 +56,7 @@ export interface PanelBrowserCommandAvailability {
 export interface PanelNewTabAvailability {
   rightPanelActiveTabId?: string | null
   rightPanelOpen?: boolean
-  bottomPanelActiveTabId?: number | null
+  bottomPanelActiveTabId?: PanelTabId | null
   bottomPanelOpen?: boolean
   bottomPanelTabCount?: number
 }
@@ -128,6 +128,10 @@ export function resolvePanelNewTabTarget(
   if (focusArea === 'bottom-panel' && bottomAvailable) return 'bottom-terminal'
 
   return null
+}
+
+export function canCloseBottomPanelTab(tabId: PanelTabId, tabs: PanelTabId[]): boolean {
+  return tabs.length > 1 || tabId === 'plan'
 }
 
 export function resolvePanelTabTransferAvailability(

@@ -18,6 +18,7 @@ const targetRules = [
   { flag: '--environment', label: 'Environment panel', patterns: [/^src\/renderer\/src\/components\/Session\/Environment/] },
   { flag: '--browser', label: 'Browser panel', patterns: [/^src\/renderer\/src\/components\/Session\/Browser/, /^src\/main\/browser/, /^src\/renderer\/src\/.*browser/i] },
   { flag: '--terminal', label: 'Terminal', patterns: [/^src\/renderer\/src\/components\/Session\/Terminal/, /^src\/main\/terminal/, /^src\/preload\/.*terminal/i] },
+  { flag: '--cross-panel-keyboard', label: 'Right/bottom panel keyboard', patterns: [/^src\/types\/panelTabs\.ts$/] },
   { flag: '--files', label: 'Files and source tabs', patterns: [/^src\/renderer\/src\/components\/Session\/Files/, /^src\/renderer\/src\/components\/Session\/File/, /^src\/main\/fs/, /^src\/main\/workspace/] },
   { flag: '--diff-core', label: 'Review local diff', patterns: [/^src\/renderer\/src\/components\/Session\/(Diff|Review)/, /^src\/main\/diff/, /^src\/main\/gitChanges/] },
   { flag: '--diff-source', label: 'Review sources', patterns: [/^src\/renderer\/src\/components\/Session\/.*Source/, /^src\/main\/providers\/.*review/i, /^scripts\/codex-review/] },
