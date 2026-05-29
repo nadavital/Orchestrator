@@ -1128,6 +1128,7 @@ export default function BrowserPanel({
       commentIntent === 'design-tweak' ? 'Design tweak for this browser page:' : 'Comment on this browser page:',
       `URL: ${currentUrl}`,
       title ? `Title: ${title}` : '',
+      artifactPath ? `Screenshot: ${artifactPath}` : '',
       pendingComment.region
         ? `Region: ${pendingComment.region.xPercent}%, ${pendingComment.region.yPercent}% - ${pendingComment.region.widthPercent}% x ${pendingComment.region.heightPercent}%`
         : `Point: ${pendingComment.xPercent}%, ${pendingComment.yPercent}%`,
@@ -1617,6 +1618,7 @@ export default function BrowserPanel({
       data-browser-comment-intent={pendingComment ? commentIntent : ''}
       data-browser-comment-pending-point={pendingComment ? `${pendingComment.xPercent},${pendingComment.yPercent}` : ''}
       data-browser-comment-pending-region={pendingComment?.region ? `${pendingComment.region.xPercent},${pendingComment.region.yPercent},${pendingComment.region.widthPercent},${pendingComment.region.heightPercent}` : ''}
+      data-browser-comment-screenshot-path={artifactPath ?? ''}
       data-browser-last-comment={lastCommentPoint}
       data-browser-webview-host-id={hostId}
       data-browser-webview-source-host-id={browserWebviewHostId}

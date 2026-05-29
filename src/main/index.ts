@@ -20969,6 +20969,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
             var browserCommentRegionWorks = false;
             var browserCommentPreviewOriginalWorks = false;
             var browserCommentDesignTweakWorks = false;
+            var browserCommentScreenshotContextWorks = false;
             const browserContextViewportFrame = document.querySelector('[data-testid="browser-viewport-frame"]');
             if (browserContextViewportFrame instanceof HTMLElement) {
               const frameBounds = browserContextViewportFrame.getBoundingClientRect();
@@ -21029,6 +21030,19 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
             if (browserActionsButton instanceof HTMLButtonElement) {
               browserActionsButton.click();
               await sleep(120);
+              const commentScreenshotButton = document.querySelector('[data-testid="browser-menu-capture-screenshot"]');
+              if (commentScreenshotButton instanceof HTMLButtonElement) {
+                commentScreenshotButton.click();
+                for (let index = 0; index < 30; index += 1) {
+                  const panel = document.querySelector('[data-testid="browser-panel"]');
+                  if ((panel?.getAttribute('data-browser-comment-screenshot-path') ?? '').endsWith('.png')) break;
+                  await sleep(100);
+                }
+              }
+              if (!document.querySelector('.browser-actions-menu')) {
+                browserActionsButton.click();
+                await sleep(120);
+              }
               const commentModeButton = document.querySelector('[data-testid="browser-comment-mode"]');
               if (commentModeButton instanceof HTMLButtonElement) {
                 commentModeButton.click();
@@ -21164,6 +21178,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                   await sleep(260);
                   const composerAfterDesignTweak = document.querySelector('textarea');
                   const panelAfterDesignTweak = document.querySelector('[data-testid="browser-panel"]');
+                  const commentScreenshotPath = panelAfterDesignTweak?.getAttribute('data-browser-comment-screenshot-path') ?? '';
                   browserCommentDesignTweakWorks =
                     browserCommentRegionWorks &&
                     regionDesignIntentAfterClick instanceof HTMLButtonElement &&
@@ -21178,6 +21193,11 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                     composerAfterDesignTweak.value.includes('Requested design change: make the hero CTA more prominent') &&
                     panelAfterDesignTweak?.getAttribute('data-browser-comment-mode') === 'false' &&
                     panelAfterDesignTweak?.getAttribute('data-browser-comment-editor-open') === 'false';
+                  browserCommentScreenshotContextWorks =
+                    browserCommentDesignTweakWorks &&
+                    commentScreenshotPath.endsWith('.png') &&
+                    composerAfterDesignTweak instanceof HTMLTextAreaElement &&
+                    composerAfterDesignTweak.value.includes('Screenshot: ' + commentScreenshotPath);
                   if (browserCommentDesignTweakWorks && composerAfterDesignTweak instanceof HTMLTextAreaElement) {
                     const composerSetter = Object.getOwnPropertyDescriptor(composerAfterDesignTweak.constructor.prototype, 'value')?.set;
                     composerSetter?.call(composerAfterDesignTweak, composerBeforePreview);
@@ -22246,6 +22266,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserCommentRegionWorks,
               browserCommentPreviewOriginalWorks,
               browserCommentDesignTweakWorks,
+              browserCommentScreenshotContextWorks,
               browserCommentUnavailableWorks,
               browserDomPaneCompactWorks,
               browserTargetsPaneWorks,
