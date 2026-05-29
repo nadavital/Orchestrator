@@ -197,16 +197,31 @@ function SessionContextSummary({
     }, { failures: 0, waiting: 0 })
   }, [issueEvents])
   const failureCauseGroups = useMemo(() => groupFailureCauses(issueEvents), [issueEvents])
+  const buildSessionContextText = (): string => sessionContextSummaryText({
+    session,
+    stats,
+    events,
+    visibleEvents,
+    transportLines
+  })
+  const copySessionContext = async (): Promise<void> => {
+    try {
+      const text = buildSessionContextText()
+      if (typeof window.api.clipboard?.writeText === 'function') {
+        const didWrite = await window.api.clipboard.writeText(text)
+        if (didWrite === false) throw new Error('clipboard write failed')
+      } else {
+        await navigator.clipboard.writeText(text)
+      }
+      setSessionActionStatus('Session context copied')
+    } catch {
+      setSessionActionStatus('Unable to copy session context')
+    }
+  }
   const addSessionContextToChat = (): void => {
     window.dispatchEvent(new CustomEvent('orchestrator:add-composer-text', {
       detail: {
-        text: sessionContextSummaryText({
-          session,
-          stats,
-          events,
-          visibleEvents,
-          transportLines
-        })
+        text: buildSessionContextText()
       }
     }))
     setSessionActionStatus('Session context added to chat')
@@ -264,14 +279,24 @@ function SessionContextSummary({
         title={(
           <div className="flex min-w-0 items-center justify-between gap-2">
             <span className="truncate">Session</span>
-            <ToolbarButton
-              icon="chat"
-              label="Add session context to chat"
-              dataTestId="agent-session-context-add-to-chat"
-              onClick={addSessionContextToChat}
-              size="sm"
-              variant="toolbar"
-            />
+            <div className="flex shrink-0 items-center gap-1">
+              <ToolbarButton
+                icon="copy"
+                label="Copy session context"
+                dataTestId="agent-session-context-copy"
+                onClick={() => { void copySessionContext() }}
+                size="sm"
+                variant="toolbar"
+              />
+              <ToolbarButton
+                icon="chat"
+                label="Add session context to chat"
+                dataTestId="agent-session-context-add-to-chat"
+                onClick={addSessionContextToChat}
+                size="sm"
+                variant="toolbar"
+              />
+            </div>
           </div>
         )}
         variant="raised"

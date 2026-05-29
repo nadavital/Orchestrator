@@ -10473,6 +10473,32 @@ function runAutomatedFocusedSurfaceSmoke(
                   }
                   await sleep(220);
                 }
+                const agentSessionContextCopy = document.querySelector('[data-testid="agent-session-context-copy"]');
+                let copiedSessionContext = '';
+                if (agentSessionContextCopy instanceof HTMLButtonElement) {
+                  agentSessionContextCopy.click();
+                  await sleep(160);
+                  copiedSessionContext = await window.api.clipboard?.readText().catch(() => '') ?? '';
+                }
+                const agentSessionContextCopyStatus = document.querySelector('[data-testid="agent-session-context-action-status"]');
+                const agentSessionContextCopyWorks =
+                  agentSessionContextCopy instanceof HTMLButtonElement &&
+                  agentSessionContextCopy.getAttribute('data-icon') === 'copy' &&
+                  agentSessionContextCopy.getAttribute('data-icon-button-variant') === 'toolbar' &&
+                  agentSessionContextCopyStatus instanceof HTMLElement &&
+                  agentSessionContextCopyStatus.getAttribute('role') === 'status' &&
+                  agentSessionContextCopyStatus.getAttribute('aria-live') === 'polite' &&
+                  agentSessionContextCopyStatus.getAttribute('aria-atomic') === 'true' &&
+                  agentSessionContextCopyStatus.textContent?.includes('Session context copied') === true &&
+                  copiedSessionContext.includes('Use this agent activity session context:') &&
+                  copiedSessionContext.includes('Runtime: ' + [activeSmokeSession?.provider, activeSmokeSession?.model].filter(Boolean).join(' / ')) &&
+                  copiedSessionContext.includes('Workspace: ' + activeSmokeSession?.workDir) &&
+                  copiedSessionContext.includes('Recent visible events:') &&
+                  copiedSessionContext.includes('run.failed') &&
+                  copiedSessionContext.includes('Runtime transport failed during diagnostics smoke.') &&
+                  copiedSessionContext.includes('Recent redacted transport lines:') &&
+                  copiedSessionContext.includes('[redacted]') &&
+                  copiedSessionContext.includes('secret-token-smoke') === false;
                 const agentSessionContextAddToChat = document.querySelector('[data-testid="agent-session-context-add-to-chat"]');
                 if (agentSessionContextAddToChat instanceof HTMLButtonElement) {
                   agentSessionContextAddToChat.click();
@@ -10931,6 +10957,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   workbenchNewTabGitCommitDraftHandoffWorks,
                   workbenchNewTabGitCommitWorks,
                   workbenchNewTabGitDiscardWorks,
+                  agentSessionContextCopyWorks,
                   agentSessionContextAddToChatWorks,
                   agentRuntimeEventDetailWorks,
                   agentRuntimeEventCopyWorks,
