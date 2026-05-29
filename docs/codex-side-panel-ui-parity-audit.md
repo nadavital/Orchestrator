@@ -9485,6 +9485,16 @@ Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.
 
 Remaining: live PR creation, provider-hosted Git metadata, exact live Codex UI timing, and retiring Review's temporary local-git bridge once the Git tab fully owns local Git actions.
 
+### 2026-05-28 - Git Workbench Per-File Discard
+
+Product evidence: after per-file stage/unstage moved into the Git tab, selective cleanup still required either bulk discard or leaving the app. For daily coding use, the dedicated Git surface needs file-level discard with explicit confirmation so users can clean one generated or accidental change without risking the whole worktree.
+
+Implemented: Git tab file rows now expose a compact per-file Discard icon action. It opens the existing destructive confirmation dialog with a single selected path in the copy, keeps the confirmed mutation on the safe `git.discardPaths` IPC path, and clears targeted discard state on cancel/close. Bulk `Discard all` remains unchanged.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --workbench-new-tab` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-workbench-new-tab-1780021068460.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-workbench-new-tab-1780021068460.png`. The focused smoke gates `workbenchNewTabGitFileDiscard=true` by opening the per-file confirmation for one file, verifying the selected path appears in destructive copy, canceling the dialog without changing file-row state, and preserving the existing branch creation, PR-command copy, checkout, bulk discard cancel, Stage all / Unstage all, and commit path.
+
+Remaining: live PR creation, provider-hosted Git metadata, exact live Codex UI timing, and retiring Review's temporary local-git bridge once the Git tab fully owns local Git actions.
+
 ### 2026-05-28 - Review Provider Suggestions
 
 Product evidence: PP-054 still had an actionable Review gap after the Git tab picked up local branch/commit/PR-command ownership: provider inline comments could be displayed, but GitHub suggestion fences were passive text. For daily coding, Review should let users copy or apply a concrete suggestion without leaving the right Workbench panel.

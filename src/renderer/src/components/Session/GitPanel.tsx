@@ -24,6 +24,7 @@ export default function GitPanel({ session, embedded = false, onOpenReview }: Pr
   const [lastCreatedBranch, setLastCreatedBranch] = useState<string | null>(null)
   const [lastCheckedOutBranch, setLastCheckedOutBranch] = useState<string | null>(null)
   const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false)
+  const [discardTargetPaths, setDiscardTargetPaths] = useState<string[] | null>(null)
   const sessionId = session.id
   const workDir = session.workDir
 
@@ -80,6 +81,10 @@ export default function GitPanel({ session, embedded = false, onOpenReview }: Pr
   const commitReady = stagedPaths.length > 0 && commitMessage.trim().length > 0
   const branchReady = branchName.trim().length > 0
   const checkoutReady = checkoutBranchName.trim().length > 0
+  const pendingDiscardPaths = discardTargetPaths ?? discardablePaths
+  const pendingDiscardDescription = pendingDiscardPaths.length === 1
+    ? `This removes local changes in ${pendingDiscardPaths[0]}.`
+    : `This removes local changes in ${pendingDiscardPaths.length} files.`
 
   const writeGitClipboardText = async (text: string): Promise<void> => {
     if (typeof window.api.clipboard?.writeText === 'function') {
@@ -208,16 +213,23 @@ export default function GitPanel({ session, embedded = false, onOpenReview }: Pr
     }
   }
 
-  const requestDiscard = (): void => {
-    if (discardablePaths.length === 0 || busy) return
+  const closeDiscardConfirm = (): void => {
+    setDiscardConfirmOpen(false)
+    setDiscardTargetPaths(null)
+  }
+
+  const requestDiscard = (paths = discardablePaths): void => {
+    if (paths.length === 0 || busy) return
+    setDiscardTargetPaths(paths)
     setDiscardConfirmOpen(true)
   }
 
   const runDiscard = async (): Promise<void> => {
-    if (discardablePaths.length === 0 || busy) return
-    const paths = discardablePaths
+    const paths = pendingDiscardPaths
+    if (paths.length === 0 || busy) return
     const countLabel = `${paths.length} ${paths.length === 1 ? 'file' : 'files'}`
     setDiscardConfirmOpen(false)
+    setDiscardTargetPaths(null)
     setActionState('discarding')
     setActionMessage({ text: `Discarding ${countLabel}`, tone: 'info' })
     try {
@@ -257,7 +269,6 @@ export default function GitPanel({ session, embedded = false, onOpenReview }: Pr
                 icon="refresh"
                 label="Refresh Git status"
                 size="xs"
-                variant="ghost"
                 dataTestId="git-refresh"
                 disabled={busy}
                 onClick={() => { void refresh() }}
@@ -490,7 +501,6 @@ export default function GitPanel({ session, embedded = false, onOpenReview }: Pr
                   icon="plus"
                   label={`Stage ${change.path}`}
                   size="xs"
-                  variant="ghost"
                   dataTestId="git-file-stage"
                   disabled={busy || !change.unstaged}
                   onClick={() => { void runPathAction('stage', [change.path]) }}
@@ -499,10 +509,18 @@ export default function GitPanel({ session, embedded = false, onOpenReview }: Pr
                   icon="eraser"
                   label={`Unstage ${change.path}`}
                   size="xs"
-                  variant="ghost"
                   dataTestId="git-file-unstage"
                   disabled={busy || !change.staged}
                   onClick={() => { void runPathAction('unstage', [change.path]) }}
+                />
+                <IconButton
+                  icon="trash"
+                  label={`Discard ${change.path}`}
+                  size="xs"
+                  tone="danger"
+                  dataTestId="git-file-discard"
+                  disabled={busy}
+                  onClick={() => requestDiscard([change.path])}
                 />
               </span>
             </div>
@@ -511,19 +529,19 @@ export default function GitPanel({ session, embedded = false, onOpenReview }: Pr
       </div>
       {discardConfirmOpen && (
         <MotionOverlay
-          onClose={() => setDiscardConfirmOpen(false)}
+          onClose={closeDiscardConfirm}
           surfaceClassName="orchestrator-dialog-surface"
         >
           <DialogContent dataTestId="git-discard-confirm-dialog">
             <DialogHeader
               title="Discard changes?"
-              description={`This removes local changes in ${discardablePaths.length} ${discardablePaths.length === 1 ? 'file' : 'files'}.`}
+              description={pendingDiscardDescription}
             />
             <DialogFooter>
               <Button
                 variant="ghost"
                 dataTestId="git-discard-confirm-cancel"
-                onClick={() => setDiscardConfirmOpen(false)}
+                onClick={closeDiscardConfirm}
               >
                 Cancel
               </Button>

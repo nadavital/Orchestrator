@@ -8156,6 +8156,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   newTabCardIds.includes('terminal');
                 let workbenchNewTabGitActionWorks = false;
                 let workbenchNewTabGitFileActionsWorks = false;
+                let workbenchNewTabGitFileDiscardWorks = false;
                 let workbenchNewTabGitBranchWorks = false;
                 let workbenchNewTabGitCheckoutWorks = false;
                 let workbenchNewTabGitPrCommandWorks = false;
@@ -8250,6 +8251,38 @@ function runAutomatedFocusedSurfaceSmoke(
                     gitStatusAfterFileActions instanceof HTMLElement &&
                     gitStatusAfterFileActions.getAttribute('role') === 'status' &&
                     gitStatusAfterFileActions.textContent?.includes('Unstaged 1 file') === true;
+                  const firstDiscardFileButton = rowAfterFileActions instanceof HTMLElement
+                    ? rowAfterFileActions.querySelector('[data-testid="git-file-discard"]')
+                    : null;
+                  if (firstStageableFilePath.length > 0 && firstDiscardFileButton instanceof HTMLButtonElement && !firstDiscardFileButton.disabled) {
+                    firstDiscardFileButton.click();
+                    await sleep(120);
+                    const fileDiscardDialog = document.querySelector('[data-testid="git-discard-confirm-dialog"]');
+                    const fileDiscardCancel = document.querySelector('[data-testid="git-discard-confirm-cancel"]');
+                    const fileDiscardConfirm = document.querySelector('[data-testid="git-discard-confirm-submit"]');
+                    const gitFileDiscardDialogWorks =
+                      fileDiscardDialog instanceof HTMLElement &&
+                      fileDiscardDialog.textContent?.includes('Discard changes?') === true &&
+                      fileDiscardDialog.textContent?.includes(firstStageableFilePath) === true &&
+                      fileDiscardCancel instanceof HTMLButtonElement &&
+                      fileDiscardConfirm instanceof HTMLButtonElement &&
+                      fileDiscardConfirm.textContent?.includes('Discard') === true;
+                    if (fileDiscardCancel instanceof HTMLButtonElement) {
+                      fileDiscardCancel.click();
+                      await sleep(120);
+                      const gitPanelAfterFileDiscardCancel = document.querySelector('[data-testid="git-panel"]');
+                      const rowAfterFileDiscardCancel = [...document.querySelectorAll('[data-testid="git-file-row"]')]
+                        .find((row) => row instanceof HTMLElement && row.getAttribute('data-git-file-path') === firstStageableFilePath);
+                      workbenchNewTabGitFileDiscardWorks =
+                        gitFileDiscardDialogWorks &&
+                        document.querySelector('[data-testid="git-discard-confirm-dialog"]') === null &&
+                        gitPanelAfterFileDiscardCancel instanceof HTMLElement &&
+                        Number(gitPanelAfterFileDiscardCancel.getAttribute('data-git-change-count') ?? '-1') === gitChangeCountBefore &&
+                        rowAfterFileDiscardCancel instanceof HTMLElement &&
+                        rowAfterFileDiscardCancel.getAttribute('data-git-file-staged') === 'false' &&
+                        rowAfterFileDiscardCancel.getAttribute('data-git-file-unstaged') === 'true';
+                    }
+                  }
                   const smokeBranchName = 'orchestrator/git-smoke-' + Date.now();
                   const gitBranchInput = document.querySelector('[data-testid="git-branch-name"]');
                   const gitCreateBranch = document.querySelector('[data-testid="git-create-branch"]');
@@ -8511,6 +8544,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     gitFileRowsBefore.length >= 3 &&
                     gitChangeCountBefore >= 3 &&
                     workbenchNewTabGitFileActionsWorks &&
+                    workbenchNewTabGitFileDiscardWorks &&
                     workbenchNewTabGitBranchWorks &&
                     workbenchNewTabGitCheckoutWorks &&
                     workbenchNewTabGitPrCommandWorks &&
@@ -8912,6 +8946,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   workbenchNewTabAgentsActionWorks,
                   workbenchNewTabGitActionWorks,
                   workbenchNewTabGitFileActionsWorks,
+                  workbenchNewTabGitFileDiscardWorks,
                   workbenchNewTabGitBranchWorks,
                   workbenchNewTabGitCheckoutWorks,
                   workbenchNewTabGitPrCommandWorks,
