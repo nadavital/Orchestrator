@@ -9273,7 +9273,7 @@
 
   .settings-topbar {
     display: flex;
-    height: 38px;
+    min-height: var(--app-shell-toolbar-height);
     flex-shrink: 0;
     align-items: center;
     justify-content: space-between;

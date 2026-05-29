@@ -1188,10 +1188,18 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'settings') {
               const settingsTopbar = document.querySelector('[data-testid="settings-topbar"]');
               const settingsShell = document.querySelector('.settings-shell');
+              const settingsTopbarHeight = settingsTopbar instanceof HTMLElement
+                ? Math.round(settingsTopbar.getBoundingClientRect().height)
+                : null;
+              const sharedHeaderHeight = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--app-shell-toolbar-height'));
               var settingsTopbarSharedWorks =
                 settingsTopbar instanceof HTMLElement &&
                 settingsTopbar.getAttribute('data-panel-toolbar') === 'true' &&
-                settingsTopbar.getBoundingClientRect().height <= 40 &&
+                settingsTopbar.getAttribute('data-app-shell-header-band') === 'shared' &&
+                Number.isFinite(sharedHeaderHeight) &&
+                settingsTopbarHeight === Math.round(sharedHeaderHeight) &&
+                settingsShell instanceof HTMLElement &&
+                settingsShell.getAttribute('data-app-shell-focus-area') === 'main' &&
                 settingsTopbar.querySelector('.settings-topbar-title') instanceof HTMLElement &&
                 settingsTopbar.querySelector('[aria-label="Back to chat"]') instanceof HTMLButtonElement;
               var settingsRouteOwnedWorks =

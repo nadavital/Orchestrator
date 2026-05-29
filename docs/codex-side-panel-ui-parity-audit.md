@@ -9555,6 +9555,16 @@ Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.
 
 Remaining: live PR creation, provider-hosted Git metadata, and exact live Codex timing remain separate PP-054 follow-ups.
 
+### 2026-05-29 - Settings Header Band Alignment
+
+Product evidence: PP-058 tracks Settings as a Phase 1 daily-use shell surface, and the user explicitly called out panel/header interaction drift. Settings was already route-backed, but its topbar still used a local 38px height while the shared app-shell header, Workbench chrome, and Terminal chrome use the `--app-shell-toolbar-height` band. That made Settings feel adjacent to, but not part of, the same shell system.
+
+Implemented: the routed Settings shell now declares main app-shell focus ownership with `data-app-shell-focus-area="main"`, and `settings-topbar` consumes the shared app-shell toolbar height instead of a local pixel value. The shared `PanelToolbar` primitive now accepts root attributes so Settings can expose `data-app-shell-header-band="shared"` without wrapping or forking the toolbar.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --settings` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1780025236863.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1780025236863.png`. The focused Settings smoke now gates `settingsTopbarShared=true` by checking the shared header-band marker, the rendered topbar height against `--app-shell-toolbar-height`, and Settings focus-area ownership.
+
+Remaining: this closes the local Settings header-band mismatch only. Deeper Settings page/window structure, in-page search depth, provider-host Settings adapters, and exact live Codex Settings timing remain separate PP-058 follow-ups.
+
 ### 2026-05-28 - Thread Link Copy
 
 Product evidence: PP-037 tracks route-backed session identity as a daily reliability requirement. Orchestrator had app-protocol `Copy deeplink` and `Open in new window`, but the action menu did not expose a normal in-app `/threads/{id}` or `#/threads/{id}` route for sharing or browser/app route testing.

@@ -408,6 +408,7 @@ interface PanelToolbarProps {
   ariaLabel?: string
   as?: 'div' | 'form'
   onSubmit?: (event: React.FormEvent<HTMLFormElement>) => void
+  rootAttrs?: Omit<HTMLAttributes<HTMLDivElement>, 'children' | 'className'>
 }
 
 export function PanelToolbar({
@@ -417,8 +418,10 @@ export function PanelToolbar({
   ariaLabel,
   as = 'div',
   onSubmit,
+  rootAttrs,
 }: PanelToolbarProps): JSX.Element {
   const shared = {
+    ...rootAttrs,
     role: ariaLabel ? 'toolbar' : undefined,
     className: `panel-toolbar ${className}`.trim(),
     'data-testid': dataTestId,

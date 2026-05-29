@@ -485,8 +485,14 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
       data-settings-host-section-filtered={effectiveSection === section ? 'false' : 'true'}
       data-settings-route={`/settings/${effectiveSection}`}
       data-settings-route-owned="true"
+      data-app-shell-focus-area="main"
     >
-      <PanelToolbar className="settings-topbar" dataTestId="settings-topbar" ariaLabel="Settings toolbar">
+      <PanelToolbar
+        className="settings-topbar"
+        dataTestId="settings-topbar"
+        ariaLabel="Settings toolbar"
+        rootAttrs={{ 'data-app-shell-header-band': 'shared' }}
+      >
         <div className="settings-topbar-leading">
           <span className="settings-topbar-title">{settingsTitle(effectiveSection)}</span>
           <WorkbenchSearchField
