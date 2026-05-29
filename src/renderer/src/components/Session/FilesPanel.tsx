@@ -9,7 +9,7 @@ import { Badge, Button, IconButton, MenuItem, MenuSection, MenuSectionLabel, Men
 import Icon from '../shared/Icon'
 import ArtifactZoomControls from './ArtifactZoomControls'
 import StructuredDataPreview, { ArtifactOpenOptions, ArtifactPreviewHeader, stripArtifactExtension, type PreviewHeaderAction } from './StructuredDataPreview'
-import WorkbenchTree, { WorkbenchTreeMessage, type WorkbenchTreeRow } from './WorkbenchTree'
+import WorkbenchTree, { WorkbenchTreeMessage, type WorkbenchTreeContextMenuEvent, type WorkbenchTreeRow } from './WorkbenchTree'
 
 async function writeFilesClipboardText(text: string): Promise<void> {
   if (typeof window.api.clipboard?.writeText === 'function') {
@@ -172,15 +172,22 @@ export default function FilesPanel({ sessionId, workDir, embedded = false }: Pro
     }
   }, [fileTabFirst, selectedEntry?.kind, selectedPath, workDir])
 
-  const openRowContextMenu = (event: ReactMouseEvent, entry: WorkspaceSearchEntry): void => {
+  const openRowContextMenu = (event: WorkbenchTreeContextMenuEvent, entry: WorkspaceSearchEntry): void => {
     event.preventDefault()
     event.stopPropagation()
+    const rect = event.currentTarget.getBoundingClientRect()
+    const x = Number.isFinite(event.clientX) && event.clientX !== 0
+      ? event.clientX
+      : rect.left + Math.min(24, Math.max(1, rect.width / 2))
+    const y = Number.isFinite(event.clientY) && event.clientY !== 0
+      ? event.clientY
+      : rect.top + Math.min(14, Math.max(4, rect.height / 2))
     setSelectedPath(entry.path)
     setActionMenuOpen(false)
     setRowMenu({
       path: entry.path,
-      x: Math.min(event.clientX, Math.max(8, window.innerWidth - 196)),
-      y: Math.min(event.clientY, Math.max(8, window.innerHeight - 238))
+      x: Math.min(x, Math.max(8, window.innerWidth - 196)),
+      y: Math.min(y, Math.max(8, window.innerHeight - 238))
     })
   }
 

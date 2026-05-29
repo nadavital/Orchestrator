@@ -1,5 +1,13 @@
-import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react'
+import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react'
 import Icon, { type IconName } from '../shared/Icon'
+
+export interface WorkbenchTreeContextMenuEvent {
+  currentTarget: HTMLElement
+  clientX?: number
+  clientY?: number
+  preventDefault: () => void
+  stopPropagation: () => void
+}
 
 export interface WorkbenchTreeRow {
   id: string
@@ -31,7 +39,7 @@ export interface WorkbenchTreeRow {
   dataReviewDeletions?: number
   onSelect?: () => void
   onOpen?: () => void
-  onContextMenu?: (event: ReactMouseEvent, row: WorkbenchTreeRow) => void
+  onContextMenu?: (event: WorkbenchTreeContextMenuEvent, row: WorkbenchTreeRow) => void
 }
 
 interface WorkbenchTreeProps {
@@ -294,6 +302,23 @@ function WorkbenchTreeRowView({
       )}
     </>
   )
+  const openKeyboardContextMenu = (target: HTMLElement): void => {
+    const rect = target.getBoundingClientRect()
+    row.onContextMenu?.({
+      preventDefault: () => {},
+      stopPropagation: () => {},
+      currentTarget: target,
+      clientX: rect.left + Math.min(24, Math.max(1, rect.width / 2)),
+      clientY: rect.top + Math.min(14, Math.max(4, rect.height / 2))
+    }, row)
+  }
+  const handleKeyDown = (event: KeyboardEvent<HTMLElement>): void => {
+    if (event.key !== 'ContextMenu' && !(event.shiftKey && event.key === 'F10')) return
+    if (!row.onContextMenu) return
+    event.preventDefault()
+    event.stopPropagation()
+    openKeyboardContextMenu(event.currentTarget)
+  }
 
   if (row.onSelect || row.onOpen) {
     return (
@@ -304,6 +329,7 @@ function WorkbenchTreeRowView({
         onClick={() => row.onSelect?.()}
         onDoubleClick={() => (row.onOpen ?? row.onSelect)?.()}
         onContextMenu={(event) => row.onContextMenu?.(event, row)}
+        onKeyDown={handleKeyDown}
       >
         {content}
       </button>
@@ -314,6 +340,7 @@ function WorkbenchTreeRowView({
     <div
       {...shared}
       onContextMenu={(event) => row.onContextMenu?.(event, row)}
+      onKeyDown={handleKeyDown}
     >
       {content}
     </div>

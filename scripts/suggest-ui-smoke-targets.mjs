@@ -68,6 +68,12 @@ const diffRules = [
     diffPatterns: [/PanelTabStrip/, /TabButton/, /panelTabContextMenu/, /rightPanelTabKeyboardContextMenu/]
   },
   {
+    flag: '--files',
+    label: 'Files and source tabs',
+    filePatterns: [/^src\/renderer\/src\/components\/Session\/WorkbenchTree\.tsx$/, /^src\/renderer\/src\/components\/Session\/FilesPanel\.tsx$/, /^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
+    diffPatterns: [/WorkbenchTreeContextMenu/, /onContextMenu/, /filesRowKeyboardContextMenu/, /files-row-context-menu/]
+  },
+  {
     flag: '--terminal',
     label: 'Terminal',
     filePatterns: [/^src\/renderer\/src\/components\/shared\/designSystem\.tsx$/, /^src\/renderer\/src\/components\/Session\/TerminalPanel\.tsx$/, /^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
@@ -195,6 +201,7 @@ function suggestTargets(paths) {
   suppressHeaderForTerminalCloseDiff(matched, paths)
   restoreDiffTargets(matched, paths)
   suppressWorkbenchLauncherForContextSidebarTabDiff(matched, paths)
+  suppressRightPanelForWorkbenchTreeFileDiff(matched)
 
   return { targets: Array.from(matched.values()), unmatched, broadReasons }
 }
@@ -206,7 +213,7 @@ function addMatchedTarget(matched, rule, file) {
 }
 
 function diffForFile(file) {
-  const result = spawnSync('git', ['diff', 'HEAD', '--', file], { cwd: root, encoding: 'utf8' })
+  const result = spawnSync('git', ['diff', '--unified=0', 'HEAD', '--', file], { cwd: root, encoding: 'utf8' })
   if (result.status !== 0) return ''
   return result.stdout
 }
@@ -302,6 +309,14 @@ function suppressWorkbenchLauncherForContextSidebarTabDiff(matched, paths) {
   if (!/tabMenu|context-menu|PanelTabStrip|panelTabContextMenu/.test(diff)) return
   if (/workbenchLauncher|workbench-launcher|Workbench launcher|WorkbenchNewTab/.test(diff)) return
   matched.delete('--workbench-launcher')
+}
+
+function suppressRightPanelForWorkbenchTreeFileDiff(matched) {
+  const rightPanel = matched.get('--right-panel')
+  const files = matched.get('--files')
+  if (!rightPanel || !files) return
+  if (!rightPanel.files.every((file) => file === 'src/renderer/src/components/Session/WorkbenchTree.tsx')) return
+  matched.delete('--right-panel')
 }
 
 function restoreDiffTargets(matched, paths) {

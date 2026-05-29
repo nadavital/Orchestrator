@@ -15890,6 +15890,7 @@ function runAutomatedFocusedSurfaceSmoke(
               let filesActionMenuMaterialWorks = false;
               let filesActionMenuSharedSectionsWorks = false;
               let filesRowContextMenuWorks = false;
+              let filesRowKeyboardContextMenuWorks = false;
               let filesRowCopyPathClipboardWorks = false;
               let filesRowContextMenuSharedSectionsWorks = false;
               let filesPreferredOpenTargetWorks = false;
@@ -15981,6 +15982,29 @@ function runAutomatedFocusedSurfaceSmoke(
                 .find((row) => row instanceof HTMLElement && row.textContent?.includes('nested note.md'));
               if (rowContextTarget instanceof HTMLElement) {
                 const targetRect = rowContextTarget.getBoundingClientRect();
+                rowContextTarget.focus({ preventScroll: true });
+                rowContextTarget.dispatchEvent(new KeyboardEvent('keydown', {
+                  key: 'F10',
+                  code: 'F10',
+                  shiftKey: true,
+                  bubbles: true,
+                  cancelable: true
+                }));
+                await sleep(140);
+                const keyboardRowContextMenu = document.querySelector('[data-testid="files-row-context-menu"]');
+                const keyboardRowContextSurface = keyboardRowContextMenu?.closest('.orchestrator-menu-surface');
+                filesRowKeyboardContextMenuWorks =
+                  keyboardRowContextMenu instanceof HTMLElement &&
+                  keyboardRowContextMenu.getAttribute('data-file-row-context-path') === 'Nested Folder/nested note.md' &&
+                  keyboardRowContextSurface instanceof HTMLElement &&
+                  keyboardRowContextMenu.textContent?.includes('Copy path') === true &&
+                  keyboardRowContextMenu.textContent?.includes('Open in Workbench') === true &&
+                  Math.abs(
+                    keyboardRowContextSurface.getBoundingClientRect().left -
+                    (targetRect.left + Math.min(24, Math.max(1, targetRect.width / 2)))
+                  ) <= 28;
+                window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+                await sleep(80);
                 rowContextTarget.dispatchEvent(new MouseEvent('contextmenu', {
                   bubbles: true,
                   cancelable: true,
@@ -18826,6 +18850,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 filesActionMenuMaterialWorks,
                 filesActionMenuSharedSectionsWorks,
                 filesRowContextMenuWorks,
+                filesRowKeyboardContextMenuWorks,
                 filesRowCopyPathClipboardWorks,
                 filesRowContextMenuSharedSectionsWorks,
                 filesPreferredOpenTargetWorks,

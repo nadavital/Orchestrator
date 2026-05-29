@@ -10134,3 +10134,13 @@ Implemented: shared `TabButton` now opens its tab context menu from `Shift+F10` 
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `node -c scripts/suggest-ui-smoke-targets.mjs`, `pnpm run smoke:ui:suggest`, `git diff --check`, elevated `node scripts/run-automated-ui-smoke.mjs --right-panel`, and elevated `node scripts/run-automated-ui-smoke.mjs --terminal` passed. Right-panel evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1780054270165.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1780054270165.png`. Terminal evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1780054300530.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1780054300530.png`.
 
 Remaining: this closes keyboard access to shared panel tab context menus only. Broader keyboard-only traversal, exact live Codex focus timing, and deeper tab-body keyboard behavior remain separate Phase 1 work.
+
+### 2026-05-29 - Files Row Keyboard Context Menus
+
+Product evidence: Files tree rows expose daily coding handoff actions like Add to chat, Open in Workbench, Copy path, Reveal file, and Open file, but those row menus were pointer-only. That left keyboard users without the same direct row-level handoff path.
+
+Implemented: shared Workbench tree rows now synthesize an anchored context-menu event from `Shift+F10` or the Menu key. The Files row menu falls back to row geometry when no pointer coordinates exist, so keyboard-opened menus anchor to the row instead of the viewport edge. The focused Files smoke now gates `filesRowKeyboardContextMenu=true`, and `smoke:ui:suggest` maps WorkbenchTree/Files row-menu diffs to `--files` with zero-context diff matching so unrelated context lines do not pull in extra broad smoke targets.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `node -c scripts/suggest-ui-smoke-targets.mjs`, `pnpm run smoke:ui:suggest`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --files` passed. Files evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1780054759606.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1780054759606.png`.
+
+Remaining: this closes keyboard access to Files row context menus only. Broader WorkbenchTree keyboard traversal, Review row keyboard menus, live Codex focus timing, and provider/source-backed Files gaps remain separate work.
