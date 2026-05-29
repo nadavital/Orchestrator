@@ -95,6 +95,24 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
     setPanelActionStatus({ text: 'New terminal opened', tone: 'info' })
   }
 
+  const openPlanTab = (): void => {
+    if (tabs.includes('plan')) {
+      setActiveTerminalTab(session.id, 'plan')
+      setPanelActionStatus({ text: 'Plan tab selected', tone: 'info' })
+      return
+    }
+
+    const moved = transferSessionPanelTab(session.id, {
+      sourcePanel: 'right',
+      targetPanel: 'bottom',
+      tabKind: 'plan',
+      tabId: 'plan'
+    })
+    setPanelActionStatus(moved
+      ? { text: 'Plan opened in bottom panel', tone: 'info' }
+      : { text: 'Plan tab unavailable', tone: 'danger' })
+  }
+
   const clearActiveTerminal = useCallback((): void => {
     if (typeof activeTab !== 'number') {
       setPanelActionStatus({ text: 'No active terminal to clear', tone: 'danger' })
@@ -242,6 +260,15 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
                     </span>
                   )}
                   <IconButton icon="plus" label="New terminal" size="sm" variant="toolbar" onClick={addTab} />
+                  <IconButton
+                    icon="plan"
+                    label="Open Plan in bottom panel"
+                    size="sm"
+                    variant="toolbar"
+                    active={activeTab === 'plan'}
+                    dataTestId="bottom-panel-open-plan"
+                    onClick={openPlanTab}
+                  />
                   <ToolbarButton
                     icon="eraser"
                     label="Clear terminal"

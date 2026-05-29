@@ -3226,6 +3226,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             var terminalMoveBackToBottomWorks = false;
             var terminalBottomPanelLabelsWorks = false;
             var bottomPanelPlanTransferWorks = false;
+            var bottomPanelPlanToolbarActionWorks = false;
             var bottomPanelPlanAddToChatWorks = false;
             const activeTerminalTabForA11y = document.querySelector('[data-testid="session-bottom-panel"] [role="tab"][data-active="true"]');
             const terminalPanelForA11y = document.querySelector('[role="tabpanel"][data-app-shell-tab-panel-controller="bottom"]');
@@ -3990,6 +3991,44 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                       rightPlanAfterReturn instanceof HTMLElement &&
                       bottomPanelAfterPlanReturn instanceof HTMLElement &&
                       bottomPanelAfterPlanReturn.getAttribute('data-bottom-panel-tab-kinds')?.split(',').includes('plan') !== true;
+
+                    const openPlanInBottomPanel = findButton('Open Plan in bottom panel');
+                    if (openPlanInBottomPanel instanceof HTMLButtonElement) {
+                      openPlanInBottomPanel.click();
+                      await sleep(260);
+                      const toolbarBottomPanel = document.querySelector('[data-testid="session-bottom-panel"]');
+                      const toolbarBottomPlanTab = document.querySelector('[data-app-shell-tab-controller="bottom"][role="tab"][data-tab-id="plan"][data-tab-kind="plan"]');
+                      const toolbarBottomPlanPanel = document.querySelector('[role="tabpanel"][data-app-shell-tab-panel-controller="bottom"][data-tab-id="plan"][data-tab-kind="plan"] [data-testid="plan-panel"]');
+                      const toolbarPlanStatus = document.querySelector('[data-testid="terminal-panel-action-status"]');
+                      bottomPanelPlanToolbarActionWorks =
+                        toolbarBottomPanel instanceof HTMLElement &&
+                        toolbarBottomPanel.getAttribute('data-bottom-panel-active-tab') === 'plan' &&
+                        toolbarBottomPanel.getAttribute('data-bottom-panel-tab-kinds')?.split(',').includes('plan') === true &&
+                        toolbarBottomPlanTab instanceof HTMLElement &&
+                        toolbarBottomPlanPanel instanceof HTMLElement &&
+                        toolbarPlanStatus instanceof HTMLElement &&
+                        toolbarPlanStatus.textContent?.includes('Plan opened in bottom panel') === true &&
+                        toolbarPlanStatus.getAttribute('role') === 'status' &&
+                        openPlanInBottomPanel.getAttribute('data-testid') === 'bottom-panel-open-plan';
+                      if (toolbarBottomPlanTab instanceof HTMLElement) {
+                        toolbarBottomPlanTab.dispatchEvent(new MouseEvent('contextmenu', {
+                          bubbles: true,
+                          cancelable: true,
+                          clientX: toolbarBottomPlanTab.getBoundingClientRect().left + 12,
+                          clientY: toolbarBottomPlanTab.getBoundingClientRect().bottom + 4
+                        }));
+                        await sleep(140);
+                        const toolbarPlanTransferMenu = document.querySelector('[data-panel-tab-transfer-source="bottom"][data-panel-tab-transfer-target="right"][data-panel-tab-transfer-kind="plan"]');
+                        const toolbarMovePlanToRight = toolbarPlanTransferMenu instanceof HTMLElement
+                          ? [...toolbarPlanTransferMenu.querySelectorAll('[role="menuitem"]')]
+                            .find((item) => item.textContent?.includes('Move tab to right panel'))
+                          : null;
+                        if (toolbarMovePlanToRight instanceof HTMLButtonElement) {
+                          toolbarMovePlanToRight.click();
+                          await sleep(260);
+                        }
+                      }
+                    }
                   }
                 }
               }
@@ -8069,6 +8108,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             terminalMoveBackToBottomWorks: typeof terminalMoveBackToBottomWorks === 'boolean' ? terminalMoveBackToBottomWorks : null,
             terminalBottomPanelLabelsWorks: typeof terminalBottomPanelLabelsWorks === 'boolean' ? terminalBottomPanelLabelsWorks : null,
             bottomPanelPlanTransferWorks: typeof bottomPanelPlanTransferWorks === 'boolean' ? bottomPanelPlanTransferWorks : null,
+            bottomPanelPlanToolbarActionWorks: typeof bottomPanelPlanToolbarActionWorks === 'boolean' ? bottomPanelPlanToolbarActionWorks : null,
             bottomPanelPlanAddToChatWorks: typeof bottomPanelPlanAddToChatWorks === 'boolean' ? bottomPanelPlanAddToChatWorks : null,
             terminalLinkScopedRoutingWorks: typeof terminalLinkScopedRoutingWorks === 'boolean' ? terminalLinkScopedRoutingWorks : null,
             terminalLinkRoutingWorks: typeof terminalLinkRoutingWorks === 'boolean' ? terminalLinkRoutingWorks : null,

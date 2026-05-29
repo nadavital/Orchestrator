@@ -10054,3 +10054,13 @@ Implemented: `scripts/suggest-ui-smoke-targets.mjs` now adds the compiled node `
 Verification: `node -c scripts/suggest-ui-smoke-targets.mjs`, `node scripts/suggest-ui-smoke-targets.mjs --json src/types/panelTabs.ts src/main/__tests__/panelTabs.test.ts`, `pnpm exec tsc -p tsconfig.node.json --outDir out-test --module commonjs`, `node --test out-test/src/main/__tests__/panelTabs.test.js`, `pnpm run smoke:ui:suggest`, and `git diff --check` passed.
 
 Remaining: this is a validation-cadence improvement only. It does not replace focused Electron smokes for rendered panel-shell changes or the full side-panel visual inventory when a coordinated shell contract changes.
+
+### 2026-05-29 - Bottom Panel Plan Toolbar Entry
+
+Product evidence: after Plan became transferable into the bottom panel, the only discoverable entry point was still the right Workbench tab context menu. That kept the bottom panel feeling terminal-first unless the user already knew the shared panel transfer model.
+
+Implemented: the bottom-panel toolbar now keeps the existing `New terminal` action and adds a compact Plan icon action labelled `Open Plan in bottom panel`. The action activates an existing bottom Plan tab when present, or transfers/creates Plan in the bottom panel through the shared tab-transfer path, with visible/announced status. The focused Terminal smoke now gates `bottomPanelPlanToolbarAction=true` alongside the existing Plan transfer and bottom-hosted Plan handoff checks.
+
+Verification: `node -c scripts/run-automated-ui-smoke.mjs`, `node -c scripts/suggest-ui-smoke-targets.mjs`, `pnpm run smoke:ui:suggest`, `pnpm exec tsc --noEmit`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --terminal` passed. Terminal evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1780050293140.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1780050293140.png`.
+
+Remaining: this improves bottom-panel discovery for Plan only. The larger bottom-panel policy question is still which other Workbench tab kinds are actually worth hosting there, plus mixed-surface stress and live Codex timing/animation proof.
