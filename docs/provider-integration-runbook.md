@@ -49,7 +49,7 @@ Use this when adding or deepening Claude, Codex, Cursor, Copilot, or a future co
 | `npm run live:codex-appserver` | Basic Codex app-server thread/turn completion. | Proves the app-server transport can run a turn. |
 | `npm run live:codex-browser-appserver` | Whether live Codex app-server exposes browser-use events/tools to this client. | Currently blocked at this stdio client boundary; no browser-use surface is exposed. |
 | `npm run live:codex-review-appserver` | Live Codex `turn/diff/updated` and `thread/rollback` behavior. | Emits provider session/turn diff events with no checkpoint id; `thread/rollback` rolls back thread history but not workspace git diff. |
-| `pnpm run live:codex-review-start` | Native Codex app-server `review/start` behavior. | Proves uncommitted inline, base-branch inline, and commit inline review targets start real review turns and emit typed `review.mode.changed` events. Use only for Review slices, not routine UI smoke; normal UI checks should use the focused Review smoke. |
+| `pnpm run live:codex-review-start` | Native Codex app-server `review/start` behavior. | Proves uncommitted inline, base-branch inline, commit inline, and custom-instruction inline review targets start real review turns and emit typed `review.mode.changed` events. Use only for Review slices, not routine UI smoke; normal UI checks should use the focused Review smoke. |
 
 ## Claude Integration Notes
 

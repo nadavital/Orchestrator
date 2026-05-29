@@ -12735,6 +12735,33 @@ function runAutomatedFocusedSurfaceSmoke(
                 sha: codexCommitReviewTarget instanceof HTMLElement ? codexCommitReviewTarget.getAttribute('data-codex-review-start-sha') : null,
                 commitRefValue
               };
+              const customInstructionsInput = document.querySelector('[data-testid="review-start-codex-custom-instructions"]');
+              const customStartButtonBefore = document.querySelector('[data-testid="review-start-codex-custom"]');
+              const customStartDisabledBefore =
+                customStartButtonBefore instanceof HTMLButtonElement &&
+                customStartButtonBefore.disabled === true &&
+                customStartButtonBefore.getAttribute('data-codex-review-start-target') === 'custom' &&
+                customStartButtonBefore.getAttribute('data-codex-review-start-custom-ready') === 'false';
+              if (customInstructionsInput instanceof HTMLTextAreaElement) {
+                setNativeValue(customInstructionsInput, 'Review only the smoke fixture for regression risk.');
+                customInstructionsInput.dispatchEvent(new Event('input', { bubbles: true }));
+                await sleep(180);
+              }
+              const customStartButtonAfter = document.querySelector('[data-testid="review-start-codex-custom"]');
+              const reviewCodexCustomStartWorks =
+                customInstructionsInput instanceof HTMLTextAreaElement &&
+                customStartDisabledBefore &&
+                customStartButtonAfter instanceof HTMLButtonElement &&
+                customStartButtonAfter.disabled === false &&
+                customStartButtonAfter.getAttribute('data-codex-review-start-target') === 'custom' &&
+                customStartButtonAfter.getAttribute('data-codex-review-start-custom-ready') === 'true';
+              const reviewCodexCustomStartDebug = {
+                inputFound: customInstructionsInput instanceof HTMLTextAreaElement,
+                disabledBefore: customStartButtonBefore instanceof HTMLButtonElement ? customStartButtonBefore.disabled : null,
+                readyBefore: customStartButtonBefore instanceof HTMLButtonElement ? customStartButtonBefore.getAttribute('data-codex-review-start-custom-ready') : null,
+                disabledAfter: customStartButtonAfter instanceof HTMLButtonElement ? customStartButtonAfter.disabled : null,
+                readyAfter: customStartButtonAfter instanceof HTMLButtonElement ? customStartButtonAfter.getAttribute('data-codex-review-start-custom-ready') : null
+              };
               if (await clickReviewSource('all')) {
                 await sleep(220);
               }
@@ -14496,6 +14523,8 @@ function runAutomatedFocusedSurfaceSmoke(
                   reviewCodexBaseStartDebug,
                   reviewCodexCommitStartWorks,
                   reviewCodexCommitStartDebug,
+                  reviewCodexCustomStartWorks,
+                  reviewCodexCustomStartDebug,
                   reviewOptionsMenuStateWorks,
                   reviewSourceRefMenuStateWorks:
                     branchPickerMenuStateWorks &&

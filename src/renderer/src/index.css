@@ -2970,6 +2970,58 @@
     box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 12%, transparent);
   }
 
+  .review-codex-custom-input {
+    width: 100%;
+    min-width: 0;
+    min-height: 58px;
+    resize: vertical;
+    border: 1px solid color-mix(in srgb, var(--border-subtle) 82%, transparent);
+    border-radius: 7px;
+    background: color-mix(in srgb, var(--control-bg) 62%, transparent);
+    color: var(--text-primary);
+    font-size: 11.5px;
+    line-height: 16px;
+    outline: none;
+    padding: 6px 7px;
+  }
+
+  .review-codex-custom-input::placeholder {
+    color: var(--text-tertiary);
+  }
+
+  .review-codex-custom-input:focus-visible {
+    border-color: color-mix(in srgb, var(--accent) 52%, var(--border-subtle));
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 12%, transparent);
+  }
+
+  .review-codex-custom-start {
+    display: flex;
+    min-height: 28px;
+    width: 100%;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    border: 1px solid color-mix(in srgb, var(--accent) 34%, var(--border-subtle));
+    border-radius: 7px;
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
+    color: color-mix(in srgb, var(--accent) 76%, var(--text-primary));
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 16px;
+    padding: 0 8px;
+  }
+
+  .review-codex-custom-start:hover,
+  .review-codex-custom-start:focus-visible {
+    background: color-mix(in srgb, var(--accent) 15%, transparent);
+    outline: none;
+  }
+
+  .review-codex-custom-start:disabled {
+    cursor: default;
+    opacity: 0.48;
+  }
+
   .review-source-ref-picker-button {
     position: absolute;
     top: 2px;

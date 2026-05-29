@@ -100,6 +100,7 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
   const [loadedReviewMetadata, setLoadedReviewMetadata] = useState<ReviewMetadata | undefined>(undefined)
   const [reviewGitActionMessage, setReviewGitActionMessage] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
   const [codexReviewStartPending, setCodexReviewStartPending] = useState(false)
+  const [customReviewInstructions, setCustomReviewInstructions] = useState('')
   const rootRef = useRef<HTMLDivElement | null>(null)
   const reviewSearchInputRef = useRef<HTMLInputElement | null>(null)
   const openRightPanelTab = useSessionStore((state) => state.openRightPanelTab)
@@ -806,6 +807,75 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
     setReviewMetadataOpen(null)
   }
 
+  const activeReviewSource = REVIEW_DIFF_SOURCES.find((source) => source.id === reviewSource) ?? REVIEW_DIFF_SOURCES[0]
+  const activeReviewSourceCount = reviewSourceCountFor(
+    reviewSource,
+    reviewSourceCounts,
+    reviewSource,
+    sourceFiles.length,
+    lastTurnReviewFiles.length
+  )
+  const activeReviewSourceLabel = reviewSourceSummaryLabel(reviewSource, activeReviewSource.label, branchReviewRef, commitReviewRef)
+  const canStartCodexReview = reviewSession?.provider === 'codex' && (reviewSession.runtime ?? 'app-server') === 'app-server'
+  const codexReviewStartRequest = resolveCodexReviewStartRequest(reviewSource, activeReviewRef)
+  const codexReviewStartLabel = codexReviewStartRequest?.target.type === 'baseBranch'
+    ? 'Start Codex base review'
+    : codexReviewStartRequest?.target.type === 'commit'
+      ? 'Start Codex commit review'
+    : 'Start Codex review'
+  const customReviewInstructionsTrimmed = customReviewInstructions.trim()
+  const codexReviewStartDisabled = !canStartCodexReview || !codexReviewStartRequest || codexReviewStartPending || reviewSession?.status === 'running'
+  const codexCustomReviewStartDisabled = !canStartCodexReview || customReviewInstructionsTrimmed.length === 0 || codexReviewStartPending || reviewSession?.status === 'running'
+  const activeReviewSourceStats = sourceFiles.reduce(
+    (totals, file) => ({
+      additions: totals.additions + file.additions,
+      deletions: totals.deletions + file.deletions
+    }),
+    { additions: 0, deletions: 0 }
+  )
+  const activeReviewSourceStatsLabel = [
+    activeReviewSourceStats.additions > 0 ? `+${activeReviewSourceStats.additions}` : '',
+    activeReviewSourceStats.deletions > 0 ? `-${activeReviewSourceStats.deletions}` : ''
+  ].filter(Boolean).join(' ')
+
+  const startCodexReviewRequest = async (request: CodexReviewStartRequest): Promise<void> => {
+    if (!canStartCodexReview || codexReviewStartPending) return
+    setCodexReviewStartPending(true)
+    setReviewGitActionMessage({ text: 'Starting Codex review', tone: 'info' })
+    try {
+      const result = await window.api.sessions.startCodexReview(sessionId, request)
+      if (result.ok) {
+        setReviewGitActionMessage({
+          text: codexReviewStartedMessage(request),
+          tone: 'info'
+        })
+      } else {
+        setReviewGitActionMessage({ text: result.error ?? 'Codex review failed to start', tone: 'danger' })
+      }
+    } catch (error) {
+      setReviewGitActionMessage({
+        text: error instanceof Error ? error.message : 'Codex review failed to start',
+        tone: 'danger'
+      })
+    } finally {
+      setCodexReviewStartPending(false)
+    }
+  }
+
+  const startCodexReview = async (): Promise<void> => {
+    if (!codexReviewStartRequest || codexReviewStartDisabled) return
+    await startCodexReviewRequest(codexReviewStartRequest)
+  }
+
+  const startCustomCodexReview = async (): Promise<void> => {
+    if (codexCustomReviewStartDisabled) return
+    setReviewOptionsOpen(false)
+    await startCodexReviewRequest({
+      target: { type: 'custom', instructions: customReviewInstructionsTrimmed },
+      delivery: 'inline'
+    })
+  }
+
   const fileJumpControl = (
     <div className="review-file-jump relative">
       <button
@@ -986,6 +1056,36 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
               />
             )}
           </div>
+          {canStartCodexReview && (
+            <>
+              <div className="review-options-divider" />
+              <div className="review-options-section" aria-label="Codex review">
+                <div className="review-options-section-title">Codex</div>
+                <textarea
+                  className="review-codex-custom-input"
+                  aria-label="Custom review instructions"
+                  data-testid="review-start-codex-custom-instructions"
+                  placeholder="Custom review instructions"
+                  rows={3}
+                  value={customReviewInstructions}
+                  onChange={(event) => setCustomReviewInstructions(event.target.value)}
+                />
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="review-codex-custom-start"
+                  disabled={codexCustomReviewStartDisabled}
+                  data-testid="review-start-codex-custom"
+                  data-codex-review-start-target="custom"
+                  data-codex-review-start-custom-ready={customReviewInstructionsTrimmed.length > 0 ? 'true' : 'false'}
+                  onClick={() => { void startCustomCodexReview() }}
+                >
+                  <Icon name="sparkles" size={13} />
+                  <span>{codexReviewStartPending ? 'Starting Codex review' : 'Start custom review'}</span>
+                </button>
+              </div>
+            </>
+          )}
           <div className="review-options-divider" />
           <MenuItem
             icon="refresh"
@@ -1060,34 +1160,6 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
     </div>
   )
 
-  const activeReviewSource = REVIEW_DIFF_SOURCES.find((source) => source.id === reviewSource) ?? REVIEW_DIFF_SOURCES[0]
-  const activeReviewSourceCount = reviewSourceCountFor(
-    reviewSource,
-    reviewSourceCounts,
-    reviewSource,
-    sourceFiles.length,
-    lastTurnReviewFiles.length
-  )
-  const activeReviewSourceLabel = reviewSourceSummaryLabel(reviewSource, activeReviewSource.label, branchReviewRef, commitReviewRef)
-  const canStartCodexReview = reviewSession?.provider === 'codex' && (reviewSession.runtime ?? 'app-server') === 'app-server'
-  const codexReviewStartRequest = resolveCodexReviewStartRequest(reviewSource, activeReviewRef)
-  const codexReviewStartLabel = codexReviewStartRequest?.target.type === 'baseBranch'
-    ? 'Start Codex base review'
-    : codexReviewStartRequest?.target.type === 'commit'
-      ? 'Start Codex commit review'
-    : 'Start Codex review'
-  const codexReviewStartDisabled = !canStartCodexReview || !codexReviewStartRequest || codexReviewStartPending || reviewSession?.status === 'running'
-  const activeReviewSourceStats = sourceFiles.reduce(
-    (totals, file) => ({
-      additions: totals.additions + file.additions,
-      deletions: totals.deletions + file.deletions
-    }),
-    { additions: 0, deletions: 0 }
-  )
-  const activeReviewSourceStatsLabel = [
-    activeReviewSourceStats.additions > 0 ? `+${activeReviewSourceStats.additions}` : '',
-    activeReviewSourceStats.deletions > 0 ? `-${activeReviewSourceStats.deletions}` : ''
-  ].filter(Boolean).join(' ')
   const reviewSourceSummary = (
     <button
       type="button"
@@ -1118,34 +1190,6 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
       )}
     </button>
   )
-  const startCodexReview = async (): Promise<void> => {
-    if (!canStartCodexReview || !codexReviewStartRequest || codexReviewStartPending) return
-    setCodexReviewStartPending(true)
-    setReviewGitActionMessage({ text: 'Starting Codex review', tone: 'info' })
-    try {
-      const result = await window.api.sessions.startCodexReview(sessionId, codexReviewStartRequest)
-      if (result.ok) {
-        setReviewGitActionMessage({
-          text: codexReviewStartRequest.target.type === 'baseBranch'
-            ? `Codex review started against ${codexReviewStartRequest.target.branch}`
-            : codexReviewStartRequest.target.type === 'commit'
-              ? `Codex review started for commit ${codexReviewStartRequest.target.sha.slice(0, 8)}`
-            : 'Codex review started',
-          tone: 'info'
-        })
-      } else {
-        setReviewGitActionMessage({ text: result.error ?? 'Codex review failed to start', tone: 'danger' })
-      }
-    } catch (error) {
-      setReviewGitActionMessage({
-        text: error instanceof Error ? error.message : 'Codex review failed to start',
-        tone: 'danger'
-      })
-    } finally {
-      setCodexReviewStartPending(false)
-    }
-  }
-
   const reviewHeaderToolbar = (
     <PanelToolbar className="diff-panel-toolbar" dataTestId="diff-panel-toolbar" ariaLabel="Review toolbar">
       {reviewSourceSummary}
@@ -4776,6 +4820,14 @@ function resolveCodexReviewStartRequest(source: ReviewDiffSource, ref: string): 
   }
   if (source === 'last-turn' || source === 'cloud') return null
   return { target: { type: 'uncommittedChanges' }, delivery: 'inline' }
+}
+
+function codexReviewStartedMessage(request: CodexReviewStartRequest): string {
+  const target = request.target
+  if (target.type === 'baseBranch') return `Codex review started against ${target.branch}`
+  if (target.type === 'commit') return `Codex review started for commit ${target.sha.slice(0, 8)}`
+  if (target.type === 'custom') return 'Codex custom review started'
+  return 'Codex review started'
 }
 
 function basename(path: string): string {
