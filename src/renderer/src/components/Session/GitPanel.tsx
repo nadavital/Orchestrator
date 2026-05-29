@@ -277,6 +277,17 @@ export default function GitPanel({
     setActionMessage({ text: 'PR command added to chat', tone: 'info' })
   }
 
+  const copyChangedFilePath = async (path: string): Promise<void> => {
+    if (!path || busy) return
+    setActionMessage({ text: 'Copying file path', tone: 'info' })
+    try {
+      await writeGitClipboardText(path)
+      setActionMessage({ text: 'File path copied', tone: 'info' })
+    } catch (error) {
+      setActionMessage({ text: error instanceof Error ? error.message : 'Copy file path failed', tone: 'danger' })
+    }
+  }
+
   const closeDiscardConfirm = (): void => {
     setDiscardConfirmOpen(false)
     setDiscardTargetPaths(null)
@@ -620,6 +631,14 @@ export default function GitPanel({
                   dataTestId="git-file-unstage"
                   disabled={busy || !change.staged}
                   onClick={() => { void runPathAction('unstage', [change.path]) }}
+                />
+                <IconButton
+                  icon="copy"
+                  label={`Copy path for ${change.path}`}
+                  size="xs"
+                  dataTestId="git-file-copy-path"
+                  disabled={busy}
+                  onClick={() => { void copyChangedFilePath(change.path) }}
                 />
                 <IconButton
                   icon="trash"

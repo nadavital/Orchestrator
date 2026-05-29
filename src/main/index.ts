@@ -9436,6 +9436,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   newTabCardIds.includes('terminal');
                 let workbenchNewTabGitActionWorks = false;
                 let workbenchNewTabGitFileActionsWorks = false;
+                let workbenchNewTabGitFileCopyPathWorks = false;
                 let workbenchNewTabGitFileDiscardWorks = false;
                 let workbenchNewTabGitBranchWorks = false;
                 let workbenchNewTabGitCheckoutWorks = false;
@@ -9559,6 +9560,25 @@ function runAutomatedFocusedSurfaceSmoke(
                     gitStatusAfterFileActions instanceof HTMLElement &&
                     gitStatusAfterFileActions.getAttribute('role') === 'status' &&
                     gitStatusAfterFileActions.textContent?.includes('Unstaged 1 file') === true;
+                  const firstCopyFilePathButton = rowAfterFileActions instanceof HTMLElement
+                    ? rowAfterFileActions.querySelector('[data-testid="git-file-copy-path"]')
+                    : null;
+                  if (firstStageableFilePath.length > 0 && firstCopyFilePathButton instanceof HTMLButtonElement && !firstCopyFilePathButton.disabled) {
+                    firstCopyFilePathButton.click();
+                    await sleep(120);
+                    const gitStatusAfterFileCopyPath = document.querySelector('[data-testid="git-action-status"]');
+                    const copiedGitFilePath =
+                      await window.api?.clipboard?.readText?.().catch(() => '') ??
+                      await navigator.clipboard?.readText?.().catch(() => '') ??
+                      '';
+                    workbenchNewTabGitFileCopyPathWorks =
+                      gitStatusAfterFileCopyPath instanceof HTMLElement &&
+                      gitStatusAfterFileCopyPath.getAttribute('role') === 'status' &&
+                      gitStatusAfterFileCopyPath.getAttribute('aria-live') === 'polite' &&
+                      gitStatusAfterFileCopyPath.getAttribute('aria-atomic') === 'true' &&
+                      gitStatusAfterFileCopyPath.textContent?.includes('File path copied') === true &&
+                      copiedGitFilePath === firstStageableFilePath;
+                  }
                   const firstDiscardFileButton = rowAfterFileActions instanceof HTMLElement
                     ? rowAfterFileActions.querySelector('[data-testid="git-file-discard"]')
                     : null;
@@ -10423,6 +10443,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   workbenchNewTabAgentsActionWorks,
                   workbenchNewTabGitActionWorks,
                   workbenchNewTabGitFileActionsWorks,
+                  workbenchNewTabGitFileCopyPathWorks,
                   workbenchNewTabGitFileDiscardWorks,
                   workbenchNewTabGitBranchWorks,
                   workbenchNewTabGitCheckoutWorks,
