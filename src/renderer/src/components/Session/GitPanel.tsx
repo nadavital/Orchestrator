@@ -37,6 +37,8 @@ export default function GitPanel({
   const [lastCommit, setLastCommit] = useState<string | null>(null)
   const [lastCreatedBranch, setLastCreatedBranch] = useState<string | null>(null)
   const [lastCheckedOutBranch, setLastCheckedOutBranch] = useState<string | null>(null)
+  const [prCreateUrl, setPrCreateUrl] = useState('')
+  const [prCreateUrlError, setPrCreateUrlError] = useState<string | null>(null)
   const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false)
   const [discardTargetPaths, setDiscardTargetPaths] = useState<string[] | null>(null)
   const rootRef = useRef<HTMLElement | null>(null)
@@ -138,6 +140,30 @@ export default function GitPanel({
       focusTargetInput.focus({ preventScroll: true })
     }
   }, [focusTarget, focusTargetRequest])
+
+  useEffect(() => {
+    let cancelled = false
+    setPrCreateUrl('')
+    setPrCreateUrlError(null)
+    if (!prCommand) return
+    void window.api.git.getPullRequestCreateUrl(workDir, defaultBaseBranch, currentBranch)
+      .then((result) => {
+        if (cancelled) return
+        if (result.ok && result.url) {
+          setPrCreateUrl(result.url)
+          setPrCreateUrlError(null)
+        } else {
+          setPrCreateUrlError(result.error ?? 'Create PR URL unavailable')
+        }
+      })
+      .catch((error) => {
+        if (cancelled) return
+        setPrCreateUrlError(error instanceof Error ? error.message : 'Create PR URL unavailable')
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [currentBranch, defaultBaseBranch, prCommand, workDir])
 
   const writeGitClipboardText = async (text: string): Promise<void> => {
     if (typeof window.api.clipboard?.writeText === 'function') {
@@ -285,6 +311,14 @@ export default function GitPanel({
     } catch (error) {
       setActionMessage({ text: error instanceof Error ? error.message : 'Copy PR command failed', tone: 'danger' })
     }
+  }
+
+  const openPullRequestCreateUrl = (): void => {
+    if (!prCreateUrl || busy) return
+    const globals = window as typeof window & { __orchestratorLastGitPrCreateUrlForSmoke?: string }
+    globals.__orchestratorLastGitPrCreateUrlForSmoke = prCreateUrl
+    setActionMessage({ text: 'Opening create PR', tone: 'info' })
+    void window.api.browser.openExternal(prCreateUrl)
   }
 
   const addPullRequestCommandToChat = (): void => {
@@ -639,6 +673,8 @@ export default function GitPanel({
           className="environment-card git-pr-card"
           data-testid="git-pr-card"
           data-git-pr-command={prCommand}
+          data-git-pr-create-url={prCreateUrl}
+          data-git-pr-create-error={prCreateUrlError ?? ''}
           data-git-focused-target={focusTarget === 'pull-request' ? 'true' : 'false'}
         >
           <div className="environment-card-header">
@@ -668,6 +704,15 @@ export default function GitPanel({
               />
               <Button
                 variant="primary"
+                dataTestId="git-open-create-pr"
+                disabled={busy || !prCreateUrl}
+                title={prCreateUrl || prCreateUrlError || 'Create or switch to a topic branch first'}
+                onClick={openPullRequestCreateUrl}
+              >
+                Open create PR
+              </Button>
+              <Button
+                variant="ghost"
                 dataTestId="git-copy-pr-command"
                 disabled={busy || !prCommand}
                 onClick={() => { void copyPullRequestCommand() }}

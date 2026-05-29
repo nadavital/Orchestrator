@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import test from 'node:test'
 
-import { gitManager, mergeReviewCommentSummaries, reviewMetadataFromGitHubPullRequestView, reviewThreadCommentMetadataFromGitHub, reviewThreadCommentSummaryFromGitHub } from '../git'
+import { gitManager, mergeReviewCommentSummaries, parseGitHubRemoteUrl, reviewMetadataFromGitHubPullRequestView, reviewThreadCommentMetadataFromGitHub, reviewThreadCommentSummaryFromGitHub } from '../git'
 
 test('changed files preserve paths with spaces without git porcelain quotes', async () => {
   const root = mkdtempSync(join(tmpdir(), 'orchestrator-git-changes-'))
@@ -134,6 +134,54 @@ test('create branch validates names and checks out the new branch', async () => 
   } finally {
     rmSync(root, { recursive: true, force: true })
   }
+})
+
+test('pull request create URL uses the GitHub origin remote and branch compare route', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'orchestrator-git-pr-url-'))
+  try {
+    writeFileSync(join(root, 'tracked.txt'), 'before\n')
+    git(root, 'init')
+    git(root, 'config', 'user.email', 'orchestrator-test@example.test')
+    git(root, 'config', 'user.name', 'Orchestrator Test')
+    git(root, 'remote', 'add', 'origin', 'git@github.com:nadavital/Orchestrator.git')
+    git(root, 'add', '.')
+    git(root, 'commit', '-m', 'baseline')
+
+    const result = await gitManager.getPullRequestCreateUrl(root, 'main', 'codex/git-panel-pr')
+
+    assert.equal(result.ok, true)
+    assert.equal(result.remoteUrl, 'git@github.com:nadavital/Orchestrator.git')
+    assert.equal(result.url, 'https://github.com/nadavital/Orchestrator/compare/main...codex%2Fgit-panel-pr?quick_pull=1')
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('pull request create URL reports unavailable non-GitHub remotes', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'orchestrator-git-pr-url-missing-'))
+  try {
+    writeFileSync(join(root, 'tracked.txt'), 'before\n')
+    git(root, 'init')
+    git(root, 'config', 'user.email', 'orchestrator-test@example.test')
+    git(root, 'config', 'user.name', 'Orchestrator Test')
+    git(root, 'remote', 'add', 'origin', 'ssh://git@example.com/repo/project.git')
+    git(root, 'add', '.')
+    git(root, 'commit', '-m', 'baseline')
+
+    const result = await gitManager.getPullRequestCreateUrl(root, 'main', 'feature')
+
+    assert.equal(result.ok, false)
+    assert.match(result.error ?? '', /No GitHub remote/)
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('GitHub remote URL parser supports common clone URL forms', () => {
+  assert.equal(parseGitHubRemoteUrl('https://github.com/nadavital/Orchestrator.git'), 'https://github.com/nadavital/Orchestrator')
+  assert.equal(parseGitHubRemoteUrl('git@github.com:nadavital/Orchestrator.git'), 'https://github.com/nadavital/Orchestrator')
+  assert.equal(parseGitHubRemoteUrl('ssh://git@github.com/nadavital/Orchestrator.git'), 'https://github.com/nadavital/Orchestrator')
+  assert.equal(parseGitHubRemoteUrl('ssh://git@example.com/nadavital/Orchestrator.git'), null)
 })
 
 test('changed files expose unmerged conflict state for review helpers', async () => {

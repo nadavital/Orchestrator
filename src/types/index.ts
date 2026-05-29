@@ -1987,6 +1987,15 @@ export interface GitBranchActionResult {
   error?: string
 }
 
+export interface GitPullRequestCreateUrlResult {
+  ok: boolean
+  url?: string
+  remoteUrl?: string
+  baseBranch?: string
+  headBranch?: string
+  error?: string
+}
+
 export interface GitLineBlameResult {
   ok: boolean
   path: string

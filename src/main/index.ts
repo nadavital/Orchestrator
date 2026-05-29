@@ -9704,6 +9704,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 let workbenchNewTabGitBranchWorks = false;
                 let workbenchNewTabGitCheckoutWorks = false;
                 let workbenchNewTabGitPrCommandWorks = false;
+                let workbenchNewTabGitPrCreateUrlWorks = false;
                 let workbenchNewTabGitPrCommandHandoffWorks = false;
                 let workbenchNewTabGitPrCommandTerminalHandoffWorks = false;
                 let workbenchNewTabGitRefreshStatusWorks = false;
@@ -10033,6 +10034,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     gitStatusAfterBranch.textContent?.includes('Created branch') === true;
                   const gitPrCard = document.querySelector('[data-testid="git-pr-card"]');
                   const gitPrCommandInput = document.querySelector('[data-testid="git-pr-command"]');
+                  const gitOpenCreatePr = document.querySelector('[data-testid="git-open-create-pr"]');
                   const gitCopyPrCommand = document.querySelector('[data-testid="git-copy-pr-command"]');
                   const gitAddPrCommandToChat = document.querySelector('[data-testid="git-add-pr-command-to-chat"]');
                   if (
@@ -10069,6 +10071,18 @@ function runAutomatedFocusedSurfaceSmoke(
                     gitStatusAfterPrCommand.textContent?.includes('PR command copied') === true &&
                     gitPrClipboardText.includes('gh pr create') &&
                     gitPrClipboardText.includes(smokeBranchName);
+                  const gitPrCreateUrl = gitPrCard instanceof HTMLElement
+                    ? gitPrCard.getAttribute('data-git-pr-create-url') ?? ''
+                    : '';
+                  workbenchNewTabGitPrCreateUrlWorks =
+                    workbenchNewTabGitPrCommandWorks &&
+                    gitOpenCreatePr instanceof HTMLButtonElement &&
+                    !gitOpenCreatePr.disabled &&
+                    gitOpenCreatePr.getAttribute('title') === gitPrCreateUrl &&
+                    gitPrCreateUrl.startsWith('https://github.com/') &&
+                    gitPrCreateUrl.includes('/compare/') &&
+                    gitPrCreateUrl.includes(encodeURIComponent(smokeBranchName)) &&
+                    gitPrCreateUrl.includes('quick_pull=1');
                   if (
                     workbenchNewTabGitPrCommandWorks &&
                     gitAddPrCommandToChat instanceof HTMLButtonElement &&
@@ -10345,6 +10359,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     workbenchNewTabGitBranchWorks &&
                     workbenchNewTabGitCheckoutWorks &&
                     workbenchNewTabGitPrCommandWorks &&
+                    workbenchNewTabGitPrCreateUrlWorks &&
                     workbenchNewTabGitPrCommandHandoffWorks &&
                     workbenchNewTabGitPrCommandTerminalHandoffWorks &&
                     workbenchNewTabGitRefreshStatusWorks &&
@@ -11073,6 +11088,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   workbenchNewTabGitBranchWorks,
                   workbenchNewTabGitCheckoutWorks,
                   workbenchNewTabGitPrCommandWorks,
+                  workbenchNewTabGitPrCreateUrlWorks,
                   workbenchNewTabGitPrCommandHandoffWorks,
                   workbenchNewTabGitPrCommandTerminalHandoffWorks,
                   workbenchNewTabGitRefreshStatusWorks,

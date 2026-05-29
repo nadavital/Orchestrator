@@ -1462,6 +1462,7 @@ if (fixtureWorkspaceViews.has(captureView)) {
   spawnSync('git', ['config', 'user.name', 'Orchestrator Smoke'], { cwd: workspaceDir, stdio: 'ignore' })
   spawnSync('git', ['add', '.'], { cwd: workspaceDir, stdio: 'ignore' })
   spawnSync('git', ['commit', '-m', 'baseline'], { cwd: workspaceDir, stdio: 'ignore' })
+  spawnSync('git', ['remote', 'add', 'origin', 'git@github.com:nadavital/Orchestrator.git'], { cwd: workspaceDir, stdio: 'ignore' })
   spawnSync('git', ['branch', 'review-base-branch'], { cwd: workspaceDir, stdio: 'ignore' })
   writeFileSync(join(workspaceDir, 'branch-source-smoke.txt'), 'branch source committed\n')
   spawnSync('git', ['add', 'branch-source-smoke.txt'], { cwd: workspaceDir, stdio: 'ignore' })
@@ -2508,6 +2509,7 @@ child.on('exit', async (code) => {
           workbenchNewTabGitBranch: result.workbenchNewTabGitBranchWorks === true,
           workbenchNewTabGitCheckout: result.workbenchNewTabGitCheckoutWorks === true,
           workbenchNewTabGitPrCommand: result.workbenchNewTabGitPrCommandWorks === true,
+          workbenchNewTabGitPrCreateUrl: result.workbenchNewTabGitPrCreateUrlWorks === true,
           workbenchNewTabGitPrCommandHandoff: result.workbenchNewTabGitPrCommandHandoffWorks === true,
           workbenchNewTabGitPrCommandTerminalHandoff: result.workbenchNewTabGitPrCommandTerminalHandoffWorks === true,
           workbenchNewTabGitRefreshStatus: result.workbenchNewTabGitRefreshStatusWorks === true,

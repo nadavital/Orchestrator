@@ -3,7 +3,7 @@ import { join, resolve, sep } from 'path'
 import { mkdirSync } from 'fs'
 import { execFile, spawnSync } from 'child_process'
 import { promisify } from 'util'
-import type { FileChange, GitBranchActionResult, GitCommitResult, GitLineBlameResult, GitPathActionResult, GitRefOption, ReviewDiffSource, ReviewMetadata, ReviewCheckStatus, ReviewProviderBlame } from '../types'
+import type { FileChange, GitBranchActionResult, GitCommitResult, GitLineBlameResult, GitPathActionResult, GitPullRequestCreateUrlResult, GitRefOption, ReviewDiffSource, ReviewMetadata, ReviewCheckStatus, ReviewProviderBlame } from '../types'
 
 const execFileAsync = promisify(execFile)
 
@@ -143,6 +143,43 @@ export const gitManager = {
         branchName: cleanBranchName,
         currentBranch: await this.getCurrentBranch(cwd),
         branches: await this.listBranches(cwd),
+        error: error instanceof Error ? error.message : String(error)
+      }
+    }
+  },
+
+  async getPullRequestCreateUrl(cwd: string, baseBranch: string, headBranch: string): Promise<GitPullRequestCreateUrlResult> {
+    const cleanBase = normalizeBranchName(baseBranch)
+    const cleanHead = normalizeBranchName(headBranch)
+    if (!cleanBase || !cleanHead) {
+      return { ok: false, error: 'Choose a base and topic branch.' }
+    }
+    if (cleanBase === cleanHead) {
+      return { ok: false, baseBranch: cleanBase, headBranch: cleanHead, error: 'Create or switch to a topic branch first.' }
+    }
+
+    try {
+      const git = simpleGit(cwd)
+      const remotes = await git.getRemotes(true)
+      const remoteUrl = remotes
+        .flatMap((remote) => [remote.refs.fetch, remote.refs.push])
+        .find((url): url is string => typeof url === 'string' && parseGitHubRemoteUrl(url) !== null)
+      const repositoryUrl = remoteUrl ? parseGitHubRemoteUrl(remoteUrl) : null
+      if (!remoteUrl || !repositoryUrl) {
+        return { ok: false, baseBranch: cleanBase, headBranch: cleanHead, error: 'No GitHub remote found for this workspace.' }
+      }
+      return {
+        ok: true,
+        url: `${repositoryUrl}/compare/${encodeURIComponent(cleanBase)}...${encodeURIComponent(cleanHead)}?quick_pull=1`,
+        remoteUrl,
+        baseBranch: cleanBase,
+        headBranch: cleanHead
+      }
+    } catch (error) {
+      return {
+        ok: false,
+        baseBranch: cleanBase,
+        headBranch: cleanHead,
         error: error instanceof Error ? error.message : String(error)
       }
     }
@@ -872,6 +909,25 @@ function normalizeCommitMessage(message: string): string {
 
 function normalizeBranchName(branchName: string): string {
   return branchName.trim()
+}
+
+export function parseGitHubRemoteUrl(remoteUrl: string): string | null {
+  const trimmed = remoteUrl.trim().replace(/\/$/, '')
+  if (!trimmed) return null
+  const httpsMatch = /^https:\/\/github\.com\/([^/]+)\/(.+?)(?:\.git)?$/i.exec(trimmed)
+  if (httpsMatch) return normalizeGitHubRepositoryUrl(httpsMatch[1], httpsMatch[2])
+  const sshMatch = /^git@github\.com:([^/]+)\/(.+?)(?:\.git)?$/i.exec(trimmed)
+  if (sshMatch) return normalizeGitHubRepositoryUrl(sshMatch[1], sshMatch[2])
+  const sshUrlMatch = /^ssh:\/\/git@github\.com\/([^/]+)\/(.+?)(?:\.git)?$/i.exec(trimmed)
+  if (sshUrlMatch) return normalizeGitHubRepositoryUrl(sshUrlMatch[1], sshUrlMatch[2])
+  return null
+}
+
+function normalizeGitHubRepositoryUrl(owner: string, repository: string): string | null {
+  const cleanOwner = owner.trim()
+  const cleanRepository = repository.trim().replace(/\.git$/i, '')
+  if (!cleanOwner || !cleanRepository || cleanRepository.includes('/') || cleanRepository.includes('..')) return null
+  return `https://github.com/${cleanOwner}/${cleanRepository}`
 }
 
 function isSafeRelativePath(cwd: string, filePath: string): boolean {

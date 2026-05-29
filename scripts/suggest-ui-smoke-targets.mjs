@@ -194,8 +194,15 @@ const diffRules = [
   {
     flag: '--workbench-new-tab',
     label: 'Workbench New Tab full workflow',
-    filePatterns: [/^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
-    diffPatterns: [/workbenchNewTabGit/, /git-pr-command/, /Git PR command/]
+    filePatterns: [
+      /^scripts\/run-automated-ui-smoke\.mjs$/,
+      /^src\/main\/index\.ts$/,
+      /^src\/main\/ipc\.ts$/,
+      /^src\/preload\/index\.ts$/,
+      /^src\/renderer\/src\/env\.d\.ts$/,
+      /^src\/types\/index\.ts$/
+    ],
+    diffPatterns: [/workbenchNewTabGit/, /git-pr-command/, /Git PR command/, /GitPullRequestCreateUrl/, /git:getPullRequestCreateUrl/, /git-open-create-pr/, /data-git-pr-create-url/, /workbenchNewTabGitPrCreateUrl/]
   },
   {
     flag: '--agent-inspector',
@@ -247,7 +254,7 @@ const staticValidationRules = [
   },
   {
     label: 'Provider parser unit coverage',
-    patterns: [/^src\/main\/providers\.ts$/, /^src\/types\/index\.ts$/, /^src\/main\/__tests__\/providers\.test\.ts$/, /^src\/main\/__fixtures__\/providers\//],
+    patterns: [/^src\/main\/providers\.ts$/, /^src\/main\/__tests__\/providers\.test\.ts$/, /^src\/main\/__fixtures__\/providers\//],
     checks: [
       {
         kind: 'static',
@@ -266,6 +273,80 @@ const staticValidationRules = [
         label: 'Provider parser unit coverage',
         command: 'node',
         args: ['--test', 'out-test/src/main/__tests__/providers.test.js']
+      }
+    ]
+  },
+  {
+    label: 'Provider shared type unit coverage',
+    patterns: [/^src\/types\/index\.ts$/],
+    diffPatterns: [/Provider|UserInput|Permission|ReviewMetadata|parseClaudeAgentsOutput/],
+    checks: [
+      {
+        kind: 'static',
+        label: 'Clean node test output',
+        command: 'node',
+        args: ['-e', "require('fs').rmSync('out-test',{recursive:true,force:true})"]
+      },
+      {
+        kind: 'static',
+        label: 'Compile node tests',
+        command: 'pnpm',
+        args: ['exec', 'tsc', '-p', 'tsconfig.node.json', '--outDir', 'out-test', '--module', 'commonjs']
+      },
+      {
+        kind: 'static',
+        label: 'Provider parser unit coverage',
+        command: 'node',
+        args: ['--test', 'out-test/src/main/__tests__/providers.test.js']
+      }
+    ]
+  },
+  {
+    label: 'Git manager unit coverage',
+    patterns: [/^src\/main\/git\.ts$/, /^src\/main\/__tests__\/gitChanges\.test\.ts$/],
+    checks: [
+      {
+        kind: 'static',
+        label: 'Clean node test output',
+        command: 'node',
+        args: ['-e', "require('fs').rmSync('out-test',{recursive:true,force:true})"]
+      },
+      {
+        kind: 'static',
+        label: 'Compile node tests',
+        command: 'pnpm',
+        args: ['exec', 'tsc', '-p', 'tsconfig.node.json', '--outDir', 'out-test', '--module', 'commonjs']
+      },
+      {
+        kind: 'static',
+        label: 'Git manager unit coverage',
+        command: 'node',
+        args: ['--test', 'out-test/src/main/__tests__/gitChanges.test.js']
+      }
+    ]
+  },
+  {
+    label: 'Git shared type unit coverage',
+    patterns: [/^src\/types\/index\.ts$/],
+    diffPatterns: [/Git[A-Z]|FileChange|ReviewDiffSource/],
+    checks: [
+      {
+        kind: 'static',
+        label: 'Clean node test output',
+        command: 'node',
+        args: ['-e', "require('fs').rmSync('out-test',{recursive:true,force:true})"]
+      },
+      {
+        kind: 'static',
+        label: 'Compile node tests',
+        command: 'pnpm',
+        args: ['exec', 'tsc', '-p', 'tsconfig.node.json', '--outDir', 'out-test', '--module', 'commonjs']
+      },
+      {
+        kind: 'static',
+        label: 'Git manager unit coverage',
+        command: 'node',
+        args: ['--test', 'out-test/src/main/__tests__/gitChanges.test.js']
       }
     ]
   },
@@ -361,7 +442,7 @@ function suggestTargets(paths) {
       fileMatched = true
       addMatchedTarget(matched, rule, file)
     }
-    if (staticValidationRules.some((rule) => rule.patterns.some((pattern) => pattern.test(file)))) {
+    if (staticValidationRules.some((rule) => staticValidationRuleMatchesFile(rule, file))) {
       fileMatched = true
     }
     if (file.startsWith('docs/')) {
@@ -399,6 +480,7 @@ function suggestTargets(paths) {
   suppressTranscriptLayoutForLongThreadDiff(matched, paths)
   suppressTranscriptLayoutForPermissionDiff(matched, paths)
   suppressTranscriptLayoutForUserInputDiff(matched, paths)
+  suppressTranscriptUserInputForGitPrDiff(matched)
   suppressTranscriptLayoutForFileReferenceDiff(matched, paths)
   suppressTranscriptPermissionForSettingsDiff(matched, paths)
   suppressComposerForSettingsFocusDiff(matched, paths)
@@ -505,7 +587,7 @@ function buildValidationPlan(paths, suggestions) {
   }
 
   for (const rule of staticValidationRules) {
-    if (!paths.some((file) => rule.patterns.some((pattern) => pattern.test(file)))) continue
+    if (!paths.some((file) => staticValidationRuleMatchesFile(rule, file))) continue
     for (const check of rule.checks) pushUniqueCheck(checks, check)
   }
 
@@ -526,6 +608,13 @@ function pushUniqueCheck(checks, check) {
   const key = formatCommand(check)
   if (checks.some((candidate) => formatCommand(candidate) === key)) return
   checks.push(check)
+}
+
+function staticValidationRuleMatchesFile(rule, file) {
+  if (!rule.patterns.some((pattern) => pattern.test(file))) return false
+  if (!rule.diffPatterns) return true
+  const diff = diffForFile(file)
+  return rule.diffPatterns.some((pattern) => pattern.test(diff))
 }
 
 function suppressCoveredTarget(matched, broadFlag, focusedFlag) {
@@ -711,6 +800,26 @@ function suppressTranscriptLayoutForUserInputDiff(matched, paths) {
     : ''
   if (!/UserInputCard|QuestionBlock|chat-user-input|UserInput[A-Z]|userInput[A-Z]|data-user-input/.test(diff)) return
   matched.delete('--transcript-layout')
+}
+
+function suppressTranscriptUserInputForGitPrDiff(matched) {
+  const userInput = matched.get('--transcript-user-input')
+  const workbench = matched.get('--workbench-new-tab')
+  if (!userInput || !workbench) return
+  if (!userInput.files.every((file) =>
+    file === 'src/preload/index.ts' ||
+    file === 'src/renderer/src/env.d.ts' ||
+    file === 'src/types/index.ts'
+  )) return
+  const diff = userInput.files.map(diffForFile).join('\n')
+  if (!/GitPullRequestCreateUrl|git:getPullRequestCreateUrl/.test(diff)) return
+  const semanticUserInputLine = diff
+    .split('\n')
+    .filter((line) => /^[+-](?![+-]{2})/.test(line))
+    .filter((line) => !/^[+-]import type /.test(line))
+    .some((line) => /UserInput|userInput|answerUserInput|requestUserInput/.test(line))
+  if (semanticUserInputLine) return
+  matched.delete('--transcript-user-input')
 }
 
 function suppressSettingsProvidersForUserInputDiff(matched, paths) {
