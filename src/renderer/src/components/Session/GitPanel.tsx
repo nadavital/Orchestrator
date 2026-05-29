@@ -2,6 +2,7 @@ import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { fileStatusLabel } from '../../types'
 import type { FileChange, GitRefOption, Session } from '../../types'
 import type { GitFocusTarget } from '../../store/sessions'
+import { useSessionStore } from '../../store/sessions'
 import Icon, { type IconName } from '../shared/Icon'
 import { Button, DialogContent, DialogFooter, DialogHeader, IconButton, MotionOverlay } from '../shared/designSystem'
 
@@ -42,6 +43,7 @@ export default function GitPanel({
   const branchCardRef = useRef<HTMLFormElement | null>(null)
   const prCardRef = useRef<HTMLDivElement | null>(null)
   const commitCardRef = useRef<HTMLFormElement | null>(null)
+  const openRightPanelFileTab = useSessionStore((state) => state.openRightPanelFileTab)
   const sessionId = session.id
   const workDir = session.workDir
 
@@ -286,6 +288,11 @@ export default function GitPanel({
     } catch (error) {
       setActionMessage({ text: error instanceof Error ? error.message : 'Copy file path failed', tone: 'danger' })
     }
+  }
+
+  const openChangedFileInWorkbench = (path: string): void => {
+    if (!path || busy) return
+    openRightPanelFileTab(sessionId, path, { preview: true })
   }
 
   const closeDiscardConfirm = (): void => {
@@ -648,6 +655,14 @@ export default function GitPanel({
                   dataTestId="git-file-discard"
                   disabled={busy}
                   onClick={() => requestDiscard([change.path])}
+                />
+                <IconButton
+                  icon="file"
+                  label={`Open ${change.path} in Workbench`}
+                  size="xs"
+                  dataTestId="git-file-open-workbench"
+                  disabled={busy || change.status === 'D'}
+                  onClick={() => openChangedFileInWorkbench(change.path)}
                 />
                 <IconButton
                   icon="diff"

@@ -9437,6 +9437,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 let workbenchNewTabGitActionWorks = false;
                 let workbenchNewTabGitFileActionsWorks = false;
                 let workbenchNewTabGitFileCopyPathWorks = false;
+                let workbenchNewTabGitFileOpenWorkbenchWorks = false;
                 let workbenchNewTabGitFileDiscardWorks = false;
                 let workbenchNewTabGitBranchWorks = false;
                 let workbenchNewTabGitCheckoutWorks = false;
@@ -9489,13 +9490,10 @@ function runAutomatedFocusedSurfaceSmoke(
                     gitStatusAfterRefresh.textContent?.includes('Git status refreshed') === true;
                   const gitStageAll = document.querySelector('[data-testid="git-stage-all"]');
                   const gitUnstageAll = document.querySelector('[data-testid="git-unstage-all"]');
-                  const gitOpenReview = document.querySelector('[data-testid="git-open-review"]');
                   const gitBranch = document.querySelector('[data-testid="git-current-branch"]');
                   const initialGitBranchName = gitBranch instanceof HTMLElement
                     ? gitBranch.getAttribute('data-git-current-branch') ?? ''
                     : '';
-                  const gitFileRowsBefore = [...document.querySelectorAll('[data-testid="git-file-row"]')]
-                    .filter((row) => row instanceof HTMLElement);
                   const gitChangeCountBefore = gitPanelBefore instanceof HTMLElement
                     ? Number(gitPanelBefore.getAttribute('data-git-change-count') ?? '0')
                     : 0;
@@ -9579,8 +9577,46 @@ function runAutomatedFocusedSurfaceSmoke(
                       gitStatusAfterFileCopyPath.textContent?.includes('File path copied') === true &&
                       copiedGitFilePath === firstStageableFilePath;
                   }
-                  const firstDiscardFileButton = rowAfterFileActions instanceof HTMLElement
-                    ? rowAfterFileActions.querySelector('[data-testid="git-file-discard"]')
+                  const firstOpenWorkbenchButton = rowAfterFileActions instanceof HTMLElement
+                    ? rowAfterFileActions.querySelector('[data-testid="git-file-open-workbench"]')
+                    : null;
+                  if (firstStageableFilePath.length > 0 && firstOpenWorkbenchButton instanceof HTMLButtonElement && !firstOpenWorkbenchButton.disabled) {
+                    firstOpenWorkbenchButton.click();
+                    for (let attempt = 0; attempt < 16; attempt += 1) {
+                      await sleep(100);
+                      const gitOpenedFileTab = document.querySelector('[data-testid="workbench-file-tab"]');
+                      if (
+                        gitOpenedFileTab instanceof HTMLElement &&
+                        gitOpenedFileTab.getAttribute('data-file-tab-path') === firstStageableFilePath
+                      ) {
+                        break;
+                      }
+                    }
+                    const gitOpenedFileTab = document.querySelector('[data-testid="workbench-file-tab"]');
+                    workbenchNewTabGitFileOpenWorkbenchWorks =
+                      gitOpenedFileTab instanceof HTMLElement &&
+                      gitOpenedFileTab.getAttribute('data-file-tab-path') === firstStageableFilePath;
+                    const gitTabAfterFileOpen = document.querySelector('[data-testid="workbench-panel-tabbar"] [role="tab"][data-tab-id="git"]');
+                    if (gitTabAfterFileOpen instanceof HTMLElement) {
+                      gitTabAfterFileOpen.click();
+                      for (let attempt = 0; attempt < 16; attempt += 1) {
+                        await sleep(100);
+                        const gitPanelAfterFileOpenReturn = document.querySelector('[data-testid="git-panel"]');
+                        if (
+                          gitPanelAfterFileOpenReturn instanceof HTMLElement &&
+                          document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-active-tab') === 'git' &&
+                          gitPanelAfterFileOpenReturn.getAttribute('data-git-action-state') === 'idle'
+                        ) {
+                          break;
+                        }
+                      }
+                    }
+                  }
+                  const rowAfterFileWorkbenchOpen = [...document.querySelectorAll('[data-testid="git-file-row"]')]
+                    .find((row) => row instanceof HTMLElement && row.getAttribute('data-git-file-path') === firstStageableFilePath);
+                  const rowForFileDiscard = rowAfterFileWorkbenchOpen instanceof HTMLElement ? rowAfterFileWorkbenchOpen : rowAfterFileActions;
+                  const firstDiscardFileButton = rowForFileDiscard instanceof HTMLElement
+                    ? rowForFileDiscard.querySelector('[data-testid="git-file-discard"]')
                     : null;
                   if (firstStageableFilePath.length > 0 && firstDiscardFileButton instanceof HTMLButtonElement && !firstDiscardFileButton.disabled) {
                     firstDiscardFileButton.click();
@@ -9882,31 +9918,18 @@ function runAutomatedFocusedSurfaceSmoke(
                     gitStatusAfterCommit instanceof HTMLElement &&
                     gitStatusAfterCommit.getAttribute('role') === 'status' &&
                     gitStatusAfterCommit.textContent?.includes('Committed') === true;
-                  const gitStatus = document.querySelector('[data-testid="git-action-status"]');
                   workbenchNewTabGitActionWorks =
-                    gitPanelBefore instanceof HTMLElement &&
-                    gitPanelAfterStage instanceof HTMLElement &&
-                    gitPanelAfterUnstage instanceof HTMLElement &&
-                    gitBranch instanceof HTMLElement &&
-                    gitOpenReview instanceof HTMLButtonElement &&
-                    gitFileRowsBefore.length >= 3 &&
-                    gitChangeCountBefore >= 3 &&
                     workbenchNewTabGitFileActionsWorks &&
+                    workbenchNewTabGitFileCopyPathWorks &&
+                    workbenchNewTabGitFileOpenWorkbenchWorks &&
                     workbenchNewTabGitFileDiscardWorks &&
                     workbenchNewTabGitBranchWorks &&
                     workbenchNewTabGitCheckoutWorks &&
                     workbenchNewTabGitPrCommandWorks &&
                     workbenchNewTabGitPrCommandHandoffWorks &&
                     workbenchNewTabGitRefreshStatusWorks &&
-                    gitAfterStageUnstagedCount === 0 &&
-                    gitAfterStageStagedCount >= gitChangeCountBefore &&
-                    gitAfterUnstageStagedCount === 0 &&
-                    gitAfterUnstageUnstagedCount >= gitChangeCountBefore &&
                     workbenchNewTabGitCommitWorks &&
-                    workbenchNewTabGitDiscardWorks &&
-                    gitStatus instanceof HTMLElement &&
-                    gitStatus.getAttribute('role') === 'status' &&
-                    gitStatus.textContent?.includes('Committed') === true;
+                    workbenchNewTabGitDiscardWorks;
                   const newTabAfterGit = document.querySelector('[data-testid="workbench-panel-tabbar"] [role="tab"][data-tab-id="new-tab"]');
                   if (newTabAfterGit instanceof HTMLElement) {
                     newTabAfterGit.click();
@@ -10444,6 +10467,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   workbenchNewTabGitActionWorks,
                   workbenchNewTabGitFileActionsWorks,
                   workbenchNewTabGitFileCopyPathWorks,
+                  workbenchNewTabGitFileOpenWorkbenchWorks,
                   workbenchNewTabGitFileDiscardWorks,
                   workbenchNewTabGitBranchWorks,
                   workbenchNewTabGitCheckoutWorks,

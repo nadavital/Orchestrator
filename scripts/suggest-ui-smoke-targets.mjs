@@ -301,6 +301,7 @@ function suggestTargets(paths) {
   suppressComposerForToolActivityCommandDiff(matched, paths)
   suppressComposerForWorkbenchGitHandoffDiff(matched, paths)
   suppressComposerForBrowserHandoffDiff(matched, paths)
+  suppressEnvironmentForGitFileWorkflowDiff(matched, paths)
   suppressWorkbenchForReviewGitHandoffDiff(matched, paths)
   suppressWorkbenchForEnvironmentCreatePrDiff(matched, paths)
 
@@ -642,6 +643,24 @@ function suppressComposerForBrowserHandoffDiff(matched, paths) {
   ].join('\n')
   if (!/browserActionsPageContext|browser-menu-add-page-context|Add page context|Page context added to chat|Review this browser page/.test(diff)) return
   matched.delete('--composer')
+}
+
+function suppressEnvironmentForGitFileWorkflowDiff(matched, paths) {
+  const environment = matched.get('--environment')
+  const workbench = matched.get('--workbench-new-tab')
+  if (!environment || !workbench) return
+  if (!environment.files.every((file) =>
+    file === 'scripts/run-automated-ui-smoke.mjs' ||
+    file === 'src/main/index.ts' ||
+    file === 'src/renderer/src/components/Session/GitPanel.tsx'
+  )) return
+  const diff = [
+    paths.includes('scripts/run-automated-ui-smoke.mjs') ? diffForFile('scripts/run-automated-ui-smoke.mjs') : '',
+    paths.includes('src/main/index.ts') ? diffForFile('src/main/index.ts') : '',
+    paths.includes('src/renderer/src/components/Session/GitPanel.tsx') ? diffForFile('src/renderer/src/components/Session/GitPanel.tsx') : ''
+  ].join('\n')
+  if (!/workbenchNewTabGitFile(?:CopyPath|OpenWorkbench)|git-file-(?:copy-path|open-workbench)|Copy path for|Open .* in Workbench/.test(diff)) return
+  matched.delete('--environment')
 }
 
 function suppressWorkbenchForReviewGitHandoffDiff(matched, paths) {
