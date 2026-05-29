@@ -105,6 +105,7 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
   const [reviewRevertSkipConfirm, setReviewRevertSkipConfirm] = useState(() => readStoredReviewRevertConfirmSkip())
   const rootRef = useRef<HTMLDivElement | null>(null)
   const reviewSearchInputRef = useRef<HTMLInputElement | null>(null)
+  const openRightPanelTab = useSessionStore((state) => state.openRightPanelTab)
   const openRightPanelFileTab = useSessionStore((state) => state.openRightPanelFileTab)
   const reviewSession = useSessionStore((state) => state.sessions.find((candidate) => candidate.id === sessionId))
   const storeReviewMetadata = useSessionStore((state) => state.sessions.find((candidate) => candidate.id === sessionId)?.reviewMetadata)
@@ -1375,6 +1376,16 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
           <span>Unstage all</span>
         </Button>
       )}
+      <Button
+        variant="ghost"
+        className="review-floating-action-button"
+        dataTestId="review-open-git-tab"
+        disabled={reviewGitActionStatus !== 'idle'}
+        onClick={() => openRightPanelTab(sessionId, 'git')}
+      >
+        <Icon name="branch" size={12} />
+        <span>Open Git</span>
+      </Button>
       {reviewActionStatus}
     </div>
   ) : null

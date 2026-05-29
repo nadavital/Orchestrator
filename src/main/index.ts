@@ -10709,6 +10709,7 @@ function runAutomatedFocusedSurfaceSmoke(
               let reviewGitApplyCopyStatusWorks = false;
               let reviewFloatingGitActionsWork = false;
               let reviewFloatingGitActionStatusWorks = false;
+              let reviewFloatingGitOpenTabWorks = false;
               let reviewRevertAllConfirmationWorks = false;
               const actionMenuButton = [...document.querySelectorAll('button')]
                 .find((button) => button.getAttribute('aria-label') === 'Review options');
@@ -10908,6 +10909,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 const reviewFloatingRevertButton = document.querySelector('[data-testid="review-revert-all"]');
                 const reviewFloatingStageButton = document.querySelector('[data-testid="review-stage-all"]');
                 const reviewFloatingUnstageButton = document.querySelector('[data-testid="review-unstage-all"]');
+                const reviewFloatingOpenGitButton = document.querySelector('[data-testid="review-open-git-tab"]');
                 const reviewRootForFloatingActions = document.querySelector('.diff-panel-root');
                 const floatingActionPillRect = reviewFloatingActionPill instanceof HTMLElement
                   ? reviewFloatingActionPill.getBoundingClientRect()
@@ -10921,7 +10923,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 const floatingPillCenterDelta = floatingActionPillRect !== null && reviewRootRect !== null
                   ? Math.abs((floatingActionPillRect.left + floatingActionPillRect.width / 2) - (reviewRootRect.left + reviewRootRect.width / 2))
                   : Number.POSITIVE_INFINITY;
-                const floatingActionButtonRects = [reviewFloatingRevertButton, reviewFloatingStageButton, reviewFloatingUnstageButton]
+                const floatingActionButtonRects = [reviewFloatingRevertButton, reviewFloatingStageButton, reviewFloatingUnstageButton, reviewFloatingOpenGitButton]
                   .map((button) => button instanceof HTMLElement ? button.getBoundingClientRect() : null);
                 reviewFloatingGitActionsWork =
                   reviewFloatingActionPill instanceof HTMLElement &&
@@ -10933,9 +10935,11 @@ function runAutomatedFocusedSurfaceSmoke(
                   Number(reviewFloatingActionPill.getAttribute('data-review-unstageable-count') ?? '0') > 0 &&
                   reviewFloatingStageButton instanceof HTMLButtonElement &&
                   reviewFloatingUnstageButton instanceof HTMLButtonElement &&
+                  reviewFloatingOpenGitButton instanceof HTMLButtonElement &&
                   reviewFloatingRevertButton.textContent?.includes('Revert all') === true &&
                   reviewFloatingStageButton.textContent?.includes('Stage all') === true &&
                   reviewFloatingUnstageButton.textContent?.includes('Unstage all') === true &&
+                  reviewFloatingOpenGitButton.textContent?.includes('Open Git') === true &&
                   floatingActionPillRect !== null &&
                   reviewRootRect !== null &&
                   floatingActionPillRect.width <= reviewRootRect.width - 24 &&
@@ -10996,6 +11000,51 @@ function runAutomatedFocusedSurfaceSmoke(
                     reviewFloatingActionStatus.getAttribute('aria-live') === 'polite' &&
                     reviewFloatingActionStatus.getAttribute('aria-atomic') === 'true' &&
                     reviewFloatingActionStatus.textContent?.includes('Staged ') === true;
+                }
+                const reviewFloatingOpenGitButtonAfterStage = document.querySelector('[data-testid="review-open-git-tab"]');
+                if (reviewFloatingOpenGitButtonAfterStage instanceof HTMLButtonElement && !reviewFloatingOpenGitButtonAfterStage.disabled) {
+                  reviewFloatingOpenGitButtonAfterStage.click();
+                  for (let attempt = 0; attempt < 12; attempt += 1) {
+                    await sleep(100);
+                    const gitPanel = document.querySelector('[data-testid="git-panel"]');
+                    if (
+                      document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-active-tab') === 'git' &&
+                      gitPanel instanceof HTMLElement
+                    ) {
+                      break;
+                    }
+                  }
+                  const gitPanelFromReview = document.querySelector('[data-testid="git-panel"]');
+                  const reviewTab = document.querySelector('[role="tab"][data-tab-id="diff"]');
+                  reviewFloatingGitOpenTabWorks =
+                    document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-active-tab') === 'git' &&
+                    gitPanelFromReview instanceof HTMLElement &&
+                    gitPanelFromReview.getAttribute('data-git-action-state') === 'idle' &&
+                    document.querySelector('[role="tab"][data-tab-id="git"]') instanceof HTMLElement;
+                  if (reviewTab instanceof HTMLElement) {
+                    reviewTab.click();
+                    for (let attempt = 0; attempt < 12; attempt += 1) {
+                      await sleep(100);
+                      if (
+                        document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-active-tab') === 'diff' &&
+                        document.querySelector('.diff-panel-root') instanceof HTMLElement &&
+                        (
+                          document.querySelector('[data-testid="review-unified-diff"] .review-diff-line-cell') instanceof HTMLElement ||
+                          document.querySelector('[data-testid="review-split-diff"] .review-diff-line-cell') instanceof HTMLElement
+                        )
+                      ) {
+                        break;
+                      }
+                    }
+                  }
+                  reviewFloatingGitOpenTabWorks =
+                    reviewFloatingGitOpenTabWorks &&
+                    document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-active-tab') === 'diff' &&
+                    document.querySelector('.diff-panel-root') instanceof HTMLElement &&
+                    (
+                      document.querySelector('[data-testid="review-unified-diff"] .review-diff-line-cell') instanceof HTMLElement ||
+                      document.querySelector('[data-testid="review-split-diff"] .review-diff-line-cell') instanceof HTMLElement
+                    );
                 }
                 const reviewDiffMetricCells = [...document.querySelectorAll('[data-testid="review-unified-diff"] .review-diff-line-cell')]
                   .filter((cell) => cell instanceof HTMLElement)
@@ -11427,6 +11476,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   reviewGitApplyCopyStatusWorks,
                   reviewFloatingGitActionsWork,
                   reviewFloatingGitActionStatusWorks,
+                  reviewFloatingGitOpenTabWorks,
                   reviewRevertAllConfirmationWorks
                 };
               }

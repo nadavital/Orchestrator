@@ -9505,6 +9505,16 @@ Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.
 
 Remaining: live PR creation, provider-hosted Git metadata, exact live Codex UI timing, and retiring Review's temporary local-git bridge once the Git tab fully owns local Git actions remain separate follow-ups.
 
+### 2026-05-28 - Review To Git Workbench Handoff
+
+Product evidence: the dedicated Git tab now owns branch, commit, PR-command, stage/unstage, and discard workflows, but users reviewing a diff still need an obvious path from Review to that Git surface. Without a handoff, the temporary Review local-git bridge remains a dead-end duplicate instead of a transition point toward the Git Workbench workflow.
+
+Implemented: the local Review floating action pill now includes an `Open Git` action. It calls the shared right-panel tab opener for `git`, so it opens or focuses the dedicated Git Workbench tab without leaving the current session. Existing Review Stage/Unstage/Revert actions remain intact.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --diff-core` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-core-1780021759605.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-core-1780021759605.png`. The focused smoke gates `reviewFloatingGitOpenTab=true` by clicking `Open Git`, verifying the Git panel is active and idle, then returning to Review and waiting for hydrated diff rows before continuing the existing Review core checks.
+
+Remaining: this is a handoff, not bridge removal. Live PR creation, provider-hosted Git metadata, exact live Codex UI timing, and eventual retirement or simplification of the Review local-git bridge remain separate follow-ups.
+
 ### 2026-05-28 - Review Provider Suggestions
 
 Product evidence: PP-054 still had an actionable Review gap after the Git tab picked up local branch/commit/PR-command ownership: provider inline comments could be displayed, but GitHub suggestion fences were passive text. For daily coding, Review should let users copy or apply a concrete suggestion without leaving the right Workbench panel.
