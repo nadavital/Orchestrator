@@ -991,6 +991,45 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 !diagnosticsToggle.textContent?.includes('Advanced') &&
                 !diagnosticsToggle.textContent?.includes('Shown') &&
                 !diagnosticsToggle.textContent?.includes('Hidden');
+              var settingsProviderRuntimeCopyWorks = false;
+              var settingsProviderRuntimeCopyStatusA11yWorks = false;
+              for (let index = 0; index < 16; index += 1) {
+                if (document.querySelector('[data-testid="provider-runtime-events-card"]') instanceof HTMLElement) break;
+                await sleep(100);
+              }
+              const runtimeEventsCard = document.querySelector('[data-testid="provider-runtime-events-card"]');
+              const runtimeEventsCopy = document.querySelector('[data-testid="provider-runtime-events-copy"]');
+              if (runtimeEventsCopy instanceof HTMLElement) {
+                runtimeEventsCopy.click();
+                for (let index = 0; index < 12; index += 1) {
+                  const card = document.querySelector('[data-testid="provider-runtime-events-card"]');
+                  const status = document.querySelector('[data-testid="provider-runtime-events-copy-status"]');
+                  if (
+                    card instanceof HTMLElement &&
+                    card.getAttribute('data-provider-runtime-copy-status-tone') === 'info' &&
+                    status instanceof HTMLElement &&
+                    status.textContent?.includes('Runtime activity copied') === true
+                  ) break;
+                  await sleep(100);
+                }
+                const runtimeCopyStatus = document.querySelector('[data-testid="provider-runtime-events-copy-status"]');
+                const copiedRuntimeActivity =
+                  await window.api?.clipboard?.readText?.().catch(() => '') ??
+                  await navigator.clipboard?.readText?.().catch(() => '') ??
+                  '';
+                settingsProviderRuntimeCopyWorks =
+                  runtimeEventsCard instanceof HTMLElement &&
+                  runtimeEventsCard.getAttribute('data-provider-runtime-copy-status-tone') === 'info' &&
+                  runtimeEventsCopy.textContent?.includes('Copied') === true &&
+                  copiedRuntimeActivity.includes('Provider runtime activity') &&
+                  copiedRuntimeActivity.includes('No runtime activity recorded');
+                settingsProviderRuntimeCopyStatusA11yWorks =
+                  runtimeCopyStatus instanceof HTMLElement &&
+                  runtimeCopyStatus.textContent?.trim() === 'Runtime activity copied' &&
+                  runtimeCopyStatus.getAttribute('role') === 'status' &&
+                  runtimeCopyStatus.getAttribute('aria-live') === 'polite' &&
+                  runtimeCopyStatus.getAttribute('aria-atomic') === 'true';
+              }
               var settingsProviderCommandOutputSharedWorks = false;
               if (providerCapabilitySelect instanceof HTMLSelectElement) {
                 const firstCapabilityOption = [...providerCapabilitySelect.options]
@@ -7944,6 +7983,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             settingsProviderInstallCommandCopyWorks: typeof settingsProviderInstallCommandCopyWorks === 'boolean' ? settingsProviderInstallCommandCopyWorks : null,
             settingsProviderInstallCommandStatusA11yWorks: typeof settingsProviderInstallCommandStatusA11yWorks === 'boolean' ? settingsProviderInstallCommandStatusA11yWorks : null,
             settingsProviderPermissionRefreshWorks: typeof settingsProviderPermissionRefreshWorks === 'boolean' ? settingsProviderPermissionRefreshWorks : null,
+            settingsProviderRuntimeCopyWorks: typeof settingsProviderRuntimeCopyWorks === 'boolean' ? settingsProviderRuntimeCopyWorks : null,
+            settingsProviderRuntimeCopyStatusA11yWorks: typeof settingsProviderRuntimeCopyStatusA11yWorks === 'boolean' ? settingsProviderRuntimeCopyStatusA11yWorks : null,
             settingsProviderSidebarRefreshWorks: typeof settingsProviderSidebarRefreshWorks === 'boolean' ? settingsProviderSidebarRefreshWorks : null,
             settingsProviderContentAnchoredWorks: typeof settingsProviderContentAnchoredWorks === 'boolean' ? settingsProviderContentAnchoredWorks : null,
             settingsDataControlsWorks: typeof settingsDataControlsWorks === 'boolean' ? settingsDataControlsWorks : null,

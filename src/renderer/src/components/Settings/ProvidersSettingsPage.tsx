@@ -604,10 +604,62 @@ function ProviderRuntimeEventsCard({
   events: ProviderRuntimeDebugEvent[]
   color: string
 }): JSX.Element {
+  const [copyStatus, setCopyStatus] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
+  const statusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const visibleEvents = events.slice(-4).reverse()
   const visibleConnections = connections.slice(-2).reverse()
+  useEffect(() => () => {
+    if (statusTimeoutRef.current) window.clearTimeout(statusTimeoutRef.current)
+  }, [])
+  const handleCopy = async (): Promise<void> => {
+    if (statusTimeoutRef.current) window.clearTimeout(statusTimeoutRef.current)
+    try {
+      await writeClipboardText(formatProviderRuntimeActivity(connections, events))
+      setCopyStatus({ text: 'Runtime activity copied', tone: 'info' })
+    } catch (error) {
+      setCopyStatus({ text: `Copy failed: ${errorText(error)}`, tone: 'danger' })
+    }
+    statusTimeoutRef.current = window.setTimeout(() => {
+      setCopyStatus(null)
+      statusTimeoutRef.current = null
+    }, 1800)
+  }
   return (
-    <div data-testid="provider-runtime-events-card" style={{ display: 'grid', gap: 6 }}>
+    <div
+      data-testid="provider-runtime-events-card"
+      data-provider-runtime-copy-status={copyStatus?.text ?? ''}
+      data-provider-runtime-copy-status-tone={copyStatus?.tone ?? ''}
+      style={{ display: 'grid', gap: 6 }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, minWidth: 0 }}>
+        <InlineMutedText>Latest runtime activity</InlineMutedText>
+        <button
+          type="button"
+          className="provider-details-inline-action"
+          data-testid="provider-runtime-events-copy"
+          aria-label="Copy provider runtime activity"
+          onClick={() => { void handleCopy() }}
+          style={{ '--provider-color': color } as CSSProperties}
+        >
+          <Icon name="copy" size={11} />
+          {copyStatus?.tone === 'info' ? 'Copied' : 'Copy'}
+        </button>
+      </div>
+      {copyStatus && (
+        <div
+          data-testid="provider-runtime-events-copy-status"
+          role={copyStatus.tone === 'danger' ? 'alert' : 'status'}
+          aria-live={copyStatus.tone === 'danger' ? 'assertive' : 'polite'}
+          aria-atomic="true"
+          style={{
+            color: copyStatus.tone === 'danger' ? 'var(--state-danger)' : 'var(--text-secondary)',
+            fontSize: 10.5,
+            fontWeight: 600
+          }}
+        >
+          {copyStatus.text}
+        </div>
+      )}
       {visibleConnections.length === 0 && visibleEvents.length === 0 && (
         <InlineMutedText>No runtime activity recorded for this provider yet.</InlineMutedText>
       )}
@@ -701,6 +753,49 @@ function ProviderRuntimeEventsCard({
       ))}
     </div>
   )
+}
+
+function formatProviderRuntimeActivity(
+  connections: ProviderRuntimeConnectionState[],
+  events: ProviderRuntimeDebugEvent[]
+): string {
+  const lines = ['Provider runtime activity']
+  const visibleConnections = connections.slice(-4).reverse()
+  const visibleEvents = events.slice(-8).reverse()
+
+  if (visibleConnections.length === 0 && visibleEvents.length === 0) {
+    lines.push('No runtime activity recorded for this provider yet.')
+    return lines.join('\n')
+  }
+
+  if (visibleConnections.length > 0) {
+    lines.push('', 'Connections:')
+    for (const connection of visibleConnections) {
+      lines.push([
+        `- ${connection.status}`,
+        connection.providerId,
+        connection.runtime,
+        connection.version,
+        connection.hostId,
+        connection.message
+      ].filter(Boolean).join(' · '))
+    }
+  }
+
+  if (visibleEvents.length > 0) {
+    lines.push('', 'Events:')
+    for (const event of visibleEvents) {
+      lines.push([
+        `- ${event.severity}`,
+        event.runtime,
+        event.method,
+        event.hostId,
+        event.message
+      ].filter(Boolean).join(' · '))
+    }
+  }
+
+  return lines.join('\n')
 }
 
 function ProviderSetupDetails({ providerDef }: { providerDef: typeof PROVIDER_DEFS[string] }): JSX.Element {
