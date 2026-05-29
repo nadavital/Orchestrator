@@ -9924,3 +9924,13 @@ Implemented: right-panel `TerminalView` now receives an `onOpenUrl` callback tha
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --terminal` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1780041168899.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1780041168899.png`. An earlier visible-link-status assertion was dropped because opening Browser can legitimately switch or unmount the origin terminal; the final checked behavior is scoped routing and right-panel Browser handoff.
 
 Remaining: richer durable link-status UX can be revisited if a cross-panel status surface is added. Live Codex terminal pixel/timing proof and broader mixed-surface stress remain separate from this scoped routing fix.
+
+### 2026-05-29 - Provider Settings Permission Config Refresh
+
+Product evidence: Settings is a Phase 1 daily-use surface for provider, runtime, and permission defaults. The composer permission popover already let users refresh live permission config, but Provider Settings only refreshed that context passively when the page/provider changed. That made provider configuration feel stale when config requirements changed while the app was open.
+
+Implemented: Provider Settings now keeps explicit permission-context loading/status state, exposes a compact `Refresh` action beside the live/fallback permission-config row, and announces refresh success/failure through a status/alert region. The runtime-context row now exposes refresh/source/status metadata for smoke proof.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --settings-providers` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-providers-1780041717089.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-providers-1780041717089.png`. The first focused rerun exposed only a harness scoping mistake, where the UI had refreshed but the new smoke variable serialized as `null`; the rerun gates `settingsProviderPermissionRefresh=true`.
+
+Remaining: this closes explicit local permission-config refresh in Provider Settings only. Provider-native account/runtime adapters, remote-host settings sync, and deterministic live permission-request forcing remain separate Phase 1 work.

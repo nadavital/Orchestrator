@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties, type Dispatch, type ReactNode, type SetStateAction } from 'react'
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type Dispatch, type ReactNode, type SetStateAction } from 'react'
 import {
   DndContext, closestCenter, type DragEndEvent,
   KeyboardSensor, PointerSensor, useSensor, useSensors
@@ -99,6 +99,32 @@ export default function ProvidersSettingsPage({
     : visibleModels[0]?.id ?? currentModel
   const [sidebarSyncLoading, setSidebarSyncLoading] = useState(false)
   const [sidebarSyncResult, setSidebarSyncResult] = useState<ProviderSidebarSyncResult | null>(null)
+  const [permissionContextLoading, setPermissionContextLoading] = useState(false)
+  const [permissionContextRefreshStatus, setPermissionContextRefreshStatus] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
+  const permissionContextCwd = sessions.find((session) => session.provider === selectedId)?.workDir ?? sessions[0]?.workDir
+
+  const loadPermissionContext = useCallback(async (options: { announce?: boolean } = {}): Promise<void> => {
+    setPermissionContextLoading(true)
+    if (options.announce) {
+      setPermissionContextRefreshStatus({ text: 'Refreshing permission config', tone: 'info' })
+    }
+    try {
+      const context = await window.api.providers.getPermissionContext(selectedId, permissionContextCwd)
+      onSetProviderPermissionContexts((current) => ({ ...current, [selectedId]: context }))
+      if (options.announce) {
+        setPermissionContextRefreshStatus({
+          text: context.status === 'ok' ? 'Permission config refreshed' : 'Permission config fallback refreshed',
+          tone: 'info'
+        })
+      }
+    } catch {
+      if (options.announce) {
+        setPermissionContextRefreshStatus({ text: 'Permission config refresh failed', tone: 'danger' })
+      }
+    } finally {
+      setPermissionContextLoading(false)
+    }
+  }, [onSetProviderPermissionContexts, permissionContextCwd, selectedId])
 
   useEffect(() => {
     if (advancedOpen) onLoadProviderDiagnostics(selectedId)
@@ -107,18 +133,18 @@ export default function ProvidersSettingsPage({
   useEffect(() => {
     setSidebarSyncLoading(false)
     setSidebarSyncResult(null)
+    setPermissionContextRefreshStatus(null)
   }, [selectedId])
 
   useEffect(() => {
     let alive = true
-    const cwd = sessions.find((session) => session.provider === selectedId)?.workDir ?? sessions[0]?.workDir
-    window.api.providers.getPermissionContext(selectedId, cwd)
-      .then((context) => {
-        if (alive) onSetProviderPermissionContexts((current) => ({ ...current, [selectedId]: context }))
-      })
+    loadPermissionContext()
       .catch(() => undefined)
+      .finally(() => {
+        if (!alive) setPermissionContextLoading(false)
+      })
     return () => { alive = false }
-  }, [onSetProviderPermissionContexts, selectedId, sessions])
+  }, [loadPermissionContext])
 
   const handleVisibleModelsChange = (ids: string[]): void => {
     onSetProviderModels(selectedId, ids)
@@ -235,6 +261,9 @@ export default function ProvidersSettingsPage({
                           policy={runtime?.policies[currentPermissionMode]}
                           context={permissionContext}
                           color={providerDef.color}
+                          refreshing={permissionContextLoading}
+                          refreshStatus={permissionContextRefreshStatus}
+                          onRefresh={() => { void loadPermissionContext({ announce: true }) }}
                         />
                       </div>
                     )}
@@ -442,11 +471,17 @@ function sidebarSyncStatusText(result: ProviderSidebarSyncResult): string {
 function ProviderPermissionContract({
   policy,
   context,
-  color
+  color,
+  refreshing,
+  refreshStatus,
+  onRefresh
 }: {
   policy?: ResolvedExecutionPolicy
   context?: ProviderPermissionRuntimeContext
   color: string
+  refreshing: boolean
+  refreshStatus: { text: string; tone: 'info' | 'danger' } | null
+  onRefresh: () => void
 }): JSX.Element | null {
   if (!policy?.execution && (!context || context.source === 'static')) return null
   const chips = policy?.execution ? permissionExecutionLabels(policy.execution) : []
@@ -486,18 +521,54 @@ function ProviderPermissionContract({
         </div>
       )}
       {context && context.source !== 'static' && (
-        <div
-          data-testid="settings-permission-runtime-context"
-          style={{
-            marginTop: 6,
-            color: context.status === 'ok' ? 'var(--color-green)' : 'var(--color-text-muted)',
-            fontSize: 10.5,
-            lineHeight: 1.35
-          }}
-          title={context.cwd ? `${context.summary ?? ''} ${context.cwd}` : context.summary}
-        >
-          {context.status === 'ok' ? 'Live config' : 'Config fallback'} · {context.summary ?? 'Permission config checked.'}
-        </div>
+        <>
+          <div
+            data-testid="settings-permission-runtime-context"
+            data-permission-context-refreshing={refreshing ? 'true' : 'false'}
+            data-permission-context-source={context.source}
+            data-permission-context-status={context.status}
+            style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              alignItems: 'center',
+              gap: 6,
+              marginTop: 6,
+              color: context.status === 'ok' ? 'var(--color-green)' : 'var(--color-text-muted)',
+              fontSize: 10.5,
+              lineHeight: 1.35
+            }}
+            title={context.cwd ? `${context.summary ?? ''} ${context.cwd}` : context.summary}
+          >
+            <span>{context.status === 'ok' ? 'Live config' : 'Config fallback'} · {context.summary ?? 'Permission config checked.'}</span>
+            <button
+              type="button"
+              className="provider-details-inline-action"
+              data-testid="settings-permission-runtime-refresh"
+              aria-label="Refresh provider permission config"
+              disabled={refreshing}
+              onClick={onRefresh}
+            >
+              <Icon name="refresh" size={11} />
+              {refreshing ? 'Refreshing' : 'Refresh'}
+            </button>
+          </div>
+          {refreshStatus && (
+            <div
+              data-testid="settings-permission-runtime-refresh-status"
+              role={refreshStatus.tone === 'danger' ? 'alert' : 'status'}
+              aria-live={refreshStatus.tone === 'danger' ? 'assertive' : 'polite'}
+              aria-atomic="true"
+              style={{
+                marginTop: 5,
+                color: refreshStatus.tone === 'danger' ? 'var(--color-red)' : color,
+                fontSize: 10.5,
+                fontWeight: 600
+              }}
+            >
+              {refreshStatus.text}
+            </div>
+          )}
+        </>
       )}
     </div>
   )

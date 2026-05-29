@@ -3020,6 +3020,7 @@ child.on('exit', async (code) => {
         settingsProviderCommandOutputShared: captureView !== 'settings-providers' || result.settingsProviderCommandOutputSharedWorks === true,
         settingsProviderInstallCommandCopy: captureView !== 'settings-providers' || result.settingsProviderInstallCommandCopyWorks === true,
         settingsProviderInstallCommandStatusA11y: captureView !== 'settings-providers' || result.settingsProviderInstallCommandStatusA11yWorks === true,
+        settingsProviderPermissionRefresh: captureView !== 'settings-providers' || result.settingsProviderPermissionRefreshWorks === true,
         settingsProviderSidebarRefresh: captureView !== 'settings-providers' || result.settingsProviderSidebarRefreshWorks === true,
         settingsProviderContentAnchored: captureView !== 'settings-providers' || result.settingsProviderContentAnchoredWorks === true,
         settingsDataControls: captureView !== 'settings' || result.settingsDataControlsWorks === true,

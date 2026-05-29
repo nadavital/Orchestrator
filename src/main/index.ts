@@ -1154,6 +1154,32 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 codexProviderSelect.dispatchEvent(new Event('change', { bubbles: true }));
                 await sleep(220);
               }
+              var settingsProviderPermissionRefreshWorks = false;
+              for (let index = 0; index < 12; index += 1) {
+                if (document.querySelector('[data-testid="settings-permission-runtime-refresh"]') instanceof HTMLButtonElement) break;
+                await sleep(100);
+              }
+              const permissionRuntimeContext = document.querySelector('[data-testid="settings-permission-runtime-context"]');
+              const permissionRuntimeRefresh = document.querySelector('[data-testid="settings-permission-runtime-refresh"]');
+              if (permissionRuntimeRefresh instanceof HTMLButtonElement) {
+                permissionRuntimeRefresh.click();
+                for (let index = 0; index < 12; index += 1) {
+                  const status = document.querySelector('[data-testid="settings-permission-runtime-refresh-status"]');
+                  if (status instanceof HTMLElement && status.textContent?.includes('Permission config') === true) break;
+                  await sleep(100);
+                }
+                const status = document.querySelector('[data-testid="settings-permission-runtime-refresh-status"]');
+                settingsProviderPermissionRefreshWorks =
+                  permissionRuntimeContext instanceof HTMLElement &&
+                  permissionRuntimeContext.getAttribute('data-permission-context-source') !== null &&
+                  permissionRuntimeContext.getAttribute('data-permission-context-status') !== null &&
+                  permissionRuntimeRefresh.disabled === false &&
+                  status instanceof HTMLElement &&
+                  status.getAttribute('role') === 'status' &&
+                  status.getAttribute('aria-live') === 'polite' &&
+                  status.getAttribute('aria-atomic') === 'true' &&
+                  status.textContent?.includes('Permission config') === true;
+              }
               const sidebarMetadataRefreshButton = document.querySelector('[data-testid="provider-sidebar-metadata-refresh"]');
               const codexStatusCard = document.querySelector('[data-testid="provider-status-card"]');
               var settingsProviderSidebarRefreshWorks =
@@ -7917,6 +7943,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             settingsProviderCommandOutputSharedWorks: typeof settingsProviderCommandOutputSharedWorks === 'boolean' ? settingsProviderCommandOutputSharedWorks : null,
             settingsProviderInstallCommandCopyWorks: typeof settingsProviderInstallCommandCopyWorks === 'boolean' ? settingsProviderInstallCommandCopyWorks : null,
             settingsProviderInstallCommandStatusA11yWorks: typeof settingsProviderInstallCommandStatusA11yWorks === 'boolean' ? settingsProviderInstallCommandStatusA11yWorks : null,
+            settingsProviderPermissionRefreshWorks: typeof settingsProviderPermissionRefreshWorks === 'boolean' ? settingsProviderPermissionRefreshWorks : null,
             settingsProviderSidebarRefreshWorks: typeof settingsProviderSidebarRefreshWorks === 'boolean' ? settingsProviderSidebarRefreshWorks : null,
             settingsProviderContentAnchoredWorks: typeof settingsProviderContentAnchoredWorks === 'boolean' ? settingsProviderContentAnchoredWorks : null,
             settingsDataControlsWorks: typeof settingsDataControlsWorks === 'boolean' ? settingsDataControlsWorks : null,

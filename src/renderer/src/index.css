@@ -11675,6 +11675,36 @@
     outline: none;
   }
 
+  .provider-details-inline-action {
+    display: inline-flex;
+    min-height: 22px;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 4px;
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    background: var(--control-bg);
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 10px;
+    font-weight: 650;
+    line-height: 1;
+    padding: 3px 6px;
+  }
+
+  .provider-details-inline-action:not(:disabled):hover,
+  .provider-details-inline-action:not(:disabled):focus-visible {
+    border-color: color-mix(in srgb, var(--provider-color, var(--accent)) 40%, var(--border-subtle));
+    background: var(--control-bg-hover);
+    color: var(--text-primary);
+    outline: none;
+  }
+
+  .provider-details-inline-action:disabled {
+    cursor: default;
+    opacity: 0.7;
+  }
+
   .provider-detail-card {
     min-width: 0;
     border: 1px solid var(--border-subtle);
