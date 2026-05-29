@@ -12717,6 +12717,24 @@ function runAutomatedFocusedSurfaceSmoke(
                 document.querySelector('[data-testid="review-source-commit-picker"]') instanceof HTMLButtonElement &&
                 document.querySelector('[data-testid="review-source-commit-picker-item"]') === null &&
                 commitRefValue.trim().length >= 8;
+              const codexCommitReviewButton = document.querySelector('[data-testid="review-start-codex"]');
+              const codexCommitReviewTarget = document.querySelector('[data-testid="review-start-codex-target"]');
+              const reviewCodexCommitStartWorks =
+                codexCommitReviewButton instanceof HTMLButtonElement &&
+                codexCommitReviewTarget instanceof HTMLElement &&
+                codexCommitReviewButton.getAttribute('aria-label') === 'Start Codex commit review' &&
+                codexCommitReviewButton.disabled === false &&
+                codexCommitReviewTarget.getAttribute('data-codex-review-start-target') === 'commit' &&
+                codexCommitReviewTarget.getAttribute('data-codex-review-start-sha') === commitRefValue;
+              const reviewCodexCommitStartDebug = {
+                buttonFound: codexCommitReviewButton instanceof HTMLButtonElement,
+                buttonDisabled: codexCommitReviewButton instanceof HTMLButtonElement ? codexCommitReviewButton.disabled : null,
+                buttonLabel: codexCommitReviewButton instanceof HTMLButtonElement ? codexCommitReviewButton.getAttribute('aria-label') : null,
+                targetFound: codexCommitReviewTarget instanceof HTMLElement,
+                target: codexCommitReviewTarget instanceof HTMLElement ? codexCommitReviewTarget.getAttribute('data-codex-review-start-target') : null,
+                sha: codexCommitReviewTarget instanceof HTMLElement ? codexCommitReviewTarget.getAttribute('data-codex-review-start-sha') : null,
+                commitRefValue
+              };
               if (await clickReviewSource('all')) {
                 await sleep(220);
               }
@@ -14476,6 +14494,8 @@ function runAutomatedFocusedSurfaceSmoke(
                   reviewSourceModesDebug,
                   reviewCodexBaseStartWorks,
                   reviewCodexBaseStartDebug,
+                  reviewCodexCommitStartWorks,
+                  reviewCodexCommitStartDebug,
                   reviewOptionsMenuStateWorks,
                   reviewSourceRefMenuStateWorks:
                     branchPickerMenuStateWorks &&

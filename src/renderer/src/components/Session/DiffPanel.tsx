@@ -1073,6 +1073,8 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
   const codexReviewStartRequest = resolveCodexReviewStartRequest(reviewSource, activeReviewRef)
   const codexReviewStartLabel = codexReviewStartRequest?.target.type === 'baseBranch'
     ? 'Start Codex base review'
+    : codexReviewStartRequest?.target.type === 'commit'
+      ? 'Start Codex commit review'
     : 'Start Codex review'
   const codexReviewStartDisabled = !canStartCodexReview || !codexReviewStartRequest || codexReviewStartPending || reviewSession?.status === 'running'
   const activeReviewSourceStats = sourceFiles.reduce(
@@ -1126,6 +1128,8 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
         setReviewGitActionMessage({
           text: codexReviewStartRequest.target.type === 'baseBranch'
             ? `Codex review started against ${codexReviewStartRequest.target.branch}`
+            : codexReviewStartRequest.target.type === 'commit'
+              ? `Codex review started for commit ${codexReviewStartRequest.target.sha.slice(0, 8)}`
             : 'Codex review started',
           tone: 'info'
         })
@@ -1152,6 +1156,7 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
             data-testid="review-start-codex-target"
             data-codex-review-start-target={codexReviewStartRequest?.target.type ?? ''}
             data-codex-review-start-branch={codexReviewStartRequest?.target.type === 'baseBranch' ? codexReviewStartRequest.target.branch : ''}
+            data-codex-review-start-sha={codexReviewStartRequest?.target.type === 'commit' ? codexReviewStartRequest.target.sha : ''}
           >
             <IconButton
               icon="sparkles"
@@ -4765,7 +4770,11 @@ function resolveCodexReviewStartRequest(source: ReviewDiffSource, ref: string): 
     const branch = ref.trim()
     return branch ? { target: { type: 'baseBranch', branch }, delivery: 'inline' } : null
   }
-  if (source === 'commit' || source === 'last-turn' || source === 'cloud') return null
+  if (source === 'commit') {
+    const sha = ref.trim()
+    return sha ? { target: { type: 'commit', sha, title: null }, delivery: 'inline' } : null
+  }
+  if (source === 'last-turn' || source === 'cloud') return null
   return { target: { type: 'uncommittedChanges' }, delivery: 'inline' }
 }
 
