@@ -95,7 +95,7 @@ const diffRules = [
   {
     flag: '--transcript-user-input',
     label: 'Transcript user input',
-    filePatterns: [/^src\/renderer\/src\/components\/Session\/ChatView\.tsx$/, /^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
+    filePatterns: [/^src\/renderer\/src\/components\/Session\/ChatView\.tsx$/, /^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/, /^src\/main\/providers\.ts$/, /^src\/types\/index\.ts$/],
     diffPatterns: [/UserInputCard|QuestionBlock|chat-user-input|userInput[A-Z]|data-user-input/]
   },
   {
@@ -229,6 +229,30 @@ const staticValidationRules = [
         args: ['--test', 'out-test/src/main/__tests__/panelTabs.test.js']
       }
     ]
+  },
+  {
+    label: 'Provider parser unit coverage',
+    patterns: [/^src\/main\/providers\.ts$/, /^src\/types\/index\.ts$/, /^src\/main\/__tests__\/providers\.test\.ts$/, /^src\/main\/__fixtures__\/providers\//],
+    checks: [
+      {
+        kind: 'static',
+        label: 'Clean node test output',
+        command: 'node',
+        args: ['-e', "require('fs').rmSync('out-test',{recursive:true,force:true})"]
+      },
+      {
+        kind: 'static',
+        label: 'Compile node tests',
+        command: 'pnpm',
+        args: ['exec', 'tsc', '-p', 'tsconfig.node.json', '--outDir', 'out-test', '--module', 'commonjs']
+      },
+      {
+        kind: 'static',
+        label: 'Provider parser unit coverage',
+        command: 'node',
+        args: ['--test', 'out-test/src/main/__tests__/providers.test.js']
+      }
+    ]
   }
 ]
 
@@ -322,6 +346,7 @@ function suggestTargets(paths) {
   restoreDiffTargets(matched, paths)
   suppressDiffCoreForMergeConflictDiff(matched)
   suppressSettingsForProviderSettingsDiff(matched, paths)
+  suppressSettingsProvidersForUserInputDiff(matched, paths)
   suppressWorkbenchLauncherForContextSidebarTabDiff(matched, paths)
   suppressRightPanelForContextSidebarTerminalDiff(matched, paths)
   suppressWorkbenchLauncherForContextSidebarTerminalDiff(matched, paths)
@@ -626,6 +651,16 @@ function suppressTranscriptLayoutForUserInputDiff(matched, paths) {
     : ''
   if (!/UserInputCard|QuestionBlock|chat-user-input|userInput[A-Z]|data-user-input/.test(diff)) return
   matched.delete('--transcript-layout')
+}
+
+function suppressSettingsProvidersForUserInputDiff(matched, paths) {
+  const providers = matched.get('--settings-providers')
+  const userInput = matched.get('--transcript-user-input')
+  if (!providers || !userInput) return
+  if (!providers.files.every((file) => file === 'src/main/providers.ts')) return
+  const diff = paths.includes('src/main/providers.ts') ? diffForFile('src/main/providers.ts') : ''
+  if (!/UserInputQuestion|userInput|requestUserInput|isOther|isSecret/.test(diff)) return
+  matched.delete('--settings-providers')
 }
 
 function suppressTranscriptLayoutForFileReferenceDiff(matched, paths) {

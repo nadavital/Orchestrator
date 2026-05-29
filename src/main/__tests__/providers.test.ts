@@ -1203,8 +1203,36 @@ test('codex app-server protocol messages normalize approval and question semanti
   assert.equal(permission.denials[0]?.tool_input.cwd, '/private/tmp/orchestrator-codex-p8')
   assert.equal(questions[0]?.content, 'Pick a deployment target')
   assert.equal(questions[0]?.questions?.[0]?.options?.[1]?.label, 'production')
+  assert.equal(questions[0]?.questions?.[0]?.isOther, false)
+  assert.equal(questions[0]?.questions?.[0]?.isSecret, false)
   assert.equal(questions[1]?.content, 'Confirm the deploy window')
   assert.equal(questions[1]?.questions?.[0]?.header, 'deploy')
+})
+
+test('codex app-server user input preserves other and secret metadata', () => {
+  const provider = PROVIDERS.codex
+  const events = provider.parseOutputLine(JSON.stringify({
+    jsonrpc: '2.0',
+    id: 'question-secret',
+    method: 'item/tool/requestUserInput',
+    params: {
+      threadId: 'codex-app-thread-123',
+      turnId: 'turn-1',
+      itemId: 'question-secret',
+      questions: [{
+        id: 'deploy-token',
+        header: 'Secret',
+        question: 'Provide deploy token',
+        isOther: true,
+        isSecret: true
+      }]
+    }
+  }))
+  const question = firstEvent(events, 'user_input.requested').questions?.[0]
+
+  assert.equal(question?.id, 'deploy-token')
+  assert.equal(question?.isOther, true)
+  assert.equal(question?.isSecret, true)
 })
 
 test('codex app-server protocol messages normalize file and permission profile approvals', () => {

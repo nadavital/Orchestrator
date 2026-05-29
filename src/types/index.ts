@@ -2074,6 +2074,8 @@ export interface UserInputQuestion {
   header?: string
   options?: UserInputOption[]
   multiSelect?: boolean
+  isOther?: boolean
+  isSecret?: boolean
 }
 
 export interface ResultMessage extends BaseMessage {

@@ -1,5 +1,5 @@
 import { isValidElement, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useCallback } from 'react'
-import type { CSSProperties, ReactNode, WheelEvent } from 'react'
+import type { CSSProperties, ReactNode, RefObject, WheelEvent } from 'react'
 import { createPortal } from 'react-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -3640,12 +3640,14 @@ function UserInputCard({
   const [questionAnswers, setQuestionAnswers] = useState<Record<string, string[]>>({})
   const [submitState, setSubmitState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
   const [submitError, setSubmitError] = useState<string | null>(null)
-  const answerInputRef = useRef<HTMLTextAreaElement>(null)
+  const answerInputRef = useRef<HTMLTextAreaElement | HTMLInputElement>(null)
   const questions = msg.userInputQuestions?.length ? msg.userInputQuestions : [{ question: msg.content }]
   const requestIsActive = sessionStatus === 'waiting_for_user'
   const isAnswered = submitState === 'sent' || !requestIsActive
   const isSending = submitState === 'sending'
   const hasMultipleQuestions = questions.length > 1
+  const hasSecretQuestion = questions.some((question) => question.isSecret)
+  const hasOtherQuestion = questions.some((question) => question.isOther)
 
   useEffect(() => {
     if (!requestIsActive || submitState === 'sent') return
@@ -3740,25 +3742,49 @@ function UserInputCard({
             data-user-input-question-count={questions.length}
             data-user-input-selected-count={Object.values(questionAnswers).filter((values) => values.some((value) => value.trim())).length}
             data-user-input-selected-option-count={Object.values(questionAnswers).reduce((count, values) => count + values.filter((value) => value.trim()).length, 0)}
+            data-user-input-has-other={hasOtherQuestion ? 'true' : 'false'}
+            data-user-input-has-secret={hasSecretQuestion ? 'true' : 'false'}
             onSubmit={(event) => {
               event.preventDefault()
               void submitAnswer(composedAnswer)
             }}
           >
-            <textarea
-              ref={answerInputRef}
-              value={answer}
-              onChange={(event) => setAnswer(event.target.value)}
-              placeholder={hasMultipleQuestions ? 'Add details...' : 'Type an answer...'}
-              disabled={isSending}
-              rows={1}
-              className="min-h-9 min-w-0 flex-1 resize-none rounded-lg px-3 py-2 text-sm outline-none"
-              style={{
-                background: 'var(--color-surface)',
-                color: 'var(--color-text)',
-                border: '1px solid var(--color-border)'
-              }}
-            />
+            {hasSecretQuestion ? (
+              <input
+                ref={answerInputRef as RefObject<HTMLInputElement>}
+                type="password"
+                value={answer}
+                onChange={(event) => setAnswer(event.target.value)}
+                placeholder={hasOtherQuestion ? 'Type a secret answer or other option...' : 'Type a secret answer...'}
+                disabled={isSending}
+                autoComplete="off"
+                aria-label="Secret answer"
+                data-user-input-freeform-kind="secret"
+                className="min-h-9 min-w-0 flex-1 rounded-lg px-3 py-2 text-sm outline-none"
+                style={{
+                  background: 'var(--color-surface)',
+                  color: 'var(--color-text)',
+                  border: '1px solid var(--color-border)'
+                }}
+              />
+            ) : (
+              <textarea
+                ref={answerInputRef}
+                value={answer}
+                onChange={(event) => setAnswer(event.target.value)}
+                placeholder={hasOtherQuestion ? 'Add details or another option...' : hasMultipleQuestions ? 'Add details...' : 'Type an answer...'}
+                disabled={isSending}
+                rows={1}
+                aria-label={hasOtherQuestion ? 'Answer or other option' : 'Answer'}
+                data-user-input-freeform-kind={hasOtherQuestion ? 'other' : 'text'}
+                className="min-h-9 min-w-0 flex-1 resize-none rounded-lg px-3 py-2 text-sm outline-none"
+                style={{
+                  background: 'var(--color-surface)',
+                  color: 'var(--color-text)',
+                  border: '1px solid var(--color-border)'
+                }}
+              />
+            )}
             <Button
               type="submit"
               disabled={!composedAnswer.trim() || isSending}
@@ -3805,7 +3831,12 @@ function QuestionBlock({
   onSelectAnswer: (answer: string) => void
 }): JSX.Element {
   return (
-    <div data-testid="chat-user-input-question" data-question-index={index}>
+    <div
+      data-testid="chat-user-input-question"
+      data-question-index={index}
+      data-user-input-question-other={question.isOther ? 'true' : 'false'}
+      data-user-input-question-secret={question.isSecret ? 'true' : 'false'}
+    >
       {question.header && (
         <div className="mb-1 text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>
           {question.header}

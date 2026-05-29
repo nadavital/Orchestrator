@@ -29581,9 +29581,22 @@ function runAutomatedTranscriptUserInputSmoke(win: BrowserWindow, outputPath: st
             const userInputMultiQuestionCardWorks =
               card instanceof HTMLElement &&
               form instanceof HTMLElement &&
-              form.getAttribute('data-user-input-question-count') === '3' &&
-              questions.length === 3 &&
+              form.getAttribute('data-user-input-question-count') === '4' &&
+              questions.length === 4 &&
               options.length >= 7;
+            const secretOtherQuestion = questions.find((question) => question.textContent?.includes('Provide a deployment secret'));
+            const freeformInput = document.querySelector('[data-user-input-freeform-kind]');
+            const userInputQuestionMetadataWorks =
+              form instanceof HTMLElement &&
+              form.getAttribute('data-user-input-has-other') === 'true' &&
+              form.getAttribute('data-user-input-has-secret') === 'true' &&
+              secretOtherQuestion instanceof HTMLElement &&
+              secretOtherQuestion.getAttribute('data-user-input-question-other') === 'true' &&
+              secretOtherQuestion.getAttribute('data-user-input-question-secret') === 'true' &&
+              freeformInput instanceof HTMLInputElement &&
+              freeformInput.type === 'password' &&
+              freeformInput.getAttribute('data-user-input-freeform-kind') === 'secret' &&
+              freeformInput.getAttribute('aria-label') === 'Secret answer';
             const composerOption = options.find((option) => option.textContent?.includes('Composer'));
             const reviewOption = options.find((option) => option.textContent?.includes('Review'));
             const targetedSmokeOption = options.find((option) => option.textContent?.includes('Targeted smoke'));
@@ -29653,6 +29666,7 @@ function runAutomatedTranscriptUserInputSmoke(win: BrowserWindow, outputPath: st
               );
             return {
               userInputMultiQuestionCardWorks,
+              userInputQuestionMetadataWorks,
               userInputOptionSelectionWorks,
               userInputOptionDescriptionsA11y,
               userInputMultiSelectWorks,
@@ -32841,6 +32855,13 @@ function seedAutomatedTranscriptUserInputSmokeSession(sessionId: string): void {
             { label: 'Review', description: 'Verify code-review and diff behavior.' },
             { label: 'Settings', description: 'Verify settings and provider boundaries.' }
           ]
+        },
+        {
+          id: 'transcript-user-input-secret-other',
+          header: 'Secret',
+          question: 'Provide a deployment secret or another answer.',
+          isOther: true,
+          isSecret: true
         },
         {
           id: 'transcript-user-input-validators',

@@ -588,7 +588,9 @@ function parseStructuredUserInputRequest(value: unknown): { content: string; que
       question: rec.question,
       header: typeof rec.header === 'string' ? rec.header : undefined,
       options,
-      multiSelect: rec.multiSelect === true
+      multiSelect: rec.multiSelect === true,
+      isOther: rec.isOther === true,
+      isSecret: rec.isSecret === true
     }]
   })
 
@@ -643,7 +645,9 @@ function userInputFromGenericPayload(payload: unknown): { content: string; quest
       question,
       header: stringValue(rec.header, rec.title),
       options: options.length > 0 ? options : undefined,
-      multiSelect: rec.multiSelect === true || rec.multiselect === true
+      multiSelect: rec.multiSelect === true || rec.multiselect === true,
+      isOther: rec.isOther === true || rec.other === true,
+      isSecret: rec.isSecret === true || rec.secret === true
     }]
   }
 }
@@ -2287,7 +2291,9 @@ function codexAppServerUserInput(params: Record<string, unknown>): RunEvent | nu
       question: questionText,
       header: stringValue(rec.header, rec.title),
       options: options && options.length > 0 ? options : undefined,
-      multiSelect: rec.multiSelect === true || rec.multiselect === true
+      multiSelect: rec.multiSelect === true || rec.multiselect === true,
+      isOther: rec.isOther === true,
+      isSecret: rec.isSecret === true
     }]
   })
 
