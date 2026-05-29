@@ -29,7 +29,7 @@ const targetRules = [
   { flag: '--sidebar', label: 'Sidebar', patterns: [/^src\/renderer\/src\/components\/Sidebar/, /^src\/renderer\/src\/components\/SessionList/] },
   { flag: '--header', label: 'Header shell', patterns: [/^src\/renderer\/src\/components\/Session\/SessionHeader/, /^src\/renderer\/src\/components\/Titlebar/, /^src\/renderer\/src\/components\/AppShell/] },
   { flag: '--session-switch', label: 'Session lifecycle', patterns: [/^src\/renderer\/src\/stores\/sessions/, /^src\/main\/session/, /^src\/shared\/session/] },
-  { flag: '--extensions', label: 'Extensions', patterns: [/^src\/renderer\/src\/components\/Extensions/, /^src\/main\/extensions?/, /^src\/main\/capabilitySync/] },
+  { flag: '--extensions', label: 'Extensions', patterns: [/^src\/renderer\/src\/components\/Extensions/, /^src\/renderer\/src\/components\/Session\/ExtensionsPanel\.tsx$/, /^src\/main\/extensions?/, /^src\/main\/capabilitySync/] },
   { flag: '--capabilities', label: 'Capabilities', patterns: [/^src\/renderer\/src\/components\/Capabilities/, /^src\/main\/capability/] },
   { flag: '--resources', label: 'Resources', patterns: [/^src\/renderer\/src\/components\/Resources/, /^src\/main\/resources/] },
   { flag: '--plan', label: 'Plan and goal surfaces', patterns: [/^src\/renderer\/src\/components\/Session\/(Plan|Goal|AgentProgress)/, /^src\/main\/goal/, /^src\/main\/plan/] },
@@ -174,6 +174,12 @@ const diffRules = [
     label: 'Workbench New Tab full workflow',
     filePatterns: [/^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
     diffPatterns: [/agentRuntimeEvent/, /agentSelectedTranscript/, /agent-selected-add-to-chat/, /agent-event-detail/, /focus-waiting-card/, /Open approval in chat/]
+  },
+  {
+    flag: '--extensions',
+    label: 'Extensions',
+    filePatterns: [/^src\/renderer\/src\/components\/Session\/ExtensionsPanel\.tsx$/, /^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
+    diffPatterns: [/extensionsInstructionsAddToChat/, /extensions-add-instructions-chat/, /Use this extension instruction context/, /Extension instructions added to chat/]
   },
   {
     flag: '--environment',
@@ -325,6 +331,7 @@ function suggestTargets(paths) {
   suppressTerminalForToolActivityCommandDiff(matched, paths)
   suppressComposerForWorkbenchGitHandoffDiff(matched, paths)
   suppressComposerForAgentInspectorHandoffDiff(matched, paths)
+  suppressComposerForExtensionsHandoffDiff(matched, paths)
   suppressTerminalForWorkbenchGitPrTerminalHandoffDiff(matched, paths)
   suppressTerminalForWorkbenchGitFileTerminalHandoffDiff(matched, paths)
   suppressFilesForWorkbenchGitFileAddToChatDiff(matched, paths)
@@ -777,6 +784,20 @@ function suppressComposerForAgentInspectorHandoffDiff(matched, paths) {
     paths.includes('src/main/index.ts') ? diffForFile('src/main/index.ts') : ''
   ].join('\n')
   if (!/agentSelectedTranscript|agent-selected-add-to-chat|Use this agent transcript context|Agent transcript added to chat/.test(diff)) return
+  matched.delete('--composer')
+}
+
+function suppressComposerForExtensionsHandoffDiff(matched, paths) {
+  const composer = matched.get('--composer')
+  const extensions = matched.get('--extensions')
+  if (!composer || !extensions) return
+  if (!composer.files.every((file) => file === 'scripts/run-automated-ui-smoke.mjs' || file === 'src/main/index.ts')) return
+  const diff = [
+    paths.includes('src/renderer/src/components/Session/ExtensionsPanel.tsx') ? diffForFile('src/renderer/src/components/Session/ExtensionsPanel.tsx') : '',
+    paths.includes('scripts/run-automated-ui-smoke.mjs') ? diffForFile('scripts/run-automated-ui-smoke.mjs') : '',
+    paths.includes('src/main/index.ts') ? diffForFile('src/main/index.ts') : ''
+  ].join('\n')
+  if (!/extensionsInstructionsAddToChat|extensions-add-instructions-chat|Use this extension instruction context|Extension instructions added to chat/.test(diff)) return
   matched.delete('--composer')
 }
 

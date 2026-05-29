@@ -4731,6 +4731,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             await sleep(700);
           }
           if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'extensions') {
+            var extensionsInstructionsAddToChatWorks = false;
+            var extensionsInstructionsAddToChatDebug = null;
             const setNativeValue = (element, value) => {
               const setter = Object.getOwnPropertyDescriptor(element.constructor.prototype, 'value')?.set;
               setter?.call(element, value);
@@ -4742,7 +4744,56 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               const extensionCommand = [...document.querySelectorAll('button')]
                 .find((button) => button.textContent?.includes('/extensions'));
               extensionCommand?.click();
-              await sleep(900);
+              for (let attempt = 0; attempt < 24; attempt += 1) {
+                if (document.querySelector('[data-testid="extensions-add-instructions-chat"]') instanceof HTMLButtonElement) break;
+                await sleep(100);
+              }
+            }
+            const addInstructionsButton = document.querySelector('[data-testid="extensions-add-instructions-chat"]');
+            if (addInstructionsButton instanceof HTMLButtonElement) {
+              addInstructionsButton.click();
+              var composerAfterExtensionsAdd = null;
+              var extensionsActionStatus = null;
+              for (let attempt = 0; attempt < 16; attempt += 1) {
+                await sleep(100);
+                composerAfterExtensionsAdd = document.querySelector('[data-testid="composer-textarea"]');
+                extensionsActionStatus = document.querySelector('[data-testid="extensions-action-status"]');
+                if (
+                  composerAfterExtensionsAdd instanceof HTMLTextAreaElement &&
+                  composerAfterExtensionsAdd.value.includes('Use this extension instruction context:') &&
+                  extensionsActionStatus instanceof HTMLElement &&
+                  extensionsActionStatus.textContent?.includes('Extension instructions added to chat') === true
+                ) {
+                  break;
+                }
+              }
+              extensionsInstructionsAddToChatWorks =
+                addInstructionsButton.getAttribute('aria-label') === 'Add extension instructions to chat' &&
+                composerAfterExtensionsAdd instanceof HTMLTextAreaElement &&
+                composerAfterExtensionsAdd.value.includes('Use this extension instruction context:') &&
+                composerAfterExtensionsAdd.value.includes('Provider: ') &&
+                composerAfterExtensionsAdd.value.includes('Instruction files:') &&
+                (composerAfterExtensionsAdd.value.includes('AGENTS.md') || composerAfterExtensionsAdd.value.includes('CLAUDE.md')) &&
+                composerAfterExtensionsAdd.value.includes('Command / skill directories:') &&
+                extensionsActionStatus instanceof HTMLElement &&
+                extensionsActionStatus.getAttribute('role') === 'status' &&
+                extensionsActionStatus.getAttribute('aria-live') === 'polite' &&
+                extensionsActionStatus.getAttribute('aria-atomic') === 'true' &&
+                extensionsActionStatus.textContent?.includes('Extension instructions added to chat') === true;
+            }
+            if (!extensionsInstructionsAddToChatWorks) {
+              const status = document.querySelector('[data-testid="extensions-action-status"]');
+              const composer = document.querySelector('[data-testid="composer-textarea"]');
+              extensionsInstructionsAddToChatDebug = {
+                buttonFound: addInstructionsButton instanceof HTMLButtonElement,
+                buttonLabel: addInstructionsButton instanceof HTMLButtonElement ? addInstructionsButton.getAttribute('aria-label') : null,
+                statusText: status instanceof HTMLElement ? status.textContent : null,
+                composerPrefix: composer instanceof HTMLTextAreaElement ? composer.value.slice(0, 160) : null,
+                visibleButtons: [...document.querySelectorAll('button')]
+                  .map((button) => (button.getAttribute('aria-label') || button.textContent || '').trim())
+                  .filter(Boolean)
+                  .slice(0, 80)
+              };
             }
           }
           if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'inspector') {
@@ -8834,6 +8885,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                   commandRows.every((row) => row.classList.contains('surface-row')) &&
                   itemRows.every((row) => row.classList.contains('surface-row'));
               })(),
+            extensionsInstructionsAddToChatWorks: typeof extensionsInstructionsAddToChatWorks === 'boolean' ? extensionsInstructionsAddToChatWorks : null,
+            extensionsInstructionsAddToChatDebug: typeof extensionsInstructionsAddToChatDebug !== 'undefined' ? extensionsInstructionsAddToChatDebug : null,
             hasSideQuestionCommandText: bodyText.includes('/btw') || Boolean(textarea && textarea.value.includes('/btw')),
             capabilityMenuOpened: typeof capabilityMenuOpened === 'boolean' ? capabilityMenuOpened : null,
             capabilityMenuArrowFocus: typeof capabilityMenuArrowFocus === 'boolean' ? capabilityMenuArrowFocus : null,

@@ -726,6 +726,13 @@ function AgentSectionView({
   onOpenDirFile: (dirPath: string, fileName: string) => void
 }): JSX.Element {
   const def = PROVIDER_DEFS[section.providerId]
+  const [actionStatus, setActionStatus] = useState<string | null>(null)
+  const addInstructionsToChat = (): void => {
+    window.dispatchEvent(new CustomEvent('orchestrator:add-composer-text', {
+      detail: { text: extensionInstructionSummary(section) }
+    }))
+    setActionStatus('Extension instructions added to chat')
+  }
 
   return (
     <div>
@@ -738,17 +745,53 @@ function AgentSectionView({
           {embedded ? 'Instructions' : 'Local Instructions'}
         </div>
         {embedded && (
-          <div className="extensions-panel-summary extensions-panel-local-summary">
-            <strong>{section.files.length + section.dirs.length + (section.mcpServers ? 1 : 0)}</strong>
-            <span>sources</span>
+          <div className="flex min-w-0 items-center gap-1.5">
+            <div className="extensions-panel-summary extensions-panel-local-summary">
+              <strong>{section.files.length + section.dirs.length + (section.mcpServers ? 1 : 0)}</strong>
+              <span>sources</span>
+            </div>
+            <IconButton
+              icon="chat"
+              label="Add extension instructions to chat"
+              size="xs"
+              variant="ghost"
+              dataTestId="extensions-add-instructions-chat"
+              onClick={addInstructionsToChat}
+            />
           </div>
         )}
         {!embedded && (
-          <div className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)', fontSize: 11 }}>
-            Files and folders this provider reads from the workspace or home directory.
+          <div className="mt-0.5 flex min-w-0 items-center gap-2">
+            <div className="min-w-0 flex-1 text-xs" style={{ color: 'var(--color-text-muted)', fontSize: 11 }}>
+              Files and folders this provider reads from the workspace or home directory.
+            </div>
+            <IconButton
+              icon="chat"
+              label="Add extension instructions to chat"
+              size="xs"
+              variant="ghost"
+              dataTestId="extensions-add-instructions-chat"
+              onClick={addInstructionsToChat}
+            />
           </div>
         )}
       </div>
+      {actionStatus && (
+        <div
+          className={embedded ? 'mx-3 mt-2 rounded-md px-2 py-1 text-[11px]' : 'mx-4 mt-2 rounded-md px-2 py-1 text-[11px]'}
+          data-testid="extensions-action-status"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          style={{
+            color: 'var(--accent)',
+            background: 'color-mix(in srgb, var(--accent) 8%, var(--surface-bg))',
+            border: '1px solid var(--border-subtle)'
+          }}
+        >
+          {actionStatus}
+        </div>
+      )}
       {section.files.map((file, fi) => (
         <FileEditor
           key={file.path}
@@ -772,6 +815,51 @@ function AgentSectionView({
       )}
     </div>
   )
+}
+
+function extensionInstructionSummary(section: AgentSection): string {
+  const files = section.files.map((file) => {
+    const state = file.content === null ? 'missing' : file.dirty ? 'edited' : 'loaded'
+    const content = file.content?.trim()
+    const excerpt = content ? boundedText(content, 900) : null
+    return [
+      `- ${file.label}`,
+      `  Path: ${file.path}`,
+      `  State: ${state}`,
+      ...(excerpt ? ['  Excerpt:', indentBlock(excerpt, '    ')] : [])
+    ].join('\n')
+  })
+  const dirs = section.dirs.map((dir) => {
+    const count = dir.files?.length ?? 0
+    const names = dir.files?.slice(0, 8).join(', ')
+    return `- ${dir.label}: ${dir.path} (${dir.files === null ? 'not found' : `${count} entries${names ? `: ${names}` : ''}`})`
+  })
+  const mcpServers = section.mcpServers
+    ? Object.entries(section.mcpServers).slice(0, 8).map(([name, server]) => {
+        const command = [server.command ?? server.url ?? server.type ?? 'server', ...(server.args ?? [])].join(' ')
+        return `- ${name}: ${command}`
+      })
+    : []
+
+  return [
+    'Use this extension instruction context:',
+    `Provider: ${section.providerId}`,
+    '',
+    'Instruction files:',
+    ...(files.length > 0 ? files : ['- None']),
+    '',
+    'Command / skill directories:',
+    ...(dirs.length > 0 ? dirs : ['- None']),
+    ...(mcpServers.length > 0 ? ['', 'MCP servers:', ...mcpServers] : [])
+  ].join('\n')
+}
+
+function boundedText(value: string, maxLength: number): string {
+  return value.length <= maxLength ? value : `${value.slice(0, maxLength - 3)}...`
+}
+
+function indentBlock(value: string, prefix: string): string {
+  return value.split('\n').map((line) => `${prefix}${line}`).join('\n')
 }
 
 // ─── MCP servers (read-only) ──────────────────────────────────────────────────

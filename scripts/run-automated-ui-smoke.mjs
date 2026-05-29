@@ -3186,6 +3186,7 @@ child.on('exit', async (code) => {
         extensionsEmbeddedCopyCompact: captureView !== 'extensions' || result.extensionsEmbeddedCopyCompact === true,
         extensionsPanelCalm: captureView !== 'extensions' || result.extensionsPanelCalmWorks === true,
         extensionsPanelSharedPrimitives: captureView !== 'extensions' || result.extensionsPanelSharedPrimitivesWorks === true,
+        extensionsInstructionsAddToChat: captureView !== 'extensions' || result.extensionsInstructionsAddToChatWorks === true,
         sideQuestionCommand: ['terminal', 'settings', 'settings-providers', 'settings-deeplink', 'resources', 'capabilities', 'pets', 'inspector', 'composer', 'extensions', 'plan'].includes(captureView) || result.hasSideQuestionCommandText === true,
         capabilityCreateMenu: captureView !== 'capabilities' || result.capabilityMenuOpened === true,
         capabilityMenuArrowFocus: captureView !== 'capabilities' || result.capabilityMenuArrowFocus === true,
