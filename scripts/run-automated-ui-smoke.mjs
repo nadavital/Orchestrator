@@ -2707,6 +2707,7 @@ child.on('exit', async (code) => {
           terminalSharedTransferModel: result.terminalSharedTransferModelWorks === true,
           terminalServiceSnapshot: result.terminalServiceSnapshotWorks === true,
           terminalRightPanelNewTabShortcut: result.terminalRightPanelNewTabShortcutWorks === true,
+          terminalRightPanelCloseShortcut: result.terminalRightPanelCloseShortcutWorks === true,
           terminalMoveBackToBottom: result.terminalMoveBackToBottomWorks === true,
           terminalBottomPanelLabels: result.terminalBottomPanelLabelsWorks === true,
           bottomPanelPlanTransfer: result.bottomPanelPlanTransferWorks === true,

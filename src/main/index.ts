@@ -3223,6 +3223,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             var terminalSharedTransferModelWorks = false;
             var terminalServiceSnapshotWorks = false;
             var terminalRightPanelNewTabShortcutWorks = false;
+            var terminalRightPanelCloseShortcutWorks = false;
             var terminalMoveBackToBottomWorks = false;
             var terminalBottomPanelLabelsWorks = false;
             var bottomPanelPlanTransferWorks = false;
@@ -3866,12 +3867,29 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                       rightTransferSection.getAttribute('data-panel-tab-transfer-model') === 'shared' &&
                       rightTransferSection.getAttribute('data-panel-tab-transfer-source') === 'right' &&
                       rightTransferSection.getAttribute('data-panel-tab-transfer-target') === 'bottom';
-                    const moveShortcutToBottom = [...document.querySelectorAll('[role="menuitem"]')]
-                      .find((item) => item.textContent?.includes('Move tab to bottom panel'));
-                    if (moveShortcutToBottom instanceof HTMLButtonElement) {
-                      moveShortcutToBottom.click();
-                      await sleep(260);
-                    }
+                    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+                    await sleep(80);
+                    const shortcutTerminalNumericId = Number(shortcutCreatedRightTerminalId.slice('terminal:'.length));
+                    const serviceSnapshotBeforeRightShortcutClose = await window.api.terminal.getServiceSnapshot();
+                    shortcutCreatedTab.focus({ preventScroll: true });
+                    await sleep(80);
+                    shortcutCreatedTab.dispatchEvent(new KeyboardEvent('keydown', {
+                      key: 'w',
+                      code: 'KeyW',
+                      metaKey: true,
+                      bubbles: true,
+                      cancelable: true
+                    }));
+                    await sleep(260);
+                    const serviceSnapshotAfterRightShortcutClose = await window.api.terminal.getServiceSnapshot();
+                    const shortcutServiceSessionAfterClose = serviceSnapshotAfterRightShortcutClose.sessions.find((session) => session.terminalId.endsWith('-' + shortcutTerminalNumericId));
+                    const shortcutTabAfterClose = document.querySelector('[data-app-shell-tab-controller="right"][role="tab"][data-tab-id="' + shortcutCreatedRightTerminalId + '"]');
+                    terminalRightPanelCloseShortcutWorks =
+                      Number.isInteger(shortcutTerminalNumericId) &&
+                      serviceSnapshotBeforeRightShortcutClose.sessions.some((session) => session.terminalId.endsWith('-' + shortcutTerminalNumericId)) &&
+                      shortcutServiceSessionAfterClose?.status !== 'running' &&
+                      shortcutServiceSessionAfterClose?.status !== 'starting' &&
+                      !(shortcutTabAfterClose instanceof HTMLElement);
                   }
                 }
                 const originalRightTerminalTab = document.querySelector('[data-app-shell-tab-controller="right"][role="tab"][data-tab-id="' + rightTerminalTabId + '"]');
@@ -3918,7 +3936,34 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 }
               }]);
               await sleep(180);
-              const planRightTab = document.querySelector('[data-app-shell-tab-controller="right"][role="tab"][data-tab-id="plan"]');
+              let planRightTab = document.querySelector('[data-app-shell-tab-controller="right"][role="tab"][data-tab-id="plan"]');
+              if (!(planRightTab instanceof HTMLElement)) {
+                const activeRightPanel = document.querySelector('[data-testid="session-right-panel"]');
+                if (!(activeRightPanel instanceof HTMLElement) || activeRightPanel.getAttribute('data-right-panel-open') !== 'true') {
+                  const sidePanelToggle = document.querySelector('[data-testid="titlebar-toggle-sidebar"]');
+                  if (sidePanelToggle instanceof HTMLButtonElement) {
+                    sidePanelToggle.click();
+                    await sleep(180);
+                  }
+                }
+                const activeTab = document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-active-tab') ?? '';
+                if (activeTab !== 'new-tab') {
+                  const addWorkbenchTab = document.querySelector('[data-testid="right-panel-add-tab"]') ?? findButton('Add Workbench tab');
+                  if (addWorkbenchTab instanceof HTMLElement) {
+                    addWorkbenchTab.click();
+                    await sleep(180);
+                  }
+                }
+                const planLauncherAction = document.querySelector('[data-testid="workbench-new-tab-action-plan"]');
+                if (planLauncherAction instanceof HTMLButtonElement && !planLauncherAction.disabled) {
+                  planLauncherAction.click();
+                  for (let attempt = 0; attempt < 16; attempt += 1) {
+                    await sleep(100);
+                    planRightTab = document.querySelector('[data-app-shell-tab-controller="right"][role="tab"][data-tab-id="plan"]');
+                    if (planRightTab instanceof HTMLElement) break;
+                  }
+                }
+              }
               if (planRightTab instanceof HTMLElement) {
                 planRightTab.dispatchEvent(new MouseEvent('contextmenu', {
                   bubbles: true,
@@ -8105,6 +8150,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             terminalSharedTransferModelWorks: typeof terminalSharedTransferModelWorks === 'boolean' ? terminalSharedTransferModelWorks : null,
             terminalServiceSnapshotWorks: typeof terminalServiceSnapshotWorks === 'boolean' ? terminalServiceSnapshotWorks : null,
             terminalRightPanelNewTabShortcutWorks: typeof terminalRightPanelNewTabShortcutWorks === 'boolean' ? terminalRightPanelNewTabShortcutWorks : null,
+            terminalRightPanelCloseShortcutWorks: typeof terminalRightPanelCloseShortcutWorks === 'boolean' ? terminalRightPanelCloseShortcutWorks : null,
             terminalMoveBackToBottomWorks: typeof terminalMoveBackToBottomWorks === 'boolean' ? terminalMoveBackToBottomWorks : null,
             terminalBottomPanelLabelsWorks: typeof terminalBottomPanelLabelsWorks === 'boolean' ? terminalBottomPanelLabelsWorks : null,
             bottomPanelPlanTransferWorks: typeof bottomPanelPlanTransferWorks === 'boolean' ? bottomPanelPlanTransferWorks : null,

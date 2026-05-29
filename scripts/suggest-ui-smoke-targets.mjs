@@ -174,6 +174,7 @@ function suggestTargets(paths) {
   suppressCoveredTarget(matched, '--settings', '--pets')
   suppressCoveredTarget(matched, '--right-panel', '--workbench-launcher')
   suppressHeaderForRightPanelCloseDiff(matched, paths)
+  suppressHeaderForTerminalCloseDiff(matched, paths)
   restoreDiffTargets(matched, paths)
 
   return { targets: Array.from(matched.values()), unmatched, broadReasons }
@@ -259,6 +260,16 @@ function suppressHeaderForRightPanelCloseDiff(matched, paths) {
   if (!header.files.every((file) => file === 'src/renderer/src/App.tsx')) return
   const appDiff = paths.includes('src/renderer/src/App.tsx') ? diffForFile('src/renderer/src/App.tsx') : ''
   if (!/closeActivePanelTab|restoreRightPanelToggleFocus/.test(appDiff)) return
+  matched.delete('--header')
+}
+
+function suppressHeaderForTerminalCloseDiff(matched, paths) {
+  const header = matched.get('--header')
+  const terminal = matched.get('--terminal')
+  if (!header || !terminal) return
+  if (!header.files.every((file) => file === 'src/renderer/src/App.tsx')) return
+  const appDiff = paths.includes('src/renderer/src/App.tsx') ? diffForFile('src/renderer/src/App.tsx') : ''
+  if (!/closeActivePanelTab|terminalTabIdFromTabId/.test(appDiff)) return
   matched.delete('--header')
 }
 

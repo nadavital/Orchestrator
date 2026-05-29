@@ -2,7 +2,7 @@ import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } f
 import type { MouseEvent as ReactMouseEvent, RefObject } from 'react'
 import { flushSync } from 'react-dom'
 import { useProjectStore } from './store/projects'
-import { hasComposerDraft, sideChatIdFromTabId, useSessionStore } from './store/sessions'
+import { hasComposerDraft, sideChatIdFromTabId, terminalTabIdFromTabId, useSessionStore } from './store/sessions'
 import type { SettingsSection } from './store/sessions'
 import Sidebar from './components/Sidebar/Sidebar'
 import SessionPane from './components/Session/SessionPane'
@@ -759,9 +759,13 @@ export default function App(): JSX.Element {
       if (!activeTabId) return
       const closingFinalRightTab = (ui?.rightPanel?.tabs.length ?? 0) <= 1
       const sideChatId = sideChatIdFromTabId(activeTabId)
+      const terminalTabId = terminalTabIdFromTabId(activeTabId)
       exitFullscreenForPanelTab('right', activeTabId)
       if (sideChatId) {
         closeSideChat(activeSessionId, sideChatId)
+      } else if (terminalTabId !== null) {
+        window.api.terminal.kill(`${activeSessionId}-${terminalTabId}`)
+        closeTerminalTab(activeSessionId, terminalTabId)
       } else {
         closeRightPanelTab(activeSessionId, activeTabId)
       }
