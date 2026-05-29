@@ -3110,6 +3110,7 @@ child.on('exit', async (code) => {
         composerAgentTriggerAriaExpanded: captureView !== 'composer' || result.composerAgentTriggerExpandedOnOpen === true,
         composerActiveThreadSettings: captureView !== 'composer' || result.composerActiveThreadSettings === true,
         composerActiveThreadProviderChoices: captureView !== 'composer' || result.composerActiveThreadProviderChoices === true,
+        composerActiveThreadCustomModelVisible: captureView !== 'composer' || result.composerActiveThreadCustomModelVisible === true,
         composerActiveThreadProviderSwitch: captureView !== 'composer' || result.composerActiveThreadProviderSwitch === true,
         composerActiveThreadProviderSwitchPersisted: captureView !== 'composer' || result.composerActiveThreadProviderSwitchPersisted === true,
         composerActiveThreadProviderSwitchPolicyPersisted: captureView !== 'composer' || result.composerActiveThreadProviderSwitchPolicyPersisted === true,

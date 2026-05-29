@@ -6675,6 +6675,15 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               permissionButton instanceof HTMLElement &&
               permissionButton.getAttribute('aria-expanded') === 'false';
 
+            const activeSettingsSessionForCustomModel = (await window.api.sessions.list())
+              .find((candidate) => candidate.name === 'Active settings smoke');
+            if (activeSettingsSessionForCustomModel) {
+              await window.api.sessions.updateSettings(activeSettingsSessionForCustomModel.id, {
+                provider: 'claude',
+                model: 'composer-custom-smoke-model'
+              });
+              await sleep(260);
+            }
             const agentButton = document.querySelector('[data-testid="composer-agent-menu"]');
             agentButton?.click();
             await sleep(140);
@@ -6707,6 +6716,17 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                   button instanceof HTMLButtonElement &&
                   button.textContent?.includes('Claude') === true &&
                   button.getAttribute('aria-pressed') === 'true'
+                );
+            var composerActiveThreadCustomModelVisible =
+              composerActiveThreadSettings &&
+              [...document.querySelectorAll('.motion-popover-surface [role="group"][aria-label="Model choices"] button')]
+                .some((button) =>
+                  button instanceof HTMLButtonElement &&
+                  button.textContent?.includes('Custom') === true &&
+                  button.textContent?.includes('composer-custom-smoke-model') === true &&
+                  button.getAttribute('aria-pressed') === 'true' &&
+                  button.getAttribute('data-tooltip-label') === 'Current custom model: composer-custom-smoke-model' &&
+                  button.getAttribute('data-native-title-free') === 'true'
                 );
             const activeThreadCodexProviderChoice = activeThreadProviderChoiceGroup instanceof HTMLElement
               ? [...activeThreadProviderChoiceGroup.querySelectorAll('button')]
@@ -8007,6 +8027,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             composerAgentTriggerExpandedOnOpen: typeof composerAgentTriggerExpandedOnOpen === 'boolean' ? composerAgentTriggerExpandedOnOpen : null,
             composerActiveThreadSettings: typeof composerActiveThreadSettings === 'boolean' ? composerActiveThreadSettings : null,
             composerActiveThreadProviderChoices: typeof composerActiveThreadProviderChoices === 'boolean' ? composerActiveThreadProviderChoices : null,
+            composerActiveThreadCustomModelVisible: typeof composerActiveThreadCustomModelVisible === 'boolean' ? composerActiveThreadCustomModelVisible : null,
             composerActiveThreadProviderSwitch: typeof composerActiveThreadProviderSwitch === 'boolean' ? composerActiveThreadProviderSwitch : null,
             composerActiveThreadProviderSwitchPersisted: typeof composerActiveThreadProviderSwitchPersisted === 'boolean' ? composerActiveThreadProviderSwitchPersisted : null,
             composerActiveThreadProviderSwitchPolicyPersisted: typeof composerActiveThreadProviderSwitchPolicyPersisted === 'boolean' ? composerActiveThreadProviderSwitchPolicyPersisted : null,

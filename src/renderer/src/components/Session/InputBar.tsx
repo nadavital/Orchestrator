@@ -1,6 +1,6 @@
 import { memo, useCallback, useState, useRef, useEffect } from 'react'
 import type { Ref } from 'react'
-import type { Attachment, PermissionExecutionContract, ProviderAgentDef, ProviderPermissionMode, ProviderPermissionRuntimeContext, ProviderRuntimeInfo, ProviderSlashCommand, ResolvedExecutionPolicy, Session } from '../../types'
+import type { Attachment, PermissionExecutionContract, ProviderAgentDef, ProviderModelDef, ProviderPermissionMode, ProviderPermissionRuntimeContext, ProviderRuntimeInfo, ProviderSlashCommand, ResolvedExecutionPolicy, Session } from '../../types'
 import type { SlashPaletteCommand } from '../../types'
 import { PROVIDER_DEFS, canStopSession, expandSlashCommandPrompt, getAdvancedPermissionModes, getComposerSendState, getDangerPermissionModes, getDefaultPermissionMode, getPrimaryPermissionModes, getVisibleModels, parseClaudeAgentsOutput } from '../../types'
 import { defaultUI, sideChatContextSnapshot, useSessionStore } from '../../store/sessions'
@@ -282,6 +282,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
 
   const provider = PROVIDER_DEFS[session.provider ?? 'claude'] ?? PROVIDER_DEFS.claude
   const model = session.model || provider.models[0]?.id || ''
+  const visibleModelChoices = getVisibleModelsWithCurrent(provider, providerModels, model)
   const effort = session.effort ?? provider.effortLevels[0]?.id ?? ''
   const contextDefaultPermissionMode = permissionContext?.providerId === provider.id ? permissionContext.defaultPolicy : undefined
   const defaultPermissionMode = contextDefaultPermissionMode ?? getDefaultPermissionMode(provider)
@@ -403,6 +404,14 @@ function InputBar({ session, isNew }: Props): JSX.Element {
       useThinking: false,
       useFast: false
     })
+  }
+
+  const selectModel = (modelId: string): void => {
+    if (provider.id === 'cursor' && provider.models.some((candidate) => candidate.id === modelId)) {
+      switchCursorModel(modelId)
+      return
+    }
+    update({ model: modelId })
   }
 
   const selectPermissionMode = (modeId: string): void => {
@@ -1386,14 +1395,20 @@ function InputBar({ session, isNew }: Props): JSX.Element {
                   </TieredRow>
 
                   <TieredRow label="Model">
-                    {getVisibleModels(provider, providerModels).map((opt) => (
+                    {visibleModelChoices.map((opt) => (
                       <Chip
                         key={opt.id}
                         active={model === opt.id}
-                        onClick={() => provider.id === 'cursor' ? switchCursorModel(opt.id) : update({ model: opt.id })}
+                        onClick={() => selectModel(opt.id)}
                         activeColor={provider.color}
+                        title={opt.custom ? `Current custom model: ${opt.id}` : opt.id}
                       >
-                        {opt.label}
+                        {opt.custom ? (
+                          <>
+                            Custom
+                            <span style={{ opacity: 0.72 }}>{opt.id}</span>
+                          </>
+                        ) : opt.label}
                       </Chip>
                     ))}
                   </TieredRow>
@@ -1532,14 +1547,20 @@ function InputBar({ session, isNew }: Props): JSX.Element {
 
                   {/* Model row */}
                   <TieredRow label="Model">
-                    {getVisibleModels(provider, providerModels).map((opt) => (
+                    {visibleModelChoices.map((opt) => (
                       <Chip
                         key={opt.id}
                         active={model === opt.id}
-                        onClick={() => provider.id === 'cursor' ? switchCursorModel(opt.id) : update({ model: opt.id })}
+                        onClick={() => selectModel(opt.id)}
                         activeColor={provider.color}
+                        title={opt.custom ? `Current custom model: ${opt.id}` : opt.id}
                       >
-                        {opt.label}
+                        {opt.custom ? (
+                          <>
+                            Custom
+                            <span style={{ opacity: 0.72 }}>{opt.id}</span>
+                          </>
+                        ) : opt.label}
                       </Chip>
                     ))}
                   </TieredRow>
@@ -1982,6 +2003,27 @@ function formatBytes(value: number): string {
 
 function pathBaseName(path: string): string {
   return path.split(/[\\/]/).filter(Boolean).at(-1) ?? path
+}
+
+type ComposerModelChoice = ProviderModelDef & { custom?: boolean }
+
+function getVisibleModelsWithCurrent(
+  provider: typeof PROVIDER_DEFS[string],
+  providerModels: Record<string, string[]>,
+  currentModel: string
+): ComposerModelChoice[] {
+  const visible = getVisibleModels(provider, providerModels)
+  if (!currentModel || visible.some((candidate) => candidate.id === currentModel)) return visible
+  const catalogModel = provider.models.find((candidate) => candidate.id === currentModel)
+  return [
+    {
+      id: currentModel,
+      label: catalogModel?.label ?? currentModel,
+      cursorConfig: catalogModel?.cursorConfig,
+      custom: true
+    },
+    ...visible
+  ]
 }
 
 function ToolbarBtn({
