@@ -498,6 +498,18 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
     setSettingsSection(normalizedSection)
   }
 
+  const switchToLocalSettingsHost = (): void => {
+    const localSection = normalizeSettingsSectionForHostKind(effectiveSection, 'local')
+    window.history.pushState(
+      { orchestratorRoute: 'settings', section: localSection, hostId: 'local' },
+      '',
+      settingsRouteUrlForLocation(localSection, 'local', window.location)
+    )
+    setSelectedSettingsHostId('local')
+    setSettingsSection(localSection)
+    window.api.settings.set('settingsHostId', 'local')
+  }
+
   const submitSettingsSearch = (): void => {
     if (!settingsSearchMatch) return
     if (settingsSearchMatch.anchor) {
@@ -592,6 +604,7 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
             <SettingsHostAdapterUnavailable
               section={effectiveSection}
               hostLabel={selectedSettingsHost.label}
+              onSwitchLocal={switchToLocalSettingsHost}
             />
           ) : (
             <>
@@ -699,9 +712,11 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
 function SettingsHostAdapterUnavailable({
   section,
   hostLabel,
+  onSwitchLocal,
 }: {
   section: SettingsSection
   hostLabel: string
+  onSwitchLocal: () => void
 }): JSX.Element {
   return (
     <div data-settings-page-module={`${section}-host-unavailable`}>
@@ -720,6 +735,17 @@ function SettingsHostAdapterUnavailable({
                 data-testid="settings-host-adapter-message"
               >
                 Use Local to edit app settings, or refresh provider metadata when a host adapter becomes available.
+              </div>
+              <div className="settings-host-adapter-actions">
+                <button
+                  type="button"
+                  className="settings-action-button"
+                  data-testid="settings-host-switch-local"
+                  aria-label={`Switch to Local ${settingsTitle(section)} settings`}
+                  onClick={onSwitchLocal}
+                >
+                  Switch to Local
+                </button>
               </div>
             </SettingsSurface>
           </SettingsGroupContent>

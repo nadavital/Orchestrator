@@ -11137,6 +11137,12 @@
     padding: 12px;
   }
 
+  .settings-host-adapter-actions {
+    display: flex;
+    justify-content: flex-start;
+    padding: 0 12px 12px;
+  }
+
   .provider-settings-shell {
     max-width: 840px;
     margin: 0 auto;

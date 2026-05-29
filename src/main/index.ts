@@ -1748,6 +1748,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               }
               const remoteShortcutsContent = document.querySelector('[data-settings-content-host-id="codex:remote-mac"]');
               const remoteHostUnavailable = document.querySelector('[data-testid="settings-host-adapter-unavailable"]');
+              var settingsHostUnavailableLocalRecoveryWorks = false;
               var settingsHostAdapterBoundaryWorks =
                 remoteShortcutsNav instanceof HTMLButtonElement &&
                 settingsShell instanceof HTMLElement &&
@@ -1758,6 +1759,28 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 remoteHostUnavailable instanceof HTMLElement &&
                 remoteHostUnavailable.textContent?.includes('Remote Mac') &&
                 !(document.querySelector('[data-testid="shortcuts-settings-section"]') instanceof HTMLElement);
+              const switchHostLocalButton = document.querySelector('[data-testid="settings-host-switch-local"]');
+              if (switchHostLocalButton instanceof HTMLButtonElement) {
+                switchHostLocalButton.click();
+                await sleep(180);
+                const localShortcutsContent = document.querySelector('[data-settings-content-host-id="local"]');
+                const localShortcutsSection = document.querySelector('[data-testid="shortcuts-settings-section"]');
+                settingsHostUnavailableLocalRecoveryWorks =
+                  settingsShell instanceof HTMLElement &&
+                  settingsShell.getAttribute('data-settings-host-id') === 'local' &&
+                  settingsShell.getAttribute('data-settings-host-kind') === 'local' &&
+                  settingsShell.getAttribute('data-settings-active-section') === 'shortcuts' &&
+                  localShortcutsContent instanceof HTMLElement &&
+                  localShortcutsContent.getAttribute('data-settings-host-adapter') === 'local' &&
+                  localShortcutsSection instanceof HTMLElement &&
+                  !(document.querySelector('[data-testid="settings-host-adapter-unavailable"]') instanceof HTMLElement);
+                const localRecoveryHostSelect = document.querySelector('[data-testid="settings-host-select"]');
+                if (localRecoveryHostSelect instanceof HTMLSelectElement) {
+                  localRecoveryHostSelect.value = 'codex:remote-mac';
+                  localRecoveryHostSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                  await sleep(140);
+                }
+              }
               const remotePersonalizationNav = settingsHostNavGroup instanceof HTMLElement
                 ? [...settingsHostNavGroup.querySelectorAll('[data-testid="sidebar-nav-item"]')]
                   .find((row) => row.textContent?.replace(/\\s+/g, ' ').trim() === 'Personalization')
@@ -8285,6 +8308,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             settingsHostContextWorks: typeof settingsHostContextWorks === 'boolean' ? settingsHostContextWorks : null,
             settingsHostSectionFilteringWorks: typeof settingsHostSectionFilteringWorks === 'boolean' ? settingsHostSectionFilteringWorks : null,
             settingsHostAdapterBoundaryWorks: typeof settingsHostAdapterBoundaryWorks === 'boolean' ? settingsHostAdapterBoundaryWorks : null,
+            settingsHostUnavailableLocalRecoveryWorks: typeof settingsHostUnavailableLocalRecoveryWorks === 'boolean' ? settingsHostUnavailableLocalRecoveryWorks : null,
             settingsPersonalizationLocalWorks: typeof settingsPersonalizationLocalWorks === 'boolean' ? settingsPersonalizationLocalWorks : null,
             settingsPersonalizationActionStatusWorks: typeof settingsPersonalizationActionStatusWorks === 'boolean' ? settingsPersonalizationActionStatusWorks : null,
             settingsPersonalizationHostBoundaryWorks: typeof settingsPersonalizationHostBoundaryWorks === 'boolean' ? settingsPersonalizationHostBoundaryWorks : null,
