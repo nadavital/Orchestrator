@@ -41,6 +41,15 @@ const sharedRules = [
   { flag: '--design-system', label: 'Design system', patterns: [/^src\/renderer\/src\/index\.css$/] }
 ]
 
+const diffRules = [
+  {
+    flag: '--terminal',
+    label: 'Terminal',
+    filePatterns: [/^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
+    diffPatterns: [/terminal/i, /bottomPanel/, /bottom-panel/]
+  }
+]
+
 const broadTriggers = [
   /^scripts\/run-automated-ui-smoke\.mjs$/,
   /^src\/main\/index\.ts$/,
@@ -99,10 +108,15 @@ function suggestTargets(paths) {
     for (const rule of [...targetRules, ...sharedRules]) {
       if (rule.patterns.some((pattern) => pattern.test(file))) {
         fileMatched = true
-        const current = matched.get(rule.flag) ?? { flag: rule.flag, label: rule.label, files: [] }
-        current.files.push(file)
-        matched.set(rule.flag, current)
+        addMatchedTarget(matched, rule, file)
       }
+    }
+    for (const rule of diffRules) {
+      if (!rule.filePatterns.some((pattern) => pattern.test(file))) continue
+      const diff = diffForFile(file)
+      if (!rule.diffPatterns.some((pattern) => pattern.test(diff))) continue
+      fileMatched = true
+      addMatchedTarget(matched, rule, file)
     }
     if (broadTriggers.some((pattern) => pattern.test(file))) {
       broadReasons.push(file)
@@ -115,6 +129,18 @@ function suggestTargets(paths) {
   suppressCoveredTarget(matched, '--right-panel', '--workbench-launcher')
 
   return { targets: Array.from(matched.values()), unmatched, broadReasons }
+}
+
+function addMatchedTarget(matched, rule, file) {
+  const current = matched.get(rule.flag) ?? { flag: rule.flag, label: rule.label, files: [] }
+  if (!current.files.includes(file)) current.files.push(file)
+  matched.set(rule.flag, current)
+}
+
+function diffForFile(file) {
+  const result = spawnSync('git', ['diff', 'HEAD', '--', file], { cwd: root, encoding: 'utf8' })
+  if (result.status !== 0) return ''
+  return result.stdout
 }
 
 function buildValidationPlan(paths, suggestions) {

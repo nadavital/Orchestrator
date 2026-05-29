@@ -3226,6 +3226,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             var terminalMoveBackToBottomWorks = false;
             var terminalBottomPanelLabelsWorks = false;
             var bottomPanelPlanTransferWorks = false;
+            var bottomPanelPlanAddToChatWorks = false;
             const activeTerminalTabForA11y = document.querySelector('[data-testid="session-bottom-panel"] [role="tab"][data-active="true"]');
             const terminalPanelForA11y = document.querySelector('[role="tabpanel"][data-app-shell-tab-panel-controller="bottom"]');
             const terminalBottomHeader = document.querySelector('[data-testid="session-bottom-panel"]');
@@ -3933,6 +3934,31 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                   const bottomPlanTab = document.querySelector('[data-app-shell-tab-controller="bottom"][role="tab"][data-tab-id="plan"][data-tab-kind="plan"]');
                   const bottomPlanPanel = document.querySelector('[role="tabpanel"][data-app-shell-tab-panel-controller="bottom"][data-tab-id="plan"][data-tab-kind="plan"] [data-testid="plan-panel"]');
                   const rightPlanAfterMove = document.querySelector('[data-app-shell-tab-controller="right"][role="tab"][data-tab-id="plan"]');
+                  const bottomPlanAddToChat = bottomPlanPanel instanceof HTMLElement
+                    ? bottomPlanPanel.querySelector('[data-testid="plan-add-to-chat"]')
+                    : null;
+                  if (bottomPlanAddToChat instanceof HTMLButtonElement) {
+                    bottomPlanAddToChat.click();
+                    for (let index = 0; index < 20; index += 1) {
+                      const bottomPlanStatus = bottomPlanPanel instanceof HTMLElement
+                        ? bottomPlanPanel.querySelector('[data-testid="plan-add-to-chat-status"]')
+                        : null;
+                      const composer = document.querySelector('[data-testid="composer-textarea"]');
+                      if (
+                        bottomPlanStatus instanceof HTMLElement &&
+                        bottomPlanStatus.getAttribute('role') === 'status' &&
+                        bottomPlanStatus.getAttribute('aria-live') === 'polite' &&
+                        bottomPlanStatus.textContent?.includes('Plan context added to chat') === true &&
+                        composer instanceof HTMLTextAreaElement &&
+                        composer.value.includes('Use this plan context:') &&
+                        composer.value.includes('Prove Plan can move to the bottom panel.')
+                      ) {
+                        bottomPanelPlanAddToChatWorks = true;
+                        break;
+                      }
+                      await sleep(80);
+                    }
+                  }
                   let bottomPlanTransferMenu = null;
                   let movePlanToRight = null;
                   if (bottomPlanTab instanceof HTMLElement) {
@@ -8043,6 +8069,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             terminalMoveBackToBottomWorks: typeof terminalMoveBackToBottomWorks === 'boolean' ? terminalMoveBackToBottomWorks : null,
             terminalBottomPanelLabelsWorks: typeof terminalBottomPanelLabelsWorks === 'boolean' ? terminalBottomPanelLabelsWorks : null,
             bottomPanelPlanTransferWorks: typeof bottomPanelPlanTransferWorks === 'boolean' ? bottomPanelPlanTransferWorks : null,
+            bottomPanelPlanAddToChatWorks: typeof bottomPanelPlanAddToChatWorks === 'boolean' ? bottomPanelPlanAddToChatWorks : null,
             terminalLinkScopedRoutingWorks: typeof terminalLinkScopedRoutingWorks === 'boolean' ? terminalLinkScopedRoutingWorks : null,
             terminalLinkRoutingWorks: typeof terminalLinkRoutingWorks === 'boolean' ? terminalLinkRoutingWorks : null,
             terminalThemeFontSyncWorks: typeof terminalThemeFontSyncWorks === 'boolean' ? terminalThemeFontSyncWorks : null,
