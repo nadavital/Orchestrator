@@ -10475,6 +10475,16 @@ Verification: `pnpm run smoke:ui:suggest` selected only focused `--workbench-new
 
 Remaining: this closes local Git refresh feedback only. Hosted PR creation/submission, provider-native PR metadata/actions, and broader GitHub review workflows remain separate Phase 1/provider-backed work.
 
+### 2026-05-29 - Git PR Command Terminal Draft
+
+Product evidence: the Git Workbench tab could copy a generated `gh pr create` command and add it to chat, but sending it to Terminal still required manual copy/paste. Running it automatically would be too aggressive because PR creation can hit GitHub and may be interactive, so the useful daily coding workflow is to open Terminal with the command inserted as an editable prompt draft.
+
+Implemented: the Git Pull Request card now exposes `Insert in terminal` beside `Copy PR command` and `Add to chat`. It opens the bottom Terminal, reuses or creates the active session terminal tab, spawns it in the session workspace, writes the PR command without a trailing Enter, and announces `PR command inserted in terminal` through the Git action status region. The smoke selector now suppresses redundant Terminal smoke for this Git-owned handoff because the Workbench New Tab/Git fixture proves the bottom-panel id and terminal buffer directly.
+
+Verification: `pnpm run smoke:ui:suggest` selected only focused `--workbench-new-tab` for this Git source/harness/planner diff, with shared main-process and smoke harness files reported as covered by focused rules. `pnpm run smoke:ui:changed:static` passed the generated static plan (`git diff --check`, `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and `node -c scripts/suggest-ui-smoke-targets.mjs`). Elevated `pnpm run smoke:ui:changed:smoke` ran only `node scripts/run-automated-ui-smoke.mjs --workbench-new-tab` and passed with `workbenchNewTabGitPrCommandTerminalHandoff=true` while preserving PR-command copy/chat handoff, Git status handoff, branch/checkout, file actions, commit/discard, Workbench launcher, and Agent Activity gates. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-workbench-new-tab-1780078664911.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-workbench-new-tab-1780078664911.png`.
+
+Remaining: this closes local Git PR-command-to-terminal draft handoff only. Hosted PR creation/submission, provider-native PR metadata/actions, checkpoint Undo, and deeper GitHub review workflows remain separate Phase 1/provider-backed work.
+
 ### 2026-05-29 - Review-to-Git Selected File Focus
 
 Product evidence: Review's `Open Git` handoff could open the dedicated Git Workbench tab, but it dropped the selected diff path. For daily coding, that made the user re-find the same file in Git before staging, unstaging, discarding, or committing, even though Review already knew the active file.

@@ -308,6 +308,7 @@ function suggestTargets(paths) {
   suppressComposerForToolActivityCommandDiff(matched, paths)
   suppressTerminalForToolActivityCommandDiff(matched, paths)
   suppressComposerForWorkbenchGitHandoffDiff(matched, paths)
+  suppressTerminalForWorkbenchGitPrTerminalHandoffDiff(matched, paths)
   suppressComposerForBrowserHandoffDiff(matched, paths)
   suppressEnvironmentForGitFileWorkflowDiff(matched, paths)
   suppressWorkbenchForReviewGitHandoffDiff(matched, paths)
@@ -671,6 +672,20 @@ function suppressComposerForWorkbenchGitHandoffDiff(matched, paths) {
   ].join('\n')
   if (!/workbenchNewTabGit|git-pr-command|Git PR command/.test(diff)) return
   matched.delete('--composer')
+}
+
+function suppressTerminalForWorkbenchGitPrTerminalHandoffDiff(matched, paths) {
+  const terminal = matched.get('--terminal')
+  const workbench = matched.get('--workbench-new-tab')
+  if (!terminal || !workbench) return
+  if (!terminal.files.every((file) => file === 'scripts/run-automated-ui-smoke.mjs' || file === 'src/main/index.ts')) return
+  const diff = [
+    paths.includes('src/renderer/src/components/Session/GitPanel.tsx') ? diffForFile('src/renderer/src/components/Session/GitPanel.tsx') : '',
+    paths.includes('scripts/run-automated-ui-smoke.mjs') ? diffForFile('scripts/run-automated-ui-smoke.mjs') : '',
+    paths.includes('src/main/index.ts') ? diffForFile('src/main/index.ts') : ''
+  ].join('\n')
+  if (!/workbenchNewTabGitPrCommandTerminalHandoff|git-insert-pr-command-terminal|PR command inserted in terminal|__orchestratorLastGitPrTerminal/.test(diff)) return
+  matched.delete('--terminal')
 }
 
 function suppressComposerForBrowserHandoffDiff(matched, paths) {

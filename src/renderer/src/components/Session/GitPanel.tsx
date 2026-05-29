@@ -16,7 +16,7 @@ interface Props {
   onOpenReview: (path?: string) => void
 }
 
-type GitActionState = 'idle' | 'loading' | 'staging' | 'unstaging' | 'branching' | 'checking-out' | 'committing' | 'discarding'
+type GitActionState = 'idle' | 'loading' | 'staging' | 'unstaging' | 'branching' | 'checking-out' | 'committing' | 'discarding' | 'terminal'
 
 export default function GitPanel({
   session,
@@ -44,6 +44,9 @@ export default function GitPanel({
   const prCardRef = useRef<HTMLDivElement | null>(null)
   const commitCardRef = useRef<HTMLFormElement | null>(null)
   const openRightPanelFileTab = useSessionStore((state) => state.openRightPanelFileTab)
+  const setShowTerminal = useSessionStore((state) => state.setShowTerminal)
+  const addTerminalTab = useSessionStore((state) => state.addTerminalTab)
+  const setActiveTerminalTab = useSessionStore((state) => state.setActiveTerminalTab)
   const sessionId = session.id
   const workDir = session.workDir
 
@@ -277,6 +280,36 @@ export default function GitPanel({
       }
     }))
     setActionMessage({ text: 'PR command added to chat', tone: 'info' })
+  }
+
+  const insertPullRequestCommandInTerminal = async (): Promise<void> => {
+    if (!prCommand || busy) return
+    setActionState('terminal')
+    setActionMessage({ text: 'Opening terminal for PR command', tone: 'info' })
+    try {
+      const state = useSessionStore.getState()
+      const currentPanel = state.uiState[sessionId]?.terminalPanel
+      const existingTab = typeof currentPanel?.activeTabId === 'number'
+        ? currentPanel.activeTabId
+        : currentPanel?.tabs.find((tab): tab is number => typeof tab === 'number')
+      const tabId = existingTab ?? addTerminalTab(sessionId)
+      setShowTerminal(sessionId, true)
+      setActiveTerminalTab(sessionId, tabId)
+      const terminalId = `${sessionId}-${tabId}`
+      const globals = window as typeof window & {
+        __orchestratorLastGitPrTerminalCommandForSmoke?: string
+        __orchestratorLastGitPrTerminalIdForSmoke?: string
+      }
+      globals.__orchestratorLastGitPrTerminalCommandForSmoke = prCommand
+      globals.__orchestratorLastGitPrTerminalIdForSmoke = terminalId
+      await window.api.terminal.spawn(terminalId, workDir)
+      await window.api.terminal.write(terminalId, prCommand)
+      setActionMessage({ text: 'PR command inserted in terminal', tone: 'info' })
+    } catch (error) {
+      setActionMessage({ text: error instanceof Error ? error.message : 'Insert PR command in terminal failed', tone: 'danger' })
+    } finally {
+      setActionState('idle')
+    }
   }
 
   const addGitStatusToChat = (): void => {
@@ -585,6 +618,14 @@ export default function GitPanel({
                 onClick={addPullRequestCommandToChat}
               >
                 Add to chat
+              </Button>
+              <Button
+                variant="ghost"
+                dataTestId="git-insert-pr-command-terminal"
+                disabled={busy || !prCommand}
+                onClick={() => { void insertPullRequestCommandInTerminal() }}
+              >
+                Insert in terminal
               </Button>
             </div>
           )}
