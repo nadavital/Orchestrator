@@ -126,6 +126,10 @@ type BrowserTargetActionStatus = {
   text: string
   tone: 'info' | 'danger'
 }
+type BrowserScreenshotActionStatus = {
+  text: string
+  tone: 'info' | 'danger'
+}
 type BrowserClientToolAction = 'click' | 'type' | 'fill' | 'key' | 'select' | 'check' | 'scroll'
 interface BrowserClientToolActionResult {
   ok: boolean
@@ -215,6 +219,7 @@ export default function BrowserPanel({
   const [error, setError] = useState<string | null>(null)
   const [screenshot, setScreenshot] = useState<string | null>(null)
   const [artifactPath, setArtifactPath] = useState<string | null>(null)
+  const [screenshotStatus, setScreenshotStatus] = useState<BrowserScreenshotActionStatus | null>(null)
   const [findMatches, setFindMatches] = useState(0)
   const [findActiveMatch, setFindActiveMatch] = useState(0)
   const [browserPanelCommandCount, setBrowserPanelCommandCount] = useState(0)
@@ -443,6 +448,7 @@ export default function BrowserPanel({
     setFindActiveMatch(0)
     setScreenshot(null)
     setArtifactPath(null)
+    setScreenshotStatus(null)
     setDomSnapshot('')
     setVisibleTargets([])
     setAssetInventory(null)
@@ -680,6 +686,7 @@ export default function BrowserPanel({
     setError(null)
     setScreenshot(null)
     setArtifactPath(null)
+    setScreenshotStatus(null)
     setAddress(nextUrl)
     setCurrentUrl(nextUrl)
     patchActiveTab({ url: nextUrl, title: nextUrl, lastOpened: Date.now() })
@@ -729,12 +736,27 @@ export default function BrowserPanel({
   const captureScreenshot = async (): Promise<void> => {
     const webview = webviewRef.current
     if (!webview || !currentUrl) return
-    const image = await webview.capturePage()
-    const dataUrl = image.toDataURL()
-    setScreenshot(dataUrl)
-    const saved = await window.api.browser.saveDataUrlArtifact(dataUrl, `browser-${Date.now()}.png`)
-    setArtifactPath(saved.path)
-    patchWorkbench({ inspectorOpen: true, inspectorMode: 'console' })
+    setScreenshotStatus(null)
+    try {
+      const image = await webview.capturePage()
+      const dataUrl = image.toDataURL()
+      setScreenshot(dataUrl)
+      const saved = await window.api.browser.saveDataUrlArtifact(dataUrl, `browser-${Date.now()}.png`)
+      setArtifactPath(saved.path)
+      setScreenshotStatus({ text: 'Screenshot saved', tone: 'info' })
+      patchWorkbench({ inspectorOpen: true, inspectorMode: 'console' })
+    } catch {
+      setScreenshotStatus({ text: 'Screenshot failed', tone: 'danger' })
+    }
+  }
+
+  const addScreenshotToChat = (path: string | null): void => {
+    if (!path) {
+      setScreenshotStatus({ text: 'No screenshot to attach', tone: 'danger' })
+      return
+    }
+    addArtifactToChat(path)
+    setScreenshotStatus({ text: 'Screenshot attached', tone: 'info' })
   }
 
   const searchInPage = (query: string): void => {
@@ -1178,6 +1200,7 @@ export default function BrowserPanel({
     const saved = await window.api.browser.saveDataUrlArtifact(dataUrl, `browser-client-tool-${Date.now()}.png`)
     setScreenshot(dataUrl)
     setArtifactPath(saved.path)
+    setScreenshotStatus({ text: 'Screenshot saved', tone: 'info' })
     patchWorkbench({ inspectorOpen: true, inspectorMode: 'console' })
     return {
       ok: true,
@@ -2568,7 +2591,8 @@ export default function BrowserPanel({
                   logs={logs}
                   artifactPath={artifactPath}
                   screenshot={screenshot}
-                  onAddScreenshot={() => addArtifactToChat(artifactPath)}
+                  screenshotStatus={screenshotStatus}
+                  onAddScreenshot={() => addScreenshotToChat(artifactPath)}
                   onClear={() => setLogs([])}
                 />
               )}
@@ -2689,12 +2713,14 @@ function ConsolePane({
   logs,
   artifactPath,
   screenshot,
+  screenshotStatus,
   onAddScreenshot,
   onClear
 }: {
   logs: BrowserLogEntry[]
   artifactPath: string | null
   screenshot: string | null
+  screenshotStatus: BrowserScreenshotActionStatus | null
   onAddScreenshot: () => void
   onClear: () => void
 }): JSX.Element {
@@ -2715,6 +2741,18 @@ function ConsolePane({
         )}
         <button type="button" className="ml-auto text-xs" style={{ color: 'var(--text-secondary)' }} onClick={onClear}>Clear</button>
       </div>
+      {screenshotStatus && (
+        <div
+          className="browser-screenshot-status"
+          data-testid="browser-screenshot-status"
+          data-browser-screenshot-status-tone={screenshotStatus.tone}
+          role={screenshotStatus.tone === 'danger' ? 'alert' : 'status'}
+          aria-live={screenshotStatus.tone === 'danger' ? 'assertive' : 'polite'}
+          aria-atomic="true"
+        >
+          {screenshotStatus.text}
+        </div>
+      )}
       {artifactPath && <div className="truncate" style={{ color: 'var(--text-tertiary)' }}>{artifactPath}</div>}
       {screenshot && (
         <img

@@ -4619,11 +4619,28 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               (document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-current-url') ?? '')
                 .startsWith(${JSON.stringify(process.env.ORCHESTRATOR_BROWSER_SMOKE_URL ?? 'http://127.0.0.1:9')});
             var browserScreenshotWorks = Boolean(document.querySelector('[data-testid="browser-screenshot-preview"]'));
+            const browserScreenshotStatus = document.querySelector('[data-testid="browser-screenshot-status"]');
+            var browserScreenshotStatusA11yWorks =
+              browserScreenshotStatus instanceof HTMLElement &&
+              browserScreenshotStatus.textContent?.trim() === 'Screenshot saved' &&
+              browserScreenshotStatus.getAttribute('role') === 'status' &&
+              browserScreenshotStatus.getAttribute('aria-live') === 'polite' &&
+              browserScreenshotStatus.getAttribute('aria-atomic') === 'true' &&
+              browserScreenshotStatus.getAttribute('data-browser-screenshot-status-tone') === 'info';
             const addBrowserScreenshotButton = findButton('Add screenshot');
             if (addBrowserScreenshotButton instanceof HTMLButtonElement) {
               addBrowserScreenshotButton.click();
               await sleep(160);
             }
+            const browserScreenshotAttachedStatus = document.querySelector('[data-testid="browser-screenshot-status"]');
+            browserScreenshotStatusA11yWorks =
+              browserScreenshotStatusA11yWorks &&
+              browserScreenshotAttachedStatus instanceof HTMLElement &&
+              browserScreenshotAttachedStatus.textContent?.trim() === 'Screenshot attached' &&
+              browserScreenshotAttachedStatus.getAttribute('role') === 'status' &&
+              browserScreenshotAttachedStatus.getAttribute('aria-live') === 'polite' &&
+              browserScreenshotAttachedStatus.getAttribute('aria-atomic') === 'true' &&
+              browserScreenshotAttachedStatus.getAttribute('data-browser-screenshot-status-tone') === 'info';
             var browserScreenshotAttachmentWorks =
               [...document.querySelectorAll('.attachment-pill')]
                 .some((attachment) => attachment.textContent?.includes('browser-'));
@@ -7574,6 +7591,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             filesSearchClearWorks: typeof filesSearchClearWorks === 'boolean' ? filesSearchClearWorks : null,
             browserTabWorks: typeof browserTabWorks === 'boolean' ? browserTabWorks : null,
             browserScreenshotWorks: typeof browserScreenshotWorks === 'boolean' ? browserScreenshotWorks : null,
+            browserScreenshotStatusA11yWorks: typeof browserScreenshotStatusA11yWorks === 'boolean' ? browserScreenshotStatusA11yWorks : null,
             browserScreenshotAttachmentWorks: typeof browserScreenshotAttachmentWorks === 'boolean' ? browserScreenshotAttachmentWorks : null,
             browserFindWorks: typeof browserFindWorks === 'boolean' ? browserFindWorks : null,
             browserFindNavigationWorks: typeof browserFindNavigationWorks === 'boolean' ? browserFindNavigationWorks : null,
@@ -18860,6 +18878,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               menuOpenExternalButton.getAttribute('aria-label') === 'Open external browser' &&
               !menuOpenExternalButton.disabled;
             var browserToolbarScreenshotWorks = false;
+            var browserScreenshotStatusA11yWorks = false;
             var browserFallbackMessagesSharedWorks = false;
             var browserAssetsBundleSharedWorks = false;
             var browserAssetsSharedContainersWorks = false;
@@ -18878,6 +18897,14 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                 screenshotButtonEnabled &&
                 !(toolbarScreenshotButton instanceof HTMLButtonElement) &&
                 document.querySelector('[data-testid="browser-inspector-toolbar"]') instanceof HTMLElement;
+              const browserScreenshotStatus = document.querySelector('[data-testid="browser-screenshot-status"]');
+              browserScreenshotStatusA11yWorks =
+                browserScreenshotStatus instanceof HTMLElement &&
+                browserScreenshotStatus.textContent?.trim() === 'Screenshot saved' &&
+                browserScreenshotStatus.getAttribute('role') === 'status' &&
+                browserScreenshotStatus.getAttribute('aria-live') === 'polite' &&
+                browserScreenshotStatus.getAttribute('aria-atomic') === 'true' &&
+                browserScreenshotStatus.getAttribute('data-browser-screenshot-status-tone') === 'info';
               const assetsInspectorButton = document.querySelector('[data-testid="browser-inspector-assets"]');
               if (assetsInspectorButton instanceof HTMLButtonElement) {
                 assetsInspectorButton.click();
@@ -20403,6 +20430,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserAddressBadgeWorks,
               browserToolbarExternalWorks,
               browserToolbarScreenshotWorks,
+              browserScreenshotStatusA11yWorks,
               browserLoaded: browserLoadedWorks,
               browserWebviewManagerBoundaryWorks,
               browserFindWorks,

@@ -9615,6 +9615,16 @@ Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.
 
 Remaining: this closes the local hidden-state identity gap only. Deeper Browser lifecycle/screenshot comparison, live provider-emitted browser-use proof, richer provider-produced annotation/design-change workflows, and exact live Codex Browser timing remain separate follow-ups.
 
+### 2026-05-29 - Browser Screenshot Status Feedback
+
+Product evidence: PP-058 still tracks Browser lifecycle/screenshot polish. The Browser panel could capture a screenshot, show the preview, and add the artifact to chat, but the action had no durable visible or assistive status after the click. For daily coding use, screenshot capture and attachment should leave the same kind of immediate, inspectable feedback as other Workbench actions.
+
+Implemented: Browser screenshot capture now clears stale screenshot status before starting, announces `Screenshot saved` through a live status when the capture finishes, and preserves the existing preview plus artifact path. `Add screenshot` now updates the same status to `Screenshot attached`, while missing-artifact attach attempts report a danger status. The status is exposed through `data-testid="browser-screenshot-status"` with role, aria-live, aria-atomic, and tone attributes so manual and automated parity checks can verify the behavior.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --browser` passed. The first focused rerun failed because the wrapper gate was added before the Browser-specific smoke result included `browserScreenshotStatusA11yWorks`; failed evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1780030041745.json`. After wiring the Browser-specific result, rerun passed with `browserScreenshotStatusA11y=true`; passed evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1780030113342.json`, screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1780030113342.png`.
+
+Remaining: this closes local screenshot save/attach feedback only. Deeper screenshot comparison, live provider-emitted browser-use proof, richer design-change/timing workflows, and exact live Codex Browser timing remain separate PP-058 follow-ups.
+
 ### 2026-05-28 - Thread Link Copy
 
 Product evidence: PP-037 tracks route-backed session identity as a daily reliability requirement. Orchestrator had app-protocol `Copy deeplink` and `Open in new window`, but the action menu did not expose a normal in-app `/threads/{id}` or `#/threads/{id}` route for sharing or browser/app route testing.
