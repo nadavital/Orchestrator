@@ -33,7 +33,7 @@ import {
   permissionRequestDetail,
   summarizeToolActivities
 } from '../../types'
-import type { Session, ChatMessage, FileChange, FileReference, ResultMessage, SessionForkMode, SessionRunEventRecord, ToolResultMessage, ToolUseMessage, UserInputQuestion } from '../../types'
+import type { Session, ChatMessage, FileChange, FileReference, OpenPathResult, ResultMessage, SessionForkMode, SessionRunEventRecord, ToolResultMessage, ToolUseMessage, UserInputQuestion } from '../../types'
 import type { Attachment } from '../../types'
 import type { TranscriptSearchResult } from '../../types'
 import { useSessionStore } from '../../store/sessions'
@@ -2606,15 +2606,18 @@ function FileReferenceCard({ file, cwd, searchRoots, preferredEditor }: { file: 
   const [exists, setExists] = useState<boolean | null>(null)
   const [resolvedPath, setResolvedPath] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [lastOpenResult, setLastOpenResult] = useState<OpenPathResult | null>(null)
   const displayPath = resolvedPath ?? file.path
   const displayLabel = resolvedPath ? fileName(resolvedPath) : file.label
   const targetLabel = file.line ? `:${file.line}${file.column ? `:${file.column}` : ''}` : ''
+  const openStatus = lastOpenResult ? fileReferenceOpenResultStatus(lastOpenResult) : ''
 
   useEffect(() => {
     let cancelled = false
     setExists(null)
     setResolvedPath(null)
     setError(null)
+    setLastOpenResult(null)
 
     const resolve = async (): Promise<void> => {
       try {
@@ -2653,8 +2656,14 @@ function FileReferenceCard({ file, cwd, searchRoots, preferredEditor }: { file: 
 
   const openPath = async (): Promise<void> => {
     setError(null)
-    const result = await window.api.fs.openPath(displayPath, { line: file.line, column: file.column })
-    if (!result.ok) setError(result.message ?? 'Unable to open file.')
+    try {
+      const result = await window.api.fs.openPath(displayPath, { line: file.line, column: file.column })
+      setLastOpenResult(result)
+      if (!result.ok) setError(result.message ?? 'Unable to open file.')
+    } catch {
+      setLastOpenResult(null)
+      setError('Unable to open file.')
+    }
   }
 
   const revealPath = async (): Promise<void> => {
@@ -2667,6 +2676,15 @@ function FileReferenceCard({ file, cwd, searchRoots, preferredEditor }: { file: 
   return (
     <div
       data-testid="file-reference-card"
+      data-file-reference-path={file.path}
+      data-file-reference-resolved-path={resolvedPath ?? ''}
+      data-file-reference-open-result-ok={lastOpenResult === null ? '' : lastOpenResult.ok ? 'true' : 'false'}
+      data-file-reference-open-result-target={lastOpenResult?.target ?? ''}
+      data-file-reference-open-result-method={lastOpenResult?.method ?? ''}
+      data-file-reference-open-result-line={lastOpenResult?.line ?? ''}
+      data-file-reference-open-result-column={lastOpenResult?.column ?? ''}
+      data-file-reference-open-result-fallback-from={lastOpenResult?.fallbackFrom ?? ''}
+      data-file-reference-open-result-opened-with={lastOpenResult?.openedWith ?? ''}
       className="min-w-0 max-w-full overflow-hidden rounded-lg px-3 py-2 text-xs"
       style={{
         background: 'var(--color-surface)',
@@ -2723,6 +2741,18 @@ function FileReferenceCard({ file, cwd, searchRoots, preferredEditor }: { file: 
           {error}
         </div>
       )}
+      {openStatus && !error && (
+        <div
+          className="mt-1"
+          data-testid="file-reference-open-status"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          style={{ color: 'var(--color-text-muted)', fontSize: 10 }}
+        >
+          {openStatus}
+        </div>
+      )}
     </div>
   )
 }
@@ -2749,6 +2779,29 @@ function openButtonLabel(editor: PreferredEditor): string {
       return 'Open in Zed'
     case 'system':
       return 'Open'
+  }
+}
+
+function fileReferenceOpenResultStatus(result: OpenPathResult): string {
+  if (!result.ok) return result.message ? `Open failed: ${result.message}` : 'Open failed'
+  const target = fileReferenceOpenTargetLabel(result.target)
+  const location = result.line ? ` at line ${result.line}${result.column ? `:${result.column}` : ''}` : ''
+  const fallback = result.fallbackFrom ? ` via ${result.method}` : ''
+  return `Opened in ${target}${location}${fallback}`
+}
+
+function fileReferenceOpenTargetLabel(editor: PreferredEditor): string {
+  switch (editor) {
+    case 'cursor':
+      return 'Cursor'
+    case 'vscode':
+      return 'VS Code'
+    case 'vscode-insiders':
+      return 'VS Code Insiders'
+    case 'zed':
+      return 'Zed'
+    case 'system':
+      return 'System'
   }
 }
 

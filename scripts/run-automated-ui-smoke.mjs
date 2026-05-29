@@ -2183,6 +2183,7 @@ child.on('exit', async (code) => {
         fileCardsBounded: result.fileCardsBounded === true,
         relativeProseCardSuppressed: result.relativeProseCardSuppressed === true,
         absoluteMissingFileCardDisabled: result.absoluteMissingFileCardDisabled === true,
+        fileReferenceOpenOutcome: result.fileReferenceOpenOutcomeWorks === true,
         toolSummaryExpanded: result.toolSummaryExpanded === true,
         toolSummaryBounded: result.toolSummaryBounded === true,
         toolSummaryScrollable: result.toolSummaryScrollable === true,

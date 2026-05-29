@@ -1,6 +1,6 @@
 import { app, shell, BrowserWindow, ipcMain, Menu, net, protocol } from 'electron'
 import type { MenuItemConstructorOptions, Session } from 'electron'
-import { join, resolve, sep } from 'path'
+import { dirname, join, resolve, sep } from 'path'
 import { mkdirSync, writeFileSync } from 'fs'
 import { pathToFileURL } from 'url'
 import { electronApp, is } from '@electron-toolkit/utils'
@@ -23675,6 +23675,21 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
             const pre = document.querySelector('pre');
             const table = document.querySelector('table');
             const fileCards = [...document.querySelectorAll('[data-testid="file-reference-card"]')];
+            const existingFileReferenceCard = fileCards.find((card) =>
+              card instanceof HTMLElement &&
+              card.textContent?.includes('transcript-layout-fixture.ts')
+            );
+            const existingFileReferenceOpenButton = existingFileReferenceCard instanceof HTMLElement
+              ? [...existingFileReferenceCard.querySelectorAll('button')]
+                .find((button) => button.textContent?.includes('Open'))
+              : null;
+            if (existingFileReferenceOpenButton instanceof HTMLButtonElement) {
+              existingFileReferenceOpenButton.click();
+              await sleep(180);
+            }
+            const existingFileReferenceOpenStatus = existingFileReferenceCard instanceof HTMLElement
+              ? existingFileReferenceCard.querySelector('[data-testid="file-reference-open-status"]')
+              : null;
             const partialResponseStatus = document.querySelector('[data-testid="chat-partial-response-status"]');
             const messageRowsBounded = messageRows.length > 0 && messageRows.every(isInsideScroller);
             const codeBlockBounded = wideLayout.codeBlockBounded;
@@ -23714,6 +23729,18 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
                 buttons.length >= 2 &&
                 buttons.every((button) => button.disabled);
             });
+            const fileReferenceOpenOutcomeWorks =
+              existingFileReferenceCard instanceof HTMLElement &&
+              existingFileReferenceOpenButton instanceof HTMLButtonElement &&
+              existingFileReferenceCard.getAttribute('data-file-reference-resolved-path')?.endsWith('/transcript-layout-fixture.ts') === true &&
+              existingFileReferenceCard.getAttribute('data-file-reference-open-result-ok') === 'true' &&
+              (existingFileReferenceCard.getAttribute('data-file-reference-open-result-target') ?? '').length > 0 &&
+              (existingFileReferenceCard.getAttribute('data-file-reference-open-result-method') ?? '').length > 0 &&
+              (existingFileReferenceCard.getAttribute('data-file-reference-open-result-opened-with') ?? '').length > 0 &&
+              existingFileReferenceOpenStatus instanceof HTMLElement &&
+              existingFileReferenceOpenStatus.getAttribute('role') === 'status' &&
+              existingFileReferenceOpenStatus.getAttribute('aria-live') === 'polite' &&
+              existingFileReferenceOpenStatus.textContent?.includes('Opened in ') === true;
             const partialResponseStatusWorks =
               partialResponseStatus instanceof HTMLElement &&
               partialResponseStatus.textContent?.includes('Partial response stopped') === true &&
@@ -23931,6 +23958,7 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
               chatUserMessageEditDraftRestore,
               relativeProseCardSuppressed,
               absoluteMissingFileCardDisabled,
+              fileReferenceOpenOutcomeWorks,
               partialResponseStatusWorks,
               chatMessageCopyWorks,
               chatMessageCopyA11yWorks,
@@ -28203,6 +28231,8 @@ function seedAutomatedTranscriptLayoutSmokeSession(sessionId: string): void {
   const longToken = `TRANSCRIPT_LAYOUT_SMOKE_${'A'.repeat(220)}`
   const longPath = `${process.env.ORCHESTRATOR_SMOKE_WORKSPACE_DIR ?? '/tmp/orchestrator-automated-ui-workspace'}/src/${'deeply-nested-layout-fixture-segment/'.repeat(5)}transcript-layout-fixture.ts`
   const explicitMissingPath = `${process.env.ORCHESTRATOR_SMOKE_WORKSPACE_DIR ?? '/tmp/orchestrator-automated-ui-workspace'}/explicit-missing-file.ts`
+  mkdirSync(dirname(longPath), { recursive: true })
+  writeFileSync(longPath, 'export const transcriptLayoutFixture = true\n')
   const messages: ChatMessage[] = [
     {
       id: 'transcript-layout-user',
