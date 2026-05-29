@@ -3,11 +3,16 @@ import type { FilePreviewResult } from '../../env'
 import type { GitLineBlameResult, OpenPathResult, OpenTargetAvailability, PreferredOpenTarget } from '../../types'
 import { artifactImportKindSupportsSource, artifactTabPresentationForPath } from '../../types'
 import type { RightPanelTabId, RightPanelTabState, SourceAnnotationState } from '../../store/sessions'
+import { useSessionStore } from '../../store/sessions'
 import { Badge, IconButton, MenuItem, MenuSection, MenuSectionLabel, MenuSurface, PanelToolbar } from '../shared/designSystem'
 import Icon from '../shared/Icon'
 import { FilePreview, formatBytes, joinPath } from './FilesPanel'
 
 const FILE_TAB_ACTIONS_MENU_ID = 'workbench-file-tab-actions-menu-surface'
+
+function shellQuote(value: string): string {
+  return /^[A-Za-z0-9._/@:-]+$/.test(value) ? value : `'${value.replace(/'/g, `'\\''`)}'`
+}
 
 interface Props {
   workDir: string
@@ -61,6 +66,9 @@ export default function FileTabPanel({
   const [fileActionsOpen, setFileActionsOpen] = useState(false)
   const [fileActionStatus, setFileActionStatus] = useState('')
   const [lastOpenResult, setLastOpenResult] = useState<OpenPathResult | null>(null)
+  const setShowTerminal = useSessionStore((state) => state.setShowTerminal)
+  const addTerminalTab = useSessionStore((state) => state.addTerminalTab)
+  const setActiveTerminalTab = useSessionStore((state) => state.setActiveTerminalTab)
   const fileRoot = fileHost || workDir
   const absolutePath = joinPath(fileRoot, filePath)
   const name = basename(filePath)
@@ -188,6 +196,34 @@ export default function FileTabPanel({
     void writeFileTabClipboardText(lineReferencePath)
       .then(() => setFileActionStatus('Path copied'))
       .catch(() => setFileActionStatus('Copy failed'))
+  }
+
+  const insertPathInTerminal = (): void => {
+    setFileActionStatus('Opening terminal for path')
+    void (async () => {
+      try {
+        const state = useSessionStore.getState()
+        const currentPanel = state.uiState[sessionId]?.terminalPanel
+        const existingTab = typeof currentPanel?.activeTabId === 'number'
+          ? currentPanel.activeTabId
+          : currentPanel?.tabs.find((tab): tab is number => typeof tab === 'number')
+        const tabId = existingTab ?? addTerminalTab(sessionId)
+        setShowTerminal(sessionId, true)
+        setActiveTerminalTab(sessionId, tabId)
+        const terminalId = `${sessionId}-${tabId}`
+        const globals = window as typeof window & {
+          __orchestratorLastFileTabTerminalPathForSmoke?: string
+          __orchestratorLastFileTabTerminalIdForSmoke?: string
+        }
+        globals.__orchestratorLastFileTabTerminalPathForSmoke = lineReferencePath
+        globals.__orchestratorLastFileTabTerminalIdForSmoke = terminalId
+        await window.api.terminal.spawn(terminalId, workDir)
+        await window.api.terminal.write(terminalId, shellQuote(lineReferencePath))
+        setFileActionStatus('Path inserted in terminal')
+      } catch {
+        setFileActionStatus('Insert path in terminal failed')
+      }
+    })()
   }
 
   const copySelectedLineReference = (): void => {
@@ -444,6 +480,12 @@ export default function FileTabPanel({
               icon="copy"
               label="Copy path"
               onClick={() => { copyPath(); setFileActionsOpen(false) }}
+            />
+            <MenuItem
+              icon="terminal"
+              label="Insert in terminal"
+              dataTestId="workbench-file-tab-insert-terminal-menu-item"
+              onClick={() => { insertPathInTerminal(); setFileActionsOpen(false) }}
             />
             <MenuItem
               icon="external"

@@ -106,8 +106,8 @@ const diffRules = [
   {
     flag: '--files',
     label: 'Files and source tabs',
-    filePatterns: [/^src\/renderer\/src\/components\/Session\/WorkbenchTree\.tsx$/, /^src\/renderer\/src\/components\/Session\/FilesPanel\.tsx$/, /^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
-    diffPatterns: [/WorkbenchTreeContextMenu/, /onContextMenu/, /filesRowKeyboardContextMenu/, /filesTreeKeyboardNavigation/, /fileSourceLineKeyboardNavigation/, /data-keyboard-navigation/, /files-row-context-menu/, /filesAddToChatStatus/, /filesInsertPathTerminal/, /Added .* to chat/, /Path inserted in terminal/]
+    filePatterns: [/^src\/renderer\/src\/components\/Session\/WorkbenchTree\.tsx$/, /^src\/renderer\/src\/components\/Session\/FilesPanel\.tsx$/, /^src\/renderer\/src\/components\/Session\/FileTabPanel\.tsx$/, /^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
+    diffPatterns: [/WorkbenchTreeContextMenu/, /onContextMenu/, /filesRowKeyboardContextMenu/, /filesTreeKeyboardNavigation/, /fileSourceLineKeyboardNavigation/, /data-keyboard-navigation/, /files-row-context-menu/, /filesAddToChatStatus/, /filesInsertPathTerminal/, /fileSourcePathTerminal/, /workbench-file-tab-insert-terminal/, /Added .* to chat/, /Path inserted in terminal/]
   },
   {
     flag: '--diff-core',
@@ -313,6 +313,7 @@ function suggestTargets(paths) {
   suppressFilesForWorkbenchGitFileAddToChatDiff(matched, paths)
   suppressComposerForBrowserHandoffDiff(matched, paths)
   suppressTerminalForFilesPathTerminalHandoffDiff(matched, paths)
+  suppressTerminalForFileTabPathTerminalHandoffDiff(matched, paths)
   suppressTerminalForReviewPathTerminalHandoffDiff(matched, paths)
   suppressComposerAndFilesForReviewRowAddToChatDiff(matched, paths)
   suppressEnvironmentForGitFileWorkflowDiff(matched, paths)
@@ -732,6 +733,24 @@ function suppressTerminalForFilesPathTerminalHandoffDiff(matched, paths) {
     paths.includes('src/main/index.ts') ? diffForFile('src/main/index.ts') : ''
   ].join('\n')
   if (!/filesInsertPathTerminal|files-row-context-menu-insert-terminal|Path inserted in terminal|__orchestratorLastFilesTerminal/.test(diff)) return
+  matched.delete('--terminal')
+}
+
+function suppressTerminalForFileTabPathTerminalHandoffDiff(matched, paths) {
+  const terminal = matched.get('--terminal')
+  const files = matched.get('--files')
+  if (!terminal || !files) return
+  if (!terminal.files.every((file) =>
+    file === 'scripts/run-automated-ui-smoke.mjs' ||
+    file === 'src/main/index.ts' ||
+    file === 'src/renderer/src/components/Session/FileTabPanel.tsx'
+  )) return
+  const diff = [
+    paths.includes('src/renderer/src/components/Session/FileTabPanel.tsx') ? diffForFile('src/renderer/src/components/Session/FileTabPanel.tsx') : '',
+    paths.includes('scripts/run-automated-ui-smoke.mjs') ? diffForFile('scripts/run-automated-ui-smoke.mjs') : '',
+    paths.includes('src/main/index.ts') ? diffForFile('src/main/index.ts') : ''
+  ].join('\n')
+  if (!/fileSourcePathTerminal|workbench-file-tab-insert-terminal|Path inserted in terminal|__orchestratorLastFileTabTerminal/.test(diff)) return
   matched.delete('--terminal')
 }
 

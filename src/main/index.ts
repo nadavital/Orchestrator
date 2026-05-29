@@ -17201,6 +17201,7 @@ function runAutomatedFocusedSurfaceSmoke(
               let fileSourceActionStatusWorks = false;
               let fileOpenTargetOutcomeDiagnosticWorks = false;
               let fileSourceAddToChatWorks = false;
+              let fileSourcePathTerminalWorks = false;
               let fileSourceLineBlameWorks = false;
               let fileSourceAnnotationPinsTabWorks = false;
               let fileSourceAnnotationStatusWorks = false;
@@ -19965,6 +19966,53 @@ function runAutomatedFocusedSurfaceSmoke(
                 sourceFileTabAfterAddToChat.getAttribute('data-file-tab-action-status') === 'Added file to chat' &&
                 [...document.querySelectorAll('.attachment-pill')]
                   .some((attachment) => attachment.textContent?.includes('review-base.txt'));
+              const sourceFileTabActionMenuButton = document.querySelector('[data-testid="workbench-file-tab-actions-menu"]');
+              if (sourceFileTabActionMenuButton instanceof HTMLButtonElement) {
+                sourceFileTabActionMenuButton.click();
+                await sleep(120);
+                const sourcePathTerminalMenuItem = document.querySelector('[data-testid="workbench-file-tab-insert-terminal-menu-item"]');
+                if (sourcePathTerminalMenuItem instanceof HTMLElement) {
+                  sourcePathTerminalMenuItem.click();
+                  for (let attempt = 0; attempt < 24; attempt += 1) {
+                    await sleep(100);
+                    const sourceStatusAfterTerminal = document.querySelector('[data-testid="workbench-file-tab-action-status"]');
+                    const terminalId = window.__orchestratorLastFileTabTerminalIdForSmoke ?? '';
+                    const terminalPath = window.__orchestratorLastFileTabTerminalPathForSmoke ?? '';
+                    const terminalBuffer = terminalId
+                      ? await window.api?.terminal?.getBuffer?.(terminalId).catch(() => '') ?? ''
+                      : '';
+                    if (
+                      sourceStatusAfterTerminal instanceof HTMLElement &&
+                      sourceStatusAfterTerminal.textContent?.includes('Path inserted in terminal') === true &&
+                      terminalPath === 'review-base.txt' &&
+                      terminalBuffer.includes('review-base.txt')
+                    ) {
+                      break;
+                    }
+                  }
+                  const sourceFileTabAfterPathTerminal = document.querySelector('[data-testid="workbench-file-tab"]');
+                  const sourceStatusAfterTerminal = document.querySelector('[data-testid="workbench-file-tab-action-status"]');
+                  const terminalId = window.__orchestratorLastFileTabTerminalIdForSmoke ?? '';
+                  const terminalPath = window.__orchestratorLastFileTabTerminalPathForSmoke ?? '';
+                  const terminalBuffer = terminalId
+                    ? await window.api?.terminal?.getBuffer?.(terminalId).catch(() => '') ?? ''
+                    : '';
+                  const bottomPanelAfterPathTerminal = document.querySelector('[data-testid="session-bottom-panel"]');
+                  fileSourcePathTerminalWorks =
+                    sourceFileTabAfterPathTerminal instanceof HTMLElement &&
+                    sourceFileTabAfterPathTerminal.getAttribute('data-file-tab-action-status') === 'Path inserted in terminal' &&
+                    sourceStatusAfterTerminal instanceof HTMLElement &&
+                    sourceStatusAfterTerminal.getAttribute('role') === 'status' &&
+                    sourceStatusAfterTerminal.getAttribute('aria-live') === 'polite' &&
+                    sourceStatusAfterTerminal.getAttribute('aria-atomic') === 'true' &&
+                    terminalPath === 'review-base.txt' &&
+                    terminalBuffer.includes('review-base.txt') &&
+                    bottomPanelAfterPathTerminal instanceof HTMLElement &&
+                    bottomPanelAfterPathTerminal.getAttribute('data-bottom-panel-active-terminal-id') === terminalId;
+                  document.querySelector('[aria-label="Hide bottom panel"]')?.click();
+                  await sleep(120);
+                }
+              }
               const inlineCommentButton = document.querySelector('[data-testid="workbench-file-tab"] [data-testid="workspace-source-line-action-comment"]');
               if (inlineCommentButton instanceof HTMLButtonElement) {
                 inlineCommentButton.click();
@@ -20340,6 +20388,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 fileSourceLineAddToChatWorks,
                 fileSourceActionStatusWorks,
                 fileSourceAddToChatWorks,
+                fileSourcePathTerminalWorks,
                 fileSourceLineBlameWorks,
                 fileSourceBlameDetailsWorks,
                 fileSourceGutterBlameWorks,
