@@ -3194,6 +3194,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               Number(bottomPanelRestored.dataset.bottomPanelHeight ?? '0') >= 120;
             const terminalTabs = [...document.querySelectorAll('[data-testid="session-bottom-panel"] [role="tab"]')];
             var terminalTabMenuWorks = false;
+            var terminalTabKeyboardContextMenuWorks = false;
             var terminalTabMenuSharedSectionsWorks = false;
             var terminalTabReorderWorks = false;
             var terminalTabDragReorderWorks = false;
@@ -3640,6 +3641,27 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             if (terminalTabs.length >= 2) {
               const beforeOrder = document.querySelector('[data-testid="session-bottom-panel"]')?.getAttribute('data-bottom-panel-tabs') ?? '';
               const secondTab = terminalTabs[1];
+              secondTab.focus({ preventScroll: true });
+              const secondTabRect = secondTab.getBoundingClientRect();
+              secondTab.dispatchEvent(new MouseEvent('contextmenu', {
+                bubbles: true,
+                cancelable: true,
+                clientX: secondTabRect.left + Math.min(16, Math.max(1, secondTabRect.width / 2)),
+                clientY: secondTabRect.bottom + 6
+              }));
+              await sleep(140);
+              const keyboardTerminalTabMenu = [...document.querySelectorAll('.terminal-tab-context-menu')]
+                .find((menu) => menu instanceof HTMLElement && menu.getAttribute('data-motion-exit') !== 'true');
+              const keyboardTerminalTabMenuRect = keyboardTerminalTabMenu instanceof HTMLElement ? keyboardTerminalTabMenu.getBoundingClientRect() : null;
+              terminalTabKeyboardContextMenuWorks =
+                keyboardTerminalTabMenu instanceof HTMLElement &&
+                keyboardTerminalTabMenu.getAttribute('data-panel-tab-transfer-source') === 'bottom' &&
+                keyboardTerminalTabMenu.textContent?.includes('Move tab left') === true &&
+                keyboardTerminalTabMenu.textContent?.includes('Close tab') === true &&
+                keyboardTerminalTabMenuRect !== null &&
+                Math.abs(keyboardTerminalTabMenuRect.left - (secondTabRect.left + Math.min(16, Math.max(1, secondTabRect.width / 2)))) <= 24;
+              window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+              await sleep(80);
               secondTab.dispatchEvent(new MouseEvent('contextmenu', {
                 bubbles: true,
                 cancelable: true,
@@ -8133,6 +8155,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             terminalBottomPanelSizeDecompositionWorks: typeof terminalBottomPanelSizeDecompositionWorks === 'boolean' ? terminalBottomPanelSizeDecompositionWorks : null,
             terminalRestoreWorks: typeof terminalRestoreWorks === 'boolean' ? terminalRestoreWorks : null,
             terminalTabMenuWorks: typeof terminalTabMenuWorks === 'boolean' ? terminalTabMenuWorks : null,
+            terminalTabKeyboardContextMenuWorks: typeof terminalTabKeyboardContextMenuWorks === 'boolean' ? terminalTabKeyboardContextMenuWorks : null,
             terminalTabMenuSharedSectionsWorks: typeof terminalTabMenuSharedSectionsWorks === 'boolean' ? terminalTabMenuSharedSectionsWorks : null,
             terminalTabReorderWorks: typeof terminalTabReorderWorks === 'boolean' ? terminalTabReorderWorks : null,
             terminalTabDragReorderWorks: typeof terminalTabDragReorderWorks === 'boolean' ? terminalTabDragReorderWorks : null,
@@ -10121,6 +10144,7 @@ function runAutomatedFocusedSurfaceSmoke(
               const expandButton = findButton('Expand Workbench');
               const widthBefore = Number(rightPanel?.getAttribute('data-right-panel-width') ?? '0');
               let rightPanelContextMenuWorks = false;
+              let rightPanelTabKeyboardContextMenuWorks = false;
               let rightPanelContextMenuSharedSectionsWorks = false;
               let rightPanelTabReorderWorks = false;
               let rightPanelTabDragReorderWorks = false;
@@ -10830,7 +10854,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   browserTabCountAfterOpen === browserTabCountBeforeOpen + 1 &&
                   browserPanelCommandCountAfter >= browserPanelCommandCountBefore + 6;
                 const readUnsupportedTransferBoundary = async (tabId, expectedKind) => {
-                  const tab = document.querySelector('[data-tab-id="' + tabId + '"]')?.closest('[role="tab"]');
+                  const tab = document.getElementById('orchestrator-right-tab-' + tabId);
                   if (!(tab instanceof HTMLElement)) return false;
                   tab.dispatchEvent(new MouseEvent('contextmenu', {
                     bubbles: true,
@@ -10867,8 +10891,36 @@ function runAutomatedFocusedSurfaceSmoke(
                 };
                 const reviewTransferBoundaryWorks = await readUnsupportedTransferBoundary('diff', 'diff');
                 const filesTransferBoundaryWorks = await readUnsupportedTransferBoundary('files', 'files');
-                const workbenchBrowserTab = document.querySelector('[data-tab-id="browser"]')?.closest('[role="tab"]');
+                await sleep(180);
+                const workbenchBrowserTab = document.getElementById('orchestrator-right-tab-browser');
                 if (workbenchBrowserTab instanceof HTMLElement) {
+                  workbenchBrowserTab.focus({ preventScroll: true });
+                  const workbenchBrowserTabRect = workbenchBrowserTab.getBoundingClientRect();
+                  workbenchBrowserTab.dispatchEvent(new MouseEvent('contextmenu', {
+                    bubbles: true,
+                    cancelable: true,
+                    clientX: workbenchBrowserTabRect.left + Math.min(16, Math.max(1, workbenchBrowserTabRect.width / 2)),
+                    clientY: workbenchBrowserTabRect.bottom + 6
+                  }));
+                  await sleep(140);
+                  const keyboardBrowserTabMenu = [...document.querySelectorAll('.workbench-tab-context-menu')]
+                    .find((menu) =>
+                      menu instanceof HTMLElement &&
+                      menu.getAttribute('data-motion-exit') !== 'true' &&
+                      menu.getAttribute('data-panel-tab-transfer-kind') === 'browser'
+                    );
+                  rightPanelTabKeyboardContextMenuWorks =
+                    keyboardBrowserTabMenu instanceof HTMLElement &&
+                    keyboardBrowserTabMenu.getAttribute('data-panel-tab-transfer-kind') === 'browser' &&
+                    keyboardBrowserTabMenu.getAttribute('data-panel-tab-transfer-source') === 'right' &&
+                    keyboardBrowserTabMenu.textContent?.includes('Reset tab') === true &&
+                    keyboardBrowserTabMenu.textContent?.includes('Close tab') === true &&
+                    Math.abs(
+                      keyboardBrowserTabMenu.getBoundingClientRect().left -
+                      (workbenchBrowserTabRect.left + Math.min(16, Math.max(1, workbenchBrowserTabRect.width / 2)))
+                    ) <= 24;
+                  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+                  await sleep(80);
                   workbenchBrowserTab.dispatchEvent(new MouseEvent('contextmenu', {
                     bubbles: true,
                     cancelable: true,
@@ -11399,6 +11451,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 rightPanelNarrowOverlayWorks,
                 rightPanelNarrowOverlayDebug,
                 rightPanelContextMenuWorks,
+                rightPanelTabKeyboardContextMenuWorks,
                 rightPanelContextMenuSharedSectionsWorks,
                 rightPanelTabReorderWorks,
                 rightPanelTabDragReorderWorks,

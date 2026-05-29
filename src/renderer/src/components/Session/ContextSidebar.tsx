@@ -14,7 +14,7 @@ import GitPanel from './GitPanel'
 import PlanPanel from './PlanPanel'
 import SideQuestionPanel from './SideQuestionPanel'
 import TerminalView from './TerminalView'
-import { AppShellPanel, IconButton, MenuItem, MenuMessage, MenuSection, MenuSectionLabel, MenuSurface, PanelResizeHandle, PanelTabStrip, exitFullscreenForPanelTab, panelTabDomId, panelTabPanelDomId, useAppShellResizeController, useAppShellSidePanelLayout } from '../shared/designSystem'
+import { AppShellPanel, IconButton, MenuItem, MenuMessage, MenuSection, MenuSectionLabel, MenuSurface, PanelResizeHandle, PanelTabStrip, exitFullscreenForPanelTab, panelTabContextMenuPoint, panelTabDomId, panelTabPanelDomId, useAppShellResizeController, useAppShellSidePanelLayout } from '../shared/designSystem'
 import { deriveSessionAgentNodes } from './agentNodes'
 import Icon, { type IconName } from '../shared/Icon'
 
@@ -478,7 +478,8 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
           onClose={close}
           onContextMenu={(event, tabId) => {
             event.preventDefault()
-            setTabMenu({ tabId, x: event.clientX, y: event.clientY })
+            const point = panelTabContextMenuPoint(event)
+            setTabMenu({ tabId, ...point })
           }}
           onMove={(tabId, direction) => moveTab(tabId, direction)}
           className="workbench-panel-tabbar"

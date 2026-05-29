@@ -64,6 +64,18 @@ const diffRules = [
   {
     flag: '--right-panel',
     label: 'Right Workbench shell',
+    filePatterns: [/^src\/renderer\/src\/components\/shared\/designSystem\.tsx$/, /^src\/renderer\/src\/components\/Session\/ContextSidebar\.tsx$/, /^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
+    diffPatterns: [/PanelTabStrip/, /TabButton/, /panelTabContextMenu/, /rightPanelTabKeyboardContextMenu/]
+  },
+  {
+    flag: '--terminal',
+    label: 'Terminal',
+    filePatterns: [/^src\/renderer\/src\/components\/shared\/designSystem\.tsx$/, /^src\/renderer\/src\/components\/Session\/TerminalPanel\.tsx$/, /^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
+    diffPatterns: [/PanelTabStrip/, /TabButton/, /panelTabContextMenu/, /terminalTabKeyboardContextMenu/]
+  },
+  {
+    flag: '--right-panel',
+    label: 'Right Workbench shell',
     filePatterns: [/^src\/renderer\/src\/App\.tsx$/, /^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
     diffPatterns: [/closeActivePanelTab/, /restoreRightPanelToggleFocus/, /rightPanelLastTabShortcutFocusRestored/, /rightPanelClose[A-Z]/]
   },
@@ -182,6 +194,7 @@ function suggestTargets(paths) {
   suppressHeaderForRightPanelCloseDiff(matched, paths)
   suppressHeaderForTerminalCloseDiff(matched, paths)
   restoreDiffTargets(matched, paths)
+  suppressWorkbenchLauncherForContextSidebarTabDiff(matched, paths)
 
   return { targets: Array.from(matched.values()), unmatched, broadReasons }
 }
@@ -277,6 +290,18 @@ function suppressHeaderForTerminalCloseDiff(matched, paths) {
   const appDiff = paths.includes('src/renderer/src/App.tsx') ? diffForFile('src/renderer/src/App.tsx') : ''
   if (!/closeActivePanelTab|terminalTabIdFromTabId/.test(appDiff)) return
   matched.delete('--header')
+}
+
+function suppressWorkbenchLauncherForContextSidebarTabDiff(matched, paths) {
+  const launcher = matched.get('--workbench-launcher')
+  if (!launcher) return
+  if (!launcher.files.every((file) => file === 'src/renderer/src/components/Session/ContextSidebar.tsx')) return
+  const diff = paths.includes('src/renderer/src/components/Session/ContextSidebar.tsx')
+    ? diffForFile('src/renderer/src/components/Session/ContextSidebar.tsx')
+    : ''
+  if (!/tabMenu|context-menu|PanelTabStrip|panelTabContextMenu/.test(diff)) return
+  if (/workbenchLauncher|workbench-launcher|Workbench launcher|WorkbenchNewTab/.test(diff)) return
+  matched.delete('--workbench-launcher')
 }
 
 function restoreDiffTargets(matched, paths) {

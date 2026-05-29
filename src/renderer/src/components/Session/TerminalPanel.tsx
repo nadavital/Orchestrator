@@ -4,7 +4,7 @@ import { DEFAULT_TERMINAL_PANEL_CONTENT_HEIGHT, defaultUI, useSessionStore } fro
 import type { BottomPanelTabId, BottomPanelTabKind } from '../../store/sessions'
 import type { Session } from '../../types'
 import { canCloseBottomPanelTab } from '../../../../types/panelTabs'
-import { AppShellPanel, IconButton, MenuItem, MenuSection, MenuSectionLabel, MenuSurface, PanelResizeHandle, PanelTabStrip, ToolbarButton, exitFullscreenForPanelTab, panelTabDomId, panelTabPanelDomId, useAppShellBottomPanelLayout, useAppShellResizeController } from '../shared/designSystem'
+import { AppShellPanel, IconButton, MenuItem, MenuSection, MenuSectionLabel, MenuSurface, PanelResizeHandle, PanelTabStrip, ToolbarButton, exitFullscreenForPanelTab, panelTabContextMenuPoint, panelTabDomId, panelTabPanelDomId, useAppShellBottomPanelLayout, useAppShellResizeController } from '../shared/designSystem'
 import PlanPanel from './PlanPanel'
 import TerminalView from './TerminalView'
 
@@ -239,7 +239,8 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
               onClose={closeTab}
               onContextMenu={(event, tabId) => {
                 event.preventDefault()
-                setTerminalMenu({ tabId, x: event.clientX, y: event.clientY })
+                const point = panelTabContextMenuPoint(event)
+                setTerminalMenu({ tabId, ...point })
               }}
               onMove={(tabId, direction) => moveTab(tabId, direction)}
               stripTestId="terminal-panel-tabstrip"

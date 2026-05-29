@@ -1292,6 +1292,25 @@ export function useAppShellResizeController({
   }
 }
 
+export interface PanelTabContextMenuEvent {
+  currentTarget: HTMLElement
+  clientX?: number
+  clientY?: number
+  preventDefault: () => void
+  stopPropagation: () => void
+}
+
+export function panelTabContextMenuPoint(event: PanelTabContextMenuEvent): { x: number; y: number } {
+  if (Number.isFinite(event.clientX) && Number.isFinite(event.clientY) && (event.clientX !== 0 || event.clientY !== 0)) {
+    return { x: event.clientX, y: event.clientY }
+  }
+  const rect = event.currentTarget.getBoundingClientRect()
+  return {
+    x: rect.left + Math.min(16, Math.max(1, rect.width / 2)),
+    y: rect.bottom + 6
+  }
+}
+
 export function TabButton({
   children,
   active,
@@ -1322,7 +1341,7 @@ export function TabButton({
   panelId?: string
   onClick: () => void
   onClose?: () => void
-  onContextMenu?: (event: React.MouseEvent) => void
+  onContextMenu?: (event: PanelTabContextMenuEvent) => void
   onDragStart?: (event: React.DragEvent<HTMLDivElement>) => void
   onDragOver?: (event: React.DragEvent<HTMLDivElement>) => void
   onDrop?: (event: React.DragEvent<HTMLDivElement>) => void
@@ -1339,8 +1358,34 @@ export function TabButton({
   shimmering?: boolean
   kind?: string
 }): JSX.Element {
+  const tabRef = useRef<HTMLDivElement>(null)
+  const openKeyboardContextMenu = useCallback((target: HTMLElement): void => {
+    const rect = target.getBoundingClientRect()
+    onContextMenu?.({
+      preventDefault: () => {},
+      stopPropagation: () => {},
+      currentTarget: target,
+      clientX: rect.left + Math.min(16, Math.max(1, rect.width / 2)),
+      clientY: rect.bottom + 6
+    })
+  }, [onContextMenu])
+
+  useEffect(() => {
+    const target = tabRef.current
+    if (!target || !onContextMenu) return
+    const onNativeKeyDown = (event: KeyboardEvent): void => {
+      if (event.key !== 'ContextMenu' && !(event.shiftKey && event.key === 'F10')) return
+      event.preventDefault()
+      event.stopPropagation()
+      openKeyboardContextMenu(target)
+    }
+    target.addEventListener('keydown', onNativeKeyDown)
+    return () => target.removeEventListener('keydown', onNativeKeyDown)
+  }, [onContextMenu, openKeyboardContextMenu])
+
   const tab = (
     <div
+      ref={tabRef}
       id={tabId && panelId ? panelTabDomId(panelId, tabId) : undefined}
       role="tab"
       tabIndex={active ? 0 : -1}
@@ -1438,7 +1483,7 @@ export function PanelTabStrip<T extends string | number>({
   panelId?: string
   onActivate: (tabId: T) => void
   onClose?: (tabId: T) => void
-  onContextMenu?: (event: React.MouseEvent, tabId: T) => void
+  onContextMenu?: (event: PanelTabContextMenuEvent, tabId: T) => void
   onMove?: (tabId: T, direction: 'left' | 'right') => void
   actions?: ReactNode
   className?: string
