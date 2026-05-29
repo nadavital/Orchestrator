@@ -316,6 +316,7 @@ function suggestTargets(paths) {
   suppressTranscriptLayoutForForkDiff(matched, paths)
   suppressDesignSystemForSettingsCssDiff(matched, paths)
   suppressDesignSystemForWorktreesSettingsCssDiff(matched, paths)
+  suppressDesignSystemForProviderSettingsCommandHandoffDiff(matched, paths)
   suppressTranscriptForkForCodeBlockDiff(matched, paths)
   suppressTranscriptLayoutForAgentEventFocusDiff(matched, paths)
   suppressComposerForWorktreeLifecycleDiff(matched, paths)
@@ -332,6 +333,7 @@ function suggestTargets(paths) {
   suppressTerminalForFileTabPathTerminalHandoffDiff(matched, paths)
   suppressTerminalForReviewPathTerminalHandoffDiff(matched, paths)
   suppressTerminalForWorktreesSettingsPathHandoffDiff(matched, paths)
+  suppressTerminalForProviderSettingsCommandHandoffDiff(matched, paths)
   suppressFilesAndTerminalForFileReferenceDiff(matched, paths)
   suppressComposerAndFilesForReviewRowAddToChatDiff(matched, paths)
   suppressEnvironmentForGitFileWorkflowDiff(matched, paths)
@@ -430,6 +432,7 @@ function suppressSettingsForProviderSettingsDiff(matched, paths) {
   if (!settings || !providers) return
   if (!paths.every((file) =>
     file === 'src/renderer/src/components/Settings/ProvidersSettingsPage.tsx' ||
+    file === 'src/renderer/src/index.css' ||
     file === 'src/main/index.ts' ||
     file === 'scripts/run-automated-ui-smoke.mjs' ||
     file === 'scripts/suggest-ui-smoke-targets.mjs' ||
@@ -679,6 +682,16 @@ function suppressDesignSystemForWorktreesSettingsCssDiff(matched, paths) {
   matched.delete('--design-system')
 }
 
+function suppressDesignSystemForProviderSettingsCommandHandoffDiff(matched, paths) {
+  const designSystem = matched.get('--design-system')
+  const providers = matched.get('--settings-providers')
+  if (!designSystem || !providers) return
+  if (!designSystem.files.every((file) => file === 'src/renderer/src/index.css')) return
+  const diff = paths.includes('src/renderer/src/index.css') ? diffForFile('src/renderer/src/index.css') : ''
+  if (!/provider-command-output-(?:actions|command|terminal-status)/.test(diff)) return
+  matched.delete('--design-system')
+}
+
 function suppressTranscriptLayoutForLongThreadDiff(matched, paths) {
   const transcript = matched.get('--transcript-layout')
   const stress = matched.get('--transcript-stress')
@@ -865,6 +878,20 @@ function suppressTerminalForWorktreesSettingsPathHandoffDiff(matched, paths) {
     paths.includes('src/main/index.ts') ? diffForFile('src/main/index.ts') : ''
   ].join('\n')
   if (!/settingsWorktreesPathActions|worktree-insert-terminal|Worktree path inserted in terminal|__orchestratorLastWorktreeTerminal/.test(diff)) return
+  matched.delete('--terminal')
+}
+
+function suppressTerminalForProviderSettingsCommandHandoffDiff(matched, paths) {
+  const terminal = matched.get('--terminal')
+  const providers = matched.get('--settings-providers')
+  if (!terminal || !providers) return
+  if (!terminal.files.every((file) => file === 'scripts/run-automated-ui-smoke.mjs' || file === 'src/main/index.ts')) return
+  const diff = [
+    paths.includes('src/renderer/src/components/Settings/ProvidersSettingsPage.tsx') ? diffForFile('src/renderer/src/components/Settings/ProvidersSettingsPage.tsx') : '',
+    paths.includes('scripts/run-automated-ui-smoke.mjs') ? diffForFile('scripts/run-automated-ui-smoke.mjs') : '',
+    paths.includes('src/main/index.ts') ? diffForFile('src/main/index.ts') : ''
+  ].join('\n')
+  if (!/settingsProviderCommandTerminalHandoff|provider-command-output-terminal|Provider command inserted in terminal|__orchestratorLastProviderCommandTerminal/.test(diff)) return
   matched.delete('--terminal')
 }
 

@@ -12034,6 +12034,15 @@
     padding: 0 10px;
   }
 
+  .provider-command-output-actions {
+    display: flex;
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+  }
+
   .provider-command-output-action:disabled {
     border-color: var(--border-subtle);
     background: var(--control-bg);
@@ -12058,8 +12067,37 @@
     padding: 10px;
   }
 
+  .provider-command-output-command {
+    display: block;
+    width: fit-content;
+    max-width: 100%;
+    margin-top: 7px;
+    overflow: hidden;
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    background: var(--control-bg);
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1.35;
+    padding: 4px 6px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .provider-command-output-note {
     margin-top: 6px;
+  }
+
+  .provider-command-output-terminal-status {
+    margin-top: 7px;
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-weight: 650;
+  }
+
+  .provider-command-output-terminal-status[data-provider-command-terminal-status-tone='danger'] {
+    color: var(--state-danger);
   }
 
   .provider-boundary-summary {

@@ -313,6 +313,7 @@ export default function ProvidersSettingsPage({
                         providerId={selectedId}
                         color={providerDef.color}
                         surfaces={settingsCommandSurfaces}
+                        sessions={sessions}
                       />
                     )}
                   />
@@ -1002,11 +1003,13 @@ function ProviderBoundarySummary({ gaps, color }: { gaps: ProviderCapabilityGap[
 function ProviderCommandSurfaces({
   providerId,
   color,
-  surfaces
+  surfaces,
+  sessions
 }: {
   providerId: string
   color: string
   surfaces: ProviderCommandSurface[]
+  sessions: SessionListItem[]
 }): JSX.Element {
   const runnableSurfaces = surfaces.filter((surface) => surface.quota === 'none' && !surface.mutatesState)
   const mutatingSurfaces = surfaces.filter((surface) => surface.mutatesState)
@@ -1014,7 +1017,27 @@ function ProviderCommandSurfaces({
   const [results, setResults] = useState<Record<string, ProviderCommandSurfaceResult>>({})
   const [loading, setLoading] = useState<Record<string, boolean>>({})
   const [openId, setOpenId] = useState<string | null>(null)
+  const [terminalStatus, setTerminalStatus] = useState<{ surfaceId: string; text: string; tone: 'info' | 'danger' } | null>(null)
+  const statusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const activeSessionId = useSessionStore((state) => state.activeSessionId)
+  const setActiveSession = useSessionStore((state) => state.setActiveSession)
+  const setShowTerminal = useSessionStore((state) => state.setShowTerminal)
+  const addTerminalTab = useSessionStore((state) => state.addTerminalTab)
+  const setActiveTerminalTab = useSessionStore((state) => state.setActiveTerminalTab)
   const selectedSurface = surfaces.find((surface) => surface.id === openId)
+
+  useEffect(() => () => {
+    if (statusTimeoutRef.current) window.clearTimeout(statusTimeoutRef.current)
+  }, [])
+
+  const showTerminalStatus = (surfaceId: string, text: string, tone: 'info' | 'danger'): void => {
+    if (statusTimeoutRef.current) window.clearTimeout(statusTimeoutRef.current)
+    setTerminalStatus({ surfaceId, text, tone })
+    statusTimeoutRef.current = window.setTimeout(() => {
+      setTerminalStatus((current) => current?.surfaceId === surfaceId ? null : current)
+      statusTimeoutRef.current = null
+    }, 1800)
+  }
 
   const runSurface = async (surface: ProviderCommandSurface): Promise<void> => {
     if (surface.quota !== 'none' || surface.mutatesState) return
@@ -1025,6 +1048,44 @@ function ProviderCommandSurfaces({
       setResults((current) => ({ ...current, [surface.id]: result }))
     } finally {
       setLoading((current) => ({ ...current, [surface.id]: false }))
+    }
+  }
+
+  const insertSurfaceInTerminal = async (surface: ProviderCommandSurface): Promise<void> => {
+    const terminalSession =
+      sessions.find((session) => session.id === activeSessionId) ??
+      sessions.find((session) => session.provider === providerId) ??
+      sessions[0]
+    if (!terminalSession) {
+      showTerminalStatus(surface.id, 'No chat available for terminal handoff', 'danger')
+      return
+    }
+    const commandText = providerSurfaceTerminalCommand(providerId, surface)
+    showTerminalStatus(surface.id, 'Opening terminal for provider command', 'info')
+    try {
+      const state = useSessionStore.getState()
+      const currentPanel = state.uiState[terminalSession.id]?.terminalPanel
+      const existingTab = typeof currentPanel?.activeTabId === 'number'
+        ? currentPanel.activeTabId
+        : currentPanel?.tabs.find((tab): tab is number => typeof tab === 'number')
+      const tabId = existingTab ?? addTerminalTab(terminalSession.id)
+      setActiveSession(terminalSession.id)
+      setShowTerminal(terminalSession.id, true)
+      setActiveTerminalTab(terminalSession.id, tabId)
+      const terminalId = `${terminalSession.id}-${tabId}`
+      const globals = window as typeof window & {
+        __orchestratorLastProviderCommandTerminalCommandForSmoke?: string
+        __orchestratorLastProviderCommandTerminalIdForSmoke?: string
+        __orchestratorLastProviderCommandTerminalSurfaceForSmoke?: string
+      }
+      globals.__orchestratorLastProviderCommandTerminalCommandForSmoke = commandText
+      globals.__orchestratorLastProviderCommandTerminalIdForSmoke = terminalId
+      globals.__orchestratorLastProviderCommandTerminalSurfaceForSmoke = surface.id
+      await window.api.terminal.spawn(terminalId, terminalSession.workDir)
+      await window.api.terminal.write(terminalId, commandText)
+      showTerminalStatus(surface.id, 'Provider command inserted in terminal', 'info')
+    } catch {
+      showTerminalStatus(surface.id, 'Insert provider command in terminal failed', 'danger')
     }
   }
 
@@ -1059,11 +1120,15 @@ function ProviderCommandSurfaces({
 
       {selectedSurface ? (
         <CommandSurfaceOutput
+          providerId={providerId}
           color={color}
           surface={selectedSurface}
           result={results[selectedSurface.id]}
           loading={loading[selectedSurface.id] === true}
           onRun={(surface) => runSurface(surface)}
+          onInsertTerminal={(surface) => { void insertSurfaceInTerminal(surface) }}
+          terminalStatus={terminalStatus?.surfaceId === selectedSurface.id ? terminalStatus : null}
+          terminalAvailable={sessions.length > 0}
         />
       ) : null}
     </div>
@@ -1071,17 +1136,25 @@ function ProviderCommandSurfaces({
 }
 
 function CommandSurfaceOutput({
+  providerId,
   color,
   surface,
   result,
   loading,
-  onRun
+  onRun,
+  onInsertTerminal,
+  terminalStatus,
+  terminalAvailable
 }: {
+  providerId: string
   color: string
   surface?: ProviderCommandSurface
   result?: ProviderCommandSurfaceResult
   loading: boolean
   onRun: (surface: ProviderCommandSurface) => void
+  onInsertTerminal: (surface: ProviderCommandSurface) => void
+  terminalStatus: { text: string; tone: 'info' | 'danger' } | null
+  terminalAvailable: boolean
 }): JSX.Element {
   if (!surface) return <></>
   const runnable = surface.quota === 'none' && !surface.mutatesState
@@ -1102,6 +1175,8 @@ function CommandSurfaceOutput({
       data-testid="provider-capability-output"
       data-provider-command-output-surface="shared"
       data-provider-command-runnable={runnable ? 'true' : 'false'}
+      data-provider-command-terminal-status={terminalStatus?.text ?? ''}
+      data-provider-command-terminal-status-tone={terminalStatus?.tone ?? ''}
       className="provider-command-output"
     >
       <div
@@ -1121,15 +1196,31 @@ function CommandSurfaceOutput({
             ))}
           </div>
         </div>
-        <button
-          className="provider-command-output-action"
-          data-runnable={runnable ? 'true' : 'false'}
-          disabled={!runnable || loading}
-          onClick={() => onRun(surface)}
-          style={{ '--provider-accent': color } as CSSProperties}
-        >
-          {loading ? 'Running' : runnable ? 'Refresh' : surface.quota === 'none' ? 'Manual' : 'Quota'}
-        </button>
+        <div className="provider-command-output-actions">
+          <button
+            className="provider-command-output-action"
+            data-runnable={runnable ? 'true' : 'false'}
+            disabled={!runnable || loading}
+            onClick={() => onRun(surface)}
+            style={{ '--provider-accent': color } as CSSProperties}
+          >
+            {loading ? 'Running' : runnable ? 'Refresh' : surface.quota === 'none' ? 'Manual' : 'Quota'}
+          </button>
+          {!runnable && (
+            <button
+              type="button"
+              className="provider-command-output-action"
+              data-runnable="true"
+              disabled={!terminalAvailable}
+              data-testid="provider-command-output-terminal"
+              aria-label={`Insert ${surface.label} command in terminal`}
+              onClick={() => onInsertTerminal(surface)}
+              style={{ '--provider-accent': color } as CSSProperties}
+            >
+              Terminal
+            </button>
+          )}
+        </div>
       </div>
 
       {!runnable ? (
@@ -1137,7 +1228,20 @@ function CommandSurfaceOutput({
           {surface.mutatesState
             ? 'This changes provider or project state. Orchestrator keeps it as an explicit terminal handoff.'
             : 'This may spend model quota or open an interactive provider flow, so it is not run from settings.'}
+          <code className="provider-command-output-command">{providerSurfaceTerminalCommand(providerId, surface)}</code>
           {surface.note && <div className="provider-command-output-note">{surface.note}</div>}
+          {terminalStatus && (
+            <div
+              data-testid="provider-command-output-terminal-status"
+              role={terminalStatus.tone === 'danger' ? 'alert' : 'status'}
+              aria-live={terminalStatus.tone === 'danger' ? 'assertive' : 'polite'}
+              aria-atomic="true"
+              className="provider-command-output-terminal-status"
+              data-provider-command-terminal-status-tone={terminalStatus.tone}
+            >
+              {terminalStatus.text}
+            </div>
+          )}
         </div>
       ) : output ? (
         <StructuredCommandOutput output={output} color={color} surface={surface} />
@@ -1151,6 +1255,32 @@ function CommandSurfaceOutput({
       )}
     </div>
   )
+}
+
+function providerSurfaceTerminalCommand(providerId: string, surface: ProviderCommandSurface): string {
+  return [providerSurfaceBinary(providerId), ...surface.command].map(shellQuoteCommandArg).join(' ')
+}
+
+function providerSurfaceBinary(providerId: string): string {
+  switch (providerId) {
+    case 'claude':
+      return 'claude'
+    case 'codex':
+      return 'codex'
+    case 'copilot':
+      return 'copilot'
+    case 'cursor':
+      return 'agent'
+    case 'gemini':
+      return 'gemini'
+    default:
+      return providerId || 'provider'
+  }
+}
+
+function shellQuoteCommandArg(value: string): string {
+  if (/^[A-Za-z0-9_./:=@%+,-]+$/.test(value)) return value
+  return `'${value.replace(/'/g, "'\\''")}'`
 }
 
 function StructuredCommandOutput({ output, color, surface }: { output: string; color: string; surface?: ProviderCommandSurface }): JSX.Element {

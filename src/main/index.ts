@@ -1062,6 +1062,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                   runtimeAddToChatStatus.getAttribute('aria-atomic') === 'true';
               }
               var settingsProviderCommandOutputSharedWorks = false;
+              var settingsProviderCommandTerminalHandoffWorks = false;
+              var settingsProviderCommandTerminalStatusA11yWorks = false;
               if (providerCapabilitySelect instanceof HTMLSelectElement) {
                 const firstCapabilityOption = [...providerCapabilitySelect.options]
                   .find((option) => option.value.length > 0);
@@ -1086,6 +1088,72 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                   providerCapabilitySelect.value = '';
                   providerCapabilitySelect.dispatchEvent(new Event('change', { bubbles: true }));
                   await sleep(80);
+                }
+              }
+              if (providerSelectorSelect instanceof HTMLSelectElement) {
+                providerSelectorSelect.value = 'claude';
+                providerSelectorSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                await sleep(220);
+                const claudeCapabilitySelect = document.querySelector('[data-testid="provider-capability-select"]');
+                if (claudeCapabilitySelect instanceof HTMLSelectElement) {
+                  const purgeOption = [...claudeCapabilitySelect.options]
+                    .find((option) => option.value === 'project-purge');
+                  if (purgeOption) {
+                    claudeCapabilitySelect.value = purgeOption.value;
+                    claudeCapabilitySelect.dispatchEvent(new Event('change', { bubbles: true }));
+                    await sleep(140);
+                    const commandOutput = document.querySelector('[data-testid="provider-capability-output"]');
+                    const terminalButton = commandOutput?.querySelector('[data-testid="provider-command-output-terminal"]');
+                    if (terminalButton instanceof HTMLButtonElement) {
+                      terminalButton.click();
+                      for (let index = 0; index < 16; index += 1) {
+                        const output = document.querySelector('[data-testid="provider-capability-output"]');
+                        const status = document.querySelector('[data-testid="provider-command-output-terminal-status"]');
+                        if (
+                          output instanceof HTMLElement &&
+                          output.getAttribute('data-provider-command-terminal-status-tone') === 'info' &&
+                          status instanceof HTMLElement &&
+                          status.textContent?.includes('Provider command inserted in terminal') === true
+                        ) break;
+                        await sleep(100);
+                      }
+                      const status = document.querySelector('[data-testid="provider-command-output-terminal-status"]');
+                      let terminalId = window.__orchestratorLastProviderCommandTerminalIdForSmoke ?? '';
+                      let terminalCommand = window.__orchestratorLastProviderCommandTerminalCommandForSmoke ?? '';
+                      let terminalSurface = window.__orchestratorLastProviderCommandTerminalSurfaceForSmoke ?? '';
+                      let terminalBuffer = '';
+                      for (let index = 0; index < 16; index += 1) {
+                        terminalId = window.__orchestratorLastProviderCommandTerminalIdForSmoke ?? '';
+                        terminalCommand = window.__orchestratorLastProviderCommandTerminalCommandForSmoke ?? '';
+                        terminalSurface = window.__orchestratorLastProviderCommandTerminalSurfaceForSmoke ?? '';
+                        terminalBuffer = terminalId
+                          ? await window.api?.terminal?.getBuffer?.(terminalId).catch(() => '') ?? ''
+                          : '';
+                        if (
+                          terminalId &&
+                          terminalCommand === 'claude project purge' &&
+                          terminalBuffer.includes('claude project purge')
+                        ) break;
+                        await sleep(100);
+                      }
+                      settingsProviderCommandTerminalHandoffWorks =
+                        commandOutput instanceof HTMLElement &&
+                        commandOutput.getAttribute('data-provider-command-runnable') === 'false' &&
+                        commandOutput.textContent?.includes('explicit terminal handoff') === true &&
+                        commandOutput.textContent?.includes('claude project purge') === true &&
+                        terminalButton.disabled === false &&
+                        terminalButton.getAttribute('aria-label') === 'Insert Purge project state command in terminal' &&
+                        terminalSurface === 'project-purge' &&
+                        terminalCommand === 'claude project purge' &&
+                        terminalBuffer.includes('claude project purge');
+                      settingsProviderCommandTerminalStatusA11yWorks =
+                        status instanceof HTMLElement &&
+                        status.textContent?.trim() === 'Provider command inserted in terminal' &&
+                        status.getAttribute('role') === 'status' &&
+                        status.getAttribute('aria-live') === 'polite' &&
+                        status.getAttribute('aria-atomic') === 'true';
+                    }
+                  }
                 }
               }
               const editModelListButton = [...document.querySelectorAll('button')]
@@ -1216,9 +1284,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                   installCommandStatus.getAttribute('aria-live') === 'polite' &&
                   installCommandStatus.getAttribute('aria-atomic') === 'true';
               }
-              const codexProviderSelect = providerSelects.find((select) =>
-                [...select.options].some((option) => option.value === 'codex')
-              );
+              const codexProviderSelect = document.querySelector('[data-testid="provider-selector-card"] .provider-selector-select');
               if (codexProviderSelect instanceof HTMLSelectElement) {
                 codexProviderSelect.value = 'codex';
                 codexProviderSelect.dispatchEvent(new Event('change', { bubbles: true }));
@@ -8685,6 +8751,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             settingsProviderCatalogLabelCalm: typeof settingsProviderCatalogLabelCalm === 'boolean' ? settingsProviderCatalogLabelCalm : null,
             settingsDiagnosticsDisclosureCompactWorks: typeof settingsDiagnosticsDisclosureCompactWorks === 'boolean' ? settingsDiagnosticsDisclosureCompactWorks : null,
             settingsProviderCommandOutputSharedWorks: typeof settingsProviderCommandOutputSharedWorks === 'boolean' ? settingsProviderCommandOutputSharedWorks : null,
+            settingsProviderCommandTerminalHandoffWorks: typeof settingsProviderCommandTerminalHandoffWorks === 'boolean' ? settingsProviderCommandTerminalHandoffWorks : null,
+            settingsProviderCommandTerminalStatusA11yWorks: typeof settingsProviderCommandTerminalStatusA11yWorks === 'boolean' ? settingsProviderCommandTerminalStatusA11yWorks : null,
             settingsProviderInstallCommandCopyWorks: typeof settingsProviderInstallCommandCopyWorks === 'boolean' ? settingsProviderInstallCommandCopyWorks : null,
             settingsProviderInstallCommandStatusA11yWorks: typeof settingsProviderInstallCommandStatusA11yWorks === 'boolean' ? settingsProviderInstallCommandStatusA11yWorks : null,
             settingsProviderPermissionRefreshWorks: typeof settingsProviderPermissionRefreshWorks === 'boolean' ? settingsProviderPermissionRefreshWorks : null,

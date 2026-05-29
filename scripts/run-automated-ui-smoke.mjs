@@ -3133,6 +3133,8 @@ child.on('exit', async (code) => {
         settingsProviderCatalogLabelCalm: captureView !== 'settings-providers' || result.settingsProviderCatalogLabelCalm === true,
         settingsDiagnosticsDisclosureCompact: captureView !== 'settings-providers' || result.settingsDiagnosticsDisclosureCompactWorks === true,
         settingsProviderCommandOutputShared: captureView !== 'settings-providers' || result.settingsProviderCommandOutputSharedWorks === true,
+        settingsProviderCommandTerminalHandoff: captureView !== 'settings-providers' || result.settingsProviderCommandTerminalHandoffWorks === true,
+        settingsProviderCommandTerminalStatusA11y: captureView !== 'settings-providers' || result.settingsProviderCommandTerminalStatusA11yWorks === true,
         settingsProviderInstallCommandCopy: captureView !== 'settings-providers' || result.settingsProviderInstallCommandCopyWorks === true,
         settingsProviderInstallCommandStatusA11y: captureView !== 'settings-providers' || result.settingsProviderInstallCommandStatusA11yWorks === true,
         settingsProviderPermissionRefresh: captureView !== 'settings-providers' || result.settingsProviderPermissionRefreshWorks === true,
