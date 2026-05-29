@@ -20683,13 +20683,15 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                   actionStatus.getAttribute('aria-atomic') === 'true';
               }
               var browserClearDataWorks = false;
+              var browserClearDataStatusA11yWorks = false;
               const clearDataTargets = [
-                { testId: 'browser-clear-cache', kind: 'cache' },
-                { testId: 'browser-clear-cookies', kind: 'cookies' },
-                { testId: 'browser-clear-site-data', kind: 'siteData' },
-                { testId: 'browser-clear-data', kind: 'all' }
+                { testId: 'browser-clear-cache', kind: 'cache', status: 'browser cache cleared' },
+                { testId: 'browser-clear-cookies', kind: 'cookies', status: 'browser cookies cleared' },
+                { testId: 'browser-clear-site-data', kind: 'siteData', status: 'browser site data cleared' },
+                { testId: 'browser-clear-data', kind: 'all', status: 'all browser data cleared' }
               ];
               let clearDataTargetIndex = 0;
+              let clearDataStatusIndex = 0;
               for (const target of clearDataTargets) {
                 if (!document.querySelector('.browser-actions-menu')) {
                   browserActionsButton.click();
@@ -20705,7 +20707,18 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                   const browserPanelAfterClear = document.querySelector('[data-testid="browser-panel"]');
                   const nextCount = Number(browserPanelAfterClear?.getAttribute('data-browser-clear-data') ?? '0');
                   const nextKind = browserPanelAfterClear?.getAttribute('data-browser-clear-data-kind');
-                  if (nextCount > beforeCount && nextKind === target.kind) {
+                  const clearDataStatus = document.querySelector('[data-testid="browser-clear-data-status"]');
+                  const statusText = clearDataStatus?.textContent?.trim().toLowerCase() ?? '';
+                  const statusWorks =
+                    clearDataStatus instanceof HTMLElement &&
+                    statusText === target.status &&
+                    browserPanelAfterClear?.getAttribute('data-browser-clear-data-status')?.toLowerCase() === target.status &&
+                    clearDataStatus.getAttribute('data-browser-clear-data-status-tone') === 'info' &&
+                    clearDataStatus.getAttribute('role') === 'status' &&
+                    clearDataStatus.getAttribute('aria-live') === 'polite' &&
+                    clearDataStatus.getAttribute('aria-atomic') === 'true';
+                  if (nextCount > beforeCount && nextKind === target.kind && statusWorks) {
+                    clearDataStatusIndex += 1;
                     targetWorked = true;
                     break;
                   }
@@ -20715,6 +20728,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                 clearDataTargetIndex += 1;
               }
               browserClearDataWorks = clearDataTargetIndex === clearDataTargets.length;
+              browserClearDataStatusA11yWorks = clearDataStatusIndex === clearDataTargets.length;
               if (document.querySelector('.browser-actions-menu')) {
                 browserActionsButton.click();
               }
@@ -22000,6 +22014,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserFallbackMessagesSharedWorks,
               browserActionLabelsCalm: typeof browserActionLabelsCalm === 'boolean' ? browserActionLabelsCalm : null,
               browserClearDataWorks: typeof browserClearDataWorks === 'boolean' ? browserClearDataWorks : null,
+              browserClearDataStatusA11yWorks: typeof browserClearDataStatusA11yWorks === 'boolean' ? browserClearDataStatusA11yWorks : null,
               browserContextMenuWorks,
               browserContextMenuMaterialWorks,
               browserContextComposerWorks,

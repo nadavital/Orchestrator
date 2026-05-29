@@ -130,6 +130,10 @@ type BrowserScreenshotActionStatus = {
   text: string
   tone: 'info' | 'danger'
 }
+type BrowserActionStatus = {
+  text: string
+  tone: 'info' | 'danger'
+}
 type BrowserClientToolAction = 'click' | 'type' | 'fill' | 'key' | 'select' | 'check' | 'scroll'
 interface BrowserClientToolActionResult {
   ok: boolean
@@ -228,6 +232,8 @@ export default function BrowserPanel({
   const [cacheReloadCount, setCacheReloadCount] = useState(0)
   const [clearDataCount, setClearDataCount] = useState(0)
   const [lastClearDataKind, setLastClearDataKind] = useState<BrowserClearDataKind | ''>('')
+  const [clearDataStatus, setClearDataStatus] = useState<BrowserActionStatus | null>(null)
+  const clearDataStatusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [logs, setLogs] = useState<BrowserLogEntry[]>([])
   const [domSnapshot, setDomSnapshot] = useState('')
   const [visibleTargets, setVisibleTargets] = useState<VisibleTarget[]>([])
@@ -235,14 +241,14 @@ export default function BrowserPanel({
   const [assetBundlePath, setAssetBundlePath] = useState<string | null>(null)
   const [localTargets, setLocalTargets] = useState<LocalBrowserTarget[]>([])
   const [localTargetsLoading, setLocalTargetsLoading] = useState(false)
-  const [localTargetActionStatus, setLocalTargetActionStatus] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
+  const [localTargetActionStatus, setLocalTargetActionStatus] = useState<BrowserActionStatus | null>(null)
   const localTargetActionStatusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [selectedTargetId, setSelectedTargetId] = useState('')
   const [actionText, setActionText] = useState('')
   const [targetReadResult, setTargetReadResult] = useState<BrowserTargetReadResult | null>(null)
   const [targetActionStatus, setTargetActionStatus] = useState<BrowserTargetActionStatus | null>(null)
   const [clipboardText, setClipboardText] = useState('')
-  const [copyUrlStatus, setCopyUrlStatus] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
+  const [copyUrlStatus, setCopyUrlStatus] = useState<BrowserActionStatus | null>(null)
   const copyUrlStatusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [coordinateAction, setCoordinateAction] = useState({ x: 20, y: 20, scrollY: 360 })
   const [browserMenuOpen, setBrowserMenuOpen] = useState(false)
@@ -279,7 +285,7 @@ export default function BrowserPanel({
   const browserUseRuntimeSignal = hasBrowserUseRuntimeSignal(workbench)
   const browserUseRuntimeLabel = workbench.browserUseActive ? 'Agent browsing' : 'Browser runtime'
   const browserUseRuntimeDetail = browserUseRuntimeSummary(workbench, browserUseCursorText)
-  const showStatusRow = isLoading || blocked || devicePreviewActive || browserUseRuntimeSignal || (copyUrlStatus !== null && !error)
+  const showStatusRow = isLoading || blocked || devicePreviewActive || browserUseRuntimeSignal || ((copyUrlStatus !== null || clearDataStatus !== null) && !error)
   const sortedLocalTargets = sortLocalTargets(localTargets, localTargetSort)
   const hiddenLocalTargetUrls = new Set(workbench.hiddenLocalTargets)
   const visibleLocalTargets = sortedLocalTargets.filter((target) => !hiddenLocalTargetUrls.has(target.url))
@@ -819,10 +825,16 @@ export default function BrowserPanel({
   }
 
   const clearBrowserData = async (kind: BrowserClearDataKind): Promise<void> => {
-    await window.api.browser.clearData(kind, browserPartition)
-    setLastClearDataKind(kind)
-    setClearDataCount((count) => count + 1)
     setBrowserMenuOpen(false)
+    setBrowserClearDataStatus({ text: `Clearing ${clearDataKindLabel(kind)}`, tone: 'info' })
+    try {
+      await window.api.browser.clearData(kind, browserPartition)
+      setLastClearDataKind(kind)
+      setClearDataCount((count) => count + 1)
+      setBrowserClearDataStatus({ text: `${clearDataKindLabel(kind)} cleared`, tone: 'info' })
+    } catch {
+      setBrowserClearDataStatus({ text: `Clear ${clearDataKindLabel(kind)} failed`, tone: 'danger' })
+    }
   }
 
   const setCommentPreviewOriginal = (previewOriginal: boolean): void => {
@@ -906,14 +918,24 @@ export default function BrowserPanel({
   useEffect(() => () => {
     if (copyUrlStatusTimeoutRef.current) window.clearTimeout(copyUrlStatusTimeoutRef.current)
     if (localTargetActionStatusTimeoutRef.current) window.clearTimeout(localTargetActionStatusTimeoutRef.current)
+    if (clearDataStatusTimeoutRef.current) window.clearTimeout(clearDataStatusTimeoutRef.current)
   }, [])
 
-  const setBrowserLocalTargetStatus = (status: { text: string; tone: 'info' | 'danger' }): void => {
+  const setBrowserLocalTargetStatus = (status: BrowserActionStatus): void => {
     if (localTargetActionStatusTimeoutRef.current) window.clearTimeout(localTargetActionStatusTimeoutRef.current)
     setLocalTargetActionStatus(status)
     localTargetActionStatusTimeoutRef.current = window.setTimeout(() => {
       setLocalTargetActionStatus(null)
       localTargetActionStatusTimeoutRef.current = null
+    }, 2200)
+  }
+
+  const setBrowserClearDataStatus = (status: BrowserActionStatus): void => {
+    if (clearDataStatusTimeoutRef.current) window.clearTimeout(clearDataStatusTimeoutRef.current)
+    setClearDataStatus(status)
+    clearDataStatusTimeoutRef.current = window.setTimeout(() => {
+      setClearDataStatus(null)
+      clearDataStatusTimeoutRef.current = null
     }, 2200)
   }
 
@@ -1613,6 +1635,8 @@ export default function BrowserPanel({
       data-browser-panel-last-command={lastBrowserPanelCommand}
       data-browser-clear-data={clearDataCount}
       data-browser-clear-data-kind={lastClearDataKind}
+      data-browser-clear-data-status={clearDataStatus?.text ?? ''}
+      data-browser-clear-data-status-tone={clearDataStatus?.tone ?? ''}
       data-browser-find-matches={findMatches}
       data-browser-find-active-match={findActiveMatch}
       data-browser-lifecycle-syncs={lifecycleSyncCount}
@@ -2005,6 +2029,18 @@ export default function BrowserPanel({
               aria-atomic="true"
             >
               {copyUrlStatus.text}
+            </span>
+          )}
+          {clearDataStatus && (
+            <span
+              className="browser-clear-data-status"
+              data-testid="browser-clear-data-status"
+              data-browser-clear-data-status-tone={clearDataStatus.tone}
+              role={clearDataStatus.tone === 'danger' ? 'alert' : 'status'}
+              aria-live={clearDataStatus.tone === 'danger' ? 'assertive' : 'polite'}
+              aria-atomic="true"
+            >
+              {clearDataStatus.text}
             </span>
           )}
           {!error && devicePreviewActive && (
@@ -3012,6 +3048,19 @@ function targetActionStatusText(action: BrowserTargetAction): string {
   if (action === 'read') return 'Target state read'
   if (action === 'double_click') return 'Target double click ran'
   return `Target ${action.replace('_', ' ')} ran`
+}
+
+function clearDataKindLabel(kind: BrowserClearDataKind): string {
+  switch (kind) {
+    case 'all':
+      return 'all browser data'
+    case 'cache':
+      return 'browser cache'
+    case 'cookies':
+      return 'browser cookies'
+    case 'siteData':
+      return 'browser site data'
+  }
 }
 
 function AssetsPane({ inventory, bundlePath, onBundle }: { inventory: PageAssetInventory | null; bundlePath: string | null; onBundle: () => void }): JSX.Element {

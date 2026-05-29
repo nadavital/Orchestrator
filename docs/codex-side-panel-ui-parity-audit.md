@@ -10204,3 +10204,13 @@ Implemented: `scripts/suggest-ui-smoke-targets.mjs` now supports `--static-only`
 Verification: `node -c scripts/suggest-ui-smoke-targets.mjs`, `pnpm run smoke:ui:suggest`, `pnpm run smoke:ui:changed:static`, and `pnpm run smoke:ui:changed:smoke` passed. For this tooling-only slice, the static plan ran `git diff --check`, `pnpm exec tsc --noEmit`, and `node -c scripts/suggest-ui-smoke-targets.mjs`; the smoke-only plan correctly reported that no focused UI smoke matched the changed files.
 
 Remaining: this improves validation cadence only. UI behavior changes still need their suggested focused Electron smoke, and coordinated shell/layout work still needs an intentional full visual inventory or no-flag smoke when the changed-files planner flags broad review.
+
+### 2026-05-29 - Browser Clear-Data Action Status
+
+Product evidence: Browser data actions such as Clear cache, Clear cookies, Clear site data, and Clear all data are daily debugging controls, but the Browser panel only updated hidden counters after those actions. Other Browser actions already publish visible/announced completion status, so clear-data actions felt less recoverable and harder to trust.
+
+Implemented: Browser clear-data actions now close the menu, show an immediate progress status, then publish visible/announced success or failure status for the specific data kind. The status is exposed on the Browser panel and rendered as a polite status/alert live region. The changed-files smoke planner now maps Browser harness diffs in `src/main/index.ts` and `scripts/run-automated-ui-smoke.mjs` to the focused `--browser` smoke target.
+
+Verification: `pnpm run smoke:ui:changed:static` passed the generated static plan (`git diff --check`, `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and `node -c scripts/suggest-ui-smoke-targets.mjs`). Elevated `pnpm run smoke:ui:changed:smoke` ran only `node scripts/run-automated-ui-smoke.mjs --browser` and passed with `browserClearDataStatusA11y=true`. Browser evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1780059806293.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1780059806294.png`.
+
+Remaining: this closes local Browser clear-data feedback only. Live provider-emitted Browser/browser-use proof and non-Codex Browser adapters remain separate Phase 1 work.

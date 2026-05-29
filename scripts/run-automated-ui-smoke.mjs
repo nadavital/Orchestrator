@@ -2299,6 +2299,7 @@ child.on('exit', async (code) => {
           browserFallbackMessagesShared: result.browserFallbackMessagesSharedWorks === true,
           browserActionLabelsCalm: result.browserActionLabelsCalm === true,
           browserClearData: result.browserClearDataWorks === true,
+          browserClearDataStatusA11y: result.browserClearDataStatusA11yWorks === true,
           browserContextMenu: result.browserContextMenuWorks === true,
           browserContextMenuMaterial: result.browserContextMenuMaterialWorks === true,
           browserContextComposer: result.browserContextComposerWorks === true,

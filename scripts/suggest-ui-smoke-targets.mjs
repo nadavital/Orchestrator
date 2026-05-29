@@ -50,6 +50,12 @@ const diffRules = [
     diffPatterns: [/Terminal/, /terminal[A-Z]/, /bottomPanel/, /bottom-panel/]
   },
   {
+    flag: '--browser',
+    label: 'Browser panel',
+    filePatterns: [/^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
+    diffPatterns: [/browser[A-Z]/, /Browser/, /browser-/]
+  },
+  {
     flag: '--composer',
     label: 'Composer',
     filePatterns: [/^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
