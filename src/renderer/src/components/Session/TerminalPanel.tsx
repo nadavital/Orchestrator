@@ -19,6 +19,11 @@ type TerminalActionStatus = {
   tone: 'info' | 'danger'
 }
 
+type TerminalCommandState = {
+  command: string
+  outputOffset: number
+}
+
 interface TerminalPanelProps {
   session: Session
 }
@@ -42,6 +47,7 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
   const [terminalMenu, setTerminalMenu] = useState<{ tabId: BottomPanelTabId; x: number; y: number } | null>(null)
   const [terminalActionStatus, setTerminalActionStatus] = useState<TerminalActionStatus | null>(null)
   const [terminalOutputs, setTerminalOutputs] = useState<Record<string, string>>({})
+  const [terminalCommandStates, setTerminalCommandStates] = useState<Record<string, TerminalCommandState>>({})
   const terminalActionStatusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const terminalPanel = ui.terminalPanel ?? { height: DEFAULT_TERMINAL_HEIGHT, tabs: [0], activeTabId: 0, nextTabId: 1 }
   const terminalResizeController = useAppShellResizeController({
@@ -79,6 +85,10 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
   const activeTabKind = bottomPanelTabKind(activeTab)
   const activeTerminalId = typeof activeTab === 'number' ? terminalId(activeTab) : null
   const activeTerminalOutput = activeTerminalId ? terminalOutputs[activeTerminalId] ?? '' : ''
+  const activeCommandState = activeTerminalId ? terminalCommandStates[activeTerminalId] : undefined
+  const activeCommandOutput = activeCommandState
+    ? activeTerminalOutput.slice(Math.max(0, Math.min(activeCommandState.outputOffset, activeTerminalOutput.length))).trim()
+    : ''
 
   useEffect(() => () => {
     if (terminalActionStatusTimeoutRef.current) window.clearTimeout(terminalActionStatusTimeoutRef.current)
@@ -121,7 +131,14 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
       setPanelActionStatus({ text: 'No active terminal to clear', tone: 'danger' })
       return
     }
-    void window.api.terminal.clear(`${session.id}-${activeTab}`)
+    const id = `${session.id}-${activeTab}`
+    setTerminalOutputs((current) => ({ ...current, [id]: '' }))
+    setTerminalCommandStates((current) => {
+      const next = { ...current }
+      delete next[id]
+      return next
+    })
+    void window.api.terminal.clear(id)
       .then(() => setPanelActionStatus({ text: 'Terminal cleared', tone: 'info' }))
       .catch(() => setPanelActionStatus({ text: 'Clear failed', tone: 'danger' }))
   }, [activeTab, session.id, setPanelActionStatus])
@@ -129,6 +146,31 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
   const handleTerminalOutputChange = useCallback((id: string, output: string): void => {
     setTerminalOutputs((current) => current[id] === output ? current : { ...current, [id]: output })
   }, [])
+
+  const handleTerminalCommandSubmitted = useCallback((id: string, command: string, outputOffset: number): void => {
+    setTerminalCommandStates((current) => ({ ...current, [id]: { command, outputOffset } }))
+  }, [])
+
+  useEffect(() => {
+    if (!activeTerminalId) return undefined
+    const globals = window as typeof window & {
+      __orchestratorSubmitTerminalCommandForSmokeById?: Record<string, (command: string) => void>
+    }
+    const submitCommandForSmoke = (command: string): void => {
+      const input = command.endsWith('\r') || command.endsWith('\n') ? command.replace(/\n$/, '\r') : `${command}\r`
+      handleTerminalCommandSubmitted(activeTerminalId, command.trim(), terminalOutputs[activeTerminalId]?.length ?? 0)
+      void window.api.terminal.write(activeTerminalId, input)
+    }
+    globals.__orchestratorSubmitTerminalCommandForSmokeById = {
+      ...(globals.__orchestratorSubmitTerminalCommandForSmokeById ?? {}),
+      [activeTerminalId]: submitCommandForSmoke
+    }
+    return () => {
+      if (globals.__orchestratorSubmitTerminalCommandForSmokeById?.[activeTerminalId] === submitCommandForSmoke) {
+        delete globals.__orchestratorSubmitTerminalCommandForSmokeById[activeTerminalId]
+      }
+    }
+  }, [activeTerminalId, handleTerminalCommandSubmitted, terminalOutputs])
 
   const addActiveTerminalOutputToChat = useCallback((): void => {
     if (activeTabKind !== 'terminal') {
@@ -155,6 +197,37 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
     }))
     setPanelActionStatus({ text: 'Terminal output added to chat', tone: 'info' })
   }, [activeTabKind, activeTerminalId, activeTerminalOutput, session.workDir, setPanelActionStatus])
+
+  const addActiveTerminalCommandOutputToChat = useCallback((): void => {
+    if (activeTabKind !== 'terminal') {
+      setPanelActionStatus({ text: 'No active terminal command to add', tone: 'danger' })
+      return
+    }
+    if (!activeCommandState) {
+      setPanelActionStatus({ text: 'No submitted terminal command to add', tone: 'danger' })
+      return
+    }
+    const output = activeCommandOutput.trim()
+    if (!output) {
+      setPanelActionStatus({ text: 'Latest command output is empty', tone: 'danger' })
+      return
+    }
+    const clippedOutput = output.split('\n').slice(-80).join('\n').slice(-8_000)
+    const lines = [
+      'Review this terminal command output:',
+      `Working dir: ${session.workDir}`,
+      activeTerminalId ? `Terminal: ${activeTerminalId}` : '',
+      `Command: ${activeCommandState.command}`,
+      '',
+      '```text',
+      clippedOutput,
+      '```'
+    ].filter(Boolean)
+    window.dispatchEvent(new CustomEvent('orchestrator:add-composer-text', {
+      detail: { text: lines.join('\n') }
+    }))
+    setPanelActionStatus({ text: 'Latest command output added to chat', tone: 'info' })
+  }, [activeCommandOutput, activeCommandState, activeTabKind, activeTerminalId, session.workDir, setPanelActionStatus])
 
   const closeTab = (tabId: BottomPanelTabId): void => {
     exitFullscreenForPanelTab('bottom', tabId)
@@ -261,6 +334,9 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
             data-bottom-panel-active-tab={activeTab}
             data-bottom-panel-tab-kinds={tabs.map((tab) => bottomPanelTabKind(tab)).join(',')}
             data-bottom-panel-active-tab-kind={activeTabKind}
+            data-bottom-panel-active-terminal-id={activeTerminalId ?? ''}
+            data-terminal-last-command={activeCommandState?.command ?? ''}
+            data-terminal-latest-command-output-lines={activeCommandOutput ? activeCommandOutput.split('\n').length : 0}
             data-terminal-action-status={terminalActionStatus?.text ?? ''}
             data-terminal-action-status-tone={terminalActionStatus?.tone ?? ''}
           >
@@ -311,6 +387,15 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
                     disabled={activeTabKind !== 'terminal' || !activeTerminalOutput.trim()}
                     dataTestId="terminal-add-output-to-chat"
                     onClick={addActiveTerminalOutputToChat}
+                  />
+                  <ToolbarButton
+                    icon="terminal"
+                    label="Add latest command output to chat"
+                    size="sm"
+                    variant="toolbar"
+                    disabled={activeTabKind !== 'terminal' || !activeCommandState || !activeCommandOutput.trim()}
+                    dataTestId="terminal-add-command-output-to-chat"
+                    onClick={addActiveTerminalCommandOutputToChat}
                   />
                   <ToolbarButton
                     icon="eraser"
@@ -419,6 +504,7 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
                 onNewTab={addTab}
                 onOpenUrl={openTerminalUrl}
                 onOutputChange={handleTerminalOutputChange}
+                onCommandSubmitted={handleTerminalCommandSubmitted}
               />
             ) : (
               <PlanPanel session={session} embedded />

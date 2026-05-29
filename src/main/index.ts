@@ -3277,6 +3277,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             var terminalFailureStateA11yWorks = false;
             var terminalClipboardStatusWorks = false;
             var terminalOutputAddToChatWorks = false;
+            var terminalCommandOutputAddToChatWorks = false;
             var terminalClearActionStatusWorks = false;
             var terminalFullscreenCleanupWorks = false;
             var terminalTabTelemetryWorks = false;
@@ -3528,7 +3529,9 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 clearStatusHost.getAttribute('data-terminal-action-status') === 'Terminal cleared' &&
                 clearStatusHost.getAttribute('data-terminal-action-status-tone') === 'info';
             }
-            const terminalView = document.querySelector('[data-testid="terminal-view"]');
+            const terminalView =
+              document.querySelector('[role="tabpanel"][data-app-shell-tab-panel-controller="bottom"][data-tab-kind="terminal"] [data-testid="terminal-view"]') ??
+              document.querySelector('[data-testid="terminal-view"]');
             if (terminalView instanceof HTMLElement) {
               const terminalXtermContainer = terminalView.querySelector(':scope > div');
               const terminalViewStyle = getComputedStyle(terminalView);
@@ -3596,6 +3599,50 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                   terminalOutputStatus.getAttribute('role') === 'status' &&
                   terminalOutputStatus.getAttribute('aria-live') === 'polite' &&
                   terminalOutputButton.getAttribute('aria-label') === 'Add terminal output to chat';
+              }
+              const activeTerminalIdForCommand =
+                document.querySelector('[data-testid="session-bottom-panel"]')?.getAttribute('data-bottom-panel-active-terminal-id') ??
+                visibleTerminalId;
+              const submitCommandForSmoke = activeTerminalIdForCommand.length > 0
+                ? window.__orchestratorSubmitTerminalCommandForSmokeById?.[activeTerminalIdForCommand]
+                : null;
+              if (activeTerminalIdForCommand.length > 0 && typeof submitCommandForSmoke === 'function' && typeof window.api.terminal.write === 'function') {
+                await window.api.terminal.write(activeTerminalIdForCommand, String.fromCharCode(3));
+                await sleep(120);
+                submitCommandForSmoke('printf "COMMAND_SCOPED_SMOKE\\\\n"');
+                for (let index = 0; index < 30; index += 1) {
+                  const terminalCommandButton = document.querySelector('[data-testid="terminal-add-command-output-to-chat"]');
+                  const terminalCommandHost = document.querySelector('[data-testid="session-bottom-panel"]');
+                  if (
+                    terminalCommandButton instanceof HTMLButtonElement &&
+                    !terminalCommandButton.disabled &&
+                    terminalCommandHost?.getAttribute('data-terminal-last-command')?.includes('printf') === true &&
+                    Number(terminalCommandHost.getAttribute('data-terminal-latest-command-output-lines') ?? '0') > 0
+                  ) {
+                    break;
+                  }
+                  await sleep(120);
+                }
+                const terminalCommandButton = document.querySelector('[data-testid="terminal-add-command-output-to-chat"]');
+                if (terminalCommandButton instanceof HTMLButtonElement && !terminalCommandButton.disabled) {
+                  terminalCommandButton.click();
+                  await sleep(180);
+                  const composerAfterCommand = document.querySelector('[data-testid="composer-textarea"]');
+                  const terminalCommandStatusHost = document.querySelector('[data-testid="session-bottom-panel"]');
+                  const terminalCommandStatus = document.querySelector('[data-testid="terminal-panel-action-status"]');
+                  terminalCommandOutputAddToChatWorks =
+                    composerAfterCommand instanceof HTMLTextAreaElement &&
+                    composerAfterCommand.value.includes('Review this terminal command output:') &&
+                    composerAfterCommand.value.includes('Command: printf "COMMAND_SCOPED_SMOKE\\\\n"') &&
+                    composerAfterCommand.value.includes('COMMAND_SCOPED_SMOKE') &&
+                    terminalCommandStatusHost instanceof HTMLElement &&
+                    terminalCommandStatusHost.getAttribute('data-terminal-action-status') === 'Latest command output added to chat' &&
+                    terminalCommandStatus instanceof HTMLElement &&
+                    terminalCommandStatus.textContent?.includes('Latest command output added to chat') === true &&
+                    terminalCommandStatus.getAttribute('role') === 'status' &&
+                    terminalCommandStatus.getAttribute('aria-live') === 'polite' &&
+                    terminalCommandButton.getAttribute('aria-label') === 'Add latest command output to chat';
+                }
               }
               if (visibleTerminalId.length > 0) {
                 await window.api.terminal.write(visibleTerminalId, String.fromCharCode(3));
@@ -8276,6 +8323,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             terminalFailureStateA11yWorks: typeof terminalFailureStateA11yWorks === 'boolean' ? terminalFailureStateA11yWorks : null,
             terminalClipboardStatusWorks: typeof terminalClipboardStatusWorks === 'boolean' ? terminalClipboardStatusWorks : null,
             terminalOutputAddToChatWorks: typeof terminalOutputAddToChatWorks === 'boolean' ? terminalOutputAddToChatWorks : null,
+            terminalCommandOutputAddToChatWorks: typeof terminalCommandOutputAddToChatWorks === 'boolean' ? terminalCommandOutputAddToChatWorks : null,
             terminalClearActionStatusWorks: typeof terminalClearActionStatusWorks === 'boolean' ? terminalClearActionStatusWorks : null,
             terminalTabActionStatusWorks: typeof terminalTabActionStatusWorks === 'boolean' ? terminalTabActionStatusWorks : null,
             terminalHideFocusRestoredWorks: typeof terminalHideFocusRestoredWorks === 'boolean' ? terminalHideFocusRestoredWorks : null,

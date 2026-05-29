@@ -2726,6 +2726,7 @@ child.on('exit', async (code) => {
           terminalFailureStateA11y: result.terminalFailureStateA11yWorks === true,
           terminalClipboardStatus: result.terminalClipboardStatusWorks === true,
           terminalOutputAddToChat: result.terminalOutputAddToChatWorks === true,
+          terminalCommandOutputAddToChat: result.terminalCommandOutputAddToChatWorks === true,
           terminalClearActionStatus: result.terminalClearActionStatusWorks === true,
           terminalTabActionStatus: result.terminalTabActionStatusWorks === true,
           terminalHideFocusRestored: result.terminalHideFocusRestoredWorks === true,

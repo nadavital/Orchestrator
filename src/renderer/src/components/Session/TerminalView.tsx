@@ -12,6 +12,7 @@ interface Props {
   onNewTab?: () => void
   onOpenUrl?: (url: string) => void
   onOutputChange?: (terminalId: string, output: string) => void
+  onCommandSubmitted?: (terminalId: string, command: string, outputOffset: number) => void
 }
 
 interface TerminalAppearance {
@@ -32,11 +33,13 @@ export default function TerminalView(props: Props): JSX.Element {
   )
 }
 
-function TerminalSurface({ terminalId, workDir, onNewTab, onOpenUrl, onOutputChange }: Props): JSX.Element {
+function TerminalSurface({ terminalId, workDir, onNewTab, onOpenUrl, onOutputChange, onCommandSubmitted }: Props): JSX.Element {
   const surfaceRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
   const fitRef = useRef<FitAddon | null>(null)
+  const commandDraftRef = useRef('')
+  const plainOutputLengthRef = useRef(0)
   const [terminalAppearance, setTerminalAppearance] = useState<TerminalAppearance>(() => resolveTerminalAppearance(null))
   const [plainOutput, setPlainOutput] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -49,6 +52,34 @@ function TerminalSurface({ terminalId, workDir, onNewTab, onOpenUrl, onOutputCha
     onOutputChange?.(terminalId, plainOutput)
   }, [onOutputChange, plainOutput, terminalId])
 
+  const trackTerminalInput = useCallback((data: string): void => {
+    let draft = commandDraftRef.current
+    for (let index = 0; index < data.length; index += 1) {
+      const char = data[index]
+      if (char === '\x1b') {
+        while (index + 1 < data.length && !/[A-Za-z~]/.test(data[index + 1])) index += 1
+        if (index + 1 < data.length) index += 1
+        continue
+      }
+      if (char === '\r' || char === '\n') {
+        const command = draft.trim()
+        if (command.length > 0) onCommandSubmitted?.(terminalId, command, plainOutputLengthRef.current)
+        draft = ''
+        continue
+      }
+      if (char === '\u0003') {
+        draft = ''
+        continue
+      }
+      if (char === '\b' || char === '\u007f') {
+        draft = draft.slice(0, -1)
+        continue
+      }
+      if (char >= ' ' && char !== '\u007f') draft += char
+    }
+    commandDraftRef.current = draft
+  }, [onCommandSubmitted, terminalId])
+
   const openTerminalUrl = useCallback((url: string): void => {
     if (!onOpenUrl) return
     onOpenUrl(url)
@@ -56,6 +87,8 @@ function TerminalSurface({ terminalId, workDir, onNewTab, onOpenUrl, onOutputCha
 
   useEffect(() => {
     setPlainOutput('')
+    plainOutputLengthRef.current = 0
+    commandDraftRef.current = ''
     setError(null)
     setExited(null)
     const appearance = resolveTerminalAppearance(surfaceRef.current)
@@ -102,7 +135,9 @@ function TerminalSurface({ terminalId, workDir, onNewTab, onOpenUrl, onOutputCha
           const buf = existingBuffer
           if (buf && termRef.current === term) {
             term.write(buf)
-            setPlainOutput(stripTerminalOutput(buf))
+            const stripped = stripTerminalOutput(buf)
+            setPlainOutput(stripped)
+            plainOutputLengthRef.current = stripped.length
             term.refresh(0, term.rows - 1)
           }
           term.focus()
@@ -120,7 +155,9 @@ function TerminalSurface({ terminalId, workDir, onNewTab, onOpenUrl, onOutputCha
       term.write(data)
       setPlainOutput((current) => {
         const next = current + stripTerminalOutput(data)
-        return next.length > 40_000 ? next.slice(-40_000) : next
+        const clipped = next.length > 40_000 ? next.slice(-40_000) : next
+        plainOutputLengthRef.current = clipped.length
+        return clipped
       })
     })
 
@@ -140,6 +177,7 @@ function TerminalSurface({ terminalId, workDir, onNewTab, onOpenUrl, onOutputCha
     if (containerRef.current) observer.observe(containerRef.current)
 
     term.onData((data) => {
+      trackTerminalInput(data)
       window.api.terminal.write(terminalId, data)
     })
 
@@ -153,7 +191,7 @@ function TerminalSurface({ terminalId, workDir, onNewTab, onOpenUrl, onOutputCha
       fitRef.current = null
       // shell persists — call kill() explicitly via tab close or session removal
     }
-  }, [onOpenUrl, openTerminalUrl, terminalId, workDir, reloadKey])
+  }, [onOpenUrl, openTerminalUrl, terminalId, workDir, reloadKey, trackTerminalInput])
 
   useEffect(() => {
     let disposed = false
@@ -251,7 +289,7 @@ function TerminalSurface({ terminalId, workDir, onNewTab, onOpenUrl, onOutputCha
         delete globals.__orchestratorOpenTerminalUrlForSmoke
       }
     }
-  }, [onOpenUrl, openTerminalUrl, terminalId])
+  }, [onOpenUrl, openTerminalUrl, terminalId, trackTerminalInput])
 
   const writeClipboardText = useCallback(async (text: string): Promise<void> => {
     if (typeof window.api.clipboard?.writeText === 'function') {
