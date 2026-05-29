@@ -26193,6 +26193,11 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
               composerShellAfterToolCommand.textContent?.includes('Tool:') === true &&
               composerShellAfterToolCommand.textContent?.includes('printf') === true &&
               composerShellAfterToolCommand.textContent?.includes('TRANSCRIPT_LAYOUT_SMOKE_') === true;
+            const toolActivityCommandResultAddToChatWorks =
+              toolActivityCommandAddToChatWorks &&
+              composerShellAfterToolCommand instanceof HTMLElement &&
+              composerShellAfterToolCommand.textContent?.includes('Result:') === true &&
+              composerShellAfterToolCommand.textContent?.includes('output:') === true;
             const transcriptText = scroller.innerText;
             document.querySelector('[aria-label="Close transcript search"]')?.click();
             await sleep(80);
@@ -26271,6 +26276,7 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
               toolSummaryScrollable,
               toolActivityCommandCopyWorks,
               toolActivityCommandAddToChatWorks,
+              toolActivityCommandResultAddToChatWorks,
               rawEventsHiddenFromTranscript: !transcriptText.includes('RAW_TRANSCRIPT_EVENT_SHOULD_NOT_RENDER'),
               documentNoHorizontalOverflowAfterExpand: expandedDocScrollWidth <= viewportWidth + 2,
               docScrollWidth,
@@ -30953,18 +30959,32 @@ function seedAutomatedTranscriptLayoutSmokeSession(sessionId: string): void {
         }
       }]
     },
-    ...Array.from({ length: 14 }, (_, index): ChatMessage => ({
-      id: `transcript-layout-tool-${index + 1}`,
-      role: 'assistant',
-      type: 'tool_use',
-      toolName: 'Bash',
-      toolInput: {
-        command: `printf '${longToken}-${index + 1}'`,
-        cwd: longPath,
-        description: `Layout fixture tool call ${index + 1}`
-      },
-      timestamp: baseTime + 5 + index
-    }))
+    ...Array.from({ length: 14 }, (_, index): ChatMessage[] => {
+      const toolId = `transcript-layout-tool-${index + 1}`
+      return [
+        {
+          id: toolId,
+          role: 'assistant',
+          type: 'tool_use',
+          toolName: 'Bash',
+          toolInput: {
+            command: `printf '${longToken}-${index + 1}'`,
+            cwd: longPath,
+            description: `Layout fixture tool call ${index + 1}`
+          },
+          timestamp: baseTime + 5 + (index * 2)
+        },
+        {
+          id: `${toolId}-result`,
+          role: 'tool',
+          type: 'tool_result',
+          toolUseId: toolId,
+          content: `output: ${longToken}-${index + 1}`,
+          isError: false,
+          timestamp: baseTime + 6 + (index * 2)
+        }
+      ]
+    }).flat()
   ]
 
   sessionManager.save({

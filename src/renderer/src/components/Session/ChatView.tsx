@@ -3088,15 +3088,24 @@ function toolCommandText(tool: ToolUseMessage): string | null {
   return null
 }
 
-function toolCommandComposerText(tool: ToolUseMessage, command: string): string {
+function truncateText(text: string, maxLength: number): string {
+  if (text.length <= maxLength) return text
+  return `${text.slice(0, Math.max(0, maxLength - 3))}...`
+}
+
+function toolCommandComposerText(tool: ToolUseMessage, command: string, result?: ToolResultMessage): string {
+  const resultExcerpt = result?.content.trim()
   return [
     'Use this command context:',
     `Tool: ${tool.toolName}`,
-    `Command: ${command}`
-  ].join('\n')
+    `Command: ${command}`,
+    resultExcerpt
+      ? `Result:\n${truncateText(resultExcerpt, 1800)}`
+      : null
+  ].filter(Boolean).join('\n')
 }
 
-function ToolActivityCommandCopy({ tool }: { tool: ToolUseMessage }): JSX.Element | null {
+function ToolActivityCommandCopy({ tool, result }: { tool: ToolUseMessage; result?: ToolResultMessage }): JSX.Element | null {
   const command = toolCommandText(tool)
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'error'>('idle')
   const [chatStatus, setChatStatus] = useState<'idle' | 'added'>('idle')
@@ -3140,14 +3149,14 @@ function ToolActivityCommandCopy({ tool }: { tool: ToolUseMessage }): JSX.Elemen
     if (!command) return
     if (chatTimeoutRef.current) window.clearTimeout(chatTimeoutRef.current)
     window.dispatchEvent(new CustomEvent('orchestrator:add-composer-text', {
-      detail: { text: toolCommandComposerText(tool, command) }
+      detail: { text: toolCommandComposerText(tool, command, result) }
     }))
     setChatStatus('added')
     chatTimeoutRef.current = window.setTimeout(() => {
       setChatStatus('idle')
       chatTimeoutRef.current = null
     }, 1500)
-  }, [command, tool])
+  }, [command, result, tool])
 
   if (!command) return null
 
@@ -3242,7 +3251,7 @@ function ToolActivitySummary({ messages, session }: { messages: Array<ToolUseMes
                   <span className="min-w-0 flex-1 truncate" title={describeToolActivity(activity.tool)}>
                     {describeToolActivity(activity.tool)}
                   </span>
-                  <ToolActivityCommandCopy tool={activity.tool} />
+                  <ToolActivityCommandCopy tool={activity.tool} result={activity.result} />
                 </div>
               ))}
               {orphanResults.map((result) => (
