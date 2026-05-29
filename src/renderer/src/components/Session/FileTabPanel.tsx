@@ -181,7 +181,7 @@ export default function FileTabPanel({
 
   const copyPath = (): void => {
     setFileActionStatus('Copying path')
-    void writeFileTabClipboardText(filePath)
+    void writeFileTabClipboardText(lineReferencePath)
       .then(() => setFileActionStatus('Path copied'))
       .catch(() => setFileActionStatus('Copy failed'))
   }

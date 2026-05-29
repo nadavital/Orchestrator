@@ -24599,6 +24599,24 @@ function runAutomatedTranscriptFileReferenceSmoke(win: BrowserWindow, outputPath
               composerAfterAdditionalRootLine.value.includes(additionalRootLineReference) &&
               composerAfterAdditionalRootLine.value.includes('export const additionalRootFixture = true');
 
+            const additionalRootCopyPathButton = [...document.querySelectorAll('[data-testid="workbench-file-tab"] button')]
+              .find((button) => button instanceof HTMLButtonElement && button.getAttribute('aria-label') === 'Copy path');
+            if (additionalRootCopyPathButton instanceof HTMLButtonElement) {
+              additionalRootCopyPathButton.click();
+              await sleep(160);
+            }
+            const copiedAdditionalRootPath =
+              await window.api?.clipboard?.readText?.().catch(() => '') ??
+              await navigator.clipboard?.readText?.().catch(() => '') ??
+              '';
+            const additionalRootFileTabAfterCopy = document.querySelector('[data-testid="workbench-file-tab"]');
+            const fileReferenceAdditionalRootCopyPathWorks =
+              additionalRootCopyPathButton instanceof HTMLButtonElement &&
+              additionalRootCopyPathButton.disabled === false &&
+              additionalRootFileTabAfterCopy instanceof HTMLElement &&
+              additionalRootFileTabAfterCopy.getAttribute('data-file-tab-action-status') === 'Path copied' &&
+              copiedAdditionalRootPath.endsWith('/orchestrator-automated-ui-workspace-additional-root/shared/additional-root-fixture.ts');
+
             const attachButton = additionalRootCard instanceof HTMLElement
               ? additionalRootCard.querySelector('[data-testid="file-reference-attach-chat"]')
               : null;
@@ -24642,6 +24660,7 @@ function runAutomatedTranscriptFileReferenceSmoke(win: BrowserWindow, outputPath
               fileReferenceOpenWorkbenchWorks,
               fileReferenceAdditionalRootWorkbenchWorks,
               fileReferenceAdditionalRootLineAddToChatWorks,
+              fileReferenceAdditionalRootCopyPathWorks,
               fileReferenceAttachToChatWorks,
               fileReferenceMissingActionsDisabled
             };

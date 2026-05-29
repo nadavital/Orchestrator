@@ -2206,6 +2206,7 @@ child.on('exit', async (code) => {
         fileReferenceOpenWorkbench: result.fileReferenceOpenWorkbenchWorks === true,
         fileReferenceAdditionalRootWorkbench: result.fileReferenceAdditionalRootWorkbenchWorks === true,
         fileReferenceAdditionalRootLineAddToChat: result.fileReferenceAdditionalRootLineAddToChatWorks === true,
+        fileReferenceAdditionalRootCopyPath: result.fileReferenceAdditionalRootCopyPathWorks === true,
         fileReferenceAttachToChat: result.fileReferenceAttachToChatWorks === true,
         fileReferenceMissingActionsDisabled: result.fileReferenceMissingActionsDisabled === true
       }
