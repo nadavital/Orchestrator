@@ -9768,6 +9768,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 let workbenchNewTabGitPrCommandWorks = false;
                 let workbenchNewTabGitPrCreateUrlWorks = false;
                 let workbenchNewTabGitPrPushCommandWorks = false;
+                let workbenchNewTabGitPrMetadataWorks = false;
                 let workbenchNewTabGitPrCommandHandoffWorks = false;
                 let workbenchNewTabGitPrCommandTerminalHandoffWorks = false;
                 let workbenchNewTabGitRefreshStatusWorks = false;
@@ -10269,6 +10270,61 @@ function runAutomatedFocusedSurfaceSmoke(
                     document.querySelector('[aria-label="Hide bottom panel"]')?.click();
                     await sleep(120);
                   }
+                  const hostedReviewMetadataForGitSmoke = {
+                    pullRequest: {
+                      number: 77,
+                      title: 'Hosted PR metadata smoke',
+                      url: 'https://github.com/openai/orchestrator/pull/77',
+                      state: 'open',
+                      branch: smokeBranchName,
+                      baseBranch: 'main'
+                    },
+                    checks: {
+                      status: 'passing',
+                      total: 2,
+                      passed: 2
+                    },
+                    reviewers: {
+                      approved: 1,
+                      names: ['Ada']
+                    },
+                    comments: {
+                      total: 1,
+                      unresolved: 0,
+                      threads: 1,
+                      authors: ['Ada'],
+                      url: 'https://github.com/openai/orchestrator/pull/77#discussion_r2'
+                    }
+                  };
+                  const setSessionReviewMetadataForGitSmoke = window.__orchestratorSetSessionReviewMetadataForSmoke;
+                  if (typeof setSessionReviewMetadataForGitSmoke === 'function') {
+                    setSessionReviewMetadataForGitSmoke('active', hostedReviewMetadataForGitSmoke);
+                    for (let attempt = 0; attempt < 20; attempt += 1) {
+                      await sleep(100);
+                      const hostedPrCard = document.querySelector('[data-testid="git-pr-card"]');
+                      const hostedPrView = document.querySelector('[data-testid="git-view-pr"]');
+                      if (
+                        hostedPrCard instanceof HTMLElement &&
+                        hostedPrCard.getAttribute('data-git-pr-metadata-state') === 'loaded' &&
+                        hostedPrCard.getAttribute('data-git-pr-number') === '77' &&
+                        hostedPrView instanceof HTMLButtonElement
+                      ) {
+                        break;
+                      }
+                    }
+                  }
+                  const hostedPrCard = document.querySelector('[data-testid="git-pr-card"]');
+                  const hostedPrView = document.querySelector('[data-testid="git-view-pr"]');
+                  const hostedPrRefresh = document.querySelector('[data-testid="git-refresh-pr-metadata"]');
+                  workbenchNewTabGitPrMetadataWorks =
+                    hostedPrCard instanceof HTMLElement &&
+                    hostedPrCard.getAttribute('data-git-pr-metadata-state') === 'loaded' &&
+                    hostedPrCard.getAttribute('data-git-pr-number') === '77' &&
+                    hostedPrCard.textContent?.includes('PR 77') === true &&
+                    hostedPrView instanceof HTMLButtonElement &&
+                    hostedPrView.getAttribute('title') === 'https://github.com/openai/orchestrator/pull/77' &&
+                    hostedPrRefresh instanceof HTMLButtonElement &&
+                    hostedPrRefresh.getAttribute('aria-label') === 'Refresh pull request metadata';
                   const gitCheckoutSelect = document.querySelector('[data-testid="git-checkout-branch"]');
                   const gitCheckoutButton = document.querySelector('[data-testid="git-checkout-branch-action"]');
                   if (
@@ -10480,6 +10536,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     workbenchNewTabGitPrCommandWorks &&
                     workbenchNewTabGitPrCreateUrlWorks &&
                     workbenchNewTabGitPrPushCommandWorks &&
+                    workbenchNewTabGitPrMetadataWorks &&
                     workbenchNewTabGitPrCommandHandoffWorks &&
                     workbenchNewTabGitPrCommandTerminalHandoffWorks &&
                     workbenchNewTabGitRefreshStatusWorks &&
@@ -11210,6 +11267,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   workbenchNewTabGitPrCommandWorks,
                   workbenchNewTabGitPrCreateUrlWorks,
                   workbenchNewTabGitPrPushCommandWorks,
+                  workbenchNewTabGitPrMetadataWorks,
                   workbenchNewTabGitPrCommandHandoffWorks,
                   workbenchNewTabGitPrCommandTerminalHandoffWorks,
                   workbenchNewTabGitRefreshStatusWorks,

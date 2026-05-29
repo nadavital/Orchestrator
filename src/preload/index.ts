@@ -241,8 +241,8 @@ const api = {
     remove: (sessionId: string): Promise<void> => ipcRenderer.invoke('sessions:remove', sessionId),
     getDiff: (sessionId: string): Promise<string> =>
       ipcRenderer.invoke('sessions:getDiff', sessionId),
-    getReviewMetadata: (sessionId: string): Promise<ReviewMetadata | undefined> =>
-      ipcRenderer.invoke('sessions:getReviewMetadata', sessionId),
+    getReviewMetadata: (sessionId: string, options?: { force?: boolean }): Promise<ReviewMetadata | undefined> =>
+      ipcRenderer.invoke('sessions:getReviewMetadata', sessionId, options),
     getChangedFiles: (sessionId: string, source?: ReviewDiffSource, ref?: string): Promise<FileChange[]> =>
       ipcRenderer.invoke('sessions:getChangedFiles', sessionId, source, ref),
     getDiffForFile: (sessionId: string, filePath: string, source?: ReviewDiffSource, ref?: string): Promise<string> =>

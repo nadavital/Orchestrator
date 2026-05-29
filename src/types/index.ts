@@ -2001,6 +2001,10 @@ export interface GitPullRequestCreateUrlResult {
   error?: string
 }
 
+export interface ReviewMetadataRequestOptions {
+  force?: boolean
+}
+
 export interface GitLineBlameResult {
   ok: boolean
   path: string

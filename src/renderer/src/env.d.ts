@@ -218,7 +218,7 @@ declare global {
         restoreArchived: (sessionId: string) => Promise<Session | undefined>
         remove: (sessionId: string) => Promise<void>
         getDiff: (sessionId: string) => Promise<string>
-        getReviewMetadata: (sessionId: string) => Promise<ReviewMetadata | undefined>
+        getReviewMetadata: (sessionId: string, options?: { force?: boolean }) => Promise<ReviewMetadata | undefined>
         getChangedFiles: (sessionId: string, source?: ReviewDiffSource, ref?: string) => Promise<FileChange[]>
         getDiffForFile: (sessionId: string, filePath: string, source?: ReviewDiffSource, ref?: string) => Promise<string>
         undoChangedFiles: (sessionId: string, paths: string[]) => Promise<GitPathActionResult>

@@ -2916,7 +2916,7 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('worktrees:list', () => sessionManager.listWorktrees())
   ipcMain.handle('worktrees:delete', (_, workDir: string) => sessionManager.deleteWorktree(workDir))
   ipcMain.handle('sessions:getDiff', (_, sessionId: string) => sessionManager.getDiff(sessionId))
-  ipcMain.handle('sessions:getReviewMetadata', (_, sessionId: string) => sessionManager.getReviewMetadata(sessionId))
+  ipcMain.handle('sessions:getReviewMetadata', (_, sessionId: string, options?: { force?: boolean }) => sessionManager.getReviewMetadata(sessionId, options))
   ipcMain.handle('sessions:getChangedFiles', (_, sessionId: string, source: ReviewDiffSource = 'all', ref?: string) => {
     const session = sessionManager.get(sessionId)
     if (!session) return []

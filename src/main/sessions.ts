@@ -2204,10 +2204,10 @@ export const sessionManager = {
     return gitManager.getDiff(session.workDir)
   },
 
-  async getReviewMetadata(sessionId: string): Promise<ReviewMetadata | undefined> {
+  async getReviewMetadata(sessionId: string, options: { force?: boolean } = {}): Promise<ReviewMetadata | undefined> {
     const session = this.get(sessionId)
     if (!session) return undefined
-    if (session.reviewMetadata) return session.reviewMetadata
+    if (session.reviewMetadata && options.force !== true) return session.reviewMetadata
     const metadata = await gitManager.getReviewMetadata(session.workDir)
     if (!metadata) return undefined
     const sessions = store.get('sessions', [])

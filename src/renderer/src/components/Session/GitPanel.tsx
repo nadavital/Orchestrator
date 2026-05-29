@@ -1,6 +1,6 @@
 import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { fileStatusLabel } from '../../types'
-import type { FileChange, GitRefOption, Session } from '../../types'
+import type { FileChange, GitRefOption, ReviewMetadata, Session } from '../../types'
 import type { GitFocusTarget } from '../../store/sessions'
 import { useSessionStore } from '../../store/sessions'
 import Icon, { type IconName } from '../shared/Icon'
@@ -43,6 +43,11 @@ export default function GitPanel({
   const [prRemoteBranch, setPrRemoteBranch] = useState('')
   const [prUpstreamBranch, setPrUpstreamBranch] = useState('')
   const [prPushCommand, setPrPushCommand] = useState('')
+  const [loadedReviewMetadata, setLoadedReviewMetadata] = useState<ReviewMetadata | undefined>(session.reviewMetadata)
+  const [reviewMetadataState, setReviewMetadataState] = useState<'idle' | 'loading' | 'loaded' | 'unavailable' | 'error'>(
+    session.reviewMetadata ? 'loaded' : 'idle'
+  )
+  const [reviewMetadataError, setReviewMetadataError] = useState<string | null>(null)
   const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false)
   const [discardTargetPaths, setDiscardTargetPaths] = useState<string[] | null>(null)
   const rootRef = useRef<HTMLElement | null>(null)
@@ -99,7 +104,8 @@ export default function GitPanel({
     deletions: acc.deletions + change.deletions
   }), { additions: 0, deletions: 0 }), [changes])
   const currentBranch = branches.find((branch) => branch.current)?.label ?? 'main'
-  const pullRequest = session.reviewMetadata?.pullRequest
+  const reviewMetadata = session.reviewMetadata ?? loadedReviewMetadata
+  const pullRequest = reviewMetadata?.pullRequest
   const pullRequestUrl = pullRequest?.url?.trim() ?? ''
   const defaultBaseBranch = pullRequest?.baseBranch ?? inferDefaultBaseBranch(branches)
   const prCommand = currentBranch && currentBranch !== defaultBaseBranch
@@ -177,12 +183,68 @@ export default function GitPanel({
     }
   }, [currentBranch, defaultBaseBranch, prCommand, workDir])
 
+  useEffect(() => {
+    if (session.reviewMetadata) {
+      setLoadedReviewMetadata(session.reviewMetadata)
+      setReviewMetadataState('loaded')
+      setReviewMetadataError(null)
+    }
+  }, [session.reviewMetadata])
+
+  useEffect(() => {
+    if (session.reviewMetadata || loadedReviewMetadata || !prCommand || prBranchPublished !== true) return
+    let cancelled = false
+    setReviewMetadataState('loading')
+    setReviewMetadataError(null)
+    window.api.sessions.getReviewMetadata(sessionId)
+      .then((metadata) => {
+        if (cancelled) return
+        if (metadata) {
+          setLoadedReviewMetadata(metadata)
+          setReviewMetadataState('loaded')
+        } else {
+          setReviewMetadataState('unavailable')
+        }
+      })
+      .catch((error) => {
+        if (cancelled) return
+        setReviewMetadataState('error')
+        setReviewMetadataError(error instanceof Error ? error.message : 'Pull request metadata unavailable')
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [loadedReviewMetadata, prBranchPublished, prCommand, session.reviewMetadata, sessionId])
+
   const writeGitClipboardText = async (text: string): Promise<void> => {
     if (typeof window.api.clipboard?.writeText === 'function') {
       const didWrite = await window.api.clipboard.writeText(text)
       if (didWrite) return
     }
     await navigator.clipboard.writeText(text)
+  }
+
+  const refreshPullRequestMetadata = async (): Promise<void> => {
+    if (busy) return
+    setReviewMetadataState('loading')
+    setReviewMetadataError(null)
+    setActionMessage({ text: 'Refreshing pull request metadata', tone: 'info' })
+    try {
+      const metadata = await window.api.sessions.getReviewMetadata(sessionId, { force: true })
+      if (metadata) {
+        setLoadedReviewMetadata(metadata)
+        setReviewMetadataState('loaded')
+        setActionMessage({ text: 'Pull request metadata refreshed', tone: 'info' })
+      } else {
+        setReviewMetadataState('unavailable')
+        setActionMessage({ text: 'No hosted pull request metadata found', tone: 'info' })
+      }
+    } catch (error) {
+      setReviewMetadataState('error')
+      const message = error instanceof Error ? error.message : 'Refresh pull request metadata failed'
+      setReviewMetadataError(message)
+      setActionMessage({ text: message, tone: 'danger' })
+    }
   }
 
   const runPathAction = async (action: 'stage' | 'unstage', targetPaths?: string[]): Promise<void> => {
@@ -704,11 +766,24 @@ export default function GitPanel({
           data-git-pr-remote-branch={prRemoteBranch}
           data-git-pr-upstream-branch={prUpstreamBranch}
           data-git-pr-push-command={prPushCommand}
+          data-git-pr-metadata-state={reviewMetadataState}
+          data-git-pr-metadata-error={reviewMetadataError ?? ''}
+          data-git-pr-number={pullRequest?.number ?? ''}
           data-git-focused-target={focusTarget === 'pull-request' ? 'true' : 'false'}
         >
           <div className="environment-card-header">
             <span>Pull Request</span>
-            <span className="environment-row-muted">{pullRequest?.number ? `PR ${pullRequest.number}` : defaultBaseBranch}</span>
+            <div className="flex items-center gap-1">
+              <span className="environment-row-muted">{pullRequest?.number ? `PR ${pullRequest.number}` : defaultBaseBranch}</span>
+              <IconButton
+                icon="refresh"
+                label="Refresh pull request metadata"
+                size="xs"
+                dataTestId="git-refresh-pr-metadata"
+                disabled={busy || reviewMetadataState === 'loading'}
+                onClick={() => { void refreshPullRequestMetadata() }}
+              />
+            </div>
           </div>
           {pullRequestUrl ? (
             <div className="git-actions-row">

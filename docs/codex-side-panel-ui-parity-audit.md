@@ -10954,3 +10954,13 @@ Implemented: the visual smoke now treats `Start Codex review` as an optional lea
 Verification: `pnpm run smoke:ui:changed:static` passed after the harness updates. Focused elevated reruns passed `review-entry`, `review-loading`, `review-source`, and `plan`. The final elevated `npm run smoke:visual:side-panels -- --out tmp/side-panel-visual-inventory-current --full` passed all 27 captures, including Review source and Plan. `npm run build` and `npm run test:providers` also passed, with provider tests reporting 306/306 passing.
 
 Remaining: this closes the local executable side-panel proof gate. It does not close live Codex screenshot parity, non-Codex provider lifecycle proof, hosted Review adapters, or Phase 2 Office/PDF renderer fidelity.
+
+### 2026-05-29 - Git Hosted PR Metadata In Git Panel
+
+Product evidence: hosted GitHub PR metadata was already available to Review through `gh pr view`, but the daily-coding Git panel did not load it directly. A branch with an existing hosted PR could still look like a "create PR" workflow until the user opened Review first, which is the wrong surface dependency for Git/PR work.
+
+Implemented: the session review-metadata IPC path now supports a forced refresh, and the Git Pull Request card loads hosted metadata when the topic branch is published. The card exposes metadata state/error/PR number attributes for smoke proof, shows `View pull request` as soon as metadata is available, and includes a compact `Refresh pull request metadata` action so users can update hosted state without detouring through Review.
+
+Verification: `pnpm run smoke:ui:changed:static` passed `git diff --check`, `pnpm exec tsc --noEmit`, smoke harness syntax, clean node-test compilation, `providers.test.js`, and `gitChanges.test.js`. Elevated `pnpm run smoke:ui:changed:smoke` passed focused `--workbench-new-tab`, `--environment`, and `--session-switch`; the Workbench smoke now gates the new Git PR metadata path under `workbenchNewTabGitPrMetadata=true`. `npm run build` also passed.
+
+Remaining: this closes Git-panel consumption and refresh of hosted PR metadata. It does not implement authenticated PR submission, live GitHub push/result reconciliation, provider-native PR actions, checkpoint Undo, or deeper hosted Review workflows.
