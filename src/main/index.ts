@@ -9054,6 +9054,25 @@ function runAutomatedFocusedSurfaceSmoke(
                 const eventPayload = document.querySelector('[data-testid="agent-event-detail-payload"]');
                 const eventDetailCopy = document.querySelector('[data-testid="agent-event-detail-copy"]');
                 const eventDetailAddToChat = document.querySelector('[data-testid="agent-event-detail-add-to-chat"]');
+                const eventDetailActions = document.querySelector('[data-testid="agent-event-detail-actions"]');
+                const eventDetailActionButtons = [eventDetailCopy, eventDetailAddToChat]
+                  .filter((button) => button instanceof HTMLButtonElement);
+                const agentRuntimeEventActionChromeWorks =
+                  eventDetailActions instanceof HTMLElement &&
+                  eventDetailActions.getAttribute('aria-label') === 'Runtime event actions' &&
+                  eventDetailActionButtons.length === 2 &&
+                  eventDetailActionButtons.every((button) =>
+                    button instanceof HTMLButtonElement &&
+                    button.getAttribute('data-icon-button-variant') === 'toolbar' &&
+                    button.getAttribute('data-icon-button-size') === 'sm' &&
+                    button.getAttribute('data-native-title-free') === 'true' &&
+                    button.getAttribute('title') === null &&
+                    (button.getAttribute('data-tooltip-label') === 'Copy payload' || button.getAttribute('data-tooltip-label') === 'Add to chat')
+                  ) &&
+                  eventDetailCopy instanceof HTMLButtonElement &&
+                  eventDetailCopy.getAttribute('data-icon') === 'copy' &&
+                  eventDetailAddToChat instanceof HTMLButtonElement &&
+                  eventDetailAddToChat.getAttribute('data-icon') === 'chat';
                 if (eventDetailCopy instanceof HTMLButtonElement) {
                   eventDetailCopy.click();
                 }
@@ -9242,6 +9261,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   agentRuntimeEventCopyWorks,
                   agentRuntimeEventAddToChatWorks,
                   agentRuntimeEventAddToChatContextWorks,
+                  agentRuntimeEventActionChromeWorks,
                   agentRuntimeFailureGroupsWorks,
                   agentTransportLogWorks,
                   agentSelectedTimelineWorks,

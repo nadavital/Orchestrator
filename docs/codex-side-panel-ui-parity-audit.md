@@ -8793,6 +8793,16 @@ Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.
 
 Remaining: this closes the local inspector-to-composer context handoff. Richer provider-backed observability, live provider runtime events, and broader inspector workflow proof remain Phase 1 work.
 
+### 2026-05-29 - Agents Runtime Event Action Chrome
+
+Product evidence: the Agents inspector is a Phase 1 daily debugging surface, and PP-057 tracks lingering surface-specific chrome that feels unlike Codex. Runtime event details already supported Copy payload and Add to chat, but those actions used local text-button styling inside a compact inspector card.
+
+Implemented: selected runtime-event detail actions now use the shared compact toolbar icon-button primitive: Copy payload uses the copy icon, Add to chat uses the chat icon, both keep accessible labels/tooltips, and the existing polite status region remains the feedback path for copied/added states. The focused Workbench New Tab smoke now gates this as `agentRuntimeEventActionChrome=true` by requiring shared toolbar-button metadata, no native title leakage, and the expected icon identities.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and `git diff --check` passed. Focused elevated `node scripts/run-automated-ui-smoke.mjs --workbench-new-tab` first failed after the initial refactor because the shared toolbar buttons used the wrong test-id prop name; after fixing the hooks, the rerun passed with `agentRuntimeEventActionChrome=true` alongside `agentRuntimeEventCopy=true`, `agentRuntimeEventAddToChat=true`, `agentRuntimeEventAddToChatContext=true`, `agentRuntimeEventFilter=true`, `agentRuntimeFailureGroups=true`, `agentRuntimeIssueTriage=true`, `agentSelectedTimeline=true`, and `agentTransportLog=true`. Failed evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-workbench-new-tab-1780031626385.json`; passed evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-workbench-new-tab-1780031671592.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-workbench-new-tab-1780031671592.png`.
+
+Remaining: this closes the local event-detail action chrome mismatch only. Richer provider-backed observability, live provider runtime events, and broader inspector workflow proof remain Phase 1 work.
+
 ### 2026-05-28 - Composer Blocks Live-Disabled Permission Modes
 
 Product evidence: the composer already showed Codex permission context from the live app-server config, but send gating still only checked the static provider runtime policy. A mode disabled by the live config, such as full access without a matching `danger-full-access` sandbox, could still look sendable from the composer.

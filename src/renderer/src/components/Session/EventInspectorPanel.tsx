@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useSessionStore } from '../../store/sessions'
 import type { AgentNode, AgentStatus, Session, SessionRunEventRecord } from '../../types'
-import { Badge, InspectorCard, InspectorRow, InspectorSection, MetricPill, PanelHeader, TabButton, WorkbenchSearchField } from '../shared/designSystem'
+import { Badge, InspectorCard, InspectorRow, InspectorSection, MetricPill, PanelHeader, TabButton, ToolbarButton, WorkbenchSearchField } from '../shared/designSystem'
 import { deriveSessionAgentNodes } from './agentNodes'
 
 interface Props {
@@ -463,33 +463,23 @@ function EventDetailCard({ session, record }: { session: Session; record: Sessio
         </div>
         <Badge tone={eventTone(record)}>{record.event.type}</Badge>
       </InspectorRow>
-      <div className="flex items-center gap-1.5">
-        <button
-          type="button"
-          className="rounded-md border px-2 py-1 text-[11px] font-semibold"
-          data-testid="agent-event-detail-copy"
+      <div className="flex min-w-0 items-center gap-1.5" data-testid="agent-event-detail-actions" aria-label="Runtime event actions">
+        <ToolbarButton
+          icon="copy"
+          label="Copy payload"
+          dataTestId="agent-event-detail-copy"
           onClick={copyPayload}
-          style={{
-            color: 'var(--color-text)',
-            background: 'var(--control-bg)',
-            borderColor: 'var(--border-subtle)'
-          }}
-        >
-          Copy payload
-        </button>
-        <button
-          type="button"
-          className="rounded-md border px-2 py-1 text-[11px] font-semibold"
-          data-testid="agent-event-detail-add-to-chat"
+          size="sm"
+          variant="toolbar"
+        />
+        <ToolbarButton
+          icon="chat"
+          label="Add to chat"
+          dataTestId="agent-event-detail-add-to-chat"
           onClick={addEventToChat}
-          style={{
-            color: 'var(--color-text)',
-            background: 'var(--control-bg)',
-            borderColor: 'var(--border-subtle)'
-          }}
-        >
-          Add to chat
-        </button>
+          size="sm"
+          variant="toolbar"
+        />
         {copyStatus && (
           <span
             className="min-w-0 truncate rounded-md px-2 py-1 text-[11px]"

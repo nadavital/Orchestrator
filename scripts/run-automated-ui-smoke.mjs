@@ -2477,6 +2477,7 @@ child.on('exit', async (code) => {
           agentRuntimeEventCopy: result.agentRuntimeEventCopyWorks === true,
           agentRuntimeEventAddToChat: result.agentRuntimeEventAddToChatWorks === true,
           agentRuntimeEventAddToChatContext: result.agentRuntimeEventAddToChatContextWorks === true,
+          agentRuntimeEventActionChrome: result.agentRuntimeEventActionChromeWorks === true,
           agentSelectedTimeline: result.agentSelectedTimelineWorks === true,
           agentRuntimeEventFacetFilters: result.agentRuntimeEventFacetFiltersWork === true,
           agentRuntimeEventFilter: result.agentRuntimeEventFilterWorks === true,
