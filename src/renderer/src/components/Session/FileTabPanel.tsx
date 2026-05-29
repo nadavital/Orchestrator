@@ -667,6 +667,16 @@ export default function FileTabPanel({
             onClick={copySelectedLineReference}
           />
           <IconButton
+            icon="chat"
+            label="Add selected line to chat"
+            size="sm"
+            variant="toolbar"
+            className="file-tab-secondary-action"
+            disabled={selectedSourceLine === null || preview?.text === undefined}
+            dataTestId="workbench-file-tab-add-line-chat"
+            onClick={() => addSelectedLineToChat()}
+          />
+          <IconButton
             icon="external"
             label="Open selected line in editor"
             size="sm"

@@ -18873,6 +18873,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 sourceFileTabAfterInlineCopy.getAttribute('data-file-tab-copied-line-reference') === 'review-base.txt:2';
               const sourceFileTab = document.querySelector('[data-testid="workbench-file-tab"]');
               const copySelectedLineButton = document.querySelector('[data-testid="workbench-file-tab-copy-line"]');
+              const toolbarAddLineToChatButton = document.querySelector('[data-testid="workbench-file-tab-add-line-chat"]');
               const openSelectedLineButton = document.querySelector('[data-testid="workbench-file-tab-open-line"]');
               if (copySelectedLineButton instanceof HTMLButtonElement) {
                 copySelectedLineButton.click();
@@ -18903,8 +18904,11 @@ function runAutomatedFocusedSurfaceSmoke(
                 sourceFileTabAfterCopy instanceof HTMLElement &&
                 sourceFileTabAfterCopy.getAttribute('data-file-tab-copied-line-reference') === 'review-base.txt:2' &&
                 copySelectedLineButton instanceof HTMLButtonElement &&
+                toolbarAddLineToChatButton instanceof HTMLButtonElement &&
                 openSelectedLineButton instanceof HTMLButtonElement &&
                 copySelectedLineButton.disabled === false &&
+                toolbarAddLineToChatButton.disabled === false &&
+                toolbarAddLineToChatButton.getAttribute('aria-label') === 'Add selected line to chat' &&
                 openSelectedLineButton.disabled === false;
               if (openSelectedLineButton instanceof HTMLButtonElement) {
                 openSelectedLineButton.click();
@@ -18925,14 +18929,15 @@ function runAutomatedFocusedSurfaceSmoke(
                   sourceActionStatusAfterOpen.getAttribute('aria-live') === 'polite' &&
                   sourceActionStatusAfterOpen.textContent?.includes('Opened in Cursor at line 2 via url-scheme') === true;
               }
-              if (inlineAddLineToChatButton instanceof HTMLButtonElement) {
-                inlineAddLineToChatButton.click();
+              if (toolbarAddLineToChatButton instanceof HTMLButtonElement) {
+                toolbarAddLineToChatButton.click();
                 await sleep(180);
               }
               const sourceFileTabAfterLineAddToChat = document.querySelector('[data-testid="workbench-file-tab"]');
               const composerAfterLineAddToChat = document.querySelector('[data-testid="composer-textarea"]');
               const fileSourceLineAddToChatWorks =
-                inlineAddLineToChatButton instanceof HTMLButtonElement &&
+                toolbarAddLineToChatButton instanceof HTMLButtonElement &&
+                toolbarAddLineToChatButton.disabled === false &&
                 sourceFileTabAfterLineAddToChat instanceof HTMLElement &&
                 sourceFileTabAfterLineAddToChat.getAttribute('data-file-tab-added-line-reference') === 'review-base.txt:2' &&
                 sourceFileTabAfterLineAddToChat.getAttribute('data-file-tab-action-status') === 'Added selected line to chat' &&
