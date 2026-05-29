@@ -12543,6 +12543,49 @@ function runAutomatedFocusedSurfaceSmoke(
                     row.getAttribute('title') === null
                   ) &&
                   [...document.querySelectorAll('.diff-panel-list [data-native-title-free][title]')].length === 0;
+                let reviewTreeKeyboardNavigationWorks = false;
+                if (finalDiffPanelList instanceof HTMLElement && diffWorkbenchRows().length >= 2) {
+                  const selectableReviewRows = diffWorkbenchRows()
+                    .filter((row) => row instanceof HTMLButtonElement && !row.disabled);
+                  const firstRow = selectableReviewRows[0];
+                  if (firstRow instanceof HTMLButtonElement) firstRow.click();
+                  await sleep(100);
+                  const treeAfterFirstSelection = currentDiffPanelList() ?? finalDiffPanelList;
+                  const firstActiveId = treeAfterFirstSelection.getAttribute('data-active-row-id') ?? '';
+                  const firstFocusableRows = diffWorkbenchRows()
+                    .filter((row) => row instanceof HTMLElement && row.getAttribute('data-keyboard-focusable') === 'true');
+                  const focusedNavigationRow = firstFocusableRows[0];
+                  if (focusedNavigationRow instanceof HTMLElement) {
+                    focusedNavigationRow.focus({ preventScroll: true });
+                    focusedNavigationRow.dispatchEvent(new KeyboardEvent('keydown', {
+                      key: 'ArrowDown',
+                      code: 'ArrowDown',
+                      bubbles: true,
+                      cancelable: true
+                    }));
+                  }
+                  await sleep(120);
+                  const treeAfterArrow = currentDiffPanelList() ?? finalDiffPanelList;
+                  const secondActiveId = treeAfterArrow.getAttribute('data-active-row-id') ?? '';
+                  const secondFocusedRow = document.activeElement instanceof HTMLElement
+                    ? document.activeElement.closest('[data-workbench-tree-row="true"]')
+                    : null;
+                  const secondFocusableRows = diffWorkbenchRows()
+                    .filter((row) => row instanceof HTMLElement && row.getAttribute('data-keyboard-focusable') === 'true');
+                  reviewTreeKeyboardNavigationWorks =
+                    treeAfterArrow.getAttribute('data-keyboard-navigation') === 'roving' &&
+                    treeAfterArrow.getAttribute('tabindex') === '-1' &&
+                    firstActiveId.length > 0 &&
+                    secondActiveId.length > 0 &&
+                    secondActiveId !== firstActiveId &&
+                    firstFocusableRows.length === 1 &&
+                    secondFocusableRows.length === 1 &&
+                    firstRow instanceof HTMLButtonElement &&
+                    secondFocusedRow instanceof HTMLElement &&
+                    secondFocusedRow.getAttribute('data-active') === 'true' &&
+                    secondFocusedRow.getAttribute('data-keyboard-focusable') === 'true' &&
+                    secondFocusedRow === secondFocusableRows[0];
+                }
                 let reviewRowKeyboardContextMenuWorks = false;
                 let reviewRowKeyboardContextMenuDebug = {};
                 const reviewRowContextTarget =
@@ -12710,6 +12753,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   reviewTabPanelFocusRingCalmWorks,
                   diffWorkbenchTreeWorks,
                   diffWorkbenchTreeNativeTitleFreeWorks,
+                  reviewTreeKeyboardNavigationWorks,
                   diffRevealSelectedPathWorks,
                   diffTreeGroupingWorks,
                   diffDirectoryMetadataWorks,
@@ -16021,6 +16065,7 @@ function runAutomatedFocusedSurfaceSmoke(
               let filesActionMenuSharedSectionsWorks = false;
               let filesRowContextMenuWorks = false;
               let filesRowKeyboardContextMenuWorks = false;
+              let filesTreeKeyboardNavigationWorks = false;
               let filesRowCopyPathClipboardWorks = false;
               let filesRowContextMenuSharedSectionsWorks = false;
               let filesPreferredOpenTargetWorks = false;
@@ -16110,6 +16155,49 @@ function runAutomatedFocusedSurfaceSmoke(
               }
               const rowContextTarget = filesWorkbenchRows()
                 .find((row) => row instanceof HTMLElement && row.textContent?.includes('nested note.md'));
+              const filesTree = document.querySelector('[data-testid="files-panel-list"][data-workbench-tree="true"]');
+              if (filesTree instanceof HTMLElement && filesWorkbenchRows().length >= 2) {
+                filesTree.dispatchEvent(new KeyboardEvent('keydown', {
+                  key: 'Home',
+                  code: 'Home',
+                  bubbles: true,
+                  cancelable: true
+                }));
+                await sleep(100);
+                const firstActiveId = filesTree.getAttribute('data-active-row-id') ?? '';
+                const firstFocusedRow = document.activeElement instanceof HTMLElement
+                  ? document.activeElement.closest('[data-workbench-tree-row="true"]')
+                  : null;
+                const firstFocusableRows = filesWorkbenchRows()
+                  .filter((row) => row instanceof HTMLElement && row.getAttribute('data-keyboard-focusable') === 'true');
+                const arrowTarget = document.activeElement instanceof HTMLElement ? document.activeElement : filesTree;
+                arrowTarget.dispatchEvent(new KeyboardEvent('keydown', {
+                  key: 'ArrowDown',
+                  code: 'ArrowDown',
+                  bubbles: true,
+                  cancelable: true
+                }));
+                await sleep(120);
+                const secondActiveId = filesTree.getAttribute('data-active-row-id') ?? '';
+                const secondFocusedRow = document.activeElement instanceof HTMLElement
+                  ? document.activeElement.closest('[data-workbench-tree-row="true"]')
+                  : null;
+                const secondFocusableRows = filesWorkbenchRows()
+                  .filter((row) => row instanceof HTMLElement && row.getAttribute('data-keyboard-focusable') === 'true');
+                filesTreeKeyboardNavigationWorks =
+                  filesTree.getAttribute('data-keyboard-navigation') === 'roving' &&
+                  filesTree.getAttribute('tabindex') === '-1' &&
+                  firstActiveId.length > 0 &&
+                  secondActiveId.length > 0 &&
+                  secondActiveId !== firstActiveId &&
+                  firstFocusableRows.length === 1 &&
+                  secondFocusableRows.length === 1 &&
+                  firstFocusedRow instanceof HTMLElement &&
+                  secondFocusedRow instanceof HTMLElement &&
+                  secondFocusedRow.getAttribute('data-active') === 'true' &&
+                  secondFocusedRow.getAttribute('data-keyboard-focusable') === 'true' &&
+                  secondFocusedRow === secondFocusableRows[0];
+              }
               if (rowContextTarget instanceof HTMLElement) {
                 const targetRect = rowContextTarget.getBoundingClientRect();
                 rowContextTarget.focus({ preventScroll: true });
@@ -18981,6 +19069,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 filesActionMenuSharedSectionsWorks,
                 filesRowContextMenuWorks,
                 filesRowKeyboardContextMenuWorks,
+                filesTreeKeyboardNavigationWorks,
                 filesRowCopyPathClipboardWorks,
                 filesRowContextMenuSharedSectionsWorks,
                 filesPreferredOpenTargetWorks,
