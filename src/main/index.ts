@@ -28796,6 +28796,10 @@ function runAutomatedTranscriptStressSmoke(win: BrowserWindow, outputPath: strin
             const loadControlTotal = Number(initialLoadControl?.getAttribute('data-total-message-count') ?? 0);
             const loadControlVisible = Number(initialLoadControl?.getAttribute('data-visible-message-count') ?? 0);
             const loadControlHidden = Number(initialLoadControl?.getAttribute('data-hidden-message-count') ?? 0);
+            const loadPrimaryButton = initialLoadControl?.querySelector('[data-testid="load-earlier-messages-primary"]');
+            const loadAllButton = initialLoadControl?.querySelector('[data-testid="load-earlier-messages-show-all"]');
+            const loadPrimaryLabel = loadPrimaryButton instanceof HTMLButtonElement ? loadPrimaryButton.getAttribute('aria-label') ?? '' : '';
+            const loadAllLabel = loadAllButton instanceof HTMLButtonElement ? loadAllButton.getAttribute('aria-label') ?? '' : '';
             const longThreadLoadControlWorks = (
               initialLoadControl instanceof HTMLElement &&
               loadControlText.includes('40 of 10,001 messages shown') &&
@@ -28822,6 +28826,23 @@ function runAutomatedTranscriptStressSmoke(win: BrowserWindow, outputPath: strin
               longThreadStatus.getAttribute('data-visible-message-count') === '10001' &&
               longThreadStatus.textContent?.includes('10,001 messages loaded') === true
             );
+            const longThreadLoadControlA11yWorks = initialLoadControl instanceof HTMLElement &&
+              initialLoadControl.getAttribute('aria-label')?.includes('Transcript history') === true &&
+              loadPrimaryButton instanceof HTMLButtonElement &&
+              loadPrimaryLabel.includes('transcript messages') &&
+              loadPrimaryLabel.includes('40 of 10,001 messages shown') &&
+              (
+                (
+                  loadControlLoadedHidden === 9961 &&
+                  loadAllButton instanceof HTMLButtonElement &&
+                  loadAllLabel.includes('Show all 9,961 loaded earlier transcript messages') &&
+                  loadAllLabel.includes('40 of 10,001 messages shown')
+                ) ||
+                (
+                  loadControlUnloadedBefore === 9961 &&
+                  loadPrimaryLabel.includes('9,961 earlier messages are not loaded yet')
+                )
+              );
 
             scroller.scrollTop = Math.min(240, Math.max(0, scroller.scrollHeight - scroller.clientHeight));
             scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
@@ -28889,6 +28910,7 @@ function runAutomatedTranscriptStressSmoke(win: BrowserWindow, outputPath: strin
               searchMountedRows,
               lazyLoadedOlderChunk: (initialHidden > 0 && afterLazyHidden < initialHidden) || initialVisible === messageCount,
               longThreadLoadControlWorks,
+              longThreadLoadControlA11yWorks,
               longThreadVisibleCountIncreased: afterLazyVisible > initialVisible || initialVisible === messageCount,
               searchJumpFound
             };

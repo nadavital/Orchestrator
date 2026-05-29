@@ -1834,6 +1834,7 @@ child.on('exit', async (code) => {
         lazyMountedRowsBounded: Number(result.lazyMountedRows ?? Number.POSITIVE_INFINITY) <= 56,
         searchMountedRowsBounded: Number(result.searchMountedRows ?? Number.POSITIVE_INFINITY) <= 56,
         longThreadLoadControl: result.longThreadLoadControlWorks === true,
+        longThreadLoadControlA11y: result.longThreadLoadControlA11yWorks === true,
         longThreadVisibleCountIncreased: result.longThreadVisibleCountIncreased === true,
         lazyLoadedOlderChunk: result.lazyLoadedOlderChunk === true,
         searchJumpFound: result.searchJumpFound === true,

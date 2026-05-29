@@ -68,6 +68,12 @@ const diffRules = [
     diffPatterns: [/chatUserMessageEdit/, /message-edit-draft/, /composer-draft-source/]
   },
   {
+    flag: '--transcript-stress',
+    label: 'Transcript stress',
+    filePatterns: [/^src\/renderer\/src\/components\/Session\/ChatView\.tsx$/, /^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
+    diffPatterns: [/LoadEarlierMessages/, /load-earlier-messages/, /longThreadLoadControl/, /TRANSCRIPT_STRESS/]
+  },
+  {
     flag: '--transcript-fork',
     label: 'Transcript fork controls',
     filePatterns: [/^src\/renderer\/src\/components\/Session\/ChatView\.tsx$/, /^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
@@ -238,6 +244,7 @@ function suggestTargets(paths) {
   restoreDiffTargets(matched, paths)
   suppressWorkbenchLauncherForContextSidebarTabDiff(matched, paths)
   suppressRightPanelForWorkbenchTreeFileDiff(matched)
+  suppressTranscriptLayoutForLongThreadDiff(matched, paths)
   suppressTranscriptLayoutForForkDiff(matched, paths)
   suppressComposerForWorktreeLifecycleDiff(matched, paths)
 
@@ -366,6 +373,18 @@ function suppressTranscriptLayoutForForkDiff(matched, paths) {
     ? diffForFile('src/renderer/src/components/Session/ChatView.tsx')
     : ''
   if (!/ForkFromMessage|chatMessageFork|chat-message-fork/.test(diff)) return
+  matched.delete('--transcript-layout')
+}
+
+function suppressTranscriptLayoutForLongThreadDiff(matched, paths) {
+  const transcript = matched.get('--transcript-layout')
+  const stress = matched.get('--transcript-stress')
+  if (!transcript || !stress) return
+  if (!transcript.files.every((file) => file === 'src/renderer/src/components/Session/ChatView.tsx')) return
+  const diff = paths.includes('src/renderer/src/components/Session/ChatView.tsx')
+    ? diffForFile('src/renderer/src/components/Session/ChatView.tsx')
+    : ''
+  if (!/LoadEarlierMessages|load-earlier-messages|longThreadLoadControl/.test(diff)) return
   matched.delete('--transcript-layout')
 }
 

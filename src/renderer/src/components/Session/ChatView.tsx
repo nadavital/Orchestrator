@@ -1033,15 +1033,23 @@ function LoadEarlierMessages({
   onLoadAll: () => void
 }): JSX.Element {
   const nextBatchCount = Math.min(TRANSCRIPT_RENDER_CHUNK, hiddenCount)
+  const visibleTotalLabel = `${visibleCount.toLocaleString()} of ${totalCount.toLocaleString()} messages shown`
   const primaryLabel = loading
     ? 'Loading'
     : loadedHiddenCount > 0
       ? `Show ${nextBatchCount.toLocaleString()} earlier`
       : `Load ${nextBatchCount.toLocaleString()} earlier`
+  const primaryAriaLabel = loading
+    ? `Loading earlier transcript messages. ${visibleTotalLabel}.`
+    : loadedHiddenCount > 0
+      ? `Show ${nextBatchCount.toLocaleString()} earlier loaded transcript messages. ${visibleTotalLabel}.`
+      : `Load ${nextBatchCount.toLocaleString()} earlier transcript messages. ${unloadedBeforeCount.toLocaleString()} earlier messages are not loaded yet. ${visibleTotalLabel}.`
+  const showAllAriaLabel = `Show all ${loadedHiddenCount.toLocaleString()} loaded earlier transcript messages. ${visibleTotalLabel}.`
   return (
     <div className="flex justify-center">
       <SurfaceRow
         dataTestId="load-earlier-messages"
+        ariaLabel={`Transcript history. ${visibleTotalLabel}. ${hiddenCount.toLocaleString()} earlier messages hidden.`}
         data-hidden-message-count={hiddenCount}
         data-loaded-hidden-count={loadedHiddenCount}
         data-unloaded-before-count={unloadedBeforeCount}
@@ -1054,12 +1062,29 @@ function LoadEarlierMessages({
           color: 'var(--text-secondary)'
         }}
       >
-        <span>{visibleCount.toLocaleString()} of {totalCount.toLocaleString()} messages shown</span>
-        <Button variant="ghost" className="px-2 py-0.5" onClick={onLoad} disabled={loading}>
+        <span>{visibleTotalLabel}</span>
+        <Button
+          variant="ghost"
+          className="px-2 py-0.5"
+          onClick={onLoad}
+          disabled={loading}
+          dataTestId="load-earlier-messages-primary"
+          ariaLabel={primaryAriaLabel}
+          title={primaryAriaLabel}
+        >
           {primaryLabel}
         </Button>
         {loadedHiddenCount > 0 && (
-          <Button variant="ghost" className="px-2 py-0.5" onClick={onLoadAll}>Show all loaded</Button>
+          <Button
+            variant="ghost"
+            className="px-2 py-0.5"
+            onClick={onLoadAll}
+            dataTestId="load-earlier-messages-show-all"
+            ariaLabel={showAllAriaLabel}
+            title={showAllAriaLabel}
+          >
+            Show all loaded
+          </Button>
         )}
       </SurfaceRow>
     </div>
