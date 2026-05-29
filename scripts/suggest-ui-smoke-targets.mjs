@@ -93,6 +93,12 @@ const diffRules = [
     diffPatterns: [/PermissionCard/, /permissionRequest/, /chat-permission/, /permission[A-Z]/]
   },
   {
+    flag: '--transcript-user-input',
+    label: 'Transcript user input',
+    filePatterns: [/^src\/renderer\/src\/components\/Session\/ChatView\.tsx$/, /^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
+    diffPatterns: [/UserInputCard|QuestionBlock|chat-user-input|userInput[A-Z]|data-user-input/]
+  },
+  {
     flag: '--transcript-fork',
     label: 'Transcript fork controls',
     filePatterns: [/^src\/renderer\/src\/components\/Session\/ChatView\.tsx$/, /^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
@@ -323,6 +329,7 @@ function suggestTargets(paths) {
   suppressBrowserForSettingsDiff(matched, paths)
   suppressTranscriptLayoutForLongThreadDiff(matched, paths)
   suppressTranscriptLayoutForPermissionDiff(matched, paths)
+  suppressTranscriptLayoutForUserInputDiff(matched, paths)
   suppressTranscriptLayoutForFileReferenceDiff(matched, paths)
   suppressTranscriptPermissionForSettingsDiff(matched, paths)
   suppressComposerForSettingsFocusDiff(matched, paths)
@@ -606,6 +613,18 @@ function suppressTranscriptLayoutForPermissionDiff(matched, paths) {
     ? diffForFile('src/renderer/src/components/Session/ChatView.tsx')
     : ''
   if (!/PermissionCard|permissionRequest|chat-permission/.test(diff)) return
+  matched.delete('--transcript-layout')
+}
+
+function suppressTranscriptLayoutForUserInputDiff(matched, paths) {
+  const transcript = matched.get('--transcript-layout')
+  const userInput = matched.get('--transcript-user-input')
+  if (!transcript || !userInput) return
+  if (!transcript.files.every((file) => file === 'src/renderer/src/components/Session/ChatView.tsx')) return
+  const diff = paths.includes('src/renderer/src/components/Session/ChatView.tsx')
+    ? diffForFile('src/renderer/src/components/Session/ChatView.tsx')
+    : ''
+  if (!/UserInputCard|QuestionBlock|chat-user-input|userInput[A-Z]|data-user-input/.test(diff)) return
   matched.delete('--transcript-layout')
 }
 

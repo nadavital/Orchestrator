@@ -2249,6 +2249,7 @@ child.on('exit', async (code) => {
           isolatedProfile: result.profile?.isIsolated === true,
           userInputMultiQuestionCard: result.userInputMultiQuestionCardWorks === true,
           userInputOptionSelection: result.userInputOptionSelectionWorks === true,
+          userInputOptionDescriptionsA11y: result.userInputOptionDescriptionsA11y === true,
           userInputMultiSelect: result.userInputMultiSelectWorks === true,
           userInputStructuredSubmit: result.userInputStructuredSubmitWorks === true,
           userInputStructuredStatusLive: result.userInputStructuredStatusLive === true,

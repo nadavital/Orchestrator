@@ -29609,6 +29609,7 @@ function runAutomatedTranscriptUserInputSmoke(win: BrowserWindow, outputPath: st
               .filter((option) => option instanceof HTMLButtonElement)
               .map((option) => ({
                 text: option.textContent ?? '',
+                description: option.getAttribute('data-user-input-option-description') ?? '',
                 selected: option.getAttribute('data-selected'),
                 pressed: option.getAttribute('aria-pressed'),
                 label: option.getAttribute('aria-label') ?? ''
@@ -29623,6 +29624,13 @@ function runAutomatedTranscriptUserInputSmoke(win: BrowserWindow, outputPath: st
                 (option.pressed === 'true' || option.pressed === 'false') &&
                 option.selected === option.pressed &&
                 option.label.startsWith(option.pressed === 'true' ? 'Selected ' : 'Select ')
+              );
+            const userInputOptionDescriptionsA11y =
+              allOptionStates.length >= 7 &&
+              allOptionStates.every((option) =>
+                option.description.trim().length > 0 &&
+                option.text.includes(option.description) &&
+                option.label.includes(option.description)
               );
             const multiQuestion = questions.find((question) => question.textContent?.includes('Pick all validators'));
             const userInputMultiSelectWorks =
@@ -29646,6 +29654,7 @@ function runAutomatedTranscriptUserInputSmoke(win: BrowserWindow, outputPath: st
             return {
               userInputMultiQuestionCardWorks,
               userInputOptionSelectionWorks,
+              userInputOptionDescriptionsA11y,
               userInputMultiSelectWorks,
               userInputStructuredSubmitWorks,
               userInputStructuredStatusLive

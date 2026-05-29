@@ -3827,8 +3827,12 @@ function QuestionBlock({
               className="rounded-lg px-3 py-2 text-left disabled:opacity-50"
               dataTestId="chat-user-input-option"
               data-selected={selected ? 'true' : 'false'}
+              data-user-input-option-description={option.description ?? ''}
               ariaPressed={selected}
-              ariaLabel={`${selected ? 'Selected' : 'Select'} ${option.label}`}
+              ariaLabel={[
+                `${selected ? 'Selected' : 'Select'} ${option.label}`,
+                option.description
+              ].filter(Boolean).join(': ')}
               style={{
                 background: selected ? 'color-mix(in srgb, var(--accent) 14%, var(--color-surface))' : 'var(--color-surface)',
                 color: 'var(--color-text)',
