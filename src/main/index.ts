@@ -17029,6 +17029,7 @@ function runAutomatedFocusedSurfaceSmoke(
               let filesTreeKeyboardNavigationWorks = false;
               let filesRowCopyPathClipboardWorks = false;
               let filesAddToChatStatusWorks = false;
+              let filesInsertPathTerminalWorks = false;
               let filesRowContextMenuSharedSectionsWorks = false;
               let filesPreferredOpenTargetWorks = false;
               let workbenchFileTabWorks = false;
@@ -17241,6 +17242,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   rowContextLabels.includes('Add to chat') &&
                   rowContextLabels.includes('Open in Workbench') &&
                   rowContextLabels.includes('Copy path') &&
+                  rowContextLabels.includes('Insert in terminal') &&
                   rowContextLabels.includes('Reveal file') &&
                   rowContextLabels.includes('Open file') &&
                   contextSelectedRow instanceof HTMLElement &&
@@ -17268,6 +17270,56 @@ function runAutomatedFocusedSurfaceSmoke(
                     filesActionStatus.getAttribute('aria-live') === 'polite' &&
                     filesActionStatus.getAttribute('aria-atomic') === 'true' &&
                     copiedFilePath === 'Nested Folder/nested note.md';
+                }
+                rowContextTarget.dispatchEvent(new MouseEvent('contextmenu', {
+                  bubbles: true,
+                  cancelable: true,
+                  clientX: rowContextTarget.getBoundingClientRect().left + 24,
+                  clientY: rowContextTarget.getBoundingClientRect().top + 14
+                }));
+                await sleep(120);
+                const insertPathTerminalMenuItem = document.querySelector('[data-testid="files-row-context-menu-insert-terminal"]');
+                if (insertPathTerminalMenuItem instanceof HTMLElement) {
+                  insertPathTerminalMenuItem.click();
+                  for (let attempt = 0; attempt < 24; attempt += 1) {
+                    await sleep(100);
+                    const filesActionStatus = document.querySelector('[data-testid="files-panel-action-status"]');
+                    const terminalId = window.__orchestratorLastFilesTerminalIdForSmoke ?? '';
+                    const terminalPath = window.__orchestratorLastFilesTerminalPathForSmoke ?? '';
+                    const terminalBuffer = terminalId
+                      ? await window.api?.terminal?.getBuffer?.(terminalId).catch(() => '') ?? ''
+                      : '';
+                    if (
+                      filesActionStatus instanceof HTMLElement &&
+                      filesActionStatus.textContent?.includes('Path inserted in terminal') === true &&
+                      terminalPath === 'Nested Folder/nested note.md' &&
+                      terminalBuffer.includes('Nested Folder/nested note.md')
+                    ) {
+                      break;
+                    }
+                  }
+                  const filesRootAfterTerminalInsert = document.querySelector('.files-panel-root');
+                  const filesActionStatus = document.querySelector('[data-testid="files-panel-action-status"]');
+                  const terminalId = window.__orchestratorLastFilesTerminalIdForSmoke ?? '';
+                  const terminalPath = window.__orchestratorLastFilesTerminalPathForSmoke ?? '';
+                  const terminalBuffer = terminalId
+                    ? await window.api?.terminal?.getBuffer?.(terminalId).catch(() => '') ?? ''
+                    : '';
+                  const bottomPanelAfterPathInsert = document.querySelector('[data-testid="session-bottom-panel"]');
+                  filesInsertPathTerminalWorks =
+                    filesRootAfterTerminalInsert instanceof HTMLElement &&
+                    filesRootAfterTerminalInsert.getAttribute('data-files-action-status') === 'Path inserted in terminal' &&
+                    filesRootAfterTerminalInsert.getAttribute('data-files-action-status-tone') === 'info' &&
+                    filesActionStatus instanceof HTMLElement &&
+                    filesActionStatus.getAttribute('role') === 'status' &&
+                    filesActionStatus.getAttribute('aria-live') === 'polite' &&
+                    filesActionStatus.getAttribute('aria-atomic') === 'true' &&
+                    terminalPath === 'Nested Folder/nested note.md' &&
+                    terminalBuffer.includes('Nested Folder/nested note.md') &&
+                    bottomPanelAfterPathInsert instanceof HTMLElement &&
+                    bottomPanelAfterPathInsert.getAttribute('data-bottom-panel-active-terminal-id') === terminalId;
+                  document.querySelector('[aria-label="Hide bottom panel"]')?.click();
+                  await sleep(120);
                 }
               }
               const filesTabAttachWorks =
@@ -20118,6 +20170,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 filesTreeKeyboardNavigationWorks,
                 filesRowCopyPathClipboardWorks,
                 filesAddToChatStatusWorks,
+                filesInsertPathTerminalWorks,
                 filesRowContextMenuSharedSectionsWorks,
                 filesPreferredOpenTargetWorks,
                 workbenchFileTabWorks,

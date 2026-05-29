@@ -20,6 +20,10 @@ async function writeFilesClipboardText(text: string): Promise<void> {
   await navigator.clipboard.writeText(text)
 }
 
+function shellQuote(value: string): string {
+  return /^[A-Za-z0-9._/@:-]+$/.test(value) ? value : `'${value.replace(/'/g, `'\\''`)}'`
+}
+
 const FILES_ACTION_MENU_ID = 'files-action-menu-surface'
 const FILE_SEARCH_HISTORY_MENU_ID = 'workspace-file-search-history-menu'
 const FILE_SEARCH_HISTORY_KEY = 'orchestrator.files.searchHistory'
@@ -46,6 +50,9 @@ export default function FilesPanel({ sessionId, workDir, embedded = false }: Pro
   const searchInputRef = useRef<HTMLInputElement>(null)
   const requestIdRef = useRef(0)
   const openRightPanelFileTab = useSessionStore((state) => state.openRightPanelFileTab)
+  const setShowTerminal = useSessionStore((state) => state.setShowTerminal)
+  const addTerminalTab = useSessionStore((state) => state.addTerminalTab)
+  const setActiveTerminalTab = useSessionStore((state) => state.setActiveTerminalTab)
   const entries = searchResult?.entries ?? []
   const trimmedQuery = query.trim()
   const visibleEntries = useMemo(() => projectSearchEntries(entries, trimmedQuery), [entries, trimmedQuery])
@@ -223,6 +230,39 @@ export default function FilesPanel({ sessionId, workDir, embedded = false }: Pro
       .catch(() => setFilesActionStatus({ text: 'Copy path failed', tone: 'danger' }))
   }
 
+  const insertEntryPathInTerminal = (entry: WorkspaceSearchEntry | null): void => {
+    if (!sessionId || !entry) {
+      setFilesActionStatus({ text: 'Select a path to insert in terminal', tone: 'danger' })
+      return
+    }
+    setFilesActionStatus({ text: 'Opening terminal for path', tone: 'info' })
+    void (async () => {
+      try {
+        const state = useSessionStore.getState()
+        const currentPanel = state.uiState[sessionId]?.terminalPanel
+        const existingTab = typeof currentPanel?.activeTabId === 'number'
+          ? currentPanel.activeTabId
+          : currentPanel?.tabs.find((tab): tab is number => typeof tab === 'number')
+        const tabId = existingTab ?? addTerminalTab(sessionId)
+        setShowTerminal(sessionId, true)
+        setActiveTerminalTab(sessionId, tabId)
+        const terminalId = `${sessionId}-${tabId}`
+        const terminalText = shellQuote(entry.path)
+        const globals = window as typeof window & {
+          __orchestratorLastFilesTerminalPathForSmoke?: string
+          __orchestratorLastFilesTerminalIdForSmoke?: string
+        }
+        globals.__orchestratorLastFilesTerminalPathForSmoke = entry.path
+        globals.__orchestratorLastFilesTerminalIdForSmoke = terminalId
+        await window.api.terminal.spawn(terminalId, workDir)
+        await window.api.terminal.write(terminalId, terminalText)
+        setFilesActionStatus({ text: 'Path inserted in terminal', tone: 'info' })
+      } catch {
+        setFilesActionStatus({ text: 'Insert path in terminal failed', tone: 'danger' })
+      }
+    })()
+  }
+
   const rememberSearchQuery = (value = query): void => {
     const normalized = value.trim().replace(/\s+/g, ' ')
     if (!normalized) return
@@ -322,6 +362,13 @@ export default function FilesPanel({ sessionId, workDir, embedded = false }: Pro
           onClick={() => { openEntryInWorkbench(entry); close() }}
         />
         <MenuItem icon="copy" label="Copy path" disabled={!entry} dataTestId={`${testIdPrefix}-copy-path`} onClick={() => { copyEntryPath(entry); close() }} />
+        <MenuItem
+          icon="terminal"
+          label="Insert in terminal"
+          disabled={!sessionId || !entry}
+          dataTestId={`${testIdPrefix}-insert-terminal`}
+          onClick={() => { insertEntryPathInTerminal(entry); close() }}
+        />
       </MenuSection>
       <MenuSection dataTestId={`${testIdPrefix}-system-section`}>
         <MenuSectionLabel>System</MenuSectionLabel>

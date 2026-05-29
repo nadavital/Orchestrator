@@ -2565,6 +2565,7 @@ child.on('exit', async (code) => {
           filesTreeKeyboardNavigation: result.filesTreeKeyboardNavigationWorks === true,
           filesRowCopyPathClipboard: result.filesRowCopyPathClipboardWorks === true,
           filesAddToChatStatus: result.filesAddToChatStatusWorks === true,
+          filesInsertPathTerminal: result.filesInsertPathTerminalWorks === true,
           filesRowContextMenuSharedSections: result.filesRowContextMenuSharedSectionsWorks === true,
           filesPreferredOpenTarget: result.filesPreferredOpenTargetWorks === true,
           workbenchFileTab: result.workbenchFileTabWorks === true,

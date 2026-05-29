@@ -107,7 +107,7 @@ const diffRules = [
     flag: '--files',
     label: 'Files and source tabs',
     filePatterns: [/^src\/renderer\/src\/components\/Session\/WorkbenchTree\.tsx$/, /^src\/renderer\/src\/components\/Session\/FilesPanel\.tsx$/, /^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
-    diffPatterns: [/WorkbenchTreeContextMenu/, /onContextMenu/, /filesRowKeyboardContextMenu/, /filesTreeKeyboardNavigation/, /fileSourceLineKeyboardNavigation/, /data-keyboard-navigation/, /files-row-context-menu/, /filesAddToChatStatus/, /Added .* to chat/]
+    diffPatterns: [/WorkbenchTreeContextMenu/, /onContextMenu/, /filesRowKeyboardContextMenu/, /filesTreeKeyboardNavigation/, /fileSourceLineKeyboardNavigation/, /data-keyboard-navigation/, /files-row-context-menu/, /filesAddToChatStatus/, /filesInsertPathTerminal/, /Added .* to chat/, /Path inserted in terminal/]
   },
   {
     flag: '--diff-core',
@@ -310,6 +310,7 @@ function suggestTargets(paths) {
   suppressComposerForWorkbenchGitHandoffDiff(matched, paths)
   suppressTerminalForWorkbenchGitPrTerminalHandoffDiff(matched, paths)
   suppressComposerForBrowserHandoffDiff(matched, paths)
+  suppressTerminalForFilesPathTerminalHandoffDiff(matched, paths)
   suppressEnvironmentForGitFileWorkflowDiff(matched, paths)
   suppressWorkbenchForReviewGitHandoffDiff(matched, paths)
   suppressWorkbenchForEnvironmentCreatePrDiff(matched, paths)
@@ -685,6 +686,20 @@ function suppressTerminalForWorkbenchGitPrTerminalHandoffDiff(matched, paths) {
     paths.includes('src/main/index.ts') ? diffForFile('src/main/index.ts') : ''
   ].join('\n')
   if (!/workbenchNewTabGitPrCommandTerminalHandoff|git-insert-pr-command-terminal|PR command inserted in terminal|__orchestratorLastGitPrTerminal/.test(diff)) return
+  matched.delete('--terminal')
+}
+
+function suppressTerminalForFilesPathTerminalHandoffDiff(matched, paths) {
+  const terminal = matched.get('--terminal')
+  const files = matched.get('--files')
+  if (!terminal || !files) return
+  if (!terminal.files.every((file) => file === 'scripts/run-automated-ui-smoke.mjs' || file === 'src/main/index.ts')) return
+  const diff = [
+    paths.includes('src/renderer/src/components/Session/FilesPanel.tsx') ? diffForFile('src/renderer/src/components/Session/FilesPanel.tsx') : '',
+    paths.includes('scripts/run-automated-ui-smoke.mjs') ? diffForFile('scripts/run-automated-ui-smoke.mjs') : '',
+    paths.includes('src/main/index.ts') ? diffForFile('src/main/index.ts') : ''
+  ].join('\n')
+  if (!/filesInsertPathTerminal|files-row-context-menu-insert-terminal|Path inserted in terminal|__orchestratorLastFilesTerminal/.test(diff)) return
   matched.delete('--terminal')
 }
 
