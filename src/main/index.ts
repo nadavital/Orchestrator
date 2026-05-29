@@ -7,7 +7,7 @@ import { electronApp, is } from '@electron-toolkit/utils'
 import { configureAppProfile, getAppProfile } from './appProfile'
 import { browserSecurityPolicyAllows } from './browserSecurityPolicy'
 import { settingsStore } from './settings'
-import { parseOrchestratorDeepLink, type ChatMessage, type OrchestratorDeepLinkNavigation } from '../types'
+import { parseOrchestratorDeepLink, type ChatMessage, type OrchestratorDeepLinkNavigation, type Session as OrchestratorSession } from '../types'
 import { APP_COMMANDS, commandShortcuts, shortcutSequenceToAccelerator } from '../types/appCommands'
 import type { AppCommandAvailability, AppMenuCommand, AppMenuCommandState, ShortcutOverrides, StableAppCommand } from '../types/appCommands'
 import { safeWindowSend } from './safeWebContents'
@@ -590,6 +590,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
     if (automatedMultiWindowFocusSmokeStarted) return
     automatedMultiWindowFocusSmokeStarted = true
     runAutomatedMultiWindowFocusSmoke(win, outputPath, screenshotPath)
+    return
+  }
+  if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'worktree-lifecycle') {
+    runAutomatedWorktreeLifecycleSmoke(win, outputPath, screenshotPath)
     return
   }
   if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-stress') {
@@ -25584,6 +25588,93 @@ function runAutomatedScrollSmoke(win: BrowserWindow, outputPath: string, screens
   })
 }
 
+function runAutomatedWorktreeLifecycleSmoke(win: BrowserWindow, outputPath: string, screenshotPath?: string): void {
+  win.webContents.once('did-finish-load', () => {
+    setTimeout(async () => {
+      try {
+        const profile = getAppProfile()
+        const pending = sessionManager.list().find((candidate) => candidate.name === 'Pending worktree lifecycle smoke')
+        const failed = sessionManager.list().find((candidate) => candidate.name === 'Failed worktree lifecycle smoke')
+        if (!pending || !failed) {
+          writeFileSync(outputPath, JSON.stringify({ ok: true, result: { profile, pendingWorktreeNoticeWorks: false, failedWorktreeNoticeWorks: false, failedWorktreeRetryWorks: false }, screenshotPath }, null, 2))
+          app.quit()
+          return
+        }
+        win.webContents.send('pet:navigate', pending.id)
+        await new Promise((resolve) => setTimeout(resolve, 260))
+        const pendingResult = await win.webContents.executeJavaScript(`
+          (async () => {
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            let notice = null;
+            for (let index = 0; index < 80; index += 1) {
+              notice = document.querySelector('[data-testid="worktree-lifecycle-notice"]');
+              if (notice instanceof HTMLElement && notice.getAttribute('data-worktree-lifecycle-state') === 'pending') break;
+              await sleep(25);
+            }
+            return {
+              pendingWorktreeNoticeWorks:
+                notice instanceof HTMLElement &&
+                notice.getAttribute('data-panel-notice-state') === 'pending' &&
+                notice.getAttribute('data-worktree-lifecycle-state') === 'pending' &&
+                notice.getAttribute('role') === 'status' &&
+                notice.textContent?.includes('Preparing worktree') === true &&
+                notice.textContent?.includes('.orchestrator-worktrees') === true
+            };
+          })()
+        `)
+        win.webContents.send('pet:navigate', failed.id)
+        await new Promise((resolve) => setTimeout(resolve, 260))
+        const failedResult = await win.webContents.executeJavaScript(`
+          (async () => {
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            let notice = null;
+            for (let index = 0; index < 80; index += 1) {
+              notice = document.querySelector('[data-testid="worktree-lifecycle-notice"]');
+              if (notice instanceof HTMLElement && notice.getAttribute('data-worktree-lifecycle-state') === 'failed') break;
+              await sleep(25);
+            }
+            const retryButton = document.querySelector('[data-testid="worktree-lifecycle-retry"]');
+            const failedWorktreeNoticeWorks =
+              notice instanceof HTMLElement &&
+              retryButton instanceof HTMLButtonElement &&
+              notice.getAttribute('data-panel-notice-state') === 'failed' &&
+              notice.getAttribute('data-worktree-lifecycle-state') === 'failed' &&
+              notice.getAttribute('role') === 'alert' &&
+              notice.textContent?.includes('Worktree setup failed') === true &&
+              notice.textContent?.includes('Retry worktree') === true;
+            if (retryButton instanceof HTMLButtonElement) {
+              retryButton.click();
+            }
+            let retryPending = false;
+            let retryReady = false;
+            for (let index = 0; index < 160; index += 1) {
+              const session = await window.api.sessions.get(${JSON.stringify(failed.id)});
+              const currentNotice = document.querySelector('[data-testid="worktree-lifecycle-notice"]');
+              retryPending ||= session?.worktreeState === 'pending' || currentNotice?.getAttribute('data-worktree-lifecycle-state') === 'pending';
+              retryReady ||= session?.worktreeState === 'ready' && session?.status === 'idle' && session?.workDir?.includes('.orchestrator-worktrees');
+              if (retryReady) break;
+              await sleep(50);
+            }
+            return {
+              failedWorktreeNoticeWorks,
+              failedWorktreeRetryWorks: failedWorktreeNoticeWorks && retryPending && retryReady
+            };
+          })()
+        `)
+        if (screenshotPath) {
+          const image = await win.webContents.capturePage()
+          writeFileSync(screenshotPath, image.toPNG())
+        }
+        writeFileSync(outputPath, JSON.stringify({ ok: true, result: { profile, ...pendingResult, ...failedResult }, screenshotPath }, null, 2))
+        app.quit()
+      } catch (error) {
+        writeFileSync(outputPath, JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2))
+        app.quit()
+      }
+    }, 700)
+  })
+}
+
 function runAutomatedTranscriptStressSmoke(win: BrowserWindow, outputPath: string, screenshotPath?: string): void {
   win.webContents.once('did-finish-load', () => {
     setTimeout(async () => {
@@ -26483,6 +26574,8 @@ async function bootstrapAutomatedUiSmokeState(): Promise<void> {
   } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'session-switch') {
     const { one } = await seedAutomatedSessionSwitchSmokeSessions(project.id, project.rootPath)
     automatedInitialRendererHash = `/threads/${encodeURIComponent(one.id)}`
+  } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'worktree-lifecycle') {
+    await seedAutomatedWorktreeLifecycleSmokeSessions(project.id, project.rootPath)
   } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-stress') {
     await seedAutomatedTranscriptStressSmokeSession(project.id, project.rootPath)
   } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'streaming-drag') {
@@ -26650,6 +26743,54 @@ async function seedAutomatedComposerSmokeSession(projectId: string, workDir: str
 
   for (const stale of sessionManager.list().filter((candidate) => candidate.projectId === projectId && ['Context disabled permission smoke', 'Settings send race smoke'].includes(candidate.name))) {
     await sessionManager.archive(stale.id)
+  }
+}
+
+async function seedAutomatedWorktreeLifecycleSmokeSessions(projectId: string, workDir: string): Promise<void> {
+  const baseTime = Date.now()
+  const fixtures: Array<{
+    name: string
+    state: 'pending' | 'failed'
+    status: OrchestratorSession['status']
+    offset: number
+  }> = [
+    { name: 'Pending worktree lifecycle smoke', state: 'pending', status: 'reconnecting', offset: 1 },
+    { name: 'Failed worktree lifecycle smoke', state: 'failed', status: 'error', offset: 2 }
+  ]
+
+  for (const fixture of fixtures) {
+    const existing = sessionManager.list().find((candidate) => candidate.projectId === projectId && candidate.name === fixture.name)
+    const session = existing ?? await sessionManager.create({
+      projectId,
+      workDir,
+      useWorktree: false,
+      repoRoot: workDir
+    })
+    sessionManager.save({
+      ...session,
+      name: fixture.name,
+      projectId,
+      provider: 'codex',
+      workDir: `${workDir}/.orchestrator-worktrees/${session.id}`,
+      useWorktree: true,
+      repoRoot: workDir,
+      worktreeState: fixture.state,
+      forkedFromSessionName: 'Worktree lifecycle source',
+      forkMode: 'new-worktree',
+      status: fixture.status,
+      messages: [{
+        id: `worktree-lifecycle-${fixture.state}`,
+        role: 'assistant',
+        type: 'text',
+        content: `${fixture.name} fixture message.`,
+        timestamp: baseTime + fixture.offset
+      }],
+      messageCount: 1,
+      messagesLoaded: true,
+      createdAt: baseTime + fixture.offset,
+      latestMessageAt: baseTime + fixture.offset
+    })
+    projectStore.addSession(projectId, session.id)
   }
 }
 

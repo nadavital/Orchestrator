@@ -28,6 +28,8 @@ const captureView = process.argv.includes('--settings-deeplink')
         ? 'header'
       : process.argv.includes('--multi-window-focus')
         ? 'multi-window-focus'
+      : process.argv.includes('--worktree-lifecycle')
+        ? 'worktree-lifecycle'
       : process.argv.includes('--workbench-new-tab')
         ? 'workbench-new-tab'
       : process.argv.includes('--environment')
@@ -125,7 +127,7 @@ const userDataDir = join(tmpdir(), 'orchestrator-profiles', `${profile}-${captur
 const workspaceDir = join(tmpdir(), 'orchestrator-automated-ui-workspace')
 const isDiffCaptureView = captureView === 'diff' || captureView.startsWith('diff-')
 const fixtureWorkspaceViews = new Set(['inspector', 'right-panel', 'workbench-new-tab', 'environment', 'workbench-perf', 'diff', 'diff-entry', 'diff-empty', 'diff-loading', 'diff-conflict', 'diff-narrow', 'diff-core', 'diff-last-turn', 'diff-source', 'diff-preview', 'files', 'side-chat', 'browser'])
-const resetWorkspaceViews = new Set([...fixtureWorkspaceViews, 'sidebar', 'multi-window-focus'])
+const resetWorkspaceViews = new Set([...fixtureWorkspaceViews, 'sidebar', 'multi-window-focus', 'worktree-lifecycle'])
 const outputPath = join(tmpdir(), `orchestrator-automated-ui-smoke-${captureView}-${Date.now()}.json`)
 const screenshotPath = join(tmpdir(), `orchestrator-automated-ui-smoke-${captureView}-${Date.now()}.png`)
 let browserSmokeServer = null
@@ -1692,7 +1694,7 @@ if (fixtureWorkspaceViews.has(captureView)) {
   if (address && typeof address === 'object') browserSmokeUrl = `http://127.0.0.1:${address.port}`
 }
 
-if (captureView === 'sidebar') {
+if (captureView === 'sidebar' || captureView === 'worktree-lifecycle') {
   writeFileSync(join(workspaceDir, 'README.md'), '# Sidebar worktree smoke\n')
   spawnSync('git', ['init'], { cwd: workspaceDir, stdio: 'ignore' })
   spawnSync('git', ['config', 'user.email', 'orchestrator-smoke@example.test'], { cwd: workspaceDir, stdio: 'ignore' })
@@ -1791,6 +1793,13 @@ child.on('exit', async (code) => {
         activeWindowAfterRefocus: result.activeWindowAfterRefocus === true,
         focusSwitchRestoresFirstWindowMenu: result.focusSwitchRestoresFirstWindowMenu === true,
         menuCommandRoutedToFocusedWindow: result.menuCommandRoutedToFocusedWindow === true
+      }
+    : captureView === 'worktree-lifecycle'
+    ? {
+        isolatedProfile: result.profile?.isIsolated === true,
+        pendingWorktreeNotice: result.pendingWorktreeNoticeWorks === true,
+        failedWorktreeNotice: result.failedWorktreeNoticeWorks === true,
+        failedWorktreeRetry: result.failedWorktreeRetryWorks === true
       }
     : captureView === 'session-switch'
     ? {
