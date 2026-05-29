@@ -2619,6 +2619,7 @@ child.on('exit', async (code) => {
           filesBinaryPreview: result.filesBinaryPreviewWorks === true,
           filesFallbackNoticeShared: result.filesFallbackNoticeSharedWorks === true,
           filesNoResults: result.filesNoResultsWorks === true,
+          filesSearchHistory: result.filesSearchHistoryWorks === true,
           filesSearchClear: result.filesSearchClearWorks === true
         }
     : captureView === 'side-chat'

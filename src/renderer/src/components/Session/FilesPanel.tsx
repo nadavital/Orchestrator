@@ -21,6 +21,9 @@ async function writeFilesClipboardText(text: string): Promise<void> {
 }
 
 const FILES_ACTION_MENU_ID = 'files-action-menu-surface'
+const FILE_SEARCH_HISTORY_MENU_ID = 'workspace-file-search-history-menu'
+const FILE_SEARCH_HISTORY_KEY = 'orchestrator.files.searchHistory'
+const FILE_SEARCH_HISTORY_LIMIT = 6
 
 interface Props {
   sessionId?: string
@@ -38,6 +41,8 @@ export default function FilesPanel({ sessionId, workDir, embedded = false }: Pro
   const [actionMenuOpen, setActionMenuOpen] = useState(false)
   const [rowMenu, setRowMenu] = useState<{ path: string; x: number; y: number } | null>(null)
   const [filesActionStatus, setFilesActionStatus] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
+  const [searchHistory, setSearchHistory] = useState<string[]>(() => readFileSearchHistory())
+  const [searchHistoryOpen, setSearchHistoryOpen] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const requestIdRef = useRef(0)
   const openRightPanelFileTab = useSessionStore((state) => state.openRightPanelFileTab)
@@ -73,7 +78,10 @@ export default function FilesPanel({ sessionId, workDir, embedded = false }: Pro
     dataOpenTarget: entry.kind === 'file' && sessionId ? contentMatchLine(entry) !== undefined ? 'workbench-preview-line' : 'workbench-preview' : 'select',
     onSelect: () => setSelectedPath(entry.path),
     onOpen: entry.kind === 'file' && sessionId
-      ? () => openRightPanelFileTab(sessionId, entry.path, { preview: true, line: contentMatchLine(entry) })
+      ? () => {
+          rememberSearchQuery()
+          openRightPanelFileTab(sessionId, entry.path, { preview: true, line: contentMatchLine(entry) })
+        }
       : entry.kind === 'directory' && entry.hasChildren
         ? () => toggleDirectory(entry.path)
         : undefined,
@@ -191,6 +199,7 @@ export default function FilesPanel({ sessionId, workDir, embedded = false }: Pro
 
   const openEntryInWorkbench = (entry: WorkspaceSearchEntry | null): void => {
     if (!sessionId || !entry || entry.kind !== 'file') return
+    rememberSearchQuery()
     openRightPanelFileTab(sessionId, entry.path, { preview: true, line: contentMatchLine(entry) })
   }
 
@@ -206,6 +215,67 @@ export default function FilesPanel({ sessionId, workDir, embedded = false }: Pro
       .then(() => setFilesActionStatus({ text: 'Path copied', tone: 'info' }))
       .catch(() => setFilesActionStatus({ text: 'Copy path failed', tone: 'danger' }))
   }
+
+  const rememberSearchQuery = (value = query): void => {
+    const normalized = value.trim().replace(/\s+/g, ' ')
+    if (!normalized) return
+    const next = [
+      normalized,
+      ...searchHistory.filter((candidate) => candidate.toLowerCase() !== normalized.toLowerCase())
+    ].slice(0, FILE_SEARCH_HISTORY_LIMIT)
+    writeFileSearchHistory(next)
+    setSearchHistory(next)
+  }
+
+  const chooseSearchHistory = (value: string): void => {
+    setQuery(value)
+    rememberSearchQuery(value)
+    setSearchHistoryOpen(false)
+    window.requestAnimationFrame(() => searchInputRef.current?.focus())
+  }
+
+  const searchHistoryButton = (
+    <div className="files-search-history relative" data-file-search-history-count={searchHistory.length}>
+      <IconButton
+        icon="clock"
+        label="Recent file searches"
+        size="xs"
+        variant="toolbar"
+        tooltip={false}
+        disabled={searchHistory.length === 0}
+        active={searchHistoryOpen}
+        dataTestId="workspace-file-search-history-trigger"
+        ariaExpanded={searchHistoryOpen}
+        ariaControls={FILE_SEARCH_HISTORY_MENU_ID}
+        ariaHasPopup="menu"
+        onClick={(event) => {
+          event.stopPropagation()
+          setSearchHistoryOpen((open) => !open)
+        }}
+      />
+      {searchHistoryOpen && (
+        <MenuSurface
+          id={FILE_SEARCH_HISTORY_MENU_ID}
+          className="files-search-history-menu"
+          onClose={() => setSearchHistoryOpen(false)}
+          style={{ position: 'absolute', right: -4, top: 22, width: 220, zIndex: 100 }}
+        >
+          <MenuSection dataTestId="workspace-file-search-history-section">
+            <MenuSectionLabel>Recent searches</MenuSectionLabel>
+            {searchHistory.map((item) => (
+              <MenuItem
+                key={item}
+                icon="search"
+                label={item}
+                dataTestId="workspace-file-search-history-item"
+                onClick={() => chooseSearchHistory(item)}
+              />
+            ))}
+          </MenuSection>
+        </MenuSurface>
+      )}
+    </div>
+  )
 
   const addEntryToChat = (entry: WorkspaceSearchEntry | null): void => {
     if (!entry || entry.kind !== 'file') return
@@ -301,6 +371,10 @@ export default function FilesPanel({ sessionId, workDir, embedded = false }: Pro
           dataTestId="workspace-file-search"
           clearDataTestId="workspace-file-search-clear"
           className="files-panel-search flex-1"
+          trailing={searchHistoryButton}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') rememberSearchQuery()
+          }}
         />
         <Badge
           tone="neutral"
@@ -3536,6 +3610,32 @@ function contentMatchLine(entry: WorkspaceSearchEntry | null): number | undefine
   if (entry?.matchKind !== 'content' || typeof entry.matchLine !== 'number') return undefined
   if (!Number.isFinite(entry.matchLine) || entry.matchLine <= 0) return undefined
   return Math.floor(entry.matchLine)
+}
+
+function readFileSearchHistory(): string[] {
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(FILE_SEARCH_HISTORY_KEY) ?? '[]')
+    if (!Array.isArray(parsed)) return []
+    const unique: string[] = []
+    for (const item of parsed) {
+      if (typeof item !== 'string') continue
+      const normalized = item.trim().replace(/\s+/g, ' ')
+      if (!normalized || unique.some((candidate) => candidate.toLowerCase() === normalized.toLowerCase())) continue
+      unique.push(normalized)
+      if (unique.length >= FILE_SEARCH_HISTORY_LIMIT) break
+    }
+    return unique
+  } catch {
+    return []
+  }
+}
+
+function writeFileSearchHistory(values: string[]): void {
+  try {
+    window.localStorage.setItem(FILE_SEARCH_HISTORY_KEY, JSON.stringify(values.slice(0, FILE_SEARCH_HISTORY_LIMIT)))
+  } catch {
+    // Search recall is best-effort and should never block file browsing.
+  }
 }
 
 function directoryAncestors(filePath: string): WorkspaceSearchEntry[] {

@@ -14606,6 +14606,7 @@ function runAutomatedFocusedSurfaceSmoke(
               let fileOpenTargetOutcomeDiagnosticWorks = false;
               let fileSourceAddToChatWorks = false;
               let fileSourceLineBlameWorks = false;
+              let filesSearchHistoryWorks = false;
               const fileActionMenuButton = findButton('File actions');
               if (fileActionMenuButton instanceof HTMLButtonElement) {
                 fileActionMenuButton.click();
@@ -16634,6 +16635,7 @@ function runAutomatedFocusedSurfaceSmoke(
               if (contentSearch instanceof HTMLInputElement) {
                 setNativeValue(contentSearch, 'content-only sentinel phrase');
                 contentSearch.dispatchEvent(new Event('input', { bubbles: true }));
+                contentSearch.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true, cancelable: true }));
                 await sleep(420);
               }
               const contentSearchRow = [...document.querySelectorAll('[data-testid="files-panel-list"] [data-workbench-tree-row="true"][data-kind="file"]')]
@@ -16676,13 +16678,50 @@ function runAutomatedFocusedSurfaceSmoke(
                 noResultsSearch.dispatchEvent(new Event('input', { bubbles: true }));
                 await sleep(300);
               }
-	              const filesNoResultsState = document.querySelector('[data-testid="workspace-file-empty-list"]');
-	              const filesNoResultsWorks =
-	                filesNoResultsState instanceof HTMLElement &&
-	                filesNoResultsState.innerText.includes('No matching files') &&
-	                filesNoResultsState.getAttribute('data-workbench-tree-message') === 'true' &&
-	                filesNoResultsState.getAttribute('data-workbench-tree-message-state') === 'no-matches' &&
-	                filesNoResultsState.querySelector('svg') === null;
+              const filesNoResultsState = document.querySelector('[data-testid="workspace-file-empty-list"]');
+              const filesNoResultsWorks =
+                filesNoResultsState instanceof HTMLElement &&
+                filesNoResultsState.innerText.includes('No matching files') &&
+                filesNoResultsState.getAttribute('data-workbench-tree-message') === 'true' &&
+                filesNoResultsState.getAttribute('data-workbench-tree-message-state') === 'no-matches' &&
+                filesNoResultsState.querySelector('svg') === null;
+              const fileSearchHistoryTrigger = document.querySelector('[data-testid="workspace-file-search-history-trigger"]');
+              if (fileSearchHistoryTrigger instanceof HTMLButtonElement) {
+                fileSearchHistoryTrigger.click();
+                await sleep(160);
+                const historySection = document.querySelector('[data-testid="workspace-file-search-history-section"]');
+                const historyItems = [...document.querySelectorAll('[data-testid="workspace-file-search-history-item"]')]
+                  .filter((item) => item instanceof HTMLElement);
+                const contentHistoryItem = historyItems
+                  .find((item) => item.textContent?.includes('content-only sentinel phrase'));
+                const historyMenuSurface = contentHistoryItem instanceof HTMLElement
+                  ? contentHistoryItem.closest('.orchestrator-menu-surface')
+                  : null;
+                const historyRowsCompact = historyItems.length > 0 && historyItems.every((item) =>
+                  item instanceof HTMLElement &&
+                  item.getBoundingClientRect().height <= 30 &&
+                  getComputedStyle(item).fontWeight === '400'
+                );
+                if (contentHistoryItem instanceof HTMLElement) {
+                  contentHistoryItem.click();
+                  await sleep(420);
+                }
+                const restoredSearch = document.querySelector('[data-testid="workspace-file-search"]');
+                const restoredContentRow = [...document.querySelectorAll('[data-testid="files-panel-list"] [data-workbench-tree-row="true"][data-kind="file"]')]
+                  .find((row) => row instanceof HTMLElement && row.textContent?.includes('reference.md'));
+                filesSearchHistoryWorks =
+                  fileSearchHistoryTrigger.getAttribute('aria-haspopup') === 'menu' &&
+                  fileSearchHistoryTrigger.getAttribute('aria-controls') === 'workspace-file-search-history-menu' &&
+                  !fileSearchHistoryTrigger.disabled &&
+                  historySection instanceof HTMLElement &&
+                  historySection.classList.contains('orchestrator-menu-section') &&
+                  historyRowsCompact &&
+                  contentHistoryItem instanceof HTMLElement &&
+                  historyMenuSurface instanceof HTMLElement &&
+                  restoredSearch instanceof HTMLInputElement &&
+                  restoredSearch.value === 'content-only sentinel phrase' &&
+                  restoredContentRow instanceof HTMLElement;
+              }
               const clearButton = document.querySelector('[data-testid="workspace-file-search-clear"]');
               if (clearButton instanceof HTMLButtonElement) {
                 clearButton.click();
@@ -17622,6 +17661,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 filesNotebookRichOutputItemChromeWorks: Boolean(notebookRichOutputItemChromeChecks['workspace-notebook-preview']),
                 filesFallbackNoticeSharedWorks,
                 filesNoResultsWorks,
+                filesSearchHistoryWorks,
                 filesSearchClearWorks
               };
             }
