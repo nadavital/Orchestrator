@@ -96,6 +96,35 @@ test('commit staged creates a commit and leaves unstaged edits alone', async () 
   }
 })
 
+test('create branch validates names and checks out the new branch', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'orchestrator-git-create-branch-'))
+  try {
+    writeFileSync(join(root, 'tracked.txt'), 'before\n')
+    git(root, 'init')
+    git(root, 'config', 'user.email', 'orchestrator-test@example.test')
+    git(root, 'config', 'user.name', 'Orchestrator Test')
+    git(root, 'add', '.')
+    git(root, 'commit', '-m', 'baseline')
+    writeFileSync(join(root, 'tracked.txt'), 'before\ndirty\n')
+
+    const empty = await gitManager.createBranch(root, '   ')
+    assert.equal(empty.ok, false)
+    assert.match(empty.error ?? '', /branch name/i)
+
+    const result = await gitManager.createBranch(root, 'orchestrator/git-panel-test')
+    assert.equal(result.ok, true)
+    assert.equal(result.currentBranch, 'orchestrator/git-panel-test')
+    assert.equal(result.branches.find((branch) => branch.name === 'orchestrator/git-panel-test')?.current, true)
+
+    const current = spawnSync('git', ['branch', '--show-current'], { cwd: root, encoding: 'utf-8' })
+    assert.equal(current.status, 0, current.stderr || current.stdout)
+    assert.equal(current.stdout.trim(), 'orchestrator/git-panel-test')
+    assert.equal(readFileSync(join(root, 'tracked.txt'), 'utf-8'), 'before\ndirty\n')
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
 test('changed files expose unmerged conflict state for review helpers', async () => {
   const root = mkdtempSync(join(tmpdir(), 'orchestrator-git-conflict-state-'))
   try {

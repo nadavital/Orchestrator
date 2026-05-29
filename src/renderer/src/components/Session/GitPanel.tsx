@@ -11,7 +11,7 @@ interface Props {
   onOpenReview: () => void
 }
 
-type GitActionState = 'idle' | 'loading' | 'staging' | 'unstaging' | 'committing' | 'discarding'
+type GitActionState = 'idle' | 'loading' | 'staging' | 'unstaging' | 'branching' | 'committing' | 'discarding'
 
 export default function GitPanel({ sessionId, workDir, embedded = false, onOpenReview }: Props): JSX.Element {
   const [changes, setChanges] = useState<FileChange[]>([])
@@ -19,7 +19,9 @@ export default function GitPanel({ sessionId, workDir, embedded = false, onOpenR
   const [actionState, setActionState] = useState<GitActionState>('loading')
   const [actionMessage, setActionMessage] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
   const [commitMessage, setCommitMessage] = useState('')
+  const [branchName, setBranchName] = useState('')
   const [lastCommit, setLastCommit] = useState<string | null>(null)
+  const [lastCreatedBranch, setLastCreatedBranch] = useState<string | null>(null)
   const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false)
 
   const refresh = async (): Promise<void> => {
@@ -63,6 +65,7 @@ export default function GitPanel({ sessionId, workDir, embedded = false, onOpenR
   const currentBranch = branches.find((branch) => branch.current)?.label ?? 'main'
   const busy = actionState !== 'idle'
   const commitReady = stagedPaths.length > 0 && commitMessage.trim().length > 0
+  const branchReady = branchName.trim().length > 0
 
   const runPathAction = async (action: 'stage' | 'unstage'): Promise<void> => {
     const paths = action === 'stage' ? unstagedPaths : stagedPaths
@@ -85,6 +88,30 @@ export default function GitPanel({ sessionId, workDir, embedded = false, onOpenR
       }
     } catch (error) {
       setActionMessage({ text: error instanceof Error ? error.message : 'Git action failed', tone: 'danger' })
+    } finally {
+      setActionState('idle')
+    }
+  }
+
+  const runCreateBranch = async (event?: FormEvent<HTMLFormElement>): Promise<void> => {
+    event?.preventDefault()
+    if (!branchReady || busy) return
+    const nextBranchName = branchName.trim()
+    setActionState('branching')
+    setActionMessage({ text: `Creating branch ${nextBranchName}`, tone: 'info' })
+    setLastCreatedBranch(null)
+    try {
+      const result = await window.api.git.createBranch(workDir, nextBranchName)
+      setBranches(result.branches)
+      if (result.ok) {
+        setBranchName('')
+        setLastCreatedBranch(result.currentBranch ?? result.branchName ?? nextBranchName)
+        setActionMessage({ text: `Created branch ${result.currentBranch ?? result.branchName ?? nextBranchName}`, tone: 'info' })
+      } else {
+        setActionMessage({ text: result.error || `Create branch failed for ${nextBranchName}`, tone: 'danger' })
+      }
+    } catch (error) {
+      setActionMessage({ text: error instanceof Error ? error.message : 'Create branch failed', tone: 'danger' })
     } finally {
       setActionState('idle')
     }
@@ -151,6 +178,7 @@ export default function GitPanel({ sessionId, workDir, embedded = false, onOpenR
       data-git-unstaged-count={unstagedPaths.length}
       data-git-action-state={actionState}
       data-git-last-commit={lastCommit ?? ''}
+      data-git-last-created-branch={lastCreatedBranch ?? ''}
       style={{ height: embedded ? '100%' : undefined }}
     >
       <div className="environment-panel-scroll">
@@ -181,7 +209,7 @@ export default function GitPanel({ sessionId, workDir, embedded = false, onOpenR
               {actionMessage.text}
             </div>
           )}
-          <GitRow icon="branch" label={currentBranch} dataTestId="git-current-branch" />
+          <GitRow icon="branch" label={currentBranch} dataTestId="git-current-branch" dataCurrentBranch={currentBranch} />
           <GitRow
             icon="diff"
             label="Changes"
@@ -244,6 +272,35 @@ export default function GitPanel({ sessionId, workDir, embedded = false, onOpenR
             </Button>
           </div>
         </div>
+
+        <form className="environment-card git-branch-card" data-testid="git-branch-card" onSubmit={(event) => { void runCreateBranch(event) }}>
+          <div className="environment-card-header">
+            <span>Branch</span>
+            <span className="environment-row-muted">{currentBranch}</span>
+          </div>
+          <div className="git-commit-row">
+            <input
+              className="git-commit-input"
+              data-testid="git-branch-name"
+              value={branchName}
+              disabled={busy}
+              placeholder="New branch name"
+              aria-label="New branch name"
+              onChange={(event) => setBranchName(event.target.value)}
+            />
+            <Button
+              type="submit"
+              variant="primary"
+              dataTestId="git-create-branch"
+              disabled={busy || !branchReady}
+            >
+              Create branch
+            </Button>
+          </div>
+          {lastCreatedBranch && (
+            <div className="git-commit-meta" data-testid="git-last-created-branch">Current branch {lastCreatedBranch}</div>
+          )}
+        </form>
 
         <form className="environment-card git-commit-card" data-testid="git-commit-card" onSubmit={(event) => { void runCommit(event) }}>
           <div className="environment-card-header">
@@ -340,7 +397,8 @@ function GitRow({
   dataTestId,
   action,
   title,
-  onClick
+  onClick,
+  dataCurrentBranch
 }: {
   icon: IconName
   label: string
@@ -349,6 +407,7 @@ function GitRow({
   action?: string
   title?: string
   onClick?: () => void
+  dataCurrentBranch?: string
 }): JSX.Element {
   const content = (
     <>
@@ -364,6 +423,7 @@ function GitRow({
         className="environment-row"
         data-testid={dataTestId}
         data-git-row-action={action}
+        data-git-current-branch={dataCurrentBranch}
         aria-label={title ? `${label}. ${title}` : label}
         title={title}
         onClick={onClick}
@@ -373,7 +433,7 @@ function GitRow({
     )
   }
   return (
-    <div className="environment-row" data-testid={dataTestId} data-git-row-action={action} title={title}>
+    <div className="environment-row" data-testid={dataTestId} data-git-row-action={action} data-git-current-branch={dataCurrentBranch} title={title}>
       {content}
     </div>
   )

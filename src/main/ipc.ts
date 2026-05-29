@@ -6,7 +6,7 @@ import { closeSync, openSync, readFileSync, readSync, writeFileSync, mkdirSync, 
 import { tmpdir } from 'os'
 import { basename, dirname, extname, join } from 'path'
 import { inflateRawSync } from 'zlib'
-import type { Attachment, AutomationUpsertRequest, CapabilityCreateRequest, CapabilityDeleteRequest, CapabilitySyncRequest, CapabilityUpdateRequest, ChatMessage, GitCommitResult, GitLineBlameResult, GitPathActionResult, OpenPathMethod, OpenPathOptions, OpenPathResult, OpenTargetAvailability, PerformanceMetric, PreferredOpenTarget, ReviewDiffSource, Session, SessionForkMode, SessionForkOptions, SideQuestionMessage, TranscriptPageRequest, WorkspaceSearchRequest } from '../types'
+import type { Attachment, AutomationUpsertRequest, CapabilityCreateRequest, CapabilityDeleteRequest, CapabilitySyncRequest, CapabilityUpdateRequest, ChatMessage, GitBranchActionResult, GitCommitResult, GitLineBlameResult, GitPathActionResult, OpenPathMethod, OpenPathOptions, OpenPathResult, OpenTargetAvailability, PerformanceMetric, PreferredOpenTarget, ReviewDiffSource, Session, SessionForkMode, SessionForkOptions, SideQuestionMessage, TranscriptPageRequest, WorkspaceSearchRequest } from '../types'
 import { browserWebviewPartitionForHost, isOrchestratorBrowserWebviewPartition } from '../types'
 import { projectStore } from './projects'
 import { sessionManager } from './sessions'
@@ -3056,6 +3056,9 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('git:getCurrentBranch', (_, dir: string) => gitManager.getCurrentBranch(dir))
   ipcMain.handle('git:listBranches', (_, dir: string) => gitManager.listBranches(dir))
   ipcMain.handle('git:listRecentCommits', (_, dir: string) => gitManager.listRecentCommits(dir))
+  ipcMain.handle('git:createBranch', (_, dir: string, branchName: string): Promise<GitBranchActionResult> =>
+    gitManager.createBranch(dir, typeof branchName === 'string' ? branchName : '')
+  )
   ipcMain.handle('git:stagePaths', (_, dir: string, paths: string[]): Promise<GitPathActionResult> =>
     gitManager.stagePaths(dir, Array.isArray(paths) ? paths : [])
   )

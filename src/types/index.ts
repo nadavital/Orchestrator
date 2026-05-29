@@ -1963,6 +1963,14 @@ export interface GitCommitResult {
   error?: string
 }
 
+export interface GitBranchActionResult {
+  ok: boolean
+  branchName?: string
+  currentBranch?: string | null
+  branches: GitRefOption[]
+  error?: string
+}
+
 export interface GitLineBlameResult {
   ok: boolean
   path: string

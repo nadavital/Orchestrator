@@ -3,7 +3,7 @@ import { join, resolve, sep } from 'path'
 import { mkdirSync } from 'fs'
 import { execFile, spawnSync } from 'child_process'
 import { promisify } from 'util'
-import type { FileChange, GitCommitResult, GitLineBlameResult, GitPathActionResult, GitRefOption, ReviewDiffSource, ReviewMetadata, ReviewCheckStatus, ReviewProviderBlame } from '../types'
+import type { FileChange, GitBranchActionResult, GitCommitResult, GitLineBlameResult, GitPathActionResult, GitRefOption, ReviewDiffSource, ReviewMetadata, ReviewCheckStatus, ReviewProviderBlame } from '../types'
 
 const execFileAsync = promisify(execFile)
 
@@ -91,6 +91,33 @@ export const gitManager = {
       }).filter((option) => option.name.length > 0)
     } catch {
       return []
+    }
+  },
+
+  async createBranch(cwd: string, branchName: string): Promise<GitBranchActionResult> {
+    const cleanBranchName = normalizeBranchName(branchName)
+    if (!cleanBranchName) {
+      return { ok: false, branches: await this.listBranches(cwd), currentBranch: await this.getCurrentBranch(cwd), error: 'Enter a branch name.' }
+    }
+
+    try {
+      const git = simpleGit(cwd)
+      await git.raw(['check-ref-format', '--branch', cleanBranchName])
+      await git.raw(['checkout', '-b', cleanBranchName])
+      return {
+        ok: true,
+        branchName: cleanBranchName,
+        currentBranch: await this.getCurrentBranch(cwd),
+        branches: await this.listBranches(cwd)
+      }
+    } catch (error) {
+      return {
+        ok: false,
+        branchName: cleanBranchName,
+        currentBranch: await this.getCurrentBranch(cwd),
+        branches: await this.listBranches(cwd),
+        error: error instanceof Error ? error.message : String(error)
+      }
     }
   },
 
@@ -812,6 +839,10 @@ function normalizeCommitMessage(message: string): string {
     .map((line) => line.trimEnd())
     .join('\n')
     .trim()
+}
+
+function normalizeBranchName(branchName: string): string {
+  return branchName.trim()
 }
 
 function isSafeRelativePath(cwd: string, filePath: string): boolean {

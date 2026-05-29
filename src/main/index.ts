@@ -8152,6 +8152,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   newTabCardIds.includes('agents') &&
                   newTabCardIds.includes('terminal');
                 let workbenchNewTabGitActionWorks = false;
+                let workbenchNewTabGitBranchWorks = false;
                 let workbenchNewTabGitCommitWorks = false;
                 let workbenchNewTabGitDiscardWorks = false;
                 const gitAction = document.querySelector('[data-testid="workbench-new-tab-action-git"]');
@@ -8179,6 +8180,46 @@ function runAutomatedFocusedSurfaceSmoke(
                   const gitChangeCountBefore = gitPanelBefore instanceof HTMLElement
                     ? Number(gitPanelBefore.getAttribute('data-git-change-count') ?? '0')
                     : 0;
+                  const smokeBranchName = 'orchestrator/git-smoke-' + Date.now();
+                  const gitBranchInput = document.querySelector('[data-testid="git-branch-name"]');
+                  const gitCreateBranch = document.querySelector('[data-testid="git-create-branch"]');
+                  if (gitBranchInput instanceof HTMLInputElement && gitCreateBranch instanceof HTMLButtonElement) {
+                    const branchSetter = Object.getOwnPropertyDescriptor(gitBranchInput.constructor.prototype, 'value')?.set;
+                    branchSetter?.call(gitBranchInput, smokeBranchName);
+                    gitBranchInput.dispatchEvent(new Event('input', { bubbles: true }));
+                    await sleep(120);
+                    if (!gitCreateBranch.disabled) {
+                      gitCreateBranch.click();
+                      for (let attempt = 0; attempt < 24; attempt += 1) {
+                        await sleep(120);
+                        const gitPanelAfterBranch = document.querySelector('[data-testid="git-panel"]');
+                        const gitBranchAfterCreate = document.querySelector('[data-testid="git-current-branch"]');
+                        const gitStatusAfterBranch = document.querySelector('[data-testid="git-action-status"]');
+                        if (
+                          gitPanelAfterBranch instanceof HTMLElement &&
+                          gitPanelAfterBranch.getAttribute('data-git-action-state') === 'idle' &&
+                          gitPanelAfterBranch.getAttribute('data-git-last-created-branch') === smokeBranchName &&
+                          gitBranchAfterCreate instanceof HTMLElement &&
+                          gitBranchAfterCreate.getAttribute('data-git-current-branch') === smokeBranchName &&
+                          gitStatusAfterBranch instanceof HTMLElement &&
+                          gitStatusAfterBranch.textContent?.includes('Created branch') === true
+                        ) {
+                          break;
+                        }
+                      }
+                    }
+                  }
+                  const gitPanelAfterBranch = document.querySelector('[data-testid="git-panel"]');
+                  const gitBranchAfterCreate = document.querySelector('[data-testid="git-current-branch"]');
+                  const gitStatusAfterBranch = document.querySelector('[data-testid="git-action-status"]');
+                  workbenchNewTabGitBranchWorks =
+                    gitPanelAfterBranch instanceof HTMLElement &&
+                    gitPanelAfterBranch.getAttribute('data-git-last-created-branch') === smokeBranchName &&
+                    gitBranchAfterCreate instanceof HTMLElement &&
+                    gitBranchAfterCreate.getAttribute('data-git-current-branch') === smokeBranchName &&
+                    gitStatusAfterBranch instanceof HTMLElement &&
+                    gitStatusAfterBranch.getAttribute('role') === 'status' &&
+                    gitStatusAfterBranch.textContent?.includes('Created branch') === true;
                   const gitDiscardBeforeStage = document.querySelector('[data-testid="git-discard-all"]');
                   if (gitDiscardBeforeStage instanceof HTMLButtonElement && !gitDiscardBeforeStage.disabled) {
                     gitDiscardBeforeStage.click();
@@ -8318,6 +8359,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     gitOpenReview instanceof HTMLButtonElement &&
                     gitFileRowsBefore.length >= 3 &&
                     gitChangeCountBefore >= 3 &&
+                    workbenchNewTabGitBranchWorks &&
                     gitAfterStageUnstagedCount === 0 &&
                     gitAfterStageStagedCount >= gitChangeCountBefore &&
                     gitAfterUnstageStagedCount === 0 &&
@@ -8715,6 +8757,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     finalActiveNewTab instanceof HTMLElement,
                   workbenchNewTabAgentsActionWorks,
                   workbenchNewTabGitActionWorks,
+                  workbenchNewTabGitBranchWorks,
                   workbenchNewTabGitCommitWorks,
                   workbenchNewTabGitDiscardWorks,
                   agentRuntimeEventDetailWorks,
