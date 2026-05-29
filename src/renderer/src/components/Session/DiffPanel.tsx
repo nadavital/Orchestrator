@@ -1906,6 +1906,7 @@ export default function DiffPanel({ sessionId, workDir, embedded = false, focusP
                     onCommentsChange={(updater) => setReviewCommentsForPath(change.path, updater)}
                     onOpenFileLine={(line) => openFileTabAtLine(change.path, line)}
                     onConflictResolved={() => refreshReviewFileAfterMutation(change.path)}
+                    onMarkResolved={() => runReviewPathAction('stage', change.path)}
                   />
                 )
               })}
@@ -2170,7 +2171,8 @@ function ReviewFileSection({
   onSelect,
   onCommentsChange,
   onOpenFileLine,
-  onConflictResolved
+  onConflictResolved,
+  onMarkResolved
 }: {
   change: FileChange
   content: ReviewFileContent
@@ -2192,6 +2194,7 @@ function ReviewFileSection({
   onCommentsChange: (updater: ReviewDiffCommentUpdater) => void
   onOpenFileLine: (line: number) => void
   onConflictResolved: () => void | Promise<void>
+  onMarkResolved: () => void | Promise<void>
 }): JSX.Element {
   return (
     <section
@@ -2265,6 +2268,7 @@ function ReviewFileSection({
           onCommentsChange={onCommentsChange}
           onOpenFileLine={onOpenFileLine}
           onConflictResolved={onConflictResolved}
+          onMarkResolved={onMarkResolved}
         />
       </div>
     </section>
@@ -2401,7 +2405,8 @@ function ReviewPreview({
   comments,
   onCommentsChange,
   onOpenFileLine,
-  onConflictResolved
+  onConflictResolved,
+  onMarkResolved
 }: {
   change: FileChange | null
   diff: string
@@ -2424,6 +2429,7 @@ function ReviewPreview({
   onCommentsChange: (updater: ReviewDiffCommentUpdater) => void
   onOpenFileLine: (line: number) => void
   onConflictResolved: () => void | Promise<void>
+  onMarkResolved: () => void | Promise<void>
 }): JSX.Element {
   if (!change) {
     return <ReviewEmptyState title="No file selected" body="Select a change." />
@@ -2464,7 +2470,7 @@ function ReviewPreview({
     )
   }
   if (shouldPreferTextDiff(diff) && !preferPreview) {
-    return <DiffLines diff={diff} filePath={change.path} workDir={workDir} absolutePath={absolutePath} conflicted={change.conflicted === true} wrap={wrap} mode={diffMode} expanded={expanded} hideWhitespace={hideWhitespace} showWordDiff={showWordDiff} searchQuery={reviewSearchQuery} activeSearchMatchIndex={activeReviewSearchMatchIndex} comments={comments} onCommentsChange={onCommentsChange} onOpenFileLine={onOpenFileLine} onConflictResolved={onConflictResolved} />
+    return <DiffLines diff={diff} filePath={change.path} workDir={workDir} absolutePath={absolutePath} conflicted={change.conflicted === true} wrap={wrap} mode={diffMode} expanded={expanded} hideWhitespace={hideWhitespace} showWordDiff={showWordDiff} searchQuery={reviewSearchQuery} activeSearchMatchIndex={activeReviewSearchMatchIndex} comments={comments} onCommentsChange={onCommentsChange} onOpenFileLine={onOpenFileLine} onConflictResolved={onConflictResolved} onMarkResolved={onMarkResolved} />
   }
   if (preview?.kind === 'image') {
     return (
@@ -2573,7 +2579,7 @@ function ReviewPreview({
     )
   }
   if (diff.trim()) {
-    return <DiffLines diff={diff} filePath={change.path} workDir={workDir} absolutePath={absolutePath} conflicted={change.conflicted === true} wrap={wrap} mode={diffMode} expanded={expanded} hideWhitespace={hideWhitespace} showWordDiff={showWordDiff} searchQuery={reviewSearchQuery} activeSearchMatchIndex={activeReviewSearchMatchIndex} comments={comments} onCommentsChange={onCommentsChange} onOpenFileLine={onOpenFileLine} onConflictResolved={onConflictResolved} />
+    return <DiffLines diff={diff} filePath={change.path} workDir={workDir} absolutePath={absolutePath} conflicted={change.conflicted === true} wrap={wrap} mode={diffMode} expanded={expanded} hideWhitespace={hideWhitespace} showWordDiff={showWordDiff} searchQuery={reviewSearchQuery} activeSearchMatchIndex={activeReviewSearchMatchIndex} comments={comments} onCommentsChange={onCommentsChange} onOpenFileLine={onOpenFileLine} onConflictResolved={onConflictResolved} onMarkResolved={onMarkResolved} />
   }
   if (preview?.kind === 'text' && preview.text?.trim()) {
     return (
@@ -3258,7 +3264,8 @@ function DiffLines({
   comments,
   onCommentsChange,
   onOpenFileLine,
-  onConflictResolved
+  onConflictResolved,
+  onMarkResolved
 }: {
   diff: string
   filePath: string
@@ -3276,6 +3283,7 @@ function DiffLines({
   onCommentsChange: (updater: ReviewDiffCommentUpdater) => void
   onOpenFileLine: (line: number) => void
   onConflictResolved: () => void | Promise<void>
+  onMarkResolved: () => void | Promise<void>
 }): JSX.Element {
   const rawLines = diff.split('\n').filter(
     (l) => !l.startsWith('diff --git') && !l.startsWith('index ') && !l.startsWith('--- ') && !l.startsWith('+++ ')
@@ -3324,6 +3332,7 @@ function DiffLines({
   const [conflictSourceText, setConflictSourceText] = useState<string | null>(null)
   const [conflictActionStatus, setConflictActionStatus] = useState<string | null>(null)
   const [conflictActionError, setConflictActionError] = useState<string | null>(null)
+  const [conflictResolvedActionStatus, setConflictResolvedActionStatus] = useState<string | null>(null)
   const [suggestionStatusById, setSuggestionStatusById] = useState<Record<string, ReviewSuggestionStatus>>({})
   const conflictBlocks = useMemo(() => parseMergeConflictBlocks(conflictSourceText ?? ''), [conflictSourceText])
   const conflictBlockByStartLine = useMemo(() => {
@@ -3409,12 +3418,14 @@ function DiffLines({
     setHiddenContextLoading(null)
     setConflictActionStatus(null)
     setConflictActionError(null)
+    setConflictResolvedActionStatus(null)
   }, [diff])
   useEffect(() => {
     if (!conflicted) {
       setConflictSourceText(null)
       setConflictActionStatus(null)
       setConflictActionError(null)
+      setConflictResolvedActionStatus(null)
       return
     }
     let cancelled = false
@@ -3806,6 +3817,16 @@ function DiffLines({
       setConflictActionStatus(null)
     }
   }
+  const markMergeConflictResolved = async (): Promise<void> => {
+    setConflictResolvedActionStatus('Marking file resolved')
+    try {
+      await onMarkResolved()
+      setConflictResolvedActionStatus('File marked resolved')
+    } catch {
+      setConflictResolvedActionStatus('Mark resolved failed')
+    }
+  }
+  const conflictResolutionComplete = conflicted && conflictSourceText !== null && conflictBlocks.length === 0
   if (!expanded) {
     return <CollapsedDiffLines lines={lines} mode={mode} hiddenWhitespaceChanges={hiddenWhitespaceChanges} />
   }
@@ -3838,6 +3859,12 @@ function DiffLines({
         style={{ fontSize: 11, userSelect: 'text' }}
       >
         {selectedLineActions}
+        {conflictResolutionComplete && (
+          <ReviewMergeConflictResolvedActions
+            status={conflictResolvedActionStatus}
+            onMarkResolved={markMergeConflictResolved}
+          />
+        )}
         {hiddenWhitespaceChanges > 0 && <WhitespaceHiddenNotice count={hiddenWhitespaceChanges} />}
         {hiddenContextSegments.length > 1 && (
           <HiddenContextSummaryControls
@@ -3999,6 +4026,12 @@ function DiffLines({
       style={{ fontSize: 11, userSelect: 'text' }}
     >
       {selectedLineActions}
+      {conflictResolutionComplete && (
+        <ReviewMergeConflictResolvedActions
+          status={conflictResolvedActionStatus}
+          onMarkResolved={markMergeConflictResolved}
+        />
+      )}
       {hiddenWhitespaceChanges > 0 && <WhitespaceHiddenNotice count={hiddenWhitespaceChanges} />}
       {hiddenContextSegments.length > 1 && (
         <HiddenContextSummaryControls
@@ -4576,6 +4609,48 @@ function ReviewMergeConflictActions({ helper }: { helper: ReviewMergeConflictHel
       {helper.error && (
         <div className="review-merge-conflict-error" data-testid="review-merge-conflict-error">
           {helper.error}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ReviewMergeConflictResolvedActions({
+  status,
+  onMarkResolved
+}: {
+  status: string | null
+  onMarkResolved: () => Promise<void>
+}): JSX.Element {
+  return (
+    <div
+      className="review-merge-conflict-resolved"
+      data-testid="review-merge-conflict-resolved"
+      data-review-merge-conflict-resolved-status={status ?? ''}
+      role="group"
+      aria-label="Resolved merge conflict"
+    >
+      <div className="review-merge-conflict-copy">
+        <Icon name="check" size={14} />
+        <span>Conflict choices applied</span>
+        <span>Mark the file resolved to finish the Git state.</span>
+      </div>
+      <button
+        type="button"
+        className="review-merge-conflict-action"
+        data-testid="review-merge-conflict-mark-resolved"
+        disabled={status === 'Marking file resolved'}
+        onClick={(event) => {
+          event.stopPropagation()
+          void onMarkResolved()
+        }}
+      >
+        <span>Mark resolved</span>
+        <span>git add this file</span>
+      </button>
+      {status && (
+        <div className="review-merge-conflict-error" data-testid="review-merge-conflict-resolved-status" role="status" aria-live="polite" aria-atomic="true">
+          {status}
         </div>
       )}
     </div>

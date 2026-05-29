@@ -4393,6 +4393,22 @@
     padding: 7px;
   }
 
+  .review-merge-conflict-resolved {
+    grid-column: 2;
+    display: grid;
+    min-width: 0;
+    gap: 6px;
+    margin: 4px 0 6px;
+    border: 1px solid color-mix(in srgb, var(--color-green) 26%, var(--border-subtle));
+    border-radius: 7px;
+    background: color-mix(in srgb, var(--surface-bg) 90%, var(--color-green));
+    color: var(--text-secondary);
+    font-family: var(--font-ui);
+    font-size: 12px;
+    line-height: 1.25;
+    padding: 7px;
+  }
+
   .review-merge-conflict-copy {
     display: flex;
     min-width: 0;

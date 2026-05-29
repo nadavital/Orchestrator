@@ -123,10 +123,16 @@ const diffRules = [
     diffPatterns: [/WorkbenchTreeContextMenu/, /onContextMenu/, /filesRowKeyboardContextMenu/, /filesTreeKeyboardNavigation/, /fileSourceLineKeyboardNavigation/, /data-keyboard-navigation/, /files-row-context-menu/, /filesAddToChatStatus/, /filesInsertPathTerminal/, /fileSourcePathTerminal/, /workbench-file-tab-insert-terminal/, /Added .* to chat/, /Path inserted in terminal/]
   },
   {
+    flag: '--diff-conflict',
+    label: 'Review merge conflicts',
+    filePatterns: [/^src\/renderer\/src\/components\/Session\/DiffPanel\.tsx$/, /^src\/renderer\/src\/index\.css$/, /^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
+    diffPatterns: [/review-merge-conflict/, /reviewMergeConflict/]
+  },
+  {
     flag: '--diff-core',
     label: 'Review local diff',
     filePatterns: [/^src\/renderer\/src\/components\/Session\/DiffPanel\.tsx$/, /^src\/renderer\/src\/components\/Session\/GitPanel\.tsx$/, /^src\/renderer\/src\/components\/Session\/ContextSidebar\.tsx$/, /^src\/renderer\/src\/components\/Session\/WorkbenchTree\.tsx$/, /^src\/renderer\/src\/index\.css$/, /^src\/renderer\/src\/store\/sessions\.ts$/, /^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
-    diffPatterns: [/reviewRowKeyboardContextMenu/, /reviewRowAddToChat/, /reviewRowInsertPathTerminal/, /reviewGitApplyTerminalHandoff/, /reviewTreeKeyboardNavigation/, /data-keyboard-navigation/, /review-row-context-menu/, /review-row-copy-path/, /review-row-add-chat/, /review-row-insert-terminal/, /review-insert-git-apply-terminal/, /Added .* to chat/, /Review path inserted in terminal/, /Git apply command inserted in terminal/, /__orchestratorLastReviewGitApplyTerminal/, /reviewSelectedGitPathActions/, /review-stage-selected-file/, /review-unstage-selected-file/, /reviewGitHandoffSelectedFile/, /gitReviewHandoffSelectedFile/, /gitFocusPath/, /reviewFocusPath/, /git-file-row-focused/, /git-file-open-review/]
+    diffPatterns: [/reviewRowKeyboardContextMenu/, /reviewRowAddToChat/, /reviewRowInsertPathTerminal/, /reviewGitApplyTerminalHandoff/, /reviewTreeKeyboardNavigation/, /data-keyboard-navigation/, /review-row-context-menu/, /review-row-copy-path/, /review-row-add-chat/, /review-row-insert-terminal/, /review-insert-git-apply-terminal/, /review-merge-conflict-mark-resolved/, /reviewMergeConflictMarkResolved/, /Added .* to chat/, /Review path inserted in terminal/, /Git apply command inserted in terminal/, /__orchestratorLastReviewGitApplyTerminal/, /reviewSelectedGitPathActions/, /review-stage-selected-file/, /review-unstage-selected-file/, /reviewGitHandoffSelectedFile/, /gitReviewHandoffSelectedFile/, /gitFocusPath/, /reviewFocusPath/, /git-file-row-focused/, /git-file-open-review/]
   },
   {
     flag: '--terminal',
@@ -308,6 +314,7 @@ function suggestTargets(paths) {
   suppressHeaderForSmokeHelperDiff(matched, paths)
   suppressHeaderForEnvironmentSmokeHelperDiff(matched, paths)
   restoreDiffTargets(matched, paths)
+  suppressDiffCoreForMergeConflictDiff(matched)
   suppressSettingsForProviderSettingsDiff(matched, paths)
   suppressWorkbenchLauncherForContextSidebarTabDiff(matched, paths)
   suppressRightPanelForContextSidebarTerminalDiff(matched, paths)
@@ -324,6 +331,7 @@ function suggestTargets(paths) {
   suppressDesignSystemForSettingsCssDiff(matched, paths)
   suppressDesignSystemForWorktreesSettingsCssDiff(matched, paths)
   suppressDesignSystemForProviderSettingsCommandHandoffDiff(matched, paths)
+  suppressDesignSystemForReviewConflictCssDiff(matched, paths)
   suppressTranscriptForkForCodeBlockDiff(matched, paths)
   suppressTranscriptLayoutForAgentEventFocusDiff(matched, paths)
   suppressComposerForWorktreeLifecycleDiff(matched, paths)
@@ -682,6 +690,19 @@ function suppressDesignSystemForSettingsCssDiff(matched, paths) {
   matched.delete('--design-system')
 }
 
+function suppressDiffCoreForMergeConflictDiff(matched) {
+  const diffCore = matched.get('--diff-core')
+  const conflict = matched.get('--diff-conflict')
+  if (!diffCore || !conflict) return
+  const conflictFiles = new Set(conflict.files)
+  if (!diffCore.files.every((file) => conflictFiles.has(file))) return
+  const allDiffCoreChangesAreConflictChanges = diffCore.files.every((file) =>
+    /review-merge-conflict|reviewMergeConflict/.test(diffForFile(file))
+  )
+  if (!allDiffCoreChangesAreConflictChanges) return
+  matched.delete('--diff-core')
+}
+
 function suppressDesignSystemForWorktreesSettingsCssDiff(matched, paths) {
   const designSystem = matched.get('--design-system')
   const settings = matched.get('--settings')
@@ -689,6 +710,16 @@ function suppressDesignSystemForWorktreesSettingsCssDiff(matched, paths) {
   if (!designSystem.files.every((file) => file === 'src/renderer/src/index.css')) return
   const diff = paths.includes('src/renderer/src/index.css') ? diffForFile('src/renderer/src/index.css') : ''
   if (!/worktrees-row-actions|worktrees-row-header|worktrees-/.test(diff)) return
+  matched.delete('--design-system')
+}
+
+function suppressDesignSystemForReviewConflictCssDiff(matched, paths) {
+  const designSystem = matched.get('--design-system')
+  const conflict = matched.get('--diff-conflict')
+  if (!designSystem || !conflict) return
+  if (!designSystem.files.every((file) => file === 'src/renderer/src/index.css')) return
+  const diff = paths.includes('src/renderer/src/index.css') ? diffForFile('src/renderer/src/index.css') : ''
+  if (!/review-merge-conflict/.test(diff)) return
   matched.delete('--design-system')
 }
 

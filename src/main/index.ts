@@ -513,12 +513,25 @@ function createWindow(): BrowserWindow {
     return { action: 'deny' }
   })
 
+  if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT) {
+    win.webContents.on('console-message', (_event, level, message, line, sourceId) => {
+      console.log(`[renderer:${level}] ${message} (${sourceId}:${line})`)
+    })
+    win.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
+      console.log(`[renderer-load-failed] ${errorCode} ${errorDescription} ${validatedURL}`)
+    })
+    win.webContents.on('render-process-gone', (_event, details) => {
+      console.log(`[renderer-process-gone] ${details.reason}`)
+    })
+  }
+
   const rendererHash = process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'design-system'
     ? 'design-system'
     : automatedInitialRendererHash ?? undefined
 
-  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-    win.loadURL(`${process.env['ELECTRON_RENDERER_URL']}${rendererHash ? `#${rendererHash}` : ''}`)
+  const devRendererUrl = process.env['ELECTRON_RENDERER_URL'] ?? (is.dev ? 'http://127.0.0.1:5173/' : '')
+  if (is.dev && devRendererUrl) {
+    win.loadURL(`${devRendererUrl.replace(/\/+$/, '')}${rendererHash ? `#${rendererHash}` : ''}`)
   } else {
     win.loadURL(rendererEntryUrl(rendererHash))
   }
@@ -9058,7 +9071,15 @@ function runAutomatedFocusedSurfaceSmoke(
             };
             const textOf = (element) => element instanceof HTMLElement ? element.innerText : '';
             const profile = await window.api.app.getProfile();
-            await sleep(850);
+            for (let attempt = 0; attempt < 40; attempt += 1) {
+              if (
+                document.body.innerText.trim().length > 0 ||
+                document.querySelector('[data-testid="active-session-title"], [data-testid="settings-shell"], [data-testid="session-right-panel"]') instanceof HTMLElement
+              ) {
+                break;
+              }
+              await sleep(100);
+            }
 
             const openRightPanel = async () => {
               const visiblePanel = document.querySelector('[data-testid="session-right-panel"]');
@@ -13027,6 +13048,18 @@ function runAutomatedFocusedSurfaceSmoke(
                 await sleep(140);
               }
               if (smokeView === 'diff-conflict') {
+                const sourceSummary = document.querySelector('[data-testid="review-source-summary"]');
+                const sourceActiveBefore = sourceSummary instanceof HTMLElement ? sourceSummary.getAttribute('data-review-source-active') : null;
+                if (sourceSummary instanceof HTMLButtonElement && sourceSummary.getAttribute('data-review-source-active') !== 'all') {
+                  sourceSummary.click();
+                  await sleep(100);
+                  const allSource = document.querySelector('[data-testid="review-source-all"]');
+                  if (allSource instanceof HTMLButtonElement && !allSource.disabled) {
+                    allSource.click();
+                    await sleep(260);
+                  }
+                }
+                const sourceActiveAfter = document.querySelector('[data-testid="review-source-summary"]')?.getAttribute('data-review-source-active') ?? null;
                 const conflictSearch = currentDiffSearch();
                 if (conflictSearch instanceof HTMLInputElement) {
                   setNativeValue(conflictSearch, 'conflict-smoke');
@@ -13068,11 +13101,34 @@ function runAutomatedFocusedSurfaceSmoke(
                 const conflictPath = session?.workDir ? session.workDir + '/conflict-smoke.txt' : '';
                 const resolvedText = conflictPath ? await window.api.fs.readFile(conflictPath) : null;
                 for (let attempt = 0; attempt < 12; attempt += 1) {
-                  const helperAfter = conflictSection?.querySelector('[data-testid="review-merge-conflict-helper"]');
+                  const helperAfter = document.querySelector('[data-testid="review-file-section"][data-review-path="conflict-smoke.txt"] [data-testid="review-merge-conflict-helper"]');
                   if (!(helperAfter instanceof HTMLElement)) break;
                   await sleep(100);
                 }
-                const helperAfter = conflictSection?.querySelector('[data-testid="review-merge-conflict-helper"]');
+                const helperAfter = document.querySelector('[data-testid="review-file-section"][data-review-path="conflict-smoke.txt"] [data-testid="review-merge-conflict-helper"]');
+                const resolvedHelper = document.querySelector('[data-testid="review-file-section"][data-review-path="conflict-smoke.txt"] [data-testid="review-merge-conflict-resolved"]');
+                const markResolved = document.querySelector('[data-testid="review-file-section"][data-review-path="conflict-smoke.txt"] [data-testid="review-merge-conflict-mark-resolved"]');
+                let markResolvedStatus = '';
+                let conflictFileAfterMark = null;
+                let sectionConflictedAfterMark = '';
+                if (markResolved instanceof HTMLButtonElement && session?.id) {
+                  markResolved.click();
+                  for (let attempt = 0; attempt < 18; attempt += 1) {
+                    await sleep(100);
+                    const changedFiles = await window.api.sessions.getChangedFiles(session.id, 'all').catch(() => []);
+                    conflictFileAfterMark = changedFiles.find((file) => file.path === 'conflict-smoke.txt') ?? null;
+                    markResolvedStatus = document.querySelector('[data-testid="review-floating-action-status"], [data-testid="review-merge-conflict-resolved-status"]')?.textContent ?? '';
+                    sectionConflictedAfterMark = document.querySelector('[data-testid="review-file-section"][data-review-path="conflict-smoke.txt"]')?.getAttribute('data-review-file-conflicted') ?? '';
+                    if (
+                      conflictFileAfterMark !== null &&
+                      conflictFileAfterMark.conflicted !== true &&
+                      conflictFileAfterMark.staged === true &&
+                      markResolvedStatus.includes('Marked conflict-smoke.txt resolved')
+                    ) {
+                      break;
+                    }
+                  }
+                }
                 return {
                   profile: await window.api.app.getProfile(),
                   reviewMergeConflictHelpersWorks:
@@ -13092,7 +13148,46 @@ function runAutomatedFocusedSurfaceSmoke(
                     conflictBoth.getAttribute('data-review-merge-conflict-resolution') === 'both' &&
                     helperRect.width <= diffRect.width - 24 &&
                     resolvedText === 'incoming conflict choice\\n' &&
-                    !(helperAfter instanceof HTMLElement)
+                    !(helperAfter instanceof HTMLElement),
+                  reviewMergeConflictMarkResolvedWorks:
+                    resolvedHelper instanceof HTMLElement &&
+                    markResolved instanceof HTMLButtonElement &&
+                    markResolved.textContent?.includes('Mark resolved') === true &&
+                    conflictFileAfterMark !== null &&
+                    conflictFileAfterMark.conflicted !== true &&
+                    conflictFileAfterMark.staged === true &&
+                    sectionConflictedAfterMark === 'false' &&
+                    markResolvedStatus.includes('Marked conflict-smoke.txt resolved'),
+                  reviewMergeConflictDebug: {
+                    sourceActiveBefore,
+                    sourceActiveAfter,
+                    locationHref: window.location.href,
+                    documentReadyState: document.readyState,
+                    documentHtmlPreview: document.documentElement.outerHTML.slice(0, 500),
+                    bodyHtmlPreview: document.body.innerHTML.slice(0, 1000),
+                    bodyTextPreview: document.body.innerText.slice(0, 800),
+                    rowPaths: [...document.querySelectorAll('.diff-panel-list [data-review-path]')].map((row) => row.getAttribute('data-review-path')),
+                    sectionPaths: [...document.querySelectorAll('[data-testid="review-file-section"]')].map((section) => section.getAttribute('data-review-path')),
+                    selectedReviewFile: document.querySelector('.diff-panel-root')?.getAttribute('data-review-selected-file') ?? null,
+                    conflictSectionFound: conflictSection instanceof HTMLElement,
+                    sectionConflictedBefore,
+                    conflictUnifiedDiffFound: conflictUnifiedDiff instanceof HTMLElement,
+                    conflictCountBefore,
+                    conflictHelperFound: conflictHelper instanceof HTMLElement,
+                    helperSlot,
+                    conflictCurrentFound: conflictCurrent instanceof HTMLButtonElement,
+                    conflictIncomingFound: conflictIncoming instanceof HTMLButtonElement,
+                    conflictBothFound: conflictBoth instanceof HTMLButtonElement,
+                    helperWidth: helperRect?.width ?? null,
+                    diffWidth: diffRect?.width ?? null,
+                    resolvedText,
+                    helperAfterFound: helperAfter instanceof HTMLElement,
+                    resolvedHelperFound: resolvedHelper instanceof HTMLElement,
+                    markResolvedFound: markResolved instanceof HTMLButtonElement,
+                    markResolvedStatus,
+                    conflictFileAfterMark,
+                    sectionConflictedAfterMark
+                  }
                 };
               }
               let diffActionMenuCompactWorks = false;

@@ -175,6 +175,7 @@ function buildDiffChecks(result, view) {
     reviewGitApplyCopyStatus: result.reviewGitApplyCopyStatusWorks === true,
     reviewGitApplyTerminalHandoff: result.reviewGitApplyTerminalHandoffWorks === true,
     reviewSelectedGitPathActions: result.reviewSelectedGitPathActionsWorks === true,
+    reviewMergeConflictMarkResolved: result.reviewMergeConflictMarkResolvedWorks === true,
     reviewFloatingGitActions: result.reviewFloatingGitActionsWork === true,
     reviewFloatingGitActionStatus: result.reviewFloatingGitActionStatusWorks === true,
     reviewFloatingGitOpenTab: result.reviewFloatingGitOpenTabWorks === true,
@@ -237,7 +238,8 @@ function buildDiffChecks(result, view) {
     ],
     'diff-conflict': [
       'isolatedProfile',
-      'reviewMergeConflictHelpers'
+      'reviewMergeConflictHelpers',
+      'reviewMergeConflictMarkResolved'
     ],
     'diff-narrow': [
       'isolatedProfile',
@@ -3323,7 +3325,7 @@ child.on('exit', async (code) => {
       }
   const failed = Object.entries(checks).filter(([, ok]) => !ok)
   if (failed.length > 0) {
-    console.error(JSON.stringify({ outputPath, checks, result }, null, 2))
+    console.error(JSON.stringify({ outputPath, checks, result, logTail: log.slice(-4000) }, null, 2))
     process.exit(1)
   }
 
