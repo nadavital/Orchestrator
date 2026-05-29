@@ -142,16 +142,30 @@ function WorktreeLifecycleNotice({
 }): JSX.Element | null {
   const [retrying, setRetrying] = useState(false)
   const [retryError, setRetryError] = useState<string | null>(null)
+  const restoreFocusAfterRetryRef = useRef(false)
   const worktreeState = session.worktreeState
   const visible = session.useWorktree && worktreeState && worktreeState !== 'ready'
+  useEffect(() => {
+    if (visible || !restoreFocusAfterRetryRef.current) return
+    restoreFocusAfterRetryRef.current = false
+    window.requestAnimationFrame(() => {
+      const composer = document.querySelector('[data-testid="composer-textarea"]')
+      if (composer instanceof HTMLTextAreaElement) {
+        composer.focus({ preventScroll: true })
+      }
+    })
+  }, [visible])
+
   const retry = useCallback(async (): Promise<void> => {
     if (retrying) return
     setRetrying(true)
     setRetryError(null)
     try {
       const retried = await window.api.sessions.retryPendingWorktree(session.id)
+      restoreFocusAfterRetryRef.current = retried.worktreeState === 'ready'
       onHydrate(retried)
     } catch (error) {
+      restoreFocusAfterRetryRef.current = false
       setRetryError(error instanceof Error ? error.message : 'Could not retry worktree creation.')
     } finally {
       setRetrying(false)

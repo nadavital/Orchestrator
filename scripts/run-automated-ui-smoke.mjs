@@ -1782,7 +1782,8 @@ child.on('exit', async (code) => {
         isolatedProfile: result.profile?.isIsolated === true,
         pendingWorktreeNotice: result.pendingWorktreeNoticeWorks === true,
         failedWorktreeNotice: result.failedWorktreeNoticeWorks === true,
-        failedWorktreeRetry: result.failedWorktreeRetryWorks === true
+        failedWorktreeRetry: result.failedWorktreeRetryWorks === true,
+        worktreeRetryFocusRestored: result.worktreeRetryFocusRestored === true
       }
     : captureView === 'session-switch'
     ? {

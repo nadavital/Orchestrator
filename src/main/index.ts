@@ -28638,9 +28638,15 @@ function runAutomatedWorktreeLifecycleSmoke(win: BrowserWindow, outputPath: stri
               if (retryReady) break;
               await sleep(50);
             }
+            for (let index = 0; index < 20; index += 1) {
+              if (document.activeElement?.getAttribute('data-testid') === 'composer-textarea') break;
+              await sleep(50);
+            }
+            const retryFocusRestored = document.activeElement?.getAttribute('data-testid') === 'composer-textarea';
             return {
               failedWorktreeNoticeWorks,
-              failedWorktreeRetryWorks: failedWorktreeNoticeWorks && retryPending && retryReady
+              failedWorktreeRetryWorks: failedWorktreeNoticeWorks && retryPending && retryReady,
+              worktreeRetryFocusRestored: failedWorktreeNoticeWorks && retryReady && retryFocusRestored
             };
           })()
         `)

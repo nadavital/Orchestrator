@@ -74,6 +74,12 @@ const diffRules = [
     diffPatterns: [/ForkFromMessage/, /chatMessageFork/, /chat-message-fork/]
   },
   {
+    flag: '--worktree-lifecycle',
+    label: 'Worktree lifecycle',
+    filePatterns: [/^src\/renderer\/src\/components\/Session\/SessionPane\.tsx$/, /^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
+    diffPatterns: [/WorktreeLifecycleNotice/, /worktree-lifecycle/, /worktreeRetry/]
+  },
+  {
     flag: '--right-panel',
     label: 'Right Workbench shell',
     filePatterns: [/^src\/renderer\/src\/components\/Session\/ContextSidebar\.tsx$/],
@@ -233,6 +239,7 @@ function suggestTargets(paths) {
   suppressWorkbenchLauncherForContextSidebarTabDiff(matched, paths)
   suppressRightPanelForWorkbenchTreeFileDiff(matched)
   suppressTranscriptLayoutForForkDiff(matched, paths)
+  suppressComposerForWorktreeLifecycleDiff(matched, paths)
 
   return { targets: Array.from(matched.values()), unmatched, broadReasons }
 }
@@ -360,6 +367,16 @@ function suppressTranscriptLayoutForForkDiff(matched, paths) {
     : ''
   if (!/ForkFromMessage|chatMessageFork|chat-message-fork/.test(diff)) return
   matched.delete('--transcript-layout')
+}
+
+function suppressComposerForWorktreeLifecycleDiff(matched, paths) {
+  const composer = matched.get('--composer')
+  const worktree = matched.get('--worktree-lifecycle')
+  if (!composer || !worktree) return
+  if (!composer.files.every((file) => file === 'src/main/index.ts')) return
+  const diff = paths.includes('src/main/index.ts') ? diffForFile('src/main/index.ts') : ''
+  if (!/worktree-lifecycle|worktreeRetry|WorktreeLifecycleNotice/.test(diff)) return
+  matched.delete('--composer')
 }
 
 function restoreDiffTargets(matched, paths) {
