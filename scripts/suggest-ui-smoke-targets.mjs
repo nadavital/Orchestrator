@@ -213,7 +213,7 @@ function normalizeFiles(paths) {
 function suggestTargets(paths) {
   const matched = new Map()
   const unmatched = []
-  const broadReasons = []
+  const broadCandidates = []
 
   for (const file of paths) {
     let fileMatched = false
@@ -237,7 +237,7 @@ function suggestTargets(paths) {
       fileMatched = true
     }
     if (broadTriggers.some((pattern) => pattern.test(file))) {
-      broadReasons.push(file)
+      broadCandidates.push(file)
     }
     if (!fileMatched) unmatched.push(file)
   }
@@ -257,13 +257,23 @@ function suggestTargets(paths) {
   suppressComposerForWorktreeLifecycleDiff(matched, paths)
   suppressComposerForTerminalHandoffDiff(matched, paths)
 
-  return { targets: Array.from(matched.values()), unmatched, broadReasons }
+  const broadReasons = broadCandidates.filter((file) => !isBroadCandidateCovered(file, matched))
+  const coveredBroadReasons = broadCandidates.filter((file) => isBroadCandidateCovered(file, matched))
+
+  return { targets: Array.from(matched.values()), unmatched, broadReasons, coveredBroadReasons }
 }
 
 function addMatchedTarget(matched, rule, file) {
   const current = matched.get(rule.flag) ?? { flag: rule.flag, label: rule.label, files: [] }
   if (!current.files.includes(file)) current.files.push(file)
   matched.set(rule.flag, current)
+}
+
+function isBroadCandidateCovered(file, matched) {
+  for (const target of matched.values()) {
+    if (target.files.includes(file)) return true
+  }
+  return false
 }
 
 function diffForFile(file) {
@@ -436,7 +446,7 @@ function suppressComposerForTerminalHandoffDiff(matched, paths) {
   if (!composer || !terminal) return
   if (!composer.files.every((file) => file === 'src/main/index.ts')) return
   const diff = paths.includes('src/main/index.ts') ? diffForFile('src/main/index.ts') : ''
-  if (!/terminalOutputAddToChat|terminal-add-output-to-chat|Terminal output/.test(diff)) return
+  if (!/terminalOutputAddToChat|terminalCommandOutputAddToChat|terminal-add-output-to-chat|terminal-add-command-output-to-chat|Terminal output|terminal command output|Latest command output/.test(diff)) return
   matched.delete('--composer')
 }
 
@@ -498,6 +508,12 @@ function printSuggestions(paths, suggestions, plan) {
     for (const file of suggestions.broadReasons) console.log(`  - ${file}`)
   }
 
+  if (suggestions.coveredBroadReasons.length > 0) {
+    console.log('')
+    console.log('Broad files covered by focused smoke rules:')
+    for (const file of suggestions.coveredBroadReasons) console.log(`  - ${file}`)
+  }
+
   if (suggestions.unmatched.length > 0) {
     console.log('')
     console.log('Unmatched files:')
@@ -520,6 +536,7 @@ function printJson(paths, suggestions, plan) {
       flag: check.flag ?? null
     })),
     broadReviewNeeded: suggestions.broadReasons,
+    broadReviewCoveredByFocusedSmoke: suggestions.coveredBroadReasons,
     unmatchedFiles: suggestions.unmatched
   }, null, 2))
 }
