@@ -134,6 +134,12 @@ const diffRules = [
     diffPatterns: [/closeActivePanelTab/, /restoreRightPanelToggleFocus/, /rightPanelLastTabShortcutFocusRestored/, /rightPanelClose[A-Z]/]
   },
   {
+    flag: '--settings',
+    label: 'Settings',
+    filePatterns: [/^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
+    diffPatterns: [/settingsSearch/, /settings-search/, /settings[A-Z]/]
+  },
+  {
     flag: '--workbench-launcher',
     label: 'Workbench launcher',
     filePatterns: [/^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
@@ -258,9 +264,12 @@ function suggestTargets(paths) {
   suppressRightPanelForContextSidebarTerminalDiff(matched, paths)
   suppressWorkbenchLauncherForContextSidebarTerminalDiff(matched, paths)
   suppressRightPanelForWorkbenchTreeFileDiff(matched)
+  suppressBrowserForSettingsDiff(matched, paths)
   suppressTranscriptLayoutForLongThreadDiff(matched, paths)
   suppressTranscriptLayoutForPermissionDiff(matched, paths)
+  suppressTranscriptPermissionForSettingsDiff(matched, paths)
   suppressTranscriptLayoutForForkDiff(matched, paths)
+  suppressDesignSystemForSettingsCssDiff(matched, paths)
   suppressTranscriptForkForCodeBlockDiff(matched, paths)
   suppressComposerForWorktreeLifecycleDiff(matched, paths)
   suppressComposerForTerminalHandoffDiff(matched, paths)
@@ -415,6 +424,19 @@ function suppressRightPanelForWorkbenchTreeFileDiff(matched) {
   matched.delete('--right-panel')
 }
 
+function suppressBrowserForSettingsDiff(matched, paths) {
+  const browser = matched.get('--browser')
+  const settings = matched.get('--settings')
+  if (!browser || !settings) return
+  if (!browser.files.every((file) => file === 'src/main/index.ts' || file === 'scripts/run-automated-ui-smoke.mjs')) return
+  const diff = [
+    paths.includes('src/main/index.ts') ? diffForFile('src/main/index.ts') : '',
+    paths.includes('scripts/run-automated-ui-smoke.mjs') ? diffForFile('scripts/run-automated-ui-smoke.mjs') : ''
+  ].join('\n')
+  if (!/settingsSearch|settings-search|settings[A-Z]/.test(diff)) return
+  matched.delete('--browser')
+}
+
 function suppressTranscriptLayoutForForkDiff(matched, paths) {
   const transcript = matched.get('--transcript-layout')
   const fork = matched.get('--transcript-fork')
@@ -448,6 +470,29 @@ function suppressTranscriptLayoutForPermissionDiff(matched, paths) {
     : ''
   if (!/PermissionCard|permissionRequest|chat-permission/.test(diff)) return
   matched.delete('--transcript-layout')
+}
+
+function suppressTranscriptPermissionForSettingsDiff(matched, paths) {
+  const permission = matched.get('--transcript-permission')
+  const settings = matched.get('--settings')
+  if (!permission || !settings) return
+  if (!permission.files.every((file) => file === 'src/main/index.ts' || file === 'scripts/run-automated-ui-smoke.mjs')) return
+  const diff = [
+    paths.includes('src/main/index.ts') ? diffForFile('src/main/index.ts') : '',
+    paths.includes('scripts/run-automated-ui-smoke.mjs') ? diffForFile('scripts/run-automated-ui-smoke.mjs') : ''
+  ].join('\n')
+  if (!/settingsSearch|settings-search|settings[A-Z]/.test(diff)) return
+  matched.delete('--transcript-permission')
+}
+
+function suppressDesignSystemForSettingsCssDiff(matched, paths) {
+  const designSystem = matched.get('--design-system')
+  const settings = matched.get('--settings')
+  if (!designSystem || !settings) return
+  if (!designSystem.files.every((file) => file === 'src/renderer/src/index.css')) return
+  const diff = paths.includes('src/renderer/src/index.css') ? diffForFile('src/renderer/src/index.css') : ''
+  if (!/settings-search|settings-topbar-search/.test(diff)) return
+  matched.delete('--design-system')
 }
 
 function suppressTranscriptLayoutForLongThreadDiff(matched, paths) {

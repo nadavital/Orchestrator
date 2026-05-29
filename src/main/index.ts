@@ -1337,6 +1337,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 }
               }
               var settingsSearchNavigationWorks = false;
+              var settingsSearchResultsWorks = false;
               const settingsSearchInput = document.querySelector('[data-testid="settings-search"]');
               const setSettingsSearchValue = (value) => {
                 const input = document.querySelector('[data-testid="settings-search"]');
@@ -1349,6 +1350,29 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               if (settingsSearchInput instanceof HTMLInputElement) {
                 let activeSettingsSearchInput = setSettingsSearchValue('browser') ?? settingsSearchInput;
                 await sleep(120);
+                const settingsSearchResultsHost = document.querySelector('[data-testid="settings-search-results-host"]');
+                const browserResultsBeforeKeyboard = [...document.querySelectorAll('[data-testid="settings-search-result"]')];
+                activeSettingsSearchInput.dispatchEvent(new KeyboardEvent('keydown', {
+                  key: 'ArrowDown',
+                  code: 'ArrowDown',
+                  bubbles: true,
+                  cancelable: true
+                }));
+                await sleep(80);
+                const browserResultsAfterKeyboard = [...document.querySelectorAll('[data-testid="settings-search-result"]')];
+                const browserSearchMatchAfterKeyboard = document.querySelector('[data-testid="settings-search-match"]');
+                settingsSearchResultsWorks =
+                  settingsSearchResultsHost instanceof HTMLElement &&
+                  Number(settingsSearchResultsHost.getAttribute('data-settings-search-result-count') ?? '0') >= 3 &&
+                  browserResultsBeforeKeyboard.length >= 3 &&
+                  browserResultsBeforeKeyboard[0] instanceof HTMLElement &&
+                  browserResultsBeforeKeyboard[0].getAttribute('role') === 'option' &&
+                  browserResultsAfterKeyboard[1] instanceof HTMLElement &&
+                  browserResultsAfterKeyboard[1].getAttribute('data-active') === 'true' &&
+                  browserResultsAfterKeyboard[1].getAttribute('aria-selected') === 'true' &&
+                  browserSearchMatchAfterKeyboard instanceof HTMLButtonElement &&
+                  browserSearchMatchAfterKeyboard.getAttribute('data-settings-search-index') === '1' &&
+                  Number(browserSearchMatchAfterKeyboard.getAttribute('data-settings-search-result-count') ?? '0') >= 3;
                 const settingsSearchMatch = document.querySelector('[data-testid="settings-search-match"]');
                 activeSettingsSearchInput.dispatchEvent(new KeyboardEvent('keydown', {
                   key: 'Enter',
@@ -8438,6 +8462,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             settingsRouteOwnedWorks: typeof settingsRouteOwnedWorks === 'boolean' ? settingsRouteOwnedWorks : null,
             settingsSectionHistoryNavigationWorks: typeof settingsSectionHistoryNavigationWorks === 'boolean' ? settingsSectionHistoryNavigationWorks : null,
             settingsSearchNavigationWorks: typeof settingsSearchNavigationWorks === 'boolean' ? settingsSearchNavigationWorks : null,
+            settingsSearchResultsWorks: typeof settingsSearchResultsWorks === 'boolean' ? settingsSearchResultsWorks : null,
             settingsInPageSearchTargetWorks: typeof settingsInPageSearchTargetWorks === 'boolean' ? settingsInPageSearchTargetWorks : null,
             settingsBrowserInPageSearchTargetWorks: typeof settingsBrowserInPageSearchTargetWorks === 'boolean' ? settingsBrowserInPageSearchTargetWorks : null,
             settingsProviderInPageSearchTargetWorks: typeof settingsProviderInPageSearchTargetWorks === 'boolean' ? settingsProviderInPageSearchTargetWorks : null,

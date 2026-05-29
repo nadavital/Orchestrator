@@ -9476,6 +9476,13 @@
     white-space: nowrap;
   }
 
+  .settings-topbar-search-host {
+    position: relative;
+    width: min(360px, 46vw);
+    min-width: 0;
+    -webkit-app-region: no-drag;
+  }
+
   .settings-topbar-search {
     width: min(360px, 46vw);
     height: 28px;
@@ -9515,6 +9522,66 @@
     background: color-mix(in srgb, var(--accent) 18%, transparent);
     color: var(--text-primary);
     outline: none;
+  }
+
+  .settings-search-results {
+    position: absolute;
+    z-index: 70;
+    top: calc(100% + 6px);
+    left: 0;
+    right: 0;
+    display: grid;
+    max-height: min(280px, calc(100vh - 120px));
+    overflow-y: auto;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    background: color-mix(in srgb, var(--surface-bg) 98%, var(--control-bg));
+    box-shadow: var(--shadow-lg);
+    padding: 4px;
+  }
+
+  .settings-search-result {
+    display: grid;
+    width: 100%;
+    min-width: 0;
+    gap: 2px;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-primary);
+    padding: 7px 8px;
+    text-align: left;
+  }
+
+  .settings-search-result[data-active='true'],
+  .settings-search-result:hover,
+  .settings-search-result:focus-visible {
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    outline: none;
+  }
+
+  .settings-search-result-label,
+  .settings-search-result-description {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .settings-search-result-label {
+    font-size: 12px;
+    font-weight: 560;
+  }
+
+  .settings-search-result-description {
+    color: var(--text-secondary);
+    font-size: 11px;
+  }
+
+  .settings-search-no-results {
+    color: var(--text-secondary);
+    padding: 8px;
+    font-size: 12px;
   }
 
   .settings-content-group[data-settings-search-anchor] {

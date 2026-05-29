@@ -3059,6 +3059,7 @@ child.on('exit', async (code) => {
         settingsRouteOwned: !['settings', 'settings-providers'].includes(captureView) || result.settingsRouteOwnedWorks === true,
         settingsSectionHistoryNavigation: captureView !== 'settings' || result.settingsSectionHistoryNavigationWorks === true,
         settingsSearchNavigation: captureView !== 'settings' || result.settingsSearchNavigationWorks === true,
+        settingsSearchResults: captureView !== 'settings' || result.settingsSearchResultsWorks === true,
         settingsInPageSearchTarget: captureView !== 'settings' || result.settingsInPageSearchTargetWorks === true,
         settingsBrowserInPageSearchTarget: captureView !== 'settings' || result.settingsBrowserInPageSearchTargetWorks === true,
         settingsProviderInPageSearchTarget: captureView !== 'settings' || result.settingsProviderInPageSearchTargetWorks === true,

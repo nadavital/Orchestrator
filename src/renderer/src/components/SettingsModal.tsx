@@ -72,6 +72,8 @@ const SETTINGS_SEARCH_ITEMS: Array<{
   { section: 'data', label: 'Data controls', description: 'Archived chats and local storage', keywords: 'archive restore delete data storage path' }
 ]
 
+type SettingsSearchItem = (typeof SETTINGS_SEARCH_ITEMS)[number]
+
 interface Props {
   section: SettingsSection
   onClose: () => void
@@ -117,6 +119,7 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
   const [personalizationCustomInstructions, setPersonalizationCustomInstructions] = useState('')
   const [personalizationCodingPreferences, setPersonalizationCodingPreferences] = useState('')
   const [settingsSearchQuery, setSettingsSearchQuery] = useState('')
+  const [settingsSearchActiveIndex, setSettingsSearchActiveIndex] = useState(0)
   const [settingsSearchTarget, setSettingsSearchTarget] = useState<{ section: SettingsSection; anchor: string } | null>(null)
   const settingsHostOptions = useMemo(() => settingsHostOptionsFromSessions(sessions), [sessions])
   const normalizedSettingsHostId = normalizeSettingsHostId(selectedSettingsHostId, settingsHostOptions)
@@ -128,16 +131,18 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
     settingsNavigationGroupsForHostKind(selectedSettingsHost.kind)
       .flatMap((group) => group.sections)
   ), [selectedSettingsHost.kind])
-  const settingsSearchMatch = useMemo(() => {
+  const settingsSearchMatches = useMemo(() => {
     const query = settingsSearchQuery.trim().toLowerCase()
-    if (!query) return null
+    if (!query) return []
     return SETTINGS_SEARCH_ITEMS
       .filter((item) => visibleSettingsSections.has(item.section))
-      .find((item) => {
+      .filter((item) => {
         const haystack = `${item.label} ${item.description} ${item.keywords} ${item.section}`.toLowerCase()
         return haystack.includes(query)
-      }) ?? null
+      })
+      .slice(0, 6)
   }, [settingsSearchQuery, visibleSettingsSections])
+  const settingsSearchMatch = settingsSearchMatches[Math.min(settingsSearchActiveIndex, Math.max(0, settingsSearchMatches.length - 1))] ?? null
   const settingsScrollRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
@@ -215,6 +220,10 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
       target.removeAttribute('data-settings-search-active')
     }
   }, [effectiveSection, settingsSearchTarget, selectedSettingsHost.id])
+
+  useEffect(() => {
+    setSettingsSearchActiveIndex(0)
+  }, [settingsSearchQuery, selectedSettingsHost.id])
 
   const loadProviderDiagnostics = useCallback((providerId: string): void => {
     if (providerDiagnostics[providerId] || diagnosticsLoading[providerId]) return
@@ -510,12 +519,12 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
     window.api.settings.set('settingsHostId', 'local')
   }
 
-  const submitSettingsSearch = (): void => {
-    if (!settingsSearchMatch) return
-    if (settingsSearchMatch.anchor) {
-      setSettingsSearchTarget({ section: settingsSearchMatch.section, anchor: settingsSearchMatch.anchor })
+  const submitSettingsSearch = (match: SettingsSearchItem | null = settingsSearchMatch): void => {
+    if (!match) return
+    if (match.anchor) {
+      setSettingsSearchTarget({ section: match.section, anchor: match.anchor })
     }
-    navigateSettingsSection(settingsSearchMatch.section)
+    navigateSettingsSection(match.section)
   }
 
   return (
@@ -538,39 +547,84 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
       >
         <div className="settings-topbar-leading">
           <span className="settings-topbar-title">{settingsTitle(effectiveSection)}</span>
-          <WorkbenchSearchField
-            value={settingsSearchQuery}
-            onChange={setSettingsSearchQuery}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') {
-                event.preventDefault()
-                submitSettingsSearch()
-              }
-              if (event.key === 'Escape') {
-                event.preventDefault()
-                setSettingsSearchQuery('')
-              }
-            }}
-            placeholder="Search settings"
-            clearLabel="Clear settings search"
-            dataTestId="settings-search"
-            clearDataTestId="settings-search-clear"
-            className="settings-topbar-search"
-            ariaLabel="Search settings"
-            trailing={settingsSearchQuery.trim().length > 0 && (
-              <button
-                type="button"
-                className="settings-search-match"
-                disabled={!settingsSearchMatch}
-                data-testid="settings-search-match"
-                data-settings-search-target={settingsSearchMatch?.section ?? ''}
-                data-settings-search-target-anchor={settingsSearchMatch?.anchor ?? ''}
-                onClick={submitSettingsSearch}
-              >
-                {settingsSearchMatch?.label ?? 'No match'}
-              </button>
+          <div
+            className="settings-topbar-search-host"
+            data-testid="settings-search-results-host"
+            data-settings-search-result-count={settingsSearchMatches.length}
+          >
+            <WorkbenchSearchField
+              value={settingsSearchQuery}
+              onChange={setSettingsSearchQuery}
+              onKeyDown={(event) => {
+                if (event.key === 'ArrowDown' && settingsSearchMatches.length > 0) {
+                  event.preventDefault()
+                  setSettingsSearchActiveIndex((current) => Math.min(current + 1, settingsSearchMatches.length - 1))
+                  return
+                }
+                if (event.key === 'ArrowUp' && settingsSearchMatches.length > 0) {
+                  event.preventDefault()
+                  setSettingsSearchActiveIndex((current) => Math.max(current - 1, 0))
+                  return
+                }
+                if (event.key === 'Enter') {
+                  event.preventDefault()
+                  submitSettingsSearch()
+                }
+                if (event.key === 'Escape') {
+                  event.preventDefault()
+                  setSettingsSearchQuery('')
+                }
+              }}
+              placeholder="Search settings"
+              clearLabel="Clear settings search"
+              dataTestId="settings-search"
+              clearDataTestId="settings-search-clear"
+              className="settings-topbar-search"
+              ariaLabel="Search settings"
+              trailing={settingsSearchQuery.trim().length > 0 && (
+                <button
+                  type="button"
+                  className="settings-search-match"
+                  disabled={!settingsSearchMatch}
+                  data-testid="settings-search-match"
+                  data-settings-search-target={settingsSearchMatch?.section ?? ''}
+                  data-settings-search-target-anchor={settingsSearchMatch?.anchor ?? ''}
+                  data-settings-search-index={settingsSearchMatch ? settingsSearchActiveIndex : -1}
+                  data-settings-search-result-count={settingsSearchMatches.length}
+                  onClick={() => submitSettingsSearch()}
+                >
+                  {settingsSearchMatch ? `${settingsSearchActiveIndex + 1}/${settingsSearchMatches.length} ${settingsSearchMatch.label}` : 'No match'}
+                </button>
+              )}
+            />
+            {settingsSearchQuery.trim().length > 0 && (
+              <div className="settings-search-results" data-testid="settings-search-results" role="listbox" aria-label="Settings search results">
+                {settingsSearchMatches.length > 0 ? settingsSearchMatches.map((match, index) => (
+                  <button
+                    key={`${match.section}-${match.anchor ?? match.label}`}
+                    type="button"
+                    className="settings-search-result"
+                    data-testid="settings-search-result"
+                    data-settings-search-target={match.section}
+                    data-settings-search-target-anchor={match.anchor ?? ''}
+                    data-settings-search-index={index}
+                    data-active={index === settingsSearchActiveIndex ? 'true' : 'false'}
+                    role="option"
+                    aria-selected={index === settingsSearchActiveIndex}
+                    onMouseEnter={() => setSettingsSearchActiveIndex(index)}
+                    onClick={() => submitSettingsSearch(match)}
+                  >
+                    <span className="settings-search-result-label">{match.label}</span>
+                    <span className="settings-search-result-description">{settingsTitle(match.section)} · {match.description}</span>
+                  </button>
+                )) : (
+                  <div className="settings-search-no-results" data-testid="settings-search-no-results" role="status" aria-live="polite">
+                    No settings match
+                  </div>
+                )}
+              </div>
             )}
-          />
+          </div>
         </div>
         <div className="settings-topbar-actions">
           <Tooltip label="Back to chat">
