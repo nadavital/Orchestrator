@@ -6500,6 +6500,37 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               [...permissionMenu.querySelectorAll('button')]
                 .filter((button) => button.getAttribute('data-tooltip-label'))
                 .every((button) => button.getAttribute('title') === null && button.getAttribute('data-native-title-free') === 'true');
+            const permissionRuntimeContext = document.querySelector('[data-testid="composer-permission-runtime-context"]');
+            const permissionRuntimeRefresh = document.querySelector('[data-testid="composer-permission-runtime-refresh"]');
+            if (permissionRuntimeRefresh instanceof HTMLButtonElement) {
+              permissionRuntimeRefresh.click();
+            }
+            const permissionRuntimeRefreshCompleted = (element) =>
+              element instanceof HTMLElement &&
+              element.textContent?.includes('Permission config') === true &&
+              element.textContent?.includes('refreshed') === true;
+            let permissionRuntimeRefreshStatus = document.querySelector('[data-testid="composer-permission-runtime-refresh-status"]');
+            for (let index = 0; index < 12; index += 1) {
+              if (
+                permissionRuntimeRefreshCompleted(permissionRuntimeRefreshStatus) &&
+                permissionRuntimeContext instanceof HTMLElement &&
+                permissionRuntimeContext.getAttribute('data-permission-context-refreshing') === 'false'
+              ) {
+                break;
+              }
+              await sleep(80);
+              permissionRuntimeRefreshStatus = document.querySelector('[data-testid="composer-permission-runtime-refresh-status"]');
+            }
+            var composerPermissionContextRefresh =
+              permissionRuntimeContext instanceof HTMLElement &&
+              permissionRuntimeRefresh instanceof HTMLButtonElement &&
+              permissionRuntimeRefresh.getAttribute('aria-label') === 'Refresh permission config' &&
+              permissionRuntimeRefreshStatus instanceof HTMLElement &&
+              permissionRuntimeRefreshStatus.getAttribute('role') === 'status' &&
+              permissionRuntimeRefreshStatus.getAttribute('aria-live') === 'polite' &&
+              permissionRuntimeRefreshStatus.getAttribute('aria-atomic') === 'true' &&
+              permissionRuntimeRefreshCompleted(permissionRuntimeRefreshStatus) &&
+              permissionRuntimeContext.getAttribute('data-permission-context-refreshing') === 'false';
             window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
             await sleep(260);
             if (permissionButton instanceof HTMLElement) {
@@ -7879,6 +7910,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             composerPermissionMenuOpened: typeof composerPermissionMenuOpened === 'boolean' ? composerPermissionMenuOpened : null,
             appSkipLinksKeyboard: typeof appSkipLinksKeyboard === 'boolean' ? appSkipLinksKeyboard : null,
             composerPermissionContextSignal: typeof composerPermissionContextSignal === 'boolean' ? composerPermissionContextSignal : null,
+            composerPermissionContextRefresh: typeof composerPermissionContextRefresh === 'boolean' ? composerPermissionContextRefresh : null,
             composerDropdownMaterialWorks: typeof composerDropdownMaterialWorks === 'boolean' ? composerDropdownMaterialWorks : null,
             composerPermissionNativeTooltipsWork: typeof composerPermissionNativeTooltipsWork === 'boolean' ? composerPermissionNativeTooltipsWork : null,
             composerContextChips: typeof composerContextChips === 'boolean' ? composerContextChips : null,

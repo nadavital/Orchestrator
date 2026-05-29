@@ -1,4 +1,4 @@
-import { memo, useState, useRef, useEffect } from 'react'
+import { memo, useCallback, useState, useRef, useEffect } from 'react'
 import type { Ref } from 'react'
 import type { Attachment, PermissionExecutionContract, ProviderAgentDef, ProviderPermissionMode, ProviderPermissionRuntimeContext, ProviderRuntimeInfo, ProviderSlashCommand, ResolvedExecutionPolicy, Session } from '../../types'
 import type { SlashPaletteCommand } from '../../types'
@@ -89,6 +89,8 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   const [dismissedSlashQuery, setDismissedSlashQuery] = useState<string | null>(null)
   const [runtimeInfo, setRuntimeInfo] = useState<Record<string, ProviderRuntimeInfo>>({})
   const [permissionContext, setPermissionContext] = useState<ProviderPermissionRuntimeContext | null>(null)
+  const [permissionContextLoading, setPermissionContextLoading] = useState(false)
+  const [permissionContextRefreshStatus, setPermissionContextRefreshStatus] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
   const [extensionCommands, setExtensionCommands] = useState<ProviderSlashCommand[]>([])
   const [claudeAgents, setClaudeAgents] = useState<ProviderAgentDef[]>([])
   const [claudeAgentsStatus, setClaudeAgentsStatus] = useState<'idle' | 'loading' | 'loaded' | 'error'>('idle')
@@ -161,15 +163,42 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     window.api.providers.getRuntimeInfo().then(setRuntimeInfo)
   }, [])
 
+  const loadPermissionContext = useCallback(async (options: { announce?: boolean; clearFirst?: boolean } = {}): Promise<void> => {
+    const announce = options.announce === true
+    if (options.clearFirst) setPermissionContext(null)
+    setPermissionContextLoading(true)
+    if (announce) setPermissionContextRefreshStatus({ text: 'Refreshing permission config', tone: 'info' })
+    try {
+      const context = await window.api.providers.getPermissionContext(session.provider ?? 'claude', session.workDir)
+      setPermissionContext(context)
+      if (announce) {
+        setPermissionContextRefreshStatus({
+          text: context.status === 'ok' ? 'Permission config refreshed' : 'Permission config fallback refreshed',
+          tone: 'info'
+        })
+      }
+    } catch (error) {
+      setPermissionContext(null)
+      if (announce) setPermissionContextRefreshStatus({ text: `Permission config refresh failed: ${errorText(error)}`, tone: 'danger' })
+    } finally {
+      setPermissionContextLoading(false)
+    }
+  }, [session.provider, session.workDir])
+
   useEffect(() => {
     let alive = true
     setPermissionContext(null)
+    setPermissionContextRefreshStatus(null)
+    setPermissionContextLoading(true)
     window.api.providers.getPermissionContext(session.provider ?? 'claude', session.workDir)
       .then((context) => {
         if (alive) setPermissionContext(context)
       })
       .catch(() => {
         if (alive) setPermissionContext(null)
+      })
+      .finally(() => {
+        if (alive) setPermissionContextLoading(false)
       })
     return () => { alive = false }
   }, [session.provider, session.workDir])
@@ -1717,8 +1746,13 @@ function InputBar({ session, isNew }: Props): JSX.Element {
                   {resolvedPermission?.execution && (
                     <PermissionExecutionChips execution={resolvedPermission.execution} />
                   )}
-                  {permissionContext && permissionContext.source !== 'static' && (
-                    <PermissionContextNote context={permissionContext} />
+                  {permissionContext && (
+                    <PermissionContextNote
+                      context={permissionContext}
+                      refreshing={permissionContextLoading}
+                      refreshStatus={permissionContextRefreshStatus}
+                      onRefresh={() => { void loadPermissionContext({ announce: true }) }}
+                    />
                   )}
                 </div>
                 {provider.id === 'claude' && showAdvancedPerms && (
@@ -2403,25 +2437,80 @@ function PermissionExecutionChips({ execution }: { execution: PermissionExecutio
   )
 }
 
-function PermissionContextNote({ context }: { context: ProviderPermissionRuntimeContext }): JSX.Element {
+function PermissionContextNote({
+  context,
+  refreshing,
+  refreshStatus,
+  onRefresh
+}: {
+  context: ProviderPermissionRuntimeContext
+  refreshing: boolean
+  refreshStatus: { text: string; tone: 'info' | 'danger' } | null
+  onRefresh: () => void
+}): JSX.Element {
   const tone = context.status === 'ok'
     ? 'var(--color-green)'
     : context.status === 'error'
       ? 'var(--color-red)'
       : 'var(--color-text-muted)'
+  const label = context.source === 'static'
+    ? 'Static config'
+    : context.status === 'ok'
+      ? 'Live config'
+      : 'Config fallback'
   return (
     <div
       data-testid="composer-permission-runtime-context"
+      data-permission-context-refreshing={refreshing ? 'true' : 'false'}
+      data-permission-context-source={context.source}
+      data-permission-context-status={context.status}
       style={{
         marginTop: 7,
         fontSize: 10.5,
         lineHeight: 1.35,
-        color: tone,
         maxWidth: 280
       }}
       title={context.cwd ? `${context.summary ?? ''} ${context.cwd}` : context.summary}
     >
-      {context.status === 'ok' ? 'Live config' : 'Config fallback'} · {context.summary ?? 'Permission config checked.'}
+      <div className="flex min-w-0 items-start gap-2">
+        <div className="min-w-0 flex-1" style={{ color: tone }}>
+          {label} · {context.summary ?? 'Permission config checked.'}
+        </div>
+        <button
+          type="button"
+          className="shrink-0 rounded-md px-1.5 py-0.5 font-semibold"
+          data-testid="composer-permission-runtime-refresh"
+          aria-label="Refresh permission config"
+          disabled={refreshing}
+          onClick={onRefresh}
+          style={{
+            background: 'var(--surface-bg)',
+            border: '1px solid var(--border-subtle)',
+            color: refreshing ? 'var(--text-tertiary)' : 'var(--text-primary)',
+            cursor: refreshing ? 'default' : 'pointer'
+          }}
+        >
+          {refreshing ? 'Refreshing' : 'Refresh'}
+        </button>
+      </div>
+      {refreshStatus && (
+        <div
+          className="mt-1 rounded-md px-1.5 py-1"
+          data-testid="composer-permission-runtime-refresh-status"
+          role={refreshStatus.tone === 'danger' ? 'alert' : 'status'}
+          aria-live={refreshStatus.tone === 'danger' ? 'assertive' : 'polite'}
+          aria-atomic="true"
+          style={{
+            color: refreshStatus.tone === 'danger' ? 'var(--color-red)' : 'var(--accent)',
+            background: refreshStatus.tone === 'danger'
+              ? 'color-mix(in srgb, var(--color-red) 8%, var(--surface-bg))'
+              : 'color-mix(in srgb, var(--accent) 8%, var(--surface-bg))',
+            border: '1px solid var(--border-subtle)'
+          }}
+        >
+          {refreshStatus.text}
+        </div>
+      )}
     </div>
   )
 }

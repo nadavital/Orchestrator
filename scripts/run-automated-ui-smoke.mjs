@@ -3122,6 +3122,7 @@ child.on('exit', async (code) => {
         composerPermissionMenu: captureView !== 'composer' || result.composerPermissionMenuOpened === true,
         appSkipLinksKeyboard: captureView !== 'composer' || result.appSkipLinksKeyboard === true,
         composerPermissionContextSignal: captureView !== 'composer' || result.composerPermissionContextSignal === true,
+        composerPermissionContextRefresh: captureView !== 'composer' || result.composerPermissionContextRefresh === true,
         composerDropdownMaterial: captureView !== 'composer' || result.composerDropdownMaterialWorks === true,
         composerPermissionNativeTooltips: captureView !== 'composer' || result.composerPermissionNativeTooltipsWork === true,
         composerContextChips: captureView !== 'composer' || result.composerContextChips === true,
