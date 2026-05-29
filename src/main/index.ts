@@ -3291,6 +3291,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             var terminalServiceSnapshotWorks = false;
             var terminalRightPanelNewTabShortcutWorks = false;
             var terminalRightPanelCloseShortcutWorks = false;
+            var terminalRightPanelOutputAddToChatWorks = false;
+            var terminalRightPanelCommandOutputAddToChatWorks = false;
             var terminalMoveBackToBottomWorks = false;
             var terminalBottomPanelLabelsWorks = false;
             var bottomPanelPlanTransferWorks = false;
@@ -3984,6 +3986,68 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                   movedRightTerminalView instanceof HTMLElement &&
                   rightPanel.dataset.rightPanelActiveTab === rightTerminalTabId &&
                   !bottomTabsAfterMove.split(',').filter(Boolean).includes(movedTerminalId);
+                const activeRightTerminalIdForCommand =
+                  rightPanel instanceof HTMLElement
+                    ? rightPanel.getAttribute('data-right-panel-active-terminal-id') ?? ''
+                    : '';
+                const submitRightCommandForSmoke = activeRightTerminalIdForCommand.length > 0
+                  ? window.__orchestratorSubmitTerminalCommandForSmokeById?.[activeRightTerminalIdForCommand]
+                  : null;
+                if (activeRightTerminalIdForCommand.length > 0 && typeof submitRightCommandForSmoke === 'function' && typeof window.api.terminal.write === 'function') {
+                  await window.api.terminal.write(activeRightTerminalIdForCommand, String.fromCharCode(3));
+                  await sleep(120);
+                  submitRightCommandForSmoke('printf "RIGHT_PANEL_COMMAND_SMOKE\\\\n"');
+                  for (let index = 0; index < 30; index += 1) {
+                    const rightTerminalCommandButton = document.querySelector('[data-testid="right-terminal-add-command-output-to-chat"]');
+                    const rightTerminalOutputButton = document.querySelector('[data-testid="right-terminal-add-output-to-chat"]');
+                    const rightTerminalHost = document.querySelector('[data-testid="session-right-panel"]');
+                    if (
+                      rightTerminalCommandButton instanceof HTMLButtonElement &&
+                      !rightTerminalCommandButton.disabled &&
+                      rightTerminalOutputButton instanceof HTMLButtonElement &&
+                      !rightTerminalOutputButton.disabled &&
+                      rightTerminalHost?.getAttribute('data-right-panel-terminal-last-command')?.includes('printf') === true &&
+                      Number(rightTerminalHost.getAttribute('data-right-panel-terminal-latest-command-output-lines') ?? '0') > 0
+                    ) {
+                      break;
+                    }
+                    await sleep(120);
+                  }
+                  const rightTerminalOutputButton = document.querySelector('[data-testid="right-terminal-add-output-to-chat"]');
+                  if (rightTerminalOutputButton instanceof HTMLButtonElement && !rightTerminalOutputButton.disabled) {
+                    rightTerminalOutputButton.click();
+                    await sleep(160);
+                    const composerAfterRightOutput = document.querySelector('[data-testid="composer-textarea"]');
+                    const rightTerminalStatusHost = document.querySelector('[data-testid="session-right-panel"]');
+                    terminalRightPanelOutputAddToChatWorks =
+                      composerAfterRightOutput instanceof HTMLTextAreaElement &&
+                      composerAfterRightOutput.value.includes('Review this terminal output:') &&
+                      composerAfterRightOutput.value.includes('RIGHT_PANEL_COMMAND_SMOKE') &&
+                      rightTerminalStatusHost instanceof HTMLElement &&
+                      rightTerminalStatusHost.getAttribute('data-right-panel-terminal-action-status') === 'Terminal output added to chat' &&
+                      rightTerminalOutputButton.getAttribute('aria-label') === 'Add terminal output to chat';
+                  }
+                  const rightTerminalCommandButton = document.querySelector('[data-testid="right-terminal-add-command-output-to-chat"]');
+                  if (rightTerminalCommandButton instanceof HTMLButtonElement && !rightTerminalCommandButton.disabled) {
+                    rightTerminalCommandButton.click();
+                    await sleep(160);
+                    const composerAfterRightCommand = document.querySelector('[data-testid="composer-textarea"]');
+                    const rightTerminalStatusHost = document.querySelector('[data-testid="session-right-panel"]');
+                    const rightTerminalStatus = document.querySelector('[data-testid="right-terminal-action-status"]');
+                    terminalRightPanelCommandOutputAddToChatWorks =
+                      composerAfterRightCommand instanceof HTMLTextAreaElement &&
+                      composerAfterRightCommand.value.includes('Review this terminal command output:') &&
+                      composerAfterRightCommand.value.includes('Command: printf "RIGHT_PANEL_COMMAND_SMOKE\\\\n"') &&
+                      composerAfterRightCommand.value.includes('RIGHT_PANEL_COMMAND_SMOKE') &&
+                      rightTerminalStatusHost instanceof HTMLElement &&
+                      rightTerminalStatusHost.getAttribute('data-right-panel-terminal-action-status') === 'Latest command output added to chat' &&
+                      rightTerminalStatus instanceof HTMLElement &&
+                      rightTerminalStatus.textContent?.includes('Latest command output added to chat') === true &&
+                      rightTerminalStatus.getAttribute('role') === 'status' &&
+                      rightTerminalStatus.getAttribute('aria-live') === 'polite' &&
+                      rightTerminalCommandButton.getAttribute('aria-label') === 'Add latest command output to chat';
+                  }
+                }
                 if (rightTerminalTab instanceof HTMLElement) {
                   const rightTerminalTabsBeforeShortcut = [...document.querySelectorAll('[data-app-shell-tab-controller="right"][role="tab"][data-tab-id^="terminal:"]')]
                     .map((tab) => tab instanceof HTMLElement ? tab.getAttribute('data-tab-id') ?? '' : '')
@@ -8335,6 +8399,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             terminalServiceSnapshotWorks: typeof terminalServiceSnapshotWorks === 'boolean' ? terminalServiceSnapshotWorks : null,
             terminalRightPanelNewTabShortcutWorks: typeof terminalRightPanelNewTabShortcutWorks === 'boolean' ? terminalRightPanelNewTabShortcutWorks : null,
             terminalRightPanelCloseShortcutWorks: typeof terminalRightPanelCloseShortcutWorks === 'boolean' ? terminalRightPanelCloseShortcutWorks : null,
+            terminalRightPanelOutputAddToChatWorks: typeof terminalRightPanelOutputAddToChatWorks === 'boolean' ? terminalRightPanelOutputAddToChatWorks : null,
+            terminalRightPanelCommandOutputAddToChatWorks: typeof terminalRightPanelCommandOutputAddToChatWorks === 'boolean' ? terminalRightPanelCommandOutputAddToChatWorks : null,
             terminalMoveBackToBottomWorks: typeof terminalMoveBackToBottomWorks === 'boolean' ? terminalMoveBackToBottomWorks : null,
             terminalBottomPanelLabelsWorks: typeof terminalBottomPanelLabelsWorks === 'boolean' ? terminalBottomPanelLabelsWorks : null,
             bottomPanelPlanTransferWorks: typeof bottomPanelPlanTransferWorks === 'boolean' ? bottomPanelPlanTransferWorks : null,

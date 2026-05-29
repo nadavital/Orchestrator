@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { filePathFromTabId, sideChatContextSnapshot, sideChatIdFromTabId, terminalTabIdFromTabId, useSessionStore } from '../../store/sessions'
 import type { RightPanelTabId, RightPanelTabKind } from '../../store/sessions'
 import { bottomPanelTransferPolicyLabel, derivePlanStates, derivePlanStatesFromMessages, resolvePanelTabTransferAvailability } from '../../types'
@@ -14,7 +14,7 @@ import GitPanel from './GitPanel'
 import PlanPanel from './PlanPanel'
 import SideQuestionPanel from './SideQuestionPanel'
 import TerminalView from './TerminalView'
-import { AppShellPanel, IconButton, MenuItem, MenuMessage, MenuSection, MenuSectionLabel, MenuSurface, PanelResizeHandle, PanelTabStrip, exitFullscreenForPanelTab, panelTabContextMenuPoint, panelTabDomId, panelTabPanelDomId, useAppShellResizeController, useAppShellSidePanelLayout } from '../shared/designSystem'
+import { AppShellPanel, IconButton, MenuItem, MenuMessage, MenuSection, MenuSectionLabel, MenuSurface, PanelResizeHandle, PanelTabStrip, ToolbarButton, exitFullscreenForPanelTab, panelTabContextMenuPoint, panelTabDomId, panelTabPanelDomId, useAppShellResizeController, useAppShellSidePanelLayout } from '../shared/designSystem'
 import { deriveSessionAgentNodes } from './agentNodes'
 import Icon, { type IconName } from '../shared/Icon'
 
@@ -40,6 +40,16 @@ interface ContextTabSpec {
   pinned?: boolean
   shimmering?: boolean
   tooltipLabel?: string
+}
+
+type TerminalActionStatus = {
+  text: string
+  tone: 'info' | 'danger'
+}
+
+type TerminalCommandState = {
+  command: string
+  outputOffset: number
 }
 
 export default function ContextSidebar({ sessionId }: Props): JSX.Element | null {
@@ -81,6 +91,10 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
     closeRightPanel
   } = useSessionStore()
   const [tabMenu, setTabMenu] = useState<{ tabId: ContextTab; x: number; y: number } | null>(null)
+  const [terminalOutputs, setTerminalOutputs] = useState<Record<string, string>>({})
+  const [terminalCommandStates, setTerminalCommandStates] = useState<Record<string, TerminalCommandState>>({})
+  const [terminalActionStatus, setTerminalActionStatus] = useState<TerminalActionStatus | null>(null)
+  const terminalActionStatusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const ui = uiState[session.id]
   const rightPanel = ui?.rightPanel
   const rawPanelWidthRatio = rightPanel?.widthRatio
@@ -191,6 +205,112 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
   const effectiveFileTab = rightPanel?.tabs.find((tab) => tab.id === effectiveTab && tab.kind === 'file') ?? null
   const effectiveTabLabel = tabs.find((tab) => tab.id === effectiveTab)?.label ?? 'Workbench'
   const rightPanelOpen = rightPanel?.open ?? false
+  const effectiveTerminalTabId = terminalTabIdFromTabId(effectiveTab ?? 'plan')
+  const effectiveTerminalId = effectiveTerminalTabId !== null ? `${session.id}-${effectiveTerminalTabId}` : null
+  const effectiveTerminalOutput = effectiveTerminalId ? terminalOutputs[effectiveTerminalId] ?? '' : ''
+  const effectiveTerminalCommandState = effectiveTerminalId ? terminalCommandStates[effectiveTerminalId] : undefined
+  const effectiveTerminalCommandOutput = effectiveTerminalCommandState
+    ? effectiveTerminalOutput.slice(Math.max(0, Math.min(effectiveTerminalCommandState.outputOffset, effectiveTerminalOutput.length))).trim()
+    : ''
+
+  useEffect(() => () => {
+    if (terminalActionStatusTimeoutRef.current) window.clearTimeout(terminalActionStatusTimeoutRef.current)
+  }, [])
+
+  const setRightTerminalActionStatus = useCallback((status: TerminalActionStatus): void => {
+    if (terminalActionStatusTimeoutRef.current) window.clearTimeout(terminalActionStatusTimeoutRef.current)
+    setTerminalActionStatus(status)
+    terminalActionStatusTimeoutRef.current = window.setTimeout(() => {
+      setTerminalActionStatus(null)
+      terminalActionStatusTimeoutRef.current = null
+    }, 2200)
+  }, [])
+
+  const handleTerminalOutputChange = useCallback((id: string, output: string): void => {
+    setTerminalOutputs((current) => current[id] === output ? current : { ...current, [id]: output })
+  }, [])
+
+  const handleTerminalCommandSubmitted = useCallback((id: string, command: string, outputOffset: number): void => {
+    setTerminalCommandStates((current) => ({ ...current, [id]: { command, outputOffset } }))
+  }, [])
+
+  useEffect(() => {
+    if (!effectiveTerminalId) return undefined
+    const globals = window as typeof window & {
+      __orchestratorSubmitTerminalCommandForSmokeById?: Record<string, (command: string) => void>
+    }
+    const submitCommandForSmoke = (command: string): void => {
+      const input = command.endsWith('\r') || command.endsWith('\n') ? command.replace(/\n$/, '\r') : `${command}\r`
+      handleTerminalCommandSubmitted(effectiveTerminalId, command.trim(), terminalOutputs[effectiveTerminalId]?.length ?? 0)
+      void window.api.terminal.write(effectiveTerminalId, input)
+    }
+    globals.__orchestratorSubmitTerminalCommandForSmokeById = {
+      ...(globals.__orchestratorSubmitTerminalCommandForSmokeById ?? {}),
+      [effectiveTerminalId]: submitCommandForSmoke
+    }
+    return () => {
+      if (globals.__orchestratorSubmitTerminalCommandForSmokeById?.[effectiveTerminalId] === submitCommandForSmoke) {
+        delete globals.__orchestratorSubmitTerminalCommandForSmokeById[effectiveTerminalId]
+      }
+    }
+  }, [effectiveTerminalId, handleTerminalCommandSubmitted, terminalOutputs])
+
+  const addRightTerminalOutputToChat = useCallback((): void => {
+    if (!effectiveTerminalId) {
+      setRightTerminalActionStatus({ text: 'No active terminal output to add', tone: 'danger' })
+      return
+    }
+    const output = effectiveTerminalOutput.trim()
+    if (!output) {
+      setRightTerminalActionStatus({ text: 'Terminal output is empty', tone: 'danger' })
+      return
+    }
+    const clippedOutput = output.split('\n').slice(-120).join('\n').slice(-12_000)
+    const lines = [
+      'Review this terminal output:',
+      `Working dir: ${session.workDir}`,
+      `Terminal: ${effectiveTerminalId}`,
+      '',
+      '```text',
+      clippedOutput,
+      '```'
+    ]
+    window.dispatchEvent(new CustomEvent('orchestrator:add-composer-text', {
+      detail: { text: lines.join('\n') }
+    }))
+    setRightTerminalActionStatus({ text: 'Terminal output added to chat', tone: 'info' })
+  }, [effectiveTerminalId, effectiveTerminalOutput, session.workDir, setRightTerminalActionStatus])
+
+  const addRightTerminalCommandOutputToChat = useCallback((): void => {
+    if (!effectiveTerminalId) {
+      setRightTerminalActionStatus({ text: 'No active terminal command to add', tone: 'danger' })
+      return
+    }
+    if (!effectiveTerminalCommandState) {
+      setRightTerminalActionStatus({ text: 'No submitted terminal command to add', tone: 'danger' })
+      return
+    }
+    const output = effectiveTerminalCommandOutput.trim()
+    if (!output) {
+      setRightTerminalActionStatus({ text: 'Latest command output is empty', tone: 'danger' })
+      return
+    }
+    const clippedOutput = output.split('\n').slice(-80).join('\n').slice(-8_000)
+    const lines = [
+      'Review this terminal command output:',
+      `Working dir: ${session.workDir}`,
+      `Terminal: ${effectiveTerminalId}`,
+      `Command: ${effectiveTerminalCommandState.command}`,
+      '',
+      '```text',
+      clippedOutput,
+      '```'
+    ]
+    window.dispatchEvent(new CustomEvent('orchestrator:add-composer-text', {
+      detail: { text: lines.join('\n') }
+    }))
+    setRightTerminalActionStatus({ text: 'Latest command output added to chat', tone: 'info' })
+  }, [effectiveTerminalCommandOutput, effectiveTerminalCommandState, effectiveTerminalId, session.workDir, setRightTerminalActionStatus])
 
   const openTerminalUrl = useCallback((url: string): void => {
     openRightPanelBrowserUrl(session.id, url)
@@ -468,6 +588,11 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
         data-right-panel-width-ratio={panelWidthRatio?.toFixed(4) ?? ''}
         data-right-panel-layout={panelLayout.mode}
         data-right-panel-tabs={rightPanel?.tabs.map((tab) => tab.id).join(',') ?? ''}
+        data-right-panel-active-terminal-id={effectiveTerminalId ?? ''}
+        data-right-panel-terminal-last-command={effectiveTerminalCommandState?.command ?? ''}
+        data-right-panel-terminal-latest-command-output-lines={effectiveTerminalCommandOutput ? effectiveTerminalCommandOutput.split('\n').length : 0}
+        data-right-panel-terminal-action-status={terminalActionStatus?.text ?? ''}
+        data-right-panel-terminal-action-status-tone={terminalActionStatus?.tone ?? ''}
       >
       <div className="workbench-panel-chrome">
         <PanelTabStrip
@@ -490,6 +615,18 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
           activeActionsHostTestId="right-panel-active-tab-actions"
           actions={(
             <>
+            {terminalActionStatus && (
+              <span
+                className="terminal-panel-action-status"
+                data-testid="right-terminal-action-status"
+                data-terminal-action-status-tone={terminalActionStatus.tone}
+                role={terminalActionStatus.tone === 'danger' ? 'alert' : 'status'}
+                aria-live={terminalActionStatus.tone === 'danger' ? 'assertive' : 'polite'}
+                aria-atomic="true"
+              >
+                {terminalActionStatus.text}
+              </span>
+            )}
             {showWorkbenchAddTabButton && (
               <IconButton
                 icon="plus"
@@ -499,6 +636,28 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
                 dataTestId="right-panel-add-tab"
                 onClick={() => openRightPanelTab(session.id, 'new-tab')}
               />
+            )}
+            {effectiveTerminalId && (
+              <>
+                <ToolbarButton
+                  icon="chat"
+                  label="Add terminal output to chat"
+                  size="sm"
+                  variant="toolbar"
+                  disabled={!effectiveTerminalOutput.trim()}
+                  dataTestId="right-terminal-add-output-to-chat"
+                  onClick={addRightTerminalOutputToChat}
+                />
+                <ToolbarButton
+                  icon="terminal"
+                  label="Add latest command output to chat"
+                  size="sm"
+                  variant="toolbar"
+                  disabled={!effectiveTerminalCommandState || !effectiveTerminalCommandOutput.trim()}
+                  dataTestId="right-terminal-add-command-output-to-chat"
+                  onClick={addRightTerminalCommandOutputToChat}
+                />
+              </>
             )}
             <IconButton
               icon={rightPanel?.fullWidth ? 'minimize' : 'maximize'}
@@ -589,6 +748,8 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
             terminalId={`${session.id}-${terminalTabIdFromTabId(effectiveTab ?? 'plan') ?? 0}`}
             workDir={session.workDir}
             onOpenUrl={openTerminalUrl}
+            onOutputChange={handleTerminalOutputChange}
+            onCommandSubmitted={handleTerminalCommandSubmitted}
             onNewTab={() => {
               const newTabId = addTerminalTab(session.id)
               transferSessionPanelTab(session.id, {

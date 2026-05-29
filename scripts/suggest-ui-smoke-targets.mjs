@@ -122,6 +122,12 @@ const diffRules = [
     diffPatterns: [/PanelTabStrip/, /TabButton/, /panelTabContextMenu/, /terminalTabKeyboardContextMenu/]
   },
   {
+    flag: '--terminal',
+    label: 'Terminal',
+    filePatterns: [/^src\/renderer\/src\/components\/Session\/ContextSidebar\.tsx$/, /^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
+    diffPatterns: [/right-terminal/, /effectiveTerminal/, /terminalRightPanel.*AddToChat/, /Terminal command output/]
+  },
+  {
     flag: '--right-panel',
     label: 'Right Workbench shell',
     filePatterns: [/^src\/renderer\/src\/App\.tsx$/, /^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
@@ -249,6 +255,8 @@ function suggestTargets(paths) {
   suppressHeaderForTerminalCloseDiff(matched, paths)
   restoreDiffTargets(matched, paths)
   suppressWorkbenchLauncherForContextSidebarTabDiff(matched, paths)
+  suppressRightPanelForContextSidebarTerminalDiff(matched, paths)
+  suppressWorkbenchLauncherForContextSidebarTerminalDiff(matched, paths)
   suppressRightPanelForWorkbenchTreeFileDiff(matched)
   suppressTranscriptLayoutForLongThreadDiff(matched, paths)
   suppressTranscriptLayoutForPermissionDiff(matched, paths)
@@ -372,6 +380,30 @@ function suppressWorkbenchLauncherForContextSidebarTabDiff(matched, paths) {
     : ''
   if (!/tabMenu|context-menu|PanelTabStrip|panelTabContextMenu/.test(diff)) return
   if (/workbenchLauncher|workbench-launcher|Workbench launcher|WorkbenchNewTab/.test(diff)) return
+  matched.delete('--workbench-launcher')
+}
+
+function suppressRightPanelForContextSidebarTerminalDiff(matched, paths) {
+  const rightPanel = matched.get('--right-panel')
+  const terminal = matched.get('--terminal')
+  if (!rightPanel || !terminal) return
+  if (!rightPanel.files.every((file) => file === 'src/renderer/src/components/Session/ContextSidebar.tsx')) return
+  const diff = paths.includes('src/renderer/src/components/Session/ContextSidebar.tsx')
+    ? diffForFile('src/renderer/src/components/Session/ContextSidebar.tsx')
+    : ''
+  if (!/right-terminal|effectiveTerminal|Terminal command output/.test(diff)) return
+  matched.delete('--right-panel')
+}
+
+function suppressWorkbenchLauncherForContextSidebarTerminalDiff(matched, paths) {
+  const launcher = matched.get('--workbench-launcher')
+  const terminal = matched.get('--terminal')
+  if (!launcher || !terminal) return
+  if (!launcher.files.every((file) => file === 'src/renderer/src/components/Session/ContextSidebar.tsx')) return
+  const diff = paths.includes('src/renderer/src/components/Session/ContextSidebar.tsx')
+    ? diffForFile('src/renderer/src/components/Session/ContextSidebar.tsx')
+    : ''
+  if (!/right-terminal|effectiveTerminal|Terminal command output/.test(diff)) return
   matched.delete('--workbench-launcher')
 }
 

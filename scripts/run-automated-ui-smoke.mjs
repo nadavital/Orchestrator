@@ -2738,6 +2738,8 @@ child.on('exit', async (code) => {
           terminalServiceSnapshot: result.terminalServiceSnapshotWorks === true,
           terminalRightPanelNewTabShortcut: result.terminalRightPanelNewTabShortcutWorks === true,
           terminalRightPanelCloseShortcut: result.terminalRightPanelCloseShortcutWorks === true,
+          terminalRightPanelOutputAddToChat: result.terminalRightPanelOutputAddToChatWorks === true,
+          terminalRightPanelCommandOutputAddToChat: result.terminalRightPanelCommandOutputAddToChatWorks === true,
           terminalMoveBackToBottom: result.terminalMoveBackToBottomWorks === true,
           terminalBottomPanelLabels: result.terminalBottomPanelLabelsWorks === true,
           bottomPanelPlanTransfer: result.bottomPanelPlanTransferWorks === true,
