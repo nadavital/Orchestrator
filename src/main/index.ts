@@ -13656,6 +13656,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 let reviewRowKeyboardContextMenuWorks = false;
                 let reviewRowAddToChatWorks = false;
                 let reviewRowInsertPathTerminalWorks = false;
+                let reviewRowOpenGitWorks = false;
                 let reviewRowKeyboardContextMenuDebug = {};
                 const reviewRowContextTarget =
                   document.querySelector('.diff-panel-root[data-embedded="true"] .diff-panel-list [data-review-path="data-preview-smoke.json"]') ??
@@ -13678,6 +13679,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   const reviewRowOpenWorkbench = keyboardReviewRowMenu?.querySelector('[data-testid="review-row-open-workbench"]');
                   const reviewRowAddChat = keyboardReviewRowMenu?.querySelector('[data-testid="review-row-add-chat"]');
                   const reviewRowInsertTerminal = keyboardReviewRowMenu?.querySelector('[data-testid="review-row-insert-terminal"]');
+                  const reviewRowOpenGit = keyboardReviewRowMenu?.querySelector('[data-testid="review-row-open-git"]');
                   const reviewRowRevealFile = keyboardReviewRowMenu?.querySelector('[data-testid="review-row-reveal-file"]');
                   const keyboardReviewRowSurfaceLeft = keyboardReviewRowSurface instanceof HTMLElement
                     ? keyboardReviewRowSurface.getBoundingClientRect().left
@@ -13703,6 +13705,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     hasCopy: reviewRowCopyPath instanceof HTMLButtonElement,
                     hasAddChat: reviewRowAddChat instanceof HTMLButtonElement,
                     hasInsertTerminal: reviewRowInsertTerminal instanceof HTMLButtonElement,
+                    hasOpenGit: reviewRowOpenGit instanceof HTMLButtonElement,
                     hasReveal: reviewRowRevealFile instanceof HTMLButtonElement,
                     copiedReviewRowPath,
                     reviewRowStatusText,
@@ -13723,10 +13726,12 @@ function runAutomatedFocusedSurfaceSmoke(
                     reviewRowCopyPath instanceof HTMLButtonElement &&
                     reviewRowAddChat instanceof HTMLButtonElement &&
                     reviewRowInsertTerminal instanceof HTMLButtonElement &&
+                    reviewRowOpenGit instanceof HTMLButtonElement &&
                     keyboardReviewRowMenu.textContent?.includes('Open in Workbench') === true &&
                     keyboardReviewRowMenu.textContent?.includes('Copy path') === true &&
                     keyboardReviewRowMenu.textContent?.includes('Add to chat') === true &&
                     keyboardReviewRowMenu.textContent?.includes('Insert in terminal') === true &&
+                    keyboardReviewRowMenu.textContent?.includes('Open in Git') === true &&
                     keyboardReviewRowMenu.textContent?.includes('Reveal file') === true &&
                     copiedReviewRowPath === 'data-preview-smoke.json' &&
                     reviewRowStatusText.includes('Path copied') &&
@@ -13806,6 +13811,56 @@ function runAutomatedFocusedSurfaceSmoke(
                       bottomPanelAfterReviewPathInsert.getAttribute('data-bottom-panel-active-terminal-id') === terminalId;
                     document.querySelector('[aria-label="Hide bottom panel"]')?.click();
                     await sleep(120);
+                  }
+                  reviewRowContextTarget.dispatchEvent(new KeyboardEvent('keydown', {
+                    key: 'F10',
+                    code: 'F10',
+                    shiftKey: true,
+                    bubbles: true,
+                    cancelable: true
+                  }));
+                  await sleep(140);
+                  const gitReviewRowMenu = document.querySelector('[data-testid="review-row-context-menu"]');
+                  const gitReviewRowAction = gitReviewRowMenu?.querySelector('[data-testid="review-row-open-git"]');
+                  if (gitReviewRowAction instanceof HTMLButtonElement) {
+                    gitReviewRowAction.click();
+                    for (let attempt = 0; attempt < 20; attempt += 1) {
+                      await sleep(100);
+                      const gitPanel = document.querySelector('[data-testid="git-panel"]');
+                      const focusedGitRow = document.querySelector('[data-testid="git-file-row"][data-git-file-path="data-preview-smoke.json"]');
+                      reviewRowOpenGitWorks =
+                        gitPanel instanceof HTMLElement &&
+                        gitPanel.getAttribute('data-git-focus-path') === 'data-preview-smoke.json' &&
+                        gitPanel.getAttribute('data-git-focus-path-found') === 'true' &&
+                        focusedGitRow instanceof HTMLElement &&
+                        focusedGitRow.getAttribute('data-git-file-focused') === 'true';
+                      if (reviewRowOpenGitWorks) break;
+                    }
+                    const gitFocusedRow = document.querySelector('[data-testid="git-file-row"][data-git-file-path="data-preview-smoke.json"]');
+                    const gitOpenReview = gitFocusedRow instanceof HTMLElement
+                      ? gitFocusedRow.querySelector('[data-testid="git-file-open-review"]')
+                      : null;
+                    const diffTab = document.querySelector('[role="tab"][data-tab-id="diff"]');
+                    if (gitOpenReview instanceof HTMLButtonElement && !gitOpenReview.disabled) {
+                      gitOpenReview.click();
+                    } else if (diffTab instanceof HTMLElement) {
+                      diffTab.click();
+                    }
+                    for (let attempt = 0; attempt < 16; attempt += 1) {
+                      await sleep(100);
+                      const reviewRoot = document.querySelector('.diff-panel-root');
+                      if (
+                        document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-active-tab') === 'diff' &&
+                        reviewRoot instanceof HTMLElement &&
+                        reviewRoot.getAttribute('data-review-selected-file') === 'data-preview-smoke.json' &&
+                        (
+                          document.querySelector('[data-testid="review-unified-diff"] .review-diff-line-cell') instanceof HTMLElement ||
+                          document.querySelector('[data-testid="review-split-diff"] .review-diff-line-cell') instanceof HTMLElement
+                        )
+                      ) {
+                        break;
+                      }
+                    }
                   }
                 } else {
                   reviewRowKeyboardContextMenuDebug = { targetFound: false };
@@ -13918,6 +13973,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   reviewRowKeyboardContextMenuWorks,
                   reviewRowAddToChatWorks,
                   reviewRowInsertPathTerminalWorks,
+                  reviewRowOpenGitWorks,
                   reviewRowKeyboardContextMenuDebug,
                   diffHunkCollapseWorks,
                   diffModeToggleWorks,

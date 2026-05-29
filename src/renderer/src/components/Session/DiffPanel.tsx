@@ -810,6 +810,16 @@ export default function DiffPanel({ sessionId, workDir, embedded = false, focusP
     })()
   }
 
+  const openReviewPathInGit = (path: string): void => {
+    const change = sourceFiles.find((file) => file.path === path)
+    if (!change) {
+      setReviewGitActionMessage({ text: 'Select a changed path to open in Git', tone: 'danger' })
+      return
+    }
+    focusRightPanelGitPath(sessionId, path)
+    setReviewGitActionMessage({ text: `Opened Git for ${basename(path)}`, tone: 'info' })
+  }
+
   const openReviewRowContextMenu = (event: WorkbenchTreeContextMenuEvent, file: FileChange): void => {
     event.preventDefault()
     event.stopPropagation()
@@ -1760,6 +1770,16 @@ export default function DiffPanel({ sessionId, workDir, embedded = false, focusP
                       dataTestId="review-row-insert-terminal"
                       onClick={() => {
                         insertReviewPathInTerminal(reviewRowMenu.path)
+                        setReviewRowMenu(null)
+                      }}
+                    />
+                    <MenuItem
+                      icon="branch"
+                      label="Open in Git"
+                      disabled={!reviewRowMenuChange}
+                      dataTestId="review-row-open-git"
+                      onClick={() => {
+                        openReviewPathInGit(reviewRowMenu.path)
                         setReviewRowMenu(null)
                       }}
                     />
