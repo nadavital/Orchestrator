@@ -9824,3 +9824,13 @@ Implemented: `scripts/run-automated-ui-smoke.mjs` now owns a focused capture reg
 Verification: `node -c scripts/run-automated-ui-smoke.mjs`, `node scripts/run-automated-ui-smoke.mjs --list-views`, `pnpm run smoke:ui:list`, and `git diff --check` passed.
 
 Remaining: this improves smoke selection and avoids unnecessary broad runs only. It does not replace the actual focused UI smokes for changed surfaces, and side-panel visual inventory/comparison should still be run intentionally when a slice changes the coordinated header/sidebar/right-panel/bottom-panel contract.
+
+### 2026-05-29 - Capability Mentions Add To Chat
+
+Product evidence: the app-server support matrix still tracks skills/plugins/apps as read-only browser surfaces. For daily coding use, a discovered skill/plugin/app should be actionable from the Capabilities browser without manually copying its identifier back into the chat.
+
+Implemented: Capabilities rows for mentionable `skill`, `plugin`, and `app` resources now expose `Add to chat` in the row action menu. The action appends a provider-compatible text mention to the active chat draft (`$skill`, `plugin://...`, or `app://...`), closes Capabilities back to the active chat, and restores composer focus. Rows expose `data-capability-mention` for focused smoke/debug proof.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --capabilities` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-capabilities-1780035120364.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-capabilities-1780035120364.png`. The focused Capabilities smoke now gates `capabilityAddToChat=true`.
+
+Remaining: this closes textual mention handoff from the local Capabilities browser only. Native Codex app-server `skill` / `mention` input item transport, plugin read/install/uninstall flows, and exact live mention timing remain separate app-server follow-ups.

@@ -5727,6 +5727,14 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             var capabilityDialogExitRetained = Boolean(document.querySelector('.motion-overlay-backdrop[data-motion-exit="true"] [role="dialog"]'));
             await sleep(300);
             var capabilityDialogClosedWithEscape = !document.querySelector('.motion-overlay-backdrop [role="dialog"]');
+            var capabilityAddToChatActionClicked = await openCapabilityAction('Add to chat');
+            await sleep(300);
+            const capabilityComposerTextarea = document.querySelector('[data-testid="composer-textarea"]');
+            var capabilityAddToChatDraft =
+              capabilityAddToChatActionClicked === true &&
+              capabilityComposerTextarea instanceof HTMLTextAreaElement &&
+              capabilityComposerTextarea.value.includes('$orchestrator-smoke-skill') &&
+              document.activeElement === capabilityComposerTextarea;
           }
           if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'composer') {
             const setNativeValue = (element, value) => {
@@ -7974,6 +7982,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             capabilityDeleteDialogOpened: typeof capabilityDeleteDialogOpened === 'boolean' ? capabilityDeleteDialogOpened : null,
             capabilityDialogExitRetained: typeof capabilityDialogExitRetained === 'boolean' ? capabilityDialogExitRetained : null,
             capabilityDialogClosedWithEscape: typeof capabilityDialogClosedWithEscape === 'boolean' ? capabilityDialogClosedWithEscape : null,
+            capabilityAddToChatActionClicked: typeof capabilityAddToChatActionClicked === 'boolean' ? capabilityAddToChatActionClicked : null,
+            capabilityAddToChatDraft: typeof capabilityAddToChatDraft === 'boolean' ? capabilityAddToChatDraft : null,
             composerPermissionMenuOpened: typeof composerPermissionMenuOpened === 'boolean' ? composerPermissionMenuOpened : null,
             appSkipLinksKeyboard: typeof appSkipLinksKeyboard === 'boolean' ? appSkipLinksKeyboard : null,
             composerPermissionContextSignal: typeof composerPermissionContextSignal === 'boolean' ? composerPermissionContextSignal : null,

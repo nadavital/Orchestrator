@@ -3077,6 +3077,10 @@ child.on('exit', async (code) => {
           result.capabilityDialogExitRetained === true &&
           result.capabilityDialogClosedWithEscape === true
         ),
+        capabilityAddToChat: captureView !== 'capabilities' || (
+          result.capabilityAddToChatActionClicked === true &&
+          result.capabilityAddToChatDraft === true
+        ),
         composerPermissionMenu: captureView !== 'composer' || result.composerPermissionMenuOpened === true,
         appSkipLinksKeyboard: captureView !== 'composer' || result.appSkipLinksKeyboard === true,
         composerPermissionContextSignal: captureView !== 'composer' || result.composerPermissionContextSignal === true,

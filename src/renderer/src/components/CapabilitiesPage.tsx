@@ -52,7 +52,10 @@ export default function CapabilitiesPage(): JSX.Element {
   const { projects } = useProjectStore()
   const {
     activeSessionId,
+    uiState,
     sessions,
+    setComposerDraft,
+    setShowCapabilities,
     setShowSettings,
     setSettingsSection
   } = useSessionStore()
@@ -277,6 +280,29 @@ export default function CapabilitiesPage(): JSX.Element {
     }
   }
 
+  const addGroupToChat = (group: ResourceGroup): void => {
+    if (!activeSession) {
+      setMessage('Open a chat before adding a capability mention.')
+      return
+    }
+    const mention = capabilityMentionText(group)
+    if (!mention) {
+      setMessage(`${resourceKindLabel(group.kind).replace(/s$/, '')} mentions are not supported yet.`)
+      return
+    }
+    const currentDraft = uiState[activeSession.id]?.composerDraft ?? ''
+    setComposerDraft(activeSession.id, appendComposerDraftText(currentDraft, mention))
+    setShowCapabilities(false)
+    window.requestAnimationFrame(() => {
+      const focusComposer = (): void => {
+        const composer = document.querySelector<HTMLTextAreaElement>('[data-testid="composer-textarea"]')
+        if (composer instanceof HTMLTextAreaElement && !composer.disabled) composer.focus({ preventScroll: true })
+      }
+      focusComposer()
+      window.setTimeout(focusComposer, 0)
+    })
+  }
+
   return (
     <div className="capabilities-page">
       <header className="capabilities-header">
@@ -392,6 +418,7 @@ export default function CapabilitiesPage(): JSX.Element {
               onEdit={openEdit}
               onRemove={(group) => setRemoveCandidate(group)}
               onSync={openSync}
+              onAddToChat={addGroupToChat}
             />
           )}
         </section>
@@ -478,7 +505,8 @@ function CapabilityList({
   loading,
   onEdit,
   onRemove,
-  onSync
+  onSync,
+  onAddToChat
 }: {
   activeTab: CapabilityTabDef
   groups: ResourceGroup[]
@@ -486,6 +514,7 @@ function CapabilityList({
   onEdit: (group: ResourceGroup) => void
   onRemove: (group: ResourceGroup) => void
   onSync: (group: ResourceGroup) => void
+  onAddToChat: (group: ResourceGroup) => void
 }): JSX.Element {
   if (groups.length === 0) {
     return (
@@ -508,6 +537,7 @@ function CapabilityList({
             onEdit={() => onEdit(group)}
             onRemove={() => onRemove(group)}
             onSync={() => onSync(group)}
+            onAddToChat={() => onAddToChat(group)}
           />
         ))}
       </div>
@@ -519,12 +549,14 @@ function CapabilityRow({
   group,
   onEdit,
   onRemove,
-  onSync
+  onSync,
+  onAddToChat
 }: {
   group: ResourceGroup
   onEdit: () => void
   onRemove: () => void
   onSync: () => void
+  onAddToChat: () => void
 }): JSX.Element {
   const [menuOpen, setMenuOpen] = useState(false)
   const tone = resourceStatusTone(group.status)
@@ -532,10 +564,15 @@ function CapabilityRow({
   const canEdit = group.resources.some((resource) => resource.actions.includes('edit'))
   const canRemove = group.resources.some((resource) => resource.actions.includes('remove'))
   const canSync = syncableKind(group.kind)
-  const hasActions = canEdit || canRemove || canSync
+  const canAddToChat = capabilityMentionText(group) !== null
+  const hasActions = canEdit || canRemove || canSync || canAddToChat
   const coverage = providerCoverageLabel(group)
   return (
-    <SurfaceRow className="capability-row">
+    <SurfaceRow
+      className="capability-row"
+      data-capability-kind={group.kind}
+      data-capability-mention={capabilityMentionText(group) ?? undefined}
+    >
       <div className="capability-row-main">
         <div className="capability-kind-dot" style={{ background: tone }} />
         <div className="min-w-0">
@@ -575,6 +612,15 @@ function CapabilityRow({
         )}
         {hasActions && menuOpen && (
           <MenuSurface className="capability-row-menu" onClose={() => setMenuOpen(false)}>
+            <MenuItem
+              icon="chat"
+              label="Add to chat"
+              disabled={!canAddToChat}
+              onClick={() => {
+                setMenuOpen(false)
+                onAddToChat()
+              }}
+            />
             <MenuItem
               icon="refresh"
               label="Sync"
@@ -1102,6 +1148,47 @@ function providerCoverageLabel(group: ResourceGroup): string | null {
     return `${shortProviderName(providerId)} only`
   }
   return `Missing ${missing.map((providerId) => shortProviderName(providerId)).join(', ')}`
+}
+
+function capabilityMentionText(group: ResourceGroup): string | null {
+  const identifier = capabilityMentionIdentifier(group)
+  if (!identifier) return null
+  if (group.kind === 'skill') return `$${identifier}`
+  if (group.kind === 'plugin') return `plugin://${identifier}`
+  if (group.kind === 'app') return `app://${identifier}`
+  return null
+}
+
+function capabilityMentionIdentifier(group: ResourceGroup): string {
+  const rawValues = group.resources.flatMap((resource) => {
+    const raw = isRecord(resource.raw) ? resource.raw : null
+    return [
+      raw?.skillId,
+      raw?.pluginId,
+      raw?.appId,
+      raw?.id,
+      raw?.name,
+      resource.name,
+      raw?.path
+    ]
+  })
+  for (const value of rawValues) {
+    const text = typeof value === 'string' ? value.trim() : ''
+    if (!text) continue
+    const withoutProtocol = text.replace(/^(skill|plugin|app):\/\//i, '')
+    const pathPart = withoutProtocol.split(/[\\/]/).filter(Boolean).at(-1) ?? withoutProtocol
+    const normalized = pathPart
+      .replace(/\.(md|json)$/i, '')
+      .trim()
+      .replace(/\s+/g, '-')
+    if (normalized) return normalized
+  }
+  return ''
+}
+
+function appendComposerDraftText(current: string, text: string): string {
+  const trimmed = current.trimEnd()
+  return trimmed ? `${trimmed}\n\n${text}` : text
 }
 
 function shortProviderName(providerId: string): string {
