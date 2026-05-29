@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -718,6 +718,7 @@ function TextSourcePreview({
   const [scrollTop, setScrollTop] = useState(0)
   const [viewportHeight, setViewportHeight] = useState(0)
   const scrollerRef = useRef<HTMLDivElement | null>(null)
+  const keyboardFocusLineRef = useRef<number | null>(null)
   const text = preview.text ?? ''
   const lines = text.length > 0 ? text.split('\n') : ['']
   const lineHeight = 22
@@ -735,9 +736,45 @@ function TextSourcePreview({
   const trimmedSearchQuery = sourceSearchQuery.trim()
   const searchMatchCount = sourceSearchMatchLines?.size ?? 0
   const annotationCount = sourceAnnotationLines?.size ?? 0
-  const selectLine = (line: number): void => {
-    setLocalSelectedLine(line)
-    onSelectedSourceLineChange?.(line)
+  const focusableLine = selectedLine && selectedLine >= startIndex + 1 && selectedLine <= endIndex
+    ? selectedLine
+    : visibleLines.length > 0
+      ? startIndex + 1
+      : null
+  const scrollToLine = (line: number, block: ScrollLogicalPosition = 'nearest'): void => {
+    const scroller = scrollerRef.current
+    if (!scroller) return
+    const clampedLine = Math.max(1, Math.min(lines.length, line))
+    if (virtualize) {
+      const targetTop = Math.max(0, (clampedLine - 1) * lineHeight - scroller.clientHeight / 3)
+      scroller.scrollTop = targetTop
+      setScrollTop(targetTop)
+      return
+    }
+    window.requestAnimationFrame(() => {
+      scroller
+        .querySelector<HTMLElement>(`[data-source-line-number="${clampedLine}"]`)
+        ?.scrollIntoView({ block })
+    })
+  }
+  const selectLine = (line: number, focus = false): void => {
+    const clampedLine = Math.max(1, Math.min(lines.length, line))
+    if (focus) keyboardFocusLineRef.current = clampedLine
+    setLocalSelectedLine(clampedLine)
+    onSelectedSourceLineChange?.(clampedLine)
+    if (focus) scrollToLine(clampedLine)
+  }
+  const handleLineKeyDown = (lineNumber: number, event: ReactKeyboardEvent<HTMLButtonElement>): void => {
+    if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return
+    let nextLine: number | null = null
+    if (event.key === 'ArrowDown') nextLine = lineNumber + 1
+    else if (event.key === 'ArrowUp') nextLine = lineNumber - 1
+    else if (event.key === 'Home') nextLine = 1
+    else if (event.key === 'End') nextLine = lines.length
+    if (nextLine === null) return
+    event.preventDefault()
+    event.stopPropagation()
+    selectLine(nextLine, true)
   }
 
   useEffect(() => {
@@ -752,38 +789,25 @@ function TextSourcePreview({
 
   useEffect(() => {
     if (!sourceSearchActiveLine) return
-    const scroller = scrollerRef.current
-    if (!scroller) return
-    const targetTop = Math.max(0, (sourceSearchActiveLine - 1) * lineHeight - scroller.clientHeight / 3)
-    if (virtualize) {
-      scroller.scrollTop = targetTop
-      setScrollTop(targetTop)
-      return
-    }
-    window.requestAnimationFrame(() => {
-      scroller
-        .querySelector<HTMLElement>(`[data-source-line-number="${sourceSearchActiveLine}"]`)
-        ?.scrollIntoView({ block: 'center' })
-    })
-  }, [lineHeight, sourceSearchActiveLine, virtualize])
+    scrollToLine(sourceSearchActiveLine, 'center')
+  }, [sourceSearchActiveLine, virtualize])
 
   useEffect(() => {
     if (!sourceRevealLine) return
+    const clampedLine = Math.max(1, Math.min(lines.length, sourceRevealLine))
+    scrollToLine(clampedLine, 'center')
+  }, [lines.length, sourceRevealLine, sourceRevealRequest, virtualize])
+
+  useLayoutEffect(() => {
+    const line = keyboardFocusLineRef.current
+    if (line === null) return
     const scroller = scrollerRef.current
     if (!scroller) return
-    const clampedLine = Math.max(1, Math.min(lines.length, sourceRevealLine))
-    const targetTop = Math.max(0, (clampedLine - 1) * lineHeight - scroller.clientHeight / 3)
-    if (virtualize) {
-      scroller.scrollTop = targetTop
-      setScrollTop(targetTop)
-      return
-    }
-    window.requestAnimationFrame(() => {
-      scroller
-        .querySelector<HTMLElement>(`[data-source-line-number="${clampedLine}"]`)
-        ?.scrollIntoView({ block: 'center' })
-    })
-  }, [lineHeight, lines.length, sourceRevealLine, sourceRevealRequest, virtualize])
+    const target = scroller.querySelector<HTMLElement>(`[data-source-line-number="${line}"]`)
+    if (!target) return
+    keyboardFocusLineRef.current = null
+    target.focus({ preventScroll: true })
+  }, [endIndex, selectedLine, startIndex, visibleLines.length])
 
   return (
     <div
@@ -804,6 +828,8 @@ function TextSourcePreview({
       data-source-reveal-request={sourceRevealRequest}
       data-source-reveal-visible={revealVisible ? 'true' : 'false'}
       data-source-annotation-count={annotationCount}
+      data-source-keyboard-navigation="roving"
+      data-source-focusable-line={focusableLine ?? ''}
       style={{ '--workspace-source-line-height': `${lineHeight}px` } as CSSProperties}
       onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
     >
@@ -832,6 +858,7 @@ function TextSourcePreview({
           const activeSearchMatch = sourceSearchActiveLine === lineNumber
           const revealed = revealedLine === lineNumber
           const hasAnnotation = sourceAnnotationLines?.has(lineNumber) ?? false
+          const focusable = focusableLine === lineNumber
           return (
             <div key={lineNumber} className="workspace-source-line-wrap">
               <button
@@ -845,7 +872,10 @@ function TextSourcePreview({
                 data-source-line-search-active={activeSearchMatch ? 'true' : 'false'}
                 data-source-line-revealed={revealed ? 'true' : 'false'}
                 data-source-line-has-annotation={hasAnnotation ? 'true' : 'false'}
+                data-source-line-focusable={focusable ? 'true' : 'false'}
+                tabIndex={focusable ? 0 : -1}
                 onClick={() => selectLine(lineNumber)}
+                onKeyDown={(event) => handleLineKeyDown(lineNumber, event)}
               >
                 <span className="workspace-source-gutter" role="gridcell">
                   <span className="workspace-source-gutter-number" data-source-line-number-content="">

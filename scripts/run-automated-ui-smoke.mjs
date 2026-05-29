@@ -2540,6 +2540,7 @@ child.on('exit', async (code) => {
           fileOpenTargetDiagnostic: result.fileOpenTargetDiagnosticWorks === true,
           fileOpenTargetOutcomeDiagnostic: result.fileOpenTargetOutcomeDiagnosticWorks === true,
           fileSourceLineSelection: result.fileSourceLineSelectionWorks === true,
+          fileSourceLineKeyboardNavigation: result.fileSourceLineKeyboardNavigationWorks === true,
           fileSourceLineUtilities: result.fileSourceLineUtilitiesWorks === true,
           fileSourceLineAddToChat: result.fileSourceLineAddToChatWorks === true,
           fileSourceActionStatus: result.fileSourceActionStatusWorks === true,

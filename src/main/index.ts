@@ -16079,6 +16079,7 @@ function runAutomatedFocusedSurfaceSmoke(
               let filesContentSearchWorks = false;
               let filesContentSearchOpenLineWorks = false;
               let fileSourceLineSelectionWorks = false;
+              let fileSourceLineKeyboardNavigationWorks = false;
               let fileSourceWrapToggleWorks = false;
               let fileSourceModeWorks = false;
               let fileSourceLineUtilitiesWorks = false;
@@ -18553,6 +18554,61 @@ function runAutomatedFocusedSurfaceSmoke(
               if (sourceLine instanceof HTMLElement) {
                 sourceLine.click();
                 await sleep(120);
+                const clickedSourceLine = document.querySelector('[data-testid="workbench-file-tab"] [data-source-line-number="2"]');
+                if (clickedSourceLine instanceof HTMLElement) {
+                  clickedSourceLine.focus({ preventScroll: true });
+                  clickedSourceLine.dispatchEvent(new KeyboardEvent('keydown', {
+                    key: 'ArrowUp',
+                    code: 'ArrowUp',
+                    bubbles: true,
+                    cancelable: true
+                  }));
+                  await sleep(160);
+                  const selectedAfterArrowUp = document.querySelector('[data-testid="workbench-file-tab"] [data-source-line-selected="true"]');
+                  const focusedAfterArrowUp = document.activeElement instanceof HTMLElement
+                    ? document.activeElement.closest('[data-source-line-number]')
+                    : null;
+                  const focusableAfterArrowUp = [...document.querySelectorAll('[data-testid="workbench-file-tab"] [data-source-line-focusable="true"]')]
+                    .filter((line) => line instanceof HTMLElement);
+                  const selectedAfterArrowUpLine = selectedAfterArrowUp instanceof HTMLElement
+                    ? selectedAfterArrowUp.getAttribute('data-source-line-number')
+                    : null;
+                  const selectedAfterArrowUpSelected = selectedAfterArrowUp instanceof HTMLElement
+                    ? selectedAfterArrowUp.getAttribute('aria-selected')
+                    : null;
+                  const focusedAfterArrowUpLine = focusedAfterArrowUp instanceof HTMLElement
+                    ? focusedAfterArrowUp.getAttribute('data-source-line-number')
+                    : null;
+                  const focusedAfterArrowUpFocusable = focusedAfterArrowUp instanceof HTMLElement
+                    ? focusedAfterArrowUp.getAttribute('data-source-line-focusable')
+                    : null;
+                  if (focusedAfterArrowUp instanceof HTMLElement) {
+                    focusedAfterArrowUp.dispatchEvent(new KeyboardEvent('keydown', {
+                      key: 'ArrowDown',
+                      code: 'ArrowDown',
+                      bubbles: true,
+                      cancelable: true
+                    }));
+                    await sleep(160);
+                  }
+                  const selectedAfterArrowDown = document.querySelector('[data-testid="workbench-file-tab"] [data-source-line-selected="true"]');
+                  const sourcePreviewAfterKeyboard = document.querySelector('[data-testid="workbench-file-tab"] [data-testid="workspace-text-preview"]');
+                  const focusableAfterArrowDown = [...document.querySelectorAll('[data-testid="workbench-file-tab"] [data-source-line-focusable="true"]')]
+                    .filter((line) => line instanceof HTMLElement);
+                  fileSourceLineKeyboardNavigationWorks =
+                    sourcePreviewAfterKeyboard instanceof HTMLElement &&
+                    sourcePreviewAfterKeyboard.getAttribute('data-source-keyboard-navigation') === 'roving' &&
+                    selectedAfterArrowUpLine === '1' &&
+                    selectedAfterArrowUpSelected === 'true' &&
+                    focusedAfterArrowUpLine === '1' &&
+                    focusedAfterArrowUpFocusable === 'true' &&
+                    focusableAfterArrowUp.length === 1 &&
+                    selectedAfterArrowDown instanceof HTMLElement &&
+                    selectedAfterArrowDown.getAttribute('data-source-line-number') === '2' &&
+                    selectedAfterArrowDown.getAttribute('aria-selected') === 'true' &&
+                    focusableAfterArrowDown.length === 1 &&
+                    focusableAfterArrowDown[0] === selectedAfterArrowDown;
+                }
               }
               const sourcePreview = document.querySelector('[data-testid="workbench-file-tab"] [data-testid="workspace-text-preview"]');
               const selectedSourceLine = document.querySelector('[data-testid="workbench-file-tab"] [data-source-line-selected="true"]');
@@ -19083,6 +19139,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 fileOpenTargetDiagnosticWorks: workbenchFileTabWorks,
                 fileOpenTargetOutcomeDiagnosticWorks,
                 fileSourceLineSelectionWorks,
+                fileSourceLineKeyboardNavigationWorks,
                 fileSourceLineUtilitiesWorks,
                 fileSourceLineAddToChatWorks,
                 fileSourceActionStatusWorks,
