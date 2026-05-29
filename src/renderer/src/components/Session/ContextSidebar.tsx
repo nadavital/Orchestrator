@@ -71,6 +71,7 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
     pinRightPanelTab,
     updateRightPanelFileTabState,
     setRightPanelBrowserUrl,
+    openRightPanelBrowserUrl,
     setRightPanelBrowserWorkbench,
     closeSideChat,
     openSideChat,
@@ -186,6 +187,25 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
   const effectiveFileTab = rightPanel?.tabs.find((tab) => tab.id === effectiveTab && tab.kind === 'file') ?? null
   const effectiveTabLabel = tabs.find((tab) => tab.id === effectiveTab)?.label ?? 'Workbench'
   const rightPanelOpen = rightPanel?.open ?? false
+
+  const openTerminalUrl = useCallback((url: string): void => {
+    openRightPanelBrowserUrl(session.id, url)
+    const ui = useSessionStore.getState().uiState[session.id]
+    const globals = window as typeof window & {
+      __orchestratorLastTerminalBrowserRoute?: {
+        sessionId: string
+        url: string
+        rightPanelActiveTab?: string | null
+        browserUrl?: string
+      }
+    }
+    globals.__orchestratorLastTerminalBrowserRoute = {
+      sessionId: session.id,
+      url,
+      rightPanelActiveTab: ui?.rightPanel?.activeTabId ?? null,
+      browserUrl: ui?.browserUrl
+    }
+  }, [openRightPanelBrowserUrl, session.id])
 
   const activate = (tab: ContextTab): void => {
     const sideChatId = sideChatIdFromTabId(tab)
@@ -536,6 +556,7 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
           <TerminalView
             terminalId={`${session.id}-${terminalTabIdFromTabId(effectiveTab ?? 'plan') ?? 0}`}
             workDir={session.workDir}
+            onOpenUrl={openTerminalUrl}
             onNewTab={() => {
               const newTabId = addTerminalTab(session.id)
               transferSessionPanelTab(session.id, {

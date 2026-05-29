@@ -3126,6 +3126,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             var terminalTabTelemetryWorks = false;
             var terminalTabLifecycleTelemetryWorks = false;
             var terminalLinkRoutingWorks = false;
+            var terminalLinkScopedRoutingWorks = false;
             var terminalThemeFontSyncWorks = false;
             var terminalThemeTokenMatrixWorks = false;
             var terminalMoveToRightPanelWorks = false;
@@ -3810,18 +3811,30 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             const terminalLinkUrl = 'http://127.0.0.1:9/terminal-link-smoke';
             let terminalLinkView = null;
             for (let index = 0; index < 20; index += 1) {
-              terminalLinkView = document.querySelector('[data-testid="terminal-view"]');
+              terminalLinkView = document.querySelector('[data-testid="session-bottom-panel"] ~ [role="tabpanel"] [data-testid="terminal-view"]') ??
+                document.querySelector('[data-testid="session-bottom-panel"] + [role="tabpanel"] [data-testid="terminal-view"]') ??
+                document.querySelector('[data-app-shell-tab-panel-controller="bottom"] [data-testid="terminal-view"]');
               if (
                 terminalLinkView instanceof HTMLElement &&
                 terminalLinkView.getAttribute('data-terminal-link-routing') === 'app-browser' &&
-                typeof window.__orchestratorOpenTerminalUrlForSmoke === 'function'
+                (
+                  typeof window.__orchestratorOpenTerminalUrlForSmokeById?.[terminalLinkView.getAttribute('data-terminal-id') ?? ''] === 'function' ||
+                  typeof window.__orchestratorOpenTerminalUrlForSmoke === 'function'
+                )
               ) {
                 break;
               }
               await sleep(100);
             }
-            if (terminalLinkView instanceof HTMLElement && typeof window.__orchestratorOpenTerminalUrlForSmoke === 'function') {
-              window.__orchestratorOpenTerminalUrlForSmoke(terminalLinkUrl);
+            const terminalLinkOpener = terminalLinkView instanceof HTMLElement
+              ? window.__orchestratorOpenTerminalUrlForSmokeById?.[terminalLinkView.getAttribute('data-terminal-id') ?? ''] ??
+                window.__orchestratorOpenTerminalUrlForSmoke
+              : null;
+            const terminalLinkOpenerWasScoped =
+              terminalLinkView instanceof HTMLElement &&
+              typeof window.__orchestratorOpenTerminalUrlForSmokeById?.[terminalLinkView.getAttribute('data-terminal-id') ?? ''] === 'function';
+            if (terminalLinkView instanceof HTMLElement && typeof terminalLinkOpener === 'function') {
+              terminalLinkOpener(terminalLinkUrl);
               for (let index = 0; index < 30; index += 1) {
                 const route = window.__orchestratorLastTerminalBrowserRoute;
                 if (
@@ -3835,6 +3848,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 }
                 await sleep(120);
               }
+              terminalLinkScopedRoutingWorks = terminalLinkRoutingWorks && terminalLinkOpenerWasScoped;
             }
           }
           if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'terminal-visual') {
@@ -7839,6 +7853,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             terminalServiceSnapshotWorks: typeof terminalServiceSnapshotWorks === 'boolean' ? terminalServiceSnapshotWorks : null,
             terminalRightPanelNewTabShortcutWorks: typeof terminalRightPanelNewTabShortcutWorks === 'boolean' ? terminalRightPanelNewTabShortcutWorks : null,
             terminalMoveBackToBottomWorks: typeof terminalMoveBackToBottomWorks === 'boolean' ? terminalMoveBackToBottomWorks : null,
+            terminalLinkScopedRoutingWorks: typeof terminalLinkScopedRoutingWorks === 'boolean' ? terminalLinkScopedRoutingWorks : null,
             terminalLinkRoutingWorks: typeof terminalLinkRoutingWorks === 'boolean' ? terminalLinkRoutingWorks : null,
             terminalThemeFontSyncWorks: typeof terminalThemeFontSyncWorks === 'boolean' ? terminalThemeFontSyncWorks : null,
             terminalThemeTokenMatrixWorks: typeof terminalThemeTokenMatrixWorks === 'boolean' ? terminalThemeTokenMatrixWorks : null,

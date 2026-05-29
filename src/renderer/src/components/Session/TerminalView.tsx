@@ -44,6 +44,11 @@ function TerminalSurface({ terminalId, workDir, onNewTab, onOpenUrl }: Props): J
   const [clipboardStatus, setClipboardStatus] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
   const clipboardStatusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  const openTerminalUrl = useCallback((url: string): void => {
+    if (!onOpenUrl) return
+    onOpenUrl(url)
+  }, [onOpenUrl])
+
   useEffect(() => {
     setPlainOutput('')
     setError(null)
@@ -63,7 +68,7 @@ function TerminalSurface({ terminalId, workDir, onNewTab, onOpenUrl }: Props): J
     const fitAddon = new FitAddon()
     fitRef.current = fitAddon
     term.loadAddon(fitAddon)
-    if (onOpenUrl) term.registerLinkProvider(createTerminalUrlLinkProvider(term, onOpenUrl))
+    if (onOpenUrl) term.registerLinkProvider(createTerminalUrlLinkProvider(term, openTerminalUrl))
     termRef.current = term
     const safeFit = (): boolean => {
       const container = containerRef.current
@@ -143,7 +148,7 @@ function TerminalSurface({ terminalId, workDir, onNewTab, onOpenUrl }: Props): J
       fitRef.current = null
       // shell persists — call kill() explicitly via tab close or session removal
     }
-  }, [onOpenUrl, terminalId, workDir, reloadKey])
+  }, [onOpenUrl, openTerminalUrl, terminalId, workDir, reloadKey])
 
   useEffect(() => {
     let disposed = false
@@ -195,26 +200,6 @@ function TerminalSurface({ terminalId, workDir, onNewTab, onOpenUrl }: Props): J
     }
   }, [terminalId])
 
-  useEffect(() => {
-    if (!onOpenUrl) return undefined
-    const globals = window as typeof window & {
-      __orchestratorOpenTerminalUrlForSmoke?: (url: string) => void
-      __orchestratorLastTerminalUrlOpened?: string
-    }
-    const openUrlForSmoke = (url: string): void => {
-      const normalized = normalizeTerminalUrl(url)
-      if (!normalized) return
-      globals.__orchestratorLastTerminalUrlOpened = normalized
-      onOpenUrl(normalized)
-    }
-    globals.__orchestratorOpenTerminalUrlForSmoke = openUrlForSmoke
-    return () => {
-      if (globals.__orchestratorOpenTerminalUrlForSmoke === openUrlForSmoke) {
-        delete globals.__orchestratorOpenTerminalUrlForSmoke
-      }
-    }
-  }, [onOpenUrl])
-
   const reloadTerminal = useCallback(() => {
     setError(null)
     setExited(null)
@@ -234,6 +219,34 @@ function TerminalSurface({ terminalId, workDir, onNewTab, onOpenUrl }: Props): J
       clipboardStatusTimeoutRef.current = null
     }, 2200)
   }, [])
+
+  useEffect(() => {
+    if (!onOpenUrl) return undefined
+    const globals = window as typeof window & {
+      __orchestratorOpenTerminalUrlForSmoke?: (url: string) => void
+      __orchestratorOpenTerminalUrlForSmokeById?: Record<string, (url: string) => void>
+      __orchestratorLastTerminalUrlOpened?: string
+    }
+    const openUrlForSmoke = (url: string): void => {
+      const normalized = normalizeTerminalUrl(url)
+      if (!normalized) return
+      globals.__orchestratorLastTerminalUrlOpened = normalized
+      openTerminalUrl(normalized)
+    }
+    globals.__orchestratorOpenTerminalUrlForSmokeById = {
+      ...(globals.__orchestratorOpenTerminalUrlForSmokeById ?? {}),
+      [terminalId]: openUrlForSmoke
+    }
+    globals.__orchestratorOpenTerminalUrlForSmoke = openUrlForSmoke
+    return () => {
+      if (globals.__orchestratorOpenTerminalUrlForSmokeById?.[terminalId] === openUrlForSmoke) {
+        delete globals.__orchestratorOpenTerminalUrlForSmokeById[terminalId]
+      }
+      if (globals.__orchestratorOpenTerminalUrlForSmoke === openUrlForSmoke) {
+        delete globals.__orchestratorOpenTerminalUrlForSmoke
+      }
+    }
+  }, [onOpenUrl, openTerminalUrl, terminalId])
 
   const writeClipboardText = useCallback(async (text: string): Promise<void> => {
     if (typeof window.api.clipboard?.writeText === 'function') {

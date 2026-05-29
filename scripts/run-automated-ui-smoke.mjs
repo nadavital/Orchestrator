@@ -2686,6 +2686,7 @@ child.on('exit', async (code) => {
           terminalRightPanelNewTabShortcut: result.terminalRightPanelNewTabShortcutWorks === true,
           terminalMoveBackToBottom: result.terminalMoveBackToBottomWorks === true,
           terminalLinkRouting: result.terminalLinkRoutingWorks === true,
+          terminalLinkScopedRouting: result.terminalLinkScopedRoutingWorks === true,
           terminalThemeFontSync: result.terminalThemeFontSyncWorks === true,
           terminalThemeTokenMatrix: result.terminalThemeTokenMatrixWorks === true
         }
@@ -2962,6 +2963,7 @@ child.on('exit', async (code) => {
         terminalRightPanelNewTabShortcut: captureView !== 'terminal' || result.terminalRightPanelNewTabShortcutWorks === true,
         terminalMoveBackToBottom: captureView !== 'terminal' || result.terminalMoveBackToBottomWorks === true,
         terminalLinkRouting: captureView !== 'terminal' || result.terminalLinkRoutingWorks === true,
+        terminalLinkScopedRouting: captureView !== 'terminal' || result.terminalLinkScopedRoutingWorks === true,
         terminalThemeFontSync: captureView !== 'terminal' || result.terminalThemeFontSyncWorks === true,
         terminalThemeTokenMatrix: captureView !== 'terminal' || result.terminalThemeTokenMatrixWorks === true,
         themeImport: captureView !== 'settings' || result.themeImportWorks === true,
