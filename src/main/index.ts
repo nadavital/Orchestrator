@@ -5800,6 +5800,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             var sideChatComposerCompactWorks = false;
             var sideChatMultilineDraftWorks = false;
             var sideChatInputFocusOnOpenWorks = false;
+            var sideChatSendLabelWorks = false;
             if (sideChatTabs.length >= 2) {
               const firstSideTab = sideChatTabs[0];
               const secondSideTab = sideChatTabs[1];
@@ -5834,6 +5835,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               const sideChatComposer = document.querySelector('[data-testid="side-chat-composer"]');
               const sideChatSend = document.querySelector('[data-testid="side-chat-send"]');
               const sideChatEmptyState = document.querySelector('[data-testid="side-chat-empty-state"]');
+              sideChatSendLabelWorks = sideChatSend instanceof HTMLButtonElement &&
+                sideChatSend.getAttribute('aria-label') === 'Send side chat message';
               sideChatDraftPersistenceWorks =
                 secondDraftRestored &&
                 firstDraftRestored &&
@@ -5843,6 +5846,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               sideChatComposerCompactWorks =
                 sideChatComposer instanceof HTMLElement &&
                 sideChatSend instanceof HTMLElement &&
+                sideChatSendLabelWorks &&
                 firstInput instanceof HTMLTextAreaElement &&
                 sideChatEmptyState instanceof HTMLElement &&
                 sideChatComposer.getBoundingClientRect().height <= 38 &&
@@ -8165,6 +8169,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             agentRuntimeFailureGroupAddToChatWorks: typeof agentRuntimeFailureGroupAddToChatWorks === 'boolean' ? agentRuntimeFailureGroupAddToChatWorks : null,
             sideChatTabsWork: typeof sideChatTabsWork === 'boolean' ? sideChatTabsWork : null,
             sideChatInputFocusOnOpenWorks: typeof sideChatInputFocusOnOpenWorks === 'boolean' ? sideChatInputFocusOnOpenWorks : null,
+            sideChatSendLabelWorks: typeof sideChatSendLabelWorks === 'boolean' ? sideChatSendLabelWorks : null,
             sideChatComposerCompactWorks: typeof sideChatComposerCompactWorks === 'boolean' ? sideChatComposerCompactWorks : null,
             sideChatDraftPersistenceWorks: typeof sideChatDraftPersistenceWorks === 'boolean' ? sideChatDraftPersistenceWorks : null,
             sideChatMultilineDraftWorks: typeof sideChatMultilineDraftWorks === 'boolean' ? sideChatMultilineDraftWorks : null,
@@ -19438,6 +19443,7 @@ function runAutomatedFocusedSurfaceSmoke(
               let sideChatComposerCompactWorks = false;
               let sideChatMultilineDraftWorks = false;
               let sideChatInputFocusOnOpenWorks = false;
+              let sideChatSendLabelWorks = false;
               if (sideChatTabs.length >= 2) {
                 const firstTab = sideChatTabs[0];
                 const secondTab = sideChatTabs[1];
@@ -19469,6 +19475,8 @@ function runAutomatedFocusedSurfaceSmoke(
                   firstInput.value === 'draft for first side chat\\nwith more context';
                 const composer = document.querySelector('[data-testid="side-chat-composer"]');
                 const send = document.querySelector('[data-testid="side-chat-send"]');
+                sideChatSendLabelWorks = send instanceof HTMLButtonElement &&
+                  send.getAttribute('aria-label') === 'Send side chat message';
                 sideChatDraftPersistenceWorks =
                   secondDraftRestored &&
                   firstDraftRestored;
@@ -19477,6 +19485,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 sideChatComposerCompactWorks =
                   composer instanceof HTMLElement &&
                   send instanceof HTMLElement &&
+                  sideChatSendLabelWorks &&
                   composer.getBoundingClientRect().height <= 38 &&
                   composer.scrollWidth <= composer.clientWidth + 2 &&
                   send.textContent?.trim() === '';
@@ -19632,6 +19641,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 profile,
                 sideChatTabsWork,
                 sideChatInputFocusOnOpenWorks,
+                sideChatSendLabelWorks,
                 sideChatComposerCompactWorks,
                 sideChatDraftPersistenceWorks,
                 sideChatMultilineDraftWorks,

@@ -251,7 +251,7 @@ export default function SideQuestionPanel({ session, chatId, embedded }: Props):
         </span>
         <IconButton
           icon="send"
-          label="Send side question"
+          label={chatId ? 'Send side chat message' : 'Send side question'}
           onClick={() => { void submit() }}
           disabled={!question.trim() || pending}
           size="sm"

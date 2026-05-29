@@ -10254,3 +10254,13 @@ Implemented: `SideQuestionPanel` now focuses its textarea when a side chat mount
 Verification: `pnpm run smoke:ui:changed:static` passed the generated static plan (`git diff --check`, `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and `node -c scripts/suggest-ui-smoke-targets.mjs`). Elevated `pnpm run smoke:ui:changed:smoke` ran only `node scripts/run-automated-ui-smoke.mjs --side-chat` and passed with `sideChatInputFocusOnOpen=true`. Side-chat evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-side-chat-1780061137238.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-side-chat-1780061137238.png`.
 
 Remaining: this closes local side-chat open/switch focus only. Richer provider-backed side-chat context and live non-Codex side-chat behavior remain separate Phase 1 work.
+
+### 2026-05-29 - Side Chat Send Label
+
+Product evidence: after side-chat focus was fixed, the icon-only send control still exposed the legacy accessible name `Send side question` inside side-chat tabs. The visible surface is now side chat, so assistive technology and smoke coverage should use the same product language as the tab and message log.
+
+Implemented: `SideQuestionPanel` now labels the embedded side-chat send control as `Send side chat message` while preserving `Send side question` for the legacy side-question panel. The focused side-chat smoke now gates this under `sideChatSendLabel=true`.
+
+Verification: `pnpm run smoke:ui:changed:static` passed the generated static plan (`git diff --check`, `pnpm exec tsc --noEmit`, and `node -c scripts/run-automated-ui-smoke.mjs`). Elevated `pnpm run smoke:ui:changed:smoke` ran only `node scripts/run-automated-ui-smoke.mjs --side-chat` and passed with `sideChatSendLabel=true`. Side-chat evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-side-chat-1780061390344.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-side-chat-1780061390344.png`.
+
+Remaining: this closes side-chat send-control naming only. Broader side-chat provider-backed behavior and cross-provider live context remain separate Phase 1 work.
