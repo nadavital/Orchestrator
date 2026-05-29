@@ -25441,7 +25441,7 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
                 const rect = element.getBoundingClientRect();
                 return rect.left >= scrollerRect.left - 2 && rect.right <= scrollerRect.right + 2;
               };
-              const pre = document.querySelector('pre');
+              const pre = document.querySelector('[data-testid="chat-code-block"] pre') ?? document.querySelector('pre');
               const table = document.querySelector('table');
               const tableCells = [...document.querySelectorAll('td, th')].filter((cell) => cell instanceof HTMLElement);
               return {
@@ -25572,7 +25572,18 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
               await sleep(80);
             }
             const messageRows = [...document.querySelectorAll('[data-message-id]')];
-            const pre = document.querySelector('pre');
+            const pre = document.querySelector('[data-testid="chat-code-block"] pre') ?? document.querySelector('pre');
+            const codeBlock = document.querySelector('[data-testid="chat-code-block"]');
+            const codeBlockCopy = document.querySelector('[data-testid="chat-code-block-copy"]');
+            if (codeBlockCopy instanceof HTMLButtonElement) {
+              codeBlockCopy.click();
+              await sleep(160);
+            }
+            const codeBlockCopyStatus = document.querySelector('[data-testid="chat-code-block-copy-status"]');
+            const copiedCodeBlockText =
+              await window.api?.clipboard?.readText?.().catch(() => '') ??
+              await navigator.clipboard?.readText?.().catch(() => '') ??
+              '';
             const table = document.querySelector('table');
             const fileCards = [...document.querySelectorAll('[data-testid="file-reference-card"]')];
             const existingFileReferenceCard = fileCards.find((card) =>
@@ -25602,6 +25613,39 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
             const messageRowsBounded = messageRows.length > 0 && messageRows.every(isInsideScroller);
             const codeBlockBounded = wideLayout.codeBlockBounded;
             const codeBlockInternallyScrollable = wideLayout.codeBlockInternallyScrollable;
+            const codeBlockCopyWorks =
+              codeBlock instanceof HTMLElement &&
+              codeBlock.getAttribute('data-chat-code-language') === 'ts' &&
+              codeBlock.getAttribute('data-chat-code-copy-state') === 'copied' &&
+              codeBlockCopy instanceof HTMLButtonElement &&
+              codeBlockCopy.getAttribute('aria-label') === 'Copied code block' &&
+              codeBlockCopy.getAttribute('data-icon-button-variant') === 'toolbar' &&
+              codeBlockCopyStatus instanceof HTMLElement &&
+              codeBlockCopyStatus.getAttribute('role') === 'status' &&
+              codeBlockCopyStatus.getAttribute('aria-live') === 'polite' &&
+              codeBlockCopyStatus.getAttribute('aria-atomic') === 'true' &&
+              codeBlockCopyStatus.textContent?.includes('Copied code block') === true &&
+              copiedCodeBlockText.includes('export const longLayoutToken') &&
+              copiedCodeBlockText.includes('TRANSCRIPT_LAYOUT_SMOKE_');
+            const codeElement = pre instanceof HTMLElement ? pre.querySelector('code') : null;
+            const codeBlockCopyDebug = {
+              blockFound: codeBlock instanceof HTMLElement,
+              language: codeBlock instanceof HTMLElement ? codeBlock.getAttribute('data-chat-code-language') : null,
+              state: codeBlock instanceof HTMLElement ? codeBlock.getAttribute('data-chat-code-copy-state') : null,
+              buttonFound: codeBlockCopy instanceof HTMLButtonElement,
+              ariaLabel: codeBlockCopy instanceof HTMLButtonElement ? codeBlockCopy.getAttribute('aria-label') : null,
+              variant: codeBlockCopy instanceof HTMLButtonElement ? codeBlockCopy.getAttribute('data-icon-button-variant') : null,
+              statusFound: codeBlockCopyStatus instanceof HTMLElement,
+              statusText: codeBlockCopyStatus instanceof HTMLElement ? codeBlockCopyStatus.textContent : null,
+              clipboardHasLongToken: copiedCodeBlockText.includes('TRANSCRIPT_LAYOUT_SMOKE_'),
+              clipboardPreview: copiedCodeBlockText.slice(0, 80),
+              preScrollWidth: pre instanceof HTMLElement ? pre.scrollWidth : null,
+              preClientWidth: pre instanceof HTMLElement ? pre.clientWidth : null,
+              preOverflowX: pre instanceof HTMLElement ? window.getComputedStyle(pre).overflowX : null,
+              codeScrollWidth: codeElement instanceof HTMLElement ? codeElement.scrollWidth : null,
+              codeClientWidth: codeElement instanceof HTMLElement ? codeElement.clientWidth : null,
+              codeWhiteSpace: codeElement instanceof HTMLElement ? window.getComputedStyle(codeElement).whiteSpace : null
+            };
             const tableBounded = wideLayout.tableBounded;
             const tableCellsWrap = wideLayout.tableCellsWrap;
             const fileCardsBounded = fileCards.length > 0 && fileCards.every(isInsideScroller);
@@ -25895,6 +25939,8 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
               messageRowsBounded,
               codeBlockBounded,
               codeBlockInternallyScrollable,
+              codeBlockCopyWorks,
+              codeBlockCopyDebug,
               tableBounded,
               tableCellsWrap,
               fileCardsBounded,
@@ -25941,7 +25987,7 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
               scroller.scrollTop = Math.max(0, scroller.scrollHeight - scroller.clientHeight) * (index / 9);
               scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
               await sleep(120);
-              if (document.querySelector('pre') && document.querySelector('table')) break;
+              if ((document.querySelector('[data-testid="chat-code-block"] pre') ?? document.querySelector('pre')) && document.querySelector('table')) break;
             }
             let permissionCard = document.querySelector('[data-testid="chat-permission-card"]');
             for (let index = 0; index < 40 && !(permissionCard instanceof HTMLElement); index += 1) {
@@ -25962,7 +26008,7 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
               const rect = element.getBoundingClientRect();
               return rect.left >= scrollerRect.left - 2 && rect.right <= scrollerRect.right + 2;
             };
-            const pre = document.querySelector('pre');
+            const pre = document.querySelector('[data-testid="chat-code-block"] pre') ?? document.querySelector('pre');
             const table = document.querySelector('table');
             const tableCells = [...document.querySelectorAll('td, th')].filter((cell) => cell instanceof HTMLElement);
             const permissionActions = document.querySelector('[data-testid="chat-permission-actions"]');

@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useCallback } from 'react'
+import { isValidElement, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useCallback } from 'react'
 import type { ReactNode, WheelEvent } from 'react'
 import { createPortal } from 'react-dom'
 import ReactMarkdown from 'react-markdown'
@@ -1590,12 +1590,133 @@ function ForkFromMessageButton({
   )
 }
 
+function textFromReactNode(node: ReactNode): string {
+  if (node === null || node === undefined || typeof node === 'boolean') return ''
+  if (typeof node === 'string' || typeof node === 'number') return String(node)
+  if (Array.isArray(node)) return node.map(textFromReactNode).join('')
+  if (isValidElement<{ children?: ReactNode }>(node)) return textFromReactNode(node.props.children)
+  return ''
+}
+
+function CodeBlock({ className, children, lang, props }: {
+  className?: string
+  children: ReactNode
+  lang: string
+  props: Record<string, unknown>
+}): JSX.Element {
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'error'>('idle')
+  const copyStatusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const codeText = useMemo(() => textFromReactNode(children).replace(/\n$/, ''), [children])
+
+  useEffect(() => () => {
+    if (copyStatusTimeoutRef.current) window.clearTimeout(copyStatusTimeoutRef.current)
+  }, [])
+
+  const copyCode = useCallback(async (event: React.MouseEvent) => {
+    event.preventDefault()
+    event.stopPropagation()
+    if (copyStatusTimeoutRef.current) window.clearTimeout(copyStatusTimeoutRef.current)
+    try {
+      if (typeof window.api.clipboard?.writeText === 'function') {
+        const didWrite = await window.api.clipboard.writeText(codeText)
+        if (!didWrite) throw new Error('Clipboard write failed')
+      } else {
+        await navigator.clipboard.writeText(codeText)
+      }
+      setCopyStatus('copied')
+      copyStatusTimeoutRef.current = window.setTimeout(() => {
+        setCopyStatus('idle')
+        copyStatusTimeoutRef.current = null
+      }, 1500)
+    } catch {
+      setCopyStatus('error')
+      copyStatusTimeoutRef.current = window.setTimeout(() => {
+        setCopyStatus('idle')
+        copyStatusTimeoutRef.current = null
+      }, 2200)
+    }
+  }, [codeText])
+
+  return (
+    <div
+      data-testid="chat-code-block"
+      data-chat-code-language={lang || 'code'}
+      data-chat-code-copy-state={copyStatus}
+      style={{ position: 'relative', margin: '8px 0', maxWidth: '100%', minWidth: 0, overflow: 'hidden' }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 8,
+          minWidth: 0,
+          padding: '4px 8px 4px 10px',
+          background: 'var(--color-surface)',
+          borderRadius: '6px 6px 0 0',
+          borderBottom: '1px solid var(--color-border)'
+        }}
+      >
+        <span style={{ fontSize: 10, color: 'var(--color-text-muted)', fontFamily: 'monospace' }}>
+          {lang || 'code'}
+        </span>
+        <IconButton
+          icon={copyStatus === 'copied' ? 'check' : 'copy'}
+          label={copyStatus === 'error' ? 'Copy code failed' : copyStatus === 'copied' ? 'Copied code block' : 'Copy code block'}
+          size="sm"
+          variant="toolbar"
+          tone={copyStatus === 'copied' ? 'success' : copyStatus === 'error' ? 'danger' : 'neutral'}
+          dataTestId="chat-code-block-copy"
+          onClick={copyCode}
+        />
+      </div>
+      <pre
+        style={{
+          margin: 0,
+          padding: '10px 12px',
+          width: '100%',
+          maxWidth: '100%',
+          minWidth: 0,
+          boxSizing: 'border-box',
+          background: 'var(--color-surface)',
+          borderRadius: '0 0 6px 6px',
+          overflowX: 'auto',
+          overflowY: 'hidden',
+          fontSize: '0.82em',
+          lineHeight: 1.5
+        }}
+      >
+        <code
+          {...props}
+          className={className}
+          style={{ display: 'block', width: 'max-content', minWidth: '100%', whiteSpace: 'pre' }}
+        >
+          {children}
+        </code>
+      </pre>
+      {copyStatus !== 'idle' && (
+        <span
+          className="sr-only"
+          data-testid="chat-code-block-copy-status"
+          data-copy-state={copyStatus}
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          {copyStatus === 'copied' ? 'Copied code block' : 'Unable to copy code block'}
+        </span>
+      )}
+    </div>
+  )
+}
+
 function makeMarkdownComponents(isUser: boolean): Components {
   return {
     // Code blocks
     code({ className, children, ...props }) {
-      const isBlock = className?.startsWith('language-')
-      const lang = className?.replace('language-', '') ?? ''
+      const languageMatch = className?.match(/(?:^|\s)language-([A-Za-z0-9_-]+)/)
+      const isBlock = Boolean(languageMatch)
+      const lang = languageMatch?.[1] ?? ''
       if (!isBlock) {
         return (
           <code
@@ -1614,50 +1735,7 @@ function makeMarkdownComponents(isUser: boolean): Components {
           </code>
         )
       }
-      return (
-        <div style={{ position: 'relative', margin: '8px 0', maxWidth: '100%', minWidth: 0, overflow: 'hidden' }}>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'flex-start',
-              minWidth: 0,
-              padding: '4px 10px',
-              background: 'var(--color-surface)',
-              borderRadius: '6px 6px 0 0',
-              borderBottom: '1px solid var(--color-border)'
-            }}
-          >
-            <span style={{ fontSize: 10, color: 'var(--color-text-muted)', fontFamily: 'monospace' }}>
-              {lang || 'code'}
-            </span>
-          </div>
-          <pre
-            style={{
-              margin: 0,
-              padding: '10px 12px',
-              width: '100%',
-              maxWidth: '100%',
-              minWidth: 0,
-              boxSizing: 'border-box',
-              background: 'var(--color-surface)',
-              borderRadius: '0 0 6px 6px',
-              overflowX: 'auto',
-              overflowY: 'hidden',
-              fontSize: '0.82em',
-              lineHeight: 1.5
-            }}
-          >
-            <code
-              className={className}
-              style={{ display: 'block', minWidth: 'max-content' }}
-              {...props}
-            >
-              {children}
-            </code>
-          </pre>
-        </div>
-      )
+      return <CodeBlock className={className} lang={lang} props={props} children={children} />
     },
     // Paragraphs — no extra margin inside bubbles
     p({ children }) {

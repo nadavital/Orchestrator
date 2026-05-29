@@ -2128,6 +2128,7 @@ child.on('exit', async (code) => {
         messageRowsBounded: result.messageRowsBounded === true,
         codeBlockBounded: result.codeBlockBounded === true,
         codeBlockInternallyScrollable: result.codeBlockInternallyScrollable === true,
+        codeBlockCopy: result.codeBlockCopyWorks === true,
         tableBounded: result.tableBounded === true,
         tableCellsWrap: result.tableCellsWrap === true,
         userInputCard: result.userInputCardWorks === true,

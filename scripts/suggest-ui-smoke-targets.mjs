@@ -65,7 +65,7 @@ const diffRules = [
     flag: '--transcript-layout',
     label: 'Transcript',
     filePatterns: [/^src\/renderer\/src\/components\/Session\/InputBar\.tsx$/, /^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
-    diffPatterns: [/chatUserMessageEdit/, /message-edit-draft/, /composer-draft-source/]
+    diffPatterns: [/chatUserMessageEdit/, /message-edit-draft/, /composer-draft-source/, /CodeBlock/, /chat-code-block/, /codeBlockCopy/]
   },
   {
     flag: '--transcript-stress',
@@ -246,6 +246,7 @@ function suggestTargets(paths) {
   suppressRightPanelForWorkbenchTreeFileDiff(matched)
   suppressTranscriptLayoutForLongThreadDiff(matched, paths)
   suppressTranscriptLayoutForForkDiff(matched, paths)
+  suppressTranscriptForkForCodeBlockDiff(matched, paths)
   suppressComposerForWorktreeLifecycleDiff(matched, paths)
 
   return { targets: Array.from(matched.values()), unmatched, broadReasons }
@@ -372,8 +373,19 @@ function suppressTranscriptLayoutForForkDiff(matched, paths) {
   const diff = paths.includes('src/renderer/src/components/Session/ChatView.tsx')
     ? diffForFile('src/renderer/src/components/Session/ChatView.tsx')
     : ''
+  if (/CodeBlock|chat-code-block|codeBlockCopy/.test(diff)) return
   if (!/ForkFromMessage|chatMessageFork|chat-message-fork/.test(diff)) return
   matched.delete('--transcript-layout')
+}
+
+function suppressTranscriptForkForCodeBlockDiff(matched, paths) {
+  const fork = matched.get('--transcript-fork')
+  if (!fork) return
+  const diff = paths.includes('src/renderer/src/components/Session/ChatView.tsx')
+    ? diffForFile('src/renderer/src/components/Session/ChatView.tsx')
+    : ''
+  if (!/CodeBlock|chat-code-block|codeBlockCopy/.test(diff)) return
+  matched.delete('--transcript-fork')
 }
 
 function suppressTranscriptLayoutForLongThreadDiff(matched, paths) {
