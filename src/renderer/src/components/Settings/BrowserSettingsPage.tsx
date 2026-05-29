@@ -83,7 +83,13 @@ export default function BrowserSettingsPage({ hostId, hostLabel }: BrowserSettin
           subtitle={`Manage the built-in Browser data and permissions for ${hostLabel}.`}
           dataTestId="settings-content-layout-browser"
         >
-          <SettingsContentGroup className="browser-settings-content-group">
+          <SettingsContentGroup
+            className="browser-settings-content-group"
+            rootAttrs={{
+              tabIndex: -1,
+              'data-settings-search-anchor': 'browser-data'
+            }}
+          >
             <div className="settings-content-heading">
               <div className="settings-content-title">Data</div>
               <div className="settings-content-description">Clear site data and cache from the in-app Browser for this host.</div>
@@ -135,7 +141,13 @@ export default function BrowserSettingsPage({ hostId, hostLabel }: BrowserSettin
             </SettingsGroupContent>
           </SettingsContentGroup>
 
-          <SettingsContentGroup className="browser-settings-content-group">
+          <SettingsContentGroup
+            className="browser-settings-content-group"
+            rootAttrs={{
+              tabIndex: -1,
+              'data-settings-search-anchor': 'browser-permissions'
+            }}
+          >
             <div className="settings-content-heading">
               <div className="settings-content-title">Permissions</div>
               <div className="settings-content-description">Defaults for new Browser panels. A session can still override these in the Browser Security inspector.</div>
@@ -177,7 +189,13 @@ export default function BrowserSettingsPage({ hostId, hostLabel }: BrowserSettin
             </SettingsGroupContent>
           </SettingsContentGroup>
 
-          <SettingsContentGroup className="browser-settings-content-group">
+          <SettingsContentGroup
+            className="browser-settings-content-group"
+            rootAttrs={{
+              tabIndex: -1,
+              'data-settings-search-anchor': 'browser-domains'
+            }}
+          >
             <div className="settings-content-heading">
               <div className="settings-content-title">Domains</div>
               <div className="settings-content-description">Persist allowed and blocked domain defaults for Browser opening, downloads, and uploads.</div>

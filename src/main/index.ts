@@ -1339,6 +1339,60 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                   }
                   await sleep(80);
                 }
+                var settingsBrowserInPageSearchTargetWorks = false;
+                activeSettingsSearchInput = setSettingsSearchValue('downloads') ?? activeSettingsSearchInput;
+                await sleep(120);
+                const browserPermissionsSearchMatch = document.querySelector('[data-testid="settings-search-match"]');
+                activeSettingsSearchInput.dispatchEvent(new KeyboardEvent('keydown', {
+                  key: 'Enter',
+                  code: 'Enter',
+                  bubbles: true,
+                  cancelable: true
+                }));
+                for (let index = 0; index < 25; index += 1) {
+                  const shell = document.querySelector('.settings-shell');
+                  const browserPermissionsAnchor = document.querySelector('[data-settings-search-anchor="browser-permissions"]');
+                  const routeMatches = window.location.protocol === 'file:'
+                    ? window.location.hash.startsWith('#/settings/browser')
+                    : window.location.pathname === '/settings/browser';
+                  if (
+                    shell instanceof HTMLElement &&
+                    shell.getAttribute('data-settings-active-section') === 'browser' &&
+                    browserPermissionsSearchMatch instanceof HTMLButtonElement &&
+                    browserPermissionsSearchMatch.getAttribute('data-settings-search-target') === 'browser' &&
+                    browserPermissionsSearchMatch.getAttribute('data-settings-search-target-anchor') === 'browser-permissions' &&
+                    browserPermissionsAnchor instanceof HTMLElement &&
+                    browserPermissionsAnchor.getAttribute('data-settings-search-active') === 'true' &&
+                    document.activeElement === browserPermissionsAnchor &&
+                    routeMatches
+                  ) {
+                    settingsBrowserInPageSearchTargetWorks = true;
+                    break;
+                  }
+                  await sleep(80);
+                }
+                activeSettingsSearchInput = setSettingsSearchValue('general') ?? activeSettingsSearchInput;
+                await sleep(120);
+                activeSettingsSearchInput.dispatchEvent(new KeyboardEvent('keydown', {
+                  key: 'Enter',
+                  code: 'Enter',
+                  bubbles: true,
+                  cancelable: true
+                }));
+                for (let index = 0; index < 25; index += 1) {
+                  const shell = document.querySelector('.settings-shell');
+                  const routeMatches = window.location.protocol === 'file:'
+                    ? window.location.hash.startsWith('#/settings/general')
+                    : window.location.pathname === '/settings/general';
+                  if (
+                    shell instanceof HTMLElement &&
+                    shell.getAttribute('data-settings-active-section') === 'general' &&
+                    routeMatches
+                  ) {
+                    break;
+                  }
+                  await sleep(80);
+                }
               }
               const settingsContentLayoutMatches = (testId, title, subtitleIncludes) => {
                 const layout = document.querySelector('[data-testid="' + testId + '"]');
@@ -7532,6 +7586,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             settingsSectionHistoryNavigationWorks: typeof settingsSectionHistoryNavigationWorks === 'boolean' ? settingsSectionHistoryNavigationWorks : null,
             settingsSearchNavigationWorks: typeof settingsSearchNavigationWorks === 'boolean' ? settingsSearchNavigationWorks : null,
             settingsInPageSearchTargetWorks: typeof settingsInPageSearchTargetWorks === 'boolean' ? settingsInPageSearchTargetWorks : null,
+            settingsBrowserInPageSearchTargetWorks: typeof settingsBrowserInPageSearchTargetWorks === 'boolean' ? settingsBrowserInPageSearchTargetWorks : null,
             settingsDeepLinkRouteWorks: typeof settingsDeepLinkRouteWorks === 'boolean' ? settingsDeepLinkRouteWorks : null,
             settingsDeepLinkRouteDebug: typeof settingsDeepLinkRouteDebug === 'object' ? settingsDeepLinkRouteDebug : null,
             settingsHostContextWorks: typeof settingsHostContextWorks === 'boolean' ? settingsHostContextWorks : null,

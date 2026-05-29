@@ -61,6 +61,9 @@ const SETTINGS_SEARCH_ITEMS: Array<{
   { section: 'shortcuts', label: 'Shortcuts', description: 'Keyboard commands and bindings', keywords: 'keybinding command hotkey keyboard' },
   { section: 'personalization', label: 'Personalization', description: 'Custom instructions and coding preferences', keywords: 'memory instructions preferences pet overlay' },
   { section: 'browser', label: 'Browser', description: 'Browser data, permissions, and site policies', keywords: 'cookies cache history policy webview localhost origin' },
+  { section: 'browser', label: 'Browser data', description: 'Clear cookies, cache, and site storage', keywords: 'browser browsing data clear cookies cache site data storage indexeddb service workers', anchor: 'browser-data' },
+  { section: 'browser', label: 'Browser permissions', description: 'Approval, history, downloads, and uploads policy', keywords: 'browser security permission approval history download downloads upload uploads ask allow deny policy', anchor: 'browser-permissions' },
+  { section: 'browser', label: 'Browser domains', description: 'Allowed and blocked domains for Browser actions', keywords: 'browser domain domains origin origins allowed blocked allowlist blocklist downloads uploads', anchor: 'browser-domains' },
   { section: 'pets', label: 'Pet overlay', description: 'Pet overlay selection and import', keywords: 'pet companion overlay import codex' },
   { section: 'data', label: 'Data controls', description: 'Archived chats and local storage', keywords: 'archive restore delete data storage path' }
 ]

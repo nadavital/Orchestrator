@@ -9575,6 +9575,16 @@ Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.
 
 Remaining: this closes the local high-frequency Settings subtarget search path for General. Broader per-control search coverage across Providers/Browser/Shortcuts, provider-host Settings adapters, deeper Settings page/window structure, and exact live Codex Settings timing remain separate follow-ups.
 
+### 2026-05-29 - Browser Settings In-Page Search Targets
+
+Product evidence: PP-058 still tracked broader per-control Settings search coverage. Browser permissions are a daily coding-use control because Browser panels govern local web testing, downloads/uploads, and site policies, but queries such as `downloads` previously only routed to the Browser page and left the user to scan for the relevant policy control.
+
+Implemented: Settings search now includes Browser Data, Browser Permissions, and Browser Domains subtargets. The Browser Settings page exposes matching focusable anchors for each group, so matched search results scroll and focus the exact Browser control group with the same `data-settings-search-active="true"` affordance used by General.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --settings` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1780029250662.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1780029250662.png`. The focused Settings smoke now gates `settingsBrowserInPageSearchTarget=true` by searching `downloads`, verifying the chip targets `browser-permissions`, and confirming the Browser permissions group receives focus plus active-search state.
+
+Remaining: this closes the high-frequency Browser Settings subtarget path. Provider and Shortcuts per-control search depth, provider-host Settings adapters, deeper Settings page/window structure, and exact live Codex Settings timing remain separate PP-058 follow-ups.
+
 ### 2026-05-29 - Browser Hidden Page Identity
 
 Product evidence: PP-058 still tracked Browser lifecycle parity. Orchestrator already preserved hidden Browser webviews and resynced lifecycle state when shown again, but the hidden state itself only said `Hidden` and `The page is still loaded`. For day-to-day coding, a hidden Browser panel should still identify which page is loaded so users can decide whether to resume, reset, or switch context.
