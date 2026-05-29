@@ -1,7 +1,8 @@
 import { app, shell, BrowserWindow, ipcMain, Menu, net, protocol } from 'electron'
 import type { MenuItemConstructorOptions, Session } from 'electron'
 import { dirname, join, resolve, sep } from 'path'
-import { mkdirSync, writeFileSync } from 'fs'
+import { existsSync, mkdirSync, writeFileSync } from 'fs'
+import { execFileSync } from 'child_process'
 import { pathToFileURL } from 'url'
 import { electronApp, is } from '@electron-toolkit/utils'
 import { configureAppProfile, getAppProfile } from './appProfile'
@@ -24579,6 +24580,20 @@ function runAutomatedTranscriptFileReferenceSmoke(win: BrowserWindow, outputPath
               additionalRootFileTab.getAttribute('data-file-tab-selected-source-line') === '1' &&
               additionalRootFileTab.getAttribute('data-file-tab-source-reveal-line') === '1';
 
+            for (let index = 0; index < 16; index += 1) {
+              const lineBlame = document.querySelector('[data-testid="workbench-file-tab-line-blame"]');
+              if (lineBlame?.getAttribute('data-line-blame-ok') === 'true') break;
+              await sleep(80);
+            }
+            const additionalRootLineBlame = document.querySelector('[data-testid="workbench-file-tab-line-blame"]');
+            const fileReferenceAdditionalRootBlameWorks =
+              additionalRootLineBlame instanceof HTMLElement &&
+              additionalRootLineBlame.getAttribute('data-line-blame-ok') === 'true' &&
+              additionalRootLineBlame.getAttribute('data-line-blame-author') === 'Orchestrator Smoke' &&
+              additionalRootLineBlame.getAttribute('data-line-blame-source') === 'commit' &&
+              additionalRootLineBlame.textContent?.includes('L1') === true &&
+              additionalRootLineBlame.textContent?.includes('Orchestrator Smoke') === true;
+
             const additionalRootLineAddButton = additionalRootFileTab instanceof HTMLElement
               ? additionalRootFileTab.querySelector('[data-testid="workspace-source-line-action-add-chat"]')
               : null;
@@ -24659,6 +24674,7 @@ function runAutomatedTranscriptFileReferenceSmoke(win: BrowserWindow, outputPath
               fileReferenceOpenOutcomeWorks,
               fileReferenceOpenWorkbenchWorks,
               fileReferenceAdditionalRootWorkbenchWorks,
+              fileReferenceAdditionalRootBlameWorks,
               fileReferenceAdditionalRootLineAddToChatWorks,
               fileReferenceAdditionalRootCopyPathWorks,
               fileReferenceAttachToChatWorks,
@@ -28465,6 +28481,17 @@ function seedAutomatedTranscriptLayoutSmokeSession(sessionId: string): void {
   writeFileSync(longPath, 'export const transcriptLayoutFixture = true\n')
   mkdirSync(dirname(additionalPath), { recursive: true })
   writeFileSync(additionalPath, 'export const additionalRootFixture = true\n')
+  if (!existsSync(join(additionalRoot, '.git'))) {
+    try {
+      execFileSync('git', ['init'], { cwd: additionalRoot, stdio: 'ignore' })
+      execFileSync('git', ['config', 'user.email', 'orchestrator-smoke@example.test'], { cwd: additionalRoot, stdio: 'ignore' })
+      execFileSync('git', ['config', 'user.name', 'Orchestrator Smoke'], { cwd: additionalRoot, stdio: 'ignore' })
+      execFileSync('git', ['add', 'shared/additional-root-fixture.ts'], { cwd: additionalRoot, stdio: 'ignore' })
+      execFileSync('git', ['commit', '-m', 'seed additional root fixture'], { cwd: additionalRoot, stdio: 'ignore' })
+    } catch {
+      // The focused smoke will report unavailable blame if git setup fails.
+    }
+  }
   const messages: ChatMessage[] = [
     {
       id: 'transcript-layout-user',

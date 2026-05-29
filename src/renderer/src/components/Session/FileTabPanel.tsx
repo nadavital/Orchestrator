@@ -117,7 +117,7 @@ export default function FileTabPanel({
     }
     let cancelled = false
     setLineBlame(null)
-    window.api.git.blameLine(workDir, filePath, selectedSourceLine)
+    window.api.git.blameLine(fileRoot, filePath, selectedSourceLine)
       .then((result) => {
         if (!cancelled) {
           setLineBlame(result)
@@ -134,7 +134,7 @@ export default function FileTabPanel({
     return () => {
       cancelled = true
     }
-  }, [filePath, selectedSourceLine, workDir])
+  }, [filePath, fileRoot, selectedSourceLine])
 
   const sourceBlameLineNumbers = useMemo(() => {
     const text = preview?.text
@@ -149,7 +149,7 @@ export default function FileTabPanel({
     if (missingLines.length === 0) return
     let cancelled = false
     Promise.all(missingLines.map((line) =>
-      window.api.git.blameLine(workDir, filePath, line)
+      window.api.git.blameLine(fileRoot, filePath, line)
         .catch(() => ({ ok: false, path: filePath, line, error: 'Blame unavailable' }))
     )).then((results) => {
       if (cancelled) return
@@ -162,7 +162,7 @@ export default function FileTabPanel({
     return () => {
       cancelled = true
     }
-  }, [filePath, sourceBlameByLine, sourceBlameLineNumbers, sourceBlameVisible, workDir])
+  }, [filePath, fileRoot, sourceBlameByLine, sourceBlameLineNumbers, sourceBlameVisible])
 
   const updateFileTabState = (
     patch: Pick<Partial<RightPanelTabState>, 'fileViewMode' | 'sourceWrap' | 'selectedSourceLine' | 'sourceSearchQuery' | 'sourceSearchIndex' | 'sourceAnnotations' | 'sourceBlameVisible' | 'sourceRevealLine' | 'sourceRevealRequest'>
@@ -560,7 +560,7 @@ export default function FileTabPanel({
           <span
             className="file-tab-workspace"
             data-testid="workbench-file-tab-workspace"
-            title={workDir}
+            title={fileRoot}
           >
             {workspaceName}
           </span>
