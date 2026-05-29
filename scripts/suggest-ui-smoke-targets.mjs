@@ -113,7 +113,7 @@ const diffRules = [
     flag: '--diff-core',
     label: 'Review local diff',
     filePatterns: [/^src\/renderer\/src\/components\/Session\/DiffPanel\.tsx$/, /^src\/renderer\/src\/components\/Session\/WorkbenchTree\.tsx$/, /^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
-    diffPatterns: [/reviewRowKeyboardContextMenu/, /reviewTreeKeyboardNavigation/, /data-keyboard-navigation/, /review-row-context-menu/, /review-row-copy-path/]
+    diffPatterns: [/reviewRowKeyboardContextMenu/, /reviewTreeKeyboardNavigation/, /data-keyboard-navigation/, /review-row-context-menu/, /review-row-copy-path/, /reviewSelectedGitPathActions/, /review-stage-selected-file/, /review-unstage-selected-file/]
   },
   {
     flag: '--terminal',

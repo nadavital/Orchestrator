@@ -100,6 +100,7 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
   const [reviewMetadataOpen, setReviewMetadataOpen] = useState<ReviewMetadataPanel | null>(null)
   const [loadedReviewMetadata, setLoadedReviewMetadata] = useState<ReviewMetadata | undefined>(undefined)
   const [reviewGitActionMessage, setReviewGitActionMessage] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
+  const [reviewPathActionPending, setReviewPathActionPending] = useState<'stage' | 'unstage' | null>(null)
   const [reviewRowMenu, setReviewRowMenu] = useState<{ path: string; x: number; y: number } | null>(null)
   const [codexReviewStartPending, setCodexReviewStartPending] = useState(false)
   const [customReviewInstructions, setCustomReviewInstructions] = useState('')
@@ -216,6 +217,9 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
     .filter((file) => (reviewFileContentByPath[file.path]?.diff ?? '').trim().length > 0)
     .length, [reviewFileContentByPath, sourceFiles])
   const showReviewGitHandoff = isLocalMutableReviewSource(reviewSource) && sourceFiles.length > 0
+  const canStageSelectedFile = showReviewGitHandoff && selectedChange?.unstaged === true && reviewPathActionPending === null
+  const canUnstageSelectedFile = showReviewGitHandoff && selectedChange?.staged === true && selectedChange?.conflicted !== true && reviewPathActionPending === null
+  const selectedStageLabel = selectedChange?.conflicted === true ? 'Mark selected file resolved' : 'Stage selected file'
   const reviewRows: WorkbenchTreeRow[] = fileTreeRows.map((row) => {
     if (row.type === 'directory') {
       return {
@@ -771,6 +775,49 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
     }
   }
 
+  const runReviewPathAction = async (action: 'stage' | 'unstage', path = selectedFile ?? ''): Promise<void> => {
+    const change = sourceFiles.find((file) => file.path === path)
+    if (!change || !showReviewGitHandoff || reviewPathActionPending !== null) return
+    if (action === 'stage' && change.unstaged !== true) return
+    if (action === 'unstage' && (change.staged !== true || change.conflicted === true)) return
+    const actionLabel = action === 'stage'
+      ? change.conflicted === true ? 'Marking resolved' : 'Staging file'
+      : 'Unstaging file'
+    const doneLabel = action === 'stage'
+      ? change.conflicted === true ? `Marked ${path} resolved` : `Staged ${path}`
+      : `Unstaged ${path}`
+    setReviewPathActionPending(action)
+    setReviewGitActionMessage({ text: actionLabel, tone: 'info' })
+    try {
+      const result = action === 'stage'
+        ? await window.api.git.stagePaths(workDir, [path])
+        : await window.api.git.unstagePaths(workDir, [path])
+      setLocalReviewFiles(result.changedFiles)
+      const nextFiles = result.changedFiles.filter((file) => fileMatchesReviewSource(file, reviewSource))
+      setFiles(nextFiles)
+      setReviewFileContentByPath((current) => {
+        const nextPaths = new Set(nextFiles.map((file) => file.path))
+        return Object.fromEntries(Object.entries(current).filter(([filePath]) => nextPaths.has(filePath)))
+      })
+      setSelectedFile((current) => (
+        current && nextFiles.some((file) => file.path === current)
+          ? current
+          : nextFiles.find((file) => file.path === path)?.path ?? nextFiles[0]?.path ?? null
+      ))
+      setReviewGitActionMessage({
+        text: result.ok ? doneLabel : result.error || `${actionLabel} failed`,
+        tone: result.ok ? 'info' : 'danger'
+      })
+    } catch (error) {
+      setReviewGitActionMessage({
+        text: error instanceof Error ? error.message : `${actionLabel} failed`,
+        tone: 'danger'
+      })
+    } finally {
+      setReviewPathActionPending(null)
+    }
+  }
+
   const refreshReviewFileAfterMutation = async (path: string): Promise<void> => {
     if (!reviewSourceSupported || reviewSource === 'last-turn') return
     const absolutePath = joinPath(workDir, path)
@@ -1296,6 +1343,28 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
           dataTestId="review-next-file"
           onClick={() => navigateReviewFile('next')}
         />
+        {showReviewGitHandoff && (
+          <>
+            <IconButton
+              icon="check"
+              label={selectedStageLabel}
+              size="sm"
+              variant="toolbar"
+              disabled={!canStageSelectedFile}
+              dataTestId="review-stage-selected-file"
+              onClick={() => { void runReviewPathAction('stage') }}
+            />
+            <IconButton
+              icon="undo"
+              label="Unstage selected file"
+              size="sm"
+              variant="toolbar"
+              disabled={!canUnstageSelectedFile}
+              dataTestId="review-unstage-selected-file"
+              onClick={() => { void runReviewPathAction('unstage') }}
+            />
+          </>
+        )}
         {reviewMetadata && (
           <ReviewMetadataStrip
             metadata={reviewMetadata}
@@ -1434,6 +1503,10 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
       data-review-diff-expanded={diffExpanded ? 'true' : 'false'}
       data-review-source={reviewSource}
       data-review-selected-file={selectedFile ?? ''}
+      data-review-selected-staged={selectedChange?.staged === true ? 'true' : 'false'}
+      data-review-selected-unstaged={selectedChange?.unstaged === true ? 'true' : 'false'}
+      data-review-selected-conflicted={selectedChange?.conflicted === true ? 'true' : 'false'}
+      data-review-path-action-pending={reviewPathActionPending ?? ''}
       data-review-tree-query={query.trim()}
       data-review-tree-file-count={filteredFiles.length}
       data-review-tree-search-match-count={[...reviewSearchMatchesByPath.values()].reduce((sum, count) => sum + count, 0)}
@@ -1587,6 +1660,26 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
                       dataTestId="review-row-copy-path"
                       onClick={() => {
                         void copyReviewPath(reviewRowMenu.path)
+                        setReviewRowMenu(null)
+                      }}
+                    />
+                    <MenuItem
+                      icon="check"
+                      label={reviewRowMenuChange?.conflicted === true ? 'Mark resolved' : 'Stage file'}
+                      disabled={!reviewRowMenuChange || reviewRowMenuChange.unstaged !== true || reviewPathActionPending !== null}
+                      dataTestId="review-row-stage-file"
+                      onClick={() => {
+                        void runReviewPathAction('stage', reviewRowMenu.path)
+                        setReviewRowMenu(null)
+                      }}
+                    />
+                    <MenuItem
+                      icon="undo"
+                      label="Unstage file"
+                      disabled={!reviewRowMenuChange || reviewRowMenuChange.staged !== true || reviewRowMenuChange.conflicted === true || reviewPathActionPending !== null}
+                      dataTestId="review-row-unstage-file"
+                      onClick={() => {
+                        void runReviewPathAction('unstage', reviewRowMenu.path)
                         setReviewRowMenu(null)
                       }}
                     />

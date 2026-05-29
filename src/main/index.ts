@@ -11947,6 +11947,7 @@ function runAutomatedFocusedSurfaceSmoke(
               let diffActionMenuMaterialWorks = false;
               let reviewGitApplyCommandCoversAllWorks = false;
               let reviewGitApplyCopyStatusWorks = false;
+              let reviewSelectedGitPathActionsWorks = false;
               let reviewFloatingGitActionsWork = false;
               let reviewFloatingGitActionStatusWorks = false;
               let reviewFloatingGitOpenTabWorks = false;
@@ -12214,16 +12215,77 @@ function runAutomatedFocusedSurfaceSmoke(
                 const reviewFloatingActionTone = reviewFloatingActionPillAfterCopy instanceof HTMLElement
                   ? reviewFloatingActionPillAfterCopy.getAttribute('data-review-git-action-tone') ?? ''
                   : '';
-                reviewFloatingGitActionStatusWorks =
-                  reviewFloatingActionPillAfterCopy instanceof HTMLElement &&
-                  reviewFloatingActionMessage.includes('Git apply command copied') &&
-                  reviewFloatingActionTone === 'info' &&
-                  reviewFloatingActionStatus instanceof HTMLElement &&
-                  reviewFloatingActionStatus.getAttribute('role') === 'status' &&
-                  reviewFloatingActionStatus.getAttribute('aria-live') === 'polite' &&
-                  reviewFloatingActionStatus.getAttribute('aria-atomic') === 'true' &&
-                  reviewFloatingActionStatus.textContent?.includes('Git apply command copied') === true;
-                const reviewFloatingOpenGitButtonForClick = document.querySelector('[data-testid="review-open-git-tab"]');
+	                reviewFloatingGitActionStatusWorks =
+	                  reviewFloatingActionPillAfterCopy instanceof HTMLElement &&
+	                  reviewFloatingActionMessage.includes('Git apply command copied') &&
+	                  reviewFloatingActionTone === 'info' &&
+	                  reviewFloatingActionStatus instanceof HTMLElement &&
+	                  reviewFloatingActionStatus.getAttribute('role') === 'status' &&
+	                  reviewFloatingActionStatus.getAttribute('aria-live') === 'polite' &&
+	                  reviewFloatingActionStatus.getAttribute('aria-atomic') === 'true' &&
+	                  reviewFloatingActionStatus.textContent?.includes('Git apply command copied') === true;
+                const reviewStageSelectedButton = document.querySelector('[data-testid="review-stage-selected-file"]');
+                const reviewUnstageSelectedButton = document.querySelector('[data-testid="review-unstage-selected-file"]');
+                const selectedGitPathRootBefore = document.querySelector('.diff-panel-root');
+                const selectedGitPath = selectedGitPathRootBefore?.getAttribute('data-review-selected-file') ?? '';
+                const stageInitiallyEnabled = reviewStageSelectedButton instanceof HTMLButtonElement && !reviewStageSelectedButton.disabled;
+                const unstageInitiallyDisabled = reviewUnstageSelectedButton instanceof HTMLButtonElement && reviewUnstageSelectedButton.disabled;
+                let stageStatusText = '';
+                let unstageStatusText = '';
+                let stagedAfterAction = false;
+                let unstagedAfterAction = false;
+                if (
+                  selectedGitPath.length > 0 &&
+                  reviewStageSelectedButton instanceof HTMLButtonElement &&
+                  reviewUnstageSelectedButton instanceof HTMLButtonElement &&
+                  stageInitiallyEnabled
+                ) {
+                  reviewStageSelectedButton.click();
+                  for (let attempt = 0; attempt < 16; attempt += 1) {
+                    await sleep(100);
+                    const rootAfterStage = document.querySelector('.diff-panel-root');
+                    const statusAfterStage = document.querySelector('[data-testid="review-floating-action-status"]');
+                    stageStatusText = statusAfterStage?.textContent ?? '';
+                    stagedAfterAction =
+                      rootAfterStage?.getAttribute('data-review-selected-file') === selectedGitPath &&
+                      rootAfterStage?.getAttribute('data-review-selected-staged') === 'true' &&
+                      rootAfterStage?.getAttribute('data-review-selected-unstaged') === 'false' &&
+                      stageStatusText.includes('Staged ' + selectedGitPath);
+                    if (stagedAfterAction) break;
+                  }
+                  const unstageAfterStage = document.querySelector('[data-testid="review-unstage-selected-file"]');
+                  if (unstageAfterStage instanceof HTMLButtonElement && !unstageAfterStage.disabled) {
+                    unstageAfterStage.click();
+                    for (let attempt = 0; attempt < 16; attempt += 1) {
+                      await sleep(100);
+                      const rootAfterUnstage = document.querySelector('.diff-panel-root');
+                      const statusAfterUnstage = document.querySelector('[data-testid="review-floating-action-status"]');
+                      unstageStatusText = statusAfterUnstage?.textContent ?? '';
+                      unstagedAfterAction =
+                        rootAfterUnstage?.getAttribute('data-review-selected-file') === selectedGitPath &&
+                        rootAfterUnstage?.getAttribute('data-review-selected-staged') === 'false' &&
+                        rootAfterUnstage?.getAttribute('data-review-selected-unstaged') === 'true' &&
+                        unstageStatusText.includes('Unstaged ' + selectedGitPath);
+                      if (unstagedAfterAction) break;
+                    }
+                  }
+                }
+                const reviewPathActionStatus = document.querySelector('[data-testid="review-floating-action-status"]');
+                reviewSelectedGitPathActionsWorks =
+                  reviewStageSelectedButton instanceof HTMLButtonElement &&
+                  reviewUnstageSelectedButton instanceof HTMLButtonElement &&
+                  reviewStageSelectedButton.getAttribute('aria-label') === 'Stage selected file' &&
+                  reviewUnstageSelectedButton.getAttribute('aria-label') === 'Unstage selected file' &&
+                  stageInitiallyEnabled &&
+                  unstageInitiallyDisabled &&
+                  stagedAfterAction &&
+                  unstagedAfterAction &&
+                  reviewPathActionStatus instanceof HTMLElement &&
+                  reviewPathActionStatus.getAttribute('role') === 'status' &&
+                  reviewPathActionStatus.getAttribute('aria-live') === 'polite' &&
+                  reviewPathActionStatus.getAttribute('aria-atomic') === 'true' &&
+                  reviewPathActionStatus.getAttribute('data-review-floating-action-status-tone') === 'info';
+	                const reviewFloatingOpenGitButtonForClick = document.querySelector('[data-testid="review-open-git-tab"]');
                 if (reviewFloatingOpenGitButtonForClick instanceof HTMLButtonElement && !reviewFloatingOpenGitButtonForClick.disabled) {
                   reviewFloatingOpenGitButtonForClick.click();
                   for (let attempt = 0; attempt < 12; attempt += 1) {
@@ -12994,6 +13056,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   diffActionMenuMaterialWorks,
                   reviewGitApplyCommandCoversAllWorks,
                   reviewGitApplyCopyStatusWorks,
+                  reviewSelectedGitPathActionsWorks,
                   reviewFloatingGitActionsWork,
                   reviewFloatingGitActionStatusWorks,
                   reviewFloatingGitOpenTabWorks,
@@ -14708,8 +14771,10 @@ function runAutomatedFocusedSurfaceSmoke(
                 wordDiffTokenText.includes('updated') &&
                 document.querySelector('.diff-panel-root')?.getAttribute('data-review-word-diff') === 'false';
             const reviewGitActionsWork =
-              !document.body.innerText.includes('Stage selected') &&
-              !document.body.innerText.includes('Unstage selected');
+              document.querySelector('[data-testid="review-stage-selected-file"]') instanceof HTMLButtonElement &&
+              document.querySelector('[data-testid="review-unstage-selected-file"]') instanceof HTMLButtonElement &&
+              !document.body.innerText.includes('Stage all') &&
+              !document.body.innerText.includes('Unstage all');
               const selectReviewFile = async (query, fileName) => {
                 const searchInput = currentDiffSearch();
                 if (!(searchInput instanceof HTMLInputElement)) return false;
