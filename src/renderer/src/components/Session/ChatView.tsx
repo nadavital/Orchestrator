@@ -190,11 +190,20 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
     }
   }, [session.id])
 
-  const editUserMessageAsDraft = useCallback((content: string, attachments: Attachment[] = []): void => {
+  const editUserMessageAsDraft = useCallback((messageId: string, content: string, attachments: Attachment[] = []): void => {
     const text = content.trim()
     if (!text && attachments.length === 0) return
     window.dispatchEvent(new CustomEvent('orchestrator:set-composer-text', {
-      detail: { sessionId: session.id, text, attachments }
+      detail: {
+        sessionId: session.id,
+        text,
+        attachments,
+        source: {
+          kind: 'message-edit-draft',
+          messageId,
+          attachmentCount: attachments.length
+        }
+      }
     }))
     setTranscriptActionStatus({
       text: attachments.length > 0
@@ -1754,7 +1763,7 @@ function MessageRow({
   canRegenerate: boolean
   onSteerQueuedMessage: (messageId: string) => Promise<void>
   onCancelQueuedMessage: (messageId: string, queueState: 'queued' | 'steer_next') => Promise<void>
-  onEditUserMessageAsDraft: (content: string, attachments?: Attachment[]) => void
+  onEditUserMessageAsDraft: (messageId: string, content: string, attachments?: Attachment[]) => void
   onForkFromMessage: (messageId: string, mode?: SessionForkMode) => Promise<void>
 }): JSX.Element | null {
   const [isUserMessageExpanded, setIsUserMessageExpanded] = useState(false)
@@ -1944,7 +1953,7 @@ function MessageRow({
                   dataTestId="chat-user-message-edit"
                   onClick={(event) => {
                     event.stopPropagation()
-                    onEditUserMessageAsDraft(content, msg.attachments ?? [])
+                    onEditUserMessageAsDraft(msg.id, content, msg.attachments ?? [])
                   }}
                   style={{ opacity: 0.62 }}
                 />

@@ -9515,6 +9515,16 @@ Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.
 
 Remaining: this is a handoff, not bridge removal. Live PR creation, provider-hosted Git metadata, exact live Codex UI timing, and eventual retirement or simplification of the Review local-git bridge remain separate follow-ups.
 
+### 2026-05-28 - Edit Message Draft Source Notice
+
+Product evidence: PP-052 added `Edit message as draft`, but the composer previously looked like an ordinary new draft after copying an older user message. For daily coding use, editing a past prompt should make clear that the composer contains a copy and that the original transcript message is preserved.
+
+Implemented: `Edit message as draft` now includes source metadata in the composer event. The composer renders an `Editing a copy` notice with explicit original-transcript preservation copy, source message id metadata, attachment count metadata, and a `Clear` action that clears the copied draft and attachments. Failed sends restore the draft-source notice with the restored draft.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --transcript-layout` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-transcript-layout-1780022086471.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-transcript-layout-1780022086471.png`. The focused smoke gates `chatUserMessageEditDraftSourceStatus=true` alongside existing edit-to-draft, attachment, retry, Continue, Regenerate, transcript layout, and narrow-layout checks.
+
+Remaining: this closes the local original-history clarity gap for copied edit drafts. Richer provider-native edit/resend semantics remain a PP-052 follow-up.
+
 ### 2026-05-28 - Review Provider Suggestions
 
 Product evidence: PP-054 still had an actionable Review gap after the Git tab picked up local branch/commit/PR-command ownership: provider inline comments could be displayed, but GitHub suggestion fences were passive text. For daily coding, Review should let users copy or apply a concrete suggestion without leaving the right Workbench panel.

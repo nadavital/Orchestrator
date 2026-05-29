@@ -23640,6 +23640,8 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
             }
             const composerTextarea = document.querySelector('[data-testid="composer-textarea"]');
             const editDraftStatus = document.querySelector('[data-testid="transcript-action-status"]');
+            const composerDraftSourceStatus = document.querySelector('[data-testid="composer-draft-source-status"]');
+            const composerDraftSourceClear = document.querySelector('[data-testid="composer-draft-source-clear"]');
             const chatUserMessageEditToDraft =
               userEditButton instanceof HTMLButtonElement &&
               composerTextarea instanceof HTMLTextAreaElement &&
@@ -23651,6 +23653,19 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
             const chatUserMessageEditAttachments =
               chatUserMessageEditToDraft &&
               document.querySelector('[data-testid="composer-shell"]')?.textContent?.includes('AGENTS.md') === true;
+            const chatUserMessageEditDraftSourceStatus =
+              chatUserMessageEditToDraft &&
+              composerDraftSourceStatus instanceof HTMLElement &&
+              composerDraftSourceStatus.getAttribute('role') === 'status' &&
+              composerDraftSourceStatus.getAttribute('aria-live') === 'polite' &&
+              composerDraftSourceStatus.getAttribute('aria-atomic') === 'true' &&
+              composerDraftSourceStatus.getAttribute('data-composer-draft-source') === 'message-edit-draft' &&
+              composerDraftSourceStatus.getAttribute('data-composer-draft-source-message-id') === 'transcript-layout-user' &&
+              composerDraftSourceStatus.getAttribute('data-composer-draft-source-attachment-count') === '1' &&
+              composerDraftSourceStatus.textContent?.includes('Editing a copy') === true &&
+              composerDraftSourceStatus.textContent?.includes('Original message stays in the transcript') === true &&
+              composerDraftSourceClear instanceof HTMLButtonElement &&
+              composerDraftSourceClear.getAttribute('aria-label') === 'Clear edited draft';
             let composerReserveContractWorks = false;
             let composerReserveDebug = {};
             for (let index = 0; index < 10; index += 1) {
@@ -23770,6 +23785,7 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
               permissionActionsWrap,
               chatUserMessageEditToDraft,
               chatUserMessageEditAttachments,
+              chatUserMessageEditDraftSourceStatus,
               relativeProseCardSuppressed,
               absoluteMissingFileCardDisabled,
               partialResponseStatusWorks,

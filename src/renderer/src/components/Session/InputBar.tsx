@@ -25,6 +25,11 @@ interface PendingAttachment {
 
 const cancelledComposerAttachmentSaves = new Set<string>()
 type ComposerEnterBehavior = 'send' | 'newline'
+type ComposerDraftSource = {
+  kind: 'message-edit-draft'
+  messageId: string
+  attachmentCount: number
+} | null
 
 function shouldNavigatePromptHistory(textarea: HTMLTextAreaElement, direction: 'previous' | 'next'): boolean {
   if (textarea.selectionStart !== textarea.selectionEnd) return false
@@ -89,6 +94,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   const [permissionRulesStatus, setPermissionRulesStatus] = useState<string | null>(null)
   const [historyCursor, setHistoryCursor] = useState<number | null>(null)
   const [composerEnterBehavior, setComposerEnterBehavior] = useState<ComposerEnterBehavior>('send')
+  const [draftSource, setDraftSource] = useState<ComposerDraftSource>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const agentButtonRef = useRef<HTMLButtonElement>(null)
   const permissionButtonRef = useRef<HTMLButtonElement>(null)
@@ -201,6 +207,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     setAttachmentStatus(null)
     setRunActionStatus(null)
     setPermissionRulesStatus(null)
+    setDraftSource(null)
     setHistoryCursor(null)
     draftBeforeHistoryRef.current = ''
     pendingSettingsUpdateRef.current = Promise.resolve()
@@ -439,6 +446,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
       const question = (sideQuestion[1] ?? '').trim()
       setComposerText('')
       setComposerAttachments(session.id, [])
+      setDraftSource(null)
       if (textareaRef.current) textareaRef.current.style.height = 'auto'
       const sideChatId = crypto.randomUUID()
       openSideChat(
@@ -480,9 +488,11 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     const prompt = expandedCommandPrompt(rawPrompt) ?? rawPrompt
     const draftBeforeSend = text
     const attachmentsBeforeSend = [...attachments]
+    const draftSourceBeforeSend = draftSource
     const restoreDraftAfterFailedSend = (): void => {
       setComposerText(draftBeforeSend)
       setComposerAttachments(session.id, attachmentsBeforeSend)
+      setDraftSource(draftSourceBeforeSend)
       window.setTimeout(() => {
         if (textareaRef.current) {
           resizeTextarea(textareaRef.current)
@@ -492,6 +502,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     }
     setComposerText('')
     setComposerAttachments(session.id, [])
+    setDraftSource(null)
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
     try {
       const started = await window.api.sessions.sendMessage(session.id, prompt, isNew ? useWorktree : undefined, attachments)
@@ -704,6 +715,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
 
   const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>): void => {
     setComposerText(e.target.value)
+    if (!e.target.value.trim() && attachments.length === 0) setDraftSource(null)
     setHistoryCursor(null)
     draftBeforeHistoryRef.current = ''
     setSlashIndex(0)
@@ -795,7 +807,16 @@ function InputBar({ session, isNew }: Props): JSX.Element {
 
   useEffect(() => {
     const onSetComposerText = (event: Event): void => {
-      const detail = (event as CustomEvent<{ sessionId?: string; text?: string; attachments?: Attachment[] }>).detail
+      const detail = (event as CustomEvent<{
+        sessionId?: string
+        text?: string
+        attachments?: Attachment[]
+        source?: {
+          kind?: string
+          messageId?: string
+          attachmentCount?: number
+        }
+      }>).detail
       if (detail?.sessionId && detail.sessionId !== session.id) return
       const nextText = typeof detail?.text === 'string' ? detail.text : ''
       const nextAttachments = Array.isArray(detail?.attachments)
@@ -804,6 +825,13 @@ function InputBar({ session, isNew }: Props): JSX.Element {
       if (!nextText.trim() && (!nextAttachments || nextAttachments.length === 0)) return
       setComposerText(nextText)
       if (nextAttachments) setComposerAttachments(session.id, nextAttachments)
+      setDraftSource(detail?.source?.kind === 'message-edit-draft' && typeof detail.source.messageId === 'string'
+        ? {
+            kind: 'message-edit-draft',
+            messageId: detail.source.messageId,
+            attachmentCount: Number.isFinite(detail.source.attachmentCount) ? Math.max(0, Math.floor(detail.source.attachmentCount ?? 0)) : nextAttachments?.length ?? 0
+          }
+        : null)
       setSlashIndex(0)
       setDismissedSlashQuery(null)
       textareaRef.current?.focus()
@@ -920,6 +948,8 @@ function InputBar({ session, isNew }: Props): JSX.Element {
         data-drag-active={dragActive ? 'true' : 'false'}
         data-composer-attachment-status={attachmentStatus?.text ?? ''}
         data-composer-attachment-status-tone={attachmentStatus?.tone ?? ''}
+        data-composer-draft-source={draftSource?.kind ?? ''}
+        data-composer-draft-source-message-id={draftSource?.messageId ?? ''}
         onDragEnter={handleDragEvent}
         onDragOver={handleDragEvent}
         onDragLeave={handleDragEvent}
@@ -1027,6 +1057,48 @@ function InputBar({ session, isNew }: Props): JSX.Element {
                 onRemove={() => cancelPendingAttachment(attachment.id)}
               />
             ))}
+          </div>
+        )}
+        {draftSource && (
+          <div
+            className="mx-3 mb-2 flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs"
+            data-testid="composer-draft-source-status"
+            data-composer-draft-source={draftSource.kind}
+            data-composer-draft-source-message-id={draftSource.messageId}
+            data-composer-draft-source-attachment-count={draftSource.attachmentCount}
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+            style={{
+              borderColor: 'var(--border-subtle)',
+              background: 'var(--control-bg)',
+              color: 'var(--text-secondary)'
+            }}
+          >
+            <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>Editing a copy</span>
+            <span className="min-w-0 flex-1 truncate">
+              Original message stays in the transcript{draftSource.attachmentCount > 0 ? ` with ${draftSource.attachmentCount} ${draftSource.attachmentCount === 1 ? 'attachment' : 'attachments'}` : ''}.
+            </span>
+            <button
+              type="button"
+              className="shrink-0 rounded-md px-1.5 py-0.5 font-semibold"
+              data-testid="composer-draft-source-clear"
+              aria-label="Clear edited draft"
+              onClick={() => {
+                setComposerText('')
+                setComposerAttachments(session.id, [])
+                setDraftSource(null)
+                if (textareaRef.current) textareaRef.current.style.height = 'auto'
+                textareaRef.current?.focus()
+              }}
+              style={{
+                background: 'var(--surface-bg)',
+                border: '1px solid var(--border-subtle)',
+                color: 'var(--text-primary)'
+              }}
+            >
+              Clear
+            </button>
           </div>
         )}
         {attachmentStatus && (
