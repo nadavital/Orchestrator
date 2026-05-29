@@ -2515,6 +2515,7 @@ child.on('exit', async (code) => {
           environmentAddToChat: result.environmentAddToChatWorks === true,
           environmentSourceBoundary: result.environmentSourceBoundaryWorks === true,
           environmentDisabledRowsA11y: result.environmentDisabledRowsA11yWorks === true,
+          environmentCreatePrOpensGit: result.environmentCreatePrOpensGitWorks === true,
           environmentSettingsOpensProviders: result.environmentSettingsOpensProviders === true
         }
     : captureView === 'workbench-perf'

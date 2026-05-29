@@ -10501,9 +10501,61 @@ function runAutomatedFocusedSurfaceSmoke(
                     environmentActionStatus.getAttribute('aria-atomic') === 'true' &&
                     environmentActionStatus.textContent?.includes('Environment context added to chat') === true;
                 }
+                const environmentActionRowsWork =
+                  environmentPanel instanceof HTMLElement &&
+                  Number(environmentPanel.getAttribute('data-environment-staged-count') ?? '0') >= 1 &&
+                  Number(environmentPanel.getAttribute('data-environment-unstaged-count') ?? '0') >= 1 &&
+                  environmentCommitRow instanceof HTMLButtonElement &&
+                  environmentCommitRow.getAttribute('data-environment-row-action') === 'open-review' &&
+                  environmentCreatePrRow instanceof HTMLButtonElement &&
+                  environmentCreatePrRow.getAttribute('data-environment-row-action') === 'open-pull-request' &&
+                  environmentCreatePrRow.textContent?.includes('View pull request') === true &&
+                  environmentCreatePrRow.textContent?.includes('PR 42') === true &&
+                  environmentPanel.getAttribute('data-environment-pull-request') === 'true';
+                let environmentCreatePrOpensGitWorks = false;
+                const setSessionReviewMetadataForSmoke = window.__orchestratorSetSessionReviewMetadataForSmoke;
+                if (
+                  typeof setSessionReviewMetadataForSmoke === 'function' &&
+                  setSessionReviewMetadataForSmoke('active', null)
+                ) {
+                  for (let attempt = 0; attempt < 12; attempt += 1) {
+                    const noPrRow = document.querySelector('[data-testid="codex-environment-create-pr"]');
+                    if (
+                      noPrRow instanceof HTMLButtonElement &&
+                      noPrRow.getAttribute('data-environment-row-action') === 'open-git-pr' &&
+                      noPrRow.textContent?.includes('Create pull request') === true &&
+                      noPrRow.textContent?.includes('Git') === true
+                    ) {
+                      break;
+                    }
+                    await sleep(100);
+                  }
+                  const noPrRow = document.querySelector('[data-testid="codex-environment-create-pr"]');
+                  if (noPrRow instanceof HTMLButtonElement) {
+                    noPrRow.click();
+                    for (let attempt = 0; attempt < 12; attempt += 1) {
+                      const gitPanel = document.querySelector('[data-testid="git-panel"]');
+                      const activeTab = document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-active-tab') ?? '';
+                      if (activeTab === 'git' && gitPanel instanceof HTMLElement) break;
+                      await sleep(100);
+                    }
+                  }
+                  const rightPanelAfterPrOpen = document.querySelector('[data-testid="session-right-panel"]');
+                  const gitPanelAfterPrOpen = document.querySelector('[data-testid="git-panel"]');
+                  environmentCreatePrOpensGitWorks =
+                    noPrRow instanceof HTMLButtonElement &&
+                    noPrRow.getAttribute('data-environment-row-action') === 'open-git-pr' &&
+                    noPrRow.getAttribute('aria-label') === 'Create pull request. Open Git to create a pull request' &&
+                    rightPanelAfterPrOpen instanceof HTMLElement &&
+                    rightPanelAfterPrOpen.getAttribute('data-right-panel-active-tab') === 'git' &&
+                    gitPanelAfterPrOpen instanceof HTMLElement;
+                  await openPanelTab('environment', 'Environment');
+                  await sleep(120);
+                }
                 let environmentSettingsOpensProvidersWorks = false;
-                if (environmentSettingsButton instanceof HTMLButtonElement) {
-                  environmentSettingsButton.click();
+                const environmentSettingsButtonAfterPr = document.querySelector('[data-testid="codex-environment-settings"]');
+                if (environmentSettingsButtonAfterPr instanceof HTMLButtonElement) {
+                  environmentSettingsButtonAfterPr.click();
                   for (let attempt = 0; attempt < 12; attempt += 1) {
                     const settingsShell = document.querySelector('.settings-shell');
                     if (
@@ -10520,7 +10572,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     settingsShell instanceof HTMLElement &&
                     settingsShell.getAttribute('data-settings-active-section') === 'providers' &&
                     providerSettingsSection instanceof HTMLElement &&
-                    environmentSettingsButton.getAttribute('aria-label') === 'Open provider settings';
+                    environmentSettingsButtonAfterPr.getAttribute('aria-label') === 'Open provider settings';
                 }
                 return {
                   profile,
@@ -10537,17 +10589,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     environmentRect.height >= 220 &&
                     environmentScroll instanceof HTMLElement &&
                     environmentScroll.scrollWidth <= environmentScroll.clientWidth + 2,
-                  environmentActionRowsWork:
-                    environmentPanel instanceof HTMLElement &&
-                    Number(environmentPanel.getAttribute('data-environment-staged-count') ?? '0') >= 1 &&
-                    Number(environmentPanel.getAttribute('data-environment-unstaged-count') ?? '0') >= 1 &&
-                    environmentCommitRow instanceof HTMLButtonElement &&
-                    environmentCommitRow.getAttribute('data-environment-row-action') === 'open-review' &&
-                    environmentCreatePrRow instanceof HTMLButtonElement &&
-                    environmentCreatePrRow.getAttribute('data-environment-row-action') === 'open-pull-request' &&
-                    environmentCreatePrRow.textContent?.includes('View pull request') === true &&
-                    environmentCreatePrRow.textContent?.includes('PR 42') === true &&
-                    environmentPanel.getAttribute('data-environment-pull-request') === 'true',
+                  environmentActionRowsWork,
                   environmentSourcesWork:
                     environmentSourcesCard instanceof HTMLElement &&
                     environmentWebSearchRow instanceof HTMLElement &&
@@ -10564,6 +10606,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     environmentWebSearchRow instanceof HTMLElement &&
                     environmentWebSearchRow.getAttribute('aria-disabled') === 'true' &&
                     environmentWebSearchRow.getAttribute('aria-label') === 'Web search. Provider web-search source is not connected for this session',
+                  environmentCreatePrOpensGitWorks,
                   environmentSettingsOpensProviders: environmentSettingsOpensProvidersWorks
                 };
               }
@@ -30574,6 +30617,7 @@ async function bootstrapAutomatedUiSmokeState(): Promise<void> {
   } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'plan') {
     seedAutomatedPlanSmokeSession(session.id)
   } else if (
+    process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'environment' ||
     process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'diff' ||
     process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW?.startsWith('diff-') ||
     process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'inspector'

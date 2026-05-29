@@ -9,9 +9,10 @@ interface Props {
   session: Session
   embedded?: boolean
   onOpenReview: () => void
+  onOpenGit: () => void
 }
 
-export default function EnvironmentPanel({ session, embedded = false, onOpenReview }: Props): JSX.Element {
+export default function EnvironmentPanel({ session, embedded = false, onOpenReview, onOpenGit }: Props): JSX.Element {
   const [changes, setChanges] = useState<FileChange[]>([])
   const [branches, setBranches] = useState<GitRefOption[]>([])
   const [actionStatus, setActionStatus] = useState('')
@@ -50,7 +51,7 @@ export default function EnvironmentPanel({ session, embedded = false, onOpenRevi
     ? `PR ${pullRequest.number}`
     : pullRequestUrl
       ? 'Open'
-      : 'No PR'
+      : 'Git'
   const commitTrailing = changes.length > 0
     ? stagedCount > 0
       ? `${stagedCount} staged`
@@ -63,7 +64,11 @@ export default function EnvironmentPanel({ session, embedded = false, onOpenRevi
   ].filter(Boolean).join(' · ')
 
   const openPullRequest = (): void => {
-    if (!pullRequestUrl) return
+    if (!pullRequestUrl) {
+      onOpenGit()
+      setActionStatus('Opening Git to create pull request')
+      return
+    }
     void window.api.browser.openExternal(pullRequestUrl)
   }
 
@@ -179,12 +184,10 @@ export default function EnvironmentPanel({ session, embedded = false, onOpenRevi
             icon={pullRequestUrl ? 'external' : 'browser'}
             label={pullRequestLabel}
             dataTestId="codex-environment-create-pr"
-            disabled={!pullRequestUrl}
-            disabledReason={pullRequestUrl ? undefined : 'No pull request metadata for this session'}
-            action={pullRequestUrl ? 'open-pull-request' : undefined}
-            title={pullRequestUrl ? pullRequestUrl : 'No pull request metadata for this session'}
+            action={pullRequestUrl ? 'open-pull-request' : 'open-git-pr'}
+            title={pullRequestUrl ? pullRequestUrl : 'Open Git to create a pull request'}
             trailing={<span className="environment-row-muted">{pullRequestTrailing}</span>}
-            onClick={pullRequestUrl ? openPullRequest : undefined}
+            onClick={openPullRequest}
           />
         </div>
 

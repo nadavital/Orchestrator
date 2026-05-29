@@ -156,6 +156,12 @@ const diffRules = [
     label: 'Workbench New Tab full workflow',
     filePatterns: [/^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
     diffPatterns: [/agentRuntimeEvent/, /agent-event-detail/, /focus-waiting-card/, /Open approval in chat/]
+  },
+  {
+    flag: '--environment',
+    label: 'Environment panel',
+    filePatterns: [/^src\/renderer\/src\/components\/Session\/EnvironmentPanel\.tsx$/, /^src\/renderer\/src\/components\/Session\/ContextSidebar\.tsx$/, /^src\/renderer\/src\/App\.tsx$/, /^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
+    diffPatterns: [/environmentCreatePrOpensGit/, /open-git-pr/, /Open Git to create a pull request/, /__orchestratorSetSessionReviewMetadataForSmoke/, /onOpenGit/]
   }
 ]
 
@@ -272,6 +278,7 @@ function suggestTargets(paths) {
   suppressHeaderForRightPanelCloseDiff(matched, paths)
   suppressHeaderForTerminalCloseDiff(matched, paths)
   suppressHeaderForSmokeHelperDiff(matched, paths)
+  suppressHeaderForEnvironmentSmokeHelperDiff(matched, paths)
   restoreDiffTargets(matched, paths)
   suppressWorkbenchLauncherForContextSidebarTabDiff(matched, paths)
   suppressRightPanelForContextSidebarTerminalDiff(matched, paths)
@@ -291,6 +298,7 @@ function suggestTargets(paths) {
   suppressComposerForToolActivityCommandDiff(matched, paths)
   suppressComposerForWorkbenchGitHandoffDiff(matched, paths)
   suppressWorkbenchForReviewGitHandoffDiff(matched, paths)
+  suppressWorkbenchForEnvironmentCreatePrDiff(matched, paths)
 
   const broadReasons = broadCandidates.filter((file) => !isBroadCandidateCovered(file, matched))
   const coveredBroadReasons = broadCandidates.filter((file) => isBroadCandidateCovered(file, matched))
@@ -405,6 +413,16 @@ function suppressHeaderForSmokeHelperDiff(matched, paths) {
   if (!header.files.every((file) => file === 'src/renderer/src/App.tsx')) return
   const appDiff = paths.includes('src/renderer/src/App.tsx') ? diffForFile('src/renderer/src/App.tsx') : ''
   if (!/__orchestratorAppendSessionMessagesForSmoke/.test(appDiff)) return
+  matched.delete('--header')
+}
+
+function suppressHeaderForEnvironmentSmokeHelperDiff(matched, paths) {
+  const header = matched.get('--header')
+  const environment = matched.get('--environment')
+  if (!header || !environment) return
+  if (!header.files.every((file) => file === 'src/renderer/src/App.tsx')) return
+  const appDiff = paths.includes('src/renderer/src/App.tsx') ? diffForFile('src/renderer/src/App.tsx') : ''
+  if (!/__orchestratorSetSessionReviewMetadataForSmoke/.test(appDiff)) return
   matched.delete('--header')
 }
 
@@ -629,6 +647,28 @@ function suppressWorkbenchForReviewGitHandoffDiff(matched, paths) {
     const target = matched.get(flag)
     if (!target) continue
     if (target.files.every((file) => diffCore.files.includes(file))) matched.delete(flag)
+  }
+}
+
+function suppressWorkbenchForEnvironmentCreatePrDiff(matched, paths) {
+  const environment = matched.get('--environment')
+  if (!environment) return
+  const diff = paths
+    .filter((file) =>
+      file === 'src/main/index.ts' ||
+      file === 'scripts/run-automated-ui-smoke.mjs' ||
+      file === 'scripts/suggest-ui-smoke-targets.mjs' ||
+      file === 'src/renderer/src/App.tsx' ||
+      file === 'src/renderer/src/components/Session/ContextSidebar.tsx' ||
+      file === 'src/renderer/src/components/Session/EnvironmentPanel.tsx'
+    )
+    .map(diffForFile)
+    .join('\n')
+  if (!/environmentCreatePrOpensGit|open-git-pr|Open Git to create a pull request|__orchestratorSetSessionReviewMetadataForSmoke|onOpenGit/.test(diff)) return
+  for (const flag of ['--right-panel', '--workbench-launcher', '--workbench-new-tab']) {
+    const target = matched.get(flag)
+    if (!target) continue
+    if (target.files.every((file) => environment.files.includes(file))) matched.delete(flag)
   }
 }
 

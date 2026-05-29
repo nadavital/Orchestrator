@@ -735,6 +735,7 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
             session={session}
             embedded
             onOpenReview={() => setShowDiff(session.id, true)}
+            onOpenGit={() => openRightPanelTab(session.id, 'git')}
           />
         )}
         {effectiveTab === 'git' && (

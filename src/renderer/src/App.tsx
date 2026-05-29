@@ -19,7 +19,7 @@ import { markRendererStart, recordRendererMetric } from './performance'
 import { APP_COMMANDS, appMenuCommandForKeyboardEvent, commandShortcuts, formatShortcutSequence } from '../../types/appCommands'
 import type { AppCommandAvailability, AppMenuCommand, ShortcutOverrides, StableAppCommand } from '../../types/appCommands'
 import { browserManagerPatchFromEvents, parseSessionRouteLocation, parseSettingsRouteLocation, resolvePanelBrowserCommandTarget, resolvePanelCloseTarget, resolvePanelFindTarget, resolvePanelNewTabTarget, sessionRouteUrlForLocation, settingsRouteExitUrl, settingsRouteUrlForLocation } from '../../types'
-import type { ChatMessage, PanelFindTarget, SessionRunEventRecord } from '../../types'
+import type { ChatMessage, PanelFindTarget, ReviewMetadata, SessionRunEventRecord } from '../../types'
 import type { PanelCloseFocusArea } from '../../types'
 
 type ShellFocusArea = PanelCloseFocusArea
@@ -298,6 +298,7 @@ export default function App(): JSX.Element {
       __orchestratorAppendSessionEventsForSmoke?: (sessionId: string, events: SessionRunEventRecord[]) => boolean
       __orchestratorAppendSessionRawForSmoke?: (sessionId: string, data: string) => boolean
       __orchestratorAppendSessionMessagesForSmoke?: (sessionId: string, messages: ChatMessage[]) => boolean
+      __orchestratorSetSessionReviewMetadataForSmoke?: (sessionId: string, reviewMetadata: ReviewMetadata | null) => boolean
       __orchestratorSetActiveSessionForSmoke?: (sessionId: string) => boolean
       __orchestratorSetSessionUnreadForSmoke?: (sessionId: string, unread: boolean) => boolean
     }
@@ -312,6 +313,13 @@ export default function App(): JSX.Element {
     }
     globals.__orchestratorAppendSessionMessagesForSmoke = (sessionId, messages) => {
       appendMessages(sessionId, messages)
+      return true
+    }
+    globals.__orchestratorSetSessionReviewMetadataForSmoke = (sessionId, reviewMetadata) => {
+      const state = useSessionStore.getState()
+      const targetSessionId = sessionId === 'active' ? state.activeSessionId : sessionId
+      if (!targetSessionId || !state.sessions.some((session) => session.id === targetSessionId)) return false
+      updateSession(targetSessionId, { reviewMetadata: reviewMetadata ?? undefined })
       return true
     }
     globals.__orchestratorSetActiveSessionForSmoke = (sessionId) => {
@@ -332,10 +340,11 @@ export default function App(): JSX.Element {
       delete globals.__orchestratorAppendSessionEventsForSmoke
       delete globals.__orchestratorAppendSessionRawForSmoke
       delete globals.__orchestratorAppendSessionMessagesForSmoke
+      delete globals.__orchestratorSetSessionReviewMetadataForSmoke
       delete globals.__orchestratorSetActiveSessionForSmoke
       delete globals.__orchestratorSetSessionUnreadForSmoke
     }
-  }, [appendEvents, appendRaw])
+  }, [appendEvents, appendMessages, appendRaw, updateSession])
 
   const createNewChat = useCallback(async (): Promise<void> => {
     const sessionState = useSessionStore.getState()
