@@ -167,7 +167,7 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
       <PanelResizeHandle
         orientation="horizontal"
         edge="top"
-        label="Resize terminal"
+        label="Resize bottom panel"
         active={terminalResizeController.isResizing}
         onPointerDown={terminalResizeController.onPointerDown}
         onKeyDown={terminalResizeController.onKeyDown}
@@ -212,7 +212,7 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
               onMove={(tabId, direction) => moveTab(tabId, direction)}
               stripTestId="terminal-panel-tabstrip"
               tabRowTestId="terminal-panel-tab-row"
-              tabListLabel="Terminal tabs"
+              tabListLabel="Bottom panel tabs"
               actions={(
                 <>
                   {terminalActionStatus && (
@@ -237,7 +237,7 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
                   />
                   <ToolbarButton
                     icon="close"
-                    label="Hide terminal"
+                    label="Hide bottom panel"
                     size="sm"
                     variant="toolbar"
                     onClick={() => {

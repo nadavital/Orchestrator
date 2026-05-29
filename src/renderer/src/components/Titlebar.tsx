@@ -273,7 +273,7 @@ function Titlebar(): JSX.Element {
             />
             <ToolbarButton
               icon="terminal"
-              label="Toggle terminal"
+              label="Toggle bottom panel"
               active={showTerminal}
               ariaExpanded={showTerminal}
               ariaControls="orchestrator-terminal-panel"

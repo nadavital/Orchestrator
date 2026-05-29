@@ -3044,7 +3044,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               petsSection.closest('[data-settings-page-module="pets"]') instanceof HTMLElement;
           }
           if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'terminal') {
-            const terminalButton = findButton('Toggle terminal');
+            const terminalButton = findButton('Toggle bottom panel') ?? findButton('Toggle terminal');
             terminalButton?.click();
             await sleep(700);
             var terminalFinalCloseFocusRestoredWorks = false;
@@ -3087,7 +3087,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               bottomPanelWithTabs instanceof HTMLElement &&
               bottomPanelWithTabs.dataset.bottomPanelTabs?.includes(',') === true &&
               bottomPanelWithTabs.dataset.bottomPanelActiveTab !== '0';
-            const hideTerminalButton = findButton('Hide terminal');
+            const hideTerminalButton = findButton('Hide bottom panel') ?? findButton('Hide terminal');
             var terminalHideFocusRestoredWorks = false;
             if (hideTerminalButton instanceof HTMLButtonElement) {
               hideTerminalButton.click();
@@ -3199,11 +3199,17 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             var terminalServiceSnapshotWorks = false;
             var terminalRightPanelNewTabShortcutWorks = false;
             var terminalMoveBackToBottomWorks = false;
+            var terminalBottomPanelLabelsWorks = false;
             const activeTerminalTabForA11y = document.querySelector('[data-testid="session-bottom-panel"] [role="tab"][data-active="true"]');
             const terminalPanelForA11y = document.querySelector('[role="tabpanel"][data-app-shell-tab-panel-controller="bottom"]');
             const terminalBottomHeader = document.querySelector('[data-testid="session-bottom-panel"]');
             const terminalTabbarForToolbar = document.querySelector('[data-testid="session-bottom-panel"] [data-testid="terminal-panel-tabstrip"]');
             const terminalResizeHandle = document.querySelector('[data-app-shell-resize-handle="true"][data-app-shell-resize-edge="top"]');
+            const terminalToggleForLabels = document.querySelector('[data-testid="titlebar-toggle-terminal"]');
+            const terminalTabListForLabels = terminalTabbarForToolbar instanceof HTMLElement
+              ? terminalTabbarForToolbar.querySelector('[role="tablist"]')
+              : null;
+            const hideBottomPanelButton = findButton('Hide bottom panel');
             const terminalToolbarButtons = terminalTabbarForToolbar instanceof HTMLElement
               ? [...terminalTabbarForToolbar.querySelectorAll('.panel-tab-actions .motion-icon-button')]
                 .filter((button) => button instanceof HTMLElement)
@@ -3258,6 +3264,15 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 button.getBoundingClientRect().width === 24 &&
                 button.getBoundingClientRect().height === 24
               );
+            terminalBottomPanelLabelsWorks =
+              terminalToggleForLabels instanceof HTMLButtonElement &&
+              terminalToggleForLabels.getAttribute('aria-label') === 'Toggle bottom panel' &&
+              terminalResizeHandle instanceof HTMLElement &&
+              terminalResizeHandle.getAttribute('aria-label') === 'Resize bottom panel' &&
+              terminalTabListForLabels instanceof HTMLElement &&
+              terminalTabListForLabels.getAttribute('aria-label') === 'Bottom panel tabs' &&
+              hideBottomPanelButton instanceof HTMLButtonElement &&
+              hideBottomPanelButton.getAttribute('aria-label') === 'Hide bottom panel';
             if (terminalResizeHandle instanceof HTMLElement && bottomPanelRestored instanceof HTMLElement) {
               const resizeRect = terminalResizeHandle.getBoundingClientRect();
               const terminalMotionPanel = terminalResizeHandle.closest('[data-motion-panel="bottom"]');
@@ -3917,7 +3932,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             }
           }
           if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'terminal-visual') {
-            const terminalButton = findButton('Toggle terminal');
+            const terminalButton = findButton('Toggle bottom panel') ?? findButton('Toggle terminal');
             const initialBottomPanel = document.querySelector('[data-testid="session-bottom-panel"]');
             if (!(initialBottomPanel instanceof HTMLElement)) {
               terminalButton?.click();
@@ -7918,6 +7933,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             terminalServiceSnapshotWorks: typeof terminalServiceSnapshotWorks === 'boolean' ? terminalServiceSnapshotWorks : null,
             terminalRightPanelNewTabShortcutWorks: typeof terminalRightPanelNewTabShortcutWorks === 'boolean' ? terminalRightPanelNewTabShortcutWorks : null,
             terminalMoveBackToBottomWorks: typeof terminalMoveBackToBottomWorks === 'boolean' ? terminalMoveBackToBottomWorks : null,
+            terminalBottomPanelLabelsWorks: typeof terminalBottomPanelLabelsWorks === 'boolean' ? terminalBottomPanelLabelsWorks : null,
             terminalLinkScopedRoutingWorks: typeof terminalLinkScopedRoutingWorks === 'boolean' ? terminalLinkScopedRoutingWorks : null,
             terminalLinkRoutingWorks: typeof terminalLinkRoutingWorks === 'boolean' ? terminalLinkRoutingWorks : null,
             terminalThemeFontSyncWorks: typeof terminalThemeFontSyncWorks === 'boolean' ? terminalThemeFontSyncWorks : null,
@@ -27208,7 +27224,7 @@ function runAutomatedReducedMotionSmoke(win: BrowserWindow, outputPath: string, 
             const rightPanelDurations = rightPanel ? getComputedStyle(rightPanel).transitionDuration.split(',').map((value) => value.trim()) : [];
             const rightPanelRect = rightPanel instanceof HTMLElement ? rightPanel.getBoundingClientRect() : null;
 
-            const terminalButton = findButton('Toggle terminal');
+            const terminalButton = findButton('Toggle bottom panel') ?? findButton('Toggle terminal');
             terminalButton?.click();
             await sleep(120);
             const bottomPanel = document.querySelector('[data-motion-panel="bottom"]');
@@ -28054,7 +28070,7 @@ function runAutomatedCrossPanelKeyboardSmoke(win: BrowserWindow, outputPath: str
             const openBottomTerminal = async () => {
               const panel = document.querySelector('[data-testid="session-bottom-panel"]');
               if (panel instanceof HTMLElement) return;
-              const toggle = document.querySelector('[data-testid="titlebar-toggle-terminal"]') ?? findButton('Toggle terminal');
+              const toggle = document.querySelector('[data-testid="titlebar-toggle-terminal"]') ?? findButton('Toggle bottom panel') ?? findButton('Toggle terminal');
               if (toggle instanceof HTMLElement) toggle.click();
               for (let index = 0; index < 30; index += 1) {
                 if (document.querySelector('[data-testid="session-bottom-panel"]')) return;
