@@ -26689,14 +26689,29 @@ function runAutomatedTranscriptForkSmoke(win: BrowserWindow, outputPath: string,
               forkButton instanceof HTMLButtonElement &&
               forkButton.getAttribute('aria-label') === 'Fork from here';
             let chatMessageForkMenuChoices = false;
+            let chatMessageForkMenuTriggerState = false;
             let chatMessageForkSameWorktreeUi = false;
             if (forkButton instanceof HTMLButtonElement) {
+              const controlsBeforeOpen = forkButton.getAttribute('aria-controls') ?? '';
+              const closedTriggerStateWorks =
+                forkButton.getAttribute('aria-haspopup') === 'menu' &&
+                forkButton.getAttribute('aria-expanded') === 'false' &&
+                controlsBeforeOpen.length > 0 &&
+                document.getElementById(controlsBeforeOpen) === null;
               forkButton.click();
               await sleep(180);
+              const controlsAfterOpen = forkButton.getAttribute('aria-controls') ?? '';
               const menu = document.querySelector('[data-testid="chat-message-fork-menu"]');
               const localItem = document.querySelector('[data-testid="chat-message-fork-local"]');
               const sameItem = document.querySelector('[data-testid="chat-message-fork-same-worktree"]');
               const newItem = document.querySelector('[data-testid="chat-message-fork-new-worktree"]');
+              chatMessageForkMenuTriggerState =
+                closedTriggerStateWorks &&
+                forkButton.getAttribute('aria-expanded') === 'true' &&
+                controlsAfterOpen === controlsBeforeOpen &&
+                menu instanceof HTMLElement &&
+                menu.id === controlsAfterOpen &&
+                document.getElementById(controlsAfterOpen) === menu;
               chatMessageForkMenuChoices =
                 menu instanceof HTMLElement &&
                 localItem instanceof HTMLButtonElement &&
@@ -26720,6 +26735,7 @@ function runAutomatedTranscriptForkSmoke(win: BrowserWindow, outputPath: string,
               chatSessionForkLatestTurnTruncatesControls,
               chatSessionForkLatestTurnMenuLabel,
               chatMessageForkButtonVisible,
+              chatMessageForkMenuTriggerState,
               chatMessageForkMenuChoices,
               chatMessageForkSameWorktreeUi
             };

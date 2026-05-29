@@ -2201,6 +2201,7 @@ child.on('exit', async (code) => {
         chatSessionForkLatestTurnTruncatesControls: result.chatSessionForkLatestTurnTruncatesControls === true,
         chatSessionForkLatestTurnMenuLabel: result.chatSessionForkLatestTurnMenuLabel === true,
         chatMessageForkButtonVisible: result.chatMessageForkButtonVisible === true,
+        chatMessageForkMenuTriggerState: result.chatMessageForkMenuTriggerState === true,
         chatMessageForkMenuChoices: result.chatMessageForkMenuChoices === true,
         chatMessageForkSameWorktreeUi: result.chatMessageForkSameWorktreeUi === true,
         chatMessageForkFromHere: result.chatMessageForkFromHere === true,

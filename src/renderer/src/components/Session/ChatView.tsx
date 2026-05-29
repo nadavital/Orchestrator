@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback } from 'react'
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useCallback } from 'react'
 import type { ReactNode, WheelEvent } from 'react'
 import { createPortal } from 'react-dom'
 import ReactMarkdown from 'react-markdown'
@@ -1476,6 +1476,7 @@ function ForkFromMessageButton({
 }): JSX.Element {
   const [state, setState] = useState<'idle' | 'forking' | 'error'>('idle')
   const [menuPosition, setMenuPosition] = useState<{ left: number; top: number } | null>(null)
+  const menuId = useId()
   const label = state === 'forking' ? 'Forking chat' : state === 'error' ? 'Fork failed' : 'Fork from here'
   const hasForkChoices = canForkSameWorktree || canForkNewWorktree
 
@@ -1514,12 +1515,14 @@ function ForkFromMessageButton({
         tone={state === 'error' ? 'danger' : 'neutral'}
         dataTestId="chat-message-fork"
         ariaExpanded={menuPosition !== null}
+        ariaControls={hasForkChoices ? menuId : undefined}
         ariaHasPopup={hasForkChoices ? 'menu' : undefined}
         onClick={openMenu}
         style={{ opacity: state === 'forking' ? 1 : 0.62 }}
       />
       {menuPosition && createPortal(
         <MenuSurface
+          id={menuId}
           onClose={() => setMenuPosition(null)}
           data-testid="chat-message-fork-menu"
           style={{

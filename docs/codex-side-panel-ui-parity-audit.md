@@ -10214,3 +10214,13 @@ Implemented: Browser clear-data actions now close the menu, show an immediate pr
 Verification: `pnpm run smoke:ui:changed:static` passed the generated static plan (`git diff --check`, `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and `node -c scripts/suggest-ui-smoke-targets.mjs`). Elevated `pnpm run smoke:ui:changed:smoke` ran only `node scripts/run-automated-ui-smoke.mjs --browser` and passed with `browserClearDataStatusA11y=true`. Browser evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1780059806293.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1780059806294.png`.
 
 Remaining: this closes local Browser clear-data feedback only. Live provider-emitted Browser/browser-use proof and non-Codex Browser adapters remain separate Phase 1 work.
+
+### 2026-05-29 - Message Fork Menu Trigger Semantics
+
+Product evidence: message-level `Fork from here` is now a core transcript workflow for daily coding, especially when branching from a useful prompt or assistant response into a local, same-worktree, or new-worktree follow-up. The fork button exposed `aria-haspopup` and expanded state, but did not identify the controlled menu surface with `aria-controls`, making it less consistent than the rest of the Codex-style app menu triggers.
+
+Implemented: `ForkFromMessageButton` now gives each fork menu a stable React-generated id, wires the button to that menu through `aria-controls`, and preserves the existing menu focus/restore behavior. The transcript-fork smoke now gates the closed/open trigger contract under `chatMessageForkMenuTriggerState=true`. The changed-files smoke planner now maps fork-only `ChatView.tsx`, `src/main/index.ts`, and smoke-harness diffs to `--transcript-fork`, and the Browser diff rule was tightened so unrelated transcript harness edits no longer pull in `--browser`.
+
+Verification: `pnpm run smoke:ui:changed:static` passed the generated static plan (`git diff --check`, `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and `node -c scripts/suggest-ui-smoke-targets.mjs`). Elevated `pnpm run smoke:ui:changed:smoke` ran only `node scripts/run-automated-ui-smoke.mjs --transcript-fork` and passed with `chatMessageForkMenuTriggerState=true`. Transcript fork evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-transcript-fork-1780060203399.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-transcript-fork-1780060203399.png`.
+
+Remaining: this closes local transcript fork menu trigger semantics only. Provider-native fork/resume support remains separate Phase 1 work.

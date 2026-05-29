@@ -53,7 +53,7 @@ const diffRules = [
     flag: '--browser',
     label: 'Browser panel',
     filePatterns: [/^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
-    diffPatterns: [/browser[A-Z]/, /Browser/, /browser-/]
+    diffPatterns: [/browser[A-Z]/, /browser-/]
   },
   {
     flag: '--composer',
@@ -66,6 +66,12 @@ const diffRules = [
     label: 'Transcript',
     filePatterns: [/^src\/renderer\/src\/components\/Session\/InputBar\.tsx$/, /^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
     diffPatterns: [/chatUserMessageEdit/, /message-edit-draft/, /composer-draft-source/]
+  },
+  {
+    flag: '--transcript-fork',
+    label: 'Transcript fork controls',
+    filePatterns: [/^src\/renderer\/src\/components\/Session\/ChatView\.tsx$/, /^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
+    diffPatterns: [/ForkFromMessage/, /chatMessageFork/, /chat-message-fork/]
   },
   {
     flag: '--right-panel',
@@ -226,6 +232,7 @@ function suggestTargets(paths) {
   restoreDiffTargets(matched, paths)
   suppressWorkbenchLauncherForContextSidebarTabDiff(matched, paths)
   suppressRightPanelForWorkbenchTreeFileDiff(matched)
+  suppressTranscriptLayoutForForkDiff(matched, paths)
 
   return { targets: Array.from(matched.values()), unmatched, broadReasons }
 }
@@ -341,6 +348,18 @@ function suppressRightPanelForWorkbenchTreeFileDiff(matched) {
   if (!rightPanel || !files) return
   if (!rightPanel.files.every((file) => file === 'src/renderer/src/components/Session/WorkbenchTree.tsx')) return
   matched.delete('--right-panel')
+}
+
+function suppressTranscriptLayoutForForkDiff(matched, paths) {
+  const transcript = matched.get('--transcript-layout')
+  const fork = matched.get('--transcript-fork')
+  if (!transcript || !fork) return
+  if (!transcript.files.every((file) => file === 'src/renderer/src/components/Session/ChatView.tsx')) return
+  const diff = paths.includes('src/renderer/src/components/Session/ChatView.tsx')
+    ? diffForFile('src/renderer/src/components/Session/ChatView.tsx')
+    : ''
+  if (!/ForkFromMessage|chatMessageFork|chat-message-fork/.test(diff)) return
+  matched.delete('--transcript-layout')
 }
 
 function restoreDiffTargets(matched, paths) {
