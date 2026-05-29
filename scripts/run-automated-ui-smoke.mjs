@@ -3016,6 +3016,7 @@ child.on('exit', async (code) => {
         settingsSearchNavigation: captureView !== 'settings' || result.settingsSearchNavigationWorks === true,
         settingsInPageSearchTarget: captureView !== 'settings' || result.settingsInPageSearchTargetWorks === true,
         settingsBrowserInPageSearchTarget: captureView !== 'settings' || result.settingsBrowserInPageSearchTargetWorks === true,
+        settingsProviderInPageSearchTarget: captureView !== 'settings' || result.settingsProviderInPageSearchTargetWorks === true,
         settingsDeepLinkRoute: captureView !== 'settings-deeplink' || result.settingsDeepLinkRouteWorks === true,
         settingsHostContext: captureView !== 'settings' || result.settingsHostContextWorks === true,
         settingsHostSectionFiltering: captureView !== 'settings' || result.settingsHostSectionFilteringWorks === true,

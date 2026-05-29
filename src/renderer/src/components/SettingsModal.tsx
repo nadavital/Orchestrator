@@ -55,6 +55,8 @@ const SETTINGS_SEARCH_ITEMS: Array<{
   { section: 'general', label: 'File handoff', description: 'Preferred editor for file opens', keywords: 'files editor handoff open path target cursor vscode zed', anchor: 'general-files' },
   { section: 'general', label: 'Composer', description: 'Enter behavior and send shortcut', keywords: 'composer enter send newline message input command control', anchor: 'general-composer' },
   { section: 'appearance', label: 'Appearance', description: 'Theme, density, color, and fonts', keywords: 'theme accent density font motion chrome code' },
+  { section: 'providers', label: 'Provider picker', description: 'Default provider and runtime readiness', keywords: 'provider picker default provider runtime ready install claude codex openai cursor copilot', anchor: 'provider-picker' },
+  { section: 'providers', label: 'Provider defaults', description: 'Default model, reasoning, permissions, and model list', keywords: 'models model reasoning thinking permission permissions mode default visible list provider agent', anchor: 'provider-defaults' },
   { section: 'providers', label: 'Providers', description: 'Default provider, models, permissions, and diagnostics', keywords: 'model agent permission diagnostics runtime codex claude openai' },
   { section: 'automations', label: 'Automations', description: 'Scheduled follow-ups and run history', keywords: 'schedule reminder heartbeat cron run history pause' },
   { section: 'worktrees', label: 'Worktrees', description: 'Managed isolated workspaces', keywords: 'git branch fork workspace isolated cleanup' },

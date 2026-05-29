@@ -1393,6 +1393,60 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                   }
                   await sleep(80);
                 }
+                var settingsProviderInPageSearchTargetWorks = false;
+                activeSettingsSearchInput = setSettingsSearchValue('models') ?? activeSettingsSearchInput;
+                await sleep(120);
+                const providerDefaultsSearchMatch = document.querySelector('[data-testid="settings-search-match"]');
+                activeSettingsSearchInput.dispatchEvent(new KeyboardEvent('keydown', {
+                  key: 'Enter',
+                  code: 'Enter',
+                  bubbles: true,
+                  cancelable: true
+                }));
+                for (let index = 0; index < 25; index += 1) {
+                  const shell = document.querySelector('.settings-shell');
+                  const providerDefaultsAnchor = document.querySelector('[data-settings-search-anchor="provider-defaults"]');
+                  const routeMatches = window.location.protocol === 'file:'
+                    ? window.location.hash.startsWith('#/settings/providers')
+                    : window.location.pathname === '/settings/providers';
+                  if (
+                    shell instanceof HTMLElement &&
+                    shell.getAttribute('data-settings-active-section') === 'providers' &&
+                    providerDefaultsSearchMatch instanceof HTMLButtonElement &&
+                    providerDefaultsSearchMatch.getAttribute('data-settings-search-target') === 'providers' &&
+                    providerDefaultsSearchMatch.getAttribute('data-settings-search-target-anchor') === 'provider-defaults' &&
+                    providerDefaultsAnchor instanceof HTMLElement &&
+                    providerDefaultsAnchor.getAttribute('data-settings-search-active') === 'true' &&
+                    document.activeElement === providerDefaultsAnchor &&
+                    routeMatches
+                  ) {
+                    settingsProviderInPageSearchTargetWorks = true;
+                    break;
+                  }
+                  await sleep(80);
+                }
+                activeSettingsSearchInput = setSettingsSearchValue('general') ?? activeSettingsSearchInput;
+                await sleep(120);
+                activeSettingsSearchInput.dispatchEvent(new KeyboardEvent('keydown', {
+                  key: 'Enter',
+                  code: 'Enter',
+                  bubbles: true,
+                  cancelable: true
+                }));
+                for (let index = 0; index < 25; index += 1) {
+                  const shell = document.querySelector('.settings-shell');
+                  const routeMatches = window.location.protocol === 'file:'
+                    ? window.location.hash.startsWith('#/settings/general')
+                    : window.location.pathname === '/settings/general';
+                  if (
+                    shell instanceof HTMLElement &&
+                    shell.getAttribute('data-settings-active-section') === 'general' &&
+                    routeMatches
+                  ) {
+                    break;
+                  }
+                  await sleep(80);
+                }
               }
               const settingsContentLayoutMatches = (testId, title, subtitleIncludes) => {
                 const layout = document.querySelector('[data-testid="' + testId + '"]');
@@ -7587,6 +7641,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             settingsSearchNavigationWorks: typeof settingsSearchNavigationWorks === 'boolean' ? settingsSearchNavigationWorks : null,
             settingsInPageSearchTargetWorks: typeof settingsInPageSearchTargetWorks === 'boolean' ? settingsInPageSearchTargetWorks : null,
             settingsBrowserInPageSearchTargetWorks: typeof settingsBrowserInPageSearchTargetWorks === 'boolean' ? settingsBrowserInPageSearchTargetWorks : null,
+            settingsProviderInPageSearchTargetWorks: typeof settingsProviderInPageSearchTargetWorks === 'boolean' ? settingsProviderInPageSearchTargetWorks : null,
             settingsDeepLinkRouteWorks: typeof settingsDeepLinkRouteWorks === 'boolean' ? settingsDeepLinkRouteWorks : null,
             settingsDeepLinkRouteDebug: typeof settingsDeepLinkRouteDebug === 'object' ? settingsDeepLinkRouteDebug : null,
             settingsHostContextWorks: typeof settingsHostContextWorks === 'boolean' ? settingsHostContextWorks : null,

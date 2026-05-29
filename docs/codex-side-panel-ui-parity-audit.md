@@ -9585,6 +9585,16 @@ Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.
 
 Remaining: this closes the high-frequency Browser Settings subtarget path. Provider and Shortcuts per-control search depth, provider-host Settings adapters, deeper Settings page/window structure, and exact live Codex Settings timing remain separate PP-058 follow-ups.
 
+### 2026-05-29 - Provider Settings In-Page Search Targets
+
+Product evidence: PP-058 still tracked broader per-control Settings search coverage, and provider model/permission defaults are part of day-to-day coding setup. A query such as `models` previously only routed to the Providers page and left the user to scan for the model/defaults surface.
+
+Implemented: Settings search now includes Provider picker and Provider defaults subtargets. The Providers page exposes matching focusable anchors for the provider selector and the default model/reasoning/permission/model-list group, so matched search results scroll and focus the exact Providers control group with the same `data-settings-search-active="true"` affordance used by General and Browser.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, and elevated `node scripts/run-automated-ui-smoke.mjs --settings` passed. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1780029502642.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1780029502642.png`. The focused Settings smoke now gates `settingsProviderInPageSearchTarget=true` by searching `models`, verifying the chip targets `provider-defaults`, and confirming the Provider defaults group receives focus plus active-search state.
+
+Remaining: this closes the high-frequency local Provider Settings subtarget path. Shortcuts per-control search depth, provider-native account/runtime adapters, real remote-host Settings adapters, and exact live Codex Settings timing remain separate PP-058 follow-ups.
+
 ### 2026-05-29 - Browser Hidden Page Identity
 
 Product evidence: PP-058 still tracked Browser lifecycle parity. Orchestrator already preserved hidden Browser webviews and resynced lifecycle state when shown again, but the hidden state itself only said `Hidden` and `The page is still loaded`. For day-to-day coding, a hidden Browser panel should still identify which page is loaded so users can decide whether to resume, reset, or switch context.

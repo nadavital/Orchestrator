@@ -144,7 +144,13 @@ export default function ProvidersSettingsPage({
           dataTestId="settings-content-layout-providers"
         >
           <div className="provider-settings-stack">
-            <SettingsContentGroup className="provider-settings-content-group">
+            <SettingsContentGroup
+              className="provider-settings-content-group"
+              rootAttrs={{
+                tabIndex: -1,
+                'data-settings-search-anchor': 'provider-picker'
+              }}
+            >
               <SettingsSectionHeading
                 title="Provider"
                 description="Choose the default agent provider and check whether its local runtime is ready."
@@ -170,7 +176,13 @@ export default function ProvidersSettingsPage({
 
         {/* Per-provider content — key forces clean remount on provider switch, stopping DnD jitter */}
         <div key={selectedId}>
-          <SettingsContentGroup className="provider-settings-content-group">
+          <SettingsContentGroup
+            className="provider-settings-content-group"
+            rootAttrs={{
+              tabIndex: -1,
+              'data-settings-search-anchor': 'provider-defaults'
+            }}
+          >
             <SettingsSectionHeading
               title="Defaults"
               description="Configure the model, reasoning, permissions, and visible model list for this provider."
