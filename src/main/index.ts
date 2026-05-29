@@ -10540,9 +10540,35 @@ function runAutomatedFocusedSurfaceSmoke(
                   selectedAgentTimelineList.getAttribute('data-agent-id') === 'agent-inspector-smoke' &&
                   selectedAgentTimelineList.getAttribute('data-agent-timeline-count') === '3' &&
                   selectedAgentTimelineRows.length === 3 &&
+                  selectedAgentTimelineRows.every((row) =>
+                    row instanceof HTMLButtonElement &&
+                    row.getAttribute('aria-label')?.includes(' event, ') === true &&
+                    (row.getAttribute('aria-pressed') === 'true' || row.getAttribute('aria-pressed') === 'false') &&
+                    row.getAttribute('data-agent-event-selected') === row.getAttribute('aria-pressed')
+                  ) &&
                   selectedAgentTimeline.textContent?.includes('Runtime inspector smoke') === true &&
                   selectedAgentTimeline.textContent?.includes('Collected runtime diagnostics timeline') === true &&
                   selectedAgentTimeline.textContent?.includes('Agent text completed') === true;
+                const textDeltaTimelineRow = selectedAgentTimelineRows.find((row) =>
+                  row.textContent?.includes('Collected runtime diagnostics timeline') === true
+                );
+                if (textDeltaTimelineRow instanceof HTMLButtonElement) {
+                  textDeltaTimelineRow.click();
+                  await sleep(120);
+                }
+                const timelineFocusedEventDetail = document.querySelector('[data-testid="agent-event-detail"]');
+                const timelineFocusedRows = [...document.querySelectorAll('[data-testid="agent-selected-timeline-event"]')]
+                  .filter((row) => row instanceof HTMLElement);
+                const agentSelectedTimelineOpenDetailWorks =
+                  textDeltaTimelineRow instanceof HTMLButtonElement &&
+                  timelineFocusedEventDetail instanceof HTMLElement &&
+                  timelineFocusedEventDetail.textContent?.includes('agent.text.delta') === true &&
+                  timelineFocusedEventDetail.textContent?.includes('Collected runtime diagnostics timeline') === true &&
+                  timelineFocusedRows.some((row) =>
+                    row.textContent?.includes('Collected runtime diagnostics timeline') === true &&
+                    row.getAttribute('aria-pressed') === 'true' &&
+                    row.getAttribute('data-agent-event-selected') === 'true'
+                  );
                 const selectedAgentCopy = document.querySelector('[data-testid="agent-selected-copy"]');
                 let copiedSelectedAgentTranscript = '';
                 if (selectedAgentCopy instanceof HTMLButtonElement) {
@@ -11048,6 +11074,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   agentTransportLogCopyWorks,
                   agentTransportLogAddToChatWorks,
                   agentSelectedTimelineWorks,
+                  agentSelectedTimelineOpenDetailWorks,
                   agentSelectedTranscriptCopyWorks,
                   agentSelectedTranscriptAddToChatWorks,
                   agentRuntimeEventFacetFiltersWork,

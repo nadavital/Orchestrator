@@ -103,7 +103,15 @@ export default function EventInspectorPanel({ session, embedded = false, activeA
             </div>
           </div>
 
-          {selectedAgent && <AgentConversation session={session} agent={selectedAgent} events={events} />}
+          {selectedAgent && (
+            <AgentConversation
+              session={session}
+              agent={selectedAgent}
+              events={events}
+              selectedEventId={selectedEvent?.id ?? null}
+              onSelectEvent={setSelectedEventId}
+            />
+          )}
         </div>
       )}
     </section>
@@ -1115,7 +1123,19 @@ function AgentTab({
   )
 }
 
-function AgentConversation({ session, agent, events }: { session: Session; agent: AgentNode; events: SessionRunEventRecord[] }): JSX.Element {
+function AgentConversation({
+  session,
+  agent,
+  events,
+  selectedEventId,
+  onSelectEvent
+}: {
+  session: Session
+  agent: AgentNode
+  events: SessionRunEventRecord[]
+  selectedEventId: string | null
+  onSelectEvent: (id: string) => void
+}): JSX.Element {
   const [actionStatus, setActionStatus] = useState<string | null>(null)
   const transcript = agent.transcript?.trim()
   const summary = agent.summary?.trim()
@@ -1219,7 +1239,14 @@ function AgentConversation({ session, agent, events }: { session: Session; agent
         </div>
       )}
 
-      {timelineEvents.length > 0 && <AgentTimeline agent={agent} events={timelineEvents} />}
+      {timelineEvents.length > 0 && (
+        <AgentTimeline
+          agent={agent}
+          events={timelineEvents}
+          selectedEventId={selectedEventId}
+          onSelectEvent={onSelectEvent}
+        />
+      )}
 
       {transcript ? (
         <TranscriptBlock content={transcript} />
@@ -1244,7 +1271,17 @@ function boundedAgentTranscript(text: string): string {
   return `${trimmed.slice(0, 2800)}\n...[truncated]`
 }
 
-function AgentTimeline({ agent, events }: { agent: AgentNode; events: SessionRunEventRecord[] }): JSX.Element {
+function AgentTimeline({
+  agent,
+  events,
+  selectedEventId,
+  onSelectEvent
+}: {
+  agent: AgentNode
+  events: SessionRunEventRecord[]
+  selectedEventId: string | null
+  onSelectEvent: (id: string) => void
+}): JSX.Element {
   return (
     <InspectorSection
       title="Timeline"
@@ -1258,10 +1295,17 @@ function AgentTimeline({ agent, events }: { agent: AgentNode; events: SessionRun
         data-agent-timeline-count={events.length}
       >
         {events.map((record) => (
-          <InspectorRow
+          <button
             key={record.id}
-            variant="muted"
-            dataTestId="agent-selected-timeline-event"
+            type="button"
+            className="orchestrator-inspector-row text-left"
+            data-inspector-row="true"
+            data-inspector-row-variant="muted"
+            data-testid="agent-selected-timeline-event"
+            data-agent-event-selected={selectedEventId === record.id ? 'true' : 'false'}
+            aria-pressed={selectedEventId === record.id}
+            aria-label={eventActionLabel(record)}
+            onClick={() => onSelectEvent(record.id)}
           >
             <div className="min-w-0 flex-1">
               <div className="truncate text-[11px] font-semibold" style={{ color: 'var(--color-text)' }}>
@@ -1272,7 +1316,7 @@ function AgentTimeline({ agent, events }: { agent: AgentNode; events: SessionRun
               </div>
             </div>
             <Badge tone={eventTone(record)}>{eventBadge(record)}</Badge>
-          </InspectorRow>
+          </button>
         ))}
       </div>
     </InspectorSection>
