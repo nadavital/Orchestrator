@@ -26737,6 +26737,51 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
               composerShellAfterToolCommand instanceof HTMLElement &&
               composerShellAfterToolCommand.textContent?.includes('Result:') === true &&
               composerShellAfterToolCommand.textContent?.includes('output:') === true;
+            const commandRunTerminalButton = toolBody?.querySelector('[data-testid="tool-activity-command-run-terminal"]');
+            if (commandRunTerminalButton instanceof HTMLButtonElement) {
+              commandRunTerminalButton.click();
+              for (let attempt = 0; attempt < 24; attempt += 1) {
+                const status = document.querySelector('[data-testid="tool-activity-command-run-terminal-status"]');
+                if (
+                  commandRunTerminalButton.getAttribute('aria-label') === 'Command sent to terminal' ||
+                  (status instanceof HTMLElement && status.textContent?.includes('Command sent to terminal') === true)
+                ) break;
+                await sleep(100);
+              }
+            }
+            const commandRunTerminalStatus = document.querySelector('[data-testid="tool-activity-command-run-terminal-status"]');
+            const commandRunTerminalId = window.__orchestratorLastToolActivityTerminalIdForSmoke ?? '';
+            const commandRunTerminalCommand = window.__orchestratorLastToolActivityTerminalCommandForSmoke ?? '';
+            const commandRunTerminalBuffer = commandRunTerminalId
+              ? await window.api?.terminal?.getBuffer?.(commandRunTerminalId).catch(() => '') ?? ''
+              : '';
+            const bottomPanelAfterCommandRun = document.querySelector('[data-testid="session-bottom-panel"]');
+            const toolActivityCommandRunTerminalDebug = {
+              buttonFound: commandRunTerminalButton instanceof HTMLButtonElement,
+              buttonConnected: commandRunTerminalButton instanceof HTMLButtonElement ? commandRunTerminalButton.isConnected : null,
+              ariaLabel: commandRunTerminalButton instanceof HTMLButtonElement ? commandRunTerminalButton.getAttribute('aria-label') : null,
+              variant: commandRunTerminalButton instanceof HTMLButtonElement ? commandRunTerminalButton.getAttribute('data-icon-button-variant') : null,
+              statusFound: commandRunTerminalStatus instanceof HTMLElement,
+              statusText: commandRunTerminalStatus instanceof HTMLElement ? commandRunTerminalStatus.textContent : null,
+              statusRole: commandRunTerminalStatus instanceof HTMLElement ? commandRunTerminalStatus.getAttribute('role') : null,
+              statusLive: commandRunTerminalStatus instanceof HTMLElement ? commandRunTerminalStatus.getAttribute('aria-live') : null,
+              command: commandRunTerminalCommand,
+              terminalId: commandRunTerminalId,
+              bufferHasToken: commandRunTerminalBuffer.includes('TRANSCRIPT_LAYOUT_SMOKE_'),
+              bottomPanelFound: bottomPanelAfterCommandRun instanceof HTMLElement,
+              bottomPanelTerminalId: bottomPanelAfterCommandRun instanceof HTMLElement ? bottomPanelAfterCommandRun.getAttribute('data-bottom-panel-active-terminal-id') : null
+            };
+            const toolActivityCommandRunTerminalWorks =
+              commandRunTerminalButton instanceof HTMLButtonElement &&
+              commandRunTerminalButton.getAttribute('aria-label') === 'Command sent to terminal' &&
+              commandRunTerminalButton.getAttribute('data-icon-button-variant') === 'toolbar' &&
+              commandRunTerminalCommand.includes('printf') &&
+              commandRunTerminalCommand.includes('TRANSCRIPT_LAYOUT_SMOKE_') &&
+              commandRunTerminalBuffer.includes('TRANSCRIPT_LAYOUT_SMOKE_') &&
+              bottomPanelAfterCommandRun instanceof HTMLElement &&
+              bottomPanelAfterCommandRun.getAttribute('data-bottom-panel-active-terminal-id') === commandRunTerminalId;
+            document.querySelector('[aria-label="Hide bottom panel"]')?.click();
+            await sleep(120);
             const transcriptText = scroller.innerText;
             document.querySelector('[aria-label="Close transcript search"]')?.click();
             await sleep(80);
@@ -26816,6 +26861,8 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
               toolActivityCommandCopyWorks,
               toolActivityCommandAddToChatWorks,
               toolActivityCommandResultAddToChatWorks,
+              toolActivityCommandRunTerminalWorks,
+              toolActivityCommandRunTerminalDebug,
               rawEventsHiddenFromTranscript: !transcriptText.includes('RAW_TRANSCRIPT_EVENT_SHOULD_NOT_RENDER'),
               documentNoHorizontalOverflowAfterExpand: expandedDocScrollWidth <= viewportWidth + 2,
               docScrollWidth,

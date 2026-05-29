@@ -3183,16 +3183,22 @@ function toolCommandComposerText(tool: ToolUseMessage, command: string, result?:
   ].filter(Boolean).join('\n')
 }
 
-function ToolActivityCommandCopy({ tool, result }: { tool: ToolUseMessage; result?: ToolResultMessage }): JSX.Element | null {
+function ToolActivityCommandCopy({ tool, result, session }: { tool: ToolUseMessage; result?: ToolResultMessage; session: Session }): JSX.Element | null {
   const command = toolCommandText(tool)
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'error'>('idle')
   const [chatStatus, setChatStatus] = useState<'idle' | 'added'>('idle')
+  const [terminalStatus, setTerminalStatus] = useState<'idle' | 'running' | 'sent' | 'error'>('idle')
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const chatTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const terminalTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const setShowTerminal = useSessionStore((state) => state.setShowTerminal)
+  const addTerminalTab = useSessionStore((state) => state.addTerminalTab)
+  const setActiveTerminalTab = useSessionStore((state) => state.setActiveTerminalTab)
 
   useEffect(() => () => {
     if (timeoutRef.current) window.clearTimeout(timeoutRef.current)
     if (chatTimeoutRef.current) window.clearTimeout(chatTimeoutRef.current)
+    if (terminalTimeoutRef.current) window.clearTimeout(terminalTimeoutRef.current)
   }, [])
 
   const copyCommand = useCallback(async (event: React.MouseEvent) => {
@@ -3236,6 +3242,46 @@ function ToolActivityCommandCopy({ tool, result }: { tool: ToolUseMessage; resul
     }, 1500)
   }, [command, result, tool])
 
+  const runCommandInTerminal = useCallback(async (event: React.MouseEvent) => {
+    event.preventDefault()
+    event.stopPropagation()
+    if (!command || terminalStatus === 'running') return
+    if (terminalTimeoutRef.current) window.clearTimeout(terminalTimeoutRef.current)
+    setTerminalStatus('running')
+    try {
+      const state = useSessionStore.getState()
+      const currentPanel = state.uiState[session.id]?.terminalPanel
+      const existingTab = typeof currentPanel?.activeTabId === 'number'
+        ? currentPanel.activeTabId
+        : currentPanel?.tabs.find((tab): tab is number => typeof tab === 'number')
+      const tabId = existingTab ?? addTerminalTab(session.id)
+      setShowTerminal(session.id, true)
+      setActiveTerminalTab(session.id, tabId)
+      const terminalId = `${session.id}-${tabId}`
+      const globals = window as typeof window & {
+        __orchestratorLastToolActivityTerminalCommandForSmoke?: string
+        __orchestratorLastToolActivityTerminalIdForSmoke?: string
+      }
+      globals.__orchestratorLastToolActivityTerminalCommandForSmoke = command
+      globals.__orchestratorLastToolActivityTerminalIdForSmoke = terminalId
+      await window.api.terminal.spawn(terminalId, session.workDir)
+      void window.api.terminal.runCommand(terminalId, command).catch(() => {
+        setTerminalStatus('error')
+      })
+      setTerminalStatus('sent')
+      terminalTimeoutRef.current = window.setTimeout(() => {
+        setTerminalStatus('idle')
+        terminalTimeoutRef.current = null
+      }, 1800)
+    } catch {
+      setTerminalStatus('error')
+      terminalTimeoutRef.current = window.setTimeout(() => {
+        setTerminalStatus('idle')
+        terminalTimeoutRef.current = null
+      }, 2200)
+    }
+  }, [addTerminalTab, command, session.id, session.workDir, setActiveTerminalTab, setShowTerminal, terminalStatus])
+
   if (!command) return null
 
   return (
@@ -3257,6 +3303,24 @@ function ToolActivityCommandCopy({ tool, result }: { tool: ToolUseMessage; resul
         tone={chatStatus === 'added' ? 'success' : 'neutral'}
         dataTestId="tool-activity-command-add-to-chat"
         onClick={addCommandToChat}
+      />
+      <IconButton
+        icon={terminalStatus === 'sent' ? 'check' : 'terminal'}
+        label={
+          terminalStatus === 'running'
+            ? 'Running command in terminal'
+            : terminalStatus === 'sent'
+              ? 'Command sent to terminal'
+              : terminalStatus === 'error'
+                ? 'Run command in terminal failed'
+                : 'Run command in terminal'
+        }
+        size="xs"
+        variant="toolbar"
+        tone={terminalStatus === 'sent' ? 'success' : terminalStatus === 'error' ? 'danger' : 'neutral'}
+        dataTestId="tool-activity-command-run-terminal"
+        disabled={terminalStatus === 'running'}
+        onClick={(event) => { void runCommandInTerminal(event) }}
       />
       {copyStatus !== 'idle' && (
         <span
@@ -3282,6 +3346,22 @@ function ToolActivityCommandCopy({ tool, result }: { tool: ToolUseMessage; resul
           Added command to chat
         </span>
       )}
+      <span
+        className="sr-only"
+        data-testid="tool-activity-command-run-terminal-status"
+        data-command-terminal-state={terminalStatus}
+        role={terminalStatus === 'error' ? 'alert' : 'status'}
+        aria-live={terminalStatus === 'error' ? 'assertive' : 'polite'}
+        aria-atomic="true"
+      >
+        {terminalStatus === 'running'
+          ? 'Running command in terminal'
+          : terminalStatus === 'sent'
+            ? 'Command sent to terminal'
+            : terminalStatus === 'error'
+              ? 'Unable to run command in terminal'
+              : ''}
+      </span>
     </>
   )
 }
@@ -3329,7 +3409,7 @@ function ToolActivitySummary({ messages, session }: { messages: Array<ToolUseMes
                   <span className="min-w-0 flex-1 truncate" title={describeToolActivity(activity.tool)}>
                     {describeToolActivity(activity.tool)}
                   </span>
-                  <ToolActivityCommandCopy tool={activity.tool} result={activity.result} />
+                  <ToolActivityCommandCopy tool={activity.tool} result={activity.result} session={session} />
                 </div>
               ))}
               {orphanResults.map((result) => (

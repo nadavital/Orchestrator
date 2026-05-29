@@ -2154,6 +2154,7 @@ child.on('exit', async (code) => {
         toolSummaryCollapsedByDefault: result.toolSummaryCollapsedByDefault === true,
         toolActivityCommandAddToChat: result.toolActivityCommandAddToChatWorks === true,
         toolActivityCommandResultAddToChat: result.toolActivityCommandResultAddToChatWorks === true,
+        toolActivityCommandRunTerminal: result.toolActivityCommandRunTerminalWorks === true,
         chatContinueLastTurn: result.chatContinueLastTurnWorks === true,
         chatContinueLastTurnA11y: result.chatContinueLastTurnA11yWorks === true,
         chatRegenerateLastResponse: result.chatRegenerateLastResponseWorks === true,
@@ -2178,6 +2179,7 @@ child.on('exit', async (code) => {
         toolActivityCommandCopy: result.toolActivityCommandCopyWorks === true,
         toolActivityCommandAddToChat: result.toolActivityCommandAddToChatWorks === true,
         toolActivityCommandResultAddToChat: result.toolActivityCommandResultAddToChatWorks === true,
+        toolActivityCommandRunTerminal: result.toolActivityCommandRunTerminalWorks === true,
         documentNoHorizontalOverflowAfterExpand: result.documentNoHorizontalOverflowAfterExpand === true
       }
     : captureView === 'transcript-reserve'

@@ -306,6 +306,7 @@ function suggestTargets(paths) {
   suppressComposerForWorktreeLifecycleDiff(matched, paths)
   suppressComposerForTerminalHandoffDiff(matched, paths)
   suppressComposerForToolActivityCommandDiff(matched, paths)
+  suppressTerminalForToolActivityCommandDiff(matched, paths)
   suppressComposerForWorkbenchGitHandoffDiff(matched, paths)
   suppressComposerForBrowserHandoffDiff(matched, paths)
   suppressEnvironmentForGitFileWorkflowDiff(matched, paths)
@@ -643,6 +644,20 @@ function suppressComposerForToolActivityCommandDiff(matched, paths) {
   const diff = paths.includes('src/main/index.ts') ? diffForFile('src/main/index.ts') : ''
   if (!/toolActivityCommand|tool-activity-command/.test(diff)) return
   matched.delete('--composer')
+}
+
+function suppressTerminalForToolActivityCommandDiff(matched, paths) {
+  const terminal = matched.get('--terminal')
+  const transcript = matched.get('--transcript-layout')
+  if (!terminal || !transcript) return
+  if (!terminal.files.every((file) => file === 'scripts/run-automated-ui-smoke.mjs' || file === 'src/main/index.ts')) return
+  const diff = [
+    paths.includes('src/renderer/src/components/Session/ChatView.tsx') ? diffForFile('src/renderer/src/components/Session/ChatView.tsx') : '',
+    paths.includes('scripts/run-automated-ui-smoke.mjs') ? diffForFile('scripts/run-automated-ui-smoke.mjs') : '',
+    paths.includes('src/main/index.ts') ? diffForFile('src/main/index.ts') : ''
+  ].join('\n')
+  if (!/toolActivityCommandRunTerminal|tool-activity-command-run-terminal|Run command in terminal/.test(diff)) return
+  matched.delete('--terminal')
 }
 
 function suppressComposerForWorkbenchGitHandoffDiff(matched, paths) {
