@@ -7282,6 +7282,15 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             Number(reviewSourceSummary.getAttribute('data-review-source-summary-count') ?? '0') >= 1 &&
             (reviewSourceSummary.textContent ?? '').includes('All changes') &&
             reviewSourceSummaryRect.height <= 28;
+          const reviewSourceRootMetadataWorks =
+            reviewSourceSummary instanceof HTMLElement &&
+            reviewSourceSummary.getAttribute('data-review-source-workspace-name') === 'orchestrator-automated-ui-workspace' &&
+            reviewSourceSummary.getAttribute('data-review-source-workspace-root')?.endsWith('/orchestrator-automated-ui-workspace') === true &&
+            (reviewSourceSummary.getAttribute('aria-label') ?? '').includes('in orchestrator-automated-ui-workspace') &&
+            (reviewSourceSummary.textContent ?? '').includes('orchestrator-automated-ui-workspace') &&
+            reviewSourceSummaryRect !== null &&
+            reviewSourceSummary.scrollWidth <= reviewSourceSummary.clientWidth + 2 &&
+            reviewSourceSummaryRect.height <= 28;
           const diffPaneSearchWorks =
             diffPanelSearchRow instanceof HTMLElement &&
             diffSearchRect !== null &&
@@ -7794,6 +7803,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             reviewToolbarHeaderRowWorks,
             reviewToolbarPrimaryOrderWorks,
             reviewSourceSummaryHeaderWorks,
+            reviewSourceRootMetadataWorks,
             diffListCompactWorks,
             reviewFileSectionStructureWorks,
             reviewFileHeaderMetricsWork,
@@ -12132,6 +12142,15 @@ function runAutomatedFocusedSurfaceSmoke(
                   Number(coreReviewSourceSummary.getAttribute('data-review-source-summary-count') ?? '0') >= 1 &&
                   (coreReviewSourceSummary.textContent ?? '').includes('All changes') &&
                   coreReviewSourceSummaryRect.height <= 28;
+                const reviewSourceRootMetadataWorks =
+                  coreReviewSourceSummary instanceof HTMLElement &&
+                  coreReviewSourceSummary.getAttribute('data-review-source-workspace-name') === 'orchestrator-automated-ui-workspace' &&
+                  coreReviewSourceSummary.getAttribute('data-review-source-workspace-root')?.endsWith('/orchestrator-automated-ui-workspace') === true &&
+                  (coreReviewSourceSummary.getAttribute('aria-label') ?? '').includes('in orchestrator-automated-ui-workspace') &&
+                  (coreReviewSourceSummary.textContent ?? '').includes('orchestrator-automated-ui-workspace') &&
+                  coreReviewSourceSummaryRect !== null &&
+                  coreReviewSourceSummary.scrollWidth <= coreReviewSourceSummary.clientWidth + 2 &&
+                  coreReviewSourceSummaryRect.height <= 28;
                 const reviewToolbarPrimaryOrderWorks =
                   coreReviewToolbarActionStrip instanceof HTMLElement &&
                   coreReviewToolbarActionStrip.getAttribute('data-review-toolbar-cluster') === 'primary' &&
@@ -12167,6 +12186,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   reviewToolbarHeaderRowWorks,
                   reviewToolbarPrimaryOrderWorks,
                   reviewSourceSummaryHeaderWorks,
+                  reviewSourceRootMetadataWorks,
                   diffListCompactWorks,
                   reviewFileSectionStructureWorks,
                   reviewFileHeaderMetricsWork,
@@ -14988,6 +15008,15 @@ function runAutomatedFocusedSurfaceSmoke(
                 Number(finalReviewSourceSummary.getAttribute('data-review-source-summary-count') ?? '0') >= 1 &&
                 (finalReviewSourceSummary.textContent ?? '').includes('All changes') &&
                 finalReviewSourceSummaryRect.height <= 28;
+              const reviewSourceRootMetadataWorks =
+                finalReviewSourceSummary instanceof HTMLElement &&
+                finalReviewSourceSummary.getAttribute('data-review-source-workspace-name') === 'orchestrator-automated-ui-workspace' &&
+                finalReviewSourceSummary.getAttribute('data-review-source-workspace-root')?.endsWith('/orchestrator-automated-ui-workspace') === true &&
+                (finalReviewSourceSummary.getAttribute('aria-label') ?? '').includes('in orchestrator-automated-ui-workspace') &&
+                (finalReviewSourceSummary.textContent ?? '').includes('orchestrator-automated-ui-workspace') &&
+                finalReviewSourceSummaryRect !== null &&
+                finalReviewSourceSummary.scrollWidth <= finalReviewSourceSummary.clientWidth + 2 &&
+                finalReviewSourceSummaryRect.height <= 28;
               const reviewToolbarPrimaryOrderWorks =
                 finalReviewToolbarActionStrip instanceof HTMLElement &&
                 finalReviewToolbarActionStrip.getAttribute('data-review-toolbar-cluster') === 'primary' &&
@@ -15190,6 +15219,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 reviewToolbarHeaderRowWorks,
                 reviewToolbarPrimaryOrderWorks,
                 reviewSourceSummaryHeaderWorks,
+                reviewSourceRootMetadataWorks,
                 reviewMetadataToolbarWorks,
 	                reviewMetadataFlyoutSharedWorks,
 	                reviewMetadataMenuStateWorks,

@@ -808,6 +808,7 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
   }
 
   const activeReviewSource = REVIEW_DIFF_SOURCES.find((source) => source.id === reviewSource) ?? REVIEW_DIFF_SOURCES[0]
+  const reviewWorkspaceName = basename(workDir) || workDir
   const activeReviewSourceCount = reviewSourceCountFor(
     reviewSource,
     reviewSourceCounts,
@@ -1164,9 +1165,11 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
     <button
       type="button"
       className="review-source-summary-button"
-      aria-label={`Review source: ${activeReviewSourceLabel}, ${activeReviewSourceCount} ${activeReviewSourceCount === 1 ? 'file' : 'files'}${activeReviewSourceStatsLabel ? `, ${activeReviewSourceStatsLabel}` : ''}`}
+      aria-label={`Review source: ${activeReviewSourceLabel}, ${activeReviewSourceCount} ${activeReviewSourceCount === 1 ? 'file' : 'files'} in ${reviewWorkspaceName}${activeReviewSourceStatsLabel ? `, ${activeReviewSourceStatsLabel}` : ''}`}
       data-testid="review-source-summary"
       data-review-source-active={reviewSource}
+      data-review-source-workspace-name={reviewWorkspaceName}
+      data-review-source-workspace-root={workDir}
       data-review-source-summary-count={activeReviewSourceCount}
       data-review-source-summary-additions={activeReviewSourceStats.additions}
       data-review-source-summary-deletions={activeReviewSourceStats.deletions}
@@ -1178,6 +1181,7 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
     >
       <Icon name="branch" size={14} />
       <span className="review-source-summary-label">{activeReviewSourceLabel}</span>
+      <span className="review-source-summary-root" title={workDir}>{reviewWorkspaceName}</span>
       {(activeReviewSourceStats.additions > 0 || activeReviewSourceStats.deletions > 0) && (
         <span className="review-source-summary-stats" aria-hidden="true">
           {activeReviewSourceStats.additions > 0 && (

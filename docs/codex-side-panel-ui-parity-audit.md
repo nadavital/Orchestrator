@@ -9984,3 +9984,13 @@ Implemented: the embedded Plan panel now exposes a compact `Add to chat` action 
 Verification: `pnpm run smoke:ui:suggest` selected `--plan`; `pnpm run smoke:ui:changed` ran `git diff --check`, `pnpm exec tsc --noEmit`, and `node -c scripts/run-automated-ui-smoke.mjs` before hitting the known sandbox `listen EPERM 127.0.0.1:5173` boundary for Electron. The focused elevated rerun `node scripts/run-automated-ui-smoke.mjs --plan` passed with `planAddToChat=true`; evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-plan-1780044146805.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-plan-1780044146805.png`.
 
 Remaining: this closes local Plan-to-composer context handoff only. Provider-native plan editing, richer `/goal` update forms, and live Codex Review/Goal timing remain separate app-server follow-ups.
+
+### 2026-05-29 - Review Source Root Identity
+
+Product evidence: PP-036/PP-048 track root preservation as a daily coding requirement. Review already exposed source mode, file count, directory grouping, and aggregate stats, but the active source summary did not identify which workspace root the Review belonged to. In multi-root or worktree-heavy coding sessions, that made the right Workbench Review header less self-explanatory than Files/source tabs.
+
+Implemented: the Review source summary now includes a compact visible workspace-root chip, exposes `data-review-source-workspace-name` and `data-review-source-workspace-root`, and includes the root name in its accessible source label. The chip is width-bounded so it preserves the compact Codex-like toolbar row while still giving users enough root identity to distinguish sessions.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `git diff --check`, `pnpm run smoke:ui:suggest`, elevated `node scripts/run-automated-ui-smoke.mjs --diff-core`, and elevated `node scripts/run-automated-ui-smoke.mjs --design-system` passed. The focused Review smoke gates `reviewSourceRootMetadata=true`; evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-core-1780044632172.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-core-1780044632172.png`. The CSS-focused design-system smoke passed with evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-design-system-1780044652042.json`.
+
+Remaining: this closes local Review source-root identity only. Deeper provider-hosted source navigation, provider-backed root/worktree metadata, and optional custom editor target discovery remain separate PP-036/PP-048 follow-ups.
