@@ -64,10 +64,10 @@ Do not blindly file-stage these unless the target commit intentionally owns all 
 
 Before committing a slice:
 
-1. Run the narrow unit tests for that slice.
-2. Run the focused smoke for that slice.
-3. Run `pnpm exec tsc --noEmit`.
-4. Run `git diff --check`.
+1. While iterating, run `pnpm run smoke:ui:changed:static` for the generated whitespace/type/syntax plan.
+2. Run the narrow unit tests for that slice.
+3. Run the focused smoke for that slice, or `pnpm run smoke:ui:changed:smoke` when the changed-files plan already maps exactly to the desired Electron target.
+4. Run `pnpm exec tsc --noEmit` and `git diff --check` if they were not already included in the generated static plan.
 5. Update docs only with evidence that was produced by the current worktree.
 
 Before considering the stabilization complete:

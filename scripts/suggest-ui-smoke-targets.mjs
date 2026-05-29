@@ -138,8 +138,14 @@ const staticValidationRules = [
 const args = process.argv.slice(2)
 const shouldRun = args.includes('--run')
 const shouldPrintJson = args.includes('--json')
+const shouldRunStaticOnly = args.includes('--static-only')
+const shouldRunSmokeOnly = args.includes('--smoke-only')
 if (shouldRun && shouldPrintJson) {
   console.error('Use --json or --run, not both.')
+  process.exit(1)
+}
+if (shouldRunStaticOnly && shouldRunSmokeOnly) {
+  console.error('Use --static-only or --smoke-only, not both.')
   process.exit(1)
 }
 const files = resolveFiles(args)
@@ -152,7 +158,7 @@ if (shouldPrintJson) {
   printSuggestions(files, suggestions, plan)
 }
 
-if (shouldRun) runPlan(plan, suggestions)
+if (shouldRun) runPlan(plan, suggestions, { staticOnly: shouldRunStaticOnly, smokeOnly: shouldRunSmokeOnly })
 
 function resolveFiles(args) {
   const explicit = args.filter((arg) => !arg.startsWith('-'))
@@ -372,8 +378,16 @@ function printSuggestions(paths, suggestions, plan) {
   }
 
   console.log('')
-  console.log('Run this exact plan:')
+  console.log('Fast iteration pass:')
+  console.log('  - pnpm run smoke:ui:changed:static')
+  console.log('')
+  console.log('Run the complete generated plan:')
   console.log('  - pnpm run smoke:ui:changed')
+  if (smokeChecks.length > 0) {
+    console.log('')
+    console.log('Focused Electron pass after static checks:')
+    console.log('  - pnpm run smoke:ui:changed:smoke')
+  }
 
   if (suggestions.broadReasons.length > 0) {
     console.log('')
@@ -407,12 +421,24 @@ function printJson(paths, suggestions, plan) {
   }, null, 2))
 }
 
-function runPlan(plan, suggestions) {
-  if (plan.length === 0) return
+function runPlan(plan, suggestions, options = {}) {
+  const selectedPlan = plan.filter((check) => {
+    if (options.staticOnly) return check.kind === 'static'
+    if (options.smokeOnly) return check.kind === 'ui-smoke'
+    return true
+  })
+
+  if (selectedPlan.length === 0) {
+    if (options.staticOnly) console.log('No static validation checks matched the changed files.')
+    else if (options.smokeOnly) console.log('No focused UI smoke matched the changed files.')
+    return
+  }
 
   console.log('')
-  console.log('Running targeted validation plan')
-  for (const check of plan) {
+  if (options.staticOnly) console.log('Running targeted static validation plan')
+  else if (options.smokeOnly) console.log('Running focused UI smoke plan')
+  else console.log('Running targeted validation plan')
+  for (const check of selectedPlan) {
     console.log(`\n> ${formatCommand(check)}`)
     const result = spawnSync(check.command, check.args, {
       cwd: root,
@@ -422,9 +448,12 @@ function runPlan(plan, suggestions) {
     if (result.status !== 0) process.exit(result.status ?? 1)
   }
 
-  if (suggestions.broadReasons.length > 0) {
+  if (!options.staticOnly && suggestions.broadReasons.length > 0) {
     console.log('')
     console.log('Broad-smoke review was flagged, but no no-flag smoke was run automatically.')
+  } else if (options.staticOnly && plan.some((check) => check.kind === 'ui-smoke')) {
+    console.log('')
+    console.log('Static checks passed. Focused UI smoke was not run in --static-only mode.')
   }
 }
 
