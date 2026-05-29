@@ -2686,6 +2686,29 @@
     padding: 0 12px;
   }
 
+  .git-file-list-header-meta {
+    display: inline-flex;
+    min-width: 0;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .git-focused-review-path {
+    max-width: 220px;
+    overflow: hidden;
+    color: var(--accent);
+    font-size: 11px;
+    font-weight: 500;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .git-file-row-focused {
+    background: color-mix(in srgb, var(--accent) 9%, transparent);
+    color: var(--text-primary);
+    box-shadow: inset 2px 0 0 var(--accent);
+  }
+
   .git-file-status {
     color: var(--text-tertiary);
     font-size: 11px;

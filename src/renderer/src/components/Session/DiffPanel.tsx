@@ -107,6 +107,7 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
   const rootRef = useRef<HTMLDivElement | null>(null)
   const reviewSearchInputRef = useRef<HTMLInputElement | null>(null)
   const openRightPanelTab = useSessionStore((state) => state.openRightPanelTab)
+  const focusRightPanelGitPath = useSessionStore((state) => state.focusRightPanelGitPath)
   const openRightPanelFileTab = useSessionStore((state) => state.openRightPanelFileTab)
   const reviewSession = useSessionStore((state) => state.sessions.find((candidate) => candidate.id === sessionId))
   const storeReviewMetadata = useSessionStore((state) => state.sessions.find((candidate) => candidate.id === sessionId)?.reviewMetadata)
@@ -1474,7 +1475,13 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
         variant="ghost"
         className="review-floating-action-button"
         dataTestId="review-open-git-tab"
-        onClick={() => openRightPanelTab(sessionId, 'git')}
+        onClick={() => {
+          if (selectedFile) {
+            focusRightPanelGitPath(sessionId, selectedFile)
+          } else {
+            openRightPanelTab(sessionId, 'git')
+          }
+        }}
       >
         <Icon name="branch" size={12} />
         <span>Open Git</span>

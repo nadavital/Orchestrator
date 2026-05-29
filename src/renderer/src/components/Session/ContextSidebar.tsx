@@ -203,6 +203,7 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
   const effectiveTab = tabs.some((tab) => tab.id === activeTab) ? activeTab : tabs[0]?.id ?? null
   const effectiveFilePath = filePathFromTabId(effectiveTab ?? 'plan')
   const effectiveFileTab = rightPanel?.tabs.find((tab) => tab.id === effectiveTab && tab.kind === 'file') ?? null
+  const effectiveGitTab = rightPanel?.tabs.find((tab) => tab.id === 'git' && tab.kind === 'git') ?? null
   const effectiveTabLabel = tabs.find((tab) => tab.id === effectiveTab)?.label ?? 'Workbench'
   const rightPanelOpen = rightPanel?.open ?? false
   const effectiveTerminalTabId = terminalTabIdFromTabId(effectiveTab ?? 'plan')
@@ -696,6 +697,8 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
           <GitPanel
             session={session}
             embedded
+            focusPath={effectiveGitTab?.gitFocusPath ?? null}
+            focusRequest={effectiveGitTab?.gitFocusRequest}
             onOpenReview={() => setShowDiff(session.id, true)}
           />
         )}

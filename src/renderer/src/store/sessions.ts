@@ -36,6 +36,8 @@ export interface RightPanelTabState {
   sourceBlameVisible?: boolean
   sourceRevealLine?: number | null
   sourceRevealRequest?: number
+  gitFocusPath?: string | null
+  gitFocusRequest?: number
 }
 
 export interface RightPanelState {
@@ -268,6 +270,7 @@ interface SessionState {
   setRightPanelOpen: (id: string, open: boolean) => void
   setRightPanelFullWidth: (id: string, fullWidth: boolean) => void
   openRightPanelTab: (id: string, tabId: RightPanelTabId) => void
+  focusRightPanelGitPath: (id: string, path: string) => void
   openRightPanelFileTab: (id: string, filePath: string, options?: { preview?: boolean; line?: number; root?: string }) => void
   updateRightPanelFileTabState: (id: string, tabId: RightPanelTabId, patch: Pick<Partial<RightPanelTabState>, 'fileViewMode' | 'sourceWrap' | 'selectedSourceLine' | 'sourceSearchQuery' | 'sourceSearchIndex' | 'sourceAnnotations' | 'sourceBlameVisible' | 'sourceRevealLine' | 'sourceRevealRequest'>) => void
   pinRightPanelTab: (id: string, tabId: RightPanelTabId) => void
@@ -875,6 +878,29 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           [id]: {
             ...current,
             rightPanel: syncRightPanelTab(current.rightPanel, tabId, true)
+          }
+        }
+      }
+    }),
+
+  focusRightPanelGitPath: (id, path) =>
+    set((s) => {
+      const current = s.uiState[id] ?? defaultUI
+      const nextPanel = syncRightPanelTab(current.rightPanel, 'git', true)
+      const request = Date.now()
+      return {
+        uiState: {
+          ...s.uiState,
+          [id]: {
+            ...current,
+            rightPanel: {
+              ...nextPanel,
+              tabs: nextPanel.tabs.map((tab) =>
+                tab.id === 'git'
+                  ? { ...tab, gitFocusPath: path, gitFocusRequest: request }
+                  : tab
+              )
+            }
           }
         }
       }

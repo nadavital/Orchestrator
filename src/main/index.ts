@@ -12141,6 +12141,7 @@ function runAutomatedFocusedSurfaceSmoke(
               let reviewFloatingGitActionsWork = false;
               let reviewFloatingGitActionStatusWorks = false;
               let reviewFloatingGitOpenTabWorks = false;
+              let reviewGitHandoffSelectedFileWorks = false;
               let reviewFloatingGitBridgeRetiredWorks = false;
               const actionMenuButton = [...document.querySelectorAll('button')]
                 .find((button) => button.getAttribute('aria-label') === 'Review options');
@@ -12489,7 +12490,40 @@ function runAutomatedFocusedSurfaceSmoke(
                     }
                   }
                   const gitPanelFromReview = document.querySelector('[data-testid="git-panel"]');
+                  let focusedGitRowFromReview = null;
+                  let focusedGitPathLabel = null;
+                  for (let attempt = 0; attempt < 16; attempt += 1) {
+                    await sleep(100);
+                    const gitPanel = document.querySelector('[data-testid="git-panel"]');
+                    focusedGitRowFromReview = [...document.querySelectorAll('[data-testid="git-file-row"]')]
+                      .find((row) =>
+                        row instanceof HTMLElement &&
+                        row.getAttribute('data-git-file-path') === selectedGitPath &&
+                        row.getAttribute('data-git-file-focused') === 'true'
+                      ) ?? null;
+                    focusedGitPathLabel = document.querySelector('[data-testid="git-focused-review-path"]');
+                    if (
+                      gitPanel instanceof HTMLElement &&
+                      gitPanel.getAttribute('data-git-focus-path') === selectedGitPath &&
+                      gitPanel.getAttribute('data-git-focus-path-found') === 'true' &&
+                      focusedGitRowFromReview instanceof HTMLElement &&
+                      focusedGitPathLabel instanceof HTMLElement
+                    ) {
+                      break;
+                    }
+                  }
                   const reviewTab = document.querySelector('[role="tab"][data-tab-id="diff"]');
+                  reviewGitHandoffSelectedFileWorks =
+                    selectedGitPath.length > 0 &&
+                    gitPanelFromReview instanceof HTMLElement &&
+                    gitPanelFromReview.getAttribute('data-git-focus-path') === selectedGitPath &&
+                    gitPanelFromReview.getAttribute('data-git-focus-path-found') === 'true' &&
+                    Number(gitPanelFromReview.getAttribute('data-git-focus-request') ?? '0') > 0 &&
+                    focusedGitRowFromReview instanceof HTMLElement &&
+                    focusedGitRowFromReview.getAttribute('data-git-file-path') === selectedGitPath &&
+                    focusedGitRowFromReview.getAttribute('data-git-file-focused') === 'true' &&
+                    focusedGitPathLabel instanceof HTMLElement &&
+                    focusedGitPathLabel.textContent?.includes(selectedGitPath) === true;
                   reviewFloatingGitOpenTabWorks =
                     document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-active-tab') === 'git' &&
                     gitPanelFromReview instanceof HTMLElement &&
@@ -12501,7 +12535,11 @@ function runAutomatedFocusedSurfaceSmoke(
                     activeAfterClick: document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-active-tab') ?? null,
                     gitPanelFound: gitPanelFromReview instanceof HTMLElement,
                     gitActionState: gitPanelFromReview instanceof HTMLElement ? gitPanelFromReview.getAttribute('data-git-action-state') : null,
-                    gitTabFound: document.querySelector('[role="tab"][data-tab-id="git"]') instanceof HTMLElement
+                    gitTabFound: document.querySelector('[role="tab"][data-tab-id="git"]') instanceof HTMLElement,
+                    selectedGitPath,
+                    gitFocusPath: gitPanelFromReview instanceof HTMLElement ? gitPanelFromReview.getAttribute('data-git-focus-path') : null,
+                    gitFocusFound: gitPanelFromReview instanceof HTMLElement ? gitPanelFromReview.getAttribute('data-git-focus-path-found') : null,
+                    focusedRowFound: focusedGitRowFromReview instanceof HTMLElement
                   };
                   if (reviewTab instanceof HTMLElement) {
                     reviewTab.click();
@@ -13250,6 +13288,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   reviewFloatingGitActionsWork,
                   reviewFloatingGitActionStatusWorks,
                   reviewFloatingGitOpenTabWorks,
+                  reviewGitHandoffSelectedFileWorks,
                   reviewFloatingGitOpenTabDebug,
                   reviewFloatingGitBridgeRetiredWorks
                 };

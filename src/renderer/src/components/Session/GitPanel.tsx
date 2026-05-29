@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useMemo, useState } from 'react'
+import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { fileStatusLabel } from '../../types'
 import type { FileChange, GitRefOption, Session } from '../../types'
 import Icon, { type IconName } from '../shared/Icon'
@@ -7,12 +7,14 @@ import { Button, DialogContent, DialogFooter, DialogHeader, IconButton, MotionOv
 interface Props {
   session: Session
   embedded?: boolean
+  focusPath?: string | null
+  focusRequest?: number
   onOpenReview: () => void
 }
 
 type GitActionState = 'idle' | 'loading' | 'staging' | 'unstaging' | 'branching' | 'checking-out' | 'committing' | 'discarding'
 
-export default function GitPanel({ session, embedded = false, onOpenReview }: Props): JSX.Element {
+export default function GitPanel({ session, embedded = false, focusPath = null, focusRequest, onOpenReview }: Props): JSX.Element {
   const [changes, setChanges] = useState<FileChange[]>([])
   const [branches, setBranches] = useState<GitRefOption[]>([])
   const [actionState, setActionState] = useState<GitActionState>('loading')
@@ -25,6 +27,7 @@ export default function GitPanel({ session, embedded = false, onOpenReview }: Pr
   const [lastCheckedOutBranch, setLastCheckedOutBranch] = useState<string | null>(null)
   const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false)
   const [discardTargetPaths, setDiscardTargetPaths] = useState<string[] | null>(null)
+  const rootRef = useRef<HTMLElement | null>(null)
   const sessionId = session.id
   const workDir = session.workDir
 
@@ -89,6 +92,18 @@ export default function GitPanel({ session, embedded = false, onOpenReview }: Pr
   const pendingDiscardDescription = pendingDiscardPaths.length === 1
     ? `This removes local changes in ${pendingDiscardPaths[0]}.`
     : `This removes local changes in ${pendingDiscardPaths.length} files.`
+  const focusedReviewPath = focusPath && changes.some((change) => change.path === focusPath) ? focusPath : null
+
+  useEffect(() => {
+    if (!focusPath || focusRequest === undefined) return
+    const root = rootRef.current
+    if (!root) return
+    const row = [...root.querySelectorAll('[data-testid="git-file-row"]')]
+      .find((candidate) => candidate instanceof HTMLElement && candidate.getAttribute('data-git-file-path') === focusPath)
+    if (row instanceof HTMLElement) {
+      row.scrollIntoView({ block: 'nearest' })
+    }
+  }, [changes, focusPath, focusRequest])
 
   const writeGitClipboardText = async (text: string): Promise<void> => {
     if (typeof window.api.clipboard?.writeText === 'function') {
@@ -269,6 +284,7 @@ export default function GitPanel({ session, embedded = false, onOpenReview }: Pr
 
   return (
     <section
+      ref={rootRef}
       className="git-panel environment-panel"
       data-testid="git-panel"
       data-git-change-count={changes.length}
@@ -278,6 +294,9 @@ export default function GitPanel({ session, embedded = false, onOpenReview }: Pr
       data-git-last-commit={lastCommit ?? ''}
       data-git-last-created-branch={lastCreatedBranch ?? ''}
       data-git-last-checked-out-branch={lastCheckedOutBranch ?? ''}
+      data-git-focus-path={focusPath ?? ''}
+      data-git-focus-request={focusRequest ?? ''}
+      data-git-focus-path-found={focusedReviewPath ? 'true' : 'false'}
       style={{ height: embedded ? '100%' : undefined }}
     >
       <div className="environment-panel-scroll">
@@ -505,18 +524,30 @@ export default function GitPanel({ session, embedded = false, onOpenReview }: Pr
         <div className="environment-card" data-testid="git-file-list-card">
           <div className="environment-card-header">
             <span>Files</span>
-            <span className="environment-row-muted">{changes.length}</span>
+            <span className="git-file-list-header-meta">
+              {focusPath && (
+                <span
+                  className="git-focused-review-path"
+                  data-testid="git-focused-review-path"
+                  title={focusPath}
+                >
+                  Focused from Review: {focusPath}
+                </span>
+              )}
+              <span className="environment-row-muted">{changes.length}</span>
+            </span>
           </div>
           {changes.length === 0 ? (
             <div className="git-empty-state" data-testid="git-empty-state">No local changes</div>
           ) : changes.slice(0, 24).map((change) => (
             <div
               key={change.path}
-              className="git-file-row"
+              className={`git-file-row${change.path === focusedReviewPath ? ' git-file-row-focused' : ''}`}
               data-testid="git-file-row"
               data-git-file-path={change.path}
               data-git-file-staged={change.staged ? 'true' : 'false'}
               data-git-file-unstaged={change.unstaged ? 'true' : 'false'}
+              data-git-file-focused={change.path === focusedReviewPath ? 'true' : 'false'}
               title={change.path}
             >
               <span className="git-file-status">{fileStatusLabel(change.status)}</span>

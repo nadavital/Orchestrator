@@ -112,8 +112,8 @@ const diffRules = [
   {
     flag: '--diff-core',
     label: 'Review local diff',
-    filePatterns: [/^src\/renderer\/src\/components\/Session\/DiffPanel\.tsx$/, /^src\/renderer\/src\/components\/Session\/WorkbenchTree\.tsx$/, /^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
-    diffPatterns: [/reviewRowKeyboardContextMenu/, /reviewTreeKeyboardNavigation/, /data-keyboard-navigation/, /review-row-context-menu/, /review-row-copy-path/, /reviewSelectedGitPathActions/, /review-stage-selected-file/, /review-unstage-selected-file/]
+    filePatterns: [/^src\/renderer\/src\/components\/Session\/DiffPanel\.tsx$/, /^src\/renderer\/src\/components\/Session\/GitPanel\.tsx$/, /^src\/renderer\/src\/components\/Session\/ContextSidebar\.tsx$/, /^src\/renderer\/src\/components\/Session\/WorkbenchTree\.tsx$/, /^src\/renderer\/src\/index\.css$/, /^src\/renderer\/src\/store\/sessions\.ts$/, /^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
+    diffPatterns: [/reviewRowKeyboardContextMenu/, /reviewTreeKeyboardNavigation/, /data-keyboard-navigation/, /review-row-context-menu/, /review-row-copy-path/, /reviewSelectedGitPathActions/, /review-stage-selected-file/, /review-unstage-selected-file/, /reviewGitHandoffSelectedFile/, /gitFocusPath/, /git-file-row-focused/]
   },
   {
     flag: '--terminal',
@@ -281,6 +281,7 @@ function suggestTargets(paths) {
   suppressComposerForTerminalHandoffDiff(matched, paths)
   suppressComposerForToolActivityCommandDiff(matched, paths)
   suppressComposerForWorkbenchGitHandoffDiff(matched, paths)
+  suppressWorkbenchForReviewGitHandoffDiff(matched, paths)
 
   const broadReasons = broadCandidates.filter((file) => !isBroadCandidateCovered(file, matched))
   const coveredBroadReasons = broadCandidates.filter((file) => isBroadCandidateCovered(file, matched))
@@ -556,6 +557,30 @@ function suppressComposerForWorkbenchGitHandoffDiff(matched, paths) {
   ].join('\n')
   if (!/workbenchNewTabGit|git-pr-command|Git PR command/.test(diff)) return
   matched.delete('--composer')
+}
+
+function suppressWorkbenchForReviewGitHandoffDiff(matched, paths) {
+  const diffCore = matched.get('--diff-core')
+  if (!diffCore) return
+  const diff = paths
+    .filter((file) =>
+      file === 'src/main/index.ts' ||
+      file === 'scripts/run-automated-ui-smoke.mjs' ||
+      file === 'scripts/suggest-ui-smoke-targets.mjs' ||
+      file === 'src/renderer/src/components/Session/ContextSidebar.tsx' ||
+      file === 'src/renderer/src/components/Session/DiffPanel.tsx' ||
+      file === 'src/renderer/src/components/Session/GitPanel.tsx' ||
+      file === 'src/renderer/src/index.css' ||
+      file === 'src/renderer/src/store/sessions.ts'
+    )
+    .map(diffForFile)
+    .join('\n')
+  if (!/reviewGitHandoffSelectedFile|focusRightPanelGitPath|gitFocusPath|git-file-row-focused/.test(diff)) return
+  for (const flag of ['--right-panel', '--workbench-launcher', '--workbench-new-tab', '--design-system']) {
+    const target = matched.get(flag)
+    if (!target) continue
+    if (target.files.every((file) => diffCore.files.includes(file))) matched.delete(flag)
+  }
 }
 
 function restoreDiffTargets(matched, paths) {
