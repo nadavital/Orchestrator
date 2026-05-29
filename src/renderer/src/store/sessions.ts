@@ -6,6 +6,8 @@ import type { SettingsSectionId } from '../../../types'
 export type SettingsSection = SettingsSectionId
 export type RightPanelTabKind = 'new-tab' | 'environment' | 'git' | 'plan' | 'diff' | 'agents' | 'extensions' | 'side' | 'files' | 'browser' | 'file' | 'sidechat' | 'terminal'
 export type RightPanelTabId = Exclude<RightPanelTabKind, 'file' | 'sidechat' | 'terminal'> | `file:${string}` | `sidechat:${string}` | `terminal:${number}`
+export type BottomPanelTabKind = 'terminal' | 'plan'
+export type BottomPanelTabId = number | 'plan'
 
 export interface SourceAnnotationState {
   id: string
@@ -168,8 +170,8 @@ export interface SideChatThread {
 
 export interface TerminalPanelState {
   height: number
-  tabs: number[]
-  activeTabId: number
+  tabs: BottomPanelTabId[]
+  activeTabId: BottomPanelTabId
   nextTabId: number
 }
 
@@ -177,8 +179,8 @@ export type SessionPanelTabTransferIntent =
   | {
     sourcePanel: 'bottom'
     targetPanel: 'right'
-    tabKind: 'terminal'
-    tabId: number
+    tabKind: BottomPanelTabKind
+    tabId: BottomPanelTabId
   }
   | {
     sourcePanel: 'right'
@@ -279,12 +281,12 @@ interface SessionState {
   closeRightPanel: (id: string) => void
   setTerminalHeight: (id: string, height: number) => void
   addTerminalTab: (id: string) => number
-  setActiveTerminalTab: (id: string, tabId: number) => void
-  moveTerminalTab: (id: string, tabId: number, direction: 'left' | 'right') => void
+  setActiveTerminalTab: (id: string, tabId: BottomPanelTabId) => void
+  moveTerminalTab: (id: string, tabId: BottomPanelTabId, direction: 'left' | 'right') => void
   transferSessionPanelTab: (id: string, intent: SessionPanelTabTransferIntent) => boolean
   moveTerminalTabToRight: (id: string, tabId: number) => void
   moveRightPanelTerminalTabToBottom: (id: string, tabId: RightPanelTabId) => void
-  closeTerminalTab: (id: string, tabId: number) => void
+  closeTerminalTab: (id: string, tabId: BottomPanelTabId) => void
   setHasUnread: (id: string, v: boolean) => void
   setComposerDraft: (id: string, draft: string) => void
   setComposerAttachments: (id: string, attachments: Attachment[] | ((current: Attachment[]) => Attachment[])) => void
@@ -1243,7 +1245,11 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           },
           rightPanel,
           tabId,
-          (tab) => rightPanelTab(terminalTabId(tab.id)),
+          (tab) => {
+            if (typeof tab.id === 'number') return rightPanelTab(terminalTabId(tab.id))
+            if (tab.id === 'plan') return rightPanelTab('plan')
+            return null
+          },
           { activate: true, replacePreview: true }
         )
         if (!transfer.moved) return s
@@ -1263,6 +1269,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
                 tabs: remainingTabs,
                 activeTabId
               },
+              showPlan: tabId === 'plan' ? true : current.showPlan,
               rightPanel: {
                 ...rightPanel,
                 open: true,
@@ -1276,15 +1283,29 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
       const rightPanelTabId = intent.tabId
       const terminalId = terminalTabIdFromTabId(rightPanelTabId)
-      if (terminalId === null) return s
+      const bottomTabId: BottomPanelTabId | null = terminalId !== null
+        ? terminalId
+        : rightPanelTabId === 'plan'
+          ? 'plan'
+          : null
+      if (bottomTabId === null) return s
+      const rightPanelSource =
+        rightPanelTabId === 'plan' &&
+        !rightPanel.tabs.some((tab) => tab.id === 'plan')
+          ? {
+              ...rightPanel,
+              activeTabId: 'plan',
+              tabs: [...rightPanel.tabs, rightPanelTab('plan')]
+            }
+          : rightPanel
       const transfer = transferPanelTab(
-        rightPanel,
+        rightPanelSource,
         {
           activeTabId: terminalPanel.activeTabId,
           tabs: terminalPanel.tabs.map((candidate) => ({ id: candidate }))
         },
         rightPanelTabId,
-        () => ({ id: terminalId }),
+        () => ({ id: bottomTabId }),
         { activate: true }
       )
       if (!transfer.moved) return s
@@ -1296,11 +1317,14 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           [id]: {
             ...current,
             showTerminal: true,
+            showPlan: rightPanelTabId === 'plan' ? false : current.showPlan,
             terminalPanel: {
               ...terminalPanel,
               tabs,
-              activeTabId: transfer.target.activeTabId ?? terminalId,
-              nextTabId: Math.max(terminalPanel.nextTabId, terminalId + 1)
+              activeTabId: transfer.target.activeTabId ?? bottomTabId,
+              nextTabId: typeof bottomTabId === 'number'
+                ? Math.max(terminalPanel.nextTabId, bottomTabId + 1)
+                : terminalPanel.nextTabId
             },
             rightPanel: {
               ...rightPanel,
@@ -1356,7 +1380,9 @@ export const useSessionStore = create<SessionState>((set, get) => ({
               activeTabId,
               nextTabId: terminalPanel.nextTabId
             },
-            rightPanel: syncRightPanelTab(current.rightPanel, terminalTabId(tabId), false)
+            rightPanel: typeof tabId === 'number'
+              ? syncRightPanelTab(current.rightPanel, terminalTabId(tabId), false)
+              : syncRightPanelTab(current.rightPanel, tabId, false)
           }
         }
       }
@@ -1516,7 +1542,8 @@ function ensureRightPanel(panel?: RightPanelState): RightPanelState {
 function ensureTerminalPanel(panel?: TerminalPanelState): TerminalPanelState {
   const tabs = panel?.tabs ?? [0]
   const activeTabId = tabs.includes(panel?.activeTabId ?? 0) ? panel?.activeTabId ?? 0 : tabs[0]
-  const maxTabId = tabs.length > 0 ? Math.max(...tabs) : 0
+  const terminalTabIds = tabs.filter((tab): tab is number => typeof tab === 'number')
+  const maxTabId = terminalTabIds.length > 0 ? Math.max(...terminalTabIds) : 0
   const storedHeight = panel?.height
   const height = storedHeight == null || LEGACY_TERMINAL_PANEL_CONTENT_HEIGHTS.some((legacyHeight) => storedHeight === legacyHeight)
     ? DEFAULT_TERMINAL_PANEL_CONTENT_HEIGHT
@@ -1599,7 +1626,7 @@ function cloneBrowserWorkbenchForTransfer(
 
 function moveTerminalTab(
   panel: TerminalPanelState,
-  id: number,
+  id: BottomPanelTabId,
   direction: 'left' | 'right'
 ): TerminalPanelState {
   const next = movePanelTabByDirection({

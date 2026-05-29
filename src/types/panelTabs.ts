@@ -38,7 +38,7 @@ export interface PanelTabTransferResult<
 
 export interface PanelCloseAvailability {
   rightPanelActiveTabId?: string | null
-  bottomPanelActiveTabId?: number | null
+  bottomPanelActiveTabId?: PanelTabId | null
   bottomPanelOpen?: boolean
   bottomPanelTabCount?: number
 }
@@ -146,7 +146,7 @@ export function resolvePanelTabTransferAvailability(
     }
   }
 
-  if (tabKind !== 'terminal') {
+  if (tabKind !== 'terminal' && tabKind !== 'plan') {
     return {
       model: 'shared',
       sourcePanel,

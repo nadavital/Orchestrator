@@ -759,7 +759,9 @@ export default function App(): JSX.Element {
       if (!ui?.showTerminal || terminalPanel?.activeTabId === undefined) return
       const closingFinalTerminalTab = terminalPanel.tabs.length <= 1
       exitFullscreenForPanelTab('bottom', terminalPanel.activeTabId)
-      window.api.terminal.kill(`${activeSessionId}-${terminalPanel.activeTabId}`)
+      if (typeof terminalPanel.activeTabId === 'number') {
+        window.api.terminal.kill(`${activeSessionId}-${terminalPanel.activeTabId}`)
+      }
       closeTerminalTab(activeSessionId, terminalPanel.activeTabId)
       if (closingFinalTerminalTab) restoreTerminalToggleFocus()
     }

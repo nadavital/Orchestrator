@@ -117,6 +117,7 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
   const hasFilesTab = rightPanel?.tabs.some((tab) => tab.id === 'files') ?? false
   const hasBrowserTab = rightPanel?.tabs.some((tab) => tab.id === 'browser') ?? false
   const hasNewTab = rightPanel?.tabs.some((tab) => tab.id === 'new-tab') ?? false
+  const hasBottomPanelPlanTab = ui?.terminalPanel?.tabs.includes('plan') ?? false
   const sideChatTabs = (rightPanel?.tabs ?? [])
     .filter((tab) => tab.kind === 'sidechat')
     .map((tab) => {
@@ -157,7 +158,7 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
     ...fileTabs,
     ...sideChatTabs,
     ...terminalTabs,
-    ...(hasPlan ? [{ id: 'plan' as const, label: 'Plan', icon: 'plan' as const, count: plans.length }] : []),
+    ...(hasPlan && !hasBottomPanelPlanTab ? [{ id: 'plan' as const, label: 'Plan', icon: 'plan' as const, count: plans.length }] : []),
     ...((ui?.showEvents || hasOpenAgent || hasLiveAgent) ? [{ id: 'agents' as const, label: 'Agents', icon: 'agents' as const, count: agents.length, shimmering: hasLiveAgent }] : []),
     ...(ui?.showExtensions ? [{ id: 'extensions' as const, label: 'Extensions', icon: 'extensions' as const }] : []),
     ...(hasSideQuestions ? [{ id: 'side' as const, label: 'Side', icon: 'chat' as const, count: ui?.sideQuestions?.length ?? 0 }] : [])
@@ -642,6 +643,30 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
                     sourcePanel: 'right',
                     targetPanel: 'bottom',
                     tabKind: 'terminal',
+                    tabId: tabMenu.tabId
+                  })
+                  setTabMenu(null)
+                }}
+              />
+            </MenuSection>
+          )}
+          {tabMenu.tabId === 'plan' && tabMenuTransferAvailability?.supported && (
+            <MenuSection
+              dataTestId="workbench-tab-context-menu-bottom-panel-section"
+              data-panel-tab-transfer-model="shared"
+              data-panel-tab-transfer-source="right"
+              data-panel-tab-transfer-target="bottom"
+            >
+              <MenuSectionLabel>Bottom panel</MenuSectionLabel>
+              <MenuItem
+                icon="panelRight"
+                label="Move tab to bottom panel"
+                dataTestId="workbench-tab-context-menu-move-plan-bottom"
+                onClick={() => {
+                  transferSessionPanelTab(session.id, {
+                    sourcePanel: 'right',
+                    targetPanel: 'bottom',
+                    tabKind: 'plan',
                     tabId: tabMenu.tabId
                   })
                   setTabMenu(null)

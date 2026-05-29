@@ -1314,6 +1314,7 @@ export function TabButton({
   preview = false,
   pinned = false,
   shimmering = false,
+  kind,
 }: {
   children: ReactNode
   active: boolean
@@ -1336,6 +1337,7 @@ export function TabButton({
   preview?: boolean
   pinned?: boolean
   shimmering?: boolean
+  kind?: string
 }): JSX.Element {
   const tab = (
     <div
@@ -1348,6 +1350,7 @@ export function TabButton({
       data-native-title-free="true"
       data-app-shell-tab-controller={panelId}
       data-tab-id={tabId}
+      data-tab-kind={kind}
       data-active={active ? 'true' : 'false'}
       data-draggable={draggable ? 'true' : 'false'}
       data-dragging={dragging ? 'true' : 'false'}
@@ -1403,6 +1406,7 @@ export interface PanelTabItem<T extends string | number> {
   id: T
   label: string
   icon?: IconName
+  kind?: string
   count?: number
   closable?: boolean
   preview?: boolean
@@ -1711,6 +1715,7 @@ export function PanelTabStrip<T extends string | number>({
               closeLabel={tab.closeLabel ?? `Close ${tab.label}`}
               ariaLabel={tab.ariaLabel ?? tab.label}
               tooltipLabel={tab.tooltipLabel ?? tab.label}
+              kind={tab.kind}
             >
               <span className="panel-tab-content" data-tab-id={tab.id}>
                 {tab.icon && <Icon name={tab.icon} size={13} />}
