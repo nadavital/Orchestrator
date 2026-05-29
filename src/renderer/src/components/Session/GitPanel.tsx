@@ -352,6 +352,18 @@ export default function GitPanel({
     }
   }
 
+  const addChangedFileToChat = (path: string): void => {
+    if (!path || busy) return
+    const name = fileNameFromPath(path)
+    window.dispatchEvent(new CustomEvent('orchestrator:add-composer-attachment', {
+      detail: {
+        path: joinPath(workDir, path),
+        name
+      }
+    }))
+    setActionMessage({ text: `Added ${name} to chat`, tone: 'info' })
+  }
+
   const insertChangedFilePathInTerminal = async (path: string): Promise<void> => {
     if (!path || busy) return
     setActionState('terminal')
@@ -756,6 +768,14 @@ export default function GitPanel({
                   onClick={() => { void copyChangedFilePath(change.path) }}
                 />
                 <IconButton
+                  icon="paperclip"
+                  label={`Add ${change.path} to chat`}
+                  size="xs"
+                  dataTestId="git-file-add-chat"
+                  disabled={busy}
+                  onClick={() => addChangedFileToChat(change.path)}
+                />
+                <IconButton
                   icon="terminal"
                   label={`Insert ${change.path} in terminal`}
                   size="xs"
@@ -835,6 +855,14 @@ function inferDefaultBaseBranch(branches: GitRefOption[]): string {
 
 function shellQuote(value: string): string {
   return /^[A-Za-z0-9._/@:-]+$/.test(value) ? value : `'${value.replace(/'/g, `'\\''`)}'`
+}
+
+function joinPath(root: string, filePath: string): string {
+  return `${root.replace(/\/+$/, '')}/${filePath.replace(/^\/+/, '')}`
+}
+
+function fileNameFromPath(filePath: string): string {
+  return filePath.split(/[\\/]/).at(-1) ?? filePath
 }
 
 function GitRow({

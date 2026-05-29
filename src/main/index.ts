@@ -9470,6 +9470,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 let workbenchNewTabGitActionWorks = false;
                 let workbenchNewTabGitFileActionsWorks = false;
                 let workbenchNewTabGitFileCopyPathWorks = false;
+                let workbenchNewTabGitFileAddToChatWorks = false;
                 let workbenchNewTabGitFileInsertTerminalWorks = false;
                 let workbenchNewTabGitFileOpenWorkbenchWorks = false;
                 let workbenchNewTabGitFileDiscardWorks = false;
@@ -9629,6 +9630,26 @@ function runAutomatedFocusedSurfaceSmoke(
                       gitStatusAfterFileCopyPath.getAttribute('aria-atomic') === 'true' &&
                       gitStatusAfterFileCopyPath.textContent?.includes('File path copied') === true &&
                       copiedGitFilePath === firstStageableFilePath;
+                  }
+                  const firstAddFileToChatButton = rowAfterFileActions instanceof HTMLElement
+                    ? rowAfterFileActions.querySelector('[data-testid="git-file-add-chat"]')
+                    : null;
+                  if (firstStageableFilePath.length > 0 && firstAddFileToChatButton instanceof HTMLButtonElement && !firstAddFileToChatButton.disabled) {
+                    firstAddFileToChatButton.click();
+                    await sleep(180);
+                    const gitStatusAfterFileAddChat = document.querySelector('[data-testid="git-action-status"]');
+                    const composerAfterGitFileAdd = document.querySelector('[data-testid="composer-shell"]');
+                    const firstStageableFileName = firstStageableFilePath.split(/[\\/]/).at(-1) ?? firstStageableFilePath;
+                    workbenchNewTabGitFileAddToChatWorks =
+                      gitStatusAfterFileAddChat instanceof HTMLElement &&
+                      gitStatusAfterFileAddChat.getAttribute('role') === 'status' &&
+                      gitStatusAfterFileAddChat.getAttribute('aria-live') === 'polite' &&
+                      gitStatusAfterFileAddChat.getAttribute('aria-atomic') === 'true' &&
+                      gitStatusAfterFileAddChat.textContent?.includes('Added ' + firstStageableFileName + ' to chat') === true &&
+                      composerAfterGitFileAdd instanceof HTMLElement &&
+                      composerAfterGitFileAdd.getAttribute('data-composer-attachment-status') === 'Attached ' + firstStageableFileName &&
+                      [...document.querySelectorAll('.attachment-pill')]
+                        .some((attachment) => attachment.textContent?.includes(firstStageableFileName));
                   }
                   const firstInsertFilePathTerminalButton = rowAfterFileActions instanceof HTMLElement
                     ? rowAfterFileActions.querySelector('[data-testid="git-file-insert-terminal"]')
@@ -10063,6 +10084,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   workbenchNewTabGitActionWorks =
                     workbenchNewTabGitFileActionsWorks &&
                     workbenchNewTabGitFileCopyPathWorks &&
+                    workbenchNewTabGitFileAddToChatWorks &&
                     workbenchNewTabGitFileInsertTerminalWorks &&
                     workbenchNewTabGitFileOpenWorkbenchWorks &&
                     workbenchNewTabGitFileDiscardWorks &&
@@ -10612,6 +10634,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   workbenchNewTabGitActionWorks,
                   workbenchNewTabGitFileActionsWorks,
                   workbenchNewTabGitFileCopyPathWorks,
+                  workbenchNewTabGitFileAddToChatWorks,
                   workbenchNewTabGitFileInsertTerminalWorks,
                   workbenchNewTabGitFileOpenWorkbenchWorks,
                   workbenchNewTabGitFileDiscardWorks,
