@@ -20,6 +20,15 @@ type FailureCauseGroup = {
   records: SessionRunEventRecord[]
 }
 
+async function writeClipboardText(text: string): Promise<void> {
+  if (typeof window.api.clipboard?.writeText === 'function') {
+    const didWrite = await window.api.clipboard.writeText(text)
+    if (didWrite === false) throw new Error('clipboard write failed')
+    return
+  }
+  await navigator.clipboard.writeText(text)
+}
+
 export default function EventInspectorPanel({ session, embedded = false, activeAgentId = null }: Props): JSX.Element {
   const { eventBuffers, rawBuffers, uiState, setActiveAgent, closeAgentTab } = useSessionStore()
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null)
@@ -206,13 +215,7 @@ function SessionContextSummary({
   })
   const copySessionContext = async (): Promise<void> => {
     try {
-      const text = buildSessionContextText()
-      if (typeof window.api.clipboard?.writeText === 'function') {
-        const didWrite = await window.api.clipboard.writeText(text)
-        if (didWrite === false) throw new Error('clipboard write failed')
-      } else {
-        await navigator.clipboard.writeText(text)
-      }
+      await writeClipboardText(buildSessionContextText())
       setSessionActionStatus('Session context copied')
     } catch {
       setSessionActionStatus('Unable to copy session context')
@@ -226,44 +229,63 @@ function SessionContextSummary({
     }))
     setSessionActionStatus('Session context added to chat')
   }
+  const buildFailureGroupText = (group: FailureCauseGroup): string => [
+    'Investigate this runtime failure group:',
+    `Thread: ${session.title || session.id}`,
+    `Runtime: ${[session.provider, session.model].filter(Boolean).join(' / ') || 'Unknown runtime'}`,
+    `Status: ${session.status}`,
+    `Workspace: ${session.workDir || 'Unknown workspace'}`,
+    `Cause: ${group.cause}`,
+    `Count: ${group.count}`,
+    `Latest: ${group.latest}`,
+    '',
+    'Events:',
+    ...group.records
+      .slice()
+      .sort((a, b) => b.timestamp - a.timestamp)
+      .slice(0, 4)
+      .map((record) => `- ${record.event.type} at ${formatClockTime(record.timestamp)}: ${failureDetail(record)}`)
+  ].join('\n')
+  const copyFailureGroup = async (group: FailureCauseGroup): Promise<void> => {
+    try {
+      await writeClipboardText(buildFailureGroupText(group))
+      setIssueActionStatus('Failure group copied')
+    } catch {
+      setIssueActionStatus('Unable to copy failure group')
+    }
+  }
   const addFailureGroupToChat = (group: FailureCauseGroup): void => {
     window.dispatchEvent(new CustomEvent('orchestrator:add-composer-text', {
       detail: {
-        text: [
-          'Investigate this runtime failure group:',
-          `Thread: ${session.title || session.id}`,
-          `Runtime: ${[session.provider, session.model].filter(Boolean).join(' / ') || 'Unknown runtime'}`,
-          `Status: ${session.status}`,
-          `Workspace: ${session.workDir || 'Unknown workspace'}`,
-          `Cause: ${group.cause}`,
-          `Count: ${group.count}`,
-          `Latest: ${group.latest}`,
-          '',
-          'Events:',
-          ...group.records
-            .slice()
-            .sort((a, b) => b.timestamp - a.timestamp)
-            .slice(0, 4)
-            .map((record) => `- ${record.event.type} at ${formatClockTime(record.timestamp)}: ${failureDetail(record)}`)
-        ].join('\n')
+        text: buildFailureGroupText(group)
       }
     }))
     setIssueActionStatus('Failure group added to chat')
+  }
+  const buildTransportLogText = (): string => [
+    'Investigate this provider transport log excerpt:',
+    `Thread: ${session.title || session.id}`,
+    `Runtime: ${[session.provider, session.model].filter(Boolean).join(' / ') || 'Unknown runtime'}`,
+    `Status: ${session.status}`,
+    `Workspace: ${session.workDir || 'Unknown workspace'}`,
+    '',
+    'Recent redacted transport lines:',
+    ...transportLines.map((line) => `- ${line.label}: ${line.preview}`)
+  ].join('\n')
+  const copyTransportLog = async (): Promise<void> => {
+    if (transportLines.length === 0) return
+    try {
+      await writeClipboardText(buildTransportLogText())
+      setTransportActionStatus('Transport log copied')
+    } catch {
+      setTransportActionStatus('Unable to copy transport log')
+    }
   }
   const addTransportLogToChat = (): void => {
     if (transportLines.length === 0) return
     window.dispatchEvent(new CustomEvent('orchestrator:add-composer-text', {
       detail: {
-        text: [
-          'Investigate this provider transport log excerpt:',
-          `Thread: ${session.title || session.id}`,
-          `Runtime: ${[session.provider, session.model].filter(Boolean).join(' / ') || 'Unknown runtime'}`,
-          `Status: ${session.status}`,
-          `Workspace: ${session.workDir || 'Unknown workspace'}`,
-          '',
-          'Recent redacted transport lines:',
-          ...transportLines.map((line) => `- ${line.label}: ${line.preview}`)
-        ].join('\n')
+        text: buildTransportLogText()
       }
     }))
     setTransportActionStatus('Transport log added to chat')
@@ -371,14 +393,24 @@ function SessionContextSummary({
                       {group.latest}
                     </div>
                   </div>
-                  <ToolbarButton
-                    icon="chat"
-                    label={`Add ${group.cause} failure group to chat`}
-                    dataTestId="agent-runtime-failure-group-add-to-chat"
-                    onClick={() => addFailureGroupToChat(group)}
-                    size="sm"
-                    variant="toolbar"
-                  />
+                  <div className="flex shrink-0 items-center gap-1">
+                    <ToolbarButton
+                      icon="copy"
+                      label={`Copy ${group.cause} failure group`}
+                      dataTestId="agent-runtime-failure-group-copy"
+                      onClick={() => { void copyFailureGroup(group) }}
+                      size="sm"
+                      variant="toolbar"
+                    />
+                    <ToolbarButton
+                      icon="chat"
+                      label={`Add ${group.cause} failure group to chat`}
+                      dataTestId="agent-runtime-failure-group-add-to-chat"
+                      onClick={() => addFailureGroupToChat(group)}
+                      size="sm"
+                      variant="toolbar"
+                    />
+                  </div>
                   <Badge tone="danger">{group.count}</Badge>
                 </InspectorRow>
               ))}
@@ -434,14 +466,24 @@ function SessionContextSummary({
           title={(
             <span className="flex min-w-0 items-center justify-between gap-2">
               <span className="truncate">Transport log</span>
-              <ToolbarButton
-                icon="chat"
-                label="Add transport log to chat"
-                dataTestId="agent-transport-log-add-to-chat"
-                onClick={addTransportLogToChat}
-                size="sm"
-                variant="toolbar"
-              />
+              <span className="flex shrink-0 items-center gap-1">
+                <ToolbarButton
+                  icon="copy"
+                  label="Copy transport log"
+                  dataTestId="agent-transport-log-copy"
+                  onClick={() => { void copyTransportLog() }}
+                  size="sm"
+                  variant="toolbar"
+                />
+                <ToolbarButton
+                  icon="chat"
+                  label="Add transport log to chat"
+                  dataTestId="agent-transport-log-add-to-chat"
+                  onClick={addTransportLogToChat}
+                  size="sm"
+                  variant="toolbar"
+                />
+              </span>
             </span>
           )}
           dataTestId="agent-transport-log"

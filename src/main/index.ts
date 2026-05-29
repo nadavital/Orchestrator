@@ -8676,7 +8676,9 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             agentRuntimeEventDetailWorks: typeof agentRuntimeEventDetailWorks === 'boolean' ? agentRuntimeEventDetailWorks : null,
             agentRuntimeEventCopyWorks: typeof agentRuntimeEventCopyWorks === 'boolean' ? agentRuntimeEventCopyWorks : null,
             agentRuntimeEventOpenInChatWorks: typeof agentRuntimeEventOpenInChatWorks === 'boolean' ? agentRuntimeEventOpenInChatWorks : null,
+            agentRuntimeFailureGroupCopyWorks: typeof agentRuntimeFailureGroupCopyWorks === 'boolean' ? agentRuntimeFailureGroupCopyWorks : null,
             agentRuntimeFailureGroupAddToChatWorks: typeof agentRuntimeFailureGroupAddToChatWorks === 'boolean' ? agentRuntimeFailureGroupAddToChatWorks : null,
+            agentTransportLogCopyWorks: typeof agentTransportLogCopyWorks === 'boolean' ? agentTransportLogCopyWorks : null,
             sideChatTabsWork: typeof sideChatTabsWork === 'boolean' ? sideChatTabsWork : null,
             sideChatInputFocusOnOpenWorks: typeof sideChatInputFocusOnOpenWorks === 'boolean' ? sideChatInputFocusOnOpenWorks : null,
             sideChatSendLabelWorks: typeof sideChatSendLabelWorks === 'boolean' ? sideChatSendLabelWorks : null,
@@ -10572,13 +10574,38 @@ function runAutomatedFocusedSurfaceSmoke(
                 const failureGroups = document.querySelector('[data-testid="agent-runtime-failure-groups"]');
                 const failureGroupRows = [...document.querySelectorAll('[data-testid="agent-runtime-failure-group"]')]
                   .filter((row) => row instanceof HTMLElement);
+                const failureGroupCopyButtons = [...document.querySelectorAll('[data-testid="agent-runtime-failure-group-copy"]')]
+                  .filter((button) => button instanceof HTMLButtonElement);
                 const failureGroupAddButtons = [...document.querySelectorAll('[data-testid="agent-runtime-failure-group-add-to-chat"]')]
                   .filter((button) => button instanceof HTMLButtonElement);
                 const runtimeIssueRows = [...document.querySelectorAll('[data-testid="agent-runtime-issue"]')]
                   .filter((row) => row instanceof HTMLButtonElement);
+                const providerRunFailureGroupCopyButton = failureGroupCopyButtons.find((button) =>
+                  button.getAttribute('data-tooltip-label')?.includes('Provider run') === true
+                );
                 const providerRunFailureGroupAddButton = failureGroupAddButtons.find((button) =>
                   button.getAttribute('data-tooltip-label')?.includes('Provider run') === true
                 );
+                let copiedFailureGroup = '';
+                if (providerRunFailureGroupCopyButton instanceof HTMLButtonElement) {
+                  providerRunFailureGroupCopyButton.click();
+                  await sleep(160);
+                  copiedFailureGroup = await window.api.clipboard?.readText().catch(() => '') ?? '';
+                }
+                const failureGroupCopyStatus = document.querySelector('[data-testid="agent-runtime-issue-action-status"]');
+                const agentRuntimeFailureGroupCopyWorks =
+                  providerRunFailureGroupCopyButton instanceof HTMLButtonElement &&
+                  providerRunFailureGroupCopyButton.getAttribute('data-icon') === 'copy' &&
+                  providerRunFailureGroupCopyButton.getAttribute('data-icon-button-variant') === 'toolbar' &&
+                  failureGroupCopyStatus instanceof HTMLElement &&
+                  failureGroupCopyStatus.getAttribute('role') === 'status' &&
+                  failureGroupCopyStatus.getAttribute('aria-live') === 'polite' &&
+                  failureGroupCopyStatus.getAttribute('aria-atomic') === 'true' &&
+                  failureGroupCopyStatus.textContent?.includes('Failure group copied') === true &&
+                  copiedFailureGroup.includes('Investigate this runtime failure group:') &&
+                  copiedFailureGroup.includes('Cause: Provider run') &&
+                  copiedFailureGroup.includes('Count: 1') &&
+                  copiedFailureGroup.includes('Runtime transport failed during diagnostics smoke.');
                 if (providerRunFailureGroupAddButton instanceof HTMLButtonElement) {
                   providerRunFailureGroupAddButton.click();
                   await sleep(160);
@@ -10612,6 +10639,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   failureGroups.textContent?.includes('Provider run') === true &&
                   failureGroups.textContent?.includes('Tool: agent-inspector-smoke-tool') === true &&
                   failureGroups.textContent?.includes('Shell command failed') === true &&
+                  agentRuntimeFailureGroupCopyWorks &&
                   agentRuntimeFailureGroupAddToChatWorks;
                 const agentRuntimeIssueTriageWorks =
                   runtimeIssues instanceof HTMLElement &&
@@ -10633,6 +10661,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 const transportLogList = document.querySelector('[data-testid="agent-transport-log-list"]');
                 const transportLogRows = [...document.querySelectorAll('[data-testid="agent-transport-log-line"]')]
                   .filter((row) => row instanceof HTMLElement);
+                const transportLogCopyButton = document.querySelector('[data-testid="agent-transport-log-copy"]');
                 const transportLogAddButton = document.querySelector('[data-testid="agent-transport-log-add-to-chat"]');
                 const agentTransportLogWorks =
                   transportLog instanceof HTMLElement &&
@@ -10645,9 +10674,32 @@ function runAutomatedFocusedSurfaceSmoke(
                   transportLog.textContent?.includes('Transport diagnostics ready') === true &&
                   transportLog.textContent?.includes('secret-token-smoke') === false &&
                   transportLog.textContent?.includes('[redacted]') === true &&
+                  transportLogCopyButton instanceof HTMLButtonElement &&
+                  transportLogCopyButton.getAttribute('data-icon') === 'copy' &&
+                  transportLogCopyButton.getAttribute('data-icon-button-variant') === 'toolbar' &&
                   transportLogAddButton instanceof HTMLButtonElement &&
                   transportLogAddButton.getAttribute('data-icon') === 'chat' &&
                   transportLogAddButton.getAttribute('data-icon-button-variant') === 'toolbar';
+                let copiedTransportLog = '';
+                if (transportLogCopyButton instanceof HTMLButtonElement) {
+                  transportLogCopyButton.click();
+                  await sleep(160);
+                  copiedTransportLog = await window.api.clipboard?.readText().catch(() => '') ?? '';
+                }
+                const transportLogCopyStatus = document.querySelector('[data-testid="agent-transport-log-action-status"]');
+                const agentTransportLogCopyWorks =
+                  agentTransportLogWorks &&
+                  transportLogCopyStatus instanceof HTMLElement &&
+                  transportLogCopyStatus.getAttribute('role') === 'status' &&
+                  transportLogCopyStatus.getAttribute('aria-live') === 'polite' &&
+                  transportLogCopyStatus.getAttribute('aria-atomic') === 'true' &&
+                  transportLogCopyStatus.textContent?.includes('Transport log copied') === true &&
+                  copiedTransportLog.includes('Investigate this provider transport log excerpt:') &&
+                  (!activeSmokeSession || copiedTransportLog.includes('Runtime: ' + [activeSmokeSession.provider, activeSmokeSession.model].filter(Boolean).join(' / '))) &&
+                  copiedTransportLog.includes('system.init: session transport-smoke-session') &&
+                  copiedTransportLog.includes('assistant: Transport diagnostics ready') &&
+                  copiedTransportLog.includes('secret-token-smoke') === false &&
+                  copiedTransportLog.includes('[redacted]') === true;
                 if (transportLogAddButton instanceof HTMLButtonElement) {
                   transportLogAddButton.click();
                   await sleep(160);
@@ -10965,9 +11017,11 @@ function runAutomatedFocusedSurfaceSmoke(
                   agentRuntimeEventAddToChatContextWorks,
                   agentRuntimeEventOpenInChatWorks,
                   agentRuntimeEventActionChromeWorks,
+                  agentRuntimeFailureGroupCopyWorks,
                   agentRuntimeFailureGroupAddToChatWorks,
                   agentRuntimeFailureGroupsWorks,
                   agentTransportLogWorks,
+                  agentTransportLogCopyWorks,
                   agentTransportLogAddToChatWorks,
                   agentSelectedTimelineWorks,
                   agentSelectedTranscriptAddToChatWorks,

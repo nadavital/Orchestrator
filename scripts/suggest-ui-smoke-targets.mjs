@@ -174,7 +174,7 @@ const diffRules = [
     flag: '--agent-inspector',
     label: 'Agent Activity inspector',
     filePatterns: [/^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
-    diffPatterns: [/agent-inspector/, /agentRuntimeEvent/, /agentSessionContext/, /agentSelectedTranscript/, /agent-session-context-add-to-chat/, /agent-selected-add-to-chat/, /agent-event-detail/, /focus-waiting-card/, /Open approval in chat/]
+    diffPatterns: [/agent-inspector/, /agentRuntimeEvent/, /agentRuntimeFailureGroup/, /agentTransportLog/, /agentSessionContext/, /agentSelectedTranscript/, /agent-session-context-add-to-chat/, /agent-runtime-failure-group/, /agent-transport-log/, /agent-selected-add-to-chat/, /agent-event-detail/, /focus-waiting-card/, /Open approval in chat/, /Failure group copied/, /Transport log copied/]
   },
   {
     flag: '--extensions',
@@ -798,7 +798,7 @@ function suppressWorkbenchLauncherForAgentInspectorDiff(matched, paths) {
     paths.includes('scripts/run-automated-ui-smoke.mjs') ? diffForFile('scripts/run-automated-ui-smoke.mjs') : '',
     paths.includes('src/main/index.ts') ? diffForFile('src/main/index.ts') : ''
   ].join('\n')
-  if (!/agent-inspector|agentSessionContext|agentRuntimeEvent|agentSelectedTranscript|agent-.*add-to-chat/.test(diff)) return
+  if (!/agent-inspector|agentSessionContext|agentRuntimeEvent|agentRuntimeFailureGroup|agentTransportLog|agentSelectedTranscript|agent-.*add-to-chat|agent-.*copy/.test(diff)) return
   matched.delete('--workbench-launcher')
 }
 
