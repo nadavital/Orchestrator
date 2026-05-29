@@ -72,12 +72,18 @@ Before committing a slice:
 
 Routine Phase 1 iteration should not run the no-flag/full UI smoke for tiny source diffs. Use the generated focused target first, and reserve full inventory/no-flag smoke for uncovered broad-smoke changes, coordinated shell contracts, package dependency/config/runtime changes, or pre-merge confidence checkpoints. Package `scripts`-only edits are now classified separately so proof-harness command additions do not create false broad-smoke pressure.
 
-Before considering the stabilization complete:
+2026-05-29 final local proof-gate refresh:
 
-1. Run `npm run build`.
-2. Run `npm run test:providers`.
-3. Run `npm run smoke:visual:side-panels -- --out tmp/side-panel-visual-inventory-current --full`.
-4. Run any packaged checks required by shell/settings changes.
+- `npm run build` passed.
+- `npm run test:providers` passed with 306/306 tests.
+- Elevated `npm run smoke:visual:side-panels -- --out tmp/side-panel-visual-inventory-current --full` passed 27/27 captures.
+- The gate refresh fixed stale harness assumptions around Review primary toolbar ordering, Review loading card width, Review source selected-line handoff result export, and Plan opening from the Add Workbench tab launcher when Agents is the only mounted right-panel tab.
+
+Before considering the full stabilization complete:
+
+1. Keep the local proof gates above green after future changes.
+2. Run packaged checks only when a slice changes shell/settings/package behavior.
+3. Do not claim live Codex screenshot parity or non-Codex provider parity from local fixture smokes.
 
 Current completion checkpoint: see `docs/phase-1-daily-coding-completion-audit.md`. Routine Phase 1 work should come from that audit's must-fix list; avoid adding more local copy/status/action affordances unless a daily coding workflow is actually broken.
 

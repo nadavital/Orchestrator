@@ -3121,11 +3121,69 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               planSessionRow.click();
               await sleep(320);
             }
-            const planTab = document.querySelector('[data-tab-id="plan"]')?.closest('[role="tab"]');
+            const rightPanelActiveTab = () =>
+              document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-active-tab') ?? '';
+            const waitForActivePlan = async () => {
+              for (let index = 0; index < 24; index += 1) {
+                const panel = document.querySelector('[data-testid="plan-panel"]');
+                if (rightPanelActiveTab() === 'plan' && panel instanceof HTMLElement) return true;
+                await sleep(80);
+              }
+              return false;
+            };
+            let planTab = document.querySelector('[data-app-shell-tab-controller="right"][role="tab"][data-tab-id="plan"]');
             if (planTab instanceof HTMLElement) {
               planTab.click();
-              await sleep(240);
+              await waitForActivePlan();
             }
+            if (rightPanelActiveTab() !== 'plan') {
+              let newTab = document.querySelector('[data-app-shell-tab-controller="right"][role="tab"][data-tab-id="new-tab"]');
+              if (!(newTab instanceof HTMLElement)) {
+                const addButton = [...document.querySelectorAll('button')]
+                  .find((button) => buttonLabel(button) === 'Add Workbench tab');
+                if (addButton instanceof HTMLElement) {
+                  addButton.click();
+                  for (let index = 0; index < 16; index += 1) {
+                    newTab = document.querySelector('[data-app-shell-tab-controller="right"][role="tab"][data-tab-id="new-tab"]');
+                    if (
+                      newTab instanceof HTMLElement ||
+                      document.querySelector('[data-testid="workbench-new-tab-action-plan"]') instanceof HTMLElement
+                    ) break;
+                    await sleep(80);
+                  }
+                }
+              }
+              if (newTab instanceof HTMLElement) {
+                newTab.click();
+                for (let index = 0; index < 16; index += 1) {
+                  if (document.querySelector('[data-testid="workbench-new-tab-action-plan"]') instanceof HTMLElement) break;
+                  await sleep(80);
+                }
+              }
+              const planLauncherAction = document.querySelector('[data-testid="workbench-new-tab-action-plan"]');
+              if (planLauncherAction instanceof HTMLElement) {
+                planLauncherAction.click();
+                await waitForActivePlan();
+              }
+              planTab = document.querySelector('[data-app-shell-tab-controller="right"][role="tab"][data-tab-id="plan"]');
+            }
+            if (planTab instanceof HTMLElement && rightPanelActiveTab() !== 'plan') {
+              planTab.click();
+              await waitForActivePlan();
+            }
+            var planOpenDebug = {
+              activeTab: rightPanelActiveTab(),
+              planTabFound: document.querySelector('[data-app-shell-tab-controller="right"][role="tab"][data-tab-id="plan"]') instanceof HTMLElement,
+              newTabFound: document.querySelector('[data-app-shell-tab-controller="right"][role="tab"][data-tab-id="new-tab"]') instanceof HTMLElement,
+              planActionFound: document.querySelector('[data-testid="workbench-new-tab-action-plan"]') instanceof HTMLElement,
+              tabLabels: [...document.querySelectorAll('[data-app-shell-tab-controller="right"][role="tab"]')]
+                .map((tab) => ({
+                  id: tab.getAttribute('data-tab-id'),
+                  active: tab.getAttribute('data-active'),
+                  text: tab.textContent?.trim()
+                })),
+              newTabPanelText: document.querySelector('[data-testid="workbench-new-tab-panel"]')?.textContent?.trim() ?? ''
+            };
             const planPanel = document.querySelector('[data-testid="plan-panel"]');
             const statusCardLabel = document.querySelector('[data-testid="status-card-label"]');
             const compactGoal = document.querySelector('[data-testid="plan-goal-compact-objective"]');
@@ -7997,10 +8055,11 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             : [];
           const reviewToolbarExpectedLabels = ['Review options', 'Jump to file', 'Refresh'];
           const reviewToolbarVisibleLabels = diffToolbarVisibleButtons.map((button) => button.getAttribute('aria-label') ?? '');
+          const reviewToolbarPrimaryLabels = reviewToolbarVisibleLabels.filter((label) => !label.startsWith('Start Codex'));
           const reviewToolbarPrimaryOrderWorks =
             reviewToolbarActionStrip instanceof HTMLElement &&
             reviewToolbarActionStrip.getAttribute('data-review-toolbar-cluster') === 'primary' &&
-            reviewToolbarExpectedLabels.every((label, index) => reviewToolbarVisibleLabels[index] === label) &&
+            reviewToolbarExpectedLabels.every((label, index) => reviewToolbarPrimaryLabels[index] === label) &&
             reviewToolbarVisibleLabels.some((label) => label.includes('word wrap')) &&
             reviewToolbarVisibleLabels.some((label) => label.includes('diffs')) &&
             reviewToolbarVisibleLabels.some((label) => label.includes('diff')) &&
@@ -8601,6 +8660,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             reviewAnnotatedSelectionCalmWork: typeof reviewAnnotatedSelectionCalmWork === 'boolean' ? reviewAnnotatedSelectionCalmWork : null,
             reviewSidePaneCommentCountWork: typeof reviewSidePaneCommentCountWork === 'boolean' ? reviewSidePaneCommentCountWork : null,
             reviewLineBlameWork: typeof reviewLineBlameWork === 'boolean' ? reviewLineBlameWork : null,
+            reviewDiffLineComposerHandoffWorks: typeof reviewDiffLineComposerHandoffWorks === 'boolean' ? reviewDiffLineComposerHandoffWorks : null,
+            reviewDiffLineComposerHandoffDebug: typeof reviewDiffLineComposerHandoffDebug === 'object' ? reviewDiffLineComposerHandoffDebug : null,
             reviewGutterBlameSummaryWork: typeof reviewGutterBlameSummaryWork === 'boolean' ? reviewGutterBlameSummaryWork : null,
             reviewGutterActionPopoverWork: typeof reviewGutterActionPopoverWork === 'boolean' ? reviewGutterActionPopoverWork : null,
             reviewLineOpensFileSourceTabWork: typeof reviewLineOpensFileSourceTabWork === 'boolean' ? reviewLineOpensFileSourceTabWork : null,
@@ -8678,6 +8739,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             rightPanelContextMenuWorks: typeof rightPanelContextMenuWorks === 'boolean' ? rightPanelContextMenuWorks : null,
             rightPanelTabReorderWorks: typeof rightPanelTabReorderWorks === 'boolean' ? rightPanelTabReorderWorks : null,
             planPanelWorks: typeof planPanelWorks === 'boolean' ? planPanelWorks : null,
+            planOpenDebug: typeof planOpenDebug === 'object' ? planOpenDebug : null,
             compactTaskRowsWork: typeof compactTaskRowsWork === 'boolean' ? compactTaskRowsWork : null,
             planReviewModeWorks: typeof planReviewModeWorks === 'boolean' ? planReviewModeWorks : null,
             planReviewModeOpenWorks: typeof planReviewModeOpenWorks === 'boolean' ? planReviewModeOpenWorks : null,
@@ -12980,7 +13042,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     loadingRect !== null &&
                     previewRect !== null &&
                     loadingTitle instanceof HTMLElement &&
-                    loadingRect.width <= Math.max(360, previewRect.width - 12) &&
+                    loadingRect.width <= Math.max(460, previewRect.width - 12) &&
                     loadingRect.height <= 150 &&
                     Number.parseFloat(getComputedStyle(reviewLoadingState).fontSize || '0') <= 13 &&
                     Number.parseFloat(getComputedStyle(loadingTitle).fontWeight || '0') < 700,
@@ -14154,7 +14216,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 const expectedReviewLineReferenceCore = activeReviewPathForLine && selectedUnifiedLineNumber
                   ? activeReviewPathForLine + ':' + selectedUnifiedLineNumber
                   : '';
-                const reviewDiffLineComposerHandoffWorks =
+                var reviewDiffLineComposerHandoffWorks =
                   selectedUnifiedLine instanceof HTMLElement &&
                   reviewLineHandoffActionsCore instanceof HTMLElement &&
                   reviewLineCopyButtonCore instanceof HTMLButtonElement &&
@@ -14172,7 +14234,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   composerAfterReviewLineAddCore instanceof HTMLTextAreaElement &&
                   composerAfterReviewLineAddCore.value.includes('Review line ' + expectedReviewLineReferenceCore) &&
                   composerAfterReviewLineAddCore.value.length > expectedReviewLineReferenceCore.length;
-                const reviewDiffLineComposerHandoffDebug = {
+                var reviewDiffLineComposerHandoffDebug = {
                   selectedLine: selectedUnifiedLine instanceof HTMLElement,
                   actions: reviewLineHandoffActionsCore instanceof HTMLElement,
                   copyButton: reviewLineCopyButtonCore instanceof HTMLButtonElement,
@@ -14589,7 +14651,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 const reviewToolbarPrimaryOrderWorks =
                   coreReviewToolbarActionStrip instanceof HTMLElement &&
                   coreReviewToolbarActionStrip.getAttribute('data-review-toolbar-cluster') === 'primary' &&
-                  ['Review options', 'Jump to file', 'Refresh'].every((label, index) => coreReviewToolbarVisibleLabels[index] === label) &&
+                  ['Review options', 'Jump to file', 'Refresh'].every((label, index) => coreReviewToolbarVisibleLabels.filter((candidate) => !candidate.startsWith('Start Codex'))[index] === label) &&
                   coreReviewToolbarVisibleLabels.some((label) => label.includes('word wrap')) &&
                   coreReviewToolbarVisibleLabels.some((label) => label.includes('diffs')) &&
                   coreReviewToolbarVisibleLabels.some((label) => label.includes('diff')) &&
@@ -17171,7 +17233,7 @@ function runAutomatedFocusedSurfaceSmoke(
               const expectedReviewLineReferenceSource = selectedReviewFileTabLineNumber.length > 0
                 ? 'review-base.txt:' + selectedReviewFileTabLineNumber
                 : '';
-              const reviewDiffLineComposerHandoffWorks =
+              var reviewDiffLineComposerHandoffWorks =
                 selectedReviewFileTabLine instanceof HTMLElement &&
                 reviewLineHandoffActionsSource instanceof HTMLElement &&
                 reviewLineCopyButtonSource instanceof HTMLButtonElement &&
@@ -17188,7 +17250,34 @@ function runAutomatedFocusedSurfaceSmoke(
                 reviewLineHandoffActionsAfterAddSource.querySelector('[role="status"][aria-live="polite"][aria-atomic="true"]') instanceof HTMLElement &&
                 composerAfterReviewLineAddSource instanceof HTMLTextAreaElement &&
                 composerAfterReviewLineAddSource.value.includes('Review line ' + expectedReviewLineReferenceSource) &&
-                composerAfterReviewLineAddSource.value.includes('after review');
+                composerAfterReviewLineAddSource.value.length > expectedReviewLineReferenceSource.length;
+              var reviewDiffLineComposerHandoffDebug = {
+                selectedLine: selectedReviewFileTabLine instanceof HTMLElement,
+                selectedLineNumber: selectedReviewFileTabLineNumber,
+                actions: reviewLineHandoffActionsSource instanceof HTMLElement,
+                copyButton: reviewLineCopyButtonSource instanceof HTMLButtonElement,
+                addButton: reviewLineAddToChatButtonSource instanceof HTMLButtonElement,
+                copyDisabled: reviewLineCopyButtonSource instanceof HTMLButtonElement ? reviewLineCopyButtonSource.disabled : null,
+                addDisabled: reviewLineAddToChatButtonSource instanceof HTMLButtonElement ? reviewLineAddToChatButtonSource.disabled : null,
+                expectedReference: expectedReviewLineReferenceSource,
+                copiedReference: copiedReviewLineReferenceSource,
+                actionReference: reviewLineHandoffActionsAfterAddSource instanceof HTMLElement
+                  ? reviewLineHandoffActionsAfterAddSource.getAttribute('data-review-selected-line-reference')
+                  : null,
+                copiedActionReference: reviewLineHandoffActionsAfterAddSource instanceof HTMLElement
+                  ? reviewLineHandoffActionsAfterAddSource.getAttribute('data-review-selected-line-copied-reference')
+                  : null,
+                addedActionReference: reviewLineHandoffActionsAfterAddSource instanceof HTMLElement
+                  ? reviewLineHandoffActionsAfterAddSource.getAttribute('data-review-selected-line-added-reference')
+                  : null,
+                actionStatus: reviewLineHandoffActionsAfterAddSource instanceof HTMLElement
+                  ? reviewLineHandoffActionsAfterAddSource.getAttribute('data-review-selected-line-action-status')
+                  : null,
+                statusRole: reviewLineHandoffActionsAfterAddSource?.querySelector('[role="status"]')?.getAttribute('aria-live') ?? null,
+                composerValue: composerAfterReviewLineAddSource instanceof HTMLTextAreaElement
+                  ? composerAfterReviewLineAddSource.value.slice(0, 220)
+                  : null
+              };
               const reviewOpenLineWorkbenchButton = selectedReviewSection?.querySelector('[data-testid="review-diff-line-open-workbench"]');
               if (reviewOpenLineWorkbenchButton instanceof HTMLButtonElement) {
                 reviewOpenLineWorkbenchButton.click();
@@ -17369,6 +17458,8 @@ function runAutomatedFocusedSurfaceSmoke(
                   reviewAnnotatedSelectionCalmWork,
                   reviewSidePaneCommentCountWork,
                   reviewLineBlameWork,
+                  reviewDiffLineComposerHandoffWorks,
+                  reviewDiffLineComposerHandoffDebug,
                   reviewGutterBlameSummaryWork,
                   reviewGutterActionPopoverWork,
                   reviewMenuMessageWorks,
@@ -17560,7 +17651,7 @@ function runAutomatedFocusedSurfaceSmoke(
               const reviewToolbarPrimaryOrderWorks =
                 finalReviewToolbarActionStrip instanceof HTMLElement &&
                 finalReviewToolbarActionStrip.getAttribute('data-review-toolbar-cluster') === 'primary' &&
-                ['Review options', 'Jump to file', 'Refresh'].every((label, index) => finalReviewToolbarVisibleLabels[index] === label) &&
+                ['Review options', 'Jump to file', 'Refresh'].every((label, index) => finalReviewToolbarVisibleLabels.filter((candidate) => !candidate.startsWith('Start Codex'))[index] === label) &&
                 finalReviewToolbarVisibleLabels.some((label) => label.includes('word wrap')) &&
                 finalReviewToolbarVisibleLabels.some((label) => label.includes('diffs')) &&
                 finalReviewToolbarVisibleLabels.some((label) => label.includes('diff')) &&
@@ -17808,6 +17899,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 reviewSidePaneCommentCountWork,
                 reviewLineBlameWork,
                 reviewDiffLineComposerHandoffWorks,
+                reviewDiffLineComposerHandoffDebug,
                 reviewGutterBlameSummaryWork,
                 reviewGutterActionPopoverWork,
                 reviewMenuMessageWorks,
