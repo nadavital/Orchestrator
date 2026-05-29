@@ -24080,14 +24080,33 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
 function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: string, screenshotPath?: string): void {
   win.webContents.once('did-finish-load', () => {
     setTimeout(async () => {
+      const activateTranscriptSmokeSession = async (sessionId: string, expectedText?: string): Promise<boolean> => {
+        win.webContents.send('pet:navigate', sessionId)
+        return win.webContents.executeJavaScript(`
+          (async () => {
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            const expectedSessionId = ${JSON.stringify(sessionId)};
+            const expectedText = ${JSON.stringify(expectedText ?? '')};
+            for (let attempt = 0; attempt < 30; attempt += 1) {
+              if (typeof window.__orchestratorSetActiveSessionForSmoke === 'function') {
+                window.__orchestratorSetActiveSessionForSmoke(expectedSessionId);
+              }
+              const active = document.querySelector('[data-session-id="' + CSS.escape(expectedSessionId) + '"][aria-current="page"]');
+              const textMatches = !expectedText || document.body.innerText.includes(expectedText);
+              if (active instanceof HTMLElement && textMatches) return true;
+              await sleep(100);
+            }
+            return false;
+          })()
+        `) as Promise<boolean>
+      }
       try {
         win.setMinimumSize(520, 600)
         win.setSize(860, 720)
         const profile = getAppProfile()
         const session = sessionManager.list().find((candidate) => candidate.name === 'Transcript layout smoke')
         if (session) {
-          win.webContents.send('pet:navigate', session.id)
-          await new Promise((resolve) => setTimeout(resolve, 180))
+          await activateTranscriptSmokeSession(session.id, 'TRANSCRIPT_LAYOUT_SMOKE')
           sessionManager.updateStatus(session.id, 'waiting_for_permission')
           await new Promise((resolve) => setTimeout(resolve, 180))
           win.webContents.send('session:raw', {
@@ -24263,7 +24282,15 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
               : null;
             if (existingFileReferenceOpenButton instanceof HTMLButtonElement) {
               existingFileReferenceOpenButton.click();
-              await sleep(180);
+              for (let index = 0; index < 16; index += 1) {
+                await sleep(80);
+                if (
+                  existingFileReferenceCard instanceof HTMLElement &&
+                  existingFileReferenceCard.getAttribute('data-file-reference-open-result-ok') === 'true'
+                ) {
+                  break;
+                }
+              }
             }
             const existingFileReferenceOpenStatus = existingFileReferenceCard instanceof HTMLElement
               ? existingFileReferenceCard.querySelector('[data-testid="file-reference-open-status"]')
@@ -24462,6 +24489,16 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
               toolSummary = document.querySelector('[data-testid="tool-activity-summary"]');
             }
             const toolButton = toolSummary?.querySelector('.motion-disclosure-trigger');
+            const toolBodyBeforeExpand = document.querySelector('[data-testid="tool-activity-body"]');
+            const toolSummaryCollapsedByDefault =
+              toolSummary instanceof HTMLElement &&
+              toolSummary.getAttribute('data-tool-activity-default-collapsed') === 'true' &&
+              toolSummary.getAttribute('data-tool-activity-row-count') === '14' &&
+              toolSummary.getAttribute('data-tool-activity-has-errors') === 'false' &&
+              toolButton instanceof HTMLElement &&
+              toolButton.getAttribute('aria-expanded') === 'false' &&
+              toolButton.textContent?.includes('14 actions') === true &&
+              toolBodyBeforeExpand === null;
             if (toolButton instanceof HTMLElement && toolButton.getAttribute('aria-expanded') !== 'true') {
               toolButton.click();
             }
@@ -24540,6 +24577,7 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
               partialResponseStatusWorks,
               chatMessageCopyWorks,
               chatMessageCopyA11yWorks,
+              toolSummaryCollapsedByDefault,
               toolSummaryExpanded,
               toolSummaryBounded,
               toolSummaryScrollable,
@@ -24556,8 +24594,7 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
         `)
         if (session) {
           win.setSize(520, 720)
-          win.webContents.send('pet:navigate', session.id)
-          await new Promise((resolve) => setTimeout(resolve, 320))
+          await activateTranscriptSmokeSession(session.id, 'TRANSCRIPT_LAYOUT_SMOKE')
         }
         const narrowResult = await win.webContents.executeJavaScript(`
           (async () => {
@@ -24622,8 +24659,7 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
         if (session) {
           sessionManager.updateStatus(session.id, 'idle')
           win.setSize(860, 720)
-          win.webContents.send('pet:navigate', session.id)
-          await new Promise((resolve) => setTimeout(resolve, 240))
+          await activateTranscriptSmokeSession(session.id, 'TRANSCRIPT_LAYOUT_SMOKE')
         }
         const retryTarget = await win.webContents.executeJavaScript(`
           (async () => {

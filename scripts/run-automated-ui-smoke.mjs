@@ -2128,6 +2128,7 @@ child.on('exit', async (code) => {
         partialResponseStatus: result.partialResponseStatusWorks === true,
         chatMessageCopy: result.chatMessageCopyWorks === true,
         chatMessageCopyA11y: result.chatMessageCopyA11yWorks === true,
+        toolSummaryCollapsedByDefault: result.toolSummaryCollapsedByDefault === true,
         chatContinueLastTurn: result.chatContinueLastTurnWorks === true,
         chatContinueLastTurnA11y: result.chatContinueLastTurnA11yWorks === true,
         chatRegenerateLastResponse: result.chatRegenerateLastResponseWorks === true,

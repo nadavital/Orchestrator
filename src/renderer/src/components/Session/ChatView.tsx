@@ -55,6 +55,7 @@ interface Props {
 
 const TOOL_SUMMARY_SCROLL_THRESHOLD = 8
 const TOOL_SUMMARY_MAX_HEIGHT = 220
+const TOOL_SUMMARY_COLLAPSED_ESTIMATE = 42
 const FOLLOW_BOTTOM_THRESHOLD = 80
 const USER_MESSAGE_COLLAPSE_LENGTH = 1400
 const USER_MESSAGE_COLLAPSE_MIN_BREAK = 980
@@ -1235,7 +1236,7 @@ function estimateTranscriptMessagesHeight(messages: ChatMessage[]): number {
 
 function estimateTranscriptItemHeight(item: TranscriptItem): number {
   if (item.type === 'tool_group') {
-    return 58 + Math.min(item.messages.length, TOOL_SUMMARY_SCROLL_THRESHOLD) * 26 + TRANSCRIPT_VIRTUAL_ROW_GAP
+    return TOOL_SUMMARY_COLLAPSED_ESTIMATE + TRANSCRIPT_VIRTUAL_ROW_GAP
   }
   const message = item.message
   if (message.type === 'text') {
@@ -2982,10 +2983,17 @@ function ToolActivitySummary({ messages, session }: { messages: Array<ToolUseMes
   const shouldScroll = rowCount > TOOL_SUMMARY_SCROLL_THRESHOLD
 
   return (
-    <div className="flex justify-start min-w-0 w-full" data-testid="tool-activity-summary">
+    <div
+      className="flex justify-start min-w-0 w-full"
+      data-testid="tool-activity-summary"
+      data-tool-activity-row-count={rowCount}
+      data-tool-activity-has-errors={hasErrors ? 'true' : 'false'}
+      data-tool-activity-default-collapsed="true"
+    >
       <div className="w-full min-w-0" style={{ maxWidth: 'min(760px, 100%)' }}>
         <DisclosureSection
           title={<span style={{ color: hasErrors ? 'var(--color-red)' : 'var(--color-text-muted)' }}>{summary}</span>}
+          meta={<span className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>{rowCount} actions</span>}
         >
           <div
             data-testid="tool-activity-body"
