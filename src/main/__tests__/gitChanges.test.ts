@@ -360,6 +360,69 @@ test('discard paths refuses unsafe paths', async () => {
   }
 })
 
+test('reverse apply diff undoes provider patch without discarding unrelated edits', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'orchestrator-git-reverse-apply-'))
+  try {
+    writeFileSync(join(root, 'tracked.txt'), 'one\n')
+    writeFileSync(join(root, 'unrelated.txt'), 'keep\n')
+    git(root, 'init')
+    git(root, 'config', 'user.email', 'orchestrator-test@example.test')
+    git(root, 'config', 'user.name', 'Orchestrator Test')
+    git(root, 'add', 'tracked.txt', 'unrelated.txt')
+    git(root, 'commit', '-m', 'baseline')
+
+    const providerDiff = [
+      'diff --git a/tracked.txt b/tracked.txt',
+      'index 5626abf..814f4a4 100644',
+      '--- a/tracked.txt',
+      '+++ b/tracked.txt',
+      '@@ -1 +1,2 @@',
+      ' one',
+      '+two'
+    ].join('\n')
+    writeFileSync(join(root, 'tracked.txt'), 'one\ntwo\n')
+    writeFileSync(join(root, 'unrelated.txt'), 'keep\nlater edit\n')
+
+    const result = await gitManager.reverseApplyDiff(root, providerDiff)
+
+    assert.equal(result.ok, true)
+    assert.equal(result.reverseApplied, true)
+    assert.deepEqual(result.paths, ['tracked.txt'])
+    assert.equal(readFileSync(join(root, 'tracked.txt'), 'utf-8'), 'one\n')
+    assert.equal(readFileSync(join(root, 'unrelated.txt'), 'utf-8'), 'keep\nlater edit\n')
+    assert.deepEqual(result.changedFiles.map((file) => file.path), ['unrelated.txt'])
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('reverse apply diff refuses unsafe paths', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'orchestrator-git-reverse-safe-'))
+  try {
+    writeFileSync(join(root, 'tracked.txt'), 'one\n')
+    git(root, 'init')
+    git(root, 'config', 'user.email', 'orchestrator-test@example.test')
+    git(root, 'config', 'user.name', 'Orchestrator Test')
+    git(root, 'add', 'tracked.txt')
+    git(root, 'commit', '-m', 'baseline')
+
+    const result = await gitManager.reverseApplyDiff(root, [
+      'diff --git a/../outside.txt b/../outside.txt',
+      '--- a/../outside.txt',
+      '+++ b/../outside.txt',
+      '@@ -1 +1 @@',
+      '-outside',
+      '+changed'
+    ].join('\n'))
+
+    assert.equal(result.ok, false)
+    assert.equal(result.reverseApplied, false)
+    assert.match(result.error ?? '', /unsafe path/)
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
 test('file diffs can be scoped to branch and commit review sources', async () => {
   const root = mkdtempSync(join(tmpdir(), 'orchestrator-git-diff-ref-source-'))
   try {

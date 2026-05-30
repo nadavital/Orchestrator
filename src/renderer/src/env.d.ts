@@ -222,6 +222,7 @@ declare global {
         getChangedFiles: (sessionId: string, source?: ReviewDiffSource, ref?: string) => Promise<FileChange[]>
         getDiffForFile: (sessionId: string, filePath: string, source?: ReviewDiffSource, ref?: string) => Promise<string>
         undoChangedFiles: (sessionId: string, paths: string[]) => Promise<GitPathActionResult>
+        undoLastTurnDiff: (sessionId: string, diff: string) => Promise<GitPathActionResult>
         writeToPty: (sessionId: string, data: string) => Promise<void>
         grantAndResume: (sessionId: string, toolNames: string[]) => Promise<{ ok: boolean; error?: string }>
         allowOnceAndResume: (sessionId: string, toolNames: string[]) => Promise<{ ok: boolean; error?: string }>

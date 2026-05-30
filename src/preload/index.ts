@@ -249,6 +249,8 @@ const api = {
       ipcRenderer.invoke('sessions:getDiffForFile', sessionId, filePath, source, ref),
     undoChangedFiles: (sessionId: string, paths: string[]): Promise<GitPathActionResult> =>
       ipcRenderer.invoke('sessions:undoChangedFiles', sessionId, paths),
+    undoLastTurnDiff: (sessionId: string, diff: string): Promise<GitPathActionResult> =>
+      ipcRenderer.invoke('sessions:undoLastTurnDiff', sessionId, diff),
     writeToPty: (sessionId: string, data: string): Promise<void> =>
       ipcRenderer.invoke('sessions:writeToPty', sessionId, data),
     grantAndResume: (sessionId: string, toolNames: string[]): Promise<{ ok: boolean; error?: string }> =>

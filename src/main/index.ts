@@ -15223,7 +15223,8 @@ function runAutomatedFocusedSurfaceSmoke(
 	              let reviewLastTurnGitApplyCommandWorks = false;
 	              let reviewLastTurnGitApplyCopyStatusWorks = false;
 	              let reviewLastTurnGitApplyCommandDebug = {};
-	              let reviewTranscriptCardLastTurnWorks = false;
+              let reviewTranscriptCardLastTurnWorks = false;
+              let reviewLastTurnLocalUndoAvailableWorks = false;
 	              if (smokeView === 'diff-source' || smokeView === 'diff-last-turn') {
 	                const smokeSessionsForLastTurn = await window.api.sessions.list();
 	                const lastTurnSmokeDiff = [
@@ -15359,22 +15360,30 @@ function runAutomatedFocusedSurfaceSmoke(
                       }
                     }
                   }
-	                reviewTranscriptCardLastTurnWorks =
-	                  lastTurnInjected &&
-	                  lastTurnReviewCard instanceof HTMLElement &&
-	                  lastTurnReviewCard.getAttribute('data-review-card-source') === 'last-turn' &&
-	                  lastTurnReviewCard.getAttribute('data-review-card-undo-kind') === 'provider-checkpoint-missing' &&
-	                  lastTurnReviewCard.getAttribute('data-review-card-provider-checkpoint-undo') === 'missing-checkpoint' &&
-	                  lastTurnReviewCard.getAttribute('data-review-card-provider-session-id') === 'codex-thread-rich' &&
-	                  lastTurnReviewCard.getAttribute('data-review-card-provider-turn-id') === 'turn-1' &&
-	                  lastTurnReviewCard.getAttribute('data-review-card-provider-checkpoint-id') === '' &&
-	                  lastTurnReviewCard.getAttribute('data-review-card-provider-checkpoint-adapter-supported') === 'false' &&
-	                  lastTurnReviewCardUndo instanceof HTMLButtonElement &&
-	                  lastTurnReviewCardUndo.disabled === true &&
-	                  (lastTurnReviewCardUndo.getAttribute('title') ?? '') === 'Provider checkpoint id was not provided by this adapter' &&
-	                  Number(lastTurnReviewCard.getAttribute('data-review-card-file-count') ?? '0') === 1 &&
-	                  (lastTurnReviewCard.textContent ?? '').includes('review-base.txt') &&
-	                  lastTurnReviewCardInlineDiff instanceof HTMLElement &&
+                reviewLastTurnLocalUndoAvailableWorks =
+                  lastTurnReviewCard instanceof HTMLElement &&
+                  lastTurnReviewCard.getAttribute('data-review-card-source') === 'last-turn' &&
+                  lastTurnReviewCard.getAttribute('data-review-card-undo-kind') === 'local-reverse-patch' &&
+                  lastTurnReviewCard.getAttribute('data-review-card-provider-checkpoint-undo') === 'missing-checkpoint' &&
+                  lastTurnReviewCard.getAttribute('data-review-card-provider-checkpoint-id') === '' &&
+                  lastTurnReviewCard.getAttribute('data-review-card-provider-checkpoint-adapter-supported') === 'false' &&
+                  lastTurnReviewCardUndo instanceof HTMLButtonElement &&
+                  lastTurnReviewCardUndo.disabled === false &&
+                  (lastTurnReviewCardUndo.getAttribute('title') ?? '') === 'Undo last turn 1 changed file locally' &&
+                  (lastTurnReviewCardUndo.getAttribute('aria-label') ?? '') === 'Undo last turn 1 changed file locally';
+                reviewTranscriptCardLastTurnWorks =
+                  lastTurnInjected &&
+                  lastTurnReviewCard instanceof HTMLElement &&
+                  lastTurnReviewCard.getAttribute('data-review-card-source') === 'last-turn' &&
+                  reviewLastTurnLocalUndoAvailableWorks &&
+                  lastTurnReviewCard.getAttribute('data-review-card-provider-checkpoint-undo') === 'missing-checkpoint' &&
+                  lastTurnReviewCard.getAttribute('data-review-card-provider-session-id') === 'codex-thread-rich' &&
+                  lastTurnReviewCard.getAttribute('data-review-card-provider-turn-id') === 'turn-1' &&
+                  lastTurnReviewCard.getAttribute('data-review-card-provider-checkpoint-id') === '' &&
+                  lastTurnReviewCard.getAttribute('data-review-card-provider-checkpoint-adapter-supported') === 'false' &&
+                  Number(lastTurnReviewCard.getAttribute('data-review-card-file-count') ?? '0') === 1 &&
+                  (lastTurnReviewCard.textContent ?? '').includes('review-base.txt') &&
+                  lastTurnReviewCardInlineDiff instanceof HTMLElement &&
 	                  (lastTurnReviewCardInlineDiff.textContent ?? '').includes('last turn smoke') &&
                     lastTurnReviewCardOpenWorks;
                   const lastTurnVisualReviewRoot = document.querySelector('.diff-panel-root[data-embedded="true"]');
@@ -15435,10 +15444,11 @@ function runAutomatedFocusedSurfaceSmoke(
                     await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
                     await sleep(420);
                     return {
-                      profile,
-                      reviewTranscriptCardLastTurnWorks,
-                      reviewFileHeaderPathFirstWorks,
-                      reviewLastTurnVisualStateWorks
+	                      profile,
+	                      reviewTranscriptCardLastTurnWorks,
+                      reviewLastTurnLocalUndoAvailableWorks,
+	                      reviewFileHeaderPathFirstWorks,
+	                      reviewLastTurnVisualStateWorks
                     };
                   }
                   if (lastTurnReviewCardOpenWorks) {

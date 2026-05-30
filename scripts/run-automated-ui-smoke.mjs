@@ -105,6 +105,7 @@ function buildDiffChecks(result, view) {
     reviewTranscriptCard: result.reviewTranscriptCardWorks === true,
     reviewTranscriptCardUndo: result.reviewTranscriptCardUndoWorks === true,
     reviewTranscriptCardLastTurn: result.reviewTranscriptCardLastTurnWorks === true,
+    reviewLastTurnLocalUndoAvailable: result.reviewLastTurnLocalUndoAvailableWorks === true,
     reviewLastTurnVisualState: result.reviewLastTurnVisualStateWorks === true,
     reviewEnvironmentPanel: result.reviewEnvironmentPanelWorks === true,
     reviewEmptyState: result.reviewEmptyStateWorks === true,
@@ -309,6 +310,7 @@ function buildDiffChecks(result, view) {
     'diff-last-turn': [
       'isolatedProfile',
       'reviewTranscriptCardLastTurn',
+      'reviewLastTurnLocalUndoAvailable',
       'reviewFileHeaderPathFirst',
       'reviewLastTurnVisualState'
     ],

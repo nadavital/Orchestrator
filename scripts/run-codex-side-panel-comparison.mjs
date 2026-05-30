@@ -365,7 +365,7 @@ function buildContracts() {
       ],
       smokeChecks: ['reviewMetadataToolbar', 'reviewMetadataFlyoutShared', 'reviewTranscriptCardLastTurn', 'reviewFileHeaderPathFirst', 'reviewLastTurnVisualState', 'reviewProviderSourceUnavailableReasons', 'reviewWorktreeProviderSource', 'reviewFullSourceBlame', 'reviewLineComments'],
       statusWhenCovered: 'fixture-covered',
-      caveat: 'Fixture and local/GitHub-backed paths pass, including a direct Last turn transcript-card Review screenshot with the changed-files rail hidden, general PR and inline/threaded review comment summaries, provider comment line rendering, GitHub review-comment commit/blame metadata, and explicit unsupported-provider source reasons for unavailable Last turn/cloud/worktree rows. Live commented-PR proof, provider-native hosted/cloud sources, and checkpoint Undo are not live-proven.',
+      caveat: 'Fixture and local/GitHub-backed paths pass, including a direct Last turn transcript-card Review screenshot with the changed-files rail hidden, focused proof that the Last turn card exposes local reverse-patch undo without claiming provider checkpoint rollback, general PR and inline/threaded review comment summaries, provider comment line rendering, GitHub review-comment commit/blame metadata, and explicit unsupported-provider source reasons for unavailable cloud/worktree rows. Live commented-PR proof, provider-native hosted/cloud sources, and provider-history checkpoint rollback are not live-proven.',
       next: 'Add one real provider-backed Review source when an adapter exists.',
       openIssues: [
         {
@@ -380,8 +380,8 @@ function buildContracts() {
         },
         {
           category: 'provider-adapter',
-          issue: 'Checkpoint Undo is not workspace-restoring through the current provider path.',
-          requiredEvidence: 'Provider checkpoint id plus workspace/git restore semantics, not only thread rollback.'
+          issue: 'Provider-history checkpoint rollback is not available through the current provider path.',
+          requiredEvidence: 'Provider checkpoint id plus provider-history and workspace/git restore semantics, not only local reverse patch or thread rollback.'
         }
       ]
     },

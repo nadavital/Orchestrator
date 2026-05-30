@@ -121,6 +121,23 @@ const diffRules = [
     diffPatterns: [/ForkFromMessage/, /chatMessageFork/, /chat-message-fork/]
   },
   {
+    flag: '--diff-last-turn',
+    label: 'Review Last turn',
+    filePatterns: [
+      /^src\/renderer\/src\/components\/Session\/ChatView\.tsx$/,
+      /^src\/main\/git\.ts$/,
+      /^src\/main\/ipc\.ts$/,
+      /^src\/main\/index\.ts$/,
+      /^src\/main\/__tests__\/gitChanges\.test\.ts$/,
+      /^src\/preload\/index\.ts$/,
+      /^src\/renderer\/src\/env\.d\.ts$/,
+      /^src\/types\/index\.ts$/,
+      /^scripts\/run-automated-ui-smoke\.mjs$/,
+      /^scripts\/suggest-ui-smoke-targets\.mjs$/
+    ],
+    diffPatterns: [/undoLastTurnDiff/, /reverseApplyDiff/, /reverseApplied/, /local-reverse-patch/, /reviewLastTurnLocalUndoAvailable/]
+  },
+  {
     flag: '--worktree-lifecycle',
     label: 'Worktree lifecycle',
     filePatterns: [/^src\/renderer\/src\/components\/Session\/SessionPane\.tsx$/, /^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
@@ -506,6 +523,7 @@ function suggestTargets(paths) {
   suppressComposerForSettingsFocusDiff(matched, paths)
   suppressTranscriptPermissionForAgentEventFocusDiff(matched, paths)
   suppressTranscriptLayoutForForkDiff(matched, paths)
+  suppressBroadReviewTargetsForLastTurnUndoDiff(matched, paths)
   suppressDesignSystemForSettingsCssDiff(matched, paths)
   suppressDesignSystemForWorktreesSettingsCssDiff(matched, paths)
   suppressDesignSystemForProviderSettingsCommandHandoffDiff(matched, paths)
@@ -785,6 +803,20 @@ function suppressTranscriptForkForCodeBlockDiff(matched, paths) {
     : ''
   if (!/CodeBlock|chat-code-block|codeBlockCopy/.test(diff)) return
   matched.delete('--transcript-fork')
+}
+
+function suppressBroadReviewTargetsForLastTurnUndoDiff(matched, paths) {
+  const lastTurn = matched.get('--diff-last-turn')
+  if (!lastTurn) return
+  const diff = paths
+    .map((file) => diffForFile(file))
+    .join('\n')
+  if (!/undoLastTurnDiff|reverseApplyDiff|reverseApplied|local-reverse-patch|reviewLastTurnLocalUndoAvailable/.test(diff)) return
+  for (const flag of ['--workbench-new-tab', '--transcript-layout']) {
+    const target = matched.get(flag)
+    if (!target) continue
+    if (target.files.every((file) => lastTurn.files.includes(file))) matched.delete(flag)
+  }
 }
 
 function suppressTranscriptLayoutForAgentEventFocusDiff(matched, paths) {

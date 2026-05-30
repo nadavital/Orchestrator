@@ -2932,6 +2932,11 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
     if (!session) return Promise.resolve({ ok: false, paths: [], changedFiles: [], discarded: false, error: 'Session not found' })
     return gitManager.discardPaths(session.workDir, Array.isArray(paths) ? paths : [])
   })
+  ipcMain.handle('sessions:undoLastTurnDiff', (_, sessionId: string, diff: string): Promise<GitPathActionResult> => {
+    const session = sessionManager.get(sessionId)
+    if (!session) return Promise.resolve({ ok: false, paths: [], changedFiles: [], reverseApplied: false, error: 'Session not found' })
+    return gitManager.reverseApplyDiff(session.workDir, typeof diff === 'string' ? diff : '')
+  })
   ipcMain.handle('sessions:writeToPty', (_, sessionId: string, data: string) =>
     sessionManager.writeToPty(sessionId, data)
   )

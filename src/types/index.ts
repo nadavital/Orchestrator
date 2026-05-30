@@ -1968,6 +1968,7 @@ export interface GitPathActionResult {
   paths: string[]
   changedFiles: FileChange[]
   discarded?: boolean
+  reverseApplied?: boolean
   error?: string
 }
 

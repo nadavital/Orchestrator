@@ -1,7 +1,7 @@
 import { simpleGit } from 'simple-git'
 import { join, resolve, sep } from 'path'
 import { mkdirSync } from 'fs'
-import { execFile, spawnSync } from 'child_process'
+import { execFile, spawn, spawnSync } from 'child_process'
 import { promisify } from 'util'
 import type { FileChange, GitBranchActionResult, GitCommitResult, GitLineBlameResult, GitPathActionResult, GitPullRequestCreateResult, GitPullRequestCreateUrlResult, GitRefOption, ReviewDiffSource, ReviewMetadata, ReviewCheckStatus, ReviewProviderBlame } from '../types'
 
@@ -494,6 +494,41 @@ export const gitManager = {
         paths: cleanPaths,
         changedFiles: await this.getChangedFiles(cwd),
         discarded: false,
+        error: error instanceof Error ? error.message : String(error)
+      }
+    }
+  },
+
+  async reverseApplyDiff(cwd: string, diff: string): Promise<GitPathActionResult> {
+    const cleanDiff = typeof diff === 'string' ? diff.trimEnd() : ''
+    const cleanPaths = pathsFromUnifiedDiff(cleanDiff)
+    if (!cleanDiff || cleanPaths.length === 0) {
+      return { ok: false, paths: [], changedFiles: await this.getChangedFiles(cwd), reverseApplied: false, error: 'No provider diff is available to undo.' }
+    }
+    const unsafePath = cleanPaths.find((path) => !isSafeRelativePath(cwd, path))
+    if (unsafePath) {
+      return {
+        ok: false,
+        paths: cleanPaths,
+        changedFiles: await this.getChangedFiles(cwd),
+        reverseApplied: false,
+        error: `Refusing to reverse-apply unsafe path: ${unsafePath}`
+      }
+    }
+    try {
+      await runGitApply(cwd, ['apply', '--reverse', '--whitespace=nowarn', '-'], `${cleanDiff}\n`)
+      return {
+        ok: true,
+        paths: cleanPaths,
+        changedFiles: await this.getChangedFiles(cwd),
+        reverseApplied: true
+      }
+    } catch (error) {
+      return {
+        ok: false,
+        paths: cleanPaths,
+        changedFiles: await this.getChangedFiles(cwd),
+        reverseApplied: false,
         error: error instanceof Error ? error.message : String(error)
       }
     }
@@ -1041,11 +1076,58 @@ function normalizeGitHubRepositoryUrl(owner: string, repository: string): string
   return `https://github.com/${cleanOwner}/${cleanRepository}`
 }
 
+function pathsFromUnifiedDiff(diff: string): string[] {
+  const seen = new Set<string>()
+  const paths: string[] = []
+  for (const line of diff.split('\n')) {
+    const match = /^diff --git a\/(.+) b\/(.+)$/.exec(line.trimEnd())
+    if (!match) continue
+    for (const value of [match[1], match[2]]) {
+      const path = normalizeDiffPath(value)
+      if (!path || seen.has(path)) continue
+      seen.add(path)
+      paths.push(path)
+    }
+  }
+  return paths
+}
+
+function normalizeDiffPath(value: string | undefined): string | null {
+  const path = value?.trim()
+  if (!path || path === '/dev/null') return null
+  return path
+}
+
 function isSafeRelativePath(cwd: string, filePath: string): boolean {
   if (filePath.startsWith('/') || filePath.includes('\0')) return false
   const root = resolve(cwd)
   const target = resolve(cwd, filePath)
   return target !== root && target.startsWith(`${root}${sep}`)
+}
+
+function runGitApply(cwd: string, args: string[], input: string): Promise<void> {
+  return new Promise((resolvePromise, reject) => {
+    const child = spawn('git', args, {
+      cwd,
+      stdio: ['pipe', 'pipe', 'pipe']
+    })
+    let stdout = ''
+    let stderr = ''
+    child.stdout.setEncoding('utf8')
+    child.stderr.setEncoding('utf8')
+    child.stdout.on('data', (chunk) => { stdout += String(chunk) })
+    child.stderr.on('data', (chunk) => { stderr += String(chunk) })
+    child.on('error', reject)
+    child.on('close', (code) => {
+      if (code === 0) {
+        resolvePromise()
+        return
+      }
+      const message = stderr.trim() || stdout.trim() || `git ${args.join(' ')} failed with exit code ${code ?? 'unknown'}`
+      reject(new Error(message))
+    })
+    child.stdin.end(input)
+  })
 }
 
 async function getChangedFilesForGitDiff(git: ReturnType<typeof simpleGit>, diffArgs: string[]): Promise<FileChange[]> {

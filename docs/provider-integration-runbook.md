@@ -82,7 +82,13 @@ Current Codex evidence:
 - `thread/rollback` accepts `{ threadId, numTurns: 1 }` for persisted threads.
 - That rollback removes turns from Codex thread history but leaves the edited workspace file and git diff unchanged.
 
-Therefore Review Last turn Undo must remain disabled for provider diffs unless a future provider API restores the working tree or Orchestrator intentionally pairs provider-history rollback with a local git discard over exact provider diff paths.
+Current Orchestrator fallback:
+
+- Last turn Review can reverse-apply the exact provider unified diff locally with `git apply --reverse`.
+- This restores workspace files only when the patch still applies cleanly and refuses unsafe paths.
+- It does not rewrite provider thread history and must not be described as provider checkpoint rollback.
+
+Therefore provider-history checkpoint Undo remains disabled unless a future provider API restores both provider history and workspace changes. The local reverse-patch action is a workspace fallback for daily coding, not a provider rollback adapter.
 
 ## Verification Ladder
 

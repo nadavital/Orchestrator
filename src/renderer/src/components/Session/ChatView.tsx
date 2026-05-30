@@ -2456,13 +2456,20 @@ function ChangesReviewCard({ content, session, hideWhenEmpty = false }: { conten
       ? 'unsupported'
       : 'missing-checkpoint'
   const undoKind = reviewCardSource === 'last-turn'
-    ? providerCheckpointUndoStatus === 'missing-checkpoint'
-      ? 'provider-checkpoint-missing'
-      : 'provider-checkpoint-unsupported'
+    ? lastTurnDiff.trim().length > 0
+      ? 'local-reverse-patch'
+      : providerCheckpointUndoStatus === 'missing-checkpoint'
+        ? 'provider-checkpoint-missing'
+        : 'provider-checkpoint-unsupported'
     : 'local-current-change'
-  const canUndo = reviewCardSource === 'local' && !loading && files.length > 0 && undoState !== 'undoing'
+  const canUndo = !loading && files.length > 0 && undoState !== 'undoing' && (
+    reviewCardSource === 'local' ||
+    (reviewCardSource === 'last-turn' && lastTurnDiff.trim().length > 0)
+  )
   const undoTitle = canUndo
-    ? `Undo ${files.length} changed ${files.length === 1 ? 'file' : 'files'}`
+    ? reviewCardSource === 'last-turn'
+      ? `Undo last turn ${files.length} changed ${files.length === 1 ? 'file' : 'files'} locally`
+      : `Undo ${files.length} changed ${files.length === 1 ? 'file' : 'files'}`
     : reviewCardSource === 'last-turn'
       ? providerCheckpointUndoStatus === 'missing-checkpoint'
         ? 'Provider checkpoint id was not provided by this adapter'
@@ -2484,18 +2491,25 @@ function ChangesReviewCard({ content, session, hideWhenEmpty = false }: { conten
     setUndoState('undoing')
     setUndoError(null)
     const paths = files.map((file) => file.path)
-    const result = await window.api.sessions.undoChangedFiles(session.id, paths)
+    const result = reviewCardSource === 'last-turn'
+      ? await window.api.sessions.undoLastTurnDiff(session.id, lastTurnDiff)
+      : await window.api.sessions.undoChangedFiles(session.id, paths)
+    const targetPaths = new Set(paths)
     if (!result.ok) {
       setUndoState('error')
       setUndoError(result.error ?? 'Undo failed')
-      setFiles(result.changedFiles)
+      setFiles(reviewCardSource === 'last-turn'
+        ? result.changedFiles.filter((file) => targetPaths.has(file.path))
+        : result.changedFiles)
       return
     }
-    setFiles(result.changedFiles)
+    setFiles(reviewCardSource === 'last-turn'
+      ? result.changedFiles.filter((file) => targetPaths.has(file.path))
+      : result.changedFiles)
     setDiffsByPath({})
     setExpandedPath(null)
     setExpanded(false)
-    setUndoState(result.discarded ? 'undone' : 'idle')
+    setUndoState(result.discarded || result.reverseApplied ? 'undone' : 'idle')
   }
 
   if (hideWhenEmpty && !loading && files.length === 0) return <></>
