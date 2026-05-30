@@ -93,6 +93,12 @@ export function buildPhase1ReadinessReport({ rootDir = root, sinceHours = 72, no
         browserUseEventCount: Array.isArray(proof.browserEvents) ? proof.browserEvents.length : null,
         conclusion: proof.conclusion ?? proof.boundary ?? proof.reason ?? null
       })),
+      codexComposerUserInput: summarizeProof(rootDir, 'tmp/codex-composer-user-input-live-proof/result.json', (proof) => ({
+        status: proof.status ?? liveBoundaryStatus(proof),
+        userInputRequestCount: Array.isArray(proof.userInputRequests) ? proof.userInputRequests.length : null,
+        requireUserInput: proof.requireUserInput === true,
+        conclusion: proof.conclusion ?? proof.boundary ?? proof.reason ?? null
+      })),
       codexPinnedThreads: summarizeProof(rootDir, 'tmp/codex-pinned-threads-live-proof/result.json', (proof) => ({
         status: proof.status ?? null,
         unsupportedMethods: Array.isArray(proof.unsupportedMethods) ? proof.unsupportedMethods : [],
@@ -142,7 +148,7 @@ function summarizeProof(rootDir, relativePath, summarize) {
   return {
     path: relativePath,
     available: true,
-    completedAt: parsed.completedAt ?? parsed.generatedAt ?? null,
+    completedAt: parsed.completedAt ?? parsed.generatedAt ?? parsed.createdAt ?? null,
     ...summarize(parsed)
   }
 }
@@ -200,9 +206,20 @@ function statusCount(statusCounts, key) {
 
 function browserRuntimeStatus(proof) {
   if (proof.ok === true) return 'passed'
-  if (proof.ok === false && typeof proof.reason === 'string' && /^blocked:/i.test(proof.reason)) return 'blocked'
+  if (proof.ok === false && isBlockedReason(proof.reason)) return 'blocked'
   if (proof.ok === false) return 'failed'
   return null
+}
+
+function liveBoundaryStatus(proof) {
+  if (proof.ok === true) return 'passed'
+  if (proof.ok === false && isBlockedReason(proof.reason)) return 'blocked'
+  if (proof.ok === false) return 'failed'
+  return null
+}
+
+function isBlockedReason(reason) {
+  return typeof reason === 'string' && (/^blocked:/i.test(reason) || /unavailable/i.test(reason))
 }
 
 function parsePositiveInteger(value, optionName) {
