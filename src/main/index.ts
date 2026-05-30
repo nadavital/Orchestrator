@@ -1973,27 +1973,35 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 await sleep(140);
               }
               const generalSection = document.querySelector('[data-testid="general-settings-section"]');
-              const generalChoiceCards = generalSection instanceof HTMLElement
-                ? [...generalSection.querySelectorAll('.setting-choice-card')]
+              const generalRows = generalSection instanceof HTMLElement
+                ? [...generalSection.querySelectorAll('.settings-row')]
+                : [];
+              const preferredEditorSelect = document.querySelector('[data-testid="settings-general-preferred-editor"]');
+              const composerEnterSegments = generalSection instanceof HTMLElement
+                ? [...generalSection.querySelectorAll('.general-settings-segment')]
                 : [];
               var settingsGeneralSurfaceWorks =
                 generalSection instanceof HTMLElement &&
                 generalSection.classList.contains('settings-page-section') &&
                 generalSection.querySelector('.settings-surface') instanceof HTMLElement &&
-                generalSection.querySelector('.settings-choice-grid') instanceof HTMLElement &&
+                preferredEditorSelect instanceof HTMLSelectElement &&
+                preferredEditorSelect.classList.contains('settings-select') &&
+                generalRows.length >= 2 &&
+                generalRows.every((row) => row instanceof HTMLElement && row.getBoundingClientRect().height <= 58) &&
+                composerEnterSegments.length === 2 &&
+                composerEnterSegments.every((button) => button instanceof HTMLButtonElement && button.getBoundingClientRect().height <= 30) &&
                 generalSection.querySelector('.settings-group') === null &&
-                generalSection.querySelector('.settings-panel') === null &&
-                generalChoiceCards.length >= 5 &&
-                generalChoiceCards.every((card) => card instanceof HTMLElement && card.getBoundingClientRect().height <= 78);
+                generalSection.querySelector('.settings-panel') === null;
               var settingsGeneralModuleWorks =
                 generalSection instanceof HTMLElement &&
                 generalSection.closest('[data-settings-page-module="general"]') instanceof HTMLElement;
               var settingsGeneralActionStatusWorks = false;
               var settingsGeneralPreferredEditorPersistenceWorks = false;
               var settingsGeneralComposerEnterBehaviorWorks = false;
-              const systemEditorChoice = document.querySelector('[data-testid="settings-general-preferred-editor-system"]');
-              if (systemEditorChoice instanceof HTMLButtonElement) {
-                systemEditorChoice.click();
+              const systemEditorChoice = preferredEditorSelect;
+              if (systemEditorChoice instanceof HTMLSelectElement) {
+                systemEditorChoice.value = 'system';
+                systemEditorChoice.dispatchEvent(new Event('change', { bubbles: true }));
                 for (let index = 0; index < 40; index += 1) {
                   const generalStatus = document.querySelector('[data-testid="settings-general-action-status"]');
                   const generalModuleRoot = document.querySelector('[data-settings-page-module="general"]');
@@ -2007,7 +2015,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                       generalStatus.getAttribute('role') === 'status' &&
                       generalStatus.getAttribute('aria-live') === 'polite' &&
                       generalStatus.getAttribute('aria-atomic') === 'true' &&
-                      systemEditorChoice.getAttribute('aria-pressed') === 'true';
+                      systemEditorChoice.value === 'system';
                     settingsGeneralPreferredEditorPersistenceWorks =
                       currentSettings.preferredEditor === 'system';
                     break;

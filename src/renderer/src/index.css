@@ -10359,6 +10359,83 @@
     max-width: 780px;
   }
 
+  .general-settings-page .settings-content-layout-body {
+    gap: 10px;
+  }
+
+  .general-settings-control-surface {
+    min-width: 0;
+  }
+
+  .general-settings-row {
+    min-height: 46px;
+    padding: 8px 0;
+  }
+
+  .general-settings-row .settings-row-copy {
+    flex: 1 1 auto;
+    padding-right: 18px;
+  }
+
+  .general-settings-row .settings-row-control {
+    flex: 0 0 auto;
+  }
+
+  .settings-select {
+    min-width: 178px;
+    height: 30px;
+    border: 1px solid color-mix(in srgb, var(--border-subtle) 76%, transparent);
+    border-radius: 7px;
+    background: color-mix(in srgb, var(--control-bg) 84%, transparent);
+    color: var(--text-primary);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 520;
+    outline: none;
+    padding: 0 8px;
+  }
+
+  .settings-select:focus-visible {
+    border-color: color-mix(in srgb, var(--accent) 46%, var(--border-strong));
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 13%, transparent);
+  }
+
+  .general-settings-segmented-control {
+    display: inline-flex;
+    min-width: 0;
+    gap: 2px;
+    border: 1px solid color-mix(in srgb, var(--border-subtle) 74%, transparent);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--control-bg) 72%, transparent);
+    padding: 2px;
+  }
+
+  .general-settings-segment {
+    height: 26px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 540;
+    line-height: 1;
+    padding: 0 10px;
+    white-space: nowrap;
+  }
+
+  .general-settings-segment:hover,
+  .general-settings-segment:focus-visible {
+    background: color-mix(in srgb, var(--control-bg-hover) 78%, transparent);
+    color: var(--text-primary);
+    outline: none;
+  }
+
+  .general-settings-segment[data-active='true'] {
+    background: var(--surface-bg);
+    color: var(--text-primary);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.16);
+  }
+
   .appearance-settings-page {
     max-width: 820px;
   }
