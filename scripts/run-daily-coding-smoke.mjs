@@ -69,7 +69,9 @@ function main() {
 
   if (options.summary) {
     const manifests = readDailyCodingManifests(outputDir, options.sinceHours)
-    const summary = aggregateDailyCodingCoverage(manifests)
+    const summary = aggregateDailyCodingCoverage(manifests, {
+      slowTargetThresholdMs: options.slowTargetThresholdMs
+    })
     console.log(JSON.stringify({
       outputDir,
       sinceHours: options.sinceHours,
@@ -243,7 +245,7 @@ export function targetCoverageForTargets(targets) {
   }
 }
 
-export function aggregateDailyCodingCoverage(manifests) {
+export function aggregateDailyCodingCoverage(manifests, { slowTargetThresholdMs = DEFAULT_SLOW_TARGET_THRESHOLD_MS } = {}) {
   const passedByTarget = new Map()
   const considered = Array.isArray(manifests) ? manifests : []
   for (const manifest of considered) {
@@ -276,13 +278,16 @@ export function aggregateDailyCodingCoverage(manifests) {
     generatedAt: new Date().toISOString(),
     consideredManifestCount: considered.length,
     passedTargetCount: coveredTargets.length,
+    slowTargetThresholdMs,
     core: {
       ...targetCoverage.core,
-      latestPassed: latestPassedForTargets(targetSets.core, passedByTarget)
+      latestPassed: latestPassedForTargets(targetSets.core, passedByTarget),
+      slowTargets: slowTargetsForLatestPassed(targetSets.core, passedByTarget, slowTargetThresholdMs)
     },
     full: {
       ...targetCoverage.full,
-      latestPassed: latestPassedForTargets(targetSets.full, passedByTarget)
+      latestPassed: latestPassedForTargets(targetSets.full, passedByTarget),
+      slowTargets: slowTargetsForLatestPassed(targetSets.full, passedByTarget, slowTargetThresholdMs)
     }
   }
 }
@@ -291,6 +296,13 @@ function latestPassedForTargets(targets, passedByTarget) {
   return targets
     .map((target) => passedByTarget.get(target))
     .filter(Boolean)
+}
+
+function slowTargetsForLatestPassed(targets, passedByTarget, thresholdMs) {
+  return latestPassedForTargets(targets, passedByTarget)
+    .filter((target) => Number.isFinite(target.durationMs) && target.durationMs >= thresholdMs)
+    .map((target) => ({ ...target }))
+    .sort((left, right) => right.durationMs - left.durationMs)
 }
 
 function targetSortIndex(target) {

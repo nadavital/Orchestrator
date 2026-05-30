@@ -31,7 +31,7 @@ test('reports local daily-use ready while external parity gaps remain', () => {
     createdAt: '2026-05-30T03:00:00.000Z',
     mode: 'dev',
     set: 'full',
-    results: fullTargets.map((target) => ({ target, status: 0, durationMs: 1000 }))
+    results: fullTargets.map((target) => ({ target, status: 0, durationMs: target === '--files' ? 38174 : 1000 }))
   })
   writeJson(root, 'tmp/codex-side-panel-comparison/comparison-report.json', {
     createdAt: '2026-05-30T03:10:00.000Z',
@@ -72,6 +72,8 @@ test('reports local daily-use ready while external parity gaps remain', () => {
   assert.equal(report.overall.localDailyUseReady, true)
   assert.equal(report.overall.fullParityComplete, false)
   assert.match(report.overall.recommendation, /remaining work is external/)
+  assert.equal(report.dailyCoding.slowTargetThresholdMs, 30000)
+  assert.deepEqual(report.dailyCoding.slowFullTargets.map((target) => target.target), ['--files'])
   assert.equal(report.comparison.remainingParityGaps.length, 1)
   assert.equal(report.comparison.remainingParityGaps[0].category, 'provider-proof')
   assert.equal(report.proofArtifacts.githubReviewMetadata.authenticated, true)
@@ -243,6 +245,7 @@ test('ignores package-manager option separators in cli args', async () => {
   assert.equal(result.stderr, '')
   assert.equal(result.status === 0 || result.status === 1, true)
   assert.match(result.stdout, /Phase 1 Readiness/)
+  assert.match(result.stdout, /Slow daily-coding targets/)
   assert.match(result.stdout, /Proof Artifacts/)
   assert.match(result.stdout, /Remaining Gaps/)
 })

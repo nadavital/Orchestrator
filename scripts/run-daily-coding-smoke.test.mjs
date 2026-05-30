@@ -93,11 +93,40 @@ test('aggregates daily-coding coverage across focused manifests', () => {
 
   assert.equal(summary.consideredManifestCount, 2)
   assert.equal(summary.passedTargetCount, 4)
+  assert.equal(summary.slowTargetThresholdMs, 30000)
   assert.equal(summary.core.complete, false)
   assert.deepEqual(summary.core.covered, ['--header', '--composer', '--files', '--browser'])
   assert.ok(summary.core.missing.includes('--session-switch'))
   assert.equal(summary.full.complete, false)
   assert.equal(summary.full.latestPassed.find((target) => target.target === '--files')?.manifestPath, '/tmp/b.json')
+})
+
+test('aggregates slow daily-coding targets from latest passing manifests', () => {
+  const summary = aggregateDailyCodingCoverage([
+    {
+      manifestPath: '/tmp/a.json',
+      createdAt: '2026-05-30T01:00:00.000Z',
+      mode: 'dev',
+      set: 'custom',
+      results: [
+        { target: '--files', status: 0, durationMs: 52000 },
+        { target: '--browser', status: 0, durationMs: 31000 }
+      ]
+    },
+    {
+      manifestPath: '/tmp/b.json',
+      createdAt: '2026-05-30T02:00:00.000Z',
+      mode: 'dev',
+      set: 'custom',
+      results: [
+        { target: '--files', status: 0, durationMs: 28000 },
+        { target: '--composer', status: 0, durationMs: 45000 }
+      ]
+    }
+  ], { slowTargetThresholdMs: 30000 })
+
+  assert.deepEqual(summary.full.slowTargets.map((target) => target.target), ['--composer', '--browser'])
+  assert.equal(summary.full.slowTargets.find((target) => target.target === '--files'), undefined)
 })
 
 test('aggregates full coverage from multiple passing manifests', () => {

@@ -60,7 +60,9 @@ export function buildPhase1ReadinessReport({ rootDir = root, sinceHours = 72, no
       consideredManifestCount: dailyCoding.consideredManifestCount,
       fullComplete: dailyCoding.full.complete,
       missingFullTargets: dailyCoding.full.missing,
-      latestFullTargets: dailyCoding.full.latestPassed
+      latestFullTargets: dailyCoding.full.latestPassed,
+      slowTargetThresholdMs: dailyCoding.slowTargetThresholdMs,
+      slowFullTargets: dailyCoding.full.slowTargets
     },
     comparison: comparison
       ? {
@@ -185,6 +187,7 @@ function printMarkdown(report, { details = false } = {}) {
   console.log(`- Local daily-use ready: ${report.overall.localDailyUseReady ? 'yes' : 'no'}`)
   console.log(`- Full parity complete: ${report.overall.fullParityComplete ? 'yes' : 'no'}`)
   console.log(`- Daily-coding full coverage: ${report.dailyCoding.fullComplete ? 'yes' : 'no'} (${report.dailyCoding.consideredManifestCount} manifests)`)
+  console.log(`- Slow daily-coding targets: ${formatSlowTargets(report.dailyCoding.slowFullTargets, report.dailyCoding.slowTargetThresholdMs)}`)
   console.log(`- Comparison local-ready: ${report.comparison.localComparisonReady ? 'yes' : 'no'}`)
   console.log(`- Remaining parity gaps: ${formatGapCounts(report.comparison.remainingParityGapCounts ?? {}) || 'none'}`)
   console.log(`- Recommendation: ${report.overall.recommendation}`)
@@ -243,6 +246,21 @@ function formatProofSummary(proof) {
   const boundary = proof.boundary ?? proof.conclusion ?? proof.unavailableReason ?? null
   if (boundary) parts.push(`boundary=${boundary}`)
   return parts.length > 0 ? parts.join('; ') : `available (${proof.path})`
+}
+
+function formatSlowTargets(targets, thresholdMs) {
+  const slowTargets = Array.isArray(targets) ? targets : []
+  if (slowTargets.length === 0) return `none >= ${formatDuration(thresholdMs)}`
+  return slowTargets
+    .map((target) => `${target.target} ${formatDuration(target.durationMs)}`)
+    .join(', ')
+}
+
+function formatDuration(durationMs) {
+  const parsed = Number(durationMs)
+  if (!Number.isFinite(parsed)) return 'unknown'
+  if (parsed >= 1000) return `${(parsed / 1000).toFixed(1)}s`
+  return `${Math.round(parsed)}ms`
 }
 
 function numberValue(value) {
