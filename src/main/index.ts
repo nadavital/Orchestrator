@@ -10350,7 +10350,8 @@ function runAutomatedFocusedSurfaceSmoke(
                       threads: 1,
                       authors: ['Ada'],
                       url: 'https://github.com/openai/orchestrator/pull/77#discussion_r2'
-                    }
+                    },
+                    providerWarnings: ['Inline review comments unavailable: GitHub GraphQL smoke warning']
                   };
                   const setSessionReviewMetadataForGitSmoke = window.__orchestratorSetSessionReviewMetadataForSmoke;
                   if (typeof setSessionReviewMetadataForGitSmoke === 'function') {
@@ -10372,11 +10373,16 @@ function runAutomatedFocusedSurfaceSmoke(
                   const hostedPrCard = document.querySelector('[data-testid="git-pr-card"]');
                   const hostedPrView = document.querySelector('[data-testid="git-view-pr"]');
                   const hostedPrRefresh = document.querySelector('[data-testid="git-refresh-pr-metadata"]');
+                  const hostedPrWarning = document.querySelector('[data-testid="git-pr-metadata-warning"]');
                   workbenchNewTabGitPrMetadataWorks =
                     hostedPrCard instanceof HTMLElement &&
                     hostedPrCard.getAttribute('data-git-pr-metadata-state') === 'loaded' &&
+                    hostedPrCard.getAttribute('data-git-pr-metadata-warnings') === '1' &&
                     hostedPrCard.getAttribute('data-git-pr-number') === '77' &&
                     hostedPrCard.textContent?.includes('PR 77') === true &&
+                    hostedPrWarning instanceof HTMLElement &&
+                    hostedPrWarning.getAttribute('role') === 'status' &&
+                    hostedPrWarning.textContent?.includes('Inline review comments unavailable') === true &&
                     hostedPrView instanceof HTMLButtonElement &&
                     hostedPrView.getAttribute('title') === 'https://github.com/openai/orchestrator/pull/77' &&
                     hostedPrRefresh instanceof HTMLButtonElement &&

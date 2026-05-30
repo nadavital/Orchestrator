@@ -109,6 +109,7 @@ export default function GitPanel({
   const currentBranch = branches.find((branch) => branch.current)?.label ?? 'main'
   const reviewMetadata = session.reviewMetadata ?? loadedReviewMetadata
   const pullRequest = reviewMetadata?.pullRequest
+  const providerWarnings = (reviewMetadata?.providerWarnings ?? []).filter((warning) => warning.trim().length > 0)
   const pullRequestUrl = pullRequest?.url?.trim() ?? ''
   const defaultBaseBranch = pullRequest?.baseBranch ?? inferDefaultBaseBranch(branches)
   const prCommand = currentBranch && currentBranch !== defaultBaseBranch
@@ -807,6 +808,7 @@ export default function GitPanel({
           data-git-pr-create-result-error={prCreateError ?? ''}
           data-git-pr-metadata-state={reviewMetadataState}
           data-git-pr-metadata-error={reviewMetadataError ?? ''}
+          data-git-pr-metadata-warnings={providerWarnings.length}
           data-git-pr-number={pullRequest?.number ?? ''}
           data-git-focused-target={focusTarget === 'pull-request' ? 'true' : 'false'}
         >
@@ -917,6 +919,17 @@ export default function GitPanel({
               >
                 Insert in terminal
               </Button>
+            </div>
+          )}
+          {providerWarnings.length > 0 && (
+            <div
+              className="git-commit-meta"
+              data-testid="git-pr-metadata-warning"
+              role="status"
+              aria-live="polite"
+              title={providerWarnings.join('\n')}
+            >
+              {providerWarnings[0]}
             </div>
           )}
         </div>
