@@ -20,6 +20,7 @@ This checkpoint exists to prevent Phase 1 from drifting into low-value parity po
 - 2026-05-30 hosted Review metadata error boundary: Git/Review metadata refresh now treats true no-PR responses as unavailable but surfaces hosted-provider failures such as GitHub auth/network/API errors instead of silently reporting "No hosted metadata found." Evidence: `gitChanges.test.js` classifier coverage and focused `--workbench-new-tab` smoke `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-workbench-new-tab-1780107163714.json`.
 - 2026-05-30 hosted Review metadata live proof: `pnpm run live:github-review-metadata -- --pr 4` passed against merged PR #4 and wrote `tmp/github-review-metadata-live-proof/result.json` with authenticated hosted PR metadata. The artifact records `commentedProof=false` because PR #4 has no live comments, so this improves provider-proof traceability without closing the commented-PR gap.
 - 2026-05-30 Codex user-input live boundary: elevated `pnpm run live:codex-composer-user-input` refreshed `tmp/codex-composer-user-input-live-proof/result.json` and still records the provider boundary `request_user_input is unavailable in Default mode`, with `userInputRequestCount=0`. The Phase 1 status reporter now shows this as blocked external provider proof while local transcript/user-input UI coverage stays green.
+- 2026-05-30 Codex bundle comparison refresh: the side-panel comparison harness now resolves hashed Codex renderer asset names by logical chunk stem and expected-term score. `pnpm run compare:codex-side-panels -- --no-fail` now reports `fixture-covered=8`, `aligned=2`, and zero `blocked`/`mismatch`/`needsSmoke`/`needsProof` rows against the installed Codex bundle, which removes stale bundle filename churn as a reason to continue local UI polish.
 
 ## Must Fix Before Calling Phase 1 Daily-Use Ready
 
@@ -45,6 +46,7 @@ This checkpoint exists to prevent Phase 1 from drifting into low-value parity po
 - Additional bottom-panel tab kinds beyond Terminal and Plan unless there is a clear coding workflow demand.
 - More broad smoke runs for tiny diffs when `smoke:ui:changed:*` selects a focused target.
 - Running the curated daily-coding smoke after every small diff. It is a milestone/dogfood gate, not the routine edit loop.
+- Treating exact hashed Codex bundle filenames as proof failures. The comparison harness should follow logical chunk identity plus expected terms, because current Codex app updates rotate Vite hashes.
 
 ## Phase 2 Backlog
 

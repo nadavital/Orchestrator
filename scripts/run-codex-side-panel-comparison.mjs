@@ -685,9 +685,12 @@ function inferStatus(contract, codex, source, artifact, file, smoke) {
 function evaluateCodexEvidence(contract, codexAssets) {
   const assetResults = []
   for (const spec of contract.codexAssets ?? []) {
-    const text = codexAssets.readByBasename(spec.basename)
+    const resolved = codexAssets.resolveByBasename(spec.basename, spec.terms)
+    const text = resolved.text
     assetResults.push({
       asset: spec.basename,
+      resolvedAsset: resolved.basename,
+      resolution: resolved.resolution,
       available: text !== null,
       terms: spec.terms.map((term) => ({ term, found: text?.includes(term) === true }))
     })
@@ -1644,26 +1647,82 @@ CodexAssetReader.prototype.hasAssetPrefix = function hasAssetPrefix(prefix) {
   return this.assetList().some((entry) => basename(entry).startsWith(prefix))
 }
 
-CodexAssetReader.prototype.readByBasename = function readByBasename(name) {
-  if (this.textByBasename.has(name)) return this.textByBasename.get(name)
-  const entry = this.assetList().find((entry) => basename(entry) === name)
+CodexAssetReader.prototype.readByBasename = function readByBasename(name, terms = []) {
+  return this.resolveByBasename(name, terms).text
+}
+
+CodexAssetReader.prototype.resolveByBasename = function resolveByBasename(name, terms = []) {
+  const cacheKey = `${name}\u0000${terms.join('\u0000')}`
+  if (this.textByBasename.has(cacheKey)) return this.textByBasename.get(cacheKey)
+  const resolved = this.resolveAssetEntry(name, terms)
+  const entry = resolved.entry
   if (!entry) {
-    this.textByBasename.set(name, null)
-    return null
+    const result = { text: null, basename: null, resolution: 'missing' }
+    this.textByBasename.set(cacheKey, result)
+    return result
   }
   try {
     const buffer = asar.extractFile(this.asarPath, entry.replace(/^\//, ''))
     const text = Buffer.isBuffer(buffer) ? buffer.toString('utf8') : String(buffer)
-    this.textByBasename.set(name, text)
-    return text
+    const result = { text, basename: basename(entry), resolution: resolved.resolution }
+    this.textByBasename.set(cacheKey, result)
+    return result
   } catch {
-    this.textByBasename.set(name, null)
-    return null
+    const result = { text: null, basename: basename(entry), resolution: `${resolved.resolution}:extract-failed` }
+    this.textByBasename.set(cacheKey, result)
+    return result
+  }
+}
+
+CodexAssetReader.prototype.resolveAssetEntry = function resolveAssetEntry(name, terms = []) {
+  const assets = this.assetList()
+  const exact = assets.find((entry) => basename(entry) === name)
+  if (exact) return { entry: exact, resolution: 'exact' }
+
+  const target = hashedAssetIdentity(name)
+  if (!target) return { entry: null, resolution: 'missing' }
+  const candidates = assets
+    .map((entry) => ({ entry, identity: hashedAssetIdentity(basename(entry)) }))
+    .filter((candidate) =>
+      candidate.identity &&
+      candidate.identity.extension === target.extension &&
+      candidate.identity.logicalStem === target.logicalStem
+    )
+  if (candidates.length === 1) return { entry: candidates[0].entry, resolution: 'logical-stem' }
+  if (candidates.length > 1) {
+    const scoredCandidates = candidates
+      .map((candidate) => ({ ...candidate, score: this.assetTermScore(candidate.entry, terms) }))
+      .sort((left, right) => right.score - left.score)
+    if (scoredCandidates[0]?.score > 0) return { entry: scoredCandidates[0].entry, resolution: 'logical-stem:term-score' }
+    const webviewCandidate = scoredCandidates.find((candidate) => candidate.entry.startsWith('/webview/assets/'))
+    if (webviewCandidate) return { entry: webviewCandidate.entry, resolution: 'logical-stem:webview-assets' }
+    return { entry: candidates[0].entry, resolution: 'logical-stem:first-match' }
+  }
+  return { entry: null, resolution: 'missing' }
+}
+
+CodexAssetReader.prototype.assetTermScore = function assetTermScore(entry, terms = []) {
+  if (terms.length === 0) return 0
+  try {
+    const buffer = asar.extractFile(this.asarPath, entry.replace(/^\//, ''))
+    const text = Buffer.isBuffer(buffer) ? buffer.toString('utf8') : String(buffer)
+    return terms.filter((term) => text.includes(term)).length
+  } catch {
+    return 0
   }
 }
 
 function basename(path) {
   return path.split('/').filter(Boolean).at(-1) ?? path
+}
+
+function hashedAssetIdentity(name) {
+  const match = /^(.+)\.([cm]?js|css|html)$/.exec(name)
+  if (!match) return null
+  return {
+    extension: match[2],
+    logicalStem: match[1].replace(/-[A-Za-z0-9_-]{6,}$/, '')
+  }
 }
 
 main()
