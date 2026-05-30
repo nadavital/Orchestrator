@@ -111,11 +111,13 @@ function main() {
 
   const failed = results.filter((result) => result.status !== 0)
   const slowTargets = slowTargetsForResults(results, options.slowTargetThresholdMs)
+  const targetCoverage = targetCoverageForTargets(targets)
   const manifest = {
     createdAt: new Date().toISOString(),
     mode: options.installed ? 'installed' : options.packaged ? 'packaged' : 'dev',
     set: options.targets.length > 0 ? 'custom' : options.full ? 'full' : 'core',
     targets,
+    targetCoverage,
     durationMs: Date.now() - startedAt,
     slowTargetThresholdMs: options.slowTargetThresholdMs,
     slowTargets,
@@ -129,6 +131,12 @@ function main() {
   console.log(JSON.stringify({
     manifestPath,
     passed: manifest.passed,
+    coverage: {
+      coreComplete: targetCoverage.core.complete,
+      fullComplete: targetCoverage.full.complete,
+      missingCoreTargets: targetCoverage.core.missing,
+      missingFullTargets: targetCoverage.full.missing
+    },
     failed: failed.map((result) => result.target),
     slowTargets: slowTargets.map((result) => ({
       target: result.target,
@@ -209,6 +217,30 @@ export function slowTargetsForResults(results, thresholdMs = DEFAULT_SLOW_TARGET
     .filter((result) => result.durationMs >= thresholdMs)
     .map((result) => ({ ...result }))
     .sort((a, b) => b.durationMs - a.durationMs)
+}
+
+export function targetCoverageForTargets(targets) {
+  const selected = new Set((targets ?? []).map((target) => normalizeTargetFlag(target)))
+  return {
+    core: targetSetCoverage(targetSets.core, selected),
+    full: targetSetCoverage(targetSets.full, selected)
+  }
+}
+
+function targetSetCoverage(requiredTargets, selectedTargets) {
+  const missing = requiredTargets.filter((target) => !selectedTargets.has(target))
+  const extra = [...selectedTargets].filter((target) => !requiredTargets.includes(target))
+  return {
+    complete: missing.length === 0,
+    covered: requiredTargets.filter((target) => selectedTargets.has(target)),
+    missing,
+    extra
+  }
+}
+
+function normalizeTargetFlag(target) {
+  const value = String(target ?? '').trim()
+  return value.startsWith('--') ? value : `--${value}`
 }
 
 function matchJsonString(value, key) {
