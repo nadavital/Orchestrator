@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import test from 'node:test'
 
-import { gitManager, mergeReviewCommentSummaries, parseGitHubPullRequestUrl, parseGitHubRemoteUrl, reviewMetadataFromGitHubPullRequestView, reviewThreadCommentMetadataFromGitHub, reviewThreadCommentSummaryFromGitHub } from '../git'
+import { gitManager, isGitHubReviewMetadataUnavailableErrorMessage, mergeReviewCommentSummaries, parseGitHubPullRequestUrl, parseGitHubRemoteUrl, reviewMetadataFromGitHubPullRequestView, reviewThreadCommentMetadataFromGitHub, reviewThreadCommentSummaryFromGitHub } from '../git'
 
 test('changed files preserve paths with spaces without git porcelain quotes', async () => {
   const root = mkdtempSync(join(tmpdir(), 'orchestrator-git-changes-'))
@@ -575,6 +575,14 @@ test('draft GitHub PR metadata maps to draft state', () => {
   assert.equal(metadata?.checks, undefined)
   assert.equal(metadata?.reviewers, undefined)
   assert.equal(metadata?.comments, undefined)
+})
+
+test('GitHub Review metadata errors distinguish no PR from hosted provider failures', () => {
+  assert.equal(isGitHubReviewMetadataUnavailableErrorMessage('no pull requests found for branch codex/foo'), true)
+  assert.equal(isGitHubReviewMetadataUnavailableErrorMessage('There is no pull request associated with this branch'), true)
+  assert.equal(isGitHubReviewMetadataUnavailableErrorMessage('error connecting to api.github.com\ncheck your internet connection'), false)
+  assert.equal(isGitHubReviewMetadataUnavailableErrorMessage('HTTP 401: Bad credentials'), false)
+  assert.equal(isGitHubReviewMetadataUnavailableErrorMessage('The token in default is invalid.'), false)
 })
 
 test('GitHub PR review thread JSON normalizes to inline comment metadata', () => {

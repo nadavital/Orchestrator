@@ -224,7 +224,12 @@ export const gitManager = {
         maxBuffer: 1024 * 1024
       })
       const url = parseGitHubPullRequestUrl(stdout) ?? parseGitHubPullRequestUrl(stderr)
-      const metadata = await this.getReviewMetadata(cwd)
+      let metadata: ReviewMetadata | undefined
+      try {
+        metadata = await this.getReviewMetadata(cwd)
+      } catch {
+        metadata = undefined
+      }
       const fallbackMetadata = !metadata && url ? reviewMetadataFromPullRequestUrl(url, cleanBase, cleanHead) : undefined
       return {
         ok: true,
@@ -593,8 +598,10 @@ export const gitManager = {
         metadata.providerCommentsByPath = threadComments.commentsByPath
       }
       return metadata
-    } catch {
-      return undefined
+    } catch (error) {
+      const message = commandErrorMessage(error)
+      if (isGitHubReviewMetadataUnavailableErrorMessage(message)) return undefined
+      throw new Error(`Review metadata refresh failed: ${firstCommandErrorLine(message) || (error instanceof Error ? error.message : String(error))}`)
     }
   }
 }
@@ -988,6 +995,24 @@ function commandErrorMessage(error: unknown): string {
   if (stderr) return stderr
   if (stdout) return stdout
   return error instanceof Error ? error.message : String(error)
+}
+
+export function isGitHubReviewMetadataUnavailableErrorMessage(message: string): boolean {
+  const normalized = message.toLowerCase()
+  return [
+    'no pull requests found',
+    'no pull request found',
+    'no pull request associated',
+    'could not find any pull requests',
+    'there is no pull request'
+  ].some((needle) => normalized.includes(needle))
+}
+
+function firstCommandErrorLine(message: string): string {
+  return message
+    .split('\n')
+    .map((line) => line.trim())
+    .find(Boolean) ?? ''
 }
 
 function numberValue(value: unknown): number | undefined {
