@@ -1,6 +1,6 @@
 # Provider Integration Runbook
 
-Last updated: 2026-05-29
+Last updated: 2026-05-30
 
 Use this when adding or deepening Claude, Codex, Cursor, Copilot, or a future coding-agent provider. The durable rule is: provider-specific behavior belongs at the adapter/runtime boundary; UI should consume shared Orchestrator events, capabilities, and metadata whenever possible.
 
@@ -49,7 +49,7 @@ Use this when adding or deepening Claude, Codex, Cursor, Copilot, or a future co
 | `npm run live:codex-appserver` | Basic Codex app-server thread/turn completion. | Proves the app-server transport can run a turn. |
 | `npm run live:codex-browser-appserver` | Whether live Codex app-server exposes browser-use events/tools to this client. | Currently blocked at this stdio client boundary; no browser-use surface is exposed. |
 | `npm run live:codex-pinned-threads` | Codex sidebar thread-list and pinned-thread mutation boundary. | Proves `thread/list` is supported through the live app-server while `list-pinned-threads`, `set-thread-pinned`, and `set-pinned-threads-order` currently return unknown-variant errors. Orchestrator must keep provider-projected pin actions read-only until a supported mutation route exists. Artifact: `/Users/nadav/Desktop/Orchestrator/tmp/codex-pinned-threads-live-proof/result.json`. |
-| `npm run live:codex-review-appserver` | Live Codex `turn/diff/updated` and `thread/rollback` behavior. | Emits provider session/turn diff events with no checkpoint id; `thread/rollback` rolls back thread history but not workspace git diff. |
+| `npm run live:codex-review-appserver` | Live Codex `turn/diff/updated` and `thread/rollback` behavior. | Refreshed 2026-05-30: emits provider session/turn diff events with no checkpoint id; `thread/rollback` rolls back thread history but not workspace git diff. Artifact: `/Users/nadav/Desktop/Orchestrator/tmp/codex-review-appserver-live-proof/result.json`. |
 | `pnpm run live:codex-review-start` | Native Codex app-server `review/start` behavior. | Proves uncommitted inline, base-branch inline, commit inline, and custom-instruction inline review targets start real review turns and emit typed `review.mode.changed` events. Use only for Review slices, not routine UI smoke; normal UI checks should use the focused Review smoke. |
 
 Provider Settings should surface auth failures from any safe no-quota probe, not only a provider's explicit auth command. For Claude, `auto-mode defaults` is a no-quota readiness probe; API 401 invalid credentials there should make the Auth row show an error before the user starts a run.
@@ -81,6 +81,7 @@ Current Codex evidence:
 - They do not include a checkpoint id.
 - `thread/rollback` accepts `{ threadId, numTurns: 1 }` for persisted threads.
 - That rollback removes turns from Codex thread history but leaves the edited workspace file and git diff unchanged.
+- Latest evidence: elevated `npm run live:codex-review-appserver` on 2026-05-30 produced 3 normalized diff events, `checkpointIds=[]`, a successful `numTurns:1` rollback attempt, and confirmed the proof file plus git diff were still edited after rollback.
 
 Current Orchestrator fallback:
 
