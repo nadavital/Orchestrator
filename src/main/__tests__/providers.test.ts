@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import type { RunEvent, RunRequest } from '../../types'
 import { PROVIDER_DEFS, deriveAgentNodes, derivePlanStatesFromMessages, getDefaultPermissionMode, getPrimaryPermissionModes, parseClaudeAgentsOutput, permissionRequestDetail } from '../../types'
-import { buildProviderCommandForRuntime, claudeMcpServerNames, codexRuntimePolicyConfig, getProviderDiagnostics, getProviderDiagnosticsAsync, getProviderRuntimeInfo, PROVIDERS, providerSpawnEnv, resolveProviderBinary, resolveProviderPermissionRuntimeContext, runProviderCommandSurface, runProviderCommandSurfaceAsync } from '../providers'
+import { buildProviderCommandForRuntime, claudeMcpServerNames, codexRuntimePolicyConfig, getProviderDiagnostics, getProviderDiagnosticsAsync, getProviderRuntimeInfo, providerAuthFailureMessage, PROVIDERS, providerSpawnEnv, resolveProviderBinary, resolveProviderPermissionRuntimeContext, runProviderCommandSurface, runProviderCommandSurfaceAsync } from '../providers'
 import { eventsToMessages } from '../runEvents'
 
 const ABSTRACT_CAPABILITY_KEYS = [
@@ -132,6 +132,7 @@ test('runtime info exposes provider-specific capability registry and no-quota pr
   assert.ok(runtimeInfo.claude.registry.commandSurfaces.some((surface) => surface.id === 'mcp-details' && surface.command.join(' ') === 'mcp get'))
   assert.ok(runtimeInfo.claude.registry.commandSurfaces.some((surface) => surface.id === 'plugin-list' && surface.command.join(' ') === 'plugin list --json'))
   assert.ok(runtimeInfo.claude.registry.commandSurfaces.some((surface) => surface.id === 'ultrareview-json' && surface.quota === 'may-use-quota'))
+  assert.ok(runtimeInfo.claude.registry.probes.some((probe) => probe.id === 'auto-mode-defaults' && probe.quota === 'none'))
   assert.ok(runtimeInfo.codex.registry.features.some((feature) => feature.id === 'multi-agent'))
   assert.ok(runtimeInfo.copilot.registry.features.some((feature) => feature.id === 'subagents'))
   assert.ok(runtimeInfo.cursor.registry.features.some((feature) => feature.id === 'worktrees'))
@@ -148,6 +149,14 @@ test('runtime info exposes provider-specific capability registry and no-quota pr
   assert.ok(runtimeInfo.cursor.registry.gaps.some((gap) => gap.id === 'cursor-keychain-models' && gap.status === 'blocked'))
   assert.ok(runtimeInfo.codex.registry.slashCommands.some((command) => command.name === '/review' && command.runtime === 'headless'))
   assert.ok(runtimeInfo.cursor.registry.slashCommands.some((command) => command.name === '/plan' && command.prompt))
+})
+
+test('provider auth diagnostics recognize API credential failures from no-quota probes', () => {
+  assert.equal(
+    providerAuthFailureMessage('Failed to authenticate. API Error: 401 {"type":"error","error":{"type":"authentication_error","message":"Invalid authentication credentials"}}'),
+    'Failed to authenticate. API Error: 401 {"type":"error","error":{"type":"authentication_error","message":"Invalid authentication credentials"}}'
+  )
+  assert.equal(providerAuthFailureMessage('2.1.51 (Claude Code)'), null)
 })
 
 test('provider CLI spec covers every configured provider with evidence levels', () => {
@@ -1145,6 +1154,29 @@ test('permission request details classify command file network and MCP approvals
   assert.equal(mcp.kind, 'mcp')
   assert.equal(mcp.title, 'MCP Approval')
   assert.equal(mcp.fields.some((field) => field.label === 'Server' && field.value === 'linear'), true)
+
+  const profile = permissionRequestDetail({
+    tool_name: 'permissions',
+    tool_use_id: 'tool-profile',
+    tool_input: {
+      cwd: '/tmp/project',
+      reason: 'Need temporary network and write access.',
+      permissions: {
+        fileSystem: {
+          entries: [{
+            access: 'write',
+            path: { type: 'path', path: '/tmp/project/generated' }
+          }]
+        },
+        network: { enabled: true }
+      }
+    }
+  })
+  assert.equal(profile.kind, 'profile')
+  assert.equal(profile.title, 'Permission Profile')
+  assert.equal(profile.fields.find((field) => field.label === 'Filesystem')?.value, 'write /tmp/project/generated')
+  assert.equal(profile.fields.find((field) => field.label === 'Network')?.value, 'enabled')
+  assert.equal(profile.fields.find((field) => field.label === 'Working dir')?.value, '/tmp/project')
 })
 
 test('permission request details stay stable across provider fixtures', () => {
@@ -1180,8 +1212,91 @@ test('codex app-server protocol messages normalize approval and question semanti
   assert.equal(permission.denials[0]?.tool_input.cwd, '/private/tmp/orchestrator-codex-p8')
   assert.equal(questions[0]?.content, 'Pick a deployment target')
   assert.equal(questions[0]?.questions?.[0]?.options?.[1]?.label, 'production')
+  assert.equal(questions[0]?.questions?.[0]?.isOther, false)
+  assert.equal(questions[0]?.questions?.[0]?.isSecret, false)
   assert.equal(questions[1]?.content, 'Confirm the deploy window')
   assert.equal(questions[1]?.questions?.[0]?.header, 'deploy')
+})
+
+test('codex app-server user input preserves other and secret metadata', () => {
+  const provider = PROVIDERS.codex
+  const events = provider.parseOutputLine(JSON.stringify({
+    jsonrpc: '2.0',
+    id: 'question-secret',
+    method: 'item/tool/requestUserInput',
+    params: {
+      threadId: 'codex-app-thread-123',
+      turnId: 'turn-1',
+      itemId: 'question-secret',
+      questions: [{
+        id: 'deploy-token',
+        header: 'Secret',
+        question: 'Provide deploy token',
+        isOther: true,
+        isSecret: true
+      }]
+    }
+  }))
+  const question = firstEvent(events, 'user_input.requested').questions?.[0]
+
+  assert.equal(question?.id, 'deploy-token')
+  assert.equal(question?.isOther, true)
+  assert.equal(question?.isSecret, true)
+})
+
+test('codex app-server protocol messages normalize file and permission profile approvals', () => {
+  const provider = PROVIDERS.codex
+  const events = [
+    ...provider.parseOutputLine(JSON.stringify({
+      jsonrpc: '2.0',
+      id: 'file-approval-1',
+      method: 'item/fileChange/requestApproval',
+      params: {
+        threadId: 'codex-app-thread-file-profile',
+        turnId: 'turn-1',
+        itemId: 'item-file-1',
+        reason: 'Need write access for generated files.',
+        grantRoot: '/private/tmp/orchestrator-codex-generated'
+      }
+    })),
+    ...provider.parseOutputLine(JSON.stringify({
+      jsonrpc: '2.0',
+      id: 'profile-approval-1',
+      method: 'item/permissions/requestApproval',
+      params: {
+        threadId: 'codex-app-thread-file-profile',
+        turnId: 'turn-1',
+        itemId: 'item-profile-1',
+        cwd: '/private/tmp/orchestrator-codex-generated',
+        reason: 'Need temporary network access.',
+        permissions: {
+          fileSystem: {
+            entries: [{
+              access: 'write',
+              path: { type: 'path', path: '/private/tmp/orchestrator-codex-generated' }
+            }]
+          },
+          network: { enabled: true }
+        }
+      }
+    }))
+  ]
+
+  const approvals = events.filter((event): event is Extract<RunEvent, { type: 'permission.requested' }> => event.type === 'permission.requested')
+  assert.equal(approvals.length, 2)
+
+  const file = permissionRequestDetail(approvals[0]!.denials[0]!)
+  assert.equal(file.kind, 'file')
+  assert.equal(file.title, 'File Approval')
+  assert.equal(file.fields.find((field) => field.label === 'Root')?.value, '/private/tmp/orchestrator-codex-generated')
+  assert.equal(file.fields.find((field) => field.label === 'Reason')?.value, 'Need write access for generated files.')
+
+  const profile = permissionRequestDetail(approvals[1]!.denials[0]!)
+  assert.equal(profile.kind, 'profile')
+  assert.equal(profile.title, 'Permission Profile')
+  assert.equal(profile.fields.find((field) => field.label === 'Filesystem')?.value, 'write /private/tmp/orchestrator-codex-generated')
+  assert.equal(profile.fields.find((field) => field.label === 'Network')?.value, 'enabled')
+  assert.equal(profile.fields.find((field) => field.label === 'Working dir')?.value, '/private/tmp/orchestrator-codex-generated')
 })
 
 test('codex app-server protocol messages normalize plan, goal, and subagent semantics', () => {
@@ -1286,7 +1401,7 @@ test('codex app-server protocol messages normalize lifecycle, review, diff, and 
     { jsonrpc: '2.0', method: 'item/started', params: { item: { type: 'webSearch', id: 'web-1', query: 'codex app server', action: null } } },
     { jsonrpc: '2.0', method: 'item/completed', params: { item: { type: 'webSearch', id: 'web-1', query: 'codex app server', action: { type: 'search' } } } },
     { jsonrpc: '2.0', method: 'item/completed', params: { item: { type: 'imageGeneration', id: 'img-1', status: 'completed', revisedPrompt: 'a diagram', result: 'ok', savedPath: '/tmp/image.png' } } },
-    { jsonrpc: '2.0', method: 'item/completed', params: { item: { type: 'enteredReviewMode', id: 'review-mode-1', review: 'Review current diff' } } },
+    { jsonrpc: '2.0', method: 'item/completed', params: { threadId: 'codex-thread-rich', item: { type: 'enteredReviewMode', id: 'review-mode-1', review: 'Review current diff' } } },
     { jsonrpc: '2.0', method: 'item/completed', params: { item: { type: 'contextCompaction', id: 'compact-1' } } },
     { jsonrpc: '2.0', method: 'command/exec/outputDelta', params: { callId: 'cmd-1', delta: 'stdout chunk' } },
     { jsonrpc: '2.0', method: 'item/reasoning/summaryTextDelta', params: { itemId: 'reasoning-1', delta: 'thinking summary' } },
@@ -1298,16 +1413,21 @@ test('codex app-server protocol messages normalize lifecycle, review, diff, and 
   const messages = eventsToMessages(events)
 
   const diffUpdated = firstEvent(events, 'diff.updated')
+  const reviewMode = firstEvent(events, 'review.mode.changed')
   assert.equal(diffUpdated.providerSessionId, 'codex-thread-rich')
   assert.equal(diffUpdated.providerTurnId, 'turn-1')
   assert.equal(diffUpdated.checkpointId, undefined)
   assert.equal(diffUpdated.checkpointUndoSupported, false)
+  assert.equal(reviewMode.active, true)
+  assert.equal(reviewMode.sessionId, 'codex-thread-rich')
+  assert.equal(reviewMode.review, 'Review current diff')
   assert.ok(events.some((event) => event.type === 'tool.started' && event.toolName === 'web_search'))
   assert.ok(events.some((event) => event.type === 'tool.completed' && event.toolUseId === 'img-1'))
   assert.ok(events.some((event) => event.type === 'assistant.text.delta' && event.content === 'stdout chunk'))
   assert.ok(events.some((event) => event.type === 'assistant.text.delta' && event.content === 'thinking summary'))
   assert.ok(messages.some((message) => 'content' in message && message.content.includes('Diff updated')))
   assert.ok(messages.some((message) => 'content' in message && message.content.includes('Auto-review completed')))
+  assert.ok(messages.some((message) => 'content' in message && message.content.includes('Review mode: active')))
   assert.ok(messages.some((message) => 'content' in message && message.content.includes('watch out')))
   assert.ok(messages.some((message) => 'content' in message && message.content.includes('Thread closed')))
 })

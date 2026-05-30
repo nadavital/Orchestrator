@@ -1,12 +1,14 @@
-import { memo, useState, useRef, useEffect } from 'react'
-import type { Attachment, PermissionExecutionContract, ProviderAgentDef, ProviderPermissionMode, ProviderPermissionRuntimeContext, ProviderRuntimeInfo, ProviderSlashCommand, ResolvedExecutionPolicy, Session } from '../../types'
+import { memo, useCallback, useState, useRef, useEffect } from 'react'
+import type { Ref } from 'react'
+import type { Attachment, PermissionExecutionContract, ProviderAgentDef, ProviderModelDef, ProviderPermissionMode, ProviderPermissionRuntimeContext, ProviderRuntimeInfo, ProviderSlashCommand, ResolvedExecutionPolicy, Session } from '../../types'
 import type { SlashPaletteCommand } from '../../types'
 import { PROVIDER_DEFS, canStopSession, expandSlashCommandPrompt, getAdvancedPermissionModes, getComposerSendState, getDangerPermissionModes, getDefaultPermissionMode, getPrimaryPermissionModes, getVisibleModels, parseClaudeAgentsOutput } from '../../types'
-import { defaultUI, useSessionStore } from '../../store/sessions'
+import { defaultUI, sideChatContextSnapshot, useSessionStore } from '../../store/sessions'
 import SlashCommandPalette, { getSlashQuery } from './SlashCommandPalette'
 import ProviderIcon from '../shared/ProviderIcon'
 import Icon from '../shared/Icon'
 import { AttachmentPill, DismissablePopoverSurface, Tooltip } from '../shared/designSystem'
+import { useShallow } from 'zustand/react/shallow'
 
 interface Props {
   session: Session
@@ -21,12 +23,48 @@ interface PendingAttachment {
   error?: string
 }
 
+const cancelledComposerAttachmentSaves = new Set<string>()
+type ComposerEnterBehavior = 'send' | 'newline'
+type ComposerDraftSource = {
+  kind: 'message-edit-draft'
+  messageId: string
+  attachmentCount: number
+  previousDraft: {
+    text: string
+    attachments: Attachment[]
+    attachmentCount: number
+  } | null
+} | null
+
+function shouldNavigatePromptHistory(textarea: HTMLTextAreaElement, direction: 'previous' | 'next'): boolean {
+  if (textarea.selectionStart !== textarea.selectionEnd) return false
+  const cursor = textarea.selectionStart
+  if (!textarea.value.includes('\n')) return true
+  return direction === 'previous'
+    ? cursor === 0
+    : cursor === textarea.value.length
+}
+
+function normalizeComposerEnterBehavior(value: unknown): ComposerEnterBehavior {
+  return value === 'newline' ? 'newline' : 'send'
+}
+
 function InputBar({ session, isNew }: Props): JSX.Element {
   const providerAvailability = useSessionStore((state) => state.providerAvailability)
   const providerModels = useSessionStore((state) => state.providerModels)
+  const queuedFollowUpSummary = useSessionStore(useShallow((state) => {
+    const current = state.sessions.find((candidate) => candidate.id === session.id)
+    const queuedMessages = (current?.messages ?? []).filter((message) =>
+      message.type === 'text' && message.role === 'user' && message.queueState
+    )
+    const queued = queuedMessages.filter((message) => message.queueState === 'queued').length
+    const steering = queuedMessages.filter((message) => message.queueState === 'steer_next').length
+    return { queued, steering }
+  }))
   const currentUi = useSessionStore((state) => state.uiState[session.id] ?? defaultUI)
   const setComposerDraft = useSessionStore((state) => state.setComposerDraft)
   const setComposerAttachments = useSessionStore((state) => state.setComposerAttachments)
+  const addComposerPromptHistory = useSessionStore((state) => state.addComposerPromptHistory)
   const setShowDiff = useSessionStore((state) => state.setShowDiff)
   const setShowEvents = useSessionStore((state) => state.setShowEvents)
   const setShowPlan = useSessionStore((state) => state.setShowPlan)
@@ -39,6 +77,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   const updateSideChatMessage = useSessionStore((state) => state.updateSideChatMessage)
   const [text, setText] = useState(() => currentUi.composerDraft ?? '')
   const attachments = currentUi.composerAttachments ?? []
+  const composerPromptHistory = currentUi.composerPromptHistory ?? []
   const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([])
   const [useWorktree, setUseWorktree] = useState(false)
   const [isGitRepo, setIsGitRepo] = useState(false)
@@ -47,16 +86,30 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   const [showPermMenu, setShowPermMenu] = useState(false)
   const [showAdvancedPerms, setShowAdvancedPerms] = useState(false)
   const [slashIndex, setSlashIndex] = useState(0)
+  const [dismissedSlashQuery, setDismissedSlashQuery] = useState<string | null>(null)
   const [runtimeInfo, setRuntimeInfo] = useState<Record<string, ProviderRuntimeInfo>>({})
   const [permissionContext, setPermissionContext] = useState<ProviderPermissionRuntimeContext | null>(null)
+  const [permissionContextLoading, setPermissionContextLoading] = useState(false)
+  const [permissionContextRefreshStatus, setPermissionContextRefreshStatus] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
   const [extensionCommands, setExtensionCommands] = useState<ProviderSlashCommand[]>([])
   const [claudeAgents, setClaudeAgents] = useState<ProviderAgentDef[]>([])
   const [claudeAgentsStatus, setClaudeAgentsStatus] = useState<'idle' | 'loading' | 'loaded' | 'error'>('idle')
   const [isSavingPastedFiles, setIsSavingPastedFiles] = useState(false)
   const [dragActive, setDragActive] = useState(false)
+  const [attachmentStatus, setAttachmentStatus] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
+  const [runActionStatus, setRunActionStatus] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
+  const [permissionRulesStatus, setPermissionRulesStatus] = useState<string | null>(null)
+  const [historyCursor, setHistoryCursor] = useState<number | null>(null)
+  const [composerEnterBehavior, setComposerEnterBehavior] = useState<ComposerEnterBehavior>('send')
+  const [draftSource, setDraftSource] = useState<ComposerDraftSource>(null)
+  const [draftSourceActionStatus, setDraftSourceActionStatus] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const agentButtonRef = useRef<HTMLButtonElement>(null)
+  const permissionButtonRef = useRef<HTMLButtonElement>(null)
   const cancelledPendingAttachments = useRef<Set<string>>(new Set())
   const activeAttachmentSaves = useRef<Set<string>>(new Set())
+  const pendingSettingsUpdateRef = useRef<Promise<void>>(Promise.resolve())
+  const draftBeforeHistoryRef = useRef('')
 
   useEffect(() => {
     const globals = window as typeof window & { __orchestratorInputBarCommitCount?: number }
@@ -86,18 +139,67 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   }, [session.workDir])
 
   useEffect(() => {
+    let alive = true
+    window.api.settings.get()
+      .then((settings) => {
+        if (alive) setComposerEnterBehavior(normalizeComposerEnterBehavior(settings.composerEnterBehavior))
+      })
+      .catch(() => {
+        if (alive) setComposerEnterBehavior('send')
+      })
+    const onSettingsUpdated = (event: Event): void => {
+      const detail = (event as CustomEvent<{ composerEnterBehavior?: unknown }>).detail
+      if ('composerEnterBehavior' in (detail ?? {})) {
+        setComposerEnterBehavior(normalizeComposerEnterBehavior(detail?.composerEnterBehavior))
+      }
+    }
+    window.addEventListener('orchestrator:settings-updated', onSettingsUpdated)
+    return () => {
+      alive = false
+      window.removeEventListener('orchestrator:settings-updated', onSettingsUpdated)
+    }
+  }, [])
+
+  useEffect(() => {
     window.api.providers.getRuntimeInfo().then(setRuntimeInfo)
   }, [])
+
+  const loadPermissionContext = useCallback(async (options: { announce?: boolean; clearFirst?: boolean } = {}): Promise<void> => {
+    const announce = options.announce === true
+    if (options.clearFirst) setPermissionContext(null)
+    setPermissionContextLoading(true)
+    if (announce) setPermissionContextRefreshStatus({ text: 'Refreshing permission config', tone: 'info' })
+    try {
+      const context = await window.api.providers.getPermissionContext(session.provider ?? 'claude', session.workDir)
+      setPermissionContext(context)
+      if (announce) {
+        setPermissionContextRefreshStatus({
+          text: context.status === 'ok' ? 'Permission config refreshed' : 'Permission config fallback refreshed',
+          tone: 'info'
+        })
+      }
+    } catch (error) {
+      setPermissionContext(null)
+      if (announce) setPermissionContextRefreshStatus({ text: `Permission config refresh failed: ${errorText(error)}`, tone: 'danger' })
+    } finally {
+      setPermissionContextLoading(false)
+    }
+  }, [session.provider, session.workDir])
 
   useEffect(() => {
     let alive = true
     setPermissionContext(null)
+    setPermissionContextRefreshStatus(null)
+    setPermissionContextLoading(true)
     window.api.providers.getPermissionContext(session.provider ?? 'claude', session.workDir)
       .then((context) => {
         if (alive) setPermissionContext(context)
       })
       .catch(() => {
         if (alive) setPermissionContext(null)
+      })
+      .finally(() => {
+        if (alive) setPermissionContextLoading(false)
       })
     return () => { alive = false }
   }, [session.provider, session.workDir])
@@ -137,7 +239,16 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     setPendingAttachments([])
     setIsSavingPastedFiles(false)
     setDragActive(false)
+    setAttachmentStatus(null)
+    setRunActionStatus(null)
+    setPermissionRulesStatus(null)
+    setDraftSource(null)
+    setDraftSourceActionStatus(null)
+    setHistoryCursor(null)
+    draftBeforeHistoryRef.current = ''
+    pendingSettingsUpdateRef.current = Promise.resolve()
     setSlashIndex(0)
+    setDismissedSlashQuery(null)
     window.setTimeout(() => {
       if (textareaRef.current) resizeTextarea(textareaRef.current)
     }, 0)
@@ -160,6 +271,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
           size: detail.size
         }
       ]))
+      setAttachmentStatus({ text: `Attached ${name}`, tone: 'info' })
       textareaRef.current?.focus()
     }
     window.addEventListener('orchestrator:add-composer-attachment', onAddComposerAttachment)
@@ -172,6 +284,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
 
   const provider = PROVIDER_DEFS[session.provider ?? 'claude'] ?? PROVIDER_DEFS.claude
   const model = session.model || provider.models[0]?.id || ''
+  const visibleModelChoices = getVisibleModelsWithCurrent(provider, providerModels, model)
   const effort = session.effort ?? provider.effortLevels[0]?.id ?? ''
   const contextDefaultPermissionMode = permissionContext?.providerId === provider.id ? permissionContext.defaultPolicy : undefined
   const defaultPermissionMode = contextDefaultPermissionMode ?? getDefaultPermissionMode(provider)
@@ -193,10 +306,37 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   const selectedAgentName = provider.id === 'claude' ? session.agentName ?? null : null
   const selectedPermissionMode = provider.permissionModes.find((p) => p.id === permissionMode)
   const permLabel = selectedPermissionMode?.label ?? 'Mode'
+  const permissionSourceLabel = permissionContext ? permissionSourceBadgeLabel(permissionContext) : null
+  const contextDisabledPermissionReason = permissionContext?.status === 'ok'
+    ? permissionContext.disabledPolicies?.[permissionMode]
+    : undefined
+  const permissionUnavailableReason = (modeId: string): string | undefined => {
+    const policy = providerRuntime?.policies[modeId]
+    if (policy?.support === 'unsupported') return policy.description || 'Unsupported by this runtime'
+    if (permissionContext?.status === 'ok') return permissionContext.disabledPolicies?.[modeId]
+    return undefined
+  }
+  const permissionTriggerLabel = [
+    `Permission mode: ${permLabel}`,
+    permissionSourceLabel ? `${permissionSourceLabel} permission config` : null,
+    resolvedPermission?.support === 'unsupported' ? 'unsupported by this runtime' : null,
+    contextDisabledPermissionReason ? `disabled by live config: ${contextDisabledPermissionReason}` : null
+  ].filter(Boolean).join('. ')
+  const permissionTriggerTitle = [
+    permissionTriggerLabel,
+    permissionContext?.summary
+  ].filter(Boolean).join('. ')
   const primaryPermissionModes = filterPermissionModes(getPrimaryPermissionModes(provider), permissionContext, permissionMode)
   const advancedPermissionModes = filterPermissionModes(getAdvancedPermissionModes(provider), permissionContext, permissionMode)
   const dangerPermissionModes = filterPermissionModes(getDangerPermissionModes(provider), permissionContext, permissionMode)
-  const canUsePermission = resolvedPermission?.support !== 'unsupported'
+  const canUsePermission = resolvedPermission?.support !== 'unsupported' && !contextDisabledPermissionReason
+  const queuedFollowUpCount = queuedFollowUpSummary.queued
+  const steeringFollowUpCount = queuedFollowUpSummary.steering
+  const queuedFollowUpTotal = queuedFollowUpCount + steeringFollowUpCount
+  const queuedFollowUpLabel = [
+    queuedFollowUpCount > 0 ? `${queuedFollowUpCount} queued` : null,
+    steeringFollowUpCount > 0 ? `${steeringFollowUpCount} steering` : null
+  ].filter(Boolean).join(' · ')
 
   // Cursor per-model effort/thinking/fast config
   const cursorCfg = provider.id === 'cursor'
@@ -224,7 +364,23 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     availableTools?: string[]
     additionalDirs?: string[]
   }): void => {
-    window.api.sessions.updateSettings(session.id, patch)
+    const pendingUpdate = pendingSettingsUpdateRef.current
+      .catch(() => undefined)
+      .then(() => window.api.sessions.updateSettings(session.id, patch))
+    pendingSettingsUpdateRef.current = pendingUpdate
+    void pendingUpdate.catch((error) => {
+      setRunActionStatus({ text: `Settings update failed: ${errorText(error)}`, tone: 'danger' })
+    })
+  }
+
+  const flushPendingSettingsBeforeSend = async (): Promise<boolean> => {
+    try {
+      await pendingSettingsUpdateRef.current
+      return true
+    } catch (error) {
+      setRunActionStatus({ text: `Settings update failed: ${errorText(error)}`, tone: 'danger' })
+      return false
+    }
   }
 
   const switchProvider = (providerId: string): void => {
@@ -252,25 +408,98 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     })
   }
 
+  const selectModel = (modelId: string): void => {
+    if (provider.id === 'cursor' && provider.models.some((candidate) => candidate.id === modelId)) {
+      switchCursorModel(modelId)
+      return
+    }
+    update({ model: modelId })
+  }
+
+  const selectPermissionMode = (modeId: string): void => {
+    update({ permissionMode: modeId })
+    setPermissionRulesStatus(null)
+    setShowPermMenu(false)
+  }
+
+  const openPermissionMenuAndFocus = (): void => {
+    setShowPermMenu(true)
+    if (permissionButtonRef.current) queueFocusComposerDropdownButton(permissionButtonRef.current, 'first')
+  }
+
+  const updatePermissionRules = (
+    label: string,
+    patch: {
+      allowedTools?: string[]
+      disallowedTools?: string[]
+      availableTools?: string[]
+      additionalDirs?: string[]
+    }
+  ): void => {
+    update(patch)
+    setPermissionRulesStatus(`${label} saved`)
+  }
+
   const sendState = getComposerSendState({
     text,
     status: session.status,
     canUsePermission
   })
-  const canSend = sendState.canSend && !isSavingPastedFiles
   const canStop = canStopSession(session.status)
+  const hasDraftText = text.trim().length > 0
+  const sideChatWithAttachments = /^\/btw(?:\s|$)/.test(text.trim()) && attachments.length > 0
+  const canSend = sendState.canSend && !isSavingPastedFiles && !sideChatWithAttachments
+  const composerSendNotice = hasDraftText && !canUsePermission
+    ? {
+        state: 'unsupported-permission' as const,
+        tone: 'danger' as const,
+        title: 'Permission mode unavailable',
+        detail: contextDisabledPermissionReason ?? resolvedPermission?.description ?? 'Choose a supported permission mode before sending.'
+      }
+    : hasDraftText && sideChatWithAttachments
+      ? {
+          state: 'side-chat-attachments' as const,
+          tone: 'danger' as const,
+          title: 'Side chat cannot include attachments',
+          detail: 'Remove attachments or send this request in the main thread.'
+        }
+    : hasDraftText && isSavingPastedFiles
+      ? {
+          state: 'saving-attachments' as const,
+          tone: 'neutral' as const,
+          title: 'Saving attachments',
+          detail: 'The message will be ready after attached files finish saving.'
+        }
+      : sendState.willQueue
+        ? {
+            state: 'will-queue' as const,
+            tone: 'accent' as const,
+            title: 'Will queue after current run',
+            detail: composerEnterBehavior === 'newline'
+              ? 'Press Command-Enter or Control-Enter to send this as a queued follow-up.'
+              : 'Press Enter to send this as a queued follow-up.'
+          }
+        : null
 
   const send = async (): Promise<void> => {
     if (!canSend) return
     const rawPrompt = text.trim()
+    setRunActionStatus(null)
+    if (!(await flushPendingSettingsBeforeSend())) return
     const sideQuestion = rawPrompt.match(/^\/btw(?:\s+([\s\S]+))?$/)
     if (sideQuestion) {
       const question = (sideQuestion[1] ?? '').trim()
       setComposerText('')
       setComposerAttachments(session.id, [])
+      setDraftSource(null)
       if (textareaRef.current) textareaRef.current.style.height = 'auto'
       const sideChatId = crypto.randomUUID()
-      openSideChat(session.id, sideChatId, question ? sideChatTitle(question) : 'Side chat')
+      openSideChat(
+        session.id,
+        sideChatId,
+        question ? sideChatTitle(question) : 'Side chat',
+        sideChatContextSnapshot(session, 'composer-btw', question)
+      )
       if (!question) return
       const userMessageId = crypto.randomUUID()
       const answerMessageId = crypto.randomUUID()
@@ -302,13 +531,51 @@ function InputBar({ session, isNew }: Props): JSX.Element {
       return
     }
     const prompt = expandedCommandPrompt(rawPrompt) ?? rawPrompt
+    const draftBeforeSend = text
+    const attachmentsBeforeSend = [...attachments]
+    const draftSourceBeforeSend = draftSource
+    const restoreDraftAfterFailedSend = (): void => {
+      setComposerText(draftBeforeSend)
+      setComposerAttachments(session.id, attachmentsBeforeSend)
+      setDraftSource(draftSourceBeforeSend)
+      window.setTimeout(() => {
+        if (textareaRef.current) {
+          resizeTextarea(textareaRef.current)
+          moveTextareaCursorToEnd(textareaRef.current)
+        }
+      }, 0)
+    }
     setComposerText('')
     setComposerAttachments(session.id, [])
+    setDraftSource(null)
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
-    await window.api.sessions.sendMessage(session.id, prompt, isNew ? useWorktree : undefined, attachments)
+    try {
+      const started = await window.api.sessions.sendMessage(session.id, prompt, isNew ? useWorktree : undefined, attachments)
+      if (!started) {
+        restoreDraftAfterFailedSend()
+        setRunActionStatus({ text: 'Run failed to start', tone: 'danger' })
+      } else {
+        addComposerPromptHistory(session.id, rawPrompt)
+      }
+    } catch (error) {
+      restoreDraftAfterFailedSend()
+      setRunActionStatus({ text: `Send failed: ${errorText(error)}`, tone: 'danger' })
+    }
+  }
+
+  const stopCurrentRun = async (): Promise<void> => {
+    setRunActionStatus({ text: 'Stop requested', tone: 'info' })
+    try {
+      await window.api.sessions.stop(session.id)
+      setRunActionStatus({ text: 'Run stopped', tone: 'info' })
+    } catch (error) {
+      setRunActionStatus({ text: `Stop failed: ${errorText(error)}`, tone: 'danger' })
+    }
   }
 
   const attachFiles = async (): Promise<void> => {
+    const targetSessionId = session.id
+    const targetSessionIsActive = (): boolean => useSessionStore.getState().activeSessionId === targetSessionId
     const files = await window.api.dialog.openFiles()
     if (!files?.length) return
     const next = files.map((file): Attachment => ({
@@ -318,13 +585,17 @@ function InputBar({ session, isNew }: Props): JSX.Element {
       name: file.name,
       size: file.size
     }))
-    setComposerAttachments(session.id, (current) => dedupeAttachments([...current, ...next]))
-    textareaRef.current?.focus()
+    setComposerAttachments(targetSessionId, (current) => dedupeAttachments([...current, ...next]))
+    if (targetSessionIsActive()) {
+      setAttachmentStatus({ text: `Attached ${next.length} ${next.length === 1 ? 'file' : 'files'}`, tone: 'info' })
+      textareaRef.current?.focus()
+    }
   }
 
   const attachPastedFiles = async (files: File[]): Promise<void> => {
     if (files.length === 0) return
     const targetSessionId = session.id
+    const targetSessionIsActive = (): boolean => useSessionStore.getState().activeSessionId === targetSessionId
     const pending = files.map((file): PendingAttachment => ({
       id: crypto.randomUUID(),
       name: file.name || 'Pasted file',
@@ -334,18 +605,23 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     for (const item of pending) activeAttachmentSaves.current.add(item.id)
     setPendingAttachments((current) => [...current, ...pending])
     setIsSavingPastedFiles(true)
+    setAttachmentStatus({ text: `Saving ${files.length} ${files.length === 1 ? 'attachment' : 'attachments'}`, tone: 'info' })
     try {
       const saved = await Promise.all(files.map(async (file, index): Promise<{ pendingId: string; attachment?: Attachment; error?: string }> => {
         const pendingId = pending[index].id
+        const pendingAttachmentIsActive = (): boolean =>
+          activeAttachmentSaves.current.has(pendingId) &&
+          !cancelledPendingAttachments.current.has(pendingId) &&
+          !cancelledComposerAttachmentSaves.has(pendingId)
         try {
           const bytes = await file.arrayBuffer()
-          if (cancelledPendingAttachments.current.has(pendingId)) return { pendingId }
+          if (!pendingAttachmentIsActive()) return { pendingId }
           const attachment = await window.api.attachments.savePastedFile({
             name: file.name || undefined,
             mimeType: file.type || undefined,
             bytes
           })
-          if (cancelledPendingAttachments.current.has(pendingId)) return { pendingId }
+          if (!pendingAttachmentIsActive()) return { pendingId }
           return {
             pendingId,
             attachment: {
@@ -368,39 +644,115 @@ function InputBar({ session, isNew }: Props): JSX.Element {
       const next = saved.flatMap((result) => result.attachment ? [result.attachment] : [])
       if (next.length > 0) {
         setComposerAttachments(targetSessionId, (current) => dedupeAttachments([...current, ...next]))
-        if (useSessionStore.getState().activeSessionId === targetSessionId) {
+        if (targetSessionIsActive()) {
+          setAttachmentStatus({ text: `Attached ${next.length} ${next.length === 1 ? 'file' : 'files'}`, tone: 'info' })
           textareaRef.current?.focus()
         }
       }
       const completedIds = new Set(saved.filter((result) => result.attachment || !result.error).map((result) => result.pendingId))
       const failed = new Map(saved.filter((result) => result.error).map((result) => [result.pendingId, result.error!]))
-      setPendingAttachments((current) => current
-        .map((item): PendingAttachment => failed.has(item.id) ? { ...item, status: 'error', error: failed.get(item.id) } : item)
-        .filter((item) => !completedIds.has(item.id))
-      )
+      if (targetSessionIsActive()) {
+        setPendingAttachments((current) => current
+          .map((item): PendingAttachment => failed.has(item.id) ? { ...item, status: 'error', error: failed.get(item.id) } : item)
+          .filter((item) => !completedIds.has(item.id))
+        )
+        if (failed.size > 0) {
+          setAttachmentStatus({ text: `${failed.size} ${failed.size === 1 ? 'attachment' : 'attachments'} failed`, tone: 'danger' })
+        }
+      }
     } finally {
       for (const item of pending) {
         cancelledPendingAttachments.current.delete(item.id)
+        cancelledComposerAttachmentSaves.delete(item.id)
         activeAttachmentSaves.current.delete(item.id)
       }
-      setIsSavingPastedFiles(activeAttachmentSaves.current.size > 0)
+      if (targetSessionIsActive()) setIsSavingPastedFiles(activeAttachmentSaves.current.size > 0)
     }
   }
 
   const cancelPendingAttachment = (id: string): void => {
     cancelledPendingAttachments.current.add(id)
+    cancelledComposerAttachmentSaves.add(id)
     activeAttachmentSaves.current.delete(id)
     setIsSavingPastedFiles(activeAttachmentSaves.current.size > 0)
     setPendingAttachments((current) => current.filter((item) => item.id !== id))
+    setAttachmentStatus({ text: 'Attachment canceled', tone: 'info' })
+  }
+
+  const removeAttachment = (attachment: Attachment): void => {
+    const label = attachment.kind === 'local_file'
+      ? attachment.name
+      : attachment.name ?? attachment.relativePath
+    setComposerAttachments(session.id, (current) => current.filter((item) => item.id !== attachment.id))
+    setAttachmentStatus({ text: `Removed ${label}`, tone: 'info' })
+  }
+
+  const clearAttachments = (statusText = 'Removed all attachments'): void => {
+    setComposerAttachments(session.id, [])
+    setAttachmentStatus({ text: statusText, tone: 'info' })
+    textareaRef.current?.focus()
   }
 
   const slashQuery = getSlashQuery(text)
-  const showSlash = slashQuery !== null
+  const showSlash = slashQuery !== null && slashQuery !== dismissedSlashQuery
+
+  const applyPromptHistoryText = (nextText: string, nextCursor: number | null): void => {
+    setComposerText(nextText)
+    setHistoryCursor(nextCursor)
+    setSlashIndex(0)
+    setDismissedSlashQuery(null)
+    window.setTimeout(() => {
+      if (!textareaRef.current) return
+      resizeTextarea(textareaRef.current)
+      moveTextareaCursorToEnd(textareaRef.current)
+    }, 0)
+  }
+
+  const navigatePromptHistory = (direction: 'previous' | 'next'): boolean => {
+    if (composerPromptHistory.length === 0) return false
+    if (direction === 'previous') {
+      const nextCursor = historyCursor === null
+        ? composerPromptHistory.length - 1
+        : Math.max(0, historyCursor - 1)
+      if (historyCursor === null) draftBeforeHistoryRef.current = text
+      applyPromptHistoryText(composerPromptHistory[nextCursor] ?? '', nextCursor)
+      return true
+    }
+    if (historyCursor === null) return false
+    if (historyCursor >= composerPromptHistory.length - 1) {
+      applyPromptHistoryText(draftBeforeHistoryRef.current, null)
+      draftBeforeHistoryRef.current = ''
+      return true
+    }
+    const nextCursor = historyCursor + 1
+    applyPromptHistoryText(composerPromptHistory[nextCursor] ?? '', nextCursor)
+    return true
+  }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>): void => {
     if (showSlash && (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Tab')) return
     if (showSlash && e.key === 'Enter') return
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (
+      (e.key === 'ArrowUp' || e.key === 'ArrowDown') &&
+      !e.altKey &&
+      !e.ctrlKey &&
+      !e.metaKey &&
+      !e.shiftKey &&
+      shouldNavigatePromptHistory(e.currentTarget, e.key === 'ArrowUp' ? 'previous' : 'next') &&
+      navigatePromptHistory(e.key === 'ArrowUp' ? 'previous' : 'next')
+    ) {
+      e.preventDefault()
+      return
+    }
+    if (
+      e.key === 'Enter' &&
+      !e.shiftKey &&
+      (
+        composerEnterBehavior === 'send' ||
+        e.metaKey ||
+        e.ctrlKey
+      )
+    ) {
       e.preventDefault()
       send()
     }
@@ -408,7 +760,11 @@ function InputBar({ session, isNew }: Props): JSX.Element {
 
   const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>): void => {
     setComposerText(e.target.value)
+    if (!e.target.value.trim() && attachments.length === 0) setDraftSource(null)
+    setHistoryCursor(null)
+    draftBeforeHistoryRef.current = ''
     setSlashIndex(0)
+    setDismissedSlashQuery(null)
     resizeTextarea(e.target)
   }
 
@@ -451,6 +807,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     const next = `${textarea.value.slice(0, start)}${value}${textarea.value.slice(end)}`
     setComposerText(next)
     setSlashIndex(0)
+    setDismissedSlashQuery(null)
     window.setTimeout(() => {
       if (!textareaRef.current) return
       const cursor = start + value.length
@@ -461,7 +818,10 @@ function InputBar({ session, isNew }: Props): JSX.Element {
 
   const setTextareaText = (next: string): void => {
     setComposerText(next)
+    setHistoryCursor(null)
+    draftBeforeHistoryRef.current = ''
     setSlashIndex(0)
+    setDismissedSlashQuery(null)
     textareaRef.current?.focus()
     window.setTimeout(() => {
       if (textareaRef.current) {
@@ -476,8 +836,10 @@ function InputBar({ session, isNew }: Props): JSX.Element {
       const detail = (event as CustomEvent<{ text?: string }>).detail
       const nextText = detail?.text?.trim()
       if (!nextText) return
-      setComposerText(text ? `${text.trimEnd()}\n\n${nextText}` : nextText)
+      const currentDraft = currentComposerDraft(session.id, text)
+      setComposerText(currentDraft.trim() ? `${currentDraft.trimEnd()}\n\n${nextText}` : nextText)
       setSlashIndex(0)
+      setDismissedSlashQuery(null)
       textareaRef.current?.focus()
       window.setTimeout(() => {
         if (!textareaRef.current) return
@@ -489,6 +851,60 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     return () => window.removeEventListener('orchestrator:add-composer-text', onAddComposerText)
   }, [session.id, text])
 
+  useEffect(() => {
+    const onSetComposerText = (event: Event): void => {
+      const detail = (event as CustomEvent<{
+        sessionId?: string
+        text?: string
+        attachments?: Attachment[]
+        source?: {
+          kind?: string
+          messageId?: string
+          attachmentCount?: number
+        }
+      }>).detail
+      if (detail?.sessionId && detail.sessionId !== session.id) return
+      const nextText = typeof detail?.text === 'string' ? detail.text : ''
+      const nextAttachments = Array.isArray(detail?.attachments)
+        ? dedupeAttachments(detail.attachments.map(cloneAttachmentForDraft))
+        : null
+      if (!nextText.trim() && (!nextAttachments || nextAttachments.length === 0)) return
+      const currentUi = useSessionStore.getState().uiState[session.id] ?? defaultUI
+      const previousText = currentUi.composerDraft ?? text
+      const previousAttachments = (currentUi.composerAttachments ?? attachments).map(cloneAttachmentForDraft)
+      setComposerText(nextText)
+      if (nextAttachments) setComposerAttachments(session.id, nextAttachments)
+      setDraftSource(detail?.source?.kind === 'message-edit-draft' && typeof detail.source.messageId === 'string'
+        ? (() => {
+            const hasPreviousDraft = previousText.trim().length > 0 || previousAttachments.length > 0
+            return {
+              kind: 'message-edit-draft',
+              messageId: detail.source.messageId,
+              attachmentCount: Number.isFinite(detail.source.attachmentCount) ? Math.max(0, Math.floor(detail.source.attachmentCount ?? 0)) : nextAttachments?.length ?? 0,
+              previousDraft: hasPreviousDraft
+                ? {
+                    text: previousText,
+                    attachments: previousAttachments,
+                    attachmentCount: previousAttachments.length
+                  }
+                : null
+            }
+          })()
+        : null)
+      setDraftSourceActionStatus(null)
+      setSlashIndex(0)
+      setDismissedSlashQuery(null)
+      textareaRef.current?.focus()
+      window.setTimeout(() => {
+        if (!textareaRef.current) return
+        resizeTextarea(textareaRef.current)
+        moveTextareaCursorToEnd(textareaRef.current)
+      }, 0)
+    }
+    window.addEventListener('orchestrator:set-composer-text', onSetComposerText)
+    return () => window.removeEventListener('orchestrator:set-composer-text', onSetComposerText)
+  }, [attachments, session.id, setComposerAttachments, text])
+
   const expandedCommandPrompt = (value: string): string | null => {
     const match = value.match(/^(\/\S+)(?:\s+([\s\S]*))?$/)
     if (!match) return null
@@ -499,9 +915,18 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   }
 
   const applySlashCommand = (command: SlashPaletteCommand): void => {
+    const openDropdownFromSlash = (
+      trigger: HTMLButtonElement | null,
+      openDropdown: () => void
+    ): void => {
+      openDropdown()
+      if (trigger) queueFocusComposerDropdownButton(trigger, 'first')
+    }
+
     if (command.handler === 'app-action') {
       setComposerText('')
       setSlashIndex(0)
+      setDismissedSlashQuery(null)
       if (command.id === 'settings') setShowSettings(true)
       if (command.id === 'diff') setShowDiff(session.id, !currentUi.showDiff)
       if (command.id === 'plan-sidebar') setShowPlan(session.id, !currentUi.showPlan)
@@ -511,7 +936,9 @@ function InputBar({ session, isNew }: Props): JSX.Element {
       }
       if (command.id === 'extensions') setShowExtensions(session.id, true)
       if (command.id === 'terminal') setShowTerminal(session.id, !currentUi.showTerminal)
-      if (command.id === 'btw') openSideChat(session.id, crypto.randomUUID(), 'Side chat')
+      if (command.id === 'btw') {
+        openSideChat(session.id, crypto.randomUUID(), 'Side chat', sideChatContextSnapshot(session, 'slash-command'))
+      }
       if (command.id === 'pet') {
         window.api.pet.getConfig()
           .then((config) => {
@@ -523,10 +950,11 @@ function InputBar({ session, isNew }: Props): JSX.Element {
           .catch(() => window.api.pet.setOpen(true))
       }
       if (command.id === 'model') {
-        if (isNew) setShowAgentMenu(true)
-        else setTextareaText('/model ')
+        openDropdownFromSlash(agentButtonRef.current, () => setShowAgentMenu(true))
       }
-      if (command.id === 'permissions') setShowPermMenu(true)
+      if (command.id === 'permissions') {
+        openDropdownFromSlash(permissionButtonRef.current, () => setShowPermMenu(true))
+      }
       return
     }
 
@@ -538,7 +966,23 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     setTextareaText(`${command.name} `)
   }
 
-  const sendTitle = isSavingPastedFiles ? 'Saving pasted files' : sendState.willQueue ? 'Queue message (↵)' : 'Send (↵)'
+  const dismissSlashPalette = (): void => {
+    if (slashQuery) setDismissedSlashQuery(slashQuery)
+    setSlashIndex(0)
+    textareaRef.current?.focus()
+  }
+
+  const sendShortcutTitle = composerEnterBehavior === 'newline' ? '⌘/Ctrl+↵' : '↵'
+  const sendTitle = isSavingPastedFiles
+    ? 'Saving pasted files'
+    : sendState.willQueue
+      ? `Queue message (${sendShortcutTitle})`
+      : `Send (${sendShortcutTitle})`
+  const additionalContextDirs = session.additionalDirs ?? []
+  const workspaceLabel = pathBaseName(session.workDir) || session.workDir
+  const additionalDirsLabel = additionalContextDirs.length === 1
+    ? pathBaseName(additionalContextDirs[0]) || additionalContextDirs[0]
+    : `${additionalContextDirs.length} dirs`
 
   // Compact agent pill label: "Provider · Model [· Effort]"
   const agentLabel = [
@@ -562,6 +1006,10 @@ function InputBar({ session, isNew }: Props): JSX.Element {
         className="composer-shell overflow-visible mx-auto"
         data-testid="composer-shell"
         data-drag-active={dragActive ? 'true' : 'false'}
+        data-composer-attachment-status={attachmentStatus?.text ?? ''}
+        data-composer-attachment-status-tone={attachmentStatus?.tone ?? ''}
+        data-composer-draft-source={draftSource?.kind ?? ''}
+        data-composer-draft-source-message-id={draftSource?.messageId ?? ''}
         onDragEnter={handleDragEvent}
         onDragOver={handleDragEvent}
         onDragLeave={handleDragEvent}
@@ -595,7 +1043,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
             providerRuntime={providerRuntime}
             discoveredCommands={extensionCommands}
             onSelect={applySlashCommand}
-            onDismiss={() => setComposerText('')}
+            onDismiss={dismissSlashPalette}
             selectedIndex={slashIndex}
             onSelectedIndexChange={setSlashIndex}
           />
@@ -604,17 +1052,54 @@ function InputBar({ session, isNew }: Props): JSX.Element {
         {/* Text input */}
         <div className="flex items-end px-4 pt-3 pb-1 gap-2">
           <textarea
+            id="orchestrator-chat-composer"
+            data-testid="composer-textarea"
             ref={textareaRef}
             value={text}
             onChange={handleInput}
             onPaste={handlePaste}
             onKeyDown={handleKeyDown}
+            aria-label="Message composer"
             placeholder={isNew ? 'What do you want to build?' : 'Message…'}
+            data-composer-prompt-history-count={composerPromptHistory.length}
+            data-composer-prompt-history-active={historyCursor !== null ? 'true' : 'false'}
+            data-composer-enter-behavior={composerEnterBehavior}
             rows={1}
             autoFocus={isNew}
             className="flex-1 resize-none bg-transparent outline-none"
             style={{ color: 'var(--text-primary)', lineHeight: 1.5, maxHeight: 180, userSelect: 'text', fontSize: 14 }}
           />
+        </div>
+        <div
+          className="flex flex-wrap gap-1.5 px-4 pb-2"
+          data-testid="composer-context-chips"
+          data-composer-context-workdir={session.workDir}
+          data-composer-context-workspace-label={workspaceLabel}
+          data-composer-context-additional-dir-count={additionalContextDirs.length}
+          data-composer-context-worktree={effectiveMode ? 'true' : 'false'}
+          role="list"
+          aria-label="Current composer context"
+        >
+          <ComposerContextChip
+            icon="folder"
+            label={workspaceLabel}
+            detail={`Workspace: ${session.workDir}`}
+            dataTestId="composer-context-workspace-chip"
+          />
+          <ComposerContextChip
+            icon={effectiveMode ? 'branch' : 'folder'}
+            label={effectiveMode ? 'Branch' : 'Local'}
+            detail={effectiveMode ? 'Runs in a new branch/worktree' : 'Runs in the current workspace'}
+            dataTestId="composer-context-worktree-chip"
+          />
+          {additionalContextDirs.length > 0 && (
+            <ComposerContextChip
+              icon="folder"
+              label={`+${additionalDirsLabel}`}
+              detail={`Additional directories: ${additionalContextDirs.join(', ')}`}
+              dataTestId="composer-context-additional-dirs-chip"
+            />
+          )}
         </div>
         {(attachments.length > 0 || pendingAttachments.length > 0) && (
           <div className="flex flex-wrap gap-1.5 px-4 pb-2" aria-label="Attachments">
@@ -622,7 +1107,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
               <AttachmentChip
                 key={attachment.id}
                 attachment={attachment}
-                onRemove={() => setComposerAttachments(session.id, (current) => current.filter((item) => item.id !== attachment.id))}
+                onRemove={() => removeAttachment(attachment)}
               />
             ))}
             {pendingAttachments.map((attachment) => (
@@ -632,6 +1117,179 @@ function InputBar({ session, isNew }: Props): JSX.Element {
                 onRemove={() => cancelPendingAttachment(attachment.id)}
               />
             ))}
+          </div>
+        )}
+        {draftSource && (
+          <div
+            className="mx-3 mb-2 flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs"
+            data-testid="composer-draft-source-status"
+            data-composer-draft-source={draftSource.kind}
+            data-composer-draft-source-message-id={draftSource.messageId}
+            data-composer-draft-source-attachment-count={draftSource.attachmentCount}
+            data-composer-draft-source-has-previous={draftSource.previousDraft ? 'true' : 'false'}
+            data-composer-draft-source-previous-attachment-count={draftSource.previousDraft?.attachmentCount ?? 0}
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+            style={{
+              borderColor: 'var(--border-subtle)',
+              background: 'var(--control-bg)',
+              color: 'var(--text-secondary)'
+            }}
+          >
+            <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>Editing a copy</span>
+            <span className="min-w-0 flex-1 truncate">
+              Original message stays in the transcript{draftSource.attachmentCount > 0 ? ` with ${draftSource.attachmentCount} ${draftSource.attachmentCount === 1 ? 'attachment' : 'attachments'}` : ''}{draftSource.previousDraft ? '; previous draft saved.' : '.'}
+            </span>
+            {draftSource.previousDraft && (
+              <button
+                type="button"
+                className="shrink-0 rounded-md px-1.5 py-0.5 font-semibold"
+                data-testid="composer-draft-source-restore"
+                aria-label="Restore previous draft"
+                onClick={() => {
+                  if (!draftSource.previousDraft) return
+                  setComposerText(draftSource.previousDraft.text)
+                  setComposerAttachments(session.id, draftSource.previousDraft.attachments.map(cloneAttachmentForDraft))
+                  setDraftSource(null)
+                  setDraftSourceActionStatus('Previous draft restored')
+                  textareaRef.current?.focus()
+                  window.setTimeout(() => {
+                    if (!textareaRef.current) return
+                    resizeTextarea(textareaRef.current)
+                    moveTextareaCursorToEnd(textareaRef.current)
+                  }, 0)
+                }}
+                style={{
+                  background: 'var(--surface-bg)',
+                  border: '1px solid var(--border-subtle)',
+                  color: 'var(--text-primary)'
+                }}
+              >
+                Restore
+              </button>
+            )}
+            <button
+              type="button"
+              className="shrink-0 rounded-md px-1.5 py-0.5 font-semibold"
+              data-testid="composer-draft-source-clear"
+              aria-label="Clear edited draft"
+              onClick={() => {
+                setComposerText('')
+                setComposerAttachments(session.id, [])
+                setDraftSource(null)
+                setDraftSourceActionStatus('Edited draft cleared')
+                if (textareaRef.current) textareaRef.current.style.height = 'auto'
+                textareaRef.current?.focus()
+              }}
+              style={{
+                background: 'var(--surface-bg)',
+                border: '1px solid var(--border-subtle)',
+                color: 'var(--text-primary)'
+              }}
+            >
+              Clear
+            </button>
+          </div>
+        )}
+        {draftSourceActionStatus && (
+          <div
+            className="composer-draft-source-action-status mx-4 mb-2"
+            data-testid="composer-draft-source-action-status"
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            {draftSourceActionStatus}
+          </div>
+        )}
+        {attachmentStatus && (
+          <div
+            className="composer-attachment-status mx-4 mb-2"
+            data-testid="composer-attachment-status"
+            data-composer-attachment-status-tone={attachmentStatus.tone}
+            role={attachmentStatus.tone === 'danger' ? 'alert' : 'status'}
+            aria-live={attachmentStatus.tone === 'danger' ? 'assertive' : 'polite'}
+            aria-atomic="true"
+          >
+            {attachmentStatus.text}
+          </div>
+        )}
+        {composerSendNotice && (
+          <div
+            className="mx-3 mb-2 flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs"
+            data-testid="composer-send-status"
+            data-composer-send-state={composerSendNotice.state}
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+            style={{
+              borderColor: composerSendNotice.tone === 'danger'
+                ? 'color-mix(in srgb, var(--color-red) 45%, var(--border-subtle))'
+                : 'var(--border-subtle)',
+              background: composerSendNotice.tone === 'danger'
+                ? 'color-mix(in srgb, var(--color-red) 9%, var(--surface-bg))'
+                : 'var(--control-bg)',
+              color: composerSendNotice.tone === 'danger' ? 'var(--color-red)' : 'var(--text-secondary)'
+            }}
+          >
+            <span className="font-semibold" style={{ color: composerSendNotice.tone === 'danger' ? 'var(--color-red)' : 'var(--text-primary)' }}>
+              {composerSendNotice.title}
+            </span>
+            <span className="min-w-0 flex-1 truncate">{composerSendNotice.detail}</span>
+            {composerSendNotice.state === 'unsupported-permission' && (
+              <button
+                type="button"
+                className="shrink-0 rounded-md px-1.5 py-0.5 font-semibold"
+                data-testid="composer-send-status-action"
+                aria-label="Change permission mode"
+                onClick={openPermissionMenuAndFocus}
+                style={{
+                  background: 'var(--surface-bg)',
+                  border: '1px solid var(--border-subtle)',
+                  color: 'var(--text-primary)'
+                }}
+              >
+                Change
+              </button>
+            )}
+            {composerSendNotice.state === 'side-chat-attachments' && (
+              <button
+                type="button"
+                className="shrink-0 rounded-md px-1.5 py-0.5 font-semibold"
+                data-testid="composer-send-status-action"
+                aria-label="Clear attachments for side chat"
+                onClick={() => clearAttachments('Removed side chat attachments')}
+                style={{
+                  background: 'var(--surface-bg)',
+                  border: '1px solid var(--border-subtle)',
+                  color: 'var(--text-primary)'
+                }}
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        )}
+        {runActionStatus && (
+          <div
+            className="mx-3 mb-2 rounded-lg border px-2.5 py-1.5 text-xs"
+            data-testid="composer-run-action-status"
+            data-composer-run-action-status-tone={runActionStatus.tone}
+            role={runActionStatus.tone === 'danger' ? 'alert' : 'status'}
+            aria-live={runActionStatus.tone === 'danger' ? 'assertive' : 'polite'}
+            aria-atomic="true"
+            style={{
+              borderColor: runActionStatus.tone === 'danger'
+                ? 'color-mix(in srgb, var(--color-red) 45%, var(--border-subtle))'
+                : 'var(--border-subtle)',
+              background: runActionStatus.tone === 'danger'
+                ? 'color-mix(in srgb, var(--color-red) 9%, var(--surface-bg))'
+                : 'var(--control-bg)',
+              color: runActionStatus.tone === 'danger' ? 'var(--color-red)' : 'var(--text-secondary)'
+            }}
+          >
+            {runActionStatus.text}
           </div>
         )}
 
@@ -649,6 +1307,11 @@ function InputBar({ session, isNew }: Props): JSX.Element {
                 title={!isGitRepo ? 'Not a git repository' : undefined}
                 dataTestId="composer-worktree-menu"
                 className="composer-worktree-trigger"
+                ariaExpanded={isGitRepo ? showModeMenu : undefined}
+                ariaHasPopup={isGitRepo ? 'menu' : undefined}
+                onKeyDown={(event) => {
+                  if (isGitRepo) handleDropdownTriggerKeyDown(event, () => setShowModeMenu(true))
+                }}
               >
                 <Icon name={effectiveMode ? 'branch' : 'folder'} size={13} />
                 <span className="composer-control-label composer-control-label-sm">
@@ -677,10 +1340,170 @@ function InputBar({ session, isNew }: Props): JSX.Element {
               )}
             </div>
           ) : (
-            /* Active session: read-only agent label */
-            <div className="flex items-center gap-1.5 px-1" style={{ color: 'var(--color-text-muted)', minWidth: 0 }}>
-              <ProviderIcon providerId={provider.id} size={11} color="var(--color-text-muted)" />
-              <span className="text-xs truncate" style={{ maxWidth: 360 }}>{agentLabel}</span>
+            /* Active session: compact thread settings */
+            <div className="relative flex items-center gap-1.5" style={{ minWidth: 0 }}>
+              <ToolbarBtn
+                active={showAgentMenu}
+                onClick={() => setShowAgentMenu((v) => !v)}
+                providerColor={provider.color}
+                dataTestId="composer-agent-menu"
+                buttonRef={agentButtonRef}
+                className="composer-agent-trigger"
+                title="Thread model settings"
+                ariaLabel="Thread model settings"
+                ariaExpanded={showAgentMenu}
+                ariaHasPopup="menu"
+                onKeyDown={(event) => handleDropdownTriggerKeyDown(event, () => setShowAgentMenu(true))}
+              >
+                <ProviderIcon providerId={provider.id} size={11} color={provider.color} />
+                <span className="composer-control-label">{agentLabel}</span>
+                <Chevron />
+              </ToolbarBtn>
+              {queuedFollowUpTotal > 0 && (
+                <span
+                  className="composer-queued-summary"
+                  data-testid="composer-queued-summary"
+                  data-queued-follow-up-count={queuedFollowUpCount}
+                  data-steering-follow-up-count={steeringFollowUpCount}
+                >
+                  {queuedFollowUpLabel}
+                </span>
+              )}
+              {showAgentMenu && (
+                <DropdownPanel onClose={() => setShowAgentMenu(false)} style={{ bottom: '100%', marginBottom: 8, left: 0, minWidth: 300 }}>
+                  <div
+                    className="px-3 py-2"
+                    data-testid="composer-active-agent-summary"
+                    style={{ borderBottom: '1px solid var(--color-border)' }}
+                  >
+                    <div className="flex items-center gap-2">
+                      <ProviderIcon providerId={provider.id} size={12} color={provider.color} />
+                      <div className="min-w-0">
+                        <div className="text-xs font-semibold truncate" style={{ color: 'var(--color-text)' }}>
+                          {provider.name}
+                        </div>
+                        <div className="text-[11px] truncate" style={{ color: 'var(--color-text-muted)' }}>
+                          Thread settings
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <TieredRow label="Provider">
+                    {Object.values(PROVIDER_DEFS).sort((a, b) => {
+                      const aOk = providerAvailability[a.id] !== false
+                      const bOk = providerAvailability[b.id] !== false
+                      return aOk === bOk ? 0 : aOk ? -1 : 1
+                    }).map((opt) => {
+                      const available = providerAvailability[opt.id] !== false
+                      const isActive = provider.id === opt.id
+                      return (
+                        <Chip
+                          key={opt.id}
+                          active={isActive}
+                          disabled={!available}
+                          onClick={() => { if (available) switchProvider(opt.id) }}
+                          title={!available ? 'not installed' : undefined}
+                          activeColor={opt.color}
+                        >
+                          <ProviderIcon providerId={opt.id} size={10} color={available ? opt.color : 'var(--color-text-muted)'} />
+                          {opt.name}
+                        </Chip>
+                      )
+                    })}
+                  </TieredRow>
+
+                  <TieredRow label="Model">
+                    {visibleModelChoices.map((opt) => (
+                      <Chip
+                        key={opt.id}
+                        active={model === opt.id}
+                        onClick={() => selectModel(opt.id)}
+                        activeColor={provider.color}
+                        title={opt.custom ? `Current custom model: ${opt.id}` : opt.id}
+                      >
+                        {opt.custom ? (
+                          <>
+                            Custom
+                            <span style={{ opacity: 0.72 }}>{opt.id}</span>
+                          </>
+                        ) : opt.label}
+                      </Chip>
+                    ))}
+                  </TieredRow>
+
+                  {provider.id === 'claude' && (
+                    <TieredRow label="Agent">
+                      <Chip
+                        active={!selectedAgentName}
+                        onClick={() => update({ agentName: null })}
+                        activeColor={provider.color}
+                      >
+                        Default
+                      </Chip>
+                      {claudeAgentsStatus === 'loading' && <InlineHint>Loading</InlineHint>}
+                      {claudeAgentsStatus === 'error' && <InlineHint>Unavailable</InlineHint>}
+                      {claudeAgentsStatus === 'loaded' && claudeAgents.length === 0 && <InlineHint>None</InlineHint>}
+                      {claudeAgents.map((agent) => (
+                        <Chip
+                          key={agent.id}
+                          active={selectedAgentName === agent.name}
+                          onClick={() => update({ agentName: agent.name })}
+                          activeColor={provider.color}
+                          title={agent.model ? `${agent.name} · ${agent.model}` : agent.name}
+                        >
+                          {agent.name}
+                          {agent.model && <span style={{ opacity: 0.72 }}>{agent.model}</span>}
+                        </Chip>
+                      ))}
+                    </TieredRow>
+                  )}
+
+                  {provider.id === 'cursor' && cursorEffortLevels.length > 0 && (
+                    <TieredRow label="Effort">
+                      {cursorEffortLevels.map((level) => (
+                        <Chip
+                          key={level.id}
+                          active={cursorEffort === level.id}
+                          onClick={() => update({ effort: level.id, useFast: false })}
+                          activeColor={provider.color}
+                        >
+                          {level.label}
+                        </Chip>
+                      ))}
+                    </TieredRow>
+                  )}
+
+                  {provider.id === 'cursor' && hasThinking && (
+                    <TieredRow label="Thinking">
+                      <Chip active={!useThinking} onClick={() => update({ useThinking: false })} activeColor={provider.color}>Off</Chip>
+                      <Chip active={useThinking} onClick={() => update({ useThinking: true })} activeColor={provider.color}>On</Chip>
+                    </TieredRow>
+                  )}
+
+                  {provider.id === 'cursor' && hasFast && (
+                    <TieredRow label="Speed">
+                      <Chip active={!useFast} onClick={() => update({ useFast: false })} activeColor={provider.color}>Standard</Chip>
+                      <Chip active={useFast} onClick={() => update({ useFast: true })} activeColor={provider.color}>Fast</Chip>
+                    </TieredRow>
+                  )}
+
+                  {provider.supportsEffort && provider.effortLevels.length > 0 && (
+                    <TieredRow label="Thinking">
+                      {provider.effortLevels.map((opt) => (
+                        <Chip
+                          key={opt.id}
+                          active={effort === opt.id}
+                          onClick={() => update({ effort: opt.id })}
+                          activeColor={provider.color}
+                        >
+                          {opt.label}
+                        </Chip>
+                      ))}
+                    </TieredRow>
+                  )}
+                </DropdownPanel>
+              )}
             </div>
           )}
 
@@ -703,7 +1526,11 @@ function InputBar({ session, isNew }: Props): JSX.Element {
                 onClick={() => setShowAgentMenu((v) => !v)}
                 providerColor={provider.color}
                 dataTestId="composer-agent-menu"
+                buttonRef={agentButtonRef}
                 className="composer-agent-trigger"
+                ariaExpanded={showAgentMenu}
+                ariaHasPopup="menu"
+                onKeyDown={(event) => handleDropdownTriggerKeyDown(event, () => setShowAgentMenu(true))}
               >
                 <ProviderIcon providerId={provider.id} size={11} color={provider.color} />
                 <span className="composer-control-label">{agentLabel}</span>
@@ -739,14 +1566,20 @@ function InputBar({ session, isNew }: Props): JSX.Element {
 
                   {/* Model row */}
                   <TieredRow label="Model">
-                    {getVisibleModels(provider, providerModels).map((opt) => (
+                    {visibleModelChoices.map((opt) => (
                       <Chip
                         key={opt.id}
                         active={model === opt.id}
-                        onClick={() => provider.id === 'cursor' ? switchCursorModel(opt.id) : update({ model: opt.id })}
+                        onClick={() => selectModel(opt.id)}
                         activeColor={provider.color}
+                        title={opt.custom ? `Current custom model: ${opt.id}` : opt.id}
                       >
-                        {opt.label}
+                        {opt.custom ? (
+                          <>
+                            Custom
+                            <span style={{ opacity: 0.72 }}>{opt.id}</span>
+                          </>
+                        ) : opt.label}
                       </Chip>
                     ))}
                   </TieredRow>
@@ -836,10 +1669,26 @@ function InputBar({ session, isNew }: Props): JSX.Element {
               active={permissionMode !== defaultPermissionMode}
               onClick={() => setShowPermMenu((v) => !v)}
               dataTestId="composer-permission-menu"
+              buttonRef={permissionButtonRef}
               className="composer-permission-trigger"
+              title={permissionTriggerTitle}
+              ariaLabel={permissionTriggerLabel}
+              ariaExpanded={showPermMenu}
+              ariaHasPopup="menu"
+              onKeyDown={(event) => handleDropdownTriggerKeyDown(event, () => setShowPermMenu(true))}
             >
               <ProviderIcon providerId={provider.id} size={11} color={provider.color} />
               <span className="composer-control-label composer-control-label-xs">{permLabel}</span>
+              {permissionContext && (
+                <span
+                  className="composer-permission-source-badge"
+                  data-testid="composer-permission-context-badge"
+                  data-permission-context-status={permissionContext.status}
+                  data-permission-context-source={permissionContext.source}
+                >
+                  {permissionSourceBadgeLabel(permissionContext)}
+                </span>
+              )}
               {resolvedPermission?.support === 'unsupported' && <PolicyBadge policy={resolvedPermission} compact />}
               <Chevron />
             </ToolbarBtn>
@@ -862,8 +1711,8 @@ function InputBar({ session, isNew }: Props): JSX.Element {
                         opt={opt}
                         active={permissionMode === opt.id}
                         providerColor={provider.color}
-                        unsupported={providerRuntime?.policies[opt.id]?.support === 'unsupported'}
-                        onSelect={() => update({ permissionMode: opt.id })}
+                        unsupportedReason={permissionUnavailableReason(opt.id)}
+                        onSelect={() => selectPermissionMode(opt.id)}
                       />
                     ))}
                   </div>
@@ -896,8 +1745,8 @@ function InputBar({ session, isNew }: Props): JSX.Element {
                                   opt={opt}
                                   active={permissionMode === opt.id}
                                   providerColor={provider.color}
-                                  unsupported={providerRuntime?.policies[opt.id]?.support === 'unsupported'}
-                                  onSelect={() => update({ permissionMode: opt.id })}
+                                  unsupportedReason={permissionUnavailableReason(opt.id)}
+                                  onSelect={() => selectPermissionMode(opt.id)}
                                 />
                               ))}
                             </div>
@@ -918,8 +1767,8 @@ function InputBar({ session, isNew }: Props): JSX.Element {
                                     opt={opt}
                                     active={permissionMode === opt.id}
                                     providerColor="var(--color-red)"
-                                    unsupported={providerRuntime?.policies[opt.id]?.support === 'unsupported'}
-                                    onSelect={() => update({ permissionMode: opt.id })}
+                                    unsupportedReason={permissionUnavailableReason(opt.id)}
+                                    onSelect={() => selectPermissionMode(opt.id)}
                                   />
                                 ))}
                               </div>
@@ -937,8 +1786,13 @@ function InputBar({ session, isNew }: Props): JSX.Element {
                   {resolvedPermission?.execution && (
                     <PermissionExecutionChips execution={resolvedPermission.execution} />
                   )}
-                  {permissionContext && permissionContext.source !== 'static' && (
-                    <PermissionContextNote context={permissionContext} />
+                  {permissionContext && (
+                    <PermissionContextNote
+                      context={permissionContext}
+                      refreshing={permissionContextLoading}
+                      refreshStatus={permissionContextRefreshStatus}
+                      onRefresh={() => { void loadPermissionContext({ announce: true }) }}
+                    />
                   )}
                 </div>
                 {provider.id === 'claude' && showAdvancedPerms && (
@@ -947,7 +1801,8 @@ function InputBar({ session, isNew }: Props): JSX.Element {
                     disallowedTools={session.disallowedTools ?? []}
                     availableTools={session.availableTools ?? []}
                     additionalDirs={session.additionalDirs ?? []}
-                    onChange={update}
+                    status={permissionRulesStatus}
+                    onChange={updatePermissionRules}
                   />
                 )}
               </DropdownPanel>
@@ -956,16 +1811,23 @@ function InputBar({ session, isNew }: Props): JSX.Element {
 
           {/* Send / Stop */}
           {canStop && (
-            <button
-              onClick={() => window.api.sessions.stop(session.id)}
-              className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium"
-              style={{ background: 'var(--color-red)', color: '#fff' }}
-            >
-              <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor">
-                <rect x="3" y="3" width="10" height="10" rx="1" />
-              </svg>
-              Stop
-            </button>
+            <Tooltip label="Stop current run">
+              <button
+                type="button"
+                data-testid="composer-stop-run"
+                data-tooltip-label="Stop current run"
+                data-native-title-free="true"
+                aria-label="Stop current run"
+                onClick={() => { void stopCurrentRun() }}
+                className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium"
+                style={{ background: 'var(--color-red)', color: '#fff' }}
+              >
+                <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                  <rect x="3" y="3" width="10" height="10" rx="1" />
+                </svg>
+                Stop
+              </button>
+            </Tooltip>
           )}
           {(session.status !== 'running' || canSend) && (
             <Tooltip label={sendTitle}>
@@ -1019,23 +1881,24 @@ function PermissionModeChip({
   opt,
   active,
   providerColor,
-  unsupported,
+  unsupportedReason,
   onSelect
 }: {
   opt: { id: string; label: string; desc: string }
   active: boolean
   providerColor: string
-  unsupported: boolean
+  unsupportedReason?: string
   onSelect: () => void
 }): JSX.Element {
+  const disabled = Boolean(unsupportedReason)
   return (
     <Chip
       active={active}
-      disabled={unsupported}
+      disabled={disabled}
       onClick={() => {
-        if (!unsupported) onSelect()
+        if (!disabled) onSelect()
       }}
-      title={unsupported ? 'Unsupported by this runtime' : opt.desc}
+      title={unsupportedReason ?? opt.desc}
       activeColor={providerColor}
     >
       {opt.label}
@@ -1046,6 +1909,36 @@ function PermissionModeChip({
 function sideChatTitle(question: string): string {
   const compact = question.replace(/\s+/g, ' ').trim()
   return compact.length > 28 ? `${compact.slice(0, 25)}...` : compact || 'Side chat'
+}
+
+function ComposerContextChip({
+  icon,
+  label,
+  detail,
+  dataTestId
+}: {
+  icon: 'folder' | 'branch'
+  label: string
+  detail: string
+  dataTestId: string
+}): JSX.Element {
+  return (
+    <span
+      className="inline-flex max-w-full items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] leading-4"
+      data-testid={dataTestId}
+      data-composer-context-detail={detail}
+      role="listitem"
+      aria-label={detail}
+      style={{
+        background: 'var(--control-bg)',
+        borderColor: 'var(--border-subtle)',
+        color: 'var(--text-secondary)'
+      }}
+    >
+      <Icon name={icon} size={11} />
+      <span className="min-w-0 max-w-[180px] truncate">{label}</span>
+    </span>
+  )
 }
 
 function AttachmentChip({
@@ -1085,6 +1978,7 @@ function PendingAttachmentChip({
       meta={meta}
       tone={attachment.status === 'error' ? 'danger' : 'accent'}
       onRemove={onRemove}
+      removeLabel={attachment.status === 'saving' ? `Cancel saving ${attachment.name}` : `Dismiss ${attachment.name}`}
       className="composer-pending-attachment"
     />
   )
@@ -1100,6 +1994,10 @@ function dedupeAttachments(attachments: Attachment[]): Attachment[] {
     seen.add(key)
     return true
   })
+}
+
+function cloneAttachmentForDraft(attachment: Attachment): Attachment {
+  return { ...attachment, id: crypto.randomUUID() }
 }
 
 function getClipboardFiles(clipboardData: DataTransfer): File[] {
@@ -1122,17 +2020,50 @@ function formatBytes(value: number): string {
   return `${(value / (1024 * 1024)).toFixed(1)} MB`
 }
 
+function pathBaseName(path: string): string {
+  return path.split(/[\\/]/).filter(Boolean).at(-1) ?? path
+}
+
+function currentComposerDraft(sessionId: string, fallback: string): string {
+  return useSessionStore.getState().uiState[sessionId]?.composerDraft ?? fallback
+}
+
+type ComposerModelChoice = ProviderModelDef & { custom?: boolean }
+
+function getVisibleModelsWithCurrent(
+  provider: typeof PROVIDER_DEFS[string],
+  providerModels: Record<string, string[]>,
+  currentModel: string
+): ComposerModelChoice[] {
+  const visible = getVisibleModels(provider, providerModels)
+  if (!currentModel || visible.some((candidate) => candidate.id === currentModel)) return visible
+  const catalogModel = provider.models.find((candidate) => candidate.id === currentModel)
+  return [
+    {
+      id: currentModel,
+      label: catalogModel?.label ?? currentModel,
+      cursorConfig: catalogModel?.cursorConfig,
+      custom: true
+    },
+    ...visible
+  ]
+}
+
 function ToolbarBtn({
-  children, active, onClick, muted, title, ariaLabel, providerColor, dataTestId, className
+  children, active, onClick, onKeyDown, muted, title, ariaLabel, ariaExpanded, ariaHasPopup, providerColor, dataTestId, buttonRef, className
 }: {
   children: React.ReactNode
   active: boolean
   onClick?: () => void
+  onKeyDown?: (event: React.KeyboardEvent<HTMLButtonElement>) => void
   muted?: boolean
   title?: string
   ariaLabel?: string
+  ariaExpanded?: boolean
+  ariaHasPopup?: 'menu' | 'listbox' | 'tree' | 'grid' | 'dialog'
   providerColor?: string
   dataTestId?: string
+  buttonRef?: Ref<HTMLButtonElement>
   className?: string
 }): JSX.Element {
   const borderColor = active ? 'var(--border-strong)' : 'transparent'
@@ -1140,11 +2071,15 @@ function ToolbarBtn({
   void providerColor
   const button = (
     <button
+      ref={buttonRef}
       onClick={(event) => {
         event.currentTarget.focus({ preventScroll: true })
         onClick?.()
       }}
       aria-label={ariaLabel}
+      aria-expanded={ariaExpanded}
+      aria-haspopup={ariaHasPopup}
+      onKeyDown={onKeyDown}
       data-tooltip-label={title}
       data-native-title-free="true"
       data-testid={dataTestId}
@@ -1198,11 +2133,123 @@ function DropdownPanel({
         ...style
       }}
     >
-      <div data-testid={testId} data-composer-dropdown-surface="true">
+      <div
+        data-testid={testId}
+        data-composer-dropdown-surface="true"
+        onKeyDown={handleDropdownSurfaceKeyDown}
+      >
         {children}
       </div>
     </DismissablePopoverSurface>
   )
+}
+
+function handleDropdownTriggerKeyDown(
+  event: React.KeyboardEvent<HTMLButtonElement>,
+  openDropdown: () => void
+): void {
+  if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
+  event.preventDefault()
+  event.stopPropagation()
+  const trigger = event.currentTarget
+  openDropdown()
+  focusComposerDropdownButtonWhenReady(trigger, event.key === 'ArrowUp' ? 'last' : 'first')
+}
+
+function handleDropdownSurfaceKeyDown(event: React.KeyboardEvent<HTMLDivElement>): void {
+  const root = event.currentTarget
+  const active = document.activeElement
+  if (!(active instanceof HTMLElement) || !root.contains(active)) return
+
+  if (event.key === 'ArrowDown' || event.key === 'ArrowUp' || event.key === 'Home' || event.key === 'End') {
+    event.preventDefault()
+    event.stopPropagation()
+  } else {
+    return
+  }
+
+  const buttons = composerDropdownButtons(root)
+  if (buttons.length === 0) return
+
+  const activeIndex = buttons.findIndex((button) => button === active || button.contains(active))
+  if (event.key === 'Home') {
+    buttons[0]?.focus({ preventScroll: true })
+    return
+  }
+  if (event.key === 'End') {
+    buttons.at(-1)?.focus({ preventScroll: true })
+    return
+  }
+
+  const offset = event.key === 'ArrowUp' ? -1 : 1
+  const nextIndex = activeIndex >= 0
+    ? (activeIndex + offset + buttons.length) % buttons.length
+    : (offset < 0 ? buttons.length - 1 : 0)
+  buttons[nextIndex]?.focus({ preventScroll: true })
+}
+
+function queueFocusComposerDropdownButton(trigger: HTMLElement, position: 'first' | 'last'): void {
+  let attempts = 0
+  let observedSurface: HTMLElement | null = null
+  let observedClosed = false
+  const focusWhenReady = (): void => {
+    attempts += 1
+    if (observedClosed) return
+    if (observedSurface && trigger.getAttribute('aria-expanded') !== 'true') {
+      observedClosed = true
+      return
+    }
+    const surface = composerDropdownSurfaceForTrigger(trigger)
+    if (observedSurface && surface !== observedSurface) return
+    if (surface) {
+      observedSurface = surface
+      focusComposerDropdownButtonInSurface(surface, position)
+    }
+    if (attempts >= 10) return
+    window.setTimeout(focusWhenReady, 32)
+  }
+  window.setTimeout(focusWhenReady, 0)
+}
+
+function focusComposerDropdownButtonWhenReady(trigger: HTMLElement, position: 'first' | 'last'): void {
+  let attempts = 0
+  const focusWhenReady = (): void => {
+    attempts += 1
+    if (focusComposerDropdownButton(trigger, position) || attempts >= 8) return
+    window.setTimeout(focusWhenReady, 16)
+  }
+  window.setTimeout(focusWhenReady, 0)
+}
+
+function focusComposerDropdownButton(trigger: HTMLElement, position: 'first' | 'last'): boolean {
+  const surface = composerDropdownSurfaceForTrigger(trigger)
+  if (!(surface instanceof HTMLElement)) return false
+  return focusComposerDropdownButtonInSurface(surface, position)
+}
+
+function composerDropdownSurfaceForTrigger(trigger: HTMLElement): HTMLElement | null {
+  const owner = trigger.closest('.relative') ?? trigger.parentElement
+  const surface = owner?.querySelector('[data-composer-dropdown-surface="true"]') ??
+    Array.from(document.querySelectorAll('[data-composer-dropdown-surface="true"]')).at(-1)
+  return surface instanceof HTMLElement ? surface : null
+}
+
+function focusComposerDropdownButtonInSurface(surface: HTMLElement, position: 'first' | 'last'): boolean {
+  const buttons = composerDropdownButtons(surface)
+  const target = position === 'last' ? buttons.at(-1) : buttons[0]
+  if (!target) return false
+  target.focus({ preventScroll: true })
+  return document.activeElement === target
+}
+
+function composerDropdownButtons(root: ParentNode): HTMLButtonElement[] {
+  return Array.from(root.querySelectorAll('button'))
+    .filter((button): button is HTMLButtonElement =>
+      button instanceof HTMLButtonElement &&
+      !button.disabled &&
+      button.tabIndex !== -1 &&
+      button.offsetParent !== null
+    )
 }
 
 function DropdownRow({
@@ -1250,13 +2297,15 @@ function ClaudePermissionRules({
   disallowedTools,
   availableTools,
   additionalDirs,
+  status,
   onChange
 }: {
   allowedTools: string[]
   disallowedTools: string[]
   availableTools: string[]
   additionalDirs: string[]
-  onChange: (patch: {
+  status: string | null
+  onChange: (label: string, patch: {
     allowedTools?: string[]
     disallowedTools?: string[]
     availableTools?: string[]
@@ -1277,43 +2326,71 @@ function ClaudePermissionRules({
   const labelStyle: React.CSSProperties = { color: 'var(--color-text-muted)', fontSize: 11 }
 
   return (
-    <div className="px-3 py-2 space-y-1.5" style={{ borderTop: '1px solid var(--color-border)' }}>
+    <div
+      className="px-3 py-2 space-y-1.5"
+      data-testid="composer-permission-rules"
+      style={{ borderTop: '1px solid var(--color-border)' }}
+    >
       <div style={rowStyle}>
-        <span style={labelStyle}>Allow</span>
+        <label htmlFor="composer-permission-allow-tools" style={labelStyle}>Allow</label>
         <input
+          id="composer-permission-allow-tools"
+          data-testid="composer-permission-allow-tools"
           defaultValue={allowedTools.join(', ')}
           placeholder="Read, Edit"
-          onBlur={(event) => onChange({ allowedTools: parseListInput(event.currentTarget.value) })}
+          onBlur={(event) => onChange('Allowed tools', { allowedTools: parseListInput(event.currentTarget.value) })}
           style={inputStyle}
         />
       </div>
       <div style={rowStyle}>
-        <span style={labelStyle}>Deny</span>
+        <label htmlFor="composer-permission-deny-tools" style={labelStyle}>Deny</label>
         <input
+          id="composer-permission-deny-tools"
+          data-testid="composer-permission-deny-tools"
           defaultValue={disallowedTools.join(', ')}
           placeholder="Bash(git push)"
-          onBlur={(event) => onChange({ disallowedTools: parseListInput(event.currentTarget.value) })}
+          onBlur={(event) => onChange('Denied tools', { disallowedTools: parseListInput(event.currentTarget.value) })}
           style={inputStyle}
         />
       </div>
       <div style={rowStyle}>
-        <span style={labelStyle}>Tools</span>
+        <label htmlFor="composer-permission-available-tools" style={labelStyle}>Tools</label>
         <input
+          id="composer-permission-available-tools"
+          data-testid="composer-permission-available-tools"
           defaultValue={availableTools.join(', ')}
           placeholder="default"
-          onBlur={(event) => onChange({ availableTools: parseListInput(event.currentTarget.value) })}
+          onBlur={(event) => onChange('Available tools', { availableTools: parseListInput(event.currentTarget.value) })}
           style={inputStyle}
         />
       </div>
       <div style={rowStyle}>
-        <span style={labelStyle}>Dirs</span>
+        <label htmlFor="composer-permission-additional-dirs" style={labelStyle}>Dirs</label>
         <input
+          id="composer-permission-additional-dirs"
+          data-testid="composer-permission-additional-dirs"
           defaultValue={additionalDirs.join(', ')}
           placeholder="/tmp/shared"
-          onBlur={(event) => onChange({ additionalDirs: parseListInput(event.currentTarget.value) })}
+          onBlur={(event) => onChange('Additional dirs', { additionalDirs: parseListInput(event.currentTarget.value) })}
           style={inputStyle}
         />
       </div>
+      {status && (
+        <div
+          className="rounded-md px-1.5 py-1 text-[10.5px]"
+          data-testid="composer-permission-rules-status"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          style={{
+            color: 'var(--accent)',
+            background: 'color-mix(in srgb, var(--accent) 8%, var(--surface-bg))',
+            border: '1px solid color-mix(in srgb, var(--accent) 20%, var(--border-subtle))'
+          }}
+        >
+          {status}
+        </div>
+      )}
     </div>
   )
 }
@@ -1361,6 +2438,8 @@ function TieredRow({ label, children }: { label: string; children: React.ReactNo
   return (
     <div
       className="flex items-start gap-3 px-3 py-2"
+      role="group"
+      aria-label={`${label} choices`}
       style={{ borderBottom: '1px solid var(--color-border)' }}
     >
       <span
@@ -1423,27 +2502,88 @@ function PermissionExecutionChips({ execution }: { execution: PermissionExecutio
   )
 }
 
-function PermissionContextNote({ context }: { context: ProviderPermissionRuntimeContext }): JSX.Element {
+function PermissionContextNote({
+  context,
+  refreshing,
+  refreshStatus,
+  onRefresh
+}: {
+  context: ProviderPermissionRuntimeContext
+  refreshing: boolean
+  refreshStatus: { text: string; tone: 'info' | 'danger' } | null
+  onRefresh: () => void
+}): JSX.Element {
   const tone = context.status === 'ok'
     ? 'var(--color-green)'
     : context.status === 'error'
       ? 'var(--color-red)'
       : 'var(--color-text-muted)'
+  const label = context.source === 'static'
+    ? 'Static config'
+    : context.status === 'ok'
+      ? 'Live config'
+      : 'Config fallback'
   return (
     <div
       data-testid="composer-permission-runtime-context"
+      data-permission-context-refreshing={refreshing ? 'true' : 'false'}
+      data-permission-context-source={context.source}
+      data-permission-context-status={context.status}
       style={{
         marginTop: 7,
         fontSize: 10.5,
         lineHeight: 1.35,
-        color: tone,
         maxWidth: 280
       }}
       title={context.cwd ? `${context.summary ?? ''} ${context.cwd}` : context.summary}
     >
-      {context.status === 'ok' ? 'Live config' : 'Config fallback'} · {context.summary ?? 'Permission config checked.'}
+      <div className="flex min-w-0 items-start gap-2">
+        <div className="min-w-0 flex-1" style={{ color: tone }}>
+          {label} · {context.summary ?? 'Permission config checked.'}
+        </div>
+        <button
+          type="button"
+          className="shrink-0 rounded-md px-1.5 py-0.5 font-semibold"
+          data-testid="composer-permission-runtime-refresh"
+          aria-label="Refresh permission config"
+          disabled={refreshing}
+          onClick={onRefresh}
+          style={{
+            background: 'var(--surface-bg)',
+            border: '1px solid var(--border-subtle)',
+            color: refreshing ? 'var(--text-tertiary)' : 'var(--text-primary)',
+            cursor: refreshing ? 'default' : 'pointer'
+          }}
+        >
+          {refreshing ? 'Refreshing' : 'Refresh'}
+        </button>
+      </div>
+      {refreshStatus && (
+        <div
+          className="mt-1 rounded-md px-1.5 py-1"
+          data-testid="composer-permission-runtime-refresh-status"
+          role={refreshStatus.tone === 'danger' ? 'alert' : 'status'}
+          aria-live={refreshStatus.tone === 'danger' ? 'assertive' : 'polite'}
+          aria-atomic="true"
+          style={{
+            color: refreshStatus.tone === 'danger' ? 'var(--color-red)' : 'var(--accent)',
+            background: refreshStatus.tone === 'danger'
+              ? 'color-mix(in srgb, var(--color-red) 8%, var(--surface-bg))'
+              : 'color-mix(in srgb, var(--accent) 8%, var(--surface-bg))',
+            border: '1px solid var(--border-subtle)'
+          }}
+        >
+          {refreshStatus.text}
+        </div>
+      )}
     </div>
   )
+}
+
+function permissionSourceBadgeLabel(context: ProviderPermissionRuntimeContext): string {
+  if (context.status === 'ok') return 'Live'
+  if (context.source === 'app-server') return 'Fallback'
+  return 'Static'
 }
 
 function permissionExecutionLabels(execution: PermissionExecutionContract): Array<{ label: string; value: string }> {
@@ -1483,6 +2623,11 @@ function shallowEqualArray<T>(a?: T[], b?: T[]): boolean {
   return a.every((value, index) => value === b[index])
 }
 
+function errorText(error: unknown): string {
+  if (error instanceof Error) return error.message
+  return String(error)
+}
+
 function Chip({
   children, active, disabled, onClick, title, activeColor = 'var(--color-accent)'
 }: {
@@ -1495,10 +2640,13 @@ function Chip({
 }): JSX.Element {
   const button = (
     <button
+      type="button"
       onClick={onClick}
       disabled={disabled}
+      aria-pressed={active}
       data-tooltip-label={title}
       data-native-title-free="true"
+      data-composer-choice-active={active ? 'true' : 'false'}
       className="flex items-center gap-1.5 text-xs transition-colors"
       style={{
         background: active ? 'var(--control-bg-active)' : 'var(--control-bg)',

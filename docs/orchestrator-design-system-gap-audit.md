@@ -435,13 +435,13 @@ Current verification:
 
 - Shared `MenuSurface` now focuses the first menu item, supports ArrowUp/ArrowDown/Home/End, closes on Escape/outside click, and restores focus to the opener.
 - Shared `DismissablePopoverSurface` now restores focus to the opener after Escape or outside-click dismissal.
-- Capabilities smoke verifies create-menu open, arrow-key focus, Escape dismissal, and focus return.
+- Shared menu, popover, sheet, and dialog close paths now mark the surface with `data-motion-exit="true"` and delay the close callback long enough for an exit animation when reduced motion is not active.
+- Capabilities smoke verifies create-menu open, arrow-key focus, Escape dismissal, focus return, and retained exit states for create menu, create sheet, and delete confirmation dialog.
 - Composer smoke verifies permission-menu Escape focus return and agent-menu outside-click focus return.
 
 Still needed:
 
 - `MenuSeparator` and optional submenu/disclosure behavior.
-- Exit animation retention instead of immediate unmount for menus/sheets where feasible.
 
 Highest-value targets:
 
@@ -459,6 +459,14 @@ Current progress:
 
 Why it matters: settings is still the biggest non-system surface and carries provider, model, pets, diagnostics, and appearance controls.
 
+Current verification:
+
+- Focused `node scripts/run-automated-ui-smoke.mjs --settings` verifies Automations settings row grouping, action labels, and pause-result live status under `settingsAutomationsActionA11y=true`.
+- Focused `node scripts/run-automated-ui-smoke.mjs --settings` verifies Appearance theme sharing copy/import status semantics and app clipboard bridge usage under `themeSharingStatusA11y=true` and `themeCopyClipboard=true`.
+- Focused `node scripts/run-automated-ui-smoke.mjs --settings` verifies Data Controls data-path copy through the app clipboard bridge plus action status semantics under `settingsDataControlsActionA11y=true` and `settingsDataControlsCopyPathClipboard=true`.
+- Focused `node scripts/run-automated-ui-smoke.mjs --settings-providers` verifies unavailable provider install-command copy through the app clipboard bridge plus announced copied status under `settingsProviderInstallCommandCopy=true` and `settingsProviderInstallCommandStatusA11y=true`.
+- Focused `node scripts/run-automated-ui-smoke.mjs --settings-providers` verifies the Provider config editor shared surface now includes polite/alert status live-region semantics under the existing `settingsProviderConfigEditorShared=true` gate.
+
 Still needed:
 
 - `SettingsRow`.
@@ -475,6 +483,14 @@ Constraints:
 
 Why it matters: Codex's interaction feel depends heavily on the composer and transcript. Orchestrator still has many local styles here.
 
+Current verification:
+
+- Focused `node scripts/run-automated-ui-smoke.mjs --scroll` verifies streamed assistant updates expose a polite atomic thinking indicator under `thinkingIndicatorDuringUpdate=true`, hide it after completion under `thinkingIndicatorHiddenAfterComplete=true`, and keep scroll lock, streaming cursor, dedupe, and jump-to-latest gates green.
+- Focused `node scripts/run-automated-ui-smoke.mjs --composer` verifies `/btw` side-chat sends with attachments are blocked by a recoverable polite status guard under `composerSideChatAttachmentGuard=true`, preventing local attachment context from being silently dropped.
+- Focused `node scripts/run-automated-ui-smoke.mjs --composer` verifies `/model` opens the existing thread model/settings popover under `composerSlashModelOpensSettings=true` instead of inserting a literal command into the composer.
+- Focused `node scripts/run-automated-ui-smoke.mjs --composer` verifies slash-opened model and permission menus move focus into the opened menu under `composerSlashModelFocusesMenu=true` and `composerSlashPermissionsFocusesMenu=true`.
+- Focused `node scripts/run-automated-ui-smoke.mjs --streaming-typing` verifies the active-run composer stop control has a stable accessible action and announced stopped status under `composerStopRunControl=true` and `composerStopRunStatus=true`.
+
 Still needed:
 
 - `ComposerShell`.
@@ -483,7 +499,6 @@ Still needed:
 - `ComposerAttachmentChip`.
 - `ComposerStatusButton` for permission/model/runtime state.
 - `ScrollToBottomButton` modeled on Codex's scroll-to-bottom behavior.
-- `ThinkingIndicator`.
 - `AttachmentChip`.
 - `FileReferenceCard`.
 - `MarkdownSurface`.
@@ -504,12 +519,25 @@ Why it matters: this is now the largest untouched session-side panel.
 Current verification:
 
 - The session-side `ExtensionsPanel` is mounted again through the inspector path, and `/extensions` opens it directly.
-- `npm run smoke:ui:auto -- --extensions` verifies the panel is reachable and renders provider extension/local-instruction content.
+- `npm run smoke:ui:auto -- --extensions` verifies the panel is reachable, renders provider extension/local-instruction content, and keeps summary, disclosure, file row, command section, command row, and item row chrome on shared primitives under `extensionsPanelSharedPrimitives=true`.
 
 Still needed:
 
-- Replace the remaining local file/command rows and disclosure chevrons with shared primitives.
-- Replace remaining metric/status pills with shared `MetricPill`/`Badge`.
+- Continue Extensions work only when real provider data or live Codex comparison reveals a workflow/functionality gap; the known local primitive migration item is closed for the current embedded panel.
+
+### P1: Files Source Tabs
+
+Why it matters: source tabs are a daily coding surface. File actions should behave like app controls with visible, announced results rather than silent clipboard/open/reveal side effects.
+
+Current verification:
+
+- `node scripts/run-automated-ui-smoke.mjs --files` now verifies `fileSourceActionStatus=true`, covering the compact file-tab action status live region for copy-line feedback and success/failure semantics.
+- The same focused smoke verifies `fileSourceAddToChat=true`, covering source-tab Add file to chat creating a visible composer attachment rather than only dispatching an unobserved event.
+- The same focused smoke verifies `filesContentSearchOpenLine=true`, covering content-search hits opening matched files in source mode with the matched line selected and revealed.
+
+Still needed:
+
+- Provider-backed comments/blame, provider/global indexed workspace search, and exact live Codex source-find focus timing remain open. Deep Office/PDF renderer fidelity stays Phase 2 unless it blocks coding workflows.
 
 ### P1: Capabilities Edit/Sync Sheets
 
@@ -519,11 +547,11 @@ Current verification:
 
 - `CreateCapabilitySheet`, `EditCapabilitySheet`, and `SyncCapabilitySheet` use shared `Sheet`.
 - Sync provider targets now use shared `SettingChoiceCard`, and sync plan operations use `InspectorCard`.
-- Capabilities smoke covers create-sheet focus trapping and menu keyboard/focus behavior.
+- Capabilities smoke covers create-sheet focus trapping, menu keyboard/focus behavior, and deterministic seeded edit/sync sheet entry points under `capabilitySeededFixture=true`, `capabilityEditSheet=true`, and `capabilitySyncSheet=true`.
 
 Still needed:
 
-- Add seeded capability rows so the smoke can open edit and sync sheets deterministically instead of depending on whichever provider resources are present locally.
+- Continue Capabilities work only when a real provider capability workflow exposes a functionality gap; the known deterministic edit/sync smoke coverage gap is closed.
 
 ### P1: Reduced Motion
 
@@ -531,11 +559,16 @@ Why it matters: Codex's motion is polished partly because reduced-motion behavio
 
 Current verification:
 
-- `npm run smoke:ui:auto -- --motion-reduced` verifies forced reduced-motion propagation, zeroed main-renderer motion durations, disabled pet-overlay badge/row/resize-grip transitions, collapsed tray behavior, and reply form behavior.
+- `npm run smoke:ui:auto -- --motion-reduced` verifies forced reduced-motion propagation, zeroed main-renderer motion durations, disabled pet-overlay badge/row/resize-grip transitions, collapsed tray behavior, reply form behavior, and main-app screenshot-region assertions for the right panel, bottom terminal panel, shared sheet, and shared popover.
+- `node scripts/run-automated-ui-smoke.mjs --terminal` now verifies `terminalFailureStateA11y=true`, covering terminal shell-ended recovery as a polite atomic status region with labelled copy and a named recovery action group.
+- `node scripts/run-automated-ui-smoke.mjs --settings` now verifies `settingsBrowserStatusA11y=true` and `settingsBrowserDomainControlsA11y=true`, covering Browser Settings clear/save status announcements, labelled domain inputs, list semantics, and icon-only remove controls with accessible names.
+- `node scripts/run-automated-ui-smoke.mjs --settings` now verifies `settingsPersonalizationActionStatus=true`, covering Local Personalization enable/custom-instruction/coding-preference saves as visible and announced Settings status.
+- `node scripts/run-automated-ui-smoke.mjs --settings` now verifies `settingsWorktreesActionA11y=true`, covering Worktrees Settings create/delete status announcements plus named worktree row, delete, conversation list, and open-chat controls.
+- `node scripts/run-automated-ui-smoke.mjs --diff-core` now verifies `reviewFloatingGitActionStatus=true`, covering Review floating local-git action progress/results as polite status and failure as assertive alert semantics.
+- `node scripts/run-automated-ui-smoke.mjs --header` now verifies `headerPanelEmptyFallback=true`, covering the header side-panel control's right-Workbench ownership and empty-panel fallback to the Workbench New tab launcher.
 
 Still needed:
 
-- Add reduced-motion screenshot assertions for right panel, terminal panel, shared sheet, and shared popover.
 - Continue replacing feature-local transition strings with shared motion helpers as each surface migrates.
 
 ### P2: App-Shell Maturity
@@ -1293,7 +1326,7 @@ Use this as the definition of done for the full migration.
 
 ## Bottom Line
 
-The current implementation is no longer just a first slice. It now has a real app-shell, panel, resize, tab, toolbar, badge, inspector, pet-overlay geometry, reduced-motion, and shared interaction primitive baseline. It is still not a whole-app 1:1 Codex UI/motion system because settings, transcript, composer, extension panels, roving menu keyboard behavior, and exit-animation retention still need a dedicated finishing pass.
+The current implementation is no longer just a first slice. It now has a real app-shell, panel, resize, tab, toolbar, badge, inspector, pet-overlay geometry, reduced-motion, retained shared-surface exits, and shared interaction primitive baseline. It is still not a whole-app 1:1 Codex UI/motion system because settings, transcript, composer, extension panels, roving menu keyboard behavior, and deeper live visual comparison still need dedicated finishing passes.
 
 Completed in the latest implementation pass:
 
@@ -1304,22 +1337,37 @@ Completed in the latest implementation pass:
 - Automated session-switch smoke now verifies transcript switching within budget and confirms the session view is not replaying entrance motion.
 - Automated reduced-motion smoke now verifies forced reduced-motion profile propagation, zeroed main-renderer motion durations, and disabled pet-overlay badge/row transitions.
 - Shared `MenuSurface`, `MenuItem`, `DismissablePopoverSurface`, `ConfirmDialog`, and `TextInputDialog` primitives now cover Escape/outside-click behavior, disabled/danger states, and native dialog replacement.
+- Shared menu, popover, sheet, and dialog close paths now retain exiting surfaces with `data-motion-exit="true"` instead of immediately unmounting on Escape/outside/close-button paths.
 - Capabilities create/row menus, edit/sync sheets, and delete confirmation now use shared primitives.
 - Session action rename/delete and project removal no longer use native browser prompt/confirm UI.
-- Capabilities smoke now verifies create-menu open, menu Escape dismissal, create-sheet open, and sheet Escape dismissal.
-- Settings now shares design-system primitives for intro text, groups, panels, compact rows, choice cards, status pills, and diagnostic pills.
+- Capabilities smoke now verifies create-menu open, menu Escape dismissal, create-sheet open, sheet Escape dismissal, and retained exit states for menu, sheet, and dialog surfaces.
+- Settings now shares design-system primitives for intro text, groups, panels, compact rows, choice cards, status pills, diagnostic pills, provider command-output cards, the provider picker, the provider model-list manager, the provider config editor, Appearance color swatches/chrome editor controls, and Appearance import controls.
 - Composer provider/agent/permission dropdown panels now use shared dismissable popover behavior with focus return.
-- Composer smoke now verifies permission-menu Escape dismissal/focus return and agent-menu outside-click dismissal/focus return.
+- Composer smoke now verifies permission-menu Escape dismissal/focus return, agent-menu outside-click dismissal/focus return, expanded/collapsed ARIA state on Agent/Permission popover triggers, and Arrow-key roving focus inside composer popovers.
+- Composer smoke now verifies `composerPermissionContextSignal=true`, covering the closed permission trigger's Static/Live/Fallback config-source badge and accessible label before users open the permission menu.
+- Composer smoke now verifies `composerPermissionRuleStatus=true`, covering labelled advanced permission-rule inputs and polite saved feedback for Allow/Deny/Tools/Dirs edits.
+- Composer smoke now verifies `composerAttachmentStatus=true`, covering visible and announced add/remove attachment feedback mirrored on the composer shell.
+- Side Chat smoke now verifies `sideChatActionStatusA11y=true` and `sideChatRetryStatusA11y=true`, covering visible and announced answer status plus log/article semantics for side-chat messages opened from both `/btw` and in-panel retry paths.
+- Settings smoke now verifies `settingsShortcutActionStatusA11y=true`, covering visible and announced shortcut save/conflict/clear status on the Shortcuts page.
+- Settings smoke now verifies `settingsPersonalizationActionStatus=true`, covering visible and announced local Personalization save feedback.
+- Workbench New tab smoke now verifies `agentRuntimeEventCopy=true` and `agentRuntimeEventAddToChat=true`, covering selected Agents event-detail payload copy plus direct composer handoff with visible status feedback.
+- Transcript layout smoke now verifies `chatMessageCopy=true` and `chatMessageCopyA11y=true`, covering assistant-message copy through the same app clipboard bridge plus copied/error live status semantics.
+- Diff core smoke now verifies `reviewGitApplyCopyStatus=true`, covering Review `Copy git apply command` through the app clipboard bridge plus copied/failure status semantics on the floating Review action pill.
+- Browser smoke now verifies `browserCopyUrlStatus=true`, covering Browser `Copy URL` through the app clipboard bridge plus copied/failure status semantics in the load-error recovery panel.
+- Terminal smoke now verifies `terminalClipboardStatus=true`, covering terminal paste through the app clipboard bridge plus visible and announced paste/failure status semantics.
+- Files smoke now verifies `fileSourceActionStatus=true` against the copied clipboard value, covering source-tab path and selected-line copy through the app clipboard bridge plus existing live status semantics.
+- Files smoke now verifies `filesRowCopyPathClipboard=true`, covering Files tree row path copy through the app clipboard bridge plus visible and announced toolbar status semantics.
+- Transcript layout/tool-failure smokes now verify `errorRecoveryRetryA11y=true`, `chatContinueLastTurnA11y=true`, and `transcriptToolFailureRetryA11y=true`, covering announced retry/continue state changes for the main recovery paths.
+- Focused right-panel smoke now verifies `rightPanelFindStatusA11y=true`, `rightPanelFindScopeLabelA11y=true`, and `rightPanelFindCloseFocusRestored=true`, covering the shared chat/diff find bar's announced result-count status, input/status association, scope-specific input labels, and focus restoration after close.
+- Composer blocked-send notices now render as polite atomic status regions, and transcript user-input/permission recovery states now expose assertive error alerts, polite sent/decision statuses, and named approval action groups.
+- Browser load-error recovery notices now render as assertive atomic alerts with named recovery action groups while preserving shared `PanelNotice` chrome.
+- Transcript active-run queue controls now share badge/button primitives for queued and steering follow-ups, and focused streaming smoke verifies steering follow-ups remain cancellable.
+- Transcript queued/steering follow-up actions now expose visible and announced action-status feedback, with focused composer and streaming smokes verifying `composerQueuedCancelStatus=true` and `composerSteeringCancelStatus=true` while preserving slash-opened permission menu focus under `composerSlashPermissionsFocusesMenu=true`.
 - Pet overlay smoke now verifies custom provider state mapping, permission actions, running/review/failed buckets, tray collapse/reopen, row expansion, reply focus, and resize-handle hover/focus visibility.
 - Session-switch smoke now verifies transcript and title changes stay within the 150ms budget and are not hidden behind app-mode page animation.
-- Extensions panel is reachable again from `/extensions` and covered by an automated smoke.
+- Extensions panel is reachable again from `/extensions`, uses shared summary/disclosure/file/command/item row chrome for the embedded right-panel surface, and is covered by an automated smoke.
 
 The biggest remaining pieces are:
 
-1. Finish the remaining settings local controls: color swatches, provider picker, model list manager, config editor, import controls, and provider command output cards.
-2. Composer and transcript primitives beyond dropdown dismissal, especially attachment chips, command surfaces, file cards, scroll-to-bottom, and thinking/streaming states.
-3. Finish the remaining Extensions panel primitive migration for file/command rows, disclosures, and metrics.
-4. Add seeded edit/sync capability fixtures so those sheet flows are deterministic in smoke tests.
-5. Exit animation retention for menus/sheets/dialogs rather than immediate unmount.
-6. Reduced-motion screenshot assertions for the right panel, terminal panel, sheets, and popovers.
-7. Deeper visual comparison baselines against Codex for badges, banners, panels, menus, tabs, sheets, and navigation.
+1. Composer and transcript workflow polish beyond the implemented shared primitives, especially deeper context/permission flows and provider-backed retry/continue proof.
+2. Deeper visual comparison baselines against Codex for badges, banners, panels, menus, tabs, sheets, and navigation.

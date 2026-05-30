@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import test from 'node:test'
 
-import { gitManager, mergeReviewCommentSummaries, reviewMetadataFromGitHubPullRequestView, reviewThreadCommentMetadataFromGitHub, reviewThreadCommentSummaryFromGitHub } from '../git'
+import { gitManager, isGitHubReviewMetadataUnavailableErrorMessage, mergeReviewCommentSummaries, parseGitHubPullRequestUrl, parseGitHubRemoteUrl, reviewMetadataFromGitHubPullRequestView, reviewProviderMetadataWarningFromCommandError, reviewThreadCommentMetadataFromGitHub, reviewThreadCommentSummaryFromGitHub } from '../git'
 
 test('changed files preserve paths with spaces without git porcelain quotes', async () => {
   const root = mkdtempSync(join(tmpdir(), 'orchestrator-git-changes-'))
@@ -59,6 +59,177 @@ test('changed files expose staged and unstaged state for review actions', async 
     assert.equal(unstagedResult.changedFiles.find((file) => file.path === 'tracked.txt')?.staged, false)
     assert.equal(unstagedResult.changedFiles.find((file) => file.path === 'tracked.txt')?.unstaged, true)
     assert.equal(unstagedResult.changedFiles.find((file) => file.path === 'new.txt')?.status, '?')
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('commit staged creates a commit and leaves unstaged edits alone', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'orchestrator-git-commit-staged-'))
+  try {
+    writeFileSync(join(root, 'tracked.txt'), 'before\n')
+    git(root, 'init')
+    git(root, 'config', 'user.email', 'orchestrator-test@example.test')
+    git(root, 'config', 'user.name', 'Orchestrator Test')
+    git(root, 'add', '.')
+    git(root, 'commit', '-m', 'baseline')
+
+    writeFileSync(join(root, 'tracked.txt'), 'staged\n')
+    writeFileSync(join(root, 'unstaged.txt'), 'working tree\n')
+    await gitManager.stagePaths(root, ['tracked.txt'])
+
+    const emptyMessage = await gitManager.commitStaged(root, '   ')
+    assert.equal(emptyMessage.ok, false)
+    assert.match(emptyMessage.error ?? '', /commit message/i)
+
+    const result = await gitManager.commitStaged(root, 'Workbench commit\n')
+    assert.equal(result.ok, true)
+    assert.match(result.commit ?? '', /^[0-9a-f]{7,}$/)
+    assert.deepEqual(result.changedFiles.map((file) => file.path), ['unstaged.txt'])
+    assert.equal(result.changedFiles[0]?.unstaged, true)
+
+    const subject = spawnSync('git', ['log', '-1', '--pretty=%s'], { cwd: root, encoding: 'utf-8' })
+    assert.equal(subject.status, 0, subject.stderr || subject.stdout)
+    assert.equal(subject.stdout.trim(), 'Workbench commit')
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('create branch validates names and checks out the new branch', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'orchestrator-git-create-branch-'))
+  try {
+    writeFileSync(join(root, 'tracked.txt'), 'before\n')
+    git(root, 'init')
+    git(root, 'config', 'user.email', 'orchestrator-test@example.test')
+    git(root, 'config', 'user.name', 'Orchestrator Test')
+    git(root, 'add', '.')
+    git(root, 'commit', '-m', 'baseline')
+    const defaultBranch = spawnSync('git', ['branch', '--show-current'], { cwd: root, encoding: 'utf-8' }).stdout.trim()
+    writeFileSync(join(root, 'tracked.txt'), 'before\ndirty\n')
+
+    const empty = await gitManager.createBranch(root, '   ')
+    assert.equal(empty.ok, false)
+    assert.match(empty.error ?? '', /branch name/i)
+
+    const result = await gitManager.createBranch(root, 'orchestrator/git-panel-test')
+    assert.equal(result.ok, true)
+    assert.equal(result.currentBranch, 'orchestrator/git-panel-test')
+    assert.equal(result.branches.find((branch) => branch.name === 'orchestrator/git-panel-test')?.current, true)
+
+    const current = spawnSync('git', ['branch', '--show-current'], { cwd: root, encoding: 'utf-8' })
+    assert.equal(current.status, 0, current.stderr || current.stdout)
+    assert.equal(current.stdout.trim(), 'orchestrator/git-panel-test')
+    assert.equal(readFileSync(join(root, 'tracked.txt'), 'utf-8'), 'before\ndirty\n')
+
+    const checkoutEmpty = await gitManager.checkoutBranch(root, '   ')
+    assert.equal(checkoutEmpty.ok, false)
+    assert.match(checkoutEmpty.error ?? '', /choose a branch/i)
+
+    const checkout = await gitManager.checkoutBranch(root, defaultBranch)
+    assert.equal(checkout.ok, true)
+    assert.equal(checkout.currentBranch, defaultBranch)
+    assert.equal(checkout.branches.find((branch) => branch.name === defaultBranch)?.current, true)
+    assert.equal(readFileSync(join(root, 'tracked.txt'), 'utf-8'), 'before\ndirty\n')
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('pull request create URL uses the GitHub origin remote and branch compare route', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'orchestrator-git-pr-url-'))
+  try {
+    writeFileSync(join(root, 'tracked.txt'), 'before\n')
+    git(root, 'init')
+    git(root, 'config', 'user.email', 'orchestrator-test@example.test')
+    git(root, 'config', 'user.name', 'Orchestrator Test')
+    git(root, 'remote', 'add', 'origin', 'git@github.com:nadavital/Orchestrator.git')
+    git(root, 'add', '.')
+    git(root, 'commit', '-m', 'baseline')
+
+    const result = await gitManager.getPullRequestCreateUrl(root, 'main', 'codex/git-panel-pr')
+
+    assert.equal(result.ok, true)
+    assert.equal(result.remoteUrl, 'git@github.com:nadavital/Orchestrator.git')
+    assert.equal(result.remoteName, 'origin')
+    assert.equal(result.url, 'https://github.com/nadavital/Orchestrator/compare/main...codex%2Fgit-panel-pr?quick_pull=1')
+    assert.equal(result.branchPublished, false)
+    assert.equal(result.remoteBranch, 'origin/codex/git-panel-pr')
+    assert.equal(result.pushCommand, 'git push -u origin codex/git-panel-pr')
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('pull request create URL marks locally known remote branches as published', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'orchestrator-git-pr-published-'))
+  try {
+    writeFileSync(join(root, 'tracked.txt'), 'before\n')
+    git(root, 'init')
+    git(root, 'config', 'user.email', 'orchestrator-test@example.test')
+    git(root, 'config', 'user.name', 'Orchestrator Test')
+    git(root, 'remote', 'add', 'origin', 'git@github.com:nadavital/Orchestrator.git')
+    git(root, 'add', '.')
+    git(root, 'commit', '-m', 'baseline')
+    git(root, 'update-ref', 'refs/remotes/origin/codex/git-panel-pr', 'HEAD')
+
+    const result = await gitManager.getPullRequestCreateUrl(root, 'main', 'codex/git-panel-pr')
+
+    assert.equal(result.ok, true)
+    assert.equal(result.branchPublished, true)
+    assert.equal(result.remoteBranch, 'origin/codex/git-panel-pr')
+    assert.equal(result.pushCommand, undefined)
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('pull request create URL reports unavailable non-GitHub remotes', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'orchestrator-git-pr-url-missing-'))
+  try {
+    writeFileSync(join(root, 'tracked.txt'), 'before\n')
+    git(root, 'init')
+    git(root, 'config', 'user.email', 'orchestrator-test@example.test')
+    git(root, 'config', 'user.name', 'Orchestrator Test')
+    git(root, 'remote', 'add', 'origin', 'ssh://git@example.com/repo/project.git')
+    git(root, 'add', '.')
+    git(root, 'commit', '-m', 'baseline')
+
+    const result = await gitManager.getPullRequestCreateUrl(root, 'main', 'feature')
+
+    assert.equal(result.ok, false)
+    assert.match(result.error ?? '', /No GitHub remote/)
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('GitHub remote URL parser supports common clone URL forms', () => {
+  assert.equal(parseGitHubRemoteUrl('https://github.com/nadavital/Orchestrator.git'), 'https://github.com/nadavital/Orchestrator')
+  assert.equal(parseGitHubRemoteUrl('git@github.com:nadavital/Orchestrator.git'), 'https://github.com/nadavital/Orchestrator')
+  assert.equal(parseGitHubRemoteUrl('ssh://git@github.com/nadavital/Orchestrator.git'), 'https://github.com/nadavital/Orchestrator')
+  assert.equal(parseGitHubRemoteUrl('ssh://git@example.com/nadavital/Orchestrator.git'), null)
+})
+
+test('GitHub pull request create output parser extracts PR URL', () => {
+  assert.equal(
+    parseGitHubPullRequestUrl('Creating pull request for codex/feature into main in openai/orchestrator\nhttps://github.com/openai/orchestrator/pull/77\n'),
+    'https://github.com/openai/orchestrator/pull/77'
+  )
+  assert.equal(parseGitHubPullRequestUrl('no pull request was created'), undefined)
+})
+
+test('pull request creation validates base and topic branches before gh mutation', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'orchestrator-git-pr-create-validate-'))
+  try {
+    const missingBranch = await gitManager.createPullRequest(root, 'main', '   ')
+    assert.equal(missingBranch.ok, false)
+    assert.match(missingBranch.error ?? '', /base and topic branch/i)
+
+    const sameBranch = await gitManager.createPullRequest(root, 'main', 'main')
+    assert.equal(sameBranch.ok, false)
+    assert.match(sameBranch.error ?? '', /topic branch/i)
+    assert.equal(sameBranch.command, undefined)
   } finally {
     rmSync(root, { recursive: true, force: true })
   }
@@ -184,6 +355,69 @@ test('discard paths refuses unsafe paths', async () => {
     assert.equal(result.ok, false)
     assert.match(result.error ?? '', /unsafe path/)
     assert.equal(readFileSync(join(root, 'tracked.txt'), 'utf-8'), 'changed\n')
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('reverse apply diff undoes provider patch without discarding unrelated edits', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'orchestrator-git-reverse-apply-'))
+  try {
+    writeFileSync(join(root, 'tracked.txt'), 'one\n')
+    writeFileSync(join(root, 'unrelated.txt'), 'keep\n')
+    git(root, 'init')
+    git(root, 'config', 'user.email', 'orchestrator-test@example.test')
+    git(root, 'config', 'user.name', 'Orchestrator Test')
+    git(root, 'add', 'tracked.txt', 'unrelated.txt')
+    git(root, 'commit', '-m', 'baseline')
+
+    const providerDiff = [
+      'diff --git a/tracked.txt b/tracked.txt',
+      'index 5626abf..814f4a4 100644',
+      '--- a/tracked.txt',
+      '+++ b/tracked.txt',
+      '@@ -1 +1,2 @@',
+      ' one',
+      '+two'
+    ].join('\n')
+    writeFileSync(join(root, 'tracked.txt'), 'one\ntwo\n')
+    writeFileSync(join(root, 'unrelated.txt'), 'keep\nlater edit\n')
+
+    const result = await gitManager.reverseApplyDiff(root, providerDiff)
+
+    assert.equal(result.ok, true)
+    assert.equal(result.reverseApplied, true)
+    assert.deepEqual(result.paths, ['tracked.txt'])
+    assert.equal(readFileSync(join(root, 'tracked.txt'), 'utf-8'), 'one\n')
+    assert.equal(readFileSync(join(root, 'unrelated.txt'), 'utf-8'), 'keep\nlater edit\n')
+    assert.deepEqual(result.changedFiles.map((file) => file.path), ['unrelated.txt'])
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('reverse apply diff refuses unsafe paths', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'orchestrator-git-reverse-safe-'))
+  try {
+    writeFileSync(join(root, 'tracked.txt'), 'one\n')
+    git(root, 'init')
+    git(root, 'config', 'user.email', 'orchestrator-test@example.test')
+    git(root, 'config', 'user.name', 'Orchestrator Test')
+    git(root, 'add', 'tracked.txt')
+    git(root, 'commit', '-m', 'baseline')
+
+    const result = await gitManager.reverseApplyDiff(root, [
+      'diff --git a/../outside.txt b/../outside.txt',
+      '--- a/../outside.txt',
+      '+++ b/../outside.txt',
+      '@@ -1 +1 @@',
+      '-outside',
+      '+changed'
+    ].join('\n'))
+
+    assert.equal(result.ok, false)
+    assert.equal(result.reverseApplied, false)
+    assert.match(result.error ?? '', /unsafe path/)
   } finally {
     rmSync(root, { recursive: true, force: true })
   }
@@ -343,6 +577,25 @@ test('draft GitHub PR metadata maps to draft state', () => {
   assert.equal(metadata?.comments, undefined)
 })
 
+test('GitHub Review metadata errors distinguish no PR from hosted provider failures', () => {
+  assert.equal(isGitHubReviewMetadataUnavailableErrorMessage('no pull requests found for branch codex/foo'), true)
+  assert.equal(isGitHubReviewMetadataUnavailableErrorMessage('There is no pull request associated with this branch'), true)
+  assert.equal(isGitHubReviewMetadataUnavailableErrorMessage('error connecting to api.github.com\ncheck your internet connection'), false)
+  assert.equal(isGitHubReviewMetadataUnavailableErrorMessage('HTTP 401: Bad credentials'), false)
+  assert.equal(isGitHubReviewMetadataUnavailableErrorMessage('The token in default is invalid.'), false)
+})
+
+test('GitHub inline review metadata warnings keep the first provider error line', () => {
+  assert.equal(
+    reviewProviderMetadataWarningFromCommandError('HTTP 401: Bad credentials\nTry gh auth login'),
+    'Inline review comments unavailable: HTTP 401: Bad credentials'
+  )
+  assert.equal(
+    reviewProviderMetadataWarningFromCommandError(''),
+    'Inline review comments unavailable'
+  )
+})
+
 test('GitHub PR review thread JSON normalizes to inline comment metadata', () => {
   const payload = {
     data: {
@@ -353,6 +606,7 @@ test('GitHub PR review thread JSON normalizes to inline comment metadata', () =>
               isResolved: false,
               isOutdated: false,
               path: 'src/App.tsx',
+              startLine: 11,
               line: 12,
               originalLine: 10,
               diffSide: 'RIGHT',
@@ -411,6 +665,7 @@ test('GitHub PR review thread JSON normalizes to inline comment metadata', () =>
       source: 'github',
       path: 'src/App.tsx',
       side: 'new',
+      startLine: 11,
       lineNumber: 12,
       body: 'Please handle empty state',
       author: 'grace',
@@ -424,6 +679,7 @@ test('GitHub PR review thread JSON normalizes to inline comment metadata', () =>
       source: 'github',
       path: 'src/App.tsx',
       side: 'new',
+      startLine: 11,
       lineNumber: 12,
       body: 'Agree',
       author: 'ada',

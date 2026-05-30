@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { Attachment, Automation, AutomationRun, AutomationUpsertRequest, CapabilityCreateRequest, CapabilityCreateResult, CapabilityDeleteRequest, CapabilityMutationResult, CapabilitySyncPlan, CapabilitySyncRequest, CapabilityUpdateRequest, CodexProjectImportResult, Project, Session, SessionForkMode, SessionListItem, ChatMessage, FileChange, GitLineBlameResult, GitPathActionResult, GitRefOption, OpenPathOptions, OpenPathResult, OpenTargetAvailability, OrchestratorDeepLinkNavigation, PerformanceMetric, PerformanceSnapshot, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderManifest, ProviderPermissionRuntimeContext, ProviderResourceSnapshot, ProviderRuntimeConnectionState, ProviderRuntimeDebugEvent, ProviderRuntimeInfo, ProviderSidebarSyncResult, ProviderSlashCommand, ReviewDiffSource, ReviewMetadata, SessionRunEventRecord, TerminalServiceSnapshot, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary, WorktreeInventoryItem, WorkspaceSearchRequest, WorkspaceSearchResult } from '../types'
+import type { Attachment, Automation, AutomationRun, AutomationUpsertRequest, CapabilityCreateRequest, CapabilityCreateResult, CapabilityDeleteRequest, CapabilityMutationResult, CapabilitySyncPlan, CapabilitySyncRequest, CapabilityUpdateRequest, CodexProjectImportResult, CodexReviewStartRequest, Project, Session, SessionForkMode, SessionForkOptions, SessionListItem, ChatMessage, FileChange, GitBranchActionResult, GitCommitResult, GitLineBlameResult, GitPathActionResult, GitPullRequestCreateResult, GitPullRequestCreateUrlResult, GitRefOption, OpenPathOptions, OpenPathResult, OpenTargetAvailability, OrchestratorDeepLinkNavigation, PerformanceMetric, PerformanceSnapshot, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderManifest, ProviderPermissionRuntimeContext, ProviderResourceSnapshot, ProviderRuntimeConnectionState, ProviderRuntimeDebugEvent, ProviderRuntimeInfo, ProviderSidebarSyncResult, ProviderSlashCommand, ReviewDiffSource, ReviewMetadata, SessionRunEventRecord, SideQuestionMessage, TerminalServiceSnapshot, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary, UserInputAnswerPayload, WorktreeInventoryItem, WorkspaceSearchRequest, WorkspaceSearchResult } from '../types'
 import type { BrowserUsePolicy } from '../types/browserUsePolicy'
 import type { AppCommandAvailability, AppMenuCommand, AppMenuCommandState, StableAppCommand } from '../types/appCommands'
 import type { ShortcutOverrides } from '../types/appCommands'
@@ -11,6 +11,7 @@ interface AppSettings {
   defaultPermissionModes: Record<string, string>
   providerModels: Record<string, string[]>
   preferredEditor: 'system' | 'vscode' | 'vscode-insiders' | 'cursor' | 'zed'
+  composerEnterBehavior: 'send' | 'newline'
   appearance: 'system' | 'mist' | 'graphite' | 'ocean' | 'palenight' | 'high-contrast' | 'dark' | 'light'
   accent: 'blue' | 'teal' | 'purple' | 'green' | 'rose' | 'system' | 'custom'
   customAccent: string
@@ -32,6 +33,9 @@ interface AppSettings {
   reduceMotion: boolean
   shortcutOverrides: ShortcutOverrides
   browserUsePolicy: BrowserUsePolicy
+  personalizationEnabled: boolean
+  personalizationCustomInstructions: string
+  personalizationCodingPreferences: string
 }
 
 interface ChromeTheme {
@@ -115,6 +119,7 @@ export type SessionEvent =
   | { type: 'status'; id: string; status: Session['status'] }
   | { type: 'messages'; id: string; messages: ChatMessage[] }
   | { type: 'messageUpdated'; id: string; message: ChatMessage }
+  | { type: 'messageRemoved'; id: string; messageId: string }
   | { type: 'events'; id: string; events: SessionRunEventRecord[] }
   | { type: 'raw'; id: string; data: string }
   | { type: 'renamed'; id: string; name: string }
@@ -188,14 +193,20 @@ const api = {
       worktreeBaseRef?: string
       worktreeBranchName?: string
     }): Promise<Session> => ipcRenderer.invoke('sessions:create', opts),
-    fork: (id: string, mode: SessionForkMode): Promise<Session> =>
-      ipcRenderer.invoke('sessions:fork', id, mode),
+    fork: (id: string, mode: SessionForkMode, options?: SessionForkOptions): Promise<Session> =>
+      ipcRenderer.invoke('sessions:fork', id, mode, options),
     retryPendingWorktree: (id: string): Promise<Session> =>
       ipcRenderer.invoke('sessions:retryPendingWorktree', id),
-    sendMessage: (sessionId: string, prompt: string, useWorktree?: boolean, attachments?: Attachment[]): Promise<void> =>
+    sendMessage: (sessionId: string, prompt: string, useWorktree?: boolean, attachments?: Attachment[]): Promise<boolean> =>
       ipcRenderer.invoke('sessions:sendMessage', sessionId, prompt, useWorktree, attachments ?? []),
-    answerSideQuestion: (sessionId: string, question: string): Promise<{ ok: boolean; answer: string; error?: string; usage?: UsageSummary }> =>
-      ipcRenderer.invoke('sessions:answerSideQuestion', sessionId, question),
+    startCodexReview: (sessionId: string, request: CodexReviewStartRequest): Promise<{ ok: boolean; error?: string }> =>
+      ipcRenderer.invoke('sessions:startCodexReview', sessionId, request),
+    retryLastUserMessage: (sessionId: string): Promise<boolean> =>
+      ipcRenderer.invoke('sessions:retryLastUserMessage', sessionId),
+    continueLastTurn: (sessionId: string): Promise<boolean> =>
+      ipcRenderer.invoke('sessions:continueLastTurn', sessionId),
+    answerSideQuestion: (sessionId: string, question: string, sideChatMessages?: SideQuestionMessage[]): Promise<{ ok: boolean; answer: string; error?: string; usage?: UsageSummary }> =>
+      ipcRenderer.invoke('sessions:answerSideQuestion', sessionId, question, sideChatMessages ?? []),
     updateName: (id: string, name: string): Promise<void> =>
       ipcRenderer.invoke('sessions:updateName', id, name),
     updatePinned: (id: string, pinned: boolean): Promise<void> =>
@@ -220,6 +231,8 @@ const api = {
     checkProviders: (): Promise<Record<string, boolean>> =>
       ipcRenderer.invoke('sessions:checkProviders'),
     stop: (sessionId: string): Promise<void> => ipcRenderer.invoke('sessions:stop', sessionId),
+    cancelQueuedMessage: (sessionId: string, messageId: string): Promise<boolean> =>
+      ipcRenderer.invoke('sessions:cancelQueuedMessage', sessionId, messageId),
     steerQueuedMessage: (sessionId: string, messageId: string): Promise<void> =>
       ipcRenderer.invoke('sessions:steerQueuedMessage', sessionId, messageId),
     archive: (sessionId: string): Promise<void> => ipcRenderer.invoke('sessions:archive', sessionId),
@@ -228,23 +241,25 @@ const api = {
     remove: (sessionId: string): Promise<void> => ipcRenderer.invoke('sessions:remove', sessionId),
     getDiff: (sessionId: string): Promise<string> =>
       ipcRenderer.invoke('sessions:getDiff', sessionId),
-    getReviewMetadata: (sessionId: string): Promise<ReviewMetadata | undefined> =>
-      ipcRenderer.invoke('sessions:getReviewMetadata', sessionId),
+    getReviewMetadata: (sessionId: string, options?: { force?: boolean }): Promise<ReviewMetadata | undefined> =>
+      ipcRenderer.invoke('sessions:getReviewMetadata', sessionId, options),
     getChangedFiles: (sessionId: string, source?: ReviewDiffSource, ref?: string): Promise<FileChange[]> =>
       ipcRenderer.invoke('sessions:getChangedFiles', sessionId, source, ref),
     getDiffForFile: (sessionId: string, filePath: string, source?: ReviewDiffSource, ref?: string): Promise<string> =>
       ipcRenderer.invoke('sessions:getDiffForFile', sessionId, filePath, source, ref),
     undoChangedFiles: (sessionId: string, paths: string[]): Promise<GitPathActionResult> =>
       ipcRenderer.invoke('sessions:undoChangedFiles', sessionId, paths),
+    undoLastTurnDiff: (sessionId: string, diff: string): Promise<GitPathActionResult> =>
+      ipcRenderer.invoke('sessions:undoLastTurnDiff', sessionId, diff),
     writeToPty: (sessionId: string, data: string): Promise<void> =>
       ipcRenderer.invoke('sessions:writeToPty', sessionId, data),
-    grantAndResume: (sessionId: string, toolNames: string[]): Promise<void> =>
+    grantAndResume: (sessionId: string, toolNames: string[]): Promise<{ ok: boolean; error?: string }> =>
       ipcRenderer.invoke('sessions:grantAndResume', sessionId, toolNames),
-    allowOnceAndResume: (sessionId: string, toolNames: string[]): Promise<void> =>
+    allowOnceAndResume: (sessionId: string, toolNames: string[]): Promise<{ ok: boolean; error?: string }> =>
       ipcRenderer.invoke('sessions:allowOnceAndResume', sessionId, toolNames),
-    answerUserInput: (sessionId: string, answer: string): Promise<void> =>
+    answerUserInput: (sessionId: string, answer: string | UserInputAnswerPayload): Promise<{ ok: boolean; error?: string }> =>
       ipcRenderer.invoke('sessions:answerUserInput', sessionId, answer),
-    denyPermission: (sessionId: string): Promise<void> =>
+    denyPermission: (sessionId: string): Promise<{ ok: boolean; error?: string }> =>
       ipcRenderer.invoke('sessions:denyPermission', sessionId)
   },
 
@@ -267,15 +282,32 @@ const api = {
     delete: (id: string): Promise<void> => ipcRenderer.invoke('automations:delete', id)
   },
 
+  clipboard: {
+    writeText: (text: string): Promise<boolean> => ipcRenderer.invoke('clipboard:writeText', text),
+    readText: (): Promise<string> => ipcRenderer.invoke('clipboard:readText')
+  },
+
   git: {
     isGitRepo: (dir: string): Promise<boolean> => ipcRenderer.invoke('git:isGitRepo', dir),
     getCurrentBranch: (dir: string): Promise<string | null> => ipcRenderer.invoke('git:getCurrentBranch', dir),
     listBranches: (dir: string): Promise<GitRefOption[]> => ipcRenderer.invoke('git:listBranches', dir),
     listRecentCommits: (dir: string): Promise<GitRefOption[]> => ipcRenderer.invoke('git:listRecentCommits', dir),
+    getPullRequestCreateUrl: (dir: string, baseBranch: string, headBranch: string): Promise<GitPullRequestCreateUrlResult> =>
+      ipcRenderer.invoke('git:getPullRequestCreateUrl', dir, baseBranch, headBranch),
+    createPullRequest: (dir: string, baseBranch: string, headBranch: string): Promise<GitPullRequestCreateResult> =>
+      ipcRenderer.invoke('git:createPullRequest', dir, baseBranch, headBranch),
+    createBranch: (dir: string, branchName: string): Promise<GitBranchActionResult> =>
+      ipcRenderer.invoke('git:createBranch', dir, branchName),
+    checkoutBranch: (dir: string, branchName: string): Promise<GitBranchActionResult> =>
+      ipcRenderer.invoke('git:checkoutBranch', dir, branchName),
     stagePaths: (dir: string, paths: string[]): Promise<GitPathActionResult> =>
       ipcRenderer.invoke('git:stagePaths', dir, paths),
     unstagePaths: (dir: string, paths: string[]): Promise<GitPathActionResult> =>
       ipcRenderer.invoke('git:unstagePaths', dir, paths),
+    discardPaths: (dir: string, paths: string[]): Promise<GitPathActionResult> =>
+      ipcRenderer.invoke('git:discardPaths', dir, paths),
+    commitStaged: (dir: string, message: string): Promise<GitCommitResult> =>
+      ipcRenderer.invoke('git:commitStaged', dir, message),
     blameLine: (dir: string, filePath: string, line: number): Promise<GitLineBlameResult> =>
       ipcRenderer.invoke('git:blameLine', dir, filePath, line)
   },
@@ -455,6 +487,8 @@ const api = {
       cb({ type: 'messages', ...p })
     const onMessageUpdated = (_: Electron.IpcRendererEvent, p: { id: string; message: ChatMessage }): void =>
       cb({ type: 'messageUpdated', ...p })
+    const onMessageRemoved = (_: Electron.IpcRendererEvent, p: { id: string; messageId: string }): void =>
+      cb({ type: 'messageRemoved', ...p })
     const onEvents = (_: Electron.IpcRendererEvent, p: { id: string; events: SessionRunEventRecord[] }): void =>
       cb({ type: 'events', ...p })
     const onRaw = (_: Electron.IpcRendererEvent, p: { id: string; data: string }): void =>
@@ -476,6 +510,7 @@ const api = {
     ipcRenderer.on('session:status', onStatus)
     ipcRenderer.on('session:messages', onMessages)
     ipcRenderer.on('session:messageUpdated', onMessageUpdated)
+    ipcRenderer.on('session:messageRemoved', onMessageRemoved)
     ipcRenderer.on('session:events', onEvents)
     ipcRenderer.on('session:raw', onRaw)
     ipcRenderer.on('session:renamed', onRenamed)
@@ -490,6 +525,7 @@ const api = {
       ipcRenderer.off('session:status', onStatus)
       ipcRenderer.off('session:messages', onMessages)
       ipcRenderer.off('session:messageUpdated', onMessageUpdated)
+      ipcRenderer.off('session:messageRemoved', onMessageRemoved)
       ipcRenderer.off('session:events', onEvents)
       ipcRenderer.off('session:raw', onRaw)
       ipcRenderer.off('session:renamed', onRenamed)

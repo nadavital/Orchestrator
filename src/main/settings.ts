@@ -11,6 +11,7 @@ interface AppSettings {
   defaultPermissionModes: Record<string, string>
   providerModels: Record<string, string[]>
   preferredEditor: 'system' | 'vscode' | 'vscode-insiders' | 'cursor' | 'zed'
+  composerEnterBehavior: 'send' | 'newline'
   appearance: 'system' | 'mist' | 'graphite' | 'ocean' | 'palenight' | 'high-contrast' | 'dark' | 'light'
   accent: 'blue' | 'teal' | 'purple' | 'green' | 'rose' | 'system' | 'custom'
   customAccent: string
@@ -32,6 +33,9 @@ interface AppSettings {
   reduceMotion: boolean
   shortcutOverrides: ShortcutOverrides
   browserUsePolicy: BrowserUsePolicy
+  personalizationEnabled: boolean
+  personalizationCustomInstructions: string
+  personalizationCodingPreferences: string
 }
 
 interface ChromeTheme {
@@ -62,6 +66,7 @@ export const settingsStore = new Store<AppSettings>({
     defaultPermissionModes: {},
     providerModels: {},
     preferredEditor: 'system',
+    composerEnterBehavior: 'send',
     appearance: 'mist',
     accent: 'blue',
     customAccent: '#0a7cff',
@@ -105,6 +110,9 @@ export const settingsStore = new Store<AppSettings>({
     reduceMotion: false,
     shortcutOverrides: {},
     browserUsePolicy: DEFAULT_BROWSER_USE_POLICY,
+    personalizationEnabled: false,
+    personalizationCustomInstructions: '',
+    personalizationCodingPreferences: '',
   }
 })
 

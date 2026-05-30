@@ -925,6 +925,20 @@ export interface RunRequest {
   useFast?: boolean
   providerContext?: ProviderRunContext
   attachments?: Attachment[]
+  codexReviewStart?: CodexReviewStartRequest
+}
+
+export type CodexReviewDelivery = 'inline' | 'detached'
+
+export type CodexReviewStartTarget =
+  | { type: 'uncommittedChanges' }
+  | { type: 'baseBranch'; branch: string }
+  | { type: 'commit'; sha: string; title: string | null }
+  | { type: 'custom'; instructions: string }
+
+export interface CodexReviewStartRequest {
+  target: CodexReviewStartTarget
+  delivery?: CodexReviewDelivery | null
 }
 
 export interface UsageSummary {
@@ -948,6 +962,14 @@ export interface UsageSummary {
     maxOutputTokens?: number
     webSearchRequests?: number
   }>
+}
+
+export interface SideQuestionMessage {
+  id: string
+  role: 'user' | 'assistant' | 'system'
+  content: string
+  status?: 'pending' | 'complete' | 'error'
+  usage?: UsageSummary
 }
 
 export type TerminalServiceSessionStatus = 'starting' | 'running' | 'exited' | 'buffered'
@@ -1052,6 +1074,7 @@ export type RunEvent =
   | { type: 'plan.updated'; plan: PlanState }
   | { type: 'goal.updated'; goal: { providerId: string; sessionId: string; objective: string; status?: string; tokenBudget?: number | null; tokensUsed?: number; timeUsedSeconds?: number } }
   | { type: 'goal.cleared'; providerId: string; sessionId: string }
+  | { type: 'review.mode.changed'; providerId: string; sessionId: string; active: boolean; review?: string; itemId?: string }
   | { type: 'permission.requested'; denials: PermissionDenial[]; content?: string }
   | { type: 'user_input.requested'; content: string; questions?: UserInputQuestion[] }
   | { type: 'connection.reconnecting'; attempt?: number; content?: string }
@@ -1234,6 +1257,7 @@ export interface ReviewProviderComment {
   source: 'github'
   path: string
   side: 'old' | 'new'
+  startLine?: number
   lineNumber: number
   body: string
   author?: string
@@ -1259,6 +1283,7 @@ export interface ReviewMetadata {
   reviewers?: ReviewReviewerSummary
   comments?: ReviewCommentSummary
   providerCommentsByPath?: Record<string, ReviewProviderComment[]>
+  providerWarnings?: string[]
 }
 
 export interface Session {
@@ -1279,6 +1304,11 @@ export interface Session {
   messagesLoaded?: boolean
   previewText?: string
   latestMessageAt?: number
+  forkedFromSessionId?: string
+  forkedFromSessionName?: string
+  forkedFromMessageId?: string
+  forkedAt?: number
+  forkMode?: SessionForkMode
   archivedAt?: number
   createdAt: number
   provider: string
@@ -1352,6 +1382,13 @@ export interface SettingsRouteLocationLike {
   pathname?: string
   search?: string
   hash?: string
+}
+
+export type SessionRouteMode = 'path' | 'hash'
+
+export interface SessionRoute {
+  sessionId: string
+  mode: SessionRouteMode
 }
 
 export type OrchestratorDeepLinkNavigation =
@@ -1466,7 +1503,7 @@ export function settingsHostAdapterState(
   section: SettingsSectionId,
   hostKind: SettingsHostOption['kind']
 ): SettingsHostAdapterState {
-  if (section === 'personalization') return 'unavailable'
+  if (section === 'personalization') return hostKind === 'remote' ? 'unavailable' : 'local'
   if (settingsSectionScope(section) === 'app') return hostKind === 'remote' ? 'app-global' : 'local'
   return hostKind === 'remote' ? 'unavailable' : 'local'
 }
@@ -1485,8 +1522,26 @@ export function settingsRouteUrlForLocation(section: SettingsSectionId, hostId: 
   return supportsSettingsPathRoutes(location) ? settingsRoutePath(section, hostId) : settingsRouteHash(section, hostId)
 }
 
+export function sessionRoutePath(sessionId: string): string {
+  return `/threads/${encodeURIComponent(sessionId)}`
+}
+
+export function sessionRouteHash(sessionId: string): string {
+  return `#/threads/${encodeURIComponent(sessionId)}`
+}
+
+export function sessionRouteUrlForLocation(sessionId: string, location: SettingsRouteLocationLike): string {
+  return supportsSettingsPathRoutes(location) ? sessionRoutePath(sessionId) : sessionRouteHash(sessionId)
+}
+
 export function settingsRouteExitUrl(mode: SettingsRouteMode): string {
   return mode === 'path' ? '/' : '#/'
+}
+
+export function parseSessionRouteLocation(location: SettingsRouteLocationLike): SessionRoute | null {
+  const hashRoute = parseSessionHashRoute(location.hash ?? '')
+  if (hashRoute) return hashRoute
+  return parseSessionPathRoute(location.pathname ?? '')
 }
 
 export function parseSettingsRouteLocation(location: SettingsRouteLocationLike): SettingsRoute | null {
@@ -1534,6 +1589,23 @@ function supportsSettingsPathRoutes(location: SettingsRouteLocationLike): boolea
   return location.protocol === 'http:' || location.protocol === 'https:' || location.protocol === 'orchestrator-app:'
 }
 
+function parseSessionHashRoute(hash: string): SessionRoute | null {
+  if (!hash.startsWith('#/threads') && !hash.startsWith('#/sessions')) return null
+  const raw = hash.slice(1)
+  const [path] = raw.split('?')
+  const [, root, encodedSessionId] = path.split('/')
+  if (root !== 'threads' && root !== 'sessions') return null
+  const sessionId = decodeRouteSegment(encodedSessionId)
+  return sessionId.length > 0 ? { sessionId, mode: 'hash' } : null
+}
+
+function parseSessionPathRoute(pathname: string): SessionRoute | null {
+  const [, root, encodedSessionId] = pathname.split('/')
+  if (root !== 'threads' && root !== 'sessions') return null
+  const sessionId = decodeRouteSegment(encodedSessionId)
+  return sessionId.length > 0 ? { sessionId, mode: 'path' } : null
+}
+
 function parseSettingsHashRoute(hash: string): SettingsRoute | null {
   if (!hash.startsWith('#/settings')) return null
   const raw = hash.slice(1)
@@ -1544,6 +1616,15 @@ function parseSettingsHashRoute(hash: string): SettingsRoute | null {
     section: normalizeSettingsSectionId(sectionSlug),
     hostId: new URLSearchParams(query).get('host'),
     mode: 'hash'
+  }
+}
+
+function decodeRouteSegment(value: string | undefined): string {
+  if (!value) return ''
+  try {
+    return decodeURIComponent(value).trim()
+  } catch {
+    return value.trim()
   }
 }
 
@@ -1780,6 +1861,10 @@ export function applyAutomationPermissionSnapshot(
 
 export type SessionForkMode = 'local' | 'same-worktree' | 'new-worktree'
 
+export interface SessionForkOptions {
+  throughMessageId?: string
+}
+
 export interface SessionListItem extends Session {
   messageCount: number
   messagesLoaded: boolean
@@ -1884,7 +1969,52 @@ export interface GitPathActionResult {
   paths: string[]
   changedFiles: FileChange[]
   discarded?: boolean
+  reverseApplied?: boolean
   error?: string
+}
+
+export interface GitCommitResult {
+  ok: boolean
+  changedFiles: FileChange[]
+  commit?: string
+  message?: string
+  error?: string
+}
+
+export interface GitBranchActionResult {
+  ok: boolean
+  branchName?: string
+  currentBranch?: string | null
+  branches: GitRefOption[]
+  error?: string
+}
+
+export interface GitPullRequestCreateUrlResult {
+  ok: boolean
+  url?: string
+  remoteUrl?: string
+  remoteName?: string
+  baseBranch?: string
+  headBranch?: string
+  branchPublished?: boolean
+  upstreamBranch?: string
+  remoteBranch?: string
+  pushCommand?: string
+  error?: string
+}
+
+export interface GitPullRequestCreateResult {
+  ok: boolean
+  url?: string
+  metadata?: ReviewMetadata
+  baseBranch?: string
+  headBranch?: string
+  command?: string
+  error?: string
+}
+
+export interface ReviewMetadataRequestOptions {
+  force?: boolean
 }
 
 export interface GitLineBlameResult {
@@ -1921,6 +2051,7 @@ export interface TextMessage extends BaseMessage {
   type: 'text'
   content: string
   isStreaming?: boolean
+  interrupted?: boolean
   queueState?: 'queued' | 'steer_next'
   attachments?: Attachment[]
 }
@@ -1929,11 +2060,15 @@ export function finalizeInterruptedMessages(messages: ChatMessage[]): ChatMessag
   return messages.map((message) => {
     if (message.type !== 'text') return message
     if (!message.isStreaming && !message.queueState) return message
-    return {
+    const settledMessage: TextMessage = {
       ...message,
       isStreaming: false,
       queueState: undefined
     }
+    if (message.role === 'assistant' && message.isStreaming) {
+      settledMessage.interrupted = true
+    }
+    return settledMessage
   })
 }
 
@@ -1969,6 +2104,14 @@ export interface UserInputQuestion {
   header?: string
   options?: UserInputOption[]
   multiSelect?: boolean
+  isOther?: boolean
+  isSecret?: boolean
+}
+
+export interface UserInputAnswerPayload {
+  content: string
+  displayContent?: string
+  answers?: Record<string, string[]>
 }
 
 export interface ResultMessage extends BaseMessage {
@@ -2098,8 +2241,12 @@ export type {
   ComposerSendState
 } from './sessionControls'
 export {
+  BOTTOM_PANEL_TRANSFER_TAB_KINDS,
+  bottomPanelTransferPolicyLabel,
+  canCloseBottomPanelTab,
   closePanelTab,
   filePanelTabId,
+  isBottomPanelTransferTabKind,
   movePanelTabByDirection,
   parseFilePanelTabId,
   pinPanelTab,
@@ -2119,6 +2266,7 @@ export type {
   PanelCloseTarget,
   PanelBrowserCommandAvailability,
   PanelBrowserCommandTarget,
+  BottomPanelTransferTabKind,
   PanelFindAvailability,
   PanelFindTarget,
   PanelNewTabAvailability,

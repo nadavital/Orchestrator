@@ -12,6 +12,11 @@ import {
   SwitchControl
 } from '../shared/designSystem'
 
+type ThemeSharingStatus = {
+  text: string
+  tone: 'success' | 'error'
+}
+
 export const defaultLightChromeTheme: ChromeTheme = {
   accent: '#0a7cff',
   surface: '#ffffff',
@@ -202,7 +207,7 @@ export default function AppearanceSettingsPage({
   onImportPortableTheme: (raw: string) => { ok: boolean; error?: string }
 }): JSX.Element {
   const [themeImportText, setThemeImportText] = useState('')
-  const [themeImportStatus, setThemeImportStatus] = useState<string | null>(null)
+  const [themeSharingStatus, setThemeSharingStatus] = useState<ThemeSharingStatus | null>(null)
   const accentOptions: Array<{ id: Accent; label: string; color: string }> = [
     { id: 'blue', label: 'Blue', color: '#0a7cff' },
     { id: 'teal', label: 'Teal', color: '#14a6a1' },
@@ -237,21 +242,32 @@ export default function AppearanceSettingsPage({
     const current = variant === 'light' ? lightChromeTheme : darkChromeTheme
     onSetChromeTheme(variant, { ...current, ...patch })
   }
-  const copyTheme = (variant: 'light' | 'dark'): void => {
+  const copyTheme = async (variant: 'light' | 'dark'): Promise<void> => {
     const value = serializePortableTheme(
       variant,
       variant === 'light' ? lightChromeTheme : darkChromeTheme,
       variant === 'light' ? lightCodeThemeId : darkCodeThemeId
     )
-    void navigator.clipboard.writeText(value)
-    setThemeImportStatus(`${variant === 'light' ? 'Light' : 'Dark'} theme copied`)
+    try {
+      await writeClipboardText(value)
+      setThemeSharingStatus({ text: `${variant === 'light' ? 'Light' : 'Dark'} theme copied`, tone: 'success' })
+    } catch {
+      setThemeSharingStatus({ text: `Unable to copy ${variant} theme`, tone: 'error' })
+    }
   }
   const importTheme = (): void => {
     const result = onImportPortableTheme(themeImportText)
-    setThemeImportStatus(result.ok ? 'Theme imported' : result.error ?? 'Invalid theme')
+    setThemeSharingStatus({
+      text: result.ok ? 'Theme imported' : result.error ?? 'Invalid theme',
+      tone: result.ok ? 'success' : 'error'
+    })
   }
   return (
-    <div data-settings-page-module="appearance">
+    <div
+      data-settings-page-module="appearance"
+      data-appearance-sharing-status={themeSharingStatus?.text ?? ''}
+      data-appearance-sharing-status-tone={themeSharingStatus?.tone ?? ''}
+    >
       <SettingsPageSection dataTestId="appearance-settings-section" className="appearance-settings-page">
         <SettingsContentLayout
           title="Appearance"
@@ -336,13 +352,13 @@ export default function AppearanceSettingsPage({
           />
           <SettingsGroupContent>
             <SettingsSurface className="appearance-settings-surface">
-              <div className="appearance-sharing-controls">
+              <div className="appearance-sharing-controls" data-import-controls-surface="shared">
                 <div className="settings-actions-inline appearance-sharing-actions">
                   <button
                     type="button"
                     data-testid="copy-light-theme"
                     className="settings-action-button"
-                    onClick={() => copyTheme('light')}
+                    onClick={() => { void copyTheme('light') }}
                   >
                     Copy light theme
                   </button>
@@ -350,13 +366,14 @@ export default function AppearanceSettingsPage({
                     type="button"
                     data-testid="copy-dark-theme"
                     className="settings-action-button"
-                    onClick={() => copyTheme('dark')}
+                    onClick={() => { void copyTheme('dark') }}
                   >
                     Copy dark theme
                   </button>
                 </div>
                 <textarea
                   data-testid="theme-import-input"
+                  data-import-input-surface="shared"
                   value={themeImportText}
                   onChange={(event) => setThemeImportText(event.currentTarget.value)}
                   placeholder="codex-theme-v1:{...}"
@@ -366,14 +383,21 @@ export default function AppearanceSettingsPage({
                   <button
                     type="button"
                     data-testid="theme-import-button"
-                    className="settings-action-button"
+                    className="settings-action-button appearance-theme-import-action"
                     onClick={importTheme}
                   >
                     Import theme
                   </button>
-                  {themeImportStatus && (
-                    <span data-testid="theme-import-status" className="appearance-theme-import-status">
-                      {themeImportStatus}
+                  {themeSharingStatus && (
+                    <span
+                      data-testid="theme-import-status"
+                      className="appearance-theme-import-status"
+                      data-tone={themeSharingStatus.tone}
+                      role={themeSharingStatus.tone === 'error' ? 'alert' : 'status'}
+                      aria-live={themeSharingStatus.tone === 'error' ? 'assertive' : 'polite'}
+                      aria-atomic="true"
+                    >
+                      {themeSharingStatus.text}
                     </span>
                   )}
                 </div>
@@ -410,6 +434,8 @@ export default function AppearanceSettingsPage({
                   description="Used when the custom accent swatch is selected."
                   control={(
                     <input
+                      data-testid="appearance-custom-accent-input"
+                      data-color-input-surface="shared"
                       type="color"
                       value={customAccent}
                       onChange={(event) => onSetCustomAccent(event.currentTarget.value)}
@@ -525,6 +551,14 @@ export default function AppearanceSettingsPage({
       </SettingsPageSection>
     </div>
   )
+}
+
+async function writeClipboardText(text: string): Promise<void> {
+  if (typeof window.api.clipboard?.writeText === 'function') {
+    const didWrite = await window.api.clipboard.writeText(text)
+    if (didWrite) return
+  }
+  await navigator.clipboard.writeText(text)
 }
 
 function SettingsSectionHeading({ title, description }: { title: string; description: string }): JSX.Element {
@@ -645,16 +679,10 @@ function ChromeThemeEditor({
   return (
     <div
       data-testid={`appearance-${variant}-chrome-editor`}
-      style={{
-        display: 'grid',
-        gap: 12,
-        padding: 14,
-        borderRadius: 'var(--radius-lg)',
-        border: '1px solid var(--border-subtle)',
-        background: 'var(--surface-bg)'
-      }}
+      data-theme-editor-surface="shared"
+      className="appearance-chrome-theme-editor"
     >
-      <div style={{ fontSize: 13, fontWeight: 650, color: 'var(--text-primary)' }}>{title}</div>
+      <div className="appearance-chrome-theme-editor-title">{title}</div>
       <ColorInput label="Accent" value={theme.accent} onChange={(value) => onChange(variant, { accent: value })} />
       <ColorInput label="Background" value={theme.surface} onChange={(value) => onChange(variant, { surface: value })} />
       <ColorInput label="Foreground" value={theme.ink} onChange={(value) => onChange(variant, { ink: value })} />
@@ -684,7 +712,7 @@ function ChromeThemeEditor({
             step="1"
             value={theme.contrast}
             onChange={(event) => onChange(variant, { contrast: Number(event.currentTarget.value) })}
-            style={{ width: 132 }}
+            className="appearance-contrast-range"
           />
         )}
       />
@@ -700,23 +728,20 @@ function ChromeThemeEditor({
 }
 
 function ColorInput({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }): JSX.Element {
+  const id = label.toLowerCase().replace(/[^a-z0-9]+/g, '-')
   return (
     <SettingsRow
       label={label}
       variant="nested"
       control={(
         <input
+          data-testid={`appearance-color-${id}`}
+          data-color-input-surface="shared"
           type="color"
           aria-label={label}
           value={value}
           onChange={(event) => onChange(event.currentTarget.value)}
-          style={{
-            width: 34,
-            height: 28,
-            border: '1px solid var(--border-subtle)',
-            borderRadius: 'var(--radius-md)',
-            background: 'transparent'
-          }}
+          className="appearance-color-input"
         />
       )}
     />

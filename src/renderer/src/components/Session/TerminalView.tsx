@@ -1,4 +1,4 @@
-import { Component, useCallback, useEffect, useRef, useState } from 'react'
+import { Component, useCallback, useEffect, useId, useRef, useState } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
@@ -11,6 +11,9 @@ interface Props {
   workDir: string
   onNewTab?: () => void
   onOpenUrl?: (url: string) => void
+  onOutputChange?: (terminalId: string, output: string) => void
+  onCommandSubmitted?: (terminalId: string, command: string, outputOffset: number) => void
+  onSelectionChange?: (terminalId: string, selection: string) => void
 }
 
 interface TerminalAppearance {
@@ -31,19 +34,62 @@ export default function TerminalView(props: Props): JSX.Element {
   )
 }
 
-function TerminalSurface({ terminalId, workDir, onNewTab, onOpenUrl }: Props): JSX.Element {
+function TerminalSurface({ terminalId, workDir, onNewTab, onOpenUrl, onOutputChange, onCommandSubmitted, onSelectionChange }: Props): JSX.Element {
   const surfaceRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
   const fitRef = useRef<FitAddon | null>(null)
+  const commandDraftRef = useRef('')
+  const plainOutputLengthRef = useRef(0)
   const [terminalAppearance, setTerminalAppearance] = useState<TerminalAppearance>(() => resolveTerminalAppearance(null))
   const [plainOutput, setPlainOutput] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [exited, setExited] = useState<{ code: number; signal: number | null } | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
+  const [clipboardStatus, setClipboardStatus] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
+  const clipboardStatusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    onOutputChange?.(terminalId, plainOutput)
+  }, [onOutputChange, plainOutput, terminalId])
+
+  const trackTerminalInput = useCallback((data: string): void => {
+    let draft = commandDraftRef.current
+    for (let index = 0; index < data.length; index += 1) {
+      const char = data[index]
+      if (char === '\x1b') {
+        while (index + 1 < data.length && !/[A-Za-z~]/.test(data[index + 1])) index += 1
+        if (index + 1 < data.length) index += 1
+        continue
+      }
+      if (char === '\r' || char === '\n') {
+        const command = draft.trim()
+        if (command.length > 0) onCommandSubmitted?.(terminalId, command, plainOutputLengthRef.current)
+        draft = ''
+        continue
+      }
+      if (char === '\u0003') {
+        draft = ''
+        continue
+      }
+      if (char === '\b' || char === '\u007f') {
+        draft = draft.slice(0, -1)
+        continue
+      }
+      if (char >= ' ' && char !== '\u007f') draft += char
+    }
+    commandDraftRef.current = draft
+  }, [onCommandSubmitted, terminalId])
+
+  const openTerminalUrl = useCallback((url: string): void => {
+    if (!onOpenUrl) return
+    onOpenUrl(url)
+  }, [onOpenUrl])
 
   useEffect(() => {
     setPlainOutput('')
+    plainOutputLengthRef.current = 0
+    commandDraftRef.current = ''
     setError(null)
     setExited(null)
     const appearance = resolveTerminalAppearance(surfaceRef.current)
@@ -61,7 +107,7 @@ function TerminalSurface({ terminalId, workDir, onNewTab, onOpenUrl }: Props): J
     const fitAddon = new FitAddon()
     fitRef.current = fitAddon
     term.loadAddon(fitAddon)
-    if (onOpenUrl) term.registerLinkProvider(createTerminalUrlLinkProvider(term, onOpenUrl))
+    if (onOpenUrl) term.registerLinkProvider(createTerminalUrlLinkProvider(term, openTerminalUrl))
     termRef.current = term
     const safeFit = (): boolean => {
       const container = containerRef.current
@@ -90,7 +136,9 @@ function TerminalSurface({ terminalId, workDir, onNewTab, onOpenUrl }: Props): J
           const buf = existingBuffer
           if (buf && termRef.current === term) {
             term.write(buf)
-            setPlainOutput(stripTerminalOutput(buf))
+            const stripped = stripTerminalOutput(buf)
+            setPlainOutput(stripped)
+            plainOutputLengthRef.current = stripped.length
             term.refresh(0, term.rows - 1)
           }
           term.focus()
@@ -108,7 +156,9 @@ function TerminalSurface({ terminalId, workDir, onNewTab, onOpenUrl }: Props): J
       term.write(data)
       setPlainOutput((current) => {
         const next = current + stripTerminalOutput(data)
-        return next.length > 40_000 ? next.slice(-40_000) : next
+        const clipped = next.length > 40_000 ? next.slice(-40_000) : next
+        plainOutputLengthRef.current = clipped.length
+        return clipped
       })
     })
 
@@ -128,20 +178,42 @@ function TerminalSurface({ terminalId, workDir, onNewTab, onOpenUrl }: Props): J
     if (containerRef.current) observer.observe(containerRef.current)
 
     term.onData((data) => {
+      trackTerminalInput(data)
       window.api.terminal.write(terminalId, data)
     })
+
+    const selectionDisposable = term.onSelectionChange(() => {
+      onSelectionChange?.(terminalId, term.getSelection())
+    })
+
+    const globals = window as typeof window & {
+      __orchestratorSelectTerminalOutputForSmokeById?: Record<string, () => void>
+    }
+    const selectTerminalOutputForSmoke = (): void => {
+      term.selectAll()
+      onSelectionChange?.(terminalId, term.getSelection())
+    }
+    globals.__orchestratorSelectTerminalOutputForSmokeById = {
+      ...(globals.__orchestratorSelectTerminalOutputForSmokeById ?? {}),
+      [terminalId]: selectTerminalOutputForSmoke
+    }
 
     return () => {
       observer.disconnect()
       unsub()
       unsubExit()
       unsubError()
+      selectionDisposable.dispose()
       term.dispose()
       termRef.current = null
       fitRef.current = null
+      onSelectionChange?.(terminalId, '')
+      if (globals.__orchestratorSelectTerminalOutputForSmokeById?.[terminalId] === selectTerminalOutputForSmoke) {
+        delete globals.__orchestratorSelectTerminalOutputForSmokeById[terminalId]
+      }
       // shell persists — call kill() explicitly via tab close or session removal
     }
-  }, [onOpenUrl, terminalId, workDir, reloadKey])
+  }, [onOpenUrl, onSelectionChange, openTerminalUrl, terminalId, workDir, reloadKey, trackTerminalInput])
 
   useEffect(() => {
     let disposed = false
@@ -193,31 +265,68 @@ function TerminalSurface({ terminalId, workDir, onNewTab, onOpenUrl }: Props): J
     }
   }, [terminalId])
 
+  const reloadTerminal = useCallback(() => {
+    setError(null)
+    setExited(null)
+    setPlainOutput('')
+    setReloadKey((current) => current + 1)
+  }, [])
+
+  useEffect(() => () => {
+    if (clipboardStatusTimeoutRef.current) window.clearTimeout(clipboardStatusTimeoutRef.current)
+  }, [])
+
+  const setTerminalClipboardStatus = useCallback((text: string, tone: 'info' | 'danger' = 'info') => {
+    if (clipboardStatusTimeoutRef.current) window.clearTimeout(clipboardStatusTimeoutRef.current)
+    setClipboardStatus({ text, tone })
+    clipboardStatusTimeoutRef.current = window.setTimeout(() => {
+      setClipboardStatus(null)
+      clipboardStatusTimeoutRef.current = null
+    }, 2200)
+  }, [])
+
   useEffect(() => {
     if (!onOpenUrl) return undefined
     const globals = window as typeof window & {
       __orchestratorOpenTerminalUrlForSmoke?: (url: string) => void
+      __orchestratorOpenTerminalUrlForSmokeById?: Record<string, (url: string) => void>
       __orchestratorLastTerminalUrlOpened?: string
     }
     const openUrlForSmoke = (url: string): void => {
       const normalized = normalizeTerminalUrl(url)
       if (!normalized) return
       globals.__orchestratorLastTerminalUrlOpened = normalized
-      onOpenUrl(normalized)
+      openTerminalUrl(normalized)
+    }
+    globals.__orchestratorOpenTerminalUrlForSmokeById = {
+      ...(globals.__orchestratorOpenTerminalUrlForSmokeById ?? {}),
+      [terminalId]: openUrlForSmoke
     }
     globals.__orchestratorOpenTerminalUrlForSmoke = openUrlForSmoke
     return () => {
+      if (globals.__orchestratorOpenTerminalUrlForSmokeById?.[terminalId] === openUrlForSmoke) {
+        delete globals.__orchestratorOpenTerminalUrlForSmokeById[terminalId]
+      }
       if (globals.__orchestratorOpenTerminalUrlForSmoke === openUrlForSmoke) {
         delete globals.__orchestratorOpenTerminalUrlForSmoke
       }
     }
-  }, [onOpenUrl])
+  }, [onOpenUrl, openTerminalUrl, terminalId, trackTerminalInput])
 
-  const reloadTerminal = useCallback(() => {
-    setError(null)
-    setExited(null)
-    setPlainOutput('')
-    setReloadKey((current) => current + 1)
+  const writeClipboardText = useCallback(async (text: string): Promise<void> => {
+    if (typeof window.api.clipboard?.writeText === 'function') {
+      const didWrite = await window.api.clipboard.writeText(text)
+      if (!didWrite) throw new Error('Clipboard write failed')
+      return
+    }
+    await navigator.clipboard.writeText(text)
+  }, [])
+
+  const readClipboardText = useCallback(async (): Promise<string> => {
+    if (typeof window.api.clipboard?.readText === 'function') {
+      return window.api.clipboard.readText()
+    }
+    return navigator.clipboard?.readText ? navigator.clipboard.readText() : ''
   }, [])
 
   const handleKeyDownCapture = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
@@ -233,23 +342,29 @@ function TerminalSurface({ terminalId, workDir, onNewTab, onOpenUrl }: Props): J
     if (isCopyShortcut(event) && term.hasSelection()) {
       event.preventDefault()
       event.stopPropagation()
-      void navigator.clipboard?.writeText(term.getSelection()).catch(() => undefined)
+      void writeClipboardText(term.getSelection())
+        .then(() => setTerminalClipboardStatus('Selection copied'))
+        .catch(() => setTerminalClipboardStatus('Copy failed', 'danger'))
       return
     }
     if (isPasteShortcut(event)) {
       event.preventDefault()
       event.stopPropagation()
-      void navigator.clipboard?.readText().then((text) => {
-        if (!text) return
+      void readClipboardText().then((text) => {
+        if (!text) {
+          setTerminalClipboardStatus('Clipboard empty')
+          return
+        }
         const terminalWithPaste = term as Terminal & { paste?: (value: string) => void }
         if (terminalWithPaste.paste) {
           terminalWithPaste.paste(text)
         } else {
           void window.api.terminal.write(terminalId, text.replace(/\r?\n/g, '\r'))
         }
-      }).catch(() => undefined)
+        setTerminalClipboardStatus('Pasted into terminal')
+      }).catch(() => setTerminalClipboardStatus('Paste failed', 'danger'))
     }
-  }, [onNewTab, terminalId])
+  }, [onNewTab, readClipboardText, setTerminalClipboardStatus, terminalId, writeClipboardText])
 
   return (
     <div
@@ -266,6 +381,8 @@ function TerminalSurface({ terminalId, workDir, onNewTab, onOpenUrl }: Props): J
       data-terminal-line-height={CODEX_TERMINAL_LINE_HEIGHT}
       data-terminal-content-padding={CODEX_TERMINAL_CONTENT_PADDING}
       data-terminal-surface-background="vscode-terminal-token"
+      data-terminal-clipboard-status={clipboardStatus?.text ?? ''}
+      data-terminal-clipboard-status-tone={clipboardStatus?.tone ?? ''}
       onKeyDownCapture={handleKeyDownCapture}
       style={{
         height: '100%',
@@ -335,6 +452,32 @@ function TerminalSurface({ terminalId, workDir, onNewTab, onOpenUrl }: Props): J
       >
         {plainOutput}
       </pre>
+      {clipboardStatus && (
+        <span
+          data-testid="terminal-clipboard-status"
+          role={clipboardStatus.tone === 'danger' ? 'alert' : 'status'}
+          aria-live={clipboardStatus.tone === 'danger' ? 'assertive' : 'polite'}
+          aria-atomic="true"
+          style={{
+            position: 'absolute',
+            top: 8,
+            right: 12,
+            maxWidth: 220,
+            padding: '3px 7px',
+            borderRadius: 6,
+            border: '1px solid var(--border-subtle)',
+            background: clipboardStatus.tone === 'danger'
+              ? 'color-mix(in srgb, var(--state-danger) 12%, var(--surface-bg))'
+              : 'color-mix(in srgb, var(--accent) 10%, var(--surface-bg))',
+            color: clipboardStatus.tone === 'danger' ? 'var(--state-danger)' : 'var(--accent)',
+            fontSize: 11,
+            fontWeight: 600,
+            pointerEvents: 'none'
+          }}
+        >
+          {clipboardStatus.text}
+        </span>
+      )}
     </div>
   )
 }
@@ -523,15 +666,28 @@ function TerminalFailureState({
   actionLabel: string
   onAction: () => void
 }): JSX.Element {
+  const titleId = useId()
+  const descriptionId = useId()
+
   return (
-    <div className="terminal-failure-state" data-testid="terminal-failure-state" role="status">
+    <div
+      className="terminal-failure-state"
+      data-testid="terminal-failure-state"
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+      aria-labelledby={titleId}
+      aria-describedby={descriptionId}
+    >
       <div className="terminal-failure-copy">
-        <div className="terminal-failure-title">{title}</div>
-        <div className="terminal-failure-description">{description}</div>
+        <div className="terminal-failure-title" id={titleId}>{title}</div>
+        <div className="terminal-failure-description" id={descriptionId}>{description}</div>
       </div>
-      <button type="button" className="terminal-failure-action" onClick={onAction}>
-        {actionLabel}
-      </button>
+      <div role="group" aria-label="Terminal recovery actions">
+        <button type="button" className="terminal-failure-action" aria-label={`${actionLabel} terminal`} onClick={onAction}>
+          {actionLabel}
+        </button>
+      </div>
     </div>
   )
 }

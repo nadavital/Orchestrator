@@ -1,8 +1,8 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
-import type { RefObject } from 'react'
+import type { MouseEvent as ReactMouseEvent, RefObject } from 'react'
 import { flushSync } from 'react-dom'
 import { useProjectStore } from './store/projects'
-import { hasComposerDraft, sideChatIdFromTabId, useSessionStore } from './store/sessions'
+import { hasComposerDraft, sideChatIdFromTabId, terminalTabIdFromTabId, useSessionStore } from './store/sessions'
 import type { SettingsSection } from './store/sessions'
 import Sidebar from './components/Sidebar/Sidebar'
 import SessionPane from './components/Session/SessionPane'
@@ -18,8 +18,8 @@ import { applyAppearance, type Appearance } from './theme'
 import { markRendererStart, recordRendererMetric } from './performance'
 import { APP_COMMANDS, appMenuCommandForKeyboardEvent, commandShortcuts, formatShortcutSequence } from '../../types/appCommands'
 import type { AppCommandAvailability, AppMenuCommand, ShortcutOverrides, StableAppCommand } from '../../types/appCommands'
-import { browserManagerPatchFromEvents, parseSettingsRouteLocation, resolvePanelBrowserCommandTarget, resolvePanelCloseTarget, resolvePanelFindTarget, resolvePanelNewTabTarget, settingsRouteExitUrl, settingsRouteUrlForLocation } from '../../types'
-import type { PanelFindTarget, SessionRunEventRecord } from '../../types'
+import { browserManagerPatchFromEvents, parseSessionRouteLocation, parseSettingsRouteLocation, resolvePanelBrowserCommandTarget, resolvePanelCloseTarget, resolvePanelFindTarget, resolvePanelNewTabTarget, sessionRouteUrlForLocation, settingsRouteExitUrl, settingsRouteUrlForLocation } from '../../types'
+import type { ChatMessage, PanelFindTarget, ReviewMetadata, SessionRunEventRecord } from '../../types'
 import type { PanelCloseFocusArea } from '../../types'
 
 type ShellFocusArea = PanelCloseFocusArea
@@ -29,6 +29,13 @@ type ThreadFindStatus = {
   activeMatch: number
   isCapped: boolean
   activePath?: string | null
+}
+type SessionRouteNotice = {
+  kind: 'resolving' | 'archived' | 'missing'
+  sessionId: string
+  name: string | null
+  restoring?: boolean
+  error?: string | null
 }
 type BrowserPanelCommand =
   | 'open-browser-tab'
@@ -52,6 +59,10 @@ function settingsRouteUrl(section: SettingsSection, hostId?: string | null): str
   return settingsRouteUrlForLocation(section, hostId, window.location)
 }
 
+function sessionRouteUrl(sessionId: string): string {
+  return sessionRouteUrlForLocation(sessionId, window.location)
+}
+
 function currentUrlMatches(targetUrl: string): boolean {
   if (targetUrl.startsWith('#')) return window.location.hash === targetUrl
   return `${window.location.pathname}${window.location.search}` === targetUrl
@@ -65,6 +76,30 @@ function replaceRouteUrl(url: string): void {
 function pushRouteUrl(url: string): void {
   if (currentUrlMatches(url)) return
   window.history.pushState(window.history.state, '', url)
+}
+
+async function sessionRouteNoticeForMissingId(sessionId: string): Promise<SessionRouteNotice> {
+  const stored = await window.api.sessions.get(sessionId)
+  if (stored?.archivedAt) {
+    return {
+      kind: 'archived',
+      sessionId,
+      name: stored.name ?? null
+    }
+  }
+  return {
+    kind: 'missing',
+    sessionId,
+    name: stored?.name ?? null
+  }
+}
+
+async function inspectSessionRoute(sessionId: string): Promise<SessionRouteNotice> {
+  const globals = window as typeof window & {
+    __orchestratorDelaySessionRouteInspectionForSmoke?: (sessionId: string) => Promise<void> | void
+  }
+  await globals.__orchestratorDelaySessionRouteInspectionForSmoke?.(sessionId)
+  return sessionRouteNoticeForMissingId(sessionId)
 }
 
 function applyBrowserManagerRunEvents(sessionId: string, records: SessionRunEventRecord[]): void {
@@ -109,6 +144,7 @@ export default function App(): JSX.Element {
   const updateSettings = useSessionStore((state) => state.updateSettings)
   const appendMessages = useSessionStore((state) => state.appendMessages)
   const upsertMessage = useSessionStore((state) => state.upsertMessage)
+  const removeMessage = useSessionStore((state) => state.removeMessage)
   const appendEvents = useSessionStore((state) => state.appendEvents)
   const appendRaw = useSessionStore((state) => state.appendRaw)
   const setShowTerminal = useSessionStore((state) => state.setShowTerminal)
@@ -138,9 +174,13 @@ export default function App(): JSX.Element {
     conversation: { totalMatches: 0, activeMatch: 0, isCapped: false },
     diff: { totalMatches: 0, activeMatch: 0, isCapped: false }
   })
+  const [sessionRouteNotice, setSessionRouteNotice] = useState<SessionRouteNotice | null>(null)
   const waitingNotificationKeysRef = useRef(new Set<string>())
   const shellFocusAreaRef = useRef<ShellFocusArea>('main')
+  const sessionRouteNoticeRequestRef = useRef(0)
+
   const threadFindInputRef = useRef<HTMLInputElement | null>(null)
+  const threadFindReturnFocusRef = useRef<HTMLElement | null>(null)
   const deferredActiveSessionId = useDeferredValue(activeSessionId)
 
   useEffect(() => {
@@ -188,13 +228,98 @@ export default function App(): JSX.Element {
   }, [settingsHostId, settingsSection, showSettings])
 
   useEffect(() => {
+    if (window.location.hash === '#design-system') return
+    if (showSettings || showCapabilities || sessionRouteNotice || !activeSessionId) return
+    replaceRouteUrl(sessionRouteUrl(activeSessionId))
+  }, [activeSessionId, sessionRouteNotice, showCapabilities, showSettings])
+
+  useEffect(() => {
+    const inspectMissingSessionRoute = (sessionId: string): void => {
+      const requestId = sessionRouteNoticeRequestRef.current + 1
+      sessionRouteNoticeRequestRef.current = requestId
+      setShowSettings(false)
+      setShowCapabilities(false)
+      setSessionRouteNotice({
+        kind: 'resolving',
+        sessionId,
+        name: null
+      })
+      void inspectSessionRoute(sessionId)
+        .then((notice) => {
+          if (sessionRouteNoticeRequestRef.current !== requestId) return
+          const currentRoute = parseSessionRouteLocation(window.location)
+          if (currentRoute?.sessionId !== sessionId) return
+          const state = useSessionStore.getState()
+          if (state.sessions.some((session) => session.id === sessionId)) {
+            setSessionRouteNotice(null)
+            return
+          }
+          setSessionRouteNotice(notice)
+        })
+        .catch(() => {
+          if (sessionRouteNoticeRequestRef.current !== requestId) return
+          const currentRoute = parseSessionRouteLocation(window.location)
+          if (currentRoute?.sessionId !== sessionId) return
+          setSessionRouteNotice({ kind: 'missing', sessionId, name: null, error: 'Could not inspect this chat route.' })
+        })
+    }
+
+    const applyRoute = (): void => {
+      if (window.location.hash === '#design-system') return
+      const route = parseSessionRouteLocation(window.location)
+      if (!route) return
+      const state = useSessionStore.getState()
+      if (!state.sessions.some((session) => session.id === route.sessionId)) {
+        inspectMissingSessionRoute(route.sessionId)
+        return
+      }
+      if (state.activeSessionId === route.sessionId && !state.showSettings && !state.showCapabilities) {
+        sessionRouteNoticeRequestRef.current += 1
+        setSessionRouteNotice(null)
+        return
+      }
+      sessionRouteNoticeRequestRef.current += 1
+      setSessionRouteNotice(null)
+      setShowSettings(false)
+      setShowCapabilities(false)
+      setActiveSession(route.sessionId)
+    }
+    applyRoute()
+    window.addEventListener('hashchange', applyRoute)
+    window.addEventListener('popstate', applyRoute)
+    return () => {
+      window.removeEventListener('hashchange', applyRoute)
+      window.removeEventListener('popstate', applyRoute)
+    }
+  }, [sessionCount, setActiveSession, setHasUnread, setShowCapabilities, setShowSettings])
+
+  useEffect(() => {
     const globals = window as typeof window & {
       __orchestratorAppendSessionEventsForSmoke?: (sessionId: string, events: SessionRunEventRecord[]) => boolean
+      __orchestratorAppendSessionRawForSmoke?: (sessionId: string, data: string) => boolean
+      __orchestratorAppendSessionMessagesForSmoke?: (sessionId: string, messages: ChatMessage[]) => boolean
+      __orchestratorSetSessionReviewMetadataForSmoke?: (sessionId: string, reviewMetadata: ReviewMetadata | null) => boolean
       __orchestratorSetActiveSessionForSmoke?: (sessionId: string) => boolean
+      __orchestratorSetSessionUnreadForSmoke?: (sessionId: string, unread: boolean) => boolean
     }
     globals.__orchestratorAppendSessionEventsForSmoke = (sessionId, events) => {
       appendEvents(sessionId, events)
       applyBrowserManagerRunEvents(sessionId, events)
+      return true
+    }
+    globals.__orchestratorAppendSessionRawForSmoke = (sessionId, data) => {
+      appendRaw(sessionId, data)
+      return true
+    }
+    globals.__orchestratorAppendSessionMessagesForSmoke = (sessionId, messages) => {
+      appendMessages(sessionId, messages)
+      return true
+    }
+    globals.__orchestratorSetSessionReviewMetadataForSmoke = (sessionId, reviewMetadata) => {
+      const state = useSessionStore.getState()
+      const targetSessionId = sessionId === 'active' ? state.activeSessionId : sessionId
+      if (!targetSessionId || !state.sessions.some((session) => session.id === targetSessionId)) return false
+      updateSession(targetSessionId, { reviewMetadata: reviewMetadata ?? undefined })
       return true
     }
     globals.__orchestratorSetActiveSessionForSmoke = (sessionId) => {
@@ -203,14 +328,23 @@ export default function App(): JSX.Element {
       state.setShowSettings(false)
       state.setShowCapabilities(false)
       state.setActiveSession(sessionId)
-      state.setHasUnread(sessionId, false)
+      return true
+    }
+    globals.__orchestratorSetSessionUnreadForSmoke = (sessionId, unread) => {
+      const state = useSessionStore.getState()
+      if (!state.sessions.some((session) => session.id === sessionId)) return false
+      state.setHasUnread(sessionId, unread)
       return true
     }
     return () => {
       delete globals.__orchestratorAppendSessionEventsForSmoke
+      delete globals.__orchestratorAppendSessionRawForSmoke
+      delete globals.__orchestratorAppendSessionMessagesForSmoke
+      delete globals.__orchestratorSetSessionReviewMetadataForSmoke
       delete globals.__orchestratorSetActiveSessionForSmoke
+      delete globals.__orchestratorSetSessionUnreadForSmoke
     }
-  }, [appendEvents])
+  }, [appendEvents, appendMessages, appendRaw, updateSession])
 
   const createNewChat = useCallback(async (): Promise<void> => {
     const sessionState = useSessionStore.getState()
@@ -324,6 +458,10 @@ export default function App(): JSX.Element {
   }, [])
 
   const openThreadFind = useCallback((domain: ThreadFindDomain): void => {
+    const activeElement = document.activeElement
+    if (activeElement instanceof HTMLElement && !activeElement.closest('[data-testid="thread-find-bar"]')) {
+      threadFindReturnFocusRef.current = activeElement
+    }
     setThreadFindDomain(domain)
     setThreadFindVisible(true)
     window.requestAnimationFrame(() => {
@@ -333,11 +471,18 @@ export default function App(): JSX.Element {
   }, [])
 
   const closeThreadFind = useCallback((): void => {
+    const returnFocusTarget = threadFindReturnFocusRef.current
+    threadFindReturnFocusRef.current = null
     setThreadFindVisible(false)
     setThreadFindQuery('')
     window.dispatchEvent(new CustomEvent('orchestrator:thread-find-close', {
       detail: { sessionId: useSessionStore.getState().activeSessionId }
     }))
+    window.requestAnimationFrame(() => {
+      if (returnFocusTarget && document.contains(returnFocusTarget)) {
+        returnFocusTarget.focus({ preventScroll: true })
+      }
+    })
   }, [])
 
   const openFileSearch = useCallback((): void => {
@@ -406,6 +551,8 @@ export default function App(): JSX.Element {
       'next-recent-chat': sessionCount > 1,
       'open-file-search': hasActiveSession,
       'search-transcript': panelFindAvailable,
+      'find-next': panelFindAvailable,
+      'find-previous': panelFindAvailable,
       'toggle-inspector': hasActiveSession,
       'open-review-tab': hasActiveSession,
       'open-browser-tab': hasActiveSession,
@@ -443,6 +590,35 @@ export default function App(): JSX.Element {
     }
   }, [openBrowserFind, openThreadFind, resolveCurrentPanelFindTarget])
 
+  const stepPanelFindTarget = useCallback((direction: 1 | -1): void => {
+    if (threadFindVisible && activeSessionId) {
+      window.dispatchEvent(new CustomEvent('orchestrator:thread-find-step', {
+        detail: { sessionId: activeSessionId, domain: threadFindDomain, direction }
+      }))
+      return
+    }
+    const target = resolveCurrentPanelFindTarget()
+    if (target === 'browser-page') {
+      window.dispatchEvent(new CustomEvent('orchestrator:browser-find-step', {
+        detail: { direction }
+      }))
+      return
+    }
+    if (!activeSessionId) return
+    if (target === 'transcript' || target === 'review-files' || target === 'source-file') {
+      const domain: ThreadFindDomain = target === 'transcript' ? 'conversation' : 'diff'
+      if (!threadFindVisible || threadFindDomain !== domain) {
+        openThreadFind(domain)
+        return
+      }
+      window.dispatchEvent(new CustomEvent('orchestrator:thread-find-step', {
+        detail: { sessionId: activeSessionId, domain, direction }
+      }))
+      return
+    }
+    openPanelFindTarget()
+  }, [activeSessionId, openPanelFindTarget, openThreadFind, resolveCurrentPanelFindTarget, threadFindDomain, threadFindVisible])
+
   const openBrowserTabCommand = useCallback((): void => {
     const { activeSessionId, uiState, addTerminalTab, moveTerminalTabToRight } = useSessionStore.getState()
     if (!activeSessionId) return
@@ -477,6 +653,58 @@ export default function App(): JSX.Element {
     setShowSettings(true)
   }, [setSettingsSection, setShowCapabilities, setShowSettings])
 
+  const closeSettings = useCallback((): void => {
+    setShowSettings(false)
+    const focusComposer = (): boolean => {
+      const composer = document.querySelector<HTMLTextAreaElement>('[data-testid="composer-textarea"]')
+      if (!(composer instanceof HTMLTextAreaElement) || composer.disabled) return false
+      composer.focus({ preventScroll: true })
+      return document.activeElement === composer
+    }
+    window.requestAnimationFrame(() => {
+      if (!focusComposer()) window.setTimeout(focusComposer, 0)
+    })
+  }, [setShowSettings])
+
+  const returnToActiveChatFromRouteNotice = useCallback((): void => {
+    sessionRouteNoticeRequestRef.current += 1
+    setSessionRouteNotice(null)
+    const currentActiveId = useSessionStore.getState().activeSessionId
+    if (currentActiveId) replaceRouteUrl(sessionRouteUrl(currentActiveId))
+  }, [])
+
+  const restoreArchivedRouteSession = useCallback(async (): Promise<void> => {
+    const notice = sessionRouteNotice
+    if (!notice || notice.kind !== 'archived' || notice.restoring) return
+    setSessionRouteNotice({ ...notice, restoring: true, error: null })
+    try {
+      const restored = await window.api.sessions.restoreArchived(notice.sessionId)
+      if (!restored) {
+        setSessionRouteNotice({
+          kind: 'missing',
+          sessionId: notice.sessionId,
+          name: notice.name,
+          error: 'This archived chat could not be restored.'
+        })
+        return
+      }
+      addSession(restored)
+      addSessionToProject(restored.projectId, restored.id)
+      sessionRouteNoticeRequestRef.current += 1
+      setSessionRouteNotice(null)
+      setShowSettings(false)
+      setShowCapabilities(false)
+      setActiveSession(restored.id)
+      replaceRouteUrl(sessionRouteUrl(restored.id))
+    } catch (error) {
+      setSessionRouteNotice({
+        ...notice,
+        restoring: false,
+        error: error instanceof Error ? error.message : 'Could not restore this archived chat.'
+      })
+    }
+  }, [addSession, addSessionToProject, sessionRouteNotice, setActiveSession, setHasUnread, setShowCapabilities, setShowSettings])
+
   const handleSidebarNewChat = useCallback((): void => {
     void createNewChat()
   }, [createNewChat])
@@ -507,6 +735,30 @@ export default function App(): JSX.Element {
     return target !== null
   }, [])
 
+  const restoreTerminalToggleFocus = useCallback((): void => {
+    const focusToggle = (): boolean => {
+      const toggle = document.querySelector<HTMLButtonElement>('[data-testid="titlebar-toggle-terminal"]')
+      if (!(toggle instanceof HTMLButtonElement)) return false
+      toggle.focus({ preventScroll: true })
+      return document.activeElement === toggle
+    }
+    window.requestAnimationFrame(() => {
+      if (!focusToggle()) window.setTimeout(focusToggle, 0)
+    })
+  }, [])
+
+  const restoreRightPanelToggleFocus = useCallback((): void => {
+    const focusToggle = (): boolean => {
+      const toggle = document.querySelector<HTMLButtonElement>('[data-testid="titlebar-toggle-sidebar"]')
+      if (!(toggle instanceof HTMLButtonElement)) return false
+      toggle.focus({ preventScroll: true })
+      return document.activeElement === toggle
+    }
+    window.requestAnimationFrame(() => {
+      if (!focusToggle()) window.setTimeout(focusToggle, 0)
+    })
+  }, [])
+
   const closeActivePanelTab = useCallback((): void => {
     const { activeSessionId, uiState, closeRightPanelTab, closeSideChat, closeTerminalTab } = useSessionStore.getState()
     if (!activeSessionId) return
@@ -520,23 +772,33 @@ export default function App(): JSX.Element {
     if (closeTarget === 'right-panel') {
       const activeTabId = ui?.rightPanel?.activeTabId
       if (!activeTabId) return
+      const closingFinalRightTab = (ui?.rightPanel?.tabs.length ?? 0) <= 1
       const sideChatId = sideChatIdFromTabId(activeTabId)
+      const terminalTabId = terminalTabIdFromTabId(activeTabId)
       exitFullscreenForPanelTab('right', activeTabId)
       if (sideChatId) {
         closeSideChat(activeSessionId, sideChatId)
+      } else if (terminalTabId !== null) {
+        window.api.terminal.kill(`${activeSessionId}-${terminalTabId}`)
+        closeTerminalTab(activeSessionId, terminalTabId)
       } else {
         closeRightPanelTab(activeSessionId, activeTabId)
       }
+      if (closingFinalRightTab) restoreRightPanelToggleFocus()
       return
     }
     if (closeTarget === 'bottom-panel') {
       const terminalPanel = ui?.terminalPanel
       if (!ui?.showTerminal || terminalPanel?.activeTabId === undefined) return
+      const closingFinalTerminalTab = terminalPanel.tabs.length <= 1
       exitFullscreenForPanelTab('bottom', terminalPanel.activeTabId)
-      window.api.terminal.kill(`${activeSessionId}-${terminalPanel.activeTabId}`)
+      if (typeof terminalPanel.activeTabId === 'number') {
+        window.api.terminal.kill(`${activeSessionId}-${terminalPanel.activeTabId}`)
+      }
       closeTerminalTab(activeSessionId, terminalPanel.activeTabId)
+      if (closingFinalTerminalTab) restoreTerminalToggleFocus()
     }
-  }, [])
+  }, [restoreRightPanelToggleFocus, restoreTerminalToggleFocus])
 
   const updateShellFocusArea = useCallback((target: EventTarget | null): void => {
     const next = shellFocusAreaFromTarget(target)
@@ -544,6 +806,15 @@ export default function App(): JSX.Element {
     shellFocusAreaRef.current = next
     setShellFocusArea(next)
   }, [])
+
+  const focusSkipTarget = useCallback((event: ReactMouseEvent<HTMLAnchorElement>, targetId: string): void => {
+    event.preventDefault()
+    const target = document.getElementById(targetId)
+    if (!(target instanceof HTMLElement)) return
+    target.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+    target.focus({ preventScroll: true })
+    updateShellFocusArea(target)
+  }, [updateShellFocusArea])
 
   const toggleActiveChatPin = useCallback(async (): Promise<void> => {
     const { sessions, activeSessionId } = useSessionStore.getState()
@@ -628,6 +899,26 @@ export default function App(): JSX.Element {
       keywords: [...(APP_COMMANDS['search-transcript'].keywords ?? [])],
       disabled: !activeSessionId || !canRunPanelFind(),
       run: openPanelFindTarget
+    },
+    {
+      id: 'find-next',
+      label: APP_COMMANDS['find-next'].label,
+      group: APP_COMMANDS['find-next'].group,
+      description: APP_COMMANDS['find-next'].description,
+      shortcuts: shortcutsFor('find-next'),
+      keywords: [...(APP_COMMANDS['find-next'].keywords ?? [])],
+      disabled: !activeSessionId || !canRunPanelFind(),
+      run: () => stepPanelFindTarget(1)
+    },
+    {
+      id: 'find-previous',
+      label: APP_COMMANDS['find-previous'].label,
+      group: APP_COMMANDS['find-previous'].group,
+      description: APP_COMMANDS['find-previous'].description,
+      shortcuts: shortcutsFor('find-previous'),
+      keywords: [...(APP_COMMANDS['find-previous'].keywords ?? [])],
+      disabled: !activeSessionId || !canRunPanelFind(),
+      run: () => stepPanelFindTarget(-1)
     },
     {
       id: 'open-file-search',
@@ -762,6 +1053,7 @@ export default function App(): JSX.Element {
     openFileSearch,
     openSettings,
     openPanelFindTarget,
+    stepPanelFindTarget,
     openBrowserTabCommand,
     openReviewPanelTab,
     openTranscriptSearch,
@@ -795,6 +1087,12 @@ export default function App(): JSX.Element {
         break
       case 'search-transcript':
         openPanelFindTarget()
+        break
+      case 'find-next':
+        stepPanelFindTarget(1)
+        break
+      case 'find-previous':
+        stepPanelFindTarget(-1)
         break
       case 'open-file-search':
         openFileSearch()
@@ -850,6 +1148,7 @@ export default function App(): JSX.Element {
     openFileSearch,
     openSettings,
     openPanelFindTarget,
+    stepPanelFindTarget,
     openBrowserTabCommand,
     openReviewPanelTab,
     openTranscriptSearch,
@@ -919,7 +1218,6 @@ export default function App(): JSX.Element {
         state.setShowSettings(false)
         state.setShowCapabilities(false)
         state.setActiveSession(sessionId)
-        state.setHasUnread(sessionId, false)
       })
       return true
     }
@@ -937,6 +1235,10 @@ export default function App(): JSX.Element {
     Promise.all([window.api.projects.list(), window.api.sessions.listSummaries()]).then(
       async ([projects, sessions]) => {
         const pendingNavigation = await window.api.app.consumePendingNavigation()
+        const routeNavigation = parseSessionRouteLocation(window.location)
+        const effectiveNavigation = pendingNavigation ?? (routeNavigation
+          ? { kind: 'session' as const, sessionId: routeNavigation.sessionId }
+          : null)
         setProjects(projects)
 
         if (projects.length === 0) {
@@ -947,7 +1249,13 @@ export default function App(): JSX.Element {
         // Most recent project = the one containing the latest session (by any session)
         let targetProject = projects[projects.length - 1]
         const allSorted = [...sessions].sort((a, b) => b.createdAt - a.createdAt)
-        if (allSorted.length > 0) {
+        const requestedSession = effectiveNavigation?.kind === 'session'
+          ? sessions.find((session) => session.id === effectiveNavigation.sessionId)
+          : undefined
+        if (requestedSession) {
+          const found = projects.find((p) => p.id === requestedSession.projectId)
+          if (found) targetProject = found
+        } else if (allSorted.length > 0) {
           const found = projects.find((p) => p.id === allSorted[0].projectId)
           if (found) targetProject = found
         }
@@ -958,11 +1266,15 @@ export default function App(): JSX.Element {
         const liveSessions = sessions.filter((s) => s.messageCount > 0 || s.status === 'running' || hasComposerDraft(uiState[s.id]))
 
         // Keep one empty session in the target project to reuse; delete all others
-        const reuseCandidate = emptySessions
+        const requestedEmptySession = requestedSession && emptySessions.some((session) => session.id === requestedSession.id)
+          ? requestedSession
+          : undefined
+        const reuseCandidate = requestedEmptySession ?? emptySessions
           .filter((s) => s.projectId === targetProject.id)
           .sort((a, b) => b.createdAt - a.createdAt)[0]
 
-        const toDelete = emptySessions.filter((s) => s.id !== reuseCandidate?.id)
+        const requestedSessionId = effectiveNavigation?.kind === 'session' ? effectiveNavigation.sessionId : null
+        const toDelete = emptySessions.filter((s) => s.id !== reuseCandidate?.id && s.id !== requestedSessionId)
         for (const s of toDelete) {
           await window.api.sessions.remove(s.id)
           await window.api.projects.removeSession(s.projectId, s.id)
@@ -979,12 +1291,38 @@ export default function App(): JSX.Element {
           messages: cleanSessions.reduce((sum, session) => sum + session.messageCount, 0)
         })
 
-        if (pendingNavigation?.kind === 'settings') {
-          navigateToSettings(pendingNavigation.section as SettingsSection, pendingNavigation.hostId)
-        } else if (pendingNavigation?.kind === 'session' && cleanSessions.some((session) => session.id === pendingNavigation.sessionId)) {
+        if (effectiveNavigation?.kind === 'settings') {
+          navigateToSettings(effectiveNavigation.section as SettingsSection, effectiveNavigation.hostId)
+        } else if (effectiveNavigation?.kind === 'session' && cleanSessions.some((session) => session.id === effectiveNavigation.sessionId)) {
+          sessionRouteNoticeRequestRef.current += 1
+          setSessionRouteNotice(null)
           setShowSettings(false)
           setShowCapabilities(false)
-          setActiveSession(pendingNavigation.sessionId)
+          setActiveSession(effectiveNavigation.sessionId)
+        } else if (effectiveNavigation?.kind === 'session') {
+          setSessionRouteNotice({
+            kind: 'resolving',
+            sessionId: effectiveNavigation.sessionId,
+            name: null
+          })
+          const notice = await inspectSessionRoute(effectiveNavigation.sessionId)
+          setSessionRouteNotice(notice)
+          setShowSettings(false)
+          setShowCapabilities(false)
+          if (reuseCandidate) {
+            setActiveSession(reuseCandidate.id)
+          } else {
+            const session = await window.api.sessions.create({
+              projectId: targetProject.id,
+              workDir: targetProject.rootPath,
+              useWorktree: false,
+              repoRoot: targetProject.rootPath
+            })
+            await window.api.projects.addSession(targetProject.id, session.id)
+            addSession(session)
+            addSessionToProject(targetProject.id, session.id)
+            setActiveSession(session.id)
+          }
         } else if (reuseCandidate) {
           setActiveSession(reuseCandidate.id)
         } else {
@@ -1056,6 +1394,8 @@ export default function App(): JSX.Element {
         appendMessages(event.id, event.messages)
       } else if (event.type === 'messageUpdated') {
         upsertMessage(event.id, event.message)
+      } else if (event.type === 'messageRemoved') {
+        removeMessage(event.id, event.messageId)
       } else if (event.type === 'events') {
         appendEvents(event.id, event.events)
         applyBrowserManagerRunEvents(event.id, event.events)
@@ -1099,7 +1439,7 @@ export default function App(): JSX.Element {
       if (command) {
         updateShellFocusArea(event.target)
         if (command === 'close-active-panel-tab' && !canCloseActivePanelTab()) return
-        if (command === 'search-transcript' && !canRunPanelFind()) return
+        if ((command === 'search-transcript' || command === 'find-next' || command === 'find-previous') && !canRunPanelFind()) return
         if (BROWSER_PANEL_COMMANDS.includes(command as BrowserPanelCommand) && !canRunBrowserPanelCommand()) return
         event.preventDefault()
         runAppCommand(command)
@@ -1203,6 +1543,32 @@ export default function App(): JSX.Element {
       onFocusCapture={(event) => updateShellFocusArea(event.target)}
       onPointerOverCapture={(event) => updateShellFocusArea(event.target)}
     >
+      <nav className="app-skip-links" aria-label="Skip navigation">
+        <a
+          href="#orchestrator-chat-transcript"
+          className="app-skip-link"
+          data-testid="app-skip-to-transcript"
+          onClick={(event) => focusSkipTarget(event, 'orchestrator-chat-transcript')}
+        >
+          Skip to transcript
+        </a>
+        <a
+          href="#orchestrator-chat-composer"
+          className="app-skip-link"
+          data-testid="app-skip-to-composer"
+          onClick={(event) => focusSkipTarget(event, 'orchestrator-chat-composer')}
+        >
+          Skip to composer
+        </a>
+        <a
+          href="#orchestrator-workbench-panel"
+          className="app-skip-link"
+          data-testid="app-skip-to-workbench"
+          onClick={(event) => focusSkipTarget(event, 'orchestrator-workbench-panel')}
+        >
+          Skip to Workbench
+        </a>
+      </nav>
       <Sidebar
         onNewChat={handleSidebarNewChat}
         onSearch={openSidebarSearch}
@@ -1219,7 +1585,7 @@ export default function App(): JSX.Element {
           <MotionView viewKey={`settings:${settingsSection}`} className="flex flex-col overflow-hidden">
             <SettingsPage
               section={settingsSection}
-              onClose={() => setShowSettings(false)}
+              onClose={closeSettings}
             />
           </MotionView>
         ) : showCapabilities ? (
@@ -1228,7 +1594,13 @@ export default function App(): JSX.Element {
           </MotionView>
         ) : (
           <main className="flex-1 flex flex-col min-h-0 overflow-hidden">
-            {deferredActiveSessionId ? (
+            {sessionRouteNotice ? (
+              <SessionRouteRecoveryView
+                notice={sessionRouteNotice}
+                onRestore={() => { void restoreArchivedRouteSession() }}
+                onReturn={returnToActiveChatFromRouteNotice}
+              />
+            ) : deferredActiveSessionId ? (
               <MotionView viewKey="session" animate={false} className="flex flex-col overflow-hidden">
                 <SessionPane sessionId={deferredActiveSessionId} />
               </MotionView>
@@ -1299,6 +1671,9 @@ function ThreadFindBar({
       ? `${Math.max(1, status.activeMatch || 1)} / ${status.totalMatches}${status.isCapped ? '+' : ''} results`
       : '0 results'
     : ''
+  const statusId = 'thread-find-status'
+  const inputLabel = domain === 'diff' ? 'Find in diffs' : 'Find in chat'
+  const inputPlaceholder = domain === 'diff' ? 'Search diffs...' : 'Search chat...'
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>): void => {
     if (event.key === 'Enter') {
@@ -1325,14 +1700,15 @@ function ThreadFindBar({
     >
       <div className="thread-find-input-cell">
         <Icon name="search" size={14} />
-        <label className="sr-only" htmlFor="content-search-input">Find in chat</label>
+        <label className="sr-only" htmlFor="content-search-input">{inputLabel}</label>
         <input
           id="content-search-input"
           ref={inputRef}
           type="text"
           value={query}
-          aria-label="Find in chat"
-          placeholder={domain === 'diff' ? 'Search diff...' : 'Search chat...'}
+          aria-label={inputLabel}
+          aria-describedby={countLabel ? statusId : undefined}
+          placeholder={inputPlaceholder}
           className="thread-find-input"
           onChange={(event) => onQueryChange(event.target.value)}
           onKeyDown={handleKeyDown}
@@ -1361,7 +1737,18 @@ function ThreadFindBar({
         </button>
       </div>
       <div className="thread-find-result-cell">
-        {countLabel && <span className="thread-find-result-count">{countLabel}</span>}
+        {countLabel && (
+          <span
+            id={statusId}
+            className="thread-find-result-count"
+            data-testid="thread-find-status"
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            {countLabel}
+          </span>
+        )}
         <button
           type="button"
           className="thread-find-nav-button"
@@ -1388,6 +1775,76 @@ function ThreadFindBar({
         >
           <Icon name="close" size={13} />
         </button>
+      </div>
+    </div>
+  )
+}
+
+function SessionRouteRecoveryView({
+  notice,
+  onRestore,
+  onReturn
+}: {
+  notice: SessionRouteNotice
+  onRestore: () => void
+  onReturn: () => void
+}): JSX.Element {
+  const isArchived = notice.kind === 'archived'
+  const isResolving = notice.kind === 'resolving'
+  const title = isResolving ? 'Opening chat' : isArchived ? 'Archived chat' : 'Chat not found'
+  const description = isResolving
+    ? 'Checking this thread route before switching the visible chat.'
+    : isArchived
+      ? `${notice.name ?? 'This chat'} is archived. Restore it to reopen the thread from this link.`
+      : 'This chat link does not match an available local or archived chat in this profile.'
+
+  return (
+    <div
+      className="session-route-recovery"
+      data-testid="session-route-recovery"
+      data-session-route-recovery-kind={notice.kind}
+      data-session-route-recovery-id={notice.sessionId}
+      data-session-route-recovery-lifecycle={notice.restoring ? 'restoring' : notice.kind}
+      role={isArchived || isResolving ? 'status' : 'alert'}
+      aria-live={isArchived || isResolving ? 'polite' : 'assertive'}
+      aria-atomic="true"
+    >
+      <div className="session-route-recovery-card">
+        <div className="session-route-recovery-icon" aria-hidden="true">
+          <Icon name={isResolving ? 'refresh' : isArchived ? 'archive' : 'warning'} size={18} />
+        </div>
+        <div className="session-route-recovery-body">
+          <div className="session-route-recovery-kicker">Thread route</div>
+          <h1 className="session-route-recovery-title">{title}</h1>
+          <p className="session-route-recovery-description">{description}</p>
+          <div className="session-route-recovery-code" title={notice.sessionId}>{notice.sessionId}</div>
+          {notice.error && (
+            <div className="session-route-recovery-error" data-testid="session-route-recovery-error">
+              {notice.error}
+            </div>
+          )}
+          <div className="session-route-recovery-actions">
+            {isArchived && (
+              <button
+                type="button"
+                className="session-route-recovery-primary"
+                data-testid="session-route-recovery-restore"
+                disabled={notice.restoring === true}
+                onClick={onRestore}
+              >
+                {notice.restoring ? 'Restoring...' : 'Restore chat'}
+              </button>
+            )}
+            <button
+              type="button"
+              className="session-route-recovery-secondary"
+              data-testid="session-route-recovery-return"
+              onClick={onReturn}
+            >
+              Return to current chat
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   )

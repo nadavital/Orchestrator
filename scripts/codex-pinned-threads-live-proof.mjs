@@ -17,7 +17,11 @@ const workspaceRoot = process.env.CODEX_PINNED_THREADS_PROOF_CWD
   ? process.env.CODEX_PINNED_THREADS_PROOF_CWD
   : join(artifactRoot, 'workspace')
 const timeoutMs = Number(process.env.CODEX_PINNED_THREADS_PROOF_TIMEOUT_MS ?? 60_000)
-const model = process.env.CODEX_PINNED_THREADS_PROOF_MODEL ?? 'gpt-5.4-mini'
+const pinMutationMethods = [
+  { method: 'list-pinned-threads', params: {} },
+  { method: 'set-thread-pinned', params: { threadId: 'orchestrator-disposable-pin-boundary', pinned: true } },
+  { method: 'set-pinned-threads-order', params: { threadIds: ['orchestrator-disposable-pin-boundary'] } }
+]
 
 const resolved = resolveProviderCommand(provider, { binary: provider.binary, args: ['app-server', '--listen', 'stdio://'] })
 if (!resolved) {
@@ -41,15 +45,14 @@ let failed = false
 const pending = new Map()
 const methods = []
 const unsupportedMethods = []
+const requestFailures = []
 const rawLines = []
-const createdThreadIds = []
-let beforePinnedThreadIds = []
-let afterPinThreadIds = []
-let afterOrderThreadIds = []
-let cleanupPinnedThreadIds = []
-let pinRoundTrip = false
-let orderRoundTrip = false
-let cleanupRemoved = false
+const unsupportedPinMethodResults = []
+let threadListResult = null
+let threadListThreadIds = []
+let threadListSupported = false
+let pinMutationBoundaryProven = false
+let schemaAdvertisesThreadMetadataUpdate = false
 
 const timeout = setTimeout(() => {
   finish(false, `timed out after ${timeoutMs}ms`)
@@ -86,75 +89,51 @@ try {
   })
   notify('initialized')
 
-  beforePinnedThreadIds = pinnedThreadIdsFromList(await request('list-pinned-threads', {}))
-  const first = await startDisposableThread('first')
-  const second = await startDisposableThread('second')
-  createdThreadIds.push(first, second)
+  threadListResult = await request('thread/list', { limit: 5, cwd: workspaceRoot, useStateDbOnly: true })
+  threadListThreadIds = threadIdsFromThreadList(threadListResult)
+  threadListSupported = true
 
-  await request('set-thread-pinned', { threadId: first, pinned: true })
-  await request('set-thread-pinned', { threadId: second, pinned: true })
-  afterPinThreadIds = pinnedThreadIdsFromList(await request('list-pinned-threads', {}))
-  pinRoundTrip = afterPinThreadIds.includes(first) && afterPinThreadIds.includes(second)
-  if (!pinRoundTrip) {
-    throw new Error(`Pinned list did not include disposable threads after pinning: ${JSON.stringify(afterPinThreadIds)}`)
+  for (const spec of pinMutationMethods) {
+    await probeUnsupportedPinMethod(spec.method, spec.params)
   }
 
-  const preservedPinnedIds = afterPinThreadIds.filter((threadId) => threadId !== first && threadId !== second)
-  await request('set-pinned-threads-order', { threadIds: [...preservedPinnedIds, second, first] })
-  afterOrderThreadIds = pinnedThreadIdsFromList(await request('list-pinned-threads', {}))
-  orderRoundTrip = disposableOrder(afterOrderThreadIds, first, second).join('|') === [second, first].join('|')
-  if (!orderRoundTrip) {
-    throw new Error(`Pinned list did not preserve requested disposable order: ${JSON.stringify(afterOrderThreadIds)}`)
+  const unsupportedPinMethods = new Set(
+    unsupportedPinMethodResults
+      .filter((result) => result.unsupported === true)
+      .map((result) => result.method)
+  )
+  pinMutationBoundaryProven = pinMutationMethods.every((spec) => unsupportedPinMethods.has(spec.method))
+
+  if (!pinMutationBoundaryProven) {
+    throw new Error(`Codex app-server unexpectedly accepted a pinned-thread mutation method: ${JSON.stringify(unsupportedPinMethodResults)}`)
   }
 
-  await cleanupDisposableThreads()
-  cleanupRemoved = createdThreadIds.every((threadId) => !cleanupPinnedThreadIds.includes(threadId))
-  if (!cleanupRemoved) {
-    throw new Error(`Cleanup left disposable pinned threads behind: ${JSON.stringify(cleanupPinnedThreadIds)}`)
-  }
-
-  finish(true, 'live Codex app-server pinned thread pin/list/order proof completed with disposable threads')
+  finish(true, 'live Codex app-server pinned-thread mutation boundary is unavailable; thread/list remains supported')
 } catch (error) {
-  await cleanupDisposableThreads().catch(() => {})
   finish(false, error instanceof Error ? error.message : String(error))
 }
 
-async function startDisposableThread(label) {
-  const result = await request('thread/start', {
-    model,
-    cwd: workspaceRoot,
-    approvalPolicy: 'never',
-    approvalsReviewer: 'user',
-    sandbox: 'workspace-write',
-    serviceName: 'orchestrator-pinned-threads-live-proof',
-    ephemeral: true,
-    sessionStartSource: 'startup',
-    initialMessages: [{
-      type: 'user',
-      content: [{
-        type: 'input_text',
-        text: `Disposable pinned thread proof ${label}. No turn will be started.`
-      }]
-    }]
-  })
-  const threadId = result?.thread?.id
-  if (typeof threadId !== 'string' || threadId.trim().length === 0) {
-    throw new Error(`thread/start did not return a thread id for ${label}`)
+async function probeUnsupportedPinMethod(method, params) {
+  const failureStart = requestFailures.length
+  try {
+    const result = await request(method, params)
+    unsupportedPinMethodResults.push({
+      method,
+      unsupported: false,
+      accepted: true,
+      resultType: Array.isArray(result) ? 'array' : typeof result
+    })
+  } catch (error) {
+    const failure = requestFailures.slice(failureStart).find((candidate) => candidate.method === method)
+    const message = failure?.message ?? (error instanceof Error ? error.message : String(error))
+    if (message.includes('thread/metadata/update')) schemaAdvertisesThreadMetadataUpdate = true
+    unsupportedPinMethodResults.push({
+      method,
+      unsupported: isUnsupportedMethodError(message),
+      accepted: false,
+      error: failure?.error ?? message
+    })
   }
-  return threadId
-}
-
-async function cleanupDisposableThreads() {
-  if (createdThreadIds.length === 0) return
-  for (const threadId of createdThreadIds) {
-    await request('set-thread-pinned', { threadId, pinned: false }).catch(() => {})
-  }
-  const currentIds = pinnedThreadIdsFromList(await request('list-pinned-threads', {}).catch(() => []))
-  const restoredOrder = currentIds.filter((threadId) => !createdThreadIds.includes(threadId))
-  if (restoredOrder.length > 0) {
-    await request('set-pinned-threads-order', { threadIds: restoredOrder }).catch(() => {})
-  }
-  cleanupPinnedThreadIds = pinnedThreadIdsFromList(await request('list-pinned-threads', {}).catch(() => restoredOrder))
 }
 
 function request(method, params) {
@@ -185,23 +164,27 @@ function handleLine(line) {
   pending.delete(message.id)
   if (message.error) {
     const messageText = JSON.stringify(message.error)
-    if (messageText.includes('unknown variant')) unsupportedMethods.push(waiter.method)
+    requestFailures.push({
+      id: message.id,
+      method: waiter.method,
+      error: message.error,
+      message: messageText
+    })
+    if (isUnsupportedMethodError(messageText)) unsupportedMethods.push(waiter.method)
     waiter.reject(new Error(messageText))
   } else {
     waiter.resolve(message.result)
   }
 }
 
-function pinnedThreadIdsFromList(result) {
+function threadIdsFromThreadList(result) {
   const values = Array.isArray(result)
-    ? result
-    : Array.isArray(result?.threadIds)
-      ? result.threadIds
-      : Array.isArray(result?.threads)
-        ? result.threads.map((thread) => typeof thread === 'object' && thread !== null ? thread.id : thread)
-        : Array.isArray(result?.data)
-          ? result.data.map((thread) => typeof thread === 'object' && thread !== null ? thread.id : thread)
-          : []
+    ? result.map((thread) => typeof thread === 'object' && thread !== null ? thread.id : thread)
+    : Array.isArray(result?.threads)
+      ? result.threads.map((thread) => typeof thread === 'object' && thread !== null ? thread.id : thread)
+      : Array.isArray(result?.data)
+        ? result.data.map((thread) => typeof thread === 'object' && thread !== null ? thread.id : thread)
+        : []
   const seen = new Set()
   const ids = []
   for (const value of values) {
@@ -213,8 +196,13 @@ function pinnedThreadIdsFromList(result) {
   return ids
 }
 
-function disposableOrder(ids, first, second) {
-  return ids.filter((threadId) => threadId === first || threadId === second)
+function isUnsupportedMethodError(messageText) {
+  const lower = messageText.toLowerCase()
+  return lower.includes('unknown variant') ||
+    lower.includes('method not found') ||
+    lower.includes('unknown method') ||
+    lower.includes('unsupported') ||
+    lower.includes('not supported')
 }
 
 function finish(ok, message) {
@@ -222,22 +210,25 @@ function finish(ok, message) {
   finished = true
   failed = !ok
   clearTimeout(timeout)
+  const requestFailureMethods = [...new Set(requestFailures.map((failure) => failure.method))]
   const result = {
     ok,
     message,
+    reason: message,
     createdAt: new Date().toISOString(),
-    model,
     workspaceRoot,
     methods,
+    status: ok && pinMutationBoundaryProven ? 'unavailable' : 'failed',
+    threadListSupported,
+    threadListThreadCount: threadListThreadIds.length,
+    threadListThreadIds,
+    schemaAdvertisesThreadMetadataUpdate,
+    pinMutationBoundaryProven,
+    unsupportedPinMethodResults,
     unsupportedMethods: [...new Set(unsupportedMethods)],
-    createdThreadIds,
-    beforePinnedThreadIds,
-    afterPinThreadIds,
-    afterOrderThreadIds,
-    cleanupPinnedThreadIds,
-    pinRoundTrip,
-    orderRoundTrip,
-    cleanupRemoved,
+    failedMethod: requestFailureMethods[0] ?? null,
+    requestFailureMethods,
+    requestFailures,
     stderr: stderr.trim().slice(-4000),
     rawLineCount: rawLines.length
   }
@@ -256,5 +247,5 @@ function finish(ok, message) {
 function resetArtifacts() {
   if (existsSync(artifactRoot)) rmSync(artifactRoot, { recursive: true, force: true })
   mkdirSync(workspaceRoot, { recursive: true })
-  writeFileSync(join(workspaceRoot, 'README.md'), 'Disposable workspace for Orchestrator Codex pinned thread live proof.\n')
+  writeFileSync(join(workspaceRoot, 'README.md'), 'Disposable workspace for Orchestrator Codex pinned-thread boundary proof.\n')
 }

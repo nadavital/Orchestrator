@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 
-import type { Attachment, Automation, AutomationRun, AutomationUpsertRequest, CapabilityCreateRequest, CapabilityCreateResult, CapabilityDeleteRequest, CapabilityMutationResult, CapabilitySyncPlan, CapabilitySyncRequest, CapabilityUpdateRequest, CodexProjectImportResult, Project, Session, SessionForkMode, SessionListItem, ChatMessage, FileChange, GitLineBlameResult, GitPathActionResult, GitRefOption, OpenPathOptions, OpenPathResult, OpenTargetAvailability, OrchestratorDeepLinkNavigation, PerformanceMetric, PerformanceSnapshot, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderManifest, ProviderPermissionRuntimeContext, ProviderResourceSnapshot, ProviderRuntimeConnectionState, ProviderRuntimeDebugEvent, ProviderRuntimeInfo, ProviderSidebarSyncResult, ProviderSlashCommand, ReviewDiffSource, ReviewMetadata, SessionRunEventRecord, TerminalServiceSnapshot, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary, WorktreeInventoryItem, WorkspaceSearchRequest, WorkspaceSearchResult } from '../../types'
+import type { Attachment, Automation, AutomationRun, AutomationUpsertRequest, CapabilityCreateRequest, CapabilityCreateResult, CapabilityDeleteRequest, CapabilityMutationResult, CapabilitySyncPlan, CapabilitySyncRequest, CapabilityUpdateRequest, CodexProjectImportResult, CodexReviewStartRequest, Project, Session, SessionForkMode, SessionForkOptions, SessionListItem, ChatMessage, FileChange, GitBranchActionResult, GitCommitResult, GitLineBlameResult, GitPathActionResult, GitPullRequestCreateResult, GitPullRequestCreateUrlResult, GitRefOption, OpenPathOptions, OpenPathResult, OpenTargetAvailability, OrchestratorDeepLinkNavigation, PerformanceMetric, PerformanceSnapshot, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderManifest, ProviderPermissionRuntimeContext, ProviderResourceSnapshot, ProviderRuntimeConnectionState, ProviderRuntimeDebugEvent, ProviderRuntimeInfo, ProviderSidebarSyncResult, ProviderSlashCommand, ReviewDiffSource, ReviewMetadata, SessionRunEventRecord, SideQuestionMessage, TerminalServiceSnapshot, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary, UserInputAnswerPayload, WorktreeInventoryItem, WorkspaceSearchRequest, WorkspaceSearchResult } from '../../types'
 import type { BrowserUsePolicy } from '../../types/browserUsePolicy'
 import type { AppCommandAvailability, AppMenuCommand, AppMenuCommandState, ShortcutOverrides, StableAppCommand } from '../../types/appCommands'
 
@@ -11,6 +11,7 @@ export interface AppSettings {
   defaultPermissionModes: Record<string, string>
   providerModels: Record<string, string[]>
   preferredEditor: 'system' | 'vscode' | 'vscode-insiders' | 'cursor' | 'zed'
+  composerEnterBehavior: 'send' | 'newline'
   appearance: 'system' | 'mist' | 'graphite' | 'ocean' | 'palenight' | 'high-contrast' | 'dark' | 'light'
   accent: 'blue' | 'teal' | 'purple' | 'green' | 'rose' | 'system' | 'custom'
   customAccent: string
@@ -32,6 +33,9 @@ export interface AppSettings {
   reduceMotion: boolean
   shortcutOverrides: ShortcutOverrides
   browserUsePolicy: BrowserUsePolicy
+  personalizationEnabled: boolean
+  personalizationCustomInstructions: string
+  personalizationCodingPreferences: string
 }
 
 export interface ChromeTheme {
@@ -116,6 +120,7 @@ export type SessionEvent =
   | { type: 'status'; id: string; status: Session['status'] }
   | { type: 'messages'; id: string; messages: ChatMessage[] }
   | { type: 'messageUpdated'; id: string; message: ChatMessage }
+  | { type: 'messageRemoved'; id: string; messageId: string }
   | { type: 'events'; id: string; events: SessionRunEventRecord[] }
   | { type: 'raw'; id: string; data: string }
   | { type: 'renamed'; id: string; name: string }
@@ -181,10 +186,13 @@ declare global {
           worktreeBaseRef?: string
           worktreeBranchName?: string
         }) => Promise<Session>
-        fork: (id: string, mode: SessionForkMode) => Promise<Session>
+        fork: (id: string, mode: SessionForkMode, options?: SessionForkOptions) => Promise<Session>
         retryPendingWorktree: (id: string) => Promise<Session>
-        sendMessage: (sessionId: string, prompt: string, useWorktree?: boolean, attachments?: Attachment[]) => Promise<void>
-        answerSideQuestion: (sessionId: string, question: string) => Promise<{ ok: boolean; answer: string; error?: string; usage?: UsageSummary }>
+        sendMessage: (sessionId: string, prompt: string, useWorktree?: boolean, attachments?: Attachment[]) => Promise<boolean>
+        startCodexReview: (sessionId: string, request: CodexReviewStartRequest) => Promise<{ ok: boolean; error?: string }>
+        retryLastUserMessage: (sessionId: string) => Promise<boolean>
+        continueLastTurn: (sessionId: string) => Promise<boolean>
+        answerSideQuestion: (sessionId: string, question: string, sideChatMessages?: SideQuestionMessage[]) => Promise<{ ok: boolean; answer: string; error?: string; usage?: UsageSummary }>
         updateName: (id: string, name: string) => Promise<void>
         updatePinned: (id: string, pinned: boolean) => Promise<void>
         reorderPinned: (orderedPinnedSessionIds: string[]) => Promise<void>
@@ -204,20 +212,22 @@ declare global {
         }) => Promise<void>
         checkProviders: () => Promise<Record<string, boolean>>
         stop: (sessionId: string) => Promise<void>
+        cancelQueuedMessage: (sessionId: string, messageId: string) => Promise<boolean>
         steerQueuedMessage: (sessionId: string, messageId: string) => Promise<void>
         archive: (sessionId: string) => Promise<void>
         restoreArchived: (sessionId: string) => Promise<Session | undefined>
         remove: (sessionId: string) => Promise<void>
         getDiff: (sessionId: string) => Promise<string>
-        getReviewMetadata: (sessionId: string) => Promise<ReviewMetadata | undefined>
+        getReviewMetadata: (sessionId: string, options?: { force?: boolean }) => Promise<ReviewMetadata | undefined>
         getChangedFiles: (sessionId: string, source?: ReviewDiffSource, ref?: string) => Promise<FileChange[]>
         getDiffForFile: (sessionId: string, filePath: string, source?: ReviewDiffSource, ref?: string) => Promise<string>
         undoChangedFiles: (sessionId: string, paths: string[]) => Promise<GitPathActionResult>
+        undoLastTurnDiff: (sessionId: string, diff: string) => Promise<GitPathActionResult>
         writeToPty: (sessionId: string, data: string) => Promise<void>
-        grantAndResume: (sessionId: string, toolNames: string[]) => Promise<void>
-        allowOnceAndResume: (sessionId: string, toolNames: string[]) => Promise<void>
-        answerUserInput: (sessionId: string, answer: string) => Promise<void>
-        denyPermission: (sessionId: string) => Promise<void>
+        grantAndResume: (sessionId: string, toolNames: string[]) => Promise<{ ok: boolean; error?: string }>
+        allowOnceAndResume: (sessionId: string, toolNames: string[]) => Promise<{ ok: boolean; error?: string }>
+        answerUserInput: (sessionId: string, answer: string | UserInputAnswerPayload) => Promise<{ ok: boolean; error?: string }>
+        denyPermission: (sessionId: string) => Promise<{ ok: boolean; error?: string }>
       }
       worktrees: {
         list: () => Promise<WorktreeInventoryItem[]>
@@ -233,13 +243,23 @@ declare global {
         resume: (id: string) => Promise<Automation | undefined>
         delete: (id: string) => Promise<void>
       }
+      clipboard: {
+        writeText: (text: string) => Promise<boolean>
+        readText: () => Promise<string>
+      }
       git: {
         isGitRepo: (dir: string) => Promise<boolean>
         getCurrentBranch: (dir: string) => Promise<string | null>
         listBranches: (dir: string) => Promise<GitRefOption[]>
         listRecentCommits: (dir: string) => Promise<GitRefOption[]>
+        getPullRequestCreateUrl: (dir: string, baseBranch: string, headBranch: string) => Promise<GitPullRequestCreateUrlResult>
+        createPullRequest: (dir: string, baseBranch: string, headBranch: string) => Promise<GitPullRequestCreateResult>
+        createBranch: (dir: string, branchName: string) => Promise<GitBranchActionResult>
+        checkoutBranch: (dir: string, branchName: string) => Promise<GitBranchActionResult>
         stagePaths: (dir: string, paths: string[]) => Promise<GitPathActionResult>
         unstagePaths: (dir: string, paths: string[]) => Promise<GitPathActionResult>
+        discardPaths: (dir: string, paths: string[]) => Promise<GitPathActionResult>
+        commitStaged: (dir: string, message: string) => Promise<GitCommitResult>
         blameLine: (dir: string, filePath: string, line: number) => Promise<GitLineBlameResult>
       }
       browser: {

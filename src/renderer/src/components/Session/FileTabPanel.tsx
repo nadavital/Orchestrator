@@ -1,11 +1,18 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { FilePreviewResult } from '../../env'
-import type { GitLineBlameResult, OpenTargetAvailability, PreferredOpenTarget } from '../../types'
+import type { GitLineBlameResult, OpenPathResult, OpenTargetAvailability, PreferredOpenTarget } from '../../types'
 import { artifactImportKindSupportsSource, artifactTabPresentationForPath } from '../../types'
 import type { RightPanelTabId, RightPanelTabState, SourceAnnotationState } from '../../store/sessions'
+import { useSessionStore } from '../../store/sessions'
 import { Badge, IconButton, MenuItem, MenuSection, MenuSectionLabel, MenuSurface, PanelToolbar } from '../shared/designSystem'
 import Icon from '../shared/Icon'
 import { FilePreview, formatBytes, joinPath } from './FilesPanel'
+
+const FILE_TAB_ACTIONS_MENU_ID = 'workbench-file-tab-actions-menu-surface'
+
+function shellQuote(value: string): string {
+  return /^[A-Za-z0-9._/@:-]+$/.test(value) ? value : `'${value.replace(/'/g, `'\\''`)}'`
+}
 
 interface Props {
   workDir: string
@@ -51,19 +58,31 @@ export default function FileTabPanel({
 }: Props): JSX.Element {
   const [preview, setPreview] = useState<FilePreviewResult | null>(null)
   const [copiedLineReference, setCopiedLineReference] = useState('')
+  const [addedLineReference, setAddedLineReference] = useState('')
   const [lineBlame, setLineBlame] = useState<GitLineBlameResult | null>(null)
   const [sourceBlameByLine, setSourceBlameByLine] = useState<Map<number, GitLineBlameResult>>(() => new Map())
   const [preferredOpenTarget, setPreferredOpenTarget] = useState<PreferredOpenTarget>('system')
   const [openTargets, setOpenTargets] = useState<OpenTargetAvailability[]>([])
   const [fileActionsOpen, setFileActionsOpen] = useState(false)
-  const absolutePath = joinPath(workDir, filePath)
+  const [fileActionStatus, setFileActionStatus] = useState('')
+  const [lastOpenResult, setLastOpenResult] = useState<OpenPathResult | null>(null)
+  const setShowTerminal = useSessionStore((state) => state.setShowTerminal)
+  const addTerminalTab = useSessionStore((state) => state.addTerminalTab)
+  const setActiveTerminalTab = useSessionStore((state) => state.setActiveTerminalTab)
+  const fileRoot = fileHost || workDir
+  const absolutePath = joinPath(fileRoot, filePath)
   const name = basename(filePath)
+  const workspaceName = basename(fileRoot)
+  const lineReferencePath = samePathRoot(fileRoot, workDir) ? filePath : absolutePath
   const sourceMode = fileViewMode === 'source'
 
   useEffect(() => {
     let cancelled = false
     setPreview(null)
     setCopiedLineReference('')
+    setAddedLineReference('')
+    setFileActionStatus('')
+    setLastOpenResult(null)
     setLineBlame(null)
     setSourceBlameByLine(new Map())
     window.api.fs.previewFile(absolutePath)
@@ -106,7 +125,7 @@ export default function FileTabPanel({
     }
     let cancelled = false
     setLineBlame(null)
-    window.api.git.blameLine(workDir, filePath, selectedSourceLine)
+    window.api.git.blameLine(fileRoot, filePath, selectedSourceLine)
       .then((result) => {
         if (!cancelled) {
           setLineBlame(result)
@@ -123,7 +142,7 @@ export default function FileTabPanel({
     return () => {
       cancelled = true
     }
-  }, [filePath, selectedSourceLine, workDir])
+  }, [filePath, fileRoot, selectedSourceLine])
 
   const sourceBlameLineNumbers = useMemo(() => {
     const text = preview?.text
@@ -138,7 +157,7 @@ export default function FileTabPanel({
     if (missingLines.length === 0) return
     let cancelled = false
     Promise.all(missingLines.map((line) =>
-      window.api.git.blameLine(workDir, filePath, line)
+      window.api.git.blameLine(fileRoot, filePath, line)
         .catch(() => ({ ok: false, path: filePath, line, error: 'Blame unavailable' }))
     )).then((results) => {
       if (cancelled) return
@@ -151,7 +170,7 @@ export default function FileTabPanel({
     return () => {
       cancelled = true
     }
-  }, [filePath, sourceBlameByLine, sourceBlameLineNumbers, sourceBlameVisible, workDir])
+  }, [filePath, fileRoot, sourceBlameByLine, sourceBlameLineNumbers, sourceBlameVisible])
 
   const updateFileTabState = (
     patch: Pick<Partial<RightPanelTabState>, 'fileViewMode' | 'sourceWrap' | 'selectedSourceLine' | 'sourceSearchQuery' | 'sourceSearchIndex' | 'sourceAnnotations' | 'sourceBlameVisible' | 'sourceRevealLine' | 'sourceRevealRequest'>
@@ -159,20 +178,107 @@ export default function FileTabPanel({
     onFileTabStateChange(tabId, patch)
   }
 
+  const pinPreviewTabForPersistentWork = (): void => {
+    if (isPreview) onPin(tabId)
+  }
+
+  const writeFileTabClipboardText = async (text: string): Promise<void> => {
+    if (typeof window.api.clipboard?.writeText === 'function') {
+      const didWrite = await window.api.clipboard.writeText(text)
+      if (!didWrite) throw new Error('Clipboard write failed')
+      return
+    }
+    await navigator.clipboard.writeText(text)
+  }
+
   const copyPath = (): void => {
-    void navigator.clipboard.writeText(filePath)
+    setFileActionStatus('Copying path')
+    void writeFileTabClipboardText(lineReferencePath)
+      .then(() => setFileActionStatus('Path copied'))
+      .catch(() => setFileActionStatus('Copy failed'))
+  }
+
+  const insertPathInTerminal = (): void => {
+    setFileActionStatus('Opening terminal for path')
+    void (async () => {
+      try {
+        const state = useSessionStore.getState()
+        const currentPanel = state.uiState[sessionId]?.terminalPanel
+        const existingTab = typeof currentPanel?.activeTabId === 'number'
+          ? currentPanel.activeTabId
+          : currentPanel?.tabs.find((tab): tab is number => typeof tab === 'number')
+        const tabId = existingTab ?? addTerminalTab(sessionId)
+        setShowTerminal(sessionId, true)
+        setActiveTerminalTab(sessionId, tabId)
+        const terminalId = `${sessionId}-${tabId}`
+        const globals = window as typeof window & {
+          __orchestratorLastFileTabTerminalPathForSmoke?: string
+          __orchestratorLastFileTabTerminalIdForSmoke?: string
+        }
+        globals.__orchestratorLastFileTabTerminalPathForSmoke = lineReferencePath
+        globals.__orchestratorLastFileTabTerminalIdForSmoke = terminalId
+        await window.api.terminal.spawn(terminalId, workDir)
+        await window.api.terminal.write(terminalId, shellQuote(lineReferencePath))
+        setFileActionStatus('Path inserted in terminal')
+      } catch {
+        setFileActionStatus('Insert path in terminal failed')
+      }
+    })()
   }
 
   const copySelectedLineReference = (): void => {
     if (selectedSourceLine === null) return
-    const reference = `${filePath}:${selectedSourceLine}`
+    const reference = `${lineReferencePath}:${selectedSourceLine}`
     setCopiedLineReference(reference)
-    void navigator.clipboard.writeText(reference)
+    setFileActionStatus('Copying line reference')
+    void writeFileTabClipboardText(reference)
+      .then(() => setFileActionStatus('Line reference copied'))
+      .catch(() => setFileActionStatus('Copy failed'))
+  }
+
+  const addSelectedLineToChat = (line = selectedSourceLine): void => {
+    if (line === null || preview?.text === undefined) return
+    const reference = `${lineReferencePath}:${line}`
+    const lineText = sourceLineText(preview.text, line)
+    setAddedLineReference(reference)
+    setFileActionStatus('Added selected line to chat')
+    window.dispatchEvent(new CustomEvent('orchestrator:add-composer-text', {
+      detail: {
+        text: `Source line ${reference}:\n\n\`\`\`\n${lineText}\n\`\`\``
+      }
+    }))
   }
 
   const openSelectedLine = (): void => {
     if (selectedSourceLine === null) return
+    setFileActionStatus(`Opening line ${selectedSourceLine}`)
     void window.api.fs.openPath(absolutePath, { line: selectedSourceLine })
+      .then((result) => {
+        setLastOpenResult(result)
+        setFileActionStatus(openResultStatus(result))
+      })
+      .catch(() => {
+        setLastOpenResult(null)
+        setFileActionStatus('Open failed')
+      })
+  }
+
+  const openFile = (): void => {
+    setFileActionStatus('Opening in editor')
+    void window.api.fs.openPath(absolutePath)
+      .then((result) => {
+        setLastOpenResult(result)
+        setFileActionStatus(openResultStatus(result))
+      })
+      .catch(() => {
+        setLastOpenResult(null)
+        setFileActionStatus('Open failed')
+      })
+  }
+
+  const revealFile = (): void => {
+    setFileActionStatus('Revealing file')
+    void window.api.fs.showInFolder(absolutePath)
   }
 
   const revealSelectedLine = (): void => {
@@ -185,6 +291,7 @@ export default function FileTabPanel({
   }
 
   const addToChat = (): void => {
+    setFileActionStatus('Added file to chat')
     window.dispatchEvent(new CustomEvent('orchestrator:add-composer-attachment', {
       detail: {
         path: absolutePath,
@@ -273,8 +380,10 @@ export default function FileTabPanel({
 
   const addSourceAnnotation = (line: number | null): void => {
     if (line === null) return
+    pinPreviewTabForPersistentWork()
     const existing = sourceAnnotations.find((annotation) => annotation.line === line)
     if (existing) {
+      setFileActionStatus(`Opened source comment on line ${line}`)
       updateFileTabState({
         sourceAnnotations: sourceAnnotations.map((annotation) =>
           annotation.id === existing.id ? { ...annotation, status: 'draft', updatedAt: Date.now() } : annotation
@@ -282,6 +391,7 @@ export default function FileTabPanel({
       })
       return
     }
+    setFileActionStatus(`Added source comment on line ${line}`)
     updateFileTabState({
       sourceAnnotations: [
         ...sourceAnnotations,
@@ -305,6 +415,12 @@ export default function FileTabPanel({
   }
 
   const saveSourceAnnotation = (id: string): void => {
+    const target = sourceAnnotations.find((annotation) => annotation.id === id)
+    const body = target?.body.trim() ?? ''
+    const lineSuffix = target ? ` on line ${target.line}` : ''
+    setFileActionStatus(body.length === 0
+      ? `Removed empty source comment${lineSuffix}`
+      : `Saved source comment${lineSuffix}`)
     updateFileTabState({
       sourceAnnotations: sourceAnnotations.flatMap((annotation) => {
         if (annotation.id !== id) return [annotation]
@@ -315,6 +431,8 @@ export default function FileTabPanel({
   }
 
   const deleteSourceAnnotation = (id: string): void => {
+    const target = sourceAnnotations.find((annotation) => annotation.id === id)
+    setFileActionStatus(`Deleted source comment${target ? ` on line ${target.line}` : ''}`)
     updateFileTabState({
       sourceAnnotations: sourceAnnotations.filter((annotation) => annotation.id !== id)
     })
@@ -329,10 +447,14 @@ export default function FileTabPanel({
         variant="toolbar"
         active={fileActionsOpen}
         dataTestId="workbench-file-tab-actions-menu"
+        ariaExpanded={fileActionsOpen}
+        ariaControls={FILE_TAB_ACTIONS_MENU_ID}
+        ariaHasPopup="menu"
         onClick={() => setFileActionsOpen((open) => !open)}
       />
       {fileActionsOpen && (
         <MenuSurface
+          id={FILE_TAB_ACTIONS_MENU_ID}
           className="file-tab-actions-menu-surface"
           onClose={() => setFileActionsOpen(false)}
           style={{ position: 'absolute', right: 0, top: 34, width: 204, zIndex: 92 }}
@@ -360,14 +482,20 @@ export default function FileTabPanel({
               onClick={() => { copyPath(); setFileActionsOpen(false) }}
             />
             <MenuItem
+              icon="terminal"
+              label="Insert in terminal"
+              dataTestId="workbench-file-tab-insert-terminal-menu-item"
+              onClick={() => { insertPathInTerminal(); setFileActionsOpen(false) }}
+            />
+            <MenuItem
               icon="external"
               label="Open in editor"
-              onClick={() => { void window.api.fs.openPath(absolutePath); setFileActionsOpen(false) }}
+              onClick={() => { openFile(); setFileActionsOpen(false) }}
             />
             <MenuItem
               icon="folder"
               label="Reveal file"
-              onClick={() => { void window.api.fs.showInFolder(absolutePath); setFileActionsOpen(false) }}
+              onClick={() => { revealFile(); setFileActionsOpen(false) }}
             />
           </MenuSection>
           <MenuSection dataTestId="file-tab-actions-view-section">
@@ -416,6 +544,12 @@ export default function FileTabPanel({
               onClick={() => { copySelectedLineReference(); setFileActionsOpen(false) }}
             />
             <MenuItem
+              icon="chat"
+              label="Add selected line to chat"
+              disabled={selectedSourceLine === null || preview?.text === undefined}
+              onClick={() => { addSelectedLineToChat(); setFileActionsOpen(false) }}
+            />
+            <MenuItem
               icon="external"
               label="Open selected line in editor"
               disabled={selectedSourceLine === null}
@@ -438,16 +572,27 @@ export default function FileTabPanel({
       className="file-tab-panel-root flex h-full min-h-0 min-w-0 flex-col overflow-hidden"
       data-testid="workbench-file-tab"
       data-file-tab-host={fileHost ?? ''}
+      data-file-tab-workdir={fileRoot}
       data-file-tab-path={filePath}
+      data-file-tab-absolute-path={absolutePath}
       data-file-tab-preview={isPreview ? 'true' : 'false'}
       data-file-tab-view-mode={sourceMode && canToggleSourceMode ? 'source' : 'rich'}
       data-file-tab-selected-source-line={selectedSourceLine ?? ''}
       data-file-tab-copied-line-reference={copiedLineReference}
+      data-file-tab-added-line-reference={addedLineReference}
       data-file-tab-open-target={openTarget.id}
       data-file-tab-artifact-type={artifactPresentation?.artifactType ?? 'none'}
       data-file-tab-artifact-import-kind={artifactPresentation?.importKind ?? 'none'}
       data-file-tab-artifact-source-supported={artifactSourceSupported ? 'true' : 'false'}
       data-file-tab-loading={preview === null ? 'true' : 'false'}
+      data-file-tab-action-status={fileActionStatus}
+      data-file-tab-open-result-ok={lastOpenResult === null ? '' : lastOpenResult.ok ? 'true' : 'false'}
+      data-file-tab-open-result-target={lastOpenResult?.target ?? ''}
+      data-file-tab-open-result-method={lastOpenResult?.method ?? ''}
+      data-file-tab-open-result-line={lastOpenResult?.line ?? ''}
+      data-file-tab-open-result-column={lastOpenResult?.column ?? ''}
+      data-file-tab-open-result-fallback-from={lastOpenResult?.fallbackFrom ?? ''}
+      data-file-tab-open-result-opened-with={lastOpenResult?.openedWith ?? ''}
       data-file-tab-source-search-query={sourceSearchQuery.trim()}
       data-file-tab-source-search-count={sourceSearchMatches.length}
       data-file-tab-source-search-index={sourceSearchActiveIndex >= 0 ? sourceSearchActiveIndex + 1 : 0}
@@ -459,7 +604,7 @@ export default function FileTabPanel({
       data-file-tab-source-reveal-line={sourceRevealLine ?? ''}
       data-file-tab-source-reveal-request={sourceRevealRequest}
     >
-      <PanelToolbar className="file-tab-toolbar" dataTestId="workbench-file-tab-toolbar">
+      <PanelToolbar className="file-tab-toolbar" dataTestId="workbench-file-tab-toolbar" ariaLabel="File tab toolbar">
         <span className="file-tab-title min-w-0 flex-1">
           <Icon name="file" size={13} />
           <span className="min-w-0 truncate">{filePath}</span>
@@ -469,6 +614,13 @@ export default function FileTabPanel({
           {preview?.size !== undefined && (
             <span className="file-tab-meta">{formatBytes(preview.size)}</span>
           )}
+          <span
+            className="file-tab-workspace"
+            data-testid="workbench-file-tab-workspace"
+            title={fileRoot}
+          >
+            {workspaceName}
+          </span>
           <span
             className="file-tab-open-target"
             data-testid="workbench-file-tab-open-target"
@@ -488,6 +640,17 @@ export default function FileTabPanel({
               data-line-blame-source={blame.source}
             >
               L{selectedSourceLine}{blame.label ? ` · ${blame.label}` : lineBlame?.ok === false ? ' · Blame unavailable' : ''}
+            </span>
+          )}
+          {fileActionStatus && (
+            <span
+              className="file-tab-action-status"
+              data-testid="workbench-file-tab-action-status"
+              role={fileActionStatus.toLowerCase().includes('failed') ? 'alert' : 'status'}
+              aria-live={fileActionStatus.toLowerCase().includes('failed') ? 'assertive' : 'polite'}
+              aria-atomic="true"
+            >
+              {fileActionStatus}
             </span>
           )}
         </span>
@@ -556,6 +719,16 @@ export default function FileTabPanel({
             onClick={copySelectedLineReference}
           />
           <IconButton
+            icon="chat"
+            label="Add selected line to chat"
+            size="sm"
+            variant="toolbar"
+            className="file-tab-secondary-action"
+            disabled={selectedSourceLine === null || preview?.text === undefined}
+            dataTestId="workbench-file-tab-add-line-chat"
+            onClick={() => addSelectedLineToChat()}
+          />
+          <IconButton
             icon="external"
             label="Open selected line in editor"
             size="sm"
@@ -576,9 +749,9 @@ export default function FileTabPanel({
             onClick={() => addSourceAnnotation(selectedSourceLine)}
           />
           <IconButton icon="copy" label="Copy path" size="sm" variant="toolbar" className="file-tab-secondary-action" onClick={copyPath} />
-          <IconButton icon="folder" label="Reveal file" size="sm" variant="toolbar" className="file-tab-secondary-action" onClick={() => { void window.api.fs.showInFolder(absolutePath) }} />
+          <IconButton icon="folder" label="Reveal file" size="sm" variant="toolbar" className="file-tab-secondary-action" onClick={revealFile} />
           {fileActionsMenu}
-          <IconButton icon="external" label="Open in editor" size="sm" variant="toolbar" dataTestId="workbench-file-tab-open-editor" onClick={() => { void window.api.fs.openPath(absolutePath) }} />
+          <IconButton icon="external" label="Open in editor" size="sm" variant="toolbar" dataTestId="workbench-file-tab-open-editor" onClick={openFile} />
         </span>
       </PanelToolbar>
       <div
@@ -642,6 +815,14 @@ export default function FileTabPanel({
                 variant="toolbar"
                 dataTestId="workspace-source-line-action-open"
                 onClick={openSelectedLine}
+              />
+              <IconButton
+                icon="chat"
+                label="Add line to chat"
+                size="sm"
+                variant="toolbar"
+                dataTestId="workspace-source-line-action-add-chat"
+                onClick={() => addSelectedLineToChat(line)}
               />
               <IconButton
                 icon="chat"
@@ -797,8 +978,16 @@ function collectSourceSearchMatches(text: string, query: string): Array<{ line: 
   )
 }
 
+function sourceLineText(text: string, line: number): string {
+  return text.split('\n')[Math.max(0, line - 1)] ?? ''
+}
+
 function basename(path: string): string {
   return path.split('/').filter(Boolean).at(-1) ?? path
+}
+
+function samePathRoot(a: string, b: string): boolean {
+  return a.replace(/\/+$/, '') === b.replace(/\/+$/, '')
 }
 
 function normalizePreferredOpenTarget(value: unknown): PreferredOpenTarget {
@@ -845,6 +1034,14 @@ function openTargetShortLabel(editor: PreferredOpenTarget): string {
     case 'system':
       return 'System'
   }
+}
+
+function openResultStatus(result: OpenPathResult): string {
+  if (!result.ok) return result.message ? `Open failed: ${result.message}` : 'Open failed'
+  const target = openTargetShortLabel(result.target)
+  const location = result.line ? ` at line ${result.line}${result.column ? `:${result.column}` : ''}` : ''
+  const fallback = result.fallbackFrom ? ` via ${result.method}` : ''
+  return `Opened in ${target}${location}${fallback}`
 }
 
 function blameInfo(result: GitLineBlameResult | null): { label: string; source: 'unknown' | 'commit' | 'working-tree' | 'unavailable' } {

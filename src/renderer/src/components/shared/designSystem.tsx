@@ -23,6 +23,7 @@ const focusableSelector = [
 ].join(',')
 
 const APP_SHELL_PANEL_ANIMATION_MS = 360
+const RETAINED_EXIT_MS = 240
 
 function appShellPanelEaseOut(progress: number): number {
   const clamped = Math.max(0, Math.min(1, progress))
@@ -178,6 +179,31 @@ function useLayerFocus(
   }, [onClose, ref])
 }
 
+function useRetainedExit(onClose: () => void): { exiting: boolean; close: () => void } {
+  const [exiting, setExiting] = useState(false)
+  const timeoutRef = useRef<number | null>(null)
+  const reducedMotion = useReducedMotionPreference()
+
+  useEffect(() => () => {
+    if (timeoutRef.current !== null) window.clearTimeout(timeoutRef.current)
+  }, [])
+
+  const close = useCallback(() => {
+    if (exiting) return
+    if (reducedMotion) {
+      onClose()
+      return
+    }
+    setExiting(true)
+    timeoutRef.current = window.setTimeout(() => {
+      timeoutRef.current = null
+      onClose()
+    }, RETAINED_EXIT_MS)
+  }, [exiting, onClose, reducedMotion])
+
+  return { exiting, close }
+}
+
 interface ButtonProps {
   children: ReactNode
   onClick?: (event: React.MouseEvent<HTMLButtonElement>) => void | Promise<void>
@@ -188,6 +214,7 @@ interface ButtonProps {
   style?: CSSProperties
   title?: string
   ariaLabel?: string
+  ariaPressed?: boolean
   dataTestId?: string
   dataReviewPath?: string
   dataSidebarKey?: string
@@ -266,6 +293,8 @@ interface IconButtonProps {
   tooltip?: boolean
   dataTestId?: string
   ariaExpanded?: boolean
+  ariaControls?: string
+  ariaHasPopup?: boolean | 'menu' | 'listbox' | 'tree' | 'grid' | 'dialog'
 }
 
 export function IconButton({
@@ -282,6 +311,8 @@ export function IconButton({
   tooltip = true,
   dataTestId,
   ariaExpanded,
+  ariaControls,
+  ariaHasPopup,
 }: IconButtonProps): JSX.Element {
   const buttonSize = size === 'xs' ? 18 : size === 'sm' ? 24 : 30
   const iconSize = size === 'xs' ? 11 : size === 'sm' ? 13 : 15
@@ -292,6 +323,8 @@ export function IconButton({
       disabled={disabled}
       aria-label={label}
       aria-expanded={ariaExpanded}
+      aria-controls={ariaControls}
+      aria-haspopup={ariaHasPopup}
       data-tooltip-label={label}
       data-icon={icon}
       data-native-title-free="true"
@@ -326,6 +359,9 @@ export function ToolbarButton({
   dataTestId,
   size = 'md',
   variant = 'default',
+  ariaExpanded,
+  ariaControls,
+  ariaHasPopup,
 }: {
   icon: IconName
   label: string
@@ -336,6 +372,9 @@ export function ToolbarButton({
   dataTestId?: string
   size?: 'sm' | 'md'
   variant?: 'default' | 'toolbar'
+  ariaExpanded?: boolean
+  ariaControls?: string
+  ariaHasPopup?: boolean | 'menu' | 'listbox' | 'tree' | 'grid' | 'dialog'
 }): JSX.Element {
   return (
     <IconButton
@@ -348,6 +387,9 @@ export function ToolbarButton({
       dataTestId={dataTestId}
       size={size}
       variant={variant}
+      ariaExpanded={ariaExpanded}
+      ariaControls={ariaControls}
+      ariaHasPopup={ariaHasPopup}
       className="toolbar-button"
       style={variant === 'toolbar'
         ? undefined
@@ -366,6 +408,7 @@ interface PanelToolbarProps {
   ariaLabel?: string
   as?: 'div' | 'form'
   onSubmit?: (event: React.FormEvent<HTMLFormElement>) => void
+  rootAttrs?: Omit<HTMLAttributes<HTMLDivElement>, 'children' | 'className'>
 }
 
 export function PanelToolbar({
@@ -375,8 +418,11 @@ export function PanelToolbar({
   ariaLabel,
   as = 'div',
   onSubmit,
+  rootAttrs,
 }: PanelToolbarProps): JSX.Element {
   const shared = {
+    ...rootAttrs,
+    role: ariaLabel ? 'toolbar' : undefined,
     className: `panel-toolbar ${className}`.trim(),
     'data-testid': dataTestId,
     'data-panel-toolbar': 'true',
@@ -714,13 +760,21 @@ export function MotionPanel({
   style?: CSSProperties
 } & Omit<HTMLAttributes<HTMLDivElement>, 'children'>): JSX.Element {
   const animation = useAppShellPanelAnimation(open, size)
+  const panelRef = useRef<HTMLDivElement | null>(null)
   const dimensionStyle: CSSProperties = side === 'right'
     ? { width: animation.animatedSize, minWidth: animation.animatedSize, maxWidth: animation.animatedSize }
     : { height: animation.animatedSize, minHeight: animation.animatedSize, maxHeight: animation.animatedSize }
 
+  useEffect(() => {
+    const element = panelRef.current as (HTMLDivElement & { inert?: boolean }) | null
+    if (!element || typeof element.inert === 'undefined') return
+    element.inert = !open
+  }, [open])
+
   return (
     <div
       {...attrs}
+      ref={panelRef}
       data-open={open ? 'true' : 'false'}
       data-motion-panel={side}
       data-app-shell-panel-animation="shared"
@@ -729,6 +783,7 @@ export function MotionPanel({
       data-app-shell-panel-animated-size={Math.round(animation.animatedSize)}
       data-app-shell-panel-target-size={Math.round(size)}
       data-app-shell-panel-mounted={animation.isMounted ? 'true' : 'false'}
+      data-app-shell-panel-inert={open ? 'false' : 'true'}
       aria-hidden={!open}
       className={`motion-panel motion-panel-${side} shrink-0 overflow-hidden ${className}`}
       style={{
@@ -1237,6 +1292,25 @@ export function useAppShellResizeController({
   }
 }
 
+export interface PanelTabContextMenuEvent {
+  currentTarget: HTMLElement
+  clientX?: number
+  clientY?: number
+  preventDefault: () => void
+  stopPropagation: () => void
+}
+
+export function panelTabContextMenuPoint(event: PanelTabContextMenuEvent): { x: number; y: number } {
+  if (Number.isFinite(event.clientX) && Number.isFinite(event.clientY) && (event.clientX !== 0 || event.clientY !== 0)) {
+    return { x: event.clientX, y: event.clientY }
+  }
+  const rect = event.currentTarget.getBoundingClientRect()
+  return {
+    x: rect.left + Math.min(16, Math.max(1, rect.width / 2)),
+    y: rect.bottom + 6
+  }
+}
+
 export function TabButton({
   children,
   active,
@@ -1259,6 +1333,7 @@ export function TabButton({
   preview = false,
   pinned = false,
   shimmering = false,
+  kind,
 }: {
   children: ReactNode
   active: boolean
@@ -1266,7 +1341,7 @@ export function TabButton({
   panelId?: string
   onClick: () => void
   onClose?: () => void
-  onContextMenu?: (event: React.MouseEvent) => void
+  onContextMenu?: (event: PanelTabContextMenuEvent) => void
   onDragStart?: (event: React.DragEvent<HTMLDivElement>) => void
   onDragOver?: (event: React.DragEvent<HTMLDivElement>) => void
   onDrop?: (event: React.DragEvent<HTMLDivElement>) => void
@@ -1281,18 +1356,46 @@ export function TabButton({
   preview?: boolean
   pinned?: boolean
   shimmering?: boolean
+  kind?: string
 }): JSX.Element {
+  const tabRef = useRef<HTMLDivElement>(null)
+  const openKeyboardContextMenu = useCallback((target: HTMLElement): void => {
+    const rect = target.getBoundingClientRect()
+    onContextMenu?.({
+      preventDefault: () => {},
+      stopPropagation: () => {},
+      currentTarget: target,
+      clientX: rect.left + Math.min(16, Math.max(1, rect.width / 2)),
+      clientY: rect.bottom + 6
+    })
+  }, [onContextMenu])
+
+  useEffect(() => {
+    const target = tabRef.current
+    if (!target || !onContextMenu) return
+    const onNativeKeyDown = (event: KeyboardEvent): void => {
+      if (event.key !== 'ContextMenu' && !(event.shiftKey && event.key === 'F10')) return
+      event.preventDefault()
+      event.stopPropagation()
+      openKeyboardContextMenu(target)
+    }
+    target.addEventListener('keydown', onNativeKeyDown)
+    return () => target.removeEventListener('keydown', onNativeKeyDown)
+  }, [onContextMenu, openKeyboardContextMenu])
+
   const tab = (
     <div
+      ref={tabRef}
       id={tabId && panelId ? panelTabDomId(panelId, tabId) : undefined}
       role="tab"
-      tabIndex={0}
+      tabIndex={active ? 0 : -1}
       aria-label={ariaLabel}
       aria-selected={active}
       aria-controls={tabId && panelId ? panelTabPanelDomId(panelId, tabId) : undefined}
       data-native-title-free="true"
       data-app-shell-tab-controller={panelId}
       data-tab-id={tabId}
+      data-tab-kind={kind}
       data-active={active ? 'true' : 'false'}
       data-draggable={draggable ? 'true' : 'false'}
       data-dragging={dragging ? 'true' : 'false'}
@@ -1327,6 +1430,7 @@ export function TabButton({
         <button
           type="button"
           aria-label={closeLabel}
+          tabIndex={active ? 0 : -1}
           data-native-title-free="true"
           className="motion-tab-close"
           onClick={(event) => {
@@ -1347,6 +1451,7 @@ export interface PanelTabItem<T extends string | number> {
   id: T
   label: string
   icon?: IconName
+  kind?: string
   count?: number
   closable?: boolean
   preview?: boolean
@@ -1371,13 +1476,14 @@ export function PanelTabStrip<T extends string | number>({
   tabRowTestId,
   actionsTestId,
   activeActionsHostTestId,
+  tabListLabel,
 }: {
   tabs: PanelTabItem<T>[]
   activeTabId: T | null
   panelId?: string
   onActivate: (tabId: T) => void
   onClose?: (tabId: T) => void
-  onContextMenu?: (event: React.MouseEvent, tabId: T) => void
+  onContextMenu?: (event: PanelTabContextMenuEvent, tabId: T) => void
   onMove?: (tabId: T, direction: 'left' | 'right') => void
   actions?: ReactNode
   className?: string
@@ -1385,6 +1491,7 @@ export function PanelTabStrip<T extends string | number>({
   tabRowTestId?: string
   actionsTestId?: string
   activeActionsHostTestId?: string
+  tabListLabel?: string
 }): JSX.Element {
   const rowRef = useRef<HTMLDivElement | null>(null)
   const actionsRef = useRef<HTMLDivElement | null>(null)
@@ -1406,14 +1513,27 @@ export function PanelTabStrip<T extends string | number>({
     })
   }
 
-  useLayoutEffect(() => {
-    updateEdges()
+  const scrollActiveTabIntoView = useCallback((): void => {
     const row = rowRef.current
     if (!row) return
     const activeTab = panelId && activeTabId !== null
       ? row.querySelector<HTMLElement>(`[data-app-shell-tab-controller="${cssEscape(panelId)}"][data-tab-id="${cssEscape(String(activeTabId))}"]`)
       : row.querySelector<HTMLElement>('[data-active="true"]')
-    activeTab?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+    if (!activeTab) return
+    const rowRect = row.getBoundingClientRect()
+    const activeRect = activeTab.getBoundingClientRect()
+    const visibleLeft = rowRect.left
+    const visibleRight = rowRect.right
+    if (activeRect.left < visibleLeft) {
+      row.scrollLeft -= visibleLeft - activeRect.left
+    } else if (activeRect.right > visibleRight) {
+      row.scrollLeft += activeRect.right - visibleRight
+    }
+  }, [activeTabId, panelId])
+
+  useLayoutEffect(() => {
+    updateEdges()
+    scrollActiveTabIntoView()
     const activeChanged = previousActiveTabIdRef.current !== activeTabId
     previousActiveTabIdRef.current = activeTabId
     if (panelId && activeTabId !== null && activeChanged) {
@@ -1427,12 +1547,16 @@ export function PanelTabStrip<T extends string | number>({
       })
     }
     window.requestAnimationFrame(updateEdges)
-  }, [activeTabId, panelId, tabs.length])
+  }, [activeTabId, panelId, scrollActiveTabIntoView, tabs.length])
 
   useEffect(() => {
     const row = rowRef.current
     if (!row) return
-    const resizeObserver = new ResizeObserver(updateEdges)
+    const updateActiveTabVisibility = (): void => {
+      scrollActiveTabIntoView()
+      updateEdges()
+    }
+    const resizeObserver = new ResizeObserver(() => window.requestAnimationFrame(updateActiveTabVisibility))
     resizeObserver.observe(row)
     row.addEventListener('scroll', updateEdges, { passive: true })
     window.addEventListener('resize', updateEdges)
@@ -1441,7 +1565,7 @@ export function PanelTabStrip<T extends string | number>({
       row.removeEventListener('scroll', updateEdges)
       window.removeEventListener('resize', updateEdges)
     }
-  }, [])
+  }, [scrollActiveTabIntoView])
 
   useLayoutEffect(() => {
     const actionSlot = actionsRef.current
@@ -1569,6 +1693,7 @@ export function PanelTabStrip<T extends string | number>({
           ref={rowRef}
           className="panel-tab-row"
           role="tablist"
+          aria-label={tabListLabel}
           data-testid={tabRowTestId}
           data-app-shell-tab-controller
           onKeyDown={handleTabRowKeyDown}
@@ -1635,6 +1760,7 @@ export function PanelTabStrip<T extends string | number>({
               closeLabel={tab.closeLabel ?? `Close ${tab.label}`}
               ariaLabel={tab.ariaLabel ?? tab.label}
               tooltipLabel={tab.tooltipLabel ?? tab.label}
+              kind={tab.kind}
             >
               <span className="panel-tab-content" data-tab-id={tab.id}>
                 {tab.icon && <Icon name={tab.icon} size={13} />}
@@ -1671,15 +1797,17 @@ export function SegmentedControl<T extends string>({
   value,
   options,
   onChange,
+  ariaLabel,
   className = '',
 }: {
   value: T
   options: Array<{ value: T; label: ReactNode; disabled?: boolean }>
   onChange: (value: T) => void
+  ariaLabel: string
   className?: string
 }): JSX.Element {
   return (
-    <div className={`segmented-control ${className}`} role="tablist">
+    <div className={`segmented-control ${className}`} role="tablist" aria-label={ariaLabel}>
       {options.map((option) => (
         <button
           key={option.value}
@@ -1808,12 +1936,14 @@ export function SettingGroup({
 export function SettingsContentGroup({
   children,
   className = '',
+  rootAttrs,
 }: {
   children: ReactNode
   className?: string
+  rootAttrs?: Omit<HTMLAttributes<HTMLElement>, 'children' | 'className'>
 }): JSX.Element {
   return (
-    <section className={`settings-content-group ${className}`.trim()}>
+    <section {...rootAttrs} className={`settings-content-group ${className}`.trim()}>
       {children}
     </section>
   )
@@ -1911,6 +2041,7 @@ export function SettingChoiceCard({
   onClick,
   leading,
   disabled = false,
+  dataTestId,
 }: {
   label: ReactNode
   description?: ReactNode
@@ -1918,11 +2049,14 @@ export function SettingChoiceCard({
   onClick: () => void
   leading?: ReactNode
   disabled?: boolean
+  dataTestId?: string
 }): JSX.Element {
   return (
     <button
       type="button"
       data-active={active ? 'true' : 'false'}
+      data-testid={dataTestId}
+      aria-pressed={active}
       disabled={disabled}
       className="setting-choice-card"
       onClick={onClick}
@@ -2197,6 +2331,7 @@ export function AttachmentPill({
   title,
   meta,
   onRemove,
+  removeLabel,
   tone = 'neutral',
   className = '',
 }: {
@@ -2204,6 +2339,7 @@ export function AttachmentPill({
   title?: string
   meta?: ReactNode
   onRemove?: () => void
+  removeLabel?: string
   tone?: Tone
   className?: string
 }): JSX.Element {
@@ -2223,7 +2359,7 @@ export function AttachmentPill({
       {onRemove && (
         <IconButton
           icon="close"
-          label={`Remove ${typeof label === 'string' ? label : 'attachment'}`}
+          label={removeLabel ?? `Remove ${typeof label === 'string' ? label : 'attachment'}`}
           onClick={onRemove}
           size="sm"
           tooltip={false}
@@ -2281,6 +2417,8 @@ interface SurfaceRowProps {
   ariaLabel?: string
   dataTestId?: string
   dataReviewPath?: string
+  dataSidebarKey?: string
+  [key: `data-${string}`]: string | number | boolean | undefined
 }
 
 export function SurfaceRow({
@@ -2297,11 +2435,14 @@ export function SurfaceRow({
   style,
   title,
   ariaLabel,
+  ariaPressed,
   dataTestId,
   dataReviewPath,
   dataSidebarKey,
+  ...dataAttributes
 }: SurfaceRowProps): JSX.Element {
   const shared = {
+    ...dataAttributes,
     'data-active': active ? 'true' : 'false',
     'data-testid': dataTestId,
     'data-review-path': dataReviewPath,
@@ -2314,6 +2455,7 @@ export function SurfaceRow({
     onMouseEnter,
     onDoubleClick: (event: React.MouseEvent) => { void onDoubleClick?.(event) },
     'aria-label': ariaLabel ?? title,
+    'aria-pressed': ariaPressed,
   }
 
   if (as === 'button') {
@@ -2458,13 +2600,16 @@ export function MotionOverlay({
   backdropStyle?: CSSProperties
 }): JSX.Element {
   const surfaceRef = useRef<HTMLDivElement>(null)
-  useLayerFocus(surfaceRef, onClose)
+  const { exiting, close } = useRetainedExit(onClose)
+  useLayerFocus(surfaceRef, close)
 
   return (
     <div
       className={`motion-overlay-backdrop fixed inset-0 z-50 flex items-center justify-center ${className}`}
+      data-motion-exit={exiting ? 'true' : 'false'}
+      aria-hidden={exiting ? 'true' : undefined}
       style={{ background: 'rgba(16, 24, 40, 0.18)', backdropFilter: 'blur(4px)', ...backdropStyle }}
-      onClick={(event) => event.target === event.currentTarget && onClose()}
+      onClick={(event) => event.target === event.currentTarget && close()}
     >
       <div
         ref={surfaceRef}
@@ -2494,12 +2639,15 @@ export function Sheet({
   width?: number
 }): JSX.Element {
   const sheetRef = useRef<HTMLElement>(null)
-  useLayerFocus(sheetRef, onClose)
+  const { exiting, close } = useRetainedExit(onClose)
+  useLayerFocus(sheetRef, close)
 
   return (
     <div
       className="motion-sheet-backdrop fixed inset-0 z-50 flex justify-end"
-      onClick={(event) => event.target === event.currentTarget && onClose()}
+      data-motion-exit={exiting ? 'true' : 'false'}
+      aria-hidden={exiting ? 'true' : undefined}
+      onClick={(event) => event.target === event.currentTarget && close()}
     >
       <section
         ref={sheetRef}
@@ -2511,7 +2659,7 @@ export function Sheet({
       >
         <header className="motion-sheet-header">
           <div className="min-w-0 flex-1">{title}</div>
-          <IconButton icon="close" label="Close" onClick={onClose} />
+          <IconButton icon="close" label="Close" onClick={close} />
         </header>
         <div className="motion-sheet-body">{children}</div>
         {footer && <footer className="motion-sheet-footer">{footer}</footer>}
@@ -2563,6 +2711,7 @@ export function DismissablePopoverSurface({
   role?: string
 }): JSX.Element {
   const ref = useRef<HTMLDivElement>(null)
+  const { exiting, close } = useRetainedExit(onClose)
 
   useEffect(() => {
     const previouslyFocused = document.activeElement instanceof HTMLElement
@@ -2577,14 +2726,14 @@ export function DismissablePopoverSurface({
       if (event.key === 'Escape') {
         event.preventDefault()
         restoreFocus()
-        onClose()
+        close()
       }
     }
     const onMouseDown = (event: MouseEvent): void => {
       if (ref.current && !ref.current.contains(event.target as Node)) {
         window.setTimeout(() => {
           restoreFocus()
-          onClose()
+          close()
         }, 0)
       }
     }
@@ -2595,10 +2744,16 @@ export function DismissablePopoverSurface({
       document.removeEventListener('mousedown', onMouseDown, { capture: true })
       restoreFocus()
     }
-  }, [onClose])
+  }, [close])
 
   return (
-    <PopoverSurface ref={ref} className={className} style={style}>
+    <PopoverSurface
+      ref={ref}
+      className={className}
+      style={style}
+      data-motion-exit={exiting ? 'true' : 'false'}
+      aria-hidden={exiting ? 'true' : undefined}
+    >
       <div role={role} className="min-w-0">
         {children}
       </div>
@@ -2619,6 +2774,7 @@ export function MenuSurface({
   style?: CSSProperties
 } & HTMLAttributes<HTMLDivElement>): JSX.Element {
   const ref = useRef<HTMLDivElement>(null)
+  const { exiting, close } = useRetainedExit(onClose)
 
   useEffect(() => {
     const previouslyFocused = document.activeElement instanceof HTMLElement
@@ -2651,7 +2807,7 @@ export function MenuSurface({
       if (event.key === 'Escape') {
         event.preventDefault()
         restoreFocus()
-        onClose()
+        close()
       } else if (event.key === 'ArrowDown') {
         event.preventDefault()
         focusMenuItem(1)
@@ -2670,7 +2826,7 @@ export function MenuSurface({
       if (ref.current && !ref.current.contains(event.target as Node)) {
         window.setTimeout(() => {
           restoreFocus()
-          onClose()
+          close()
         }, 0)
       }
     }
@@ -2682,12 +2838,14 @@ export function MenuSurface({
       document.removeEventListener('mousedown', onMouseDown, { capture: true })
       restoreFocus()
     }
-  }, [onClose])
+  }, [close])
 
   return (
     <PopoverSurface
       ref={ref}
       {...surfaceProps}
+      data-motion-exit={exiting ? 'true' : 'false'}
+      aria-hidden={exiting ? 'true' : undefined}
       className={`orchestrator-menu-surface ${className}`.trim()}
       style={{
         borderRadius: 12,
@@ -2916,6 +3074,7 @@ export function PanelNotice({
   description,
   code,
   actions,
+  actionsAttrs,
   children,
   tone = 'muted',
   className = '',
@@ -2928,6 +3087,7 @@ export function PanelNotice({
   description?: ReactNode
   code?: ReactNode
   actions?: ReactNode
+  actionsAttrs?: Omit<HTMLAttributes<HTMLDivElement>, 'children' | 'className'>
   children?: ReactNode
   tone?: PanelMessageTone
   className?: string
@@ -2954,7 +3114,7 @@ export function PanelNotice({
         )}
         {code && <div className="orchestrator-panel-notice-code">{code}</div>}
       </div>
-      {actions && <div className="orchestrator-panel-notice-actions">{actions}</div>}
+      {actions && <div {...actionsAttrs} className="orchestrator-panel-notice-actions">{actions}</div>}
       {children}
     </div>
   )

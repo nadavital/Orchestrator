@@ -1,7 +1,7 @@
-import { useCallback, useState } from 'react'
-import { filePathFromTabId, sideChatIdFromTabId, terminalTabIdFromTabId, useSessionStore } from '../../store/sessions'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { filePathFromTabId, sideChatContextSnapshot, sideChatIdFromTabId, terminalTabIdFromTabId, useSessionStore } from '../../store/sessions'
 import type { RightPanelTabId, RightPanelTabKind } from '../../store/sessions'
-import { derivePlanStates, derivePlanStatesFromMessages, resolvePanelTabTransferAvailability } from '../../types'
+import { bottomPanelTransferPolicyLabel, derivePlanStates, derivePlanStatesFromMessages, resolvePanelTabTransferAvailability } from '../../types'
 import type { AgentNode, Session, SessionRunEventRecord } from '../../types'
 import BrowserPanel from './BrowserPanel'
 import DiffPanel from './DiffPanel'
@@ -10,10 +10,11 @@ import EventInspectorPanel from './EventInspectorPanel'
 import ExtensionsPanel from './ExtensionsPanel'
 import FileTabPanel from './FileTabPanel'
 import FilesPanel from './FilesPanel'
+import GitPanel from './GitPanel'
 import PlanPanel from './PlanPanel'
 import SideQuestionPanel from './SideQuestionPanel'
 import TerminalView from './TerminalView'
-import { AppShellPanel, IconButton, MenuItem, MenuSection, MenuSectionLabel, MenuSurface, PanelResizeHandle, PanelTabStrip, exitFullscreenForPanelTab, panelTabDomId, panelTabPanelDomId, useAppShellResizeController, useAppShellSidePanelLayout } from '../shared/designSystem'
+import { AppShellPanel, IconButton, MenuItem, MenuMessage, MenuSection, MenuSectionLabel, MenuSurface, PanelResizeHandle, PanelTabStrip, ToolbarButton, exitFullscreenForPanelTab, panelTabContextMenuPoint, panelTabDomId, panelTabPanelDomId, useAppShellResizeController, useAppShellSidePanelLayout } from '../shared/designSystem'
 import { deriveSessionAgentNodes } from './agentNodes'
 import Icon, { type IconName } from '../shared/Icon'
 
@@ -39,6 +40,16 @@ interface ContextTabSpec {
   pinned?: boolean
   shimmering?: boolean
   tooltipLabel?: string
+}
+
+type TerminalActionStatus = {
+  text: string
+  tone: 'info' | 'danger'
+}
+
+type TerminalCommandState = {
+  command: string
+  outputOffset: number
 }
 
 export default function ContextSidebar({ sessionId }: Props): JSX.Element | null {
@@ -68,8 +79,11 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
     moveRightPanelTab,
     resetRightPanelTabState,
     pinRightPanelTab,
+    focusRightPanelGitTarget,
+    focusRightPanelReviewPath,
     updateRightPanelFileTabState,
     setRightPanelBrowserUrl,
+    openRightPanelBrowserUrl,
     setRightPanelBrowserWorkbench,
     closeSideChat,
     openSideChat,
@@ -79,6 +93,11 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
     closeRightPanel
   } = useSessionStore()
   const [tabMenu, setTabMenu] = useState<{ tabId: ContextTab; x: number; y: number } | null>(null)
+  const [terminalOutputs, setTerminalOutputs] = useState<Record<string, string>>({})
+  const [terminalSelections, setTerminalSelections] = useState<Record<string, string>>({})
+  const [terminalCommandStates, setTerminalCommandStates] = useState<Record<string, TerminalCommandState>>({})
+  const [terminalActionStatus, setTerminalActionStatus] = useState<TerminalActionStatus | null>(null)
+  const terminalActionStatusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const ui = uiState[session.id]
   const rightPanel = ui?.rightPanel
   const rawPanelWidthRatio = rightPanel?.widthRatio
@@ -105,15 +124,18 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
     ...derivePlanStates(session, events)
   ]
   const agents = deriveSessionAgentNodes(session, events)
-  const hasPlan = plans.length > 0 || hasActiveGoal(events)
+  const hasPlan = plans.length > 0 || hasActiveGoal(events) || hasActiveReviewMode(events, session)
   const hasOpenAgent = (ui?.agentTabIds?.length ?? 0) > 0
   const hasLiveAgent = agents.some(isLiveAgent)
   const hasSideQuestions = (ui?.sideQuestions?.length ?? 0) > 0
   const hasEnvironmentTab = rightPanel?.tabs.some((tab) => tab.id === 'environment') ?? false
+  const hasGitTab = rightPanel?.tabs.some((tab) => tab.id === 'git') ?? false
   const hasDiffTab = rightPanel?.tabs.some((tab) => tab.id === 'diff') ?? false
   const hasFilesTab = rightPanel?.tabs.some((tab) => tab.id === 'files') ?? false
   const hasBrowserTab = rightPanel?.tabs.some((tab) => tab.id === 'browser') ?? false
   const hasNewTab = rightPanel?.tabs.some((tab) => tab.id === 'new-tab') ?? false
+  const hasPlanTab = rightPanel?.tabs.some((tab) => tab.id === 'plan') ?? false
+  const hasBottomPanelPlanTab = ui?.terminalPanel?.tabs.includes('plan') ?? false
   const sideChatTabs = (rightPanel?.tabs ?? [])
     .filter((tab) => tab.kind === 'sidechat')
     .map((tab) => {
@@ -147,14 +169,17 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
   const availableTabs: ContextTabSpec[] = [
     ...(hasNewTab ? [{ id: 'new-tab' as const, label: 'New tab', icon: 'plus' as const }] : []),
     ...(hasEnvironmentTab ? [{ id: 'environment' as const, label: 'Environment', icon: 'settings' as const }] : []),
+    ...(hasGitTab ? [{ id: 'git' as const, label: 'Git', icon: 'branch' as const }] : []),
     ...(ui?.showDiff || hasDiffTab ? [{ id: 'diff' as const, label: 'Review', icon: 'diff' as const }] : []),
     ...(hasBrowserTab ? [{ id: 'browser' as const, label: 'Browser', icon: 'browser' as const }] : []),
     ...(hasFilesTab ? [{ id: 'files' as const, label: 'Files', icon: 'folder' as const }] : []),
     ...fileTabs,
     ...sideChatTabs,
     ...terminalTabs,
-    ...(hasPlan ? [{ id: 'plan' as const, label: 'Plan', icon: 'plan' as const, count: plans.length }] : []),
-    ...((hasOpenAgent || hasLiveAgent) ? [{ id: 'agents' as const, label: 'Agents', icon: 'agents' as const, count: agents.length, shimmering: hasLiveAgent }] : []),
+    ...(hasPlan && !hasBottomPanelPlanTab && (ui?.showPlan || hasPlanTab)
+      ? [{ id: 'plan' as const, label: 'Plan', icon: 'plan' as const, count: plans.length }]
+      : []),
+    ...((ui?.showEvents || hasOpenAgent || hasLiveAgent) ? [{ id: 'agents' as const, label: 'Agents', icon: 'agents' as const, count: agents.length, shimmering: hasLiveAgent }] : []),
     ...(ui?.showExtensions ? [{ id: 'extensions' as const, label: 'Extensions', icon: 'extensions' as const }] : []),
     ...(hasSideQuestions ? [{ id: 'side' as const, label: 'Side', icon: 'chat' as const, count: ui?.sideQuestions?.length ?? 0 }] : [])
   ]
@@ -181,8 +206,166 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
   const effectiveTab = tabs.some((tab) => tab.id === activeTab) ? activeTab : tabs[0]?.id ?? null
   const effectiveFilePath = filePathFromTabId(effectiveTab ?? 'plan')
   const effectiveFileTab = rightPanel?.tabs.find((tab) => tab.id === effectiveTab && tab.kind === 'file') ?? null
+  const effectiveGitTab = rightPanel?.tabs.find((tab) => tab.id === 'git' && tab.kind === 'git') ?? null
+  const effectiveDiffTab = rightPanel?.tabs.find((tab) => tab.id === 'diff' && tab.kind === 'diff') ?? null
   const effectiveTabLabel = tabs.find((tab) => tab.id === effectiveTab)?.label ?? 'Workbench'
   const rightPanelOpen = rightPanel?.open ?? false
+  const effectiveTerminalTabId = terminalTabIdFromTabId(effectiveTab ?? 'plan')
+  const effectiveTerminalId = effectiveTerminalTabId !== null ? `${session.id}-${effectiveTerminalTabId}` : null
+  const effectiveTerminalOutput = effectiveTerminalId ? terminalOutputs[effectiveTerminalId] ?? '' : ''
+  const effectiveTerminalSelection = effectiveTerminalId ? terminalSelections[effectiveTerminalId] ?? '' : ''
+  const effectiveTerminalCommandState = effectiveTerminalId ? terminalCommandStates[effectiveTerminalId] : undefined
+  const effectiveTerminalCommandOutput = effectiveTerminalCommandState
+    ? effectiveTerminalOutput.slice(Math.max(0, Math.min(effectiveTerminalCommandState.outputOffset, effectiveTerminalOutput.length))).trim()
+    : ''
+
+  useEffect(() => () => {
+    if (terminalActionStatusTimeoutRef.current) window.clearTimeout(terminalActionStatusTimeoutRef.current)
+  }, [])
+
+  const setRightTerminalActionStatus = useCallback((status: TerminalActionStatus): void => {
+    if (terminalActionStatusTimeoutRef.current) window.clearTimeout(terminalActionStatusTimeoutRef.current)
+    setTerminalActionStatus(status)
+    terminalActionStatusTimeoutRef.current = window.setTimeout(() => {
+      setTerminalActionStatus(null)
+      terminalActionStatusTimeoutRef.current = null
+    }, 2200)
+  }, [])
+
+  const handleTerminalOutputChange = useCallback((id: string, output: string): void => {
+    setTerminalOutputs((current) => current[id] === output ? current : { ...current, [id]: output })
+  }, [])
+
+  const handleTerminalSelectionChange = useCallback((id: string, selection: string): void => {
+    setTerminalSelections((current) => current[id] === selection ? current : { ...current, [id]: selection })
+  }, [])
+
+  const handleTerminalCommandSubmitted = useCallback((id: string, command: string, outputOffset: number): void => {
+    setTerminalCommandStates((current) => ({ ...current, [id]: { command, outputOffset } }))
+  }, [])
+
+  useEffect(() => {
+    if (!effectiveTerminalId) return undefined
+    const globals = window as typeof window & {
+      __orchestratorSubmitTerminalCommandForSmokeById?: Record<string, (command: string) => void>
+    }
+    const submitCommandForSmoke = (command: string): void => {
+      const input = command.endsWith('\r') || command.endsWith('\n') ? command.replace(/\n$/, '\r') : `${command}\r`
+      handleTerminalCommandSubmitted(effectiveTerminalId, command.trim(), terminalOutputs[effectiveTerminalId]?.length ?? 0)
+      void window.api.terminal.write(effectiveTerminalId, input)
+    }
+    globals.__orchestratorSubmitTerminalCommandForSmokeById = {
+      ...(globals.__orchestratorSubmitTerminalCommandForSmokeById ?? {}),
+      [effectiveTerminalId]: submitCommandForSmoke
+    }
+    return () => {
+      if (globals.__orchestratorSubmitTerminalCommandForSmokeById?.[effectiveTerminalId] === submitCommandForSmoke) {
+        delete globals.__orchestratorSubmitTerminalCommandForSmokeById[effectiveTerminalId]
+      }
+    }
+  }, [effectiveTerminalId, handleTerminalCommandSubmitted, terminalOutputs])
+
+  const addRightTerminalOutputToChat = useCallback((): void => {
+    if (!effectiveTerminalId) {
+      setRightTerminalActionStatus({ text: 'No active terminal output to add', tone: 'danger' })
+      return
+    }
+    const output = effectiveTerminalOutput.trim()
+    if (!output) {
+      setRightTerminalActionStatus({ text: 'Terminal output is empty', tone: 'danger' })
+      return
+    }
+    const clippedOutput = output.split('\n').slice(-120).join('\n').slice(-12_000)
+    const lines = [
+      'Review this terminal output:',
+      `Working dir: ${session.workDir}`,
+      `Terminal: ${effectiveTerminalId}`,
+      '',
+      '```text',
+      clippedOutput,
+      '```'
+    ]
+    window.dispatchEvent(new CustomEvent('orchestrator:add-composer-text', {
+      detail: { text: lines.join('\n') }
+    }))
+    setRightTerminalActionStatus({ text: 'Terminal output added to chat', tone: 'info' })
+  }, [effectiveTerminalId, effectiveTerminalOutput, session.workDir, setRightTerminalActionStatus])
+
+  const addRightTerminalSelectionToChat = useCallback((): void => {
+    if (!effectiveTerminalId) {
+      setRightTerminalActionStatus({ text: 'No active terminal selection to add', tone: 'danger' })
+      return
+    }
+    const selection = effectiveTerminalSelection.trim()
+    if (!selection) {
+      setRightTerminalActionStatus({ text: 'Terminal selection is empty', tone: 'danger' })
+      return
+    }
+    const clippedSelection = selection.split('\n').slice(-80).join('\n').slice(-8_000)
+    const lines = [
+      'Review this selected terminal output:',
+      `Working dir: ${session.workDir}`,
+      `Terminal: ${effectiveTerminalId}`,
+      '',
+      '```text',
+      clippedSelection,
+      '```'
+    ]
+    window.dispatchEvent(new CustomEvent('orchestrator:add-composer-text', {
+      detail: { text: lines.join('\n') }
+    }))
+    setRightTerminalActionStatus({ text: 'Selected terminal output added to chat', tone: 'info' })
+  }, [effectiveTerminalId, effectiveTerminalSelection, session.workDir, setRightTerminalActionStatus])
+
+  const addRightTerminalCommandOutputToChat = useCallback((): void => {
+    if (!effectiveTerminalId) {
+      setRightTerminalActionStatus({ text: 'No active terminal command to add', tone: 'danger' })
+      return
+    }
+    if (!effectiveTerminalCommandState) {
+      setRightTerminalActionStatus({ text: 'No submitted terminal command to add', tone: 'danger' })
+      return
+    }
+    const output = effectiveTerminalCommandOutput.trim()
+    if (!output) {
+      setRightTerminalActionStatus({ text: 'Latest command output is empty', tone: 'danger' })
+      return
+    }
+    const clippedOutput = output.split('\n').slice(-80).join('\n').slice(-8_000)
+    const lines = [
+      'Review this terminal command output:',
+      `Working dir: ${session.workDir}`,
+      `Terminal: ${effectiveTerminalId}`,
+      `Command: ${effectiveTerminalCommandState.command}`,
+      '',
+      '```text',
+      clippedOutput,
+      '```'
+    ]
+    window.dispatchEvent(new CustomEvent('orchestrator:add-composer-text', {
+      detail: { text: lines.join('\n') }
+    }))
+    setRightTerminalActionStatus({ text: 'Latest command output added to chat', tone: 'info' })
+  }, [effectiveTerminalCommandOutput, effectiveTerminalCommandState, effectiveTerminalId, session.workDir, setRightTerminalActionStatus])
+
+  const openTerminalUrl = useCallback((url: string): void => {
+    openRightPanelBrowserUrl(session.id, url)
+    const ui = useSessionStore.getState().uiState[session.id]
+    const globals = window as typeof window & {
+      __orchestratorLastTerminalBrowserRoute?: {
+        sessionId: string
+        url: string
+        rightPanelActiveTab?: string | null
+        browserUrl?: string
+      }
+    }
+    globals.__orchestratorLastTerminalBrowserRoute = {
+      sessionId: session.id,
+      url,
+      rightPanelActiveTab: ui?.rightPanel?.activeTabId ?? null,
+      browserUrl: ui?.browserUrl
+    }
+  }, [openRightPanelBrowserUrl, session.id])
 
   const activate = (tab: ContextTab): void => {
     const sideChatId = sideChatIdFromTabId(tab)
@@ -198,7 +381,7 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
       openRightPanelTab(session.id, tab)
       return
     }
-    if (tab === 'new-tab' || tab === 'environment' || tab === 'files' || tab === 'browser') {
+    if (tab === 'new-tab' || tab === 'environment' || tab === 'git' || tab === 'files' || tab === 'browser') {
       openRightPanelTab(session.id, tab)
       return
     }
@@ -211,13 +394,21 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
 
   const close = (tab?: ContextTab): void => {
     setTabMenu(null)
+    const restoreToggleFocus = (): void => {
+      window.requestAnimationFrame(() => {
+        document.querySelector<HTMLButtonElement>('[data-testid="titlebar-toggle-sidebar"]')?.focus({ preventScroll: true })
+      })
+    }
     if (!tab) {
       closeRightPanel(session.id)
+      restoreToggleFocus()
       return
     }
+    const closingFinalTab = tabs.length <= 1
     exitFullscreenForPanelTab('right', tab)
     if (tab === 'new-tab') closeRightPanelTab(session.id, 'new-tab')
     if (tab === 'environment') closeRightPanelTab(session.id, 'environment')
+    if (tab === 'git') closeRightPanelTab(session.id, 'git')
     if (tab === 'files') closeRightPanelTab(session.id, 'files')
     if (filePathFromTabId(tab)) closeRightPanelTab(session.id, tab)
     if (tab === 'browser') closeRightPanelTab(session.id, 'browser')
@@ -233,6 +424,7 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
     if (tab === 'agents' || !tab) setShowEvents(session.id, false)
     if (tab === 'extensions' || !tab) setShowExtensions(session.id, false)
     if (tab === 'side' || !tab) setShowSideQuestions(session.id, false)
+    if (closingFinalTab) restoreToggleFocus()
   }
 
   const getRightPanelDragRowWidth = useCallback((): number => {
@@ -277,8 +469,11 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
   const tabMenuTransferAvailability = tabMenuTransferKind
     ? resolvePanelTabTransferAvailability('right', 'bottom', tabMenuTransferKind)
     : null
+  const tabMenuCanReset = tabMenu
+    ? tabMenu.tabId === 'browser' || Boolean(filePathFromTabId(tabMenu.tabId))
+    : false
 
-  const openToolTab = (tab: 'environment' | 'diff' | 'browser' | 'files'): void => {
+  const openToolTab = (tab: 'environment' | 'git' | 'diff' | 'browser' | 'files'): void => {
     if (tab === 'diff') {
       openRightPanelTab(session.id, 'environment')
       setShowDiff(session.id, true)
@@ -287,7 +482,7 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
     openRightPanelTab(session.id, tab)
   }
   const openSideChatTab = (): void => {
-    openSideChat(session.id, crypto.randomUUID(), 'Side chat')
+    openSideChat(session.id, crypto.randomUUID(), 'Side chat', sideChatContextSnapshot(session, 'workbench-new-tab'))
   }
   const openRightTerminalTab = (): void => {
     const tabId = addTerminalTab(session.id)
@@ -298,16 +493,35 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
       tabId
     })
   }
+  const openPlanTab = (): void => {
+    setShowPlan(session.id, true)
+  }
   const showWorkbenchAddTabButton = effectiveTab !== 'new-tab'
   const newTabActions: WorkbenchNewTabAction[] = [
     {
       id: 'files',
       title: 'Files',
-      description: 'Browse project files',
+      description: hasFilesTab ? 'Switch to open Files tab' : 'Browse project files',
       icon: 'folder',
-      disabled: hasFilesTab,
+      state: hasFilesTab ? 'open' : 'new',
       onSelect: () => openToolTab('files')
     },
+    {
+      id: 'environment',
+      title: 'Environment',
+      description: hasEnvironmentTab ? 'Switch to open Environment tab' : 'Inspect workspace context',
+      icon: 'settings',
+      state: hasEnvironmentTab ? 'open' : 'new',
+      onSelect: () => openToolTab('environment')
+    },
+    ...(hasPlan && !hasBottomPanelPlanTab ? [{
+      id: 'plan',
+      title: 'Plan',
+      description: ui?.showPlan || hasPlanTab ? 'Switch to open Plan tab' : 'View goal and task state',
+      icon: 'plan' as const,
+      state: ui?.showPlan || hasPlanTab ? 'open' as const : 'new' as const,
+      onSelect: openPlanTab
+    }] : []),
     {
       id: 'side-chat',
       title: 'Side chat',
@@ -318,18 +532,42 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
     {
       id: 'browser',
       title: 'Browser',
-      description: 'Open a website',
+      description: hasBrowserTab ? 'Switch to open Browser tab' : 'Open a website',
       icon: 'browser',
-      disabled: hasBrowserTab,
+      state: hasBrowserTab ? 'open' : 'new',
       onSelect: () => openToolTab('browser')
+    },
+    {
+      id: 'git',
+      title: 'Git',
+      description: hasGitTab ? 'Switch to open Git tab' : 'Stage and review changes',
+      icon: 'branch',
+      state: hasGitTab ? 'open' : 'new',
+      onSelect: () => openToolTab('git')
     },
     {
       id: 'review',
       title: 'Review',
-      description: 'View code changes',
+      description: ui?.showDiff || hasDiffTab ? 'Switch to open Review tab' : 'View code changes',
       icon: 'diff',
-      disabled: ui?.showDiff || hasDiffTab,
+      state: ui?.showDiff || hasDiffTab ? 'open' : 'new',
       onSelect: () => openToolTab('diff')
+    },
+    {
+      id: 'agents',
+      title: 'Agents',
+      description: ui?.showEvents ? 'Switch to open Agents tab' : 'Inspect runtime activity',
+      icon: 'agents',
+      state: ui?.showEvents ? 'open' : 'new',
+      onSelect: () => setShowEvents(session.id, true)
+    },
+    {
+      id: 'extensions',
+      title: 'Extensions',
+      description: ui?.showExtensions ? 'Switch to open Extensions tab' : 'Inspect MCP, apps, plugins, and skills',
+      icon: 'extensions',
+      state: ui?.showExtensions ? 'open' : 'new',
+      onSelect: () => setShowExtensions(session.id, true)
     },
     {
       id: 'terminal',
@@ -373,9 +611,11 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
         />
       )}
       <aside
+        id="orchestrator-workbench-panel"
         className="workbench-panel-surface min-w-0 flex flex-1 flex-col overflow-hidden"
         data-testid="session-right-panel"
         data-app-shell-focus-area="right-panel"
+        tabIndex={-1}
         aria-label="Workbench panel"
         data-right-panel-open={rightPanelOpen ? 'true' : 'false'}
         data-right-panel-active-tab={effectiveTab ?? ''}
@@ -384,6 +624,12 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
         data-right-panel-width-ratio={panelWidthRatio?.toFixed(4) ?? ''}
         data-right-panel-layout={panelLayout.mode}
         data-right-panel-tabs={rightPanel?.tabs.map((tab) => tab.id).join(',') ?? ''}
+        data-right-panel-active-terminal-id={effectiveTerminalId ?? ''}
+        data-right-panel-terminal-last-command={effectiveTerminalCommandState?.command ?? ''}
+        data-right-panel-terminal-latest-command-output-lines={effectiveTerminalCommandOutput ? effectiveTerminalCommandOutput.split('\n').length : 0}
+        data-right-panel-terminal-selected-output-lines={effectiveTerminalSelection.trim() ? effectiveTerminalSelection.trim().split('\n').length : 0}
+        data-right-panel-terminal-action-status={terminalActionStatus?.text ?? ''}
+        data-right-panel-terminal-action-status-tone={terminalActionStatus?.tone ?? ''}
       >
       <div className="workbench-panel-chrome">
         <PanelTabStrip
@@ -394,16 +640,30 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
           onClose={close}
           onContextMenu={(event, tabId) => {
             event.preventDefault()
-            setTabMenu({ tabId, x: event.clientX, y: event.clientY })
+            const point = panelTabContextMenuPoint(event)
+            setTabMenu({ tabId, ...point })
           }}
           onMove={(tabId, direction) => moveTab(tabId, direction)}
           className="workbench-panel-tabbar"
           stripTestId="workbench-panel-tabbar"
           tabRowTestId="workbench-panel-tab-row"
+          tabListLabel="Workbench tabs"
           actionsTestId="workbench-panel-tab-actions"
           activeActionsHostTestId="right-panel-active-tab-actions"
           actions={(
             <>
+            {terminalActionStatus && (
+              <span
+                className="terminal-panel-action-status"
+                data-testid="right-terminal-action-status"
+                data-terminal-action-status-tone={terminalActionStatus.tone}
+                role={terminalActionStatus.tone === 'danger' ? 'alert' : 'status'}
+                aria-live={terminalActionStatus.tone === 'danger' ? 'assertive' : 'polite'}
+                aria-atomic="true"
+              >
+                {terminalActionStatus.text}
+              </span>
+            )}
             {showWorkbenchAddTabButton && (
               <IconButton
                 icon="plus"
@@ -413,6 +673,37 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
                 dataTestId="right-panel-add-tab"
                 onClick={() => openRightPanelTab(session.id, 'new-tab')}
               />
+            )}
+            {effectiveTerminalId && (
+              <>
+                <ToolbarButton
+                  icon="chat"
+                  label="Add terminal output to chat"
+                  size="sm"
+                  variant="toolbar"
+                  disabled={!effectiveTerminalOutput.trim()}
+                  dataTestId="right-terminal-add-output-to-chat"
+                  onClick={addRightTerminalOutputToChat}
+                />
+                <ToolbarButton
+                  icon="copy"
+                  label="Add selected terminal output to chat"
+                  size="sm"
+                  variant="toolbar"
+                  disabled={!effectiveTerminalSelection.trim()}
+                  dataTestId="right-terminal-add-selected-output-to-chat"
+                  onClick={addRightTerminalSelectionToChat}
+                />
+                <ToolbarButton
+                  icon="terminal"
+                  label="Add latest command output to chat"
+                  size="sm"
+                  variant="toolbar"
+                  disabled={!effectiveTerminalCommandState || !effectiveTerminalCommandOutput.trim()}
+                  dataTestId="right-terminal-add-command-output-to-chat"
+                  onClick={addRightTerminalCommandOutputToChat}
+                />
+              </>
             )}
             <IconButton
               icon={rightPanel?.fullWidth ? 'minimize' : 'maximize'}
@@ -445,6 +736,30 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
             session={session}
             embedded
             onOpenReview={() => setShowDiff(session.id, true)}
+            onOpenGit={(target) => {
+              if (target) {
+                focusRightPanelGitTarget(session.id, target)
+              } else {
+                openRightPanelTab(session.id, 'git')
+              }
+            }}
+          />
+        )}
+        {effectiveTab === 'git' && (
+          <GitPanel
+            session={session}
+            embedded
+            focusPath={effectiveGitTab?.gitFocusPath ?? null}
+            focusRequest={effectiveGitTab?.gitFocusRequest}
+            focusTarget={effectiveGitTab?.gitFocusTarget ?? null}
+            focusTargetRequest={effectiveGitTab?.gitFocusTargetRequest}
+            onOpenReview={(path) => {
+              if (path) {
+                focusRightPanelReviewPath(session.id, path)
+              } else {
+                setShowDiff(session.id, true)
+              }
+            }}
           />
         )}
         {effectiveTab === 'plan' && <PlanPanel session={session} embedded />}
@@ -486,7 +801,15 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
             onFileTabStateChange={(tabId, patch) => updateRightPanelFileTabState(session.id, tabId, patch)}
           />
         )}
-        {effectiveTab === 'diff' && <DiffPanel sessionId={session.id} workDir={session.workDir} embedded />}
+        {effectiveTab === 'diff' && (
+          <DiffPanel
+            sessionId={session.id}
+            workDir={session.workDir}
+            embedded
+            focusPath={effectiveDiffTab?.reviewFocusPath ?? null}
+            focusRequest={effectiveDiffTab?.reviewFocusRequest}
+          />
+        )}
         {effectiveTab === 'side' && <SideQuestionPanel session={session} embedded />}
         {sideChatIdFromTabId(effectiveTab ?? 'plan') && (
           <SideQuestionPanel session={session} chatId={sideChatIdFromTabId(effectiveTab ?? 'plan') ?? undefined} embedded />
@@ -495,6 +818,10 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
           <TerminalView
             terminalId={`${session.id}-${terminalTabIdFromTabId(effectiveTab ?? 'plan') ?? 0}`}
             workDir={session.workDir}
+            onOpenUrl={openTerminalUrl}
+            onOutputChange={handleTerminalOutputChange}
+            onSelectionChange={handleTerminalSelectionChange}
+            onCommandSubmitted={handleTerminalCommandSubmitted}
             onNewTab={() => {
               const newTabId = addTerminalTab(session.id)
               transferSessionPanelTab(session.id, {
@@ -539,7 +866,7 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
               disabled={tabMenuIndex < 0 || tabMenuIndex >= tabs.length - 1}
               onClick={() => moveTab(tabMenu.tabId, 'right')}
             />
-            {tabMenu.tabId === 'browser' && (
+            {tabMenuCanReset && (
               <MenuItem
                 icon="refresh"
                 label="Reset tab"
@@ -571,6 +898,50 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
               />
             </MenuSection>
           )}
+          {tabMenu.tabId === 'plan' && tabMenuTransferAvailability?.supported && (
+            <MenuSection
+              dataTestId="workbench-tab-context-menu-bottom-panel-section"
+              data-panel-tab-transfer-model="shared"
+              data-panel-tab-transfer-source="right"
+              data-panel-tab-transfer-target="bottom"
+            >
+              <MenuSectionLabel>Bottom panel</MenuSectionLabel>
+              <MenuItem
+                icon="panelRight"
+                label="Move tab to bottom panel"
+                dataTestId="workbench-tab-context-menu-move-plan-bottom"
+                onClick={() => {
+                  transferSessionPanelTab(session.id, {
+                    sourcePanel: 'right',
+                    targetPanel: 'bottom',
+                    tabKind: 'plan',
+                    tabId: tabMenu.tabId
+                  })
+                  setTabMenu(null)
+                }}
+              />
+            </MenuSection>
+          )}
+          {tabMenuTransferAvailability && !tabMenuTransferAvailability.supported && tabMenuTransferAvailability.reason === 'unsupported-tab-kind' && (
+            <MenuSection
+              dataTestId="workbench-tab-context-menu-bottom-panel-boundary-section"
+              data-panel-tab-transfer-model="shared"
+              data-panel-tab-transfer-source="right"
+              data-panel-tab-transfer-target="bottom"
+              data-panel-tab-transfer-kind={tabMenuTransferAvailability.tabKind}
+              data-panel-tab-transfer-supported="false"
+              data-panel-tab-transfer-reason={tabMenuTransferAvailability.reason}
+            >
+              <MenuSectionLabel>Bottom panel</MenuSectionLabel>
+              <MenuMessage
+                compact
+                state={tabMenuTransferAvailability.reason}
+                dataTestId="workbench-tab-context-menu-bottom-panel-boundary-message"
+              >
+                {bottomPanelTransferPolicyLabel()}
+              </MenuMessage>
+            </MenuSection>
+          )}
           <MenuSection dataTestId="workbench-tab-context-menu-manage-section">
             <MenuSectionLabel>Manage</MenuSectionLabel>
             <MenuItem
@@ -592,32 +963,88 @@ interface WorkbenchNewTabAction {
   description: string
   icon: IconName
   disabled?: boolean
+  state?: 'new' | 'open'
   onSelect: () => void
 }
 
 function WorkbenchNewTabPanel({ actions }: { actions: WorkbenchNewTabAction[] }): JSX.Element {
+  const firstEnabledActionId = actions.find((action) => !action.disabled)?.id ?? null
+  const [focusedActionId, setFocusedActionId] = useState<string | null>(firstEnabledActionId)
+
+  useEffect(() => {
+    if (!focusedActionId || actions.some((action) => action.id === focusedActionId && !action.disabled)) return
+    setFocusedActionId(firstEnabledActionId)
+  }, [actions, firstEnabledActionId, focusedActionId])
+
+  const moveActionFocus = (currentTarget: HTMLElement, direction: 'next' | 'previous' | 'first' | 'last'): void => {
+    const enabledButtons = [...currentTarget.querySelectorAll<HTMLButtonElement>('[data-workbench-new-tab-action]:not(:disabled)')]
+    if (enabledButtons.length === 0) return
+    const activeIndex = enabledButtons.findIndex((button) => button === document.activeElement)
+    const nextIndex = direction === 'first'
+      ? 0
+      : direction === 'last'
+        ? enabledButtons.length - 1
+        : direction === 'next'
+          ? (Math.max(0, activeIndex) + 1) % enabledButtons.length
+          : activeIndex <= 0
+            ? enabledButtons.length - 1
+            : activeIndex - 1
+    const nextButton = enabledButtons[nextIndex]
+    setFocusedActionId(nextButton?.dataset.workbenchNewTabAction ?? null)
+    nextButton?.focus({ preventScroll: true })
+  }
+
   return (
-    <div className="workbench-new-tab-panel" data-testid="workbench-new-tab-panel">
+    <div className="workbench-new-tab-panel" data-testid="workbench-new-tab-panel" aria-label="Workbench tab actions">
       <div className="workbench-new-tab-content">
-        <div className="workbench-new-tab-grid" data-testid="workbench-new-tab-action-grid">
+        <div
+          className="workbench-new-tab-list"
+          data-testid="workbench-new-tab-action-grid"
+          data-workbench-new-tab-keyboard="roving"
+          role="list"
+          onKeyDown={(event) => {
+            if (event.key === 'ArrowDown' || event.key === 'ArrowRight') {
+              event.preventDefault()
+              moveActionFocus(event.currentTarget, 'next')
+            } else if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') {
+              event.preventDefault()
+              moveActionFocus(event.currentTarget, 'previous')
+            } else if (event.key === 'Home') {
+              event.preventDefault()
+              moveActionFocus(event.currentTarget, 'first')
+            } else if (event.key === 'End') {
+              event.preventDefault()
+              moveActionFocus(event.currentTarget, 'last')
+            }
+          }}
+        >
           {actions.map((action) => (
-            <button
-              key={action.id}
-              type="button"
-              className="workbench-new-tab-card"
-              disabled={action.disabled}
-              data-testid={`workbench-new-tab-action-${action.id}`}
-              data-workbench-new-tab-action={action.id}
-              onClick={action.onSelect}
-            >
-              <span className="workbench-new-tab-card-icon">
-                <Icon name={action.icon} size={18} />
-              </span>
-              <span className="workbench-new-tab-card-copy">
-                <span className="workbench-new-tab-card-title">{action.title}</span>
-                <span className="workbench-new-tab-card-description">{action.description}</span>
-              </span>
-            </button>
+            <div key={action.id} className="workbench-new-tab-action-item" role="listitem">
+              <button
+                type="button"
+                className="workbench-new-tab-action"
+                disabled={action.disabled}
+                tabIndex={!action.disabled && (focusedActionId === action.id || (!focusedActionId && firstEnabledActionId === action.id)) ? 0 : -1}
+                data-testid={`workbench-new-tab-action-${action.id}`}
+                data-workbench-new-tab-action={action.id}
+                data-workbench-new-tab-action-state={action.state ?? 'new'}
+                data-workbench-new-tab-keyboard-selected={!action.disabled && focusedActionId === action.id ? 'true' : 'false'}
+                aria-label={`${action.title}: ${action.description}`}
+                onFocus={() => setFocusedActionId(action.id)}
+                onClick={action.onSelect}
+              >
+                <span className="workbench-new-tab-action-icon">
+                  <Icon name={action.icon} size={18} />
+                </span>
+                <span className="workbench-new-tab-action-copy">
+                  <span className="workbench-new-tab-action-title">{action.title}</span>
+                  <span className="workbench-new-tab-action-description">{action.description}</span>
+                </span>
+                {action.state === 'open' && (
+                  <span className="workbench-new-tab-action-state">Open</span>
+                )}
+              </button>
+            </div>
           ))}
         </div>
       </div>
@@ -653,4 +1080,19 @@ function hasActiveGoal(events: SessionRunEventRecord[]): boolean {
     if (record.event.type === 'goal.cleared') active = false
   }
   return active
+}
+
+function hasActiveReviewMode(events: SessionRunEventRecord[], session: Session): boolean {
+  let active = false
+  for (const record of events) {
+    if (record.event.type === 'review.mode.changed') active = record.event.active
+  }
+  if (active) return true
+  for (let index = session.messages.length - 1; index >= 0; index -= 1) {
+    const message = session.messages[index]!
+    if (message.type !== 'result') continue
+    const match = /^Review mode:\s*(active|exited)\b/i.exec(message.content.trim())
+    if (match) return match[1]?.toLowerCase() === 'active'
+  }
+  return false
 }

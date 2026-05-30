@@ -68,6 +68,12 @@ const report = {
   smokeRun,
   liveCaptureAttempt,
   summary,
+  statusCounts: summary.statusCounts,
+  remainingParityGaps: summary.remainingParityGaps,
+  remainingParityGapCount: summary.remainingParityGaps.length,
+  remainingParityGapCounts: summary.remainingParityGapCounts,
+  actionableGapSummary: summary.actionableGapSummary,
+  optionalFileEvidenceFailures: summary.optionalFileEvidenceFailures,
   rows,
   captures: (manifest?.captures ?? []).map((capture) => ({
     id: capture.id,
@@ -106,6 +112,7 @@ console.log(JSON.stringify({
   optionalFileEvidenceFailures: summary.optionalFileEvidenceFailures,
   remainingParityGapCount: summary.remainingParityGaps.length,
   remainingParityGapCounts: summary.remainingParityGapCounts,
+  actionableGapSummary: summary.actionableGapSummary,
   mismatchCount: summary.statusCounts.mismatch ?? 0,
   blockedCount: summary.statusCounts.blocked ?? 0,
   needsSmokeCount: summary.statusCounts['needs-smoke'] ?? 0,
@@ -285,7 +292,7 @@ function buildContracts() {
           imageNonBlank: true
         }
       ],
-      smokeChecks: ['sidebarTopInsetCodexLike', 'sessionHeaderInPrimaryColumn', 'rightPanelHeaderSeam', 'headerPanelSharedBand', 'mainContentFrameContinuous', 'filesHeaderPanelSeam', 'browserHeaderPanelSeam', 'headerMetadataTooltipOnly', 'profileBadgeCompact', 'headerActionChromeCompact', 'rightPanelMaterialSolid', 'workbenchPanelTabCodexMetrics', 'terminalPanelMaterialSolid', 'terminalBottomPanelSizeDecomposition', 'terminalPanelTabCodexMetrics', 'terminalVisualHealthyContent', 'secondWindowCreated', 'secondWindowNavigated', 'pendingNavigationConsumedOnce', 'pendingNavigationWindowScoped', 'loadedDeepLinkDoesNotLeavePendingNavigation', 'firstWindowBrowserFocusArea', 'firstWindowBrowserMenuEnabled', 'secondWindowBrowserMenuDisabled', 'backgroundWindowMenuDoesNotClobberFocusedWindow', 'activeWindowAfterRefocus', 'focusSwitchRestoresFirstWindowMenu', 'menuCommandRoutedToFocusedWindow'],
+      smokeChecks: ['sidebarTopInsetCodexLike', 'sessionHeaderInPrimaryColumn', 'rightPanelHeaderSeam', 'headerPanelSharedBand', 'mainContentFrameContinuous', 'filesHeaderPanelSeam', 'browserHeaderPanelSeam', 'headerMetadataTooltipOnly', 'profileBadgeCompact', 'headerActionChromeCompact', 'rightPanelMaterialSolid', 'workbenchPanelTabCodexMetrics', 'workbenchPanelTabReadableSeparation', 'workbenchPanelActiveTabVisibleAfterResize', 'workbenchPanelOverflowFadeMasksClippedTabs', 'terminalPanelMaterialSolid', 'terminalBottomPanelSizeDecomposition', 'terminalPanelTabCodexMetrics', 'terminalVisualHealthyContent', 'secondWindowCreated', 'secondWindowNavigated', 'pendingNavigationConsumedOnce', 'pendingNavigationWindowScoped', 'loadedDeepLinkDoesNotLeavePendingNavigation', 'firstWindowBrowserFocusArea', 'firstWindowBrowserMenuEnabled', 'secondWindowBrowserMenuDisabled', 'backgroundWindowMenuDoesNotClobberFocusedWindow', 'activeWindowAfterRefocus', 'focusSwitchRestoresFirstWindowMenu', 'menuCommandRoutedToFocusedWindow'],
       statusWhenCovered: 'fixture-covered',
       caveat: 'Smoke covers Orchestrator panel/header geometry, primary-column header ownership, a shared header band across sidebar/main/right-panel chrome, a continuous non-card main content frame, focused Files/Browser/Review panel placement in that band, compact profile/debug badge behavior, compact titlebar toolbar actions, solid panel material, bottom-panel target size, shell attachment, window-scoped pending navigation, loaded-window deep-link handoff, and app-owned multi-window menu command routing; exact live Codex pixel spacing, OS focus behavior, and animation timing still need live screenshots.',
       next: 'Keep header/panel interaction as a first-class contract whenever moving sidebar, Files, Browser, Review, Workbench, or bottom-panel shell layout.',
@@ -316,9 +323,9 @@ function buildContracts() {
           imageNonBlank: true
         }
       ],
-      smokeChecks: ['rightPanelSharedAnimationController', 'rightPanelSharedLayoutController', 'rightPanelHeaderSeam', 'rightPanelMaterialSolid', 'rightPanelContextMenuSharedSections', 'rightPanelTransferUnsupportedBoundary', 'rightPanelPanelOpenCloseTelemetry', 'workbenchPanelTabOverflowController', 'workbenchPanelTabCodexWidthCap', 'workbenchPanelTabCodexMetrics', 'workbenchPanelTabCloseStartEdge', 'workbenchPanelNewTabPage', 'workbenchNewTabSingleAddAffordance'],
+      smokeChecks: ['rightPanelSharedAnimationController', 'rightPanelSharedLayoutController', 'rightPanelHeaderSeam', 'rightPanelMaterialSolid', 'rightPanelContextMenuSharedSections', 'rightPanelTransferUnsupportedBoundary', 'rightPanelPanelOpenCloseTelemetry', 'workbenchPanelTabOverflowController', 'workbenchPanelTabCodexWidthCap', 'workbenchPanelTabCodexMetrics', 'workbenchPanelTabReadableSeparation', 'workbenchPanelActiveTabVisibleAfterResize', 'workbenchPanelOverflowFadeMasksClippedTabs', 'workbenchPanelTabCloseStartEdge', 'workbenchPanelNewTabPage', 'workbenchNewTabSingleAddAffordance', 'workbenchNewTabListLauncher'],
       statusWhenCovered: 'fixture-covered',
-      caveat: 'Smoke covers Orchestrator shell behavior, tab overflow/no-collapse behavior, start-edge tab close chrome, shared context-menu sections, explicit unsupported transfer boundaries for Review/Files/Browser, and app-shell tab controller structure; exact live Codex spacing and animation timing still need live UI evidence.',
+      caveat: 'Smoke covers Orchestrator shell behavior, tab overflow/no-collapse behavior, start-edge tab close chrome, compact New tab command-list layout, shared context-menu sections, explicit unsupported transfer boundaries for Review/Files/Browser, and app-shell tab controller structure; exact live Codex spacing and animation timing still need live UI evidence.',
       next: 'Use focused right-panel smoke for regressions; do not call exact timing complete without live Codex comparison.',
       openIssues: [
         {
@@ -363,10 +370,23 @@ function buildContracts() {
         { basename: 'review-runtime-bridge-CZUIqW4U.js', terms: ['set-review-pane-snapshot-metrics-for-host', 'reviewDiffFilesTotal'] },
         { basename: 'review-header-toolbar-6CN1dM2m.js', terms: ['checks', 'reviewer'] }
       ],
+      sourceEvidence: [
+        { path: 'scripts/github-review-metadata-live-proof.mjs', terms: ['reviewMetadataFromGitHubPullRequestView', 'reviewThreadCommentMetadataFromGitHub', 'commentedProof'] },
+        { path: 'package.json', terms: ['live:github-review-metadata'] }
+      ],
+      artifactEvidence: [
+        {
+          path: 'tmp/github-review-metadata-live-proof/result.json',
+          checks: [
+            { path: 'status', equals: 'passed' },
+            { path: 'authenticated', equals: true }
+          ]
+        }
+      ],
       smokeChecks: ['reviewMetadataToolbar', 'reviewMetadataFlyoutShared', 'reviewTranscriptCardLastTurn', 'reviewFileHeaderPathFirst', 'reviewLastTurnVisualState', 'reviewProviderSourceUnavailableReasons', 'reviewWorktreeProviderSource', 'reviewFullSourceBlame', 'reviewLineComments'],
       statusWhenCovered: 'fixture-covered',
-      caveat: 'Fixture and local/GitHub-backed paths pass, including a direct Last turn transcript-card Review screenshot with the changed-files rail hidden, general PR and inline/threaded review comment summaries, provider comment line rendering, GitHub review-comment commit/blame metadata, and explicit unsupported-provider source reasons for unavailable Last turn/cloud/worktree rows. Live commented-PR proof, provider-native hosted/cloud sources, and checkpoint Undo are not live-proven.',
-      next: 'Add one real provider-backed Review source when an adapter exists.',
+      caveat: 'Fixture and local/GitHub-backed paths pass, including a direct Last turn transcript-card Review screenshot with the changed-files rail hidden, focused proof that the Last turn card exposes local reverse-patch undo without claiming provider checkpoint rollback, general PR and inline/threaded review comment summaries, provider comment line rendering, GitHub review-comment commit/blame metadata, and explicit unsupported-provider source reasons for unavailable cloud/worktree rows. The read-only GitHub live harness proves authenticated hosted PR metadata when a PR target exists and separately records whether the selected PR has live comments. Live commented-PR proof, provider-native hosted/cloud sources, and provider-history checkpoint rollback are not live-proven unless that artifact reports `commentedProof=true`.',
+      next: 'Use `pnpm run live:github-review-metadata` for read-only hosted Review proof; add one real provider-backed commented Review source only when a safe commented PR target exists.',
       openIssues: [
         {
           category: 'provider-adapter',
@@ -375,13 +395,13 @@ function buildContracts() {
         },
         {
           category: 'provider-proof',
-          issue: 'Live commented-PR Review proof is not present in the current installed comparison.',
-          requiredEvidence: 'Live provider-backed PR/comment session fixture or authenticated adapter proof.'
+          issue: 'Live commented-PR Review proof is not present for the current safe GitHub target.',
+          requiredEvidence: 'Live provider-backed PR/comment session fixture, or the read-only GitHub metadata artifact with `commentedProof=true` against a safe commented PR.'
         },
         {
           category: 'provider-adapter',
-          issue: 'Checkpoint Undo is not workspace-restoring through the current provider path.',
-          requiredEvidence: 'Provider checkpoint id plus workspace/git restore semantics, not only thread rollback.'
+          issue: 'Provider-history checkpoint rollback is not available through the current provider path.',
+          requiredEvidence: 'Provider checkpoint id plus provider-history and workspace/git restore semantics, not only local reverse patch or thread rollback.'
         }
       ]
     },
@@ -397,7 +417,7 @@ function buildContracts() {
         { path: 'src/main/codexAppServerRuntime.ts', terms: ['clientDynamicToolBridge', 'dynamicTools', 'answerClientDynamicTool'] },
         { path: 'src/main/browserClientToolSpecs.ts', terms: ['browser_open', 'browser_read', 'browser_click', 'browser_type', 'browser_screenshot', 'includeImage', 'browser_fill', 'browser_key', 'browser_select', 'browser_check', 'browser_scroll', 'browserClientDynamicTools'] },
         { path: 'src/main/browserClientTools.ts', terms: ['browser:clientToolCall', 'browser:runClientToolSmoke'] },
-        { path: 'src/renderer/src/components/Session/BrowserPanel.tsx', terms: ['onClientToolCall', 'browserClientToolSnapshot', 'waitForWebviewSettled'] },
+        { path: 'src/renderer/src/components/Session/BrowserPanel.tsx', terms: ['onClientToolCall', 'browserClientToolSnapshot', 'waitForWebviewSettled', 'browser-use-status'] },
         { path: 'src/main/__tests__/codexAppServerRuntime.test.ts', terms: ['advertises and answers supported Browser dynamic tools', 'browser_read'] },
         { path: 'scripts/codex-browser-appserver-live-proof.mjs', terms: ['CODEX_BROWSER_PROOF_DYNAMIC_TOOL', 'CODEX_BROWSER_PROOF_REAL_BROWSER_TOOLS', 'browser_bridge_status'] },
         { path: 'package.json', terms: ['live:codex-browser-tools'] }
@@ -442,9 +462,9 @@ function buildContracts() {
           ]
         }
       ],
-      smokeChecks: ['browserWebviewManagerBoundary', 'browserHiddenWebviewContainment', 'browserForkDomTransfer', 'browserUseNoMutation', 'browserManagerStateBridge', 'browserClientToolBridge', 'browserClientToolActions', 'browserClientToolScreenshot', 'browserClientToolScreenshotImage', 'browserClientToolAdvancedActions', 'browserPersistedPolicyDefaults'],
+      smokeChecks: ['browserWebviewManagerBoundary', 'browserHiddenWebviewContainment', 'browserForkDomTransfer', 'browserUseNoMutation', 'browserManagerStateBridge', 'browserUseStatusVisible', 'browserClientToolBridge', 'browserClientToolActions', 'browserClientToolScreenshot', 'browserClientToolScreenshotImage', 'browserClientToolAdvancedActions', 'browserPersistedPolicyDefaults'],
       statusWhenCovered: 'fixture-covered',
-      caveat: 'Synthetic manager events, UI boundaries, Browser renderer loopback, persisted Browser Use policy defaults in the right Browser panel, installed-app smoke proof, and live Codex app-server real browser_open/browser_read/browser_click/browser_type/browser_screenshot(includeImage)/browser_fill/browser_key/browser_select/browser_check/browser_scroll tool requests pass; native browser-use event streaming is still separate.',
+      caveat: 'Synthetic manager events, visible Browser runtime status, UI boundaries, Browser renderer loopback, persisted Browser Use policy defaults in the right Browser panel, installed-app smoke proof, and live Codex app-server real browser_open/browser_read/browser_click/browser_type/browser_screenshot(includeImage)/browser_fill/browser_key/browser_select/browser_check/browser_scroll tool requests pass; native browser-use event streaming is still separate.',
       next: 'Keep unavailable runtime boundaries explicit; expand only when native browser-use events, provider design-change application, or live pixel/timing evidence becomes available.',
       openIssues: [
         {
@@ -554,9 +574,9 @@ function buildContracts() {
       scope: 'Settings window/surface',
       captureIds: ['settings', 'settings-providers', 'pets'],
       codexAssetNames: ['settings-', 'appearance-settings-', 'personalization-settings-', 'remote-connections-settings-', 'worktrees-settings-', 'browser-use-settings-'],
-      smokeChecks: ['settingsHostContext', 'settingsHostAdapterBoundary', 'settingsPersonalizationHostBoundary', 'settingsContentLayout', 'settingsBrowserPage', 'settingsBrowserSurface', 'settingsBrowserModule', 'settingsBrowserPolicyPersistence'],
+      smokeChecks: ['settingsHostContext', 'settingsHostAdapterBoundary', 'settingsHostUnavailableProviderSettingsHandoff', 'settingsPersonalizationHostBoundary', 'settingsContentLayout', 'settingsBrowserPage', 'settingsBrowserSurface', 'settingsBrowserModule', 'settingsBrowserPolicyPersistence'],
       statusWhenCovered: 'fixture-covered',
-      caveat: 'Host-scoped unavailable states are explicit, and the Browser Settings page exposes real host-scoped in-app Browser data clearing plus persisted Browser Use approval/history/download/upload and domain-policy defaults. Real remote-host adapters, Codex Personalization data, and provider-backed Browser Use adapters remain incomplete.',
+      caveat: 'Host-scoped unavailable states are explicit, unavailable host pages can jump directly to Provider Settings or recover to Local settings, and the Browser Settings page exposes real host-scoped in-app Browser data clearing plus persisted Browser Use approval/history/download/upload and domain-policy defaults. Real remote-host adapters, Codex Personalization data, and provider-backed Browser Use adapters remain incomplete.',
       next: 'Add host adapters only where provider data exists; deepen Browser Use settings only when a provider or browser-use runtime exposes more policy state.',
       openIssues: [
         {
@@ -583,22 +603,27 @@ function buildContracts() {
       captureIds: ['chat-sidebar'],
       codexAssetNames: ['sidebar-project-group-signals-', 'sidebar-thread-keys-', 'sidebar-thread-list-signals-', 'pinned-threads-query-', 'set-pinned-thread-'],
       sourceEvidence: [
-        { path: 'scripts/codex-pinned-threads-live-proof.mjs', terms: ['set-thread-pinned', 'set-pinned-threads-order', 'list-pinned-threads', 'cleanupDisposableThreads'] },
+        { path: 'scripts/codex-pinned-threads-live-proof.mjs', terms: ['thread/list', 'set-thread-pinned', 'set-pinned-threads-order', 'pinMutationBoundaryProven'] },
         { path: 'package.json', terms: ['live:codex-pinned-threads'] }
       ],
       artifactEvidence: [
         {
           path: 'tmp/codex-pinned-threads-live-proof/result.json',
           checks: [
-            { path: 'ok', equals: false },
+            { path: 'ok', equals: true },
+            { path: 'status', equals: 'unavailable' },
+            { path: 'threadListSupported', equals: true },
+            { path: 'pinMutationBoundaryProven', equals: true },
             { path: 'unsupportedMethods', includes: 'list-pinned-threads' },
-            { path: 'methods', includes: 'list-pinned-threads' }
+            { path: 'unsupportedMethods', includes: 'set-thread-pinned' },
+            { path: 'unsupportedMethods', includes: 'set-pinned-threads-order' },
+            { path: 'methods', includes: 'thread/list' }
           ]
         }
       ],
       smokeChecks: ['providerPinnedMetadata', 'sidebarProviderPinBoundary', 'providerWorktreeMetadata', 'sidebarConnectionGrouping', 'sidebarPinnedDragReorder', 'sidebarProviderPinnedOrderPreserved', 'sidebarRowDensityCodexLike', 'sessionRowsTextFirst', 'sidebarPinnedRowsTextFirst', 'chatsHeaderTextFirst', 'sidebarFooterCollapseAffordance'],
       statusWhenCovered: 'fixture-covered',
-      caveat: 'Provider thread-list projection, local provider-pinned ordering preservation, local pin order, Codex-compact row density, text-first session rows, text-first top-level Chats section header, and the footer collapse affordance are covered. Codex bundle chunks expose list-pinned-threads, set-thread-pinned, and set-pinned-threads-order, but the current live stdio app-server rejects list-pinned-threads as an unknown variant, so Orchestrator keeps provider-projected pin actions read-only instead of exposing a broken mutation path.',
+      caveat: 'Provider thread-list projection, local provider-pinned ordering preservation, local pin order, Codex-compact row density, text-first session rows, text-first top-level Chats section header, and the footer collapse affordance are covered. Codex bundle chunks expose list-pinned-threads, set-thread-pinned, and set-pinned-threads-order, but the current live stdio app-server proof records thread/list as supported while all pinned-thread mutation methods return unknown-variant errors, so Orchestrator keeps provider-projected pin actions read-only instead of exposing a broken mutation path.',
       next: 'Re-enable Codex provider pin mutations only when the live app-server exposes a safe list/set/order boundary, then add non-Codex provider pin adapters when those providers expose comparable state.',
       openIssues: [
         {
@@ -660,9 +685,12 @@ function inferStatus(contract, codex, source, artifact, file, smoke) {
 function evaluateCodexEvidence(contract, codexAssets) {
   const assetResults = []
   for (const spec of contract.codexAssets ?? []) {
-    const text = codexAssets.readByBasename(spec.basename)
+    const resolved = codexAssets.resolveByBasename(spec.basename, spec.terms)
+    const text = resolved.text
     assetResults.push({
       asset: spec.basename,
+      resolvedAsset: resolved.basename,
+      resolution: resolved.resolution,
       available: text !== null,
       terms: spec.terms.map((term) => ({ term, found: text?.includes(term) === true }))
     })
@@ -1035,28 +1063,109 @@ function summarizeRows(rows, manifest) {
   }
   const remainingParityGaps = []
   const remainingParityGapCounts = {}
+  const actionableGapSummary = {
+    localActionable: 0,
+    liveProof: 0,
+    providerAdapter: 0,
+    providerProof: 0,
+    runtimeSignal: 0,
+    phase2Renderer: 0,
+    unknown: 0,
+    recommendedNextWork: ''
+  }
   for (const row of rows) {
     for (const issue of row.openIssues ?? []) {
       const category = issue.category ?? 'uncategorized'
+      const disposition = classifyRemainingGap(category)
       remainingParityGapCounts[category] = (remainingParityGapCounts[category] ?? 0) + 1
+      actionableGapSummary[disposition.summaryKey] = (actionableGapSummary[disposition.summaryKey] ?? 0) + 1
       remainingParityGaps.push({
         rowId: row.id,
         area: row.area,
         category,
+        disposition: disposition.label,
+        nextAction: disposition.nextAction,
         issue: issue.issue,
         requiredEvidence: issue.requiredEvidence
       })
     }
   }
+  actionableGapSummary.recommendedNextWork = recommendedNextWork(actionableGapSummary)
+  actionableGapSummary.localImplementationGapCount = actionableGapSummary.localActionable
+  actionableGapSummary.externalOrDeferredGapCount =
+    actionableGapSummary.liveProof +
+    actionableGapSummary.providerAdapter +
+    actionableGapSummary.providerProof +
+    actionableGapSummary.runtimeSignal +
+    actionableGapSummary.phase2Renderer +
+    actionableGapSummary.unknown
   return {
     statusCounts,
     optionalFileEvidenceFailures,
     remainingParityGaps,
     remainingParityGapCounts,
+    actionableGapSummary,
     smokeCaptures: manifest?.captures?.length ?? 0,
     smokeFailures: manifest?.failed ?? [],
     smokeFailureKinds
   }
+}
+
+function classifyRemainingGap(category) {
+  switch (category) {
+    case 'live-codex-ui':
+      return {
+        summaryKey: 'liveProof',
+        label: 'live-proof',
+        nextAction: 'Wait for a nonblank live Codex capture route or manual side-by-side evidence; do not spend local UI polish time on this row.'
+      }
+    case 'provider-adapter':
+      return {
+        summaryKey: 'providerAdapter',
+        label: 'provider-contract',
+        nextAction: 'Implement only after a provider event, API, CLI, or file contract is available.'
+      }
+    case 'provider-proof':
+      return {
+        summaryKey: 'providerProof',
+        label: 'provider-proof',
+        nextAction: 'Run an authenticated live proof when credentials and a safe disposable target are available.'
+      }
+    case 'runtime-signal':
+      return {
+        summaryKey: 'runtimeSignal',
+        label: 'runtime-signal',
+        nextAction: 'Keep the UI boundary explicit until the provider emits native runtime events.'
+      }
+    case 'renderer-fidelity':
+      return {
+        summaryKey: 'phase2Renderer',
+        label: 'phase-2-renderer',
+        nextAction: 'Track as Phase 2 unless a coding workflow is blocked by this renderer.'
+      }
+    default:
+      return {
+        summaryKey: 'localActionable',
+        label: 'local-actionable',
+        nextAction: 'Investigate as a bounded local implementation or smoke-coverage gap.'
+      }
+  }
+}
+
+function recommendedNextWork(summary) {
+  if ((summary.localActionable ?? 0) > 0) {
+    return 'Start with the local-actionable gaps before rerunning broad parity inventories.'
+  }
+  if ((summary.providerProof ?? 0) > 0 || (summary.liveProof ?? 0) > 0 || (summary.runtimeSignal ?? 0) > 0) {
+    return 'Local UI parity has no actionable gap in this report; next work should be fresh dogfood, authenticated live proof, provider contracts, or explicit Phase 2 renderer work.'
+  }
+  if ((summary.providerAdapter ?? 0) > 0) {
+    return 'Remaining work depends on provider contracts; do not implement speculative adapters.'
+  }
+  if ((summary.phase2Renderer ?? 0) > 0) {
+    return 'Only Phase 2 renderer fidelity remains in this report.'
+  }
+  return 'No remaining parity gaps are recorded.'
 }
 
 function summarizeFileEvidenceFailure(file) {
@@ -1328,7 +1437,11 @@ function renderMarkdown(report) {
     lines.push(`  - ${failure.area}: ${failure.label} (${failure.reason})`)
   }
   lines.push(`- Remaining parity gaps: ${report.summary.remainingParityGaps.length === 0 ? 'none' : report.summary.remainingParityGaps.length}`)
+  lines.push(`- Local implementation gaps: ${report.summary.actionableGapSummary.localImplementationGapCount ?? report.summary.actionableGapSummary.localActionable ?? 0}`)
+  lines.push(`- External/deferred gaps: ${report.summary.actionableGapSummary.externalOrDeferredGapCount ?? 0}`)
   lines.push(`- Remaining parity gap categories: ${formatStatusCounts(report.summary.remainingParityGapCounts)}`)
+  lines.push(`- Actionable gap triage: ${formatActionableGapSummary(report.summary.actionableGapSummary)}`)
+  lines.push(`- Recommended next work: ${report.summary.actionableGapSummary.recommendedNextWork}`)
   if (report.liveCaptureAttempt) {
     lines.push(`- Live Codex capture: ${summarizeLiveCaptureAttempt(report.liveCaptureAttempt)}`)
   }
@@ -1338,14 +1451,16 @@ function renderMarkdown(report) {
   if (report.summary.remainingParityGaps.length > 0) {
     lines.push('## Remaining Parity Gaps')
     lines.push('')
-    lines.push('| Area | Category | Gap | Required evidence |')
-    lines.push('| --- | --- | --- | --- |')
+    lines.push('| Area | Category | Disposition | Gap | Required evidence | Next action |')
+    lines.push('| --- | --- | --- | --- | --- | --- |')
     for (const gap of report.summary.remainingParityGaps) {
       lines.push([
         gap.area,
         gap.category,
+        gap.disposition,
         gap.issue,
-        gap.requiredEvidence
+        gap.requiredEvidence,
+        gap.nextAction
       ].map(markdownCell).join(' | ').replace(/^/, '| ').replace(/$/, ' |'))
     }
     lines.push('')
@@ -1469,6 +1584,20 @@ function formatStatusCounts(counts) {
   return entries.map(([key, value]) => `${key}=${value}`).join(', ')
 }
 
+function formatActionableGapSummary(summary) {
+  if (!summary) return 'none'
+  const entries = [
+    ['local-actionable', summary.localActionable],
+    ['live-proof', summary.liveProof],
+    ['provider-adapter', summary.providerAdapter],
+    ['provider-proof', summary.providerProof],
+    ['runtime-signal', summary.runtimeSignal],
+    ['phase-2-renderer', summary.phase2Renderer]
+  ].filter(([, value]) => Number(value) > 0)
+  if (entries.length === 0) return 'none'
+  return entries.map(([key, value]) => `${key}=${value}`).join(', ')
+}
+
 function markdownCell(value) {
   return String(value ?? '').replace(/\|/g, '\\|').replace(/\n/g, '<br>')
 }
@@ -1528,26 +1657,82 @@ CodexAssetReader.prototype.hasAssetPrefix = function hasAssetPrefix(prefix) {
   return this.assetList().some((entry) => basename(entry).startsWith(prefix))
 }
 
-CodexAssetReader.prototype.readByBasename = function readByBasename(name) {
-  if (this.textByBasename.has(name)) return this.textByBasename.get(name)
-  const entry = this.assetList().find((entry) => basename(entry) === name)
+CodexAssetReader.prototype.readByBasename = function readByBasename(name, terms = []) {
+  return this.resolveByBasename(name, terms).text
+}
+
+CodexAssetReader.prototype.resolveByBasename = function resolveByBasename(name, terms = []) {
+  const cacheKey = `${name}\u0000${terms.join('\u0000')}`
+  if (this.textByBasename.has(cacheKey)) return this.textByBasename.get(cacheKey)
+  const resolved = this.resolveAssetEntry(name, terms)
+  const entry = resolved.entry
   if (!entry) {
-    this.textByBasename.set(name, null)
-    return null
+    const result = { text: null, basename: null, resolution: 'missing' }
+    this.textByBasename.set(cacheKey, result)
+    return result
   }
   try {
     const buffer = asar.extractFile(this.asarPath, entry.replace(/^\//, ''))
     const text = Buffer.isBuffer(buffer) ? buffer.toString('utf8') : String(buffer)
-    this.textByBasename.set(name, text)
-    return text
+    const result = { text, basename: basename(entry), resolution: resolved.resolution }
+    this.textByBasename.set(cacheKey, result)
+    return result
   } catch {
-    this.textByBasename.set(name, null)
-    return null
+    const result = { text: null, basename: basename(entry), resolution: `${resolved.resolution}:extract-failed` }
+    this.textByBasename.set(cacheKey, result)
+    return result
+  }
+}
+
+CodexAssetReader.prototype.resolveAssetEntry = function resolveAssetEntry(name, terms = []) {
+  const assets = this.assetList()
+  const exact = assets.find((entry) => basename(entry) === name)
+  if (exact) return { entry: exact, resolution: 'exact' }
+
+  const target = hashedAssetIdentity(name)
+  if (!target) return { entry: null, resolution: 'missing' }
+  const candidates = assets
+    .map((entry) => ({ entry, identity: hashedAssetIdentity(basename(entry)) }))
+    .filter((candidate) =>
+      candidate.identity &&
+      candidate.identity.extension === target.extension &&
+      candidate.identity.logicalStem === target.logicalStem
+    )
+  if (candidates.length === 1) return { entry: candidates[0].entry, resolution: 'logical-stem' }
+  if (candidates.length > 1) {
+    const scoredCandidates = candidates
+      .map((candidate) => ({ ...candidate, score: this.assetTermScore(candidate.entry, terms) }))
+      .sort((left, right) => right.score - left.score)
+    if (scoredCandidates[0]?.score > 0) return { entry: scoredCandidates[0].entry, resolution: 'logical-stem:term-score' }
+    const webviewCandidate = scoredCandidates.find((candidate) => candidate.entry.startsWith('/webview/assets/'))
+    if (webviewCandidate) return { entry: webviewCandidate.entry, resolution: 'logical-stem:webview-assets' }
+    return { entry: candidates[0].entry, resolution: 'logical-stem:first-match' }
+  }
+  return { entry: null, resolution: 'missing' }
+}
+
+CodexAssetReader.prototype.assetTermScore = function assetTermScore(entry, terms = []) {
+  if (terms.length === 0) return 0
+  try {
+    const buffer = asar.extractFile(this.asarPath, entry.replace(/^\//, ''))
+    const text = Buffer.isBuffer(buffer) ? buffer.toString('utf8') : String(buffer)
+    return terms.filter((term) => text.includes(term)).length
+  } catch {
+    return 0
   }
 }
 
 function basename(path) {
   return path.split('/').filter(Boolean).at(-1) ?? path
+}
+
+function hashedAssetIdentity(name) {
+  const match = /^(.+)\.([cm]?js|css|html)$/.exec(name)
+  if (!match) return null
+  return {
+    extension: match[2],
+    logicalStem: match[1].replace(/-[A-Za-z0-9_-]{6,}$/, '')
+  }
 }
 
 main()

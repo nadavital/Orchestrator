@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -9,7 +9,25 @@ import { Badge, Button, IconButton, MenuItem, MenuSection, MenuSectionLabel, Men
 import Icon from '../shared/Icon'
 import ArtifactZoomControls from './ArtifactZoomControls'
 import StructuredDataPreview, { ArtifactOpenOptions, ArtifactPreviewHeader, stripArtifactExtension, type PreviewHeaderAction } from './StructuredDataPreview'
-import WorkbenchTree, { WorkbenchTreeMessage, type WorkbenchTreeRow } from './WorkbenchTree'
+import WorkbenchTree, { WorkbenchTreeMessage, type WorkbenchTreeContextMenuEvent, type WorkbenchTreeRow } from './WorkbenchTree'
+
+async function writeFilesClipboardText(text: string): Promise<void> {
+  if (typeof window.api.clipboard?.writeText === 'function') {
+    const didWrite = await window.api.clipboard.writeText(text)
+    if (!didWrite) throw new Error('Clipboard write failed')
+    return
+  }
+  await navigator.clipboard.writeText(text)
+}
+
+function shellQuote(value: string): string {
+  return /^[A-Za-z0-9._/@:-]+$/.test(value) ? value : `'${value.replace(/'/g, `'\\''`)}'`
+}
+
+const FILES_ACTION_MENU_ID = 'files-action-menu-surface'
+const FILE_SEARCH_HISTORY_MENU_ID = 'workspace-file-search-history-menu'
+const FILE_SEARCH_HISTORY_KEY = 'orchestrator.files.searchHistory'
+const FILE_SEARCH_HISTORY_LIMIT = 6
 
 interface Props {
   sessionId?: string
@@ -26,9 +44,15 @@ export default function FilesPanel({ sessionId, workDir, embedded = false }: Pro
   const [expandedDirectories, setExpandedDirectories] = useState<string[]>([])
   const [actionMenuOpen, setActionMenuOpen] = useState(false)
   const [rowMenu, setRowMenu] = useState<{ path: string; x: number; y: number } | null>(null)
+  const [filesActionStatus, setFilesActionStatus] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
+  const [searchHistory, setSearchHistory] = useState<string[]>(() => readFileSearchHistory())
+  const [searchHistoryOpen, setSearchHistoryOpen] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const requestIdRef = useRef(0)
   const openRightPanelFileTab = useSessionStore((state) => state.openRightPanelFileTab)
+  const setShowTerminal = useSessionStore((state) => state.setShowTerminal)
+  const addTerminalTab = useSessionStore((state) => state.addTerminalTab)
+  const setActiveTerminalTab = useSessionStore((state) => state.setActiveTerminalTab)
   const entries = searchResult?.entries ?? []
   const trimmedQuery = query.trim()
   const visibleEntries = useMemo(() => projectSearchEntries(entries, trimmedQuery), [entries, trimmedQuery])
@@ -58,10 +82,13 @@ export default function FilesPanel({ sessionId, workDir, embedded = false }: Pro
     className: 'files-entry-row',
     dataSearchMatchKind: entry.matchKind,
     dataSearchMatchLine: entry.matchLine,
-    dataOpenTarget: entry.kind === 'file' && sessionId ? 'workbench-preview' : 'select',
+    dataOpenTarget: entry.kind === 'file' && sessionId ? contentMatchLine(entry) !== undefined ? 'workbench-preview-line' : 'workbench-preview' : 'select',
     onSelect: () => setSelectedPath(entry.path),
     onOpen: entry.kind === 'file' && sessionId
-      ? () => openRightPanelFileTab(sessionId, entry.path, { preview: true })
+      ? () => {
+          rememberSearchQuery()
+          openRightPanelFileTab(sessionId, entry.path, { preview: true, line: contentMatchLine(entry) })
+        }
       : entry.kind === 'directory' && entry.hasChildren
         ? () => toggleDirectory(entry.path)
         : undefined,
@@ -152,15 +179,22 @@ export default function FilesPanel({ sessionId, workDir, embedded = false }: Pro
     }
   }, [fileTabFirst, selectedEntry?.kind, selectedPath, workDir])
 
-  const openRowContextMenu = (event: ReactMouseEvent, entry: WorkspaceSearchEntry): void => {
+  const openRowContextMenu = (event: WorkbenchTreeContextMenuEvent, entry: WorkspaceSearchEntry): void => {
     event.preventDefault()
     event.stopPropagation()
+    const rect = event.currentTarget.getBoundingClientRect()
+    const x = Number.isFinite(event.clientX) && event.clientX !== 0
+      ? event.clientX
+      : rect.left + Math.min(24, Math.max(1, rect.width / 2))
+    const y = Number.isFinite(event.clientY) && event.clientY !== 0
+      ? event.clientY
+      : rect.top + Math.min(14, Math.max(4, rect.height / 2))
     setSelectedPath(entry.path)
     setActionMenuOpen(false)
     setRowMenu({
       path: entry.path,
-      x: Math.min(event.clientX, Math.max(8, window.innerWidth - 196)),
-      y: Math.min(event.clientY, Math.max(8, window.innerHeight - 238))
+      x: Math.min(x, Math.max(8, window.innerWidth - 196)),
+      y: Math.min(y, Math.max(8, window.innerHeight - 238))
     })
   }
 
@@ -179,7 +213,8 @@ export default function FilesPanel({ sessionId, workDir, embedded = false }: Pro
 
   const openEntryInWorkbench = (entry: WorkspaceSearchEntry | null): void => {
     if (!sessionId || !entry || entry.kind !== 'file') return
-    openRightPanelFileTab(sessionId, entry.path, { preview: true })
+    rememberSearchQuery()
+    openRightPanelFileTab(sessionId, entry.path, { preview: true, line: contentMatchLine(entry) })
   }
 
   const revealEntry = (entry: WorkspaceSearchEntry | null): void => {
@@ -189,11 +224,111 @@ export default function FilesPanel({ sessionId, workDir, embedded = false }: Pro
 
   const copyEntryPath = (entry: WorkspaceSearchEntry | null): void => {
     if (!entry) return
-    void navigator.clipboard.writeText(entry.path)
+    setFilesActionStatus({ text: 'Copying path', tone: 'info' })
+    void writeFilesClipboardText(entry.path)
+      .then(() => setFilesActionStatus({ text: 'Path copied', tone: 'info' }))
+      .catch(() => setFilesActionStatus({ text: 'Copy path failed', tone: 'danger' }))
   }
 
+  const insertEntryPathInTerminal = (entry: WorkspaceSearchEntry | null): void => {
+    if (!sessionId || !entry) {
+      setFilesActionStatus({ text: 'Select a path to insert in terminal', tone: 'danger' })
+      return
+    }
+    setFilesActionStatus({ text: 'Opening terminal for path', tone: 'info' })
+    void (async () => {
+      try {
+        const state = useSessionStore.getState()
+        const currentPanel = state.uiState[sessionId]?.terminalPanel
+        const existingTab = typeof currentPanel?.activeTabId === 'number'
+          ? currentPanel.activeTabId
+          : currentPanel?.tabs.find((tab): tab is number => typeof tab === 'number')
+        const tabId = existingTab ?? addTerminalTab(sessionId)
+        setShowTerminal(sessionId, true)
+        setActiveTerminalTab(sessionId, tabId)
+        const terminalId = `${sessionId}-${tabId}`
+        const terminalText = shellQuote(entry.path)
+        const globals = window as typeof window & {
+          __orchestratorLastFilesTerminalPathForSmoke?: string
+          __orchestratorLastFilesTerminalIdForSmoke?: string
+        }
+        globals.__orchestratorLastFilesTerminalPathForSmoke = entry.path
+        globals.__orchestratorLastFilesTerminalIdForSmoke = terminalId
+        await window.api.terminal.spawn(terminalId, workDir)
+        await window.api.terminal.write(terminalId, terminalText)
+        setFilesActionStatus({ text: 'Path inserted in terminal', tone: 'info' })
+      } catch {
+        setFilesActionStatus({ text: 'Insert path in terminal failed', tone: 'danger' })
+      }
+    })()
+  }
+
+  const rememberSearchQuery = (value = query): void => {
+    const normalized = value.trim().replace(/\s+/g, ' ')
+    if (!normalized) return
+    const next = [
+      normalized,
+      ...searchHistory.filter((candidate) => candidate.toLowerCase() !== normalized.toLowerCase())
+    ].slice(0, FILE_SEARCH_HISTORY_LIMIT)
+    writeFileSearchHistory(next)
+    setSearchHistory(next)
+  }
+
+  const chooseSearchHistory = (value: string): void => {
+    setQuery(value)
+    rememberSearchQuery(value)
+    setSearchHistoryOpen(false)
+    window.requestAnimationFrame(() => searchInputRef.current?.focus())
+  }
+
+  const searchHistoryButton = (
+    <div className="files-search-history relative" data-file-search-history-count={searchHistory.length}>
+      <IconButton
+        icon="clock"
+        label="Recent file searches"
+        size="xs"
+        variant="toolbar"
+        tooltip={false}
+        disabled={searchHistory.length === 0}
+        active={searchHistoryOpen}
+        dataTestId="workspace-file-search-history-trigger"
+        ariaExpanded={searchHistoryOpen}
+        ariaControls={FILE_SEARCH_HISTORY_MENU_ID}
+        ariaHasPopup="menu"
+        onClick={(event) => {
+          event.stopPropagation()
+          setSearchHistoryOpen((open) => !open)
+        }}
+      />
+      {searchHistoryOpen && (
+        <MenuSurface
+          id={FILE_SEARCH_HISTORY_MENU_ID}
+          className="files-search-history-menu"
+          onClose={() => setSearchHistoryOpen(false)}
+          style={{ position: 'absolute', right: -4, top: 22, width: 220, zIndex: 100 }}
+        >
+          <MenuSection dataTestId="workspace-file-search-history-section">
+            <MenuSectionLabel>Recent searches</MenuSectionLabel>
+            {searchHistory.map((item) => (
+              <MenuItem
+                key={item}
+                icon="search"
+                label={item}
+                dataTestId="workspace-file-search-history-item"
+                onClick={() => chooseSearchHistory(item)}
+              />
+            ))}
+          </MenuSection>
+        </MenuSurface>
+      )}
+    </div>
+  )
+
   const addEntryToChat = (entry: WorkspaceSearchEntry | null): void => {
-    if (!entry || entry.kind !== 'file') return
+    if (!entry || entry.kind !== 'file') {
+      setFilesActionStatus({ text: 'Select a file to add to chat', tone: 'danger' })
+      return
+    }
     window.dispatchEvent(new CustomEvent('orchestrator:add-composer-attachment', {
       detail: {
         path: joinPath(workDir, entry.path),
@@ -201,6 +336,7 @@ export default function FilesPanel({ sessionId, workDir, embedded = false }: Pro
         size: entry.size
       }
     }))
+    setFilesActionStatus({ text: `Added ${entry.name} to chat`, tone: 'info' })
   }
 
   const renderFileActionMenu = (
@@ -226,6 +362,13 @@ export default function FilesPanel({ sessionId, workDir, embedded = false }: Pro
           onClick={() => { openEntryInWorkbench(entry); close() }}
         />
         <MenuItem icon="copy" label="Copy path" disabled={!entry} dataTestId={`${testIdPrefix}-copy-path`} onClick={() => { copyEntryPath(entry); close() }} />
+        <MenuItem
+          icon="terminal"
+          label="Insert in terminal"
+          disabled={!sessionId || !entry}
+          dataTestId={`${testIdPrefix}-insert-terminal`}
+          onClick={() => { insertEntryPathInTerminal(entry); close() }}
+        />
       </MenuSection>
       <MenuSection dataTestId={`${testIdPrefix}-system-section`}>
         <MenuSectionLabel>System</MenuSectionLabel>
@@ -244,10 +387,15 @@ export default function FilesPanel({ sessionId, workDir, embedded = false }: Pro
         variant="toolbar"
         disabled={!selectedEntry}
         active={actionMenuOpen}
+        dataTestId="files-action-menu-trigger"
+        ariaExpanded={actionMenuOpen}
+        ariaControls={FILES_ACTION_MENU_ID}
+        ariaHasPopup="menu"
         onClick={() => setActionMenuOpen((open) => !open)}
       />
       {actionMenuOpen && (
         <MenuSurface
+          id={FILES_ACTION_MENU_ID}
           className="files-action-menu-surface"
           onClose={() => setActionMenuOpen(false)}
           style={{ position: 'absolute', right: 0, top: 34, width: 178, zIndex: 90 }}
@@ -262,6 +410,8 @@ export default function FilesPanel({ sessionId, workDir, embedded = false }: Pro
     <div
       className="files-panel-root flex min-h-0 min-w-0 flex-col overflow-hidden"
       data-embedded={embedded ? 'true' : 'false'}
+      data-files-action-status={filesActionStatus?.text ?? ''}
+      data-files-action-status-tone={filesActionStatus?.tone ?? ''}
       style={{
         width: embedded ? '100%' : 440,
         height: embedded ? '100%' : undefined,
@@ -269,7 +419,7 @@ export default function FilesPanel({ sessionId, workDir, embedded = false }: Pro
       }}
     >
       {!embedded && <PanelHeader title="Files" actions={fileActions} />}
-      <PanelToolbar className="files-panel-toolbar" dataTestId="files-panel-toolbar">
+      <PanelToolbar className="files-panel-toolbar" dataTestId="files-panel-toolbar" ariaLabel="Files toolbar">
         <WorkbenchSearchField
           inputRef={searchInputRef}
           value={query}
@@ -279,6 +429,10 @@ export default function FilesPanel({ sessionId, workDir, embedded = false }: Pro
           dataTestId="workspace-file-search"
           clearDataTestId="workspace-file-search-clear"
           className="files-panel-search flex-1"
+          trailing={searchHistoryButton}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') rememberSearchQuery()
+          }}
         />
         <Badge
           tone="neutral"
@@ -287,6 +441,18 @@ export default function FilesPanel({ sessionId, workDir, embedded = false }: Pro
         >
           {entries.length}{searchResult?.truncated ? '+' : ''}
         </Badge>
+        {filesActionStatus && (
+          <span
+            className="files-panel-action-status"
+            data-testid="files-panel-action-status"
+            data-files-action-status-tone={filesActionStatus.tone}
+            role={filesActionStatus.tone === 'danger' ? 'alert' : 'status'}
+            aria-live={filesActionStatus.tone === 'danger' ? 'assertive' : 'polite'}
+            aria-atomic="true"
+          >
+            {filesActionStatus.text}
+          </span>
+        )}
         {embedded && fileActions}
       </PanelToolbar>
       <div
@@ -603,6 +769,7 @@ function TextSourcePreview({
   const [scrollTop, setScrollTop] = useState(0)
   const [viewportHeight, setViewportHeight] = useState(0)
   const scrollerRef = useRef<HTMLDivElement | null>(null)
+  const keyboardFocusLineRef = useRef<number | null>(null)
   const text = preview.text ?? ''
   const lines = text.length > 0 ? text.split('\n') : ['']
   const lineHeight = 22
@@ -620,9 +787,45 @@ function TextSourcePreview({
   const trimmedSearchQuery = sourceSearchQuery.trim()
   const searchMatchCount = sourceSearchMatchLines?.size ?? 0
   const annotationCount = sourceAnnotationLines?.size ?? 0
-  const selectLine = (line: number): void => {
-    setLocalSelectedLine(line)
-    onSelectedSourceLineChange?.(line)
+  const focusableLine = selectedLine && selectedLine >= startIndex + 1 && selectedLine <= endIndex
+    ? selectedLine
+    : visibleLines.length > 0
+      ? startIndex + 1
+      : null
+  const scrollToLine = (line: number, block: ScrollLogicalPosition = 'nearest'): void => {
+    const scroller = scrollerRef.current
+    if (!scroller) return
+    const clampedLine = Math.max(1, Math.min(lines.length, line))
+    if (virtualize) {
+      const targetTop = Math.max(0, (clampedLine - 1) * lineHeight - scroller.clientHeight / 3)
+      scroller.scrollTop = targetTop
+      setScrollTop(targetTop)
+      return
+    }
+    window.requestAnimationFrame(() => {
+      scroller
+        .querySelector<HTMLElement>(`[data-source-line-number="${clampedLine}"]`)
+        ?.scrollIntoView({ block })
+    })
+  }
+  const selectLine = (line: number, focus = false): void => {
+    const clampedLine = Math.max(1, Math.min(lines.length, line))
+    if (focus) keyboardFocusLineRef.current = clampedLine
+    setLocalSelectedLine(clampedLine)
+    onSelectedSourceLineChange?.(clampedLine)
+    if (focus) scrollToLine(clampedLine)
+  }
+  const handleLineKeyDown = (lineNumber: number, event: ReactKeyboardEvent<HTMLButtonElement>): void => {
+    if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return
+    let nextLine: number | null = null
+    if (event.key === 'ArrowDown') nextLine = lineNumber + 1
+    else if (event.key === 'ArrowUp') nextLine = lineNumber - 1
+    else if (event.key === 'Home') nextLine = 1
+    else if (event.key === 'End') nextLine = lines.length
+    if (nextLine === null) return
+    event.preventDefault()
+    event.stopPropagation()
+    selectLine(nextLine, true)
   }
 
   useEffect(() => {
@@ -637,38 +840,25 @@ function TextSourcePreview({
 
   useEffect(() => {
     if (!sourceSearchActiveLine) return
-    const scroller = scrollerRef.current
-    if (!scroller) return
-    const targetTop = Math.max(0, (sourceSearchActiveLine - 1) * lineHeight - scroller.clientHeight / 3)
-    if (virtualize) {
-      scroller.scrollTop = targetTop
-      setScrollTop(targetTop)
-      return
-    }
-    window.requestAnimationFrame(() => {
-      scroller
-        .querySelector<HTMLElement>(`[data-source-line-number="${sourceSearchActiveLine}"]`)
-        ?.scrollIntoView({ block: 'center' })
-    })
-  }, [lineHeight, sourceSearchActiveLine, virtualize])
+    scrollToLine(sourceSearchActiveLine, 'center')
+  }, [sourceSearchActiveLine, virtualize])
 
   useEffect(() => {
     if (!sourceRevealLine) return
+    const clampedLine = Math.max(1, Math.min(lines.length, sourceRevealLine))
+    scrollToLine(clampedLine, 'center')
+  }, [lines.length, sourceRevealLine, sourceRevealRequest, virtualize])
+
+  useLayoutEffect(() => {
+    const line = keyboardFocusLineRef.current
+    if (line === null) return
     const scroller = scrollerRef.current
     if (!scroller) return
-    const clampedLine = Math.max(1, Math.min(lines.length, sourceRevealLine))
-    const targetTop = Math.max(0, (clampedLine - 1) * lineHeight - scroller.clientHeight / 3)
-    if (virtualize) {
-      scroller.scrollTop = targetTop
-      setScrollTop(targetTop)
-      return
-    }
-    window.requestAnimationFrame(() => {
-      scroller
-        .querySelector<HTMLElement>(`[data-source-line-number="${clampedLine}"]`)
-        ?.scrollIntoView({ block: 'center' })
-    })
-  }, [lineHeight, lines.length, sourceRevealLine, sourceRevealRequest, virtualize])
+    const target = scroller.querySelector<HTMLElement>(`[data-source-line-number="${line}"]`)
+    if (!target) return
+    keyboardFocusLineRef.current = null
+    target.focus({ preventScroll: true })
+  }, [endIndex, selectedLine, startIndex, visibleLines.length])
 
   return (
     <div
@@ -689,6 +879,8 @@ function TextSourcePreview({
       data-source-reveal-request={sourceRevealRequest}
       data-source-reveal-visible={revealVisible ? 'true' : 'false'}
       data-source-annotation-count={annotationCount}
+      data-source-keyboard-navigation="roving"
+      data-source-focusable-line={focusableLine ?? ''}
       style={{ '--workspace-source-line-height': `${lineHeight}px` } as CSSProperties}
       onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
     >
@@ -717,6 +909,7 @@ function TextSourcePreview({
           const activeSearchMatch = sourceSearchActiveLine === lineNumber
           const revealed = revealedLine === lineNumber
           const hasAnnotation = sourceAnnotationLines?.has(lineNumber) ?? false
+          const focusable = focusableLine === lineNumber
           return (
             <div key={lineNumber} className="workspace-source-line-wrap">
               <button
@@ -730,7 +923,10 @@ function TextSourcePreview({
                 data-source-line-search-active={activeSearchMatch ? 'true' : 'false'}
                 data-source-line-revealed={revealed ? 'true' : 'false'}
                 data-source-line-has-annotation={hasAnnotation ? 'true' : 'false'}
+                data-source-line-focusable={focusable ? 'true' : 'false'}
+                tabIndex={focusable ? 0 : -1}
                 onClick={() => selectLine(lineNumber)}
+                onKeyDown={(event) => handleLineKeyDown(lineNumber, event)}
               >
                 <span className="workspace-source-gutter" role="gridcell">
                   <span className="workspace-source-gutter-number" data-source-line-number-content="">
@@ -891,7 +1087,7 @@ function artifactPreviewActions(
       id: 'copy-path',
       icon: 'copy',
       label: 'Copy path',
-      onClick: () => { void navigator.clipboard.writeText(entry.path) }
+      onClick: () => { void writeFilesClipboardText(entry.path) }
     }
   ]
   actions.push(...extraActions)
@@ -900,7 +1096,7 @@ function artifactPreviewActions(
       id: 'copy-raw',
       icon: 'copy',
       label: 'Copy raw preview',
-      onClick: () => { void navigator.clipboard.writeText(preview.text ?? '') }
+      onClick: () => { void writeFilesClipboardText(preview.text ?? '') }
     })
   }
   actions.push(
@@ -3496,6 +3692,38 @@ function projectSearchEntries(entries: WorkspaceSearchEntry[], query: string): W
     projected.set(entry.path, entry)
   }
   return [...projected.values()]
+}
+
+function contentMatchLine(entry: WorkspaceSearchEntry | null): number | undefined {
+  if (entry?.matchKind !== 'content' || typeof entry.matchLine !== 'number') return undefined
+  if (!Number.isFinite(entry.matchLine) || entry.matchLine <= 0) return undefined
+  return Math.floor(entry.matchLine)
+}
+
+function readFileSearchHistory(): string[] {
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(FILE_SEARCH_HISTORY_KEY) ?? '[]')
+    if (!Array.isArray(parsed)) return []
+    const unique: string[] = []
+    for (const item of parsed) {
+      if (typeof item !== 'string') continue
+      const normalized = item.trim().replace(/\s+/g, ' ')
+      if (!normalized || unique.some((candidate) => candidate.toLowerCase() === normalized.toLowerCase())) continue
+      unique.push(normalized)
+      if (unique.length >= FILE_SEARCH_HISTORY_LIMIT) break
+    }
+    return unique
+  } catch {
+    return []
+  }
+}
+
+function writeFileSearchHistory(values: string[]): void {
+  try {
+    window.localStorage.setItem(FILE_SEARCH_HISTORY_KEY, JSON.stringify(values.slice(0, FILE_SEARCH_HISTORY_LIMIT)))
+  } catch {
+    // Search recall is best-effort and should never block file browsing.
+  }
 }
 
 function directoryAncestors(filePath: string): WorkspaceSearchEntry[] {

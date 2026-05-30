@@ -68,7 +68,7 @@ export default function StructuredDataPreview({ name, preview, testId, statusLab
   const label = preview.kind === 'csv' ? (name.toLowerCase().endsWith('.tsv') ? 'TSV' : 'CSV') : 'JSON'
   return (
     <div className="file-structured-preview flex h-full min-h-0 flex-col overflow-hidden" data-testid={testId}>
-      <PanelToolbar className="file-preview-header" dataTestId={`${testId}-header`}>
+      <PanelToolbar className="file-preview-header" dataTestId={`${testId}-header`} ariaLabel="File preview toolbar">
         {statusLabel && <Badge tone="neutral">{statusLabel}</Badge>}
         <Badge tone="neutral">{label}</Badge>
         <span className="min-w-0 flex-1 truncate">{name}</span>
@@ -1043,6 +1043,7 @@ export function ArtifactOpenOptions({
     action.onClick()
     closeMenu()
   }
+  const menuId = `${testId}-open-options-menu`
 
   return (
     <span
@@ -1065,10 +1066,14 @@ export function ArtifactOpenOptions({
         variant="toolbar"
         active={menuStyle !== null}
         dataTestId={`${testId}-action-open-options`}
+        ariaExpanded={menuStyle !== null}
+        ariaControls={menuId}
+        ariaHasPopup="menu"
         onClick={openMenu}
       />
       {menuStyle && (
         <MenuSurface
+          id={menuId}
           data-testid={`${testId}-open-options-menu`}
           onClose={closeMenu}
           style={menuStyle}
@@ -1108,7 +1113,7 @@ export function ArtifactPreviewHeader({
   title: string
 }): JSX.Element {
   return (
-    <PanelToolbar className="file-preview-header artifact-preview-header" dataTestId={`${testId}-header`}>
+    <PanelToolbar className="file-preview-header artifact-preview-header" dataTestId={`${testId}-header`} ariaLabel="Artifact preview toolbar">
       <span className="artifact-preview-title-group">
         <span className="artifact-preview-title" data-artifact-preview-title={title} title={title}>
           {title}

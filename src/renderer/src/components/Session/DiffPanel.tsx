@@ -1,24 +1,28 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
+import { flushSync } from 'react-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { adjacentFileChangePath, buildFileChangeTreeRows, diffForPathFromUnifiedDiff, fileStatusLabel, isBinaryDiffText, parseFileChangesFromUnifiedDiff, resolveReviewDiffRenderWindow, shouldPreferTextDiff } from '../../types'
-import type { FileChange, GitLineBlameResult, GitRefOption, ReviewCheckStatus, ReviewDiffSource, ReviewMetadata, ReviewProviderComment, SessionRunEventRecord } from '../../types'
+import type { CodexReviewStartRequest, FileChange, GitLineBlameResult, GitRefOption, ReviewCheckStatus, ReviewDiffSource, ReviewMetadata, ReviewProviderComment, SessionRunEventRecord } from '../../types'
 import type { FilePreviewResult } from '../../env'
 import { useSessionStore } from '../../store/sessions'
-import { Badge, Button, DialogContent, DialogFooter, DialogHeader, IconButton, MenuItem, MenuMessage, MenuRow, MenuSection, MenuSectionLabel, MenuSurface, MotionOverlay, PanelHeader, PanelNotice, PanelResizeHandle, PanelToolbar, WorkbenchSearchField, useAppShellResizeController } from '../shared/designSystem'
+import { Badge, Button, IconButton, MenuItem, MenuMessage, MenuRow, MenuSection, MenuSectionLabel, MenuSurface, PanelHeader, PanelNotice, PanelResizeHandle, PanelToolbar, WorkbenchSearchField, useAppShellResizeController } from '../shared/designSystem'
 import Icon, { type IconName } from '../shared/Icon'
 import { FilePreview } from './FilesPanel'
 import StructuredDataPreview from './StructuredDataPreview'
-import WorkbenchTree, { type WorkbenchTreeRow } from './WorkbenchTree'
+import WorkbenchTree, { type WorkbenchTreeContextMenuEvent, type WorkbenchTreeRow } from './WorkbenchTree'
 
 interface Props {
   sessionId: string
   workDir: string
   embedded?: boolean
+  focusPath?: string | null
+  focusRequest?: number
 }
 
 type ReviewDiffMode = 'unified' | 'split'
 type ReviewMetadataPanel = 'pull-request' | 'checks' | 'reviewers' | 'comments'
+type ReviewMetadataState = 'idle' | 'loading' | 'loaded' | 'unavailable' | 'error'
 type ReviewSourceSupport = {
   hasLastTurnDiff: boolean
   hasLocalProviderSource: boolean
@@ -40,6 +44,7 @@ interface ReviewFileContent {
 }
 
 type ReviewDiffCommentUpdater = ReviewDiffComment[] | ((current: ReviewDiffComment[]) => ReviewDiffComment[])
+type ReviewSuggestionStatus = 'copied' | 'applying' | 'applied' | 'failed'
 
 const REVIEW_DIFF_SOURCES: Array<{ id: ReviewDiffSource; label: string; ariaLabel: string; group: 'local' | 'provider' }> = [
   { id: 'all', label: 'All', ariaLabel: 'Show all changes', group: 'local' },
@@ -59,10 +64,25 @@ const REVIEW_SIDE_PANE_VISIBLE_STORAGE_PREFIX = 'orchestrator.review.sidePaneVis
 const REVIEW_SIDE_PANE_MIN_WIDTH = 200
 const REVIEW_SIDE_PANE_DEFAULT_WIDTH = 220
 const REVIEW_SIDE_PANE_MAX_RATIO = 0.6
-const REVIEW_REVERT_CONFIRM_SKIP_STORAGE_KEY = 'orchestrator.review.revert.confirm.skip'
 const REVIEW_SEARCH_MATCH_CAP = 250
+const REVIEW_OPTIONS_MENU_ID = 'review-options-menu-surface'
+const REVIEW_FILE_JUMP_MENU_ID = 'review-file-jump-menu-surface'
+const REVIEW_METADATA_MENU_ID = 'review-metadata-menu-surface'
 
-export default function DiffPanel({ sessionId, workDir, embedded = false }: Props): JSX.Element {
+function shellQuote(value: string): string {
+  return /^[A-Za-z0-9._/@:-]+$/.test(value) ? value : `'${value.replace(/'/g, `'\\''`)}'`
+}
+
+function shellAnsiQuote(value: string): string {
+  return `$'${value
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/\r/g, '\\r')
+    .replace(/\n/g, '\\n')
+    .replace(/\t/g, '\\t')}'`
+}
+
+export default function DiffPanel({ sessionId, workDir, embedded = false, focusPath = null, focusRequest }: Props): JSX.Element {
   const [files, setFiles] = useState<FileChange[]>([])
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
   const [reviewFileContentByPath, setReviewFileContentByPath] = useState<Record<string, ReviewFileContent>>({})
@@ -95,16 +115,25 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
   const [commitRefQuery, setCommitRefQuery] = useState('')
   const [reviewMetadataOpen, setReviewMetadataOpen] = useState<ReviewMetadataPanel | null>(null)
   const [loadedReviewMetadata, setLoadedReviewMetadata] = useState<ReviewMetadata | undefined>(undefined)
-  const [reviewGitActionStatus, setReviewGitActionStatus] = useState<'idle' | 'staging' | 'unstaging' | 'reverting'>('idle')
-  const [reviewRevertConfirmOpen, setReviewRevertConfirmOpen] = useState(false)
-  const [reviewRevertSkipConfirm, setReviewRevertSkipConfirm] = useState(() => readStoredReviewRevertConfirmSkip())
+  const [reviewMetadataState, setReviewMetadataState] = useState<ReviewMetadataState>('idle')
+  const [reviewMetadataError, setReviewMetadataError] = useState<string | null>(null)
+  const [reviewGitActionMessage, setReviewGitActionMessage] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
+  const [reviewPathActionPending, setReviewPathActionPending] = useState<'stage' | 'unstage' | null>(null)
+  const [reviewRowMenu, setReviewRowMenu] = useState<{ path: string; x: number; y: number } | null>(null)
+  const [codexReviewStartPending, setCodexReviewStartPending] = useState(false)
+  const [customReviewInstructions, setCustomReviewInstructions] = useState('')
   const rootRef = useRef<HTMLDivElement | null>(null)
   const reviewSearchInputRef = useRef<HTMLInputElement | null>(null)
+  const openRightPanelTab = useSessionStore((state) => state.openRightPanelTab)
+  const focusRightPanelGitPath = useSessionStore((state) => state.focusRightPanelGitPath)
   const openRightPanelFileTab = useSessionStore((state) => state.openRightPanelFileTab)
+  const setShowTerminal = useSessionStore((state) => state.setShowTerminal)
+  const addTerminalTab = useSessionStore((state) => state.addTerminalTab)
+  const setActiveTerminalTab = useSessionStore((state) => state.setActiveTerminalTab)
   const reviewSession = useSessionStore((state) => state.sessions.find((candidate) => candidate.id === sessionId))
   const storeReviewMetadata = useSessionStore((state) => state.sessions.find((candidate) => candidate.id === sessionId)?.reviewMetadata)
   const lastTurnDiff = useSessionStore((state) => latestDiffUpdatedContent(state.eventBuffers[sessionId] ?? []))
-  const reviewMetadata = storeReviewMetadata ?? loadedReviewMetadata
+  const reviewMetadata = loadedReviewMetadata ?? storeReviewMetadata
   const lastTurnReviewFiles = useMemo(() => parseFileChangesFromUnifiedDiff(lastTurnDiff), [lastTurnDiff])
   const reviewSourceSupport = useMemo<ReviewSourceSupport>(() => {
     const threadSource = reviewSession?.providerThreadSource
@@ -194,6 +223,11 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
     return counts
   }, [reviewCommentsByPath])
   const selectedChange = selectedFile ? sourceFiles.find((file) => file.path === selectedFile) ?? null : null
+  const focusedReviewPath = focusPath && sourceFiles.some((file) => file.path === focusPath) ? focusPath : null
+  const reviewRowMenuChange = reviewRowMenu ? sourceFiles.find((file) => file.path === reviewRowMenu.path) ?? null : null
+  const selectedFileIndex = selectedFile ? filteredFiles.findIndex((file) => file.path === selectedFile) : -1
+  const canSelectPreviousFile = selectedFileIndex > 0
+  const canSelectNextFile = selectedFileIndex >= 0 && selectedFileIndex < filteredFiles.length - 1
   const visibleReviewChanges = selectedChange ? [selectedChange] : []
   const selectedReviewContent = selectedFile ? reviewFileContentByPath[selectedFile] : undefined
   const fileDiff = selectedReviewContent?.diff ?? ''
@@ -205,22 +239,10 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
   const reviewPatchFileCount = useMemo(() => sourceFiles
     .filter((file) => (reviewFileContentByPath[file.path]?.diff ?? '').trim().length > 0)
     .length, [reviewFileContentByPath, sourceFiles])
-  const reviewStageablePaths = useMemo(() => (
-    isLocalMutableReviewSource(reviewSource)
-      ? sourceFiles.filter((file) => file.unstaged === true).map((file) => file.path)
-      : []
-  ), [reviewSource, sourceFiles])
-  const reviewUnstageablePaths = useMemo(() => (
-    isLocalMutableReviewSource(reviewSource)
-      ? sourceFiles.filter((file) => file.staged === true).map((file) => file.path)
-      : []
-  ), [reviewSource, sourceFiles])
-  const reviewRevertPaths = useMemo(() => (
-    isLocalMutableReviewSource(reviewSource) && reviewSource !== 'staged'
-      ? sourceFiles.map((file) => file.path)
-      : []
-  ), [reviewSource, sourceFiles])
-  const showReviewGitActionPill = reviewRevertPaths.length > 0 || reviewStageablePaths.length > 0 || reviewUnstageablePaths.length > 0
+  const showReviewGitHandoff = isLocalMutableReviewSource(reviewSource) && sourceFiles.length > 0
+  const canStageSelectedFile = showReviewGitHandoff && selectedChange?.unstaged === true && reviewPathActionPending === null
+  const canUnstageSelectedFile = showReviewGitHandoff && selectedChange?.staged === true && selectedChange?.conflicted !== true && reviewPathActionPending === null
+  const selectedStageLabel = selectedChange?.conflicted === true ? 'Mark selected file resolved' : 'Stage selected file'
   const reviewRows: WorkbenchTreeRow[] = fileTreeRows.map((row) => {
     if (row.type === 'directory') {
       return {
@@ -229,8 +251,22 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
         kind: 'directory',
         depth: row.depth,
         icon: 'folder',
-        title: row.path,
-        meta: `${row.fileCount} ${row.fileCount === 1 ? 'file' : 'files'}`,
+        title: `${row.path} • ${reviewDirectoryMetadataLabel(row.fileCount, row.additions, row.deletions)}`,
+        meta: (
+          <span className="diff-directory-meta">
+            <span>{row.fileCount} {row.fileCount === 1 ? 'file' : 'files'}</span>
+            {(row.additions > 0 || row.deletions > 0) && (
+              <span className="diff-directory-stats" aria-hidden="true">
+                {row.additions > 0 && <span className="diff-directory-stat-additions">+{row.additions}</span>}
+                {row.deletions > 0 && <span className="diff-directory-stat-deletions">-{row.deletions}</span>}
+              </span>
+            )}
+          </span>
+        ),
+        dataReviewGroupPath: row.path,
+        dataReviewFileCount: row.fileCount,
+        dataReviewAdditions: row.additions,
+        dataReviewDeletions: row.deletions,
         className: 'diff-directory-row'
       }
     }
@@ -273,7 +309,8 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
       dataReviewPath: file.path,
       dataReviewSearchActive: reviewSearchActivePath === file.path,
       onSelect: () => setSelectedFile(file.path),
-      onOpen: file.status === 'D' ? undefined : () => openRightPanelFileTab(sessionId, file.path, { preview: true })
+      onOpen: file.status === 'D' ? undefined : () => openRightPanelFileTab(sessionId, file.path, { preview: true }),
+      onContextMenu: (event) => openReviewRowContextMenu(event, file)
     }
   })
 
@@ -283,7 +320,7 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
 
   const stepReviewSearchMatch = useCallback((direction: 1 | -1): void => {
     if (reviewSearchNavigationMatches.length === 0) return
-    const current = reviewSearchActiveMatchIndex ?? (direction === 1 ? -1 : 0)
+    const current = reviewSearchActiveMatchIndex ?? 0
     const next = (current + direction + reviewSearchNavigationMatches.length) % reviewSearchNavigationMatches.length
     const match = reviewSearchNavigationMatches[next]
     setReviewSearchActiveMatchIndex(next)
@@ -293,20 +330,51 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
   useEffect(() => {
     if (storeReviewMetadata) {
       setLoadedReviewMetadata(storeReviewMetadata)
+      setReviewMetadataState('loaded')
+      setReviewMetadataError(null)
       return
     }
     let cancelled = false
+    setReviewMetadataState('loading')
+    setReviewMetadataError(null)
     window.api.sessions.getReviewMetadata(sessionId)
       .then((metadata) => {
-        if (!cancelled) setLoadedReviewMetadata(metadata)
+        if (cancelled) return
+        setLoadedReviewMetadata(metadata)
+        setReviewMetadataState(metadata ? 'loaded' : 'unavailable')
       })
-      .catch(() => {
-        if (!cancelled) setLoadedReviewMetadata(undefined)
+      .catch((error) => {
+        if (cancelled) return
+        setLoadedReviewMetadata(undefined)
+        setReviewMetadataState('error')
+        setReviewMetadataError(error instanceof Error ? error.message : 'Review metadata unavailable')
       })
     return () => {
       cancelled = true
     }
   }, [sessionId, storeReviewMetadata])
+
+  const refreshReviewMetadata = async (): Promise<void> => {
+    setReviewMetadataState('loading')
+    setReviewMetadataError(null)
+    setReviewGitActionMessage({ text: 'Refreshing review metadata', tone: 'info' })
+    try {
+      const metadata = await window.api.sessions.getReviewMetadata(sessionId, { force: true })
+      setLoadedReviewMetadata(metadata)
+      if (metadata) {
+        setReviewMetadataState('loaded')
+        setReviewGitActionMessage({ text: 'Review metadata refreshed', tone: 'info' })
+      } else {
+        setReviewMetadataState('unavailable')
+        setReviewGitActionMessage({ text: 'No hosted review metadata found', tone: 'info' })
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Refresh review metadata failed'
+      setReviewMetadataState('error')
+      setReviewMetadataError(message)
+      setReviewGitActionMessage({ text: message, tone: 'danger' })
+    }
+  }
 
   useEffect(() => {
     const focusReviewSearch = (): void => {
@@ -632,6 +700,17 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
   }
 
   useEffect(() => {
+    if (!focusPath || focusRequest === undefined) return
+    if (sourceFiles.some((file) => file.path === focusPath)) {
+      setSelectedFile(focusPath)
+      return
+    }
+    if (isLocalMutableReviewSource(reviewSource) && reviewSource !== 'all') {
+      setReviewSource('all')
+    }
+  }, [focusPath, focusRequest, reviewSource, sourceFiles])
+
+  useEffect(() => {
     const handleReviewOpenRequest = (event: Event): void => {
       const detail = (event as CustomEvent<{
         sessionId?: string
@@ -663,7 +742,13 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
 
   const openSelectedFileTab = (): void => {
     if (!selectedFile || !selectedChange || selectedChange.status === 'D') return
-    openRightPanelFileTab(sessionId, selectedFile, { preview: true })
+    openReviewFileTab(selectedFile)
+  }
+
+  const openReviewFileTab = (path: string): void => {
+    const change = sourceFiles.find((file) => file.path === path)
+    if (!change || change.status === 'D') return
+    openRightPanelFileTab(sessionId, path, { preview: true })
   }
 
   const openFileTabAtLine = (path: string, line: number): void => {
@@ -686,49 +771,210 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
 
   const revealSelectedFile = (): void => {
     if (!selectedFile || !selectedChange || selectedChange.status === 'D') return
-    void window.api.fs.showInFolder(joinPath(workDir, selectedFile))
+    revealReviewFile(selectedFile)
   }
 
-  const copySelectedPath = (): void => {
+  const revealReviewFile = (path: string): void => {
+    const change = sourceFiles.find((file) => file.path === path)
+    if (!change || change.status === 'D') return
+    void window.api.fs.showInFolder(joinPath(workDir, path))
+  }
+
+  const writeReviewClipboardText = async (text: string): Promise<void> => {
+    if (typeof window.api.clipboard?.writeText === 'function') {
+      const didWrite = await window.api.clipboard.writeText(text)
+      if (!didWrite) throw new Error('Clipboard write failed')
+      return
+    }
+    await navigator.clipboard.writeText(text)
+  }
+
+  const copySelectedPath = async (): Promise<void> => {
     if (!selectedFile || !selectedChange) return
-    void navigator.clipboard.writeText(selectedFile)
+    await copyReviewPath(selectedFile)
   }
 
-  const copyGitApplyCommand = (): void => {
-    if (!reviewPatchText.trim()) return
+  const copyReviewPath = async (path: string): Promise<void> => {
+    setReviewGitActionMessage({ text: 'Copying path', tone: 'info' })
+    try {
+      await writeReviewClipboardText(path)
+      setReviewGitActionMessage({ text: 'Path copied', tone: 'info' })
+    } catch {
+      setReviewGitActionMessage({ text: 'Copy path failed', tone: 'danger' })
+    }
+  }
+
+  const addReviewFileToChat = (path: string): void => {
+    const change = sourceFiles.find((file) => file.path === path)
+    if (!change || change.status === 'D') {
+      setReviewGitActionMessage({ text: 'Select an available Review file to add to chat', tone: 'danger' })
+      return
+    }
+    const name = basename(path)
+    window.dispatchEvent(new CustomEvent('orchestrator:add-composer-attachment', {
+      detail: {
+        path: joinPath(workDir, path),
+        name
+      }
+    }))
+    setReviewGitActionMessage({ text: `Added ${name} to chat`, tone: 'info' })
+  }
+
+  const insertReviewPathInTerminal = (path: string): void => {
+    const change = sourceFiles.find((file) => file.path === path)
+    if (!change) {
+      setReviewGitActionMessage({ text: 'Select a changed path to insert in terminal', tone: 'danger' })
+      return
+    }
+    setReviewGitActionMessage({ text: 'Opening terminal for Review path', tone: 'info' })
+    void (async () => {
+      try {
+        const state = useSessionStore.getState()
+        const currentPanel = state.uiState[sessionId]?.terminalPanel
+        const existingTab = typeof currentPanel?.activeTabId === 'number'
+          ? currentPanel.activeTabId
+          : currentPanel?.tabs.find((tab): tab is number => typeof tab === 'number')
+        const tabId = existingTab ?? addTerminalTab(sessionId)
+        setShowTerminal(sessionId, true)
+        setActiveTerminalTab(sessionId, tabId)
+        const terminalId = `${sessionId}-${tabId}`
+        const globals = window as typeof window & {
+          __orchestratorLastReviewTerminalPathForSmoke?: string
+          __orchestratorLastReviewTerminalIdForSmoke?: string
+        }
+        globals.__orchestratorLastReviewTerminalPathForSmoke = path
+        globals.__orchestratorLastReviewTerminalIdForSmoke = terminalId
+        await window.api.terminal.spawn(terminalId, workDir)
+        await window.api.terminal.write(terminalId, shellQuote(path))
+        setReviewGitActionMessage({ text: 'Review path inserted in terminal', tone: 'info' })
+      } catch {
+        setReviewGitActionMessage({ text: 'Insert Review path in terminal failed', tone: 'danger' })
+      }
+    })()
+  }
+
+  const openReviewPathInGit = (path: string): void => {
+    const change = sourceFiles.find((file) => file.path === path)
+    if (!change) {
+      setReviewGitActionMessage({ text: 'Select a changed path to open in Git', tone: 'danger' })
+      return
+    }
+    focusRightPanelGitPath(sessionId, path)
+    setReviewGitActionMessage({ text: `Opened Git for ${basename(path)}`, tone: 'info' })
+  }
+
+  const openReviewRowContextMenu = (event: WorkbenchTreeContextMenuEvent, file: FileChange): void => {
+    event.preventDefault()
+    event.stopPropagation()
+    const rect = event.currentTarget.getBoundingClientRect()
+    const x = Number.isFinite(event.clientX) && event.clientX !== 0
+      ? event.clientX
+      : rect.left + Math.min(24, Math.max(1, rect.width / 2))
+    const y = Number.isFinite(event.clientY) && event.clientY !== 0
+      ? event.clientY
+      : rect.top + Math.min(14, Math.max(4, rect.height / 2))
+    setSelectedFile(file.path)
+    setReviewOptionsOpen(false)
+    setFileJumpOpen(false)
+    setReviewMetadataOpen(null)
+    setReviewRowMenu({
+      path: file.path,
+      x: Math.min(x, Math.max(8, window.innerWidth - 214)),
+      y: Math.min(y, Math.max(8, window.innerHeight - 204))
+    })
+  }
+
+  const buildGitApplyCommand = (): string | null => {
+    if (!reviewPatchText.trim()) return null
     const patch = reviewPatchText.endsWith('\n') ? reviewPatchText : `${reviewPatchText}\n`
-    const command = `git apply <<'PATCH'\n${patch}PATCH`
+    return `git apply <<'PATCH'\n${patch}PATCH`
+  }
+
+  const copyGitApplyCommand = async (): Promise<void> => {
+    const command = buildGitApplyCommand()
+    if (!command) return
     const globals = window as typeof window & { __orchestratorLastReviewGitApplyCommandForSmoke?: string }
     globals.__orchestratorLastReviewGitApplyCommandForSmoke = command
-    void navigator.clipboard.writeText(command)
+    setReviewGitActionMessage({ text: 'Copying git apply command', tone: 'info' })
+    try {
+      await writeReviewClipboardText(command)
+      setReviewGitActionMessage({ text: 'Git apply command copied', tone: 'info' })
+    } catch {
+      setReviewGitActionMessage({ text: 'Copy git apply command failed', tone: 'danger' })
+    }
   }
 
-  const runReviewGitAction = async (action: 'stage' | 'unstage' | 'revert'): Promise<void> => {
-    const paths = action === 'stage'
-      ? reviewStageablePaths
-      : action === 'unstage'
-        ? reviewUnstageablePaths
-        : reviewRevertPaths
-    if (paths.length === 0 || reviewGitActionStatus !== 'idle') return
-    setReviewGitActionStatus(action === 'stage' ? 'staging' : action === 'unstage' ? 'unstaging' : 'reverting')
+  const insertGitApplyCommandInTerminal = (): void => {
+    if (!reviewPatchText.trim()) return
+    const patch = reviewPatchText.endsWith('\n') ? reviewPatchText : `${reviewPatchText}\n`
+    const command = `printf %s ${shellAnsiQuote(patch)} | git apply -`
+    setReviewGitActionMessage({ text: 'Opening terminal for git apply command', tone: 'info' })
+    void (async () => {
+      try {
+        const state = useSessionStore.getState()
+        const currentPanel = state.uiState[sessionId]?.terminalPanel
+        const existingTab = typeof currentPanel?.activeTabId === 'number'
+          ? currentPanel.activeTabId
+          : currentPanel?.tabs.find((tab): tab is number => typeof tab === 'number')
+        const tabId = existingTab ?? addTerminalTab(sessionId)
+        setShowTerminal(sessionId, true)
+        setActiveTerminalTab(sessionId, tabId)
+        const terminalId = `${sessionId}-${tabId}`
+        const globals = window as typeof window & {
+          __orchestratorLastReviewGitApplyTerminalCommandForSmoke?: string
+          __orchestratorLastReviewGitApplyTerminalIdForSmoke?: string
+        }
+        globals.__orchestratorLastReviewGitApplyTerminalCommandForSmoke = command
+        globals.__orchestratorLastReviewGitApplyTerminalIdForSmoke = terminalId
+        await window.api.terminal.spawn(terminalId, workDir)
+        await window.api.terminal.write(terminalId, command)
+        setReviewGitActionMessage({ text: 'Git apply command inserted in terminal', tone: 'info' })
+      } catch {
+        setReviewGitActionMessage({ text: 'Insert git apply command in terminal failed', tone: 'danger' })
+      }
+    })()
+  }
+
+  const runReviewPathAction = async (action: 'stage' | 'unstage', path = selectedFile ?? ''): Promise<void> => {
+    const change = sourceFiles.find((file) => file.path === path)
+    if (!change || !showReviewGitHandoff || reviewPathActionPending !== null) return
+    if (action === 'stage' && change.unstaged !== true) return
+    if (action === 'unstage' && (change.staged !== true || change.conflicted === true)) return
+    const actionLabel = action === 'stage'
+      ? change.conflicted === true ? 'Marking resolved' : 'Staging file'
+      : 'Unstaging file'
+    const doneLabel = action === 'stage'
+      ? change.conflicted === true ? `Marked ${path} resolved` : `Staged ${path}`
+      : `Unstaged ${path}`
+    setReviewPathActionPending(action)
+    setReviewGitActionMessage({ text: actionLabel, tone: 'info' })
     try {
       const result = action === 'stage'
-        ? await window.api.git.stagePaths(workDir, paths)
-        : action === 'unstage'
-          ? await window.api.git.unstagePaths(workDir, paths)
-          : await window.api.sessions.undoChangedFiles(sessionId, paths)
-      if (result.ok) {
-        setLocalReviewFiles(result.changedFiles)
-        const refreshed = await window.api.sessions.getChangedFiles(sessionId, reviewApiSource, activeReviewRef || undefined)
-        setFiles(refreshed)
-        setSelectedFile((current) => (
-          current && refreshed.some((file) => file.path === current)
-            ? current
-            : refreshed[0]?.path ?? null
-        ))
-      }
+        ? await window.api.git.stagePaths(workDir, [path])
+        : await window.api.git.unstagePaths(workDir, [path])
+      setLocalReviewFiles(result.changedFiles)
+      const nextFiles = result.changedFiles.filter((file) => fileMatchesReviewSource(file, reviewSource))
+      setFiles(nextFiles)
+      setReviewFileContentByPath((current) => {
+        const nextPaths = new Set(nextFiles.map((file) => file.path))
+        return Object.fromEntries(Object.entries(current).filter(([filePath]) => nextPaths.has(filePath)))
+      })
+      setSelectedFile((current) => (
+        current && nextFiles.some((file) => file.path === current)
+          ? current
+          : nextFiles.find((file) => file.path === path)?.path ?? nextFiles[0]?.path ?? null
+      ))
+      setReviewGitActionMessage({
+        text: result.ok ? doneLabel : result.error || `${actionLabel} failed`,
+        tone: result.ok ? 'info' : 'danger'
+      })
+    } catch (error) {
+      setReviewGitActionMessage({
+        text: error instanceof Error ? error.message : `${actionLabel} failed`,
+        tone: 'danger'
+      })
     } finally {
-      setReviewGitActionStatus('idle')
+      setReviewPathActionPending(null)
     }
   }
 
@@ -752,21 +998,6 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
         ? current
         : refreshedFiles.find((file) => file.path === path)?.path ?? refreshedFiles[0]?.path ?? null
     ))
-  }
-
-  const requestReviewRevertAll = (): void => {
-    if (reviewRevertPaths.length === 0 || reviewGitActionStatus !== 'idle') return
-    if (reviewRevertSkipConfirm) {
-      void runReviewGitAction('revert')
-      return
-    }
-    setReviewRevertConfirmOpen(true)
-  }
-
-  const confirmReviewRevertAll = (): void => {
-    if (reviewRevertSkipConfirm) writeStoredReviewRevertConfirmSkip(true)
-    setReviewRevertConfirmOpen(false)
-    void runReviewGitAction('revert')
   }
 
   const canTogglePreview = Boolean(selectedChange && filePreview && (shouldPreferTextDiff(fileDiff) || isBinaryDiffText(fileDiff)) && hasReviewPreview(filePreview))
@@ -817,6 +1048,83 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
     setFileJumpQuery('')
   }
 
+  const navigateReviewFile = (direction: 'next' | 'previous'): void => {
+    selectAdjacentFile(direction)
+    setFileJumpOpen(false)
+    setReviewOptionsOpen(false)
+    setReviewMetadataOpen(null)
+  }
+
+  const activeReviewSource = REVIEW_DIFF_SOURCES.find((source) => source.id === reviewSource) ?? REVIEW_DIFF_SOURCES[0]
+  const reviewWorkspaceName = basename(workDir) || workDir
+  const activeReviewSourceCount = reviewSourceCountFor(
+    reviewSource,
+    reviewSourceCounts,
+    reviewSource,
+    sourceFiles.length,
+    lastTurnReviewFiles.length
+  )
+  const activeReviewSourceLabel = reviewSourceSummaryLabel(reviewSource, activeReviewSource.label, branchReviewRef, commitReviewRef)
+  const canStartCodexReview = reviewSession?.provider === 'codex' && (reviewSession.runtime ?? 'app-server') === 'app-server'
+  const codexReviewStartRequest = resolveCodexReviewStartRequest(reviewSource, activeReviewRef)
+  const codexReviewStartLabel = codexReviewStartRequest?.target.type === 'baseBranch'
+    ? 'Start Codex base review'
+    : codexReviewStartRequest?.target.type === 'commit'
+      ? 'Start Codex commit review'
+    : 'Start Codex review'
+  const customReviewInstructionsTrimmed = customReviewInstructions.trim()
+  const codexReviewStartDisabled = !canStartCodexReview || !codexReviewStartRequest || codexReviewStartPending || reviewSession?.status === 'running'
+  const codexCustomReviewStartDisabled = !canStartCodexReview || customReviewInstructionsTrimmed.length === 0 || codexReviewStartPending || reviewSession?.status === 'running'
+  const activeReviewSourceStats = sourceFiles.reduce(
+    (totals, file) => ({
+      additions: totals.additions + file.additions,
+      deletions: totals.deletions + file.deletions
+    }),
+    { additions: 0, deletions: 0 }
+  )
+  const activeReviewSourceStatsLabel = [
+    activeReviewSourceStats.additions > 0 ? `+${activeReviewSourceStats.additions}` : '',
+    activeReviewSourceStats.deletions > 0 ? `-${activeReviewSourceStats.deletions}` : ''
+  ].filter(Boolean).join(' ')
+
+  const startCodexReviewRequest = async (request: CodexReviewStartRequest): Promise<void> => {
+    if (!canStartCodexReview || codexReviewStartPending) return
+    setCodexReviewStartPending(true)
+    setReviewGitActionMessage({ text: 'Starting Codex review', tone: 'info' })
+    try {
+      const result = await window.api.sessions.startCodexReview(sessionId, request)
+      if (result.ok) {
+        setReviewGitActionMessage({
+          text: codexReviewStartedMessage(request),
+          tone: 'info'
+        })
+      } else {
+        setReviewGitActionMessage({ text: result.error ?? 'Codex review failed to start', tone: 'danger' })
+      }
+    } catch (error) {
+      setReviewGitActionMessage({
+        text: error instanceof Error ? error.message : 'Codex review failed to start',
+        tone: 'danger'
+      })
+    } finally {
+      setCodexReviewStartPending(false)
+    }
+  }
+
+  const startCodexReview = async (): Promise<void> => {
+    if (!codexReviewStartRequest || codexReviewStartDisabled) return
+    await startCodexReviewRequest(codexReviewStartRequest)
+  }
+
+  const startCustomCodexReview = async (): Promise<void> => {
+    if (codexCustomReviewStartDisabled) return
+    setReviewOptionsOpen(false)
+    await startCodexReviewRequest({
+      target: { type: 'custom', instructions: customReviewInstructionsTrimmed },
+      delivery: 'inline'
+    })
+  }
+
   const fileJumpControl = (
     <div className="review-file-jump relative">
       <button
@@ -824,6 +1132,8 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
         className="review-file-jump-button"
         aria-label="Jump to file"
         aria-expanded={fileJumpOpen}
+        aria-controls={REVIEW_FILE_JUMP_MENU_ID}
+        aria-haspopup="menu"
         data-testid="review-file-jump"
         onClick={() => {
           setFileJumpOpen((open) => !open)
@@ -835,6 +1145,7 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
       </button>
       {fileJumpOpen && (
         <MenuSurface
+          id={REVIEW_FILE_JUMP_MENU_ID}
           className="review-file-jump-menu"
           onClose={() => setFileJumpOpen(false)}
           style={{ position: 'absolute', right: 0, top: 34, width: 300, zIndex: 92 }}
@@ -886,6 +1197,9 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
         variant="toolbar"
         active={reviewOptionsOpen}
         dataTestId="review-options-menu"
+        ariaExpanded={reviewOptionsOpen}
+        ariaControls={REVIEW_OPTIONS_MENU_ID}
+        ariaHasPopup="menu"
         onClick={() => {
           setReviewOptionsOpen((open) => !open)
           setFileJumpOpen(false)
@@ -894,6 +1208,7 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
       />
       {reviewOptionsOpen && (
         <MenuSurface
+          id={REVIEW_OPTIONS_MENU_ID}
           className="review-options-menu-surface"
           onClose={() => setReviewOptionsOpen(false)}
           style={{ position: 'absolute', right: 0, top: 34, width: 244, zIndex: 92 }}
@@ -990,6 +1305,36 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
               />
             )}
           </div>
+          {canStartCodexReview && (
+            <>
+              <div className="review-options-divider" />
+              <div className="review-options-section" aria-label="Codex review">
+                <div className="review-options-section-title">Codex</div>
+                <textarea
+                  className="review-codex-custom-input"
+                  aria-label="Custom review instructions"
+                  data-testid="review-start-codex-custom-instructions"
+                  placeholder="Custom review instructions"
+                  rows={3}
+                  value={customReviewInstructions}
+                  onChange={(event) => setCustomReviewInstructions(event.target.value)}
+                />
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="review-codex-custom-start"
+                  disabled={codexCustomReviewStartDisabled}
+                  data-testid="review-start-codex-custom"
+                  data-codex-review-start-target="custom"
+                  data-codex-review-start-custom-ready={customReviewInstructionsTrimmed.length > 0 ? 'true' : 'false'}
+                  onClick={() => { void startCustomCodexReview() }}
+                >
+                  <Icon name="sparkles" size={13} />
+                  <span>{codexReviewStartPending ? 'Starting Codex review' : 'Start custom review'}</span>
+                </button>
+              </div>
+            </>
+          )}
           <div className="review-options-divider" />
           <MenuItem
             icon="refresh"
@@ -1038,7 +1383,14 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
             label="Copy git apply command"
             disabled={!reviewPatchText.trim()}
             dataTestId="review-copy-git-apply-command"
-            onClick={() => { copyGitApplyCommand(); setReviewOptionsOpen(false) }}
+            onClick={() => { void copyGitApplyCommand(); setReviewOptionsOpen(false) }}
+          />
+          <MenuItem
+            icon="terminal"
+            label="Insert git apply in terminal"
+            disabled={!reviewPatchText.trim()}
+            dataTestId="review-insert-git-apply-terminal"
+            onClick={() => { insertGitApplyCommandInTerminal(); setReviewOptionsOpen(false) }}
           />
           <div className="review-options-divider" />
           <MenuItem
@@ -1057,40 +1409,22 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
             icon="copy"
             label="Copy path"
             disabled={!selectedChange}
-            onClick={() => { copySelectedPath(); setReviewOptionsOpen(false) }}
+            onClick={() => { void copySelectedPath(); setReviewOptionsOpen(false) }}
           />
         </MenuSurface>
       )}
     </div>
   )
 
-  const activeReviewSource = REVIEW_DIFF_SOURCES.find((source) => source.id === reviewSource) ?? REVIEW_DIFF_SOURCES[0]
-  const activeReviewSourceCount = reviewSourceCountFor(
-    reviewSource,
-    reviewSourceCounts,
-    reviewSource,
-    sourceFiles.length,
-    lastTurnReviewFiles.length
-  )
-  const activeReviewSourceLabel = reviewSourceSummaryLabel(reviewSource, activeReviewSource.label, branchReviewRef, commitReviewRef)
-  const activeReviewSourceStats = sourceFiles.reduce(
-    (totals, file) => ({
-      additions: totals.additions + file.additions,
-      deletions: totals.deletions + file.deletions
-    }),
-    { additions: 0, deletions: 0 }
-  )
-  const activeReviewSourceStatsLabel = [
-    activeReviewSourceStats.additions > 0 ? `+${activeReviewSourceStats.additions}` : '',
-    activeReviewSourceStats.deletions > 0 ? `-${activeReviewSourceStats.deletions}` : ''
-  ].filter(Boolean).join(' ')
   const reviewSourceSummary = (
     <button
       type="button"
       className="review-source-summary-button"
-      aria-label={`Review source: ${activeReviewSourceLabel}, ${activeReviewSourceCount} ${activeReviewSourceCount === 1 ? 'file' : 'files'}${activeReviewSourceStatsLabel ? `, ${activeReviewSourceStatsLabel}` : ''}`}
+      aria-label={`Review source: ${activeReviewSourceLabel}, ${activeReviewSourceCount} ${activeReviewSourceCount === 1 ? 'file' : 'files'} in ${reviewWorkspaceName}${activeReviewSourceStatsLabel ? `, ${activeReviewSourceStatsLabel}` : ''}`}
       data-testid="review-source-summary"
       data-review-source-active={reviewSource}
+      data-review-source-workspace-name={reviewWorkspaceName}
+      data-review-source-workspace-root={workDir}
       data-review-source-summary-count={activeReviewSourceCount}
       data-review-source-summary-additions={activeReviewSourceStats.additions}
       data-review-source-summary-deletions={activeReviewSourceStats.deletions}
@@ -1102,6 +1436,7 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
     >
       <Icon name="branch" size={14} />
       <span className="review-source-summary-label">{activeReviewSourceLabel}</span>
+      <span className="review-source-summary-root" title={workDir}>{reviewWorkspaceName}</span>
       {(activeReviewSourceStats.additions > 0 || activeReviewSourceStats.deletions > 0) && (
         <span className="review-source-summary-stats" aria-hidden="true">
           {activeReviewSourceStats.additions > 0 && (
@@ -1114,11 +1449,29 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
       )}
     </button>
   )
-
   const reviewHeaderToolbar = (
-    <PanelToolbar className="diff-panel-toolbar" dataTestId="diff-panel-toolbar">
+    <PanelToolbar className="diff-panel-toolbar" dataTestId="diff-panel-toolbar" ariaLabel="Review toolbar">
       {reviewSourceSummary}
       <div className="diff-panel-action-strip" data-testid="review-toolbar-action-strip" data-review-toolbar-cluster="primary">
+        {canStartCodexReview && (
+          <span
+            className="review-start-codex-target"
+            data-testid="review-start-codex-target"
+            data-codex-review-start-target={codexReviewStartRequest?.target.type ?? ''}
+            data-codex-review-start-branch={codexReviewStartRequest?.target.type === 'baseBranch' ? codexReviewStartRequest.target.branch : ''}
+            data-codex-review-start-sha={codexReviewStartRequest?.target.type === 'commit' ? codexReviewStartRequest.target.sha : ''}
+          >
+            <IconButton
+              icon="sparkles"
+              label={codexReviewStartPending ? 'Starting Codex review' : codexReviewStartLabel}
+              size="sm"
+              variant="toolbar"
+              disabled={codexReviewStartDisabled}
+              dataTestId="review-start-codex"
+              onClick={() => { void startCodexReview() }}
+            />
+          </span>
+        )}
         {reviewOptions}
         {fileJumpControl}
         {!reviewSidePaneVisible && (
@@ -1139,15 +1492,58 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
           dataTestId="review-refresh"
           onClick={refresh}
         />
+        <IconButton
+          icon="arrowUp"
+          label="Previous changed file"
+          size="sm"
+          variant="toolbar"
+          disabled={!canSelectPreviousFile}
+          dataTestId="review-previous-file"
+          onClick={() => navigateReviewFile('previous')}
+        />
+        <IconButton
+          icon="arrowDown"
+          label="Next changed file"
+          size="sm"
+          variant="toolbar"
+          disabled={!canSelectNextFile}
+          dataTestId="review-next-file"
+          onClick={() => navigateReviewFile('next')}
+        />
+        {showReviewGitHandoff && (
+          <>
+            <IconButton
+              icon="check"
+              label={selectedStageLabel}
+              size="sm"
+              variant="toolbar"
+              disabled={!canStageSelectedFile}
+              dataTestId="review-stage-selected-file"
+              onClick={() => { void runReviewPathAction('stage') }}
+            />
+            <IconButton
+              icon="undo"
+              label="Unstage selected file"
+              size="sm"
+              variant="toolbar"
+              disabled={!canUnstageSelectedFile}
+              dataTestId="review-unstage-selected-file"
+              onClick={() => { void runReviewPathAction('unstage') }}
+            />
+          </>
+        )}
         {reviewMetadata && (
           <ReviewMetadataStrip
             metadata={reviewMetadata}
+            metadataState={reviewMetadataState}
+            metadataError={reviewMetadataError}
             openPanel={reviewMetadataOpen}
             onOpenPanelChange={(panel) => {
               setReviewMetadataOpen(panel)
               setReviewOptionsOpen(false)
               setFileJumpOpen(false)
             }}
+            onRefresh={() => { void refreshReviewMetadata() }}
           />
         )}
         <IconButton
@@ -1222,52 +1618,56 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
       </div>
     </PanelToolbar>
   )
-  const reviewFloatingGitActions = showReviewGitActionPill ? (
+  const reviewActionStatus = reviewGitActionMessage ? (
+    <span
+      className="review-floating-action-status"
+      data-testid="review-floating-action-status"
+      role={reviewGitActionMessage.tone === 'danger' ? 'alert' : 'status'}
+      aria-live={reviewGitActionMessage.tone === 'danger' ? 'assertive' : 'polite'}
+      aria-atomic="true"
+      data-review-floating-action-status-tone={reviewGitActionMessage.tone}
+    >
+      {reviewGitActionMessage.text}
+    </span>
+  ) : null
+  const reviewFloatingGitActions = showReviewGitHandoff ? (
     <div
       className="review-floating-action-pill"
       data-testid="review-floating-action-pill"
-      data-review-floating-action-pill="local-git"
+      data-review-floating-action-pill="git-handoff"
       data-review-floating-action-anchor="panel-root"
-      data-review-revertable-count={reviewRevertPaths.length}
-      data-review-stageable-count={reviewStageablePaths.length}
-      data-review-unstageable-count={reviewUnstageablePaths.length}
+      data-review-git-handoff-count={sourceFiles.length}
+      data-review-git-action-message={reviewGitActionMessage?.text ?? ''}
+      data-review-git-action-tone={reviewGitActionMessage?.tone ?? ''}
     >
-      {reviewRevertPaths.length > 0 && (
-        <Button
-          variant="ghost"
-          className="review-floating-action-button review-floating-action-button-danger"
-          dataTestId="review-revert-all"
-          disabled={reviewGitActionStatus !== 'idle'}
-          onClick={requestReviewRevertAll}
-        >
-          <Icon name="undo" size={12} />
-          <span>Revert all</span>
-        </Button>
-      )}
-      {reviewStageablePaths.length > 0 && (
-        <Button
-          variant="ghost"
-          className="review-floating-action-button"
-          dataTestId="review-stage-all"
-          disabled={reviewGitActionStatus !== 'idle'}
-          onClick={() => { void runReviewGitAction('stage') }}
-        >
-          <Icon name="plus" size={12} />
-          <span>Stage all</span>
-        </Button>
-      )}
-      {reviewUnstageablePaths.length > 0 && (
-        <Button
-          variant="ghost"
-          className="review-floating-action-button"
-          dataTestId="review-unstage-all"
-          disabled={reviewGitActionStatus !== 'idle'}
-          onClick={() => { void runReviewGitAction('unstage') }}
-        >
-          <Icon name="eraser" size={12} />
-          <span>Unstage all</span>
-        </Button>
-      )}
+      <Button
+        variant="ghost"
+        className="review-floating-action-button"
+        dataTestId="review-open-git-tab"
+        onClick={() => {
+          if (selectedFile) {
+            focusRightPanelGitPath(sessionId, selectedFile)
+          } else {
+            openRightPanelTab(sessionId, 'git')
+          }
+        }}
+      >
+        <Icon name="branch" size={12} />
+        <span>Open Git</span>
+      </Button>
+      {reviewActionStatus}
+    </div>
+  ) : null
+  const reviewFloatingActionStatus = !showReviewGitHandoff && reviewActionStatus ? (
+    <div
+      className="review-floating-action-pill review-floating-action-pill-status-only"
+      data-testid="review-action-status-pill"
+      data-review-floating-action-pill="status"
+      data-review-floating-action-anchor="panel-root"
+      data-review-git-action-message={reviewGitActionMessage?.text ?? ''}
+      data-review-git-action-tone={reviewGitActionMessage?.tone ?? ''}
+    >
+      {reviewActionStatus}
     </div>
   ) : null
   return (
@@ -1279,6 +1679,13 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
       data-review-diff-expanded={diffExpanded ? 'true' : 'false'}
       data-review-source={reviewSource}
       data-review-selected-file={selectedFile ?? ''}
+      data-review-focus-path={focusPath ?? ''}
+      data-review-focus-request={focusRequest ?? ''}
+      data-review-focus-path-found={focusedReviewPath ? 'true' : 'false'}
+      data-review-selected-staged={selectedChange?.staged === true ? 'true' : 'false'}
+      data-review-selected-unstaged={selectedChange?.unstaged === true ? 'true' : 'false'}
+      data-review-selected-conflicted={selectedChange?.conflicted === true ? 'true' : 'false'}
+      data-review-path-action-pending={reviewPathActionPending ?? ''}
       data-review-tree-query={query.trim()}
       data-review-tree-file-count={filteredFiles.length}
       data-review-tree-search-match-count={[...reviewSearchMatchesByPath.values()].reduce((sum, count) => sum + count, 0)}
@@ -1404,6 +1811,100 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
                 stickyDirectories
                 revealActiveRow
               />
+              {reviewRowMenu && (
+                <MenuSurface
+                  onClose={() => setReviewRowMenu(null)}
+                  className="review-row-context-menu"
+                  style={{ position: 'fixed', left: reviewRowMenu.x, top: reviewRowMenu.y, width: 206, zIndex: 110 }}
+                >
+                  <div
+                    data-testid="review-row-context-menu"
+                    data-review-row-context-path={reviewRowMenuChange?.path ?? ''}
+                    data-review-row-context-status={reviewRowMenuChange?.status ?? ''}
+                  >
+                    <MenuItem
+                      icon="file"
+                      label="Open in Workbench"
+                      disabled={!reviewRowMenuChange || reviewRowMenuChange.status === 'D'}
+                      dataTestId="review-row-open-workbench"
+                      onClick={() => {
+                        openReviewFileTab(reviewRowMenu.path)
+                        setReviewRowMenu(null)
+                      }}
+                    />
+                    <MenuItem
+                      icon="copy"
+                      label="Copy path"
+                      disabled={!reviewRowMenuChange}
+                      dataTestId="review-row-copy-path"
+                      onClick={() => {
+                        void copyReviewPath(reviewRowMenu.path)
+                        setReviewRowMenu(null)
+                      }}
+                    />
+                    <MenuItem
+                      icon="paperclip"
+                      label="Add to chat"
+                      disabled={!reviewRowMenuChange || reviewRowMenuChange.status === 'D'}
+                      dataTestId="review-row-add-chat"
+                      onClick={() => {
+                        addReviewFileToChat(reviewRowMenu.path)
+                        setReviewRowMenu(null)
+                      }}
+                    />
+                    <MenuItem
+                      icon="terminal"
+                      label="Insert in terminal"
+                      disabled={!reviewRowMenuChange}
+                      dataTestId="review-row-insert-terminal"
+                      onClick={() => {
+                        insertReviewPathInTerminal(reviewRowMenu.path)
+                        setReviewRowMenu(null)
+                      }}
+                    />
+                    <MenuItem
+                      icon="branch"
+                      label="Open in Git"
+                      disabled={!reviewRowMenuChange}
+                      dataTestId="review-row-open-git"
+                      onClick={() => {
+                        openReviewPathInGit(reviewRowMenu.path)
+                        setReviewRowMenu(null)
+                      }}
+                    />
+                    <MenuItem
+                      icon="check"
+                      label={reviewRowMenuChange?.conflicted === true ? 'Mark resolved' : 'Stage file'}
+                      disabled={!reviewRowMenuChange || reviewRowMenuChange.unstaged !== true || reviewPathActionPending !== null}
+                      dataTestId="review-row-stage-file"
+                      onClick={() => {
+                        void runReviewPathAction('stage', reviewRowMenu.path)
+                        setReviewRowMenu(null)
+                      }}
+                    />
+                    <MenuItem
+                      icon="undo"
+                      label="Unstage file"
+                      disabled={!reviewRowMenuChange || reviewRowMenuChange.staged !== true || reviewRowMenuChange.conflicted === true || reviewPathActionPending !== null}
+                      dataTestId="review-row-unstage-file"
+                      onClick={() => {
+                        void runReviewPathAction('unstage', reviewRowMenu.path)
+                        setReviewRowMenu(null)
+                      }}
+                    />
+                    <MenuItem
+                      icon="folder"
+                      label="Reveal file"
+                      disabled={!reviewRowMenuChange || reviewRowMenuChange.status === 'D'}
+                      dataTestId="review-row-reveal-file"
+                      onClick={() => {
+                        revealReviewFile(reviewRowMenu.path)
+                        setReviewRowMenu(null)
+                      }}
+                    />
+                  </div>
+                </MenuSurface>
+              )}
               </>
             )}
           </div>
@@ -1442,51 +1943,15 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
                     onCommentsChange={(updater) => setReviewCommentsForPath(change.path, updater)}
                     onOpenFileLine={(line) => openFileTabAtLine(change.path, line)}
                     onConflictResolved={() => refreshReviewFileAfterMutation(change.path)}
+                    onMarkResolved={() => runReviewPathAction('stage', change.path)}
                   />
                 )
               })}
             </div>
           </div>
           {reviewFloatingGitActions}
+          {reviewFloatingActionStatus}
         </div>
-      )}
-      {reviewRevertConfirmOpen && (
-        <MotionOverlay
-          onClose={() => setReviewRevertConfirmOpen(false)}
-          surfaceClassName="orchestrator-dialog-surface"
-        >
-          <DialogContent dataTestId="review-revert-confirm-dialog">
-            <DialogHeader
-              title="Revert changes?"
-              description="This action removes all of these changes."
-            />
-            <label className="review-revert-confirm-skip">
-              <input
-                type="checkbox"
-                checked={reviewRevertSkipConfirm}
-                onChange={(event) => setReviewRevertSkipConfirm(event.currentTarget.checked)}
-                data-testid="review-revert-confirm-skip"
-              />
-              <span>Don&apos;t ask again</span>
-            </label>
-            <DialogFooter>
-              <Button
-                variant="ghost"
-                dataTestId="review-revert-confirm-cancel"
-                onClick={() => setReviewRevertConfirmOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="danger"
-                dataTestId="review-revert-confirm-submit"
-                onClick={confirmReviewRevertAll}
-              >
-                Confirm
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </MotionOverlay>
       )}
     </div>
   )
@@ -1494,16 +1959,23 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
 
 function ReviewMetadataStrip({
   metadata,
+  metadataState,
+  metadataError,
   openPanel,
-  onOpenPanelChange
+  onOpenPanelChange,
+  onRefresh
 }: {
   metadata: ReviewMetadata
+  metadataState: ReviewMetadataState
+  metadataError: string | null
   openPanel: ReviewMetadataPanel | null
   onOpenPanelChange: (panel: ReviewMetadataPanel | null) => void
+  onRefresh: () => void
 }): JSX.Element {
   const hasMetadata = Boolean(metadata.pullRequest || metadata.checks || metadata.reviewers || metadata.comments)
   if (!hasMetadata) return <></>
   const summary = reviewMetadataSummary(metadata)
+  const providerWarnings = (metadata.providerWarnings ?? []).filter((warning) => warning.trim().length > 0)
   return (
     <div
       className="review-metadata-strip relative"
@@ -1513,6 +1985,9 @@ function ReviewMetadataStrip({
       data-review-metadata-reviewers={reviewReviewerCount(metadata.reviewers)}
       data-review-metadata-comments={metadata.comments?.total ?? 0}
       data-review-metadata-comments-unresolved={metadata.comments?.unresolved ?? 0}
+      data-review-metadata-warnings={providerWarnings.length}
+      data-review-metadata-state={metadataState}
+      data-review-metadata-error={metadataError ?? ''}
     >
       <IconButton
         icon="plan"
@@ -1521,10 +1996,23 @@ function ReviewMetadataStrip({
         variant="toolbar"
         active={openPanel !== null}
         dataTestId="review-metadata-menu"
+        ariaExpanded={openPanel !== null}
+        ariaControls={REVIEW_METADATA_MENU_ID}
+        ariaHasPopup="menu"
         onClick={() => onOpenPanelChange(openPanel === null ? 'pull-request' : null)}
+      />
+      <IconButton
+        icon="refresh"
+        label="Refresh review metadata"
+        size="sm"
+        variant="toolbar"
+        disabled={metadataState === 'loading'}
+        dataTestId="review-refresh-metadata"
+        onClick={onRefresh}
       />
       {openPanel !== null && (
         <MenuSurface
+          id={REVIEW_METADATA_MENU_ID}
           className="review-metadata-menu"
           onClose={() => onOpenPanelChange(null)}
           style={{ position: 'absolute', right: 0, top: 34, width: 278, zIndex: 92 }}
@@ -1579,6 +2067,15 @@ function ReviewMetadataStrip({
                 externalUrl={metadata.comments.url ?? metadata.pullRequest?.url ?? null}
                 onSelect={() => onOpenPanelChange('comments')}
               />
+            )}
+            {providerWarnings.length > 0 && (
+              <MenuMessage
+                compact
+                dataTestId="review-metadata-provider-warning"
+                state="provider-warning"
+              >
+                <span title={providerWarnings.join('\n')}>{providerWarnings[0]}</span>
+              </MenuMessage>
             )}
           </MenuSection>
         </MenuSurface>
@@ -1739,7 +2236,8 @@ function ReviewFileSection({
   onSelect,
   onCommentsChange,
   onOpenFileLine,
-  onConflictResolved
+  onConflictResolved,
+  onMarkResolved
 }: {
   change: FileChange
   content: ReviewFileContent
@@ -1761,6 +2259,7 @@ function ReviewFileSection({
   onCommentsChange: (updater: ReviewDiffCommentUpdater) => void
   onOpenFileLine: (line: number) => void
   onConflictResolved: () => void | Promise<void>
+  onMarkResolved: () => void | Promise<void>
 }): JSX.Element {
   return (
     <section
@@ -1834,6 +2333,7 @@ function ReviewFileSection({
           onCommentsChange={onCommentsChange}
           onOpenFileLine={onOpenFileLine}
           onConflictResolved={onConflictResolved}
+          onMarkResolved={onMarkResolved}
         />
       </div>
     </section>
@@ -1871,6 +2371,7 @@ function ReviewRefPicker({
   onOpenChange: (open: boolean) => void
   onQueryChange: (value: string) => void
 }): JSX.Element {
+  const menuId = `${buttonTestId}-menu`
   return (
     <div className="review-source-ref-row">
       <span>{label}</span>
@@ -1888,6 +2389,8 @@ function ReviewRefPicker({
           className="review-source-ref-picker-button"
           aria-label={`Choose ${label.toLowerCase()}`}
           aria-expanded={open}
+          aria-controls={menuId}
+          aria-haspopup="menu"
           data-testid={buttonTestId}
           onClick={() => onOpenChange(!open)}
         >
@@ -1895,6 +2398,7 @@ function ReviewRefPicker({
         </button>
         {open && (
           <MenuSurface
+            id={menuId}
             className="review-source-ref-menu"
             onClose={() => onOpenChange(false)}
             style={{ position: 'absolute', right: 0, top: 28, width: 290, zIndex: 94 }}
@@ -1966,7 +2470,8 @@ function ReviewPreview({
   comments,
   onCommentsChange,
   onOpenFileLine,
-  onConflictResolved
+  onConflictResolved,
+  onMarkResolved
 }: {
   change: FileChange | null
   diff: string
@@ -1989,6 +2494,7 @@ function ReviewPreview({
   onCommentsChange: (updater: ReviewDiffCommentUpdater) => void
   onOpenFileLine: (line: number) => void
   onConflictResolved: () => void | Promise<void>
+  onMarkResolved: () => void | Promise<void>
 }): JSX.Element {
   if (!change) {
     return <ReviewEmptyState title="No file selected" body="Select a change." />
@@ -2029,7 +2535,7 @@ function ReviewPreview({
     )
   }
   if (shouldPreferTextDiff(diff) && !preferPreview) {
-    return <DiffLines diff={diff} filePath={change.path} workDir={workDir} absolutePath={absolutePath} conflicted={change.conflicted === true} wrap={wrap} mode={diffMode} expanded={expanded} hideWhitespace={hideWhitespace} showWordDiff={showWordDiff} searchQuery={reviewSearchQuery} activeSearchMatchIndex={activeReviewSearchMatchIndex} comments={comments} onCommentsChange={onCommentsChange} onOpenFileLine={onOpenFileLine} onConflictResolved={onConflictResolved} />
+    return <DiffLines diff={diff} filePath={change.path} workDir={workDir} absolutePath={absolutePath} conflicted={change.conflicted === true} wrap={wrap} mode={diffMode} expanded={expanded} hideWhitespace={hideWhitespace} showWordDiff={showWordDiff} searchQuery={reviewSearchQuery} activeSearchMatchIndex={activeReviewSearchMatchIndex} comments={comments} onCommentsChange={onCommentsChange} onOpenFileLine={onOpenFileLine} onConflictResolved={onConflictResolved} onMarkResolved={onMarkResolved} />
   }
   if (preview?.kind === 'image') {
     return (
@@ -2138,7 +2644,7 @@ function ReviewPreview({
     )
   }
   if (diff.trim()) {
-    return <DiffLines diff={diff} filePath={change.path} workDir={workDir} absolutePath={absolutePath} conflicted={change.conflicted === true} wrap={wrap} mode={diffMode} expanded={expanded} hideWhitespace={hideWhitespace} showWordDiff={showWordDiff} searchQuery={reviewSearchQuery} activeSearchMatchIndex={activeReviewSearchMatchIndex} comments={comments} onCommentsChange={onCommentsChange} onOpenFileLine={onOpenFileLine} onConflictResolved={onConflictResolved} />
+    return <DiffLines diff={diff} filePath={change.path} workDir={workDir} absolutePath={absolutePath} conflicted={change.conflicted === true} wrap={wrap} mode={diffMode} expanded={expanded} hideWhitespace={hideWhitespace} showWordDiff={showWordDiff} searchQuery={reviewSearchQuery} activeSearchMatchIndex={activeReviewSearchMatchIndex} comments={comments} onCommentsChange={onCommentsChange} onOpenFileLine={onOpenFileLine} onConflictResolved={onConflictResolved} onMarkResolved={onMarkResolved} />
   }
   if (preview?.kind === 'text' && preview.text?.trim()) {
     return (
@@ -2332,22 +2838,6 @@ function writeStoredReviewSidePaneVisible(workDir: string, visible: boolean): vo
   }
 }
 
-function readStoredReviewRevertConfirmSkip(): boolean {
-  try {
-    return window.localStorage.getItem(REVIEW_REVERT_CONFIRM_SKIP_STORAGE_KEY) === 'true'
-  } catch {
-    return false
-  }
-}
-
-function writeStoredReviewRevertConfirmSkip(skip: boolean): void {
-  try {
-    window.localStorage.setItem(REVIEW_REVERT_CONFIRM_SKIP_STORAGE_KEY, skip ? 'true' : 'false')
-  } catch {
-    // Storage persistence is a convenience; Review still works without it.
-  }
-}
-
 function reviewSourceStorageKey(workDir: string): string {
   return `${REVIEW_SOURCE_STORAGE_PREFIX}${workDir}`
 }
@@ -2440,6 +2930,13 @@ function reviewSourceSummaryLabel(
     return trimmed ? `Commit: ${trimmed}` : 'Commit'
   }
   return fallbackLabel
+}
+
+function reviewDirectoryMetadataLabel(fileCount: number, additions: number, deletions: number): string {
+  const parts = [`${fileCount} ${fileCount === 1 ? 'file' : 'files'}`]
+  if (additions > 0) parts.push(`+${additions}`)
+  if (deletions > 0) parts.push(`-${deletions}`)
+  return parts.join(', ')
 }
 
 function latestDiffUpdatedContent(records: SessionRunEventRecord[]): string {
@@ -2832,7 +3329,8 @@ function DiffLines({
   comments,
   onCommentsChange,
   onOpenFileLine,
-  onConflictResolved
+  onConflictResolved,
+  onMarkResolved
 }: {
   diff: string
   filePath: string
@@ -2850,6 +3348,7 @@ function DiffLines({
   onCommentsChange: (updater: ReviewDiffCommentUpdater) => void
   onOpenFileLine: (line: number) => void
   onConflictResolved: () => void | Promise<void>
+  onMarkResolved: () => void | Promise<void>
 }): JSX.Element {
   const rawLines = diff.split('\n').filter(
     (l) => !l.startsWith('diff --git') && !l.startsWith('index ') && !l.startsWith('--- ') && !l.startsWith('+++ ')
@@ -2883,6 +3382,7 @@ function DiffLines({
     return Array.from(next).slice(0, 200)
   }, [lineMetadata])
   const [selectedLine, setSelectedLine] = useState<SelectedDiffLine | null>(null)
+  const [activeDiffFocusId, setActiveDiffFocusId] = useState<string | null>(null)
   const [blameVisible, setBlameVisible] = useState(false)
   const [lineBlame, setLineBlame] = useState<GitLineBlameResult | null>(null)
   const [lineBlameByLine, setLineBlameByLine] = useState<Map<number, GitLineBlameResult>>(() => new Map())
@@ -2890,10 +3390,15 @@ function DiffLines({
   const [expandedHiddenContext, setExpandedHiddenContext] = useState<Set<string>>(() => new Set())
   const [hiddenContextSource, setHiddenContextSource] = useState<string | null>(null)
   const [hiddenContextLoading, setHiddenContextLoading] = useState<string | null>(null)
+  const [selectedLineActionStatus, setSelectedLineActionStatus] = useState('')
+  const [copiedSelectedLineReference, setCopiedSelectedLineReference] = useState('')
+  const [addedSelectedLineReference, setAddedSelectedLineReference] = useState('')
   const hiddenContextSourceLines = useMemo(() => hiddenContextSource?.split(/\r?\n/) ?? [], [hiddenContextSource])
   const [conflictSourceText, setConflictSourceText] = useState<string | null>(null)
   const [conflictActionStatus, setConflictActionStatus] = useState<string | null>(null)
   const [conflictActionError, setConflictActionError] = useState<string | null>(null)
+  const [conflictResolvedActionStatus, setConflictResolvedActionStatus] = useState<string | null>(null)
+  const [suggestionStatusById, setSuggestionStatusById] = useState<Record<string, ReviewSuggestionStatus>>({})
   const conflictBlocks = useMemo(() => parseMergeConflictBlocks(conflictSourceText ?? ''), [conflictSourceText])
   const conflictBlockByStartLine = useMemo(() => {
     const byLine = new Map<number, MergeConflictBlock>()
@@ -2905,8 +3410,68 @@ function DiffLines({
   const totalHiddenContextLineCount = hiddenContextSegments.reduce((total, segment) => total + segment.count, 0)
   const allHiddenContextExpanded = hiddenContextSegments.length > 0 &&
     hiddenContextSegments.every((segment) => expandedHiddenContext.has(segment.key))
+  const selectableDiffLines = useMemo<Array<SelectedDiffLine & { focusId: string }>>(() => {
+    const next: Array<SelectedDiffLine & { focusId: string }> = []
+    lines.forEach((line, index) => {
+      const type = diffLineType(line)
+      if (type === 'hunk') return
+      const metadata = lineMetadata[index]
+      const hunkIndex = metadata?.hunkIndex
+      if (hunkIndex !== undefined && collapsedHunks.has(hunkIndex)) return
+      if (mode === 'split') {
+        if (type !== 'addition' && metadata?.oldLine !== undefined) next.push({ side: 'old', lineNumber: metadata.oldLine, focusId: `split:${index}:old` })
+        if (type !== 'deletion' && metadata?.newLine !== undefined) next.push({ side: 'new', lineNumber: metadata.newLine, focusId: `split:${index}:new` })
+        return
+      }
+      if (metadata?.newLine !== undefined) {
+        next.push({ side: 'new', lineNumber: metadata.newLine, focusId: `unified:${index}:new` })
+      } else if (metadata?.oldLine !== undefined) {
+        next.push({ side: 'old', lineNumber: metadata.oldLine, focusId: `unified:${index}:old` })
+      }
+    })
+    return next
+  }, [collapsedHunks, lineMetadata, lines, mode])
+  const focusableDiffLine = selectableDiffLines.find((line) => activeDiffFocusId !== null && line.focusId === activeDiffFocusId) ??
+    selectableDiffLines.find((line) => selectedLine !== null && sameDiffLine(line, selectedLine)) ??
+    selectableDiffLines[0] ??
+    null
+  const isFocusableDiffLine = useCallback((focusId: string | undefined): boolean =>
+    focusId !== undefined && focusableDiffLine !== null && focusableDiffLine.focusId === focusId, [focusableDiffLine])
+  const focusDiffLine = useCallback((line: SelectedDiffLine & { focusId: string }): void => {
+    const lineSelector = `[data-review-diff-focus-id="${line.focusId}"]`
+    const target =
+      diffSearchContainerRef.current?.querySelector<HTMLElement>(`${lineSelector}[data-review-line-focusable="true"]`) ??
+      diffSearchContainerRef.current?.querySelector<HTMLElement>(lineSelector)
+    target?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+    target?.focus({ preventScroll: true })
+  }, [])
+  const navigateDiffLine = useCallback((currentLine: SelectedDiffLine | null, currentFocusId: string | undefined, key: string): void => {
+    if (selectableDiffLines.length === 0) return
+    const currentIndex = currentFocusId !== undefined
+      ? selectableDiffLines.findIndex((line) => line.focusId === currentFocusId)
+      : currentLine === null
+        ? selectableDiffLines.findIndex((line) => focusableDiffLine !== null && line.focusId === focusableDiffLine.focusId)
+      : selectableDiffLines.findIndex((line) => sameDiffLine(line, currentLine))
+    const fallbackIndex = currentIndex >= 0 ? currentIndex : 0
+    const nextIndex = key === 'Home'
+      ? 0
+      : key === 'End'
+        ? selectableDiffLines.length - 1
+        : key === 'ArrowUp'
+          ? Math.max(0, fallbackIndex - 1)
+          : key === 'ArrowDown'
+            ? Math.min(selectableDiffLines.length - 1, fallbackIndex + 1)
+            : fallbackIndex
+    const nextLine = selectableDiffLines[nextIndex]
+    flushSync(() => {
+      setActiveDiffFocusId(nextLine.focusId)
+      setSelectedLine({ side: nextLine.side, lineNumber: nextLine.lineNumber })
+    })
+    focusDiffLine(nextLine)
+  }, [focusDiffLine, focusableDiffLine, selectableDiffLines])
   useEffect(() => {
     setSelectedLine(null)
+    setActiveDiffFocusId(null)
     onCommentsChange((current) => current.filter((comment) => comment.status === 'provider'))
     setBlameVisible(false)
     setLineBlame(null)
@@ -2918,12 +3483,14 @@ function DiffLines({
     setHiddenContextLoading(null)
     setConflictActionStatus(null)
     setConflictActionError(null)
+    setConflictResolvedActionStatus(null)
   }, [diff])
   useEffect(() => {
     if (!conflicted) {
       setConflictSourceText(null)
       setConflictActionStatus(null)
       setConflictActionError(null)
+      setConflictResolvedActionStatus(null)
       return
     }
     let cancelled = false
@@ -2994,15 +3561,67 @@ function DiffLines({
     if (selectedLine?.side === 'new' && selectedLine.lineNumber === lineNumber && lineBlame !== null) return lineBlame
     return lineBlameByLine.get(lineNumber) ?? null
   }
+  const selectedCurrentLine = selectedLine?.side === 'new'
+    ? reviewDiffSelectedCurrentLine(lines, lineMetadata, selectedLine.lineNumber)
+    : null
+  const selectedCurrentLineReference = selectedCurrentLine ? `${filePath}:${selectedCurrentLine.lineNumber}` : ''
+  const writeDiffClipboardText = async (text: string): Promise<void> => {
+    if (typeof window.api.clipboard?.writeText === 'function') {
+      const didWrite = await window.api.clipboard.writeText(text)
+      if (!didWrite) throw new Error('Clipboard write failed')
+      return
+    }
+    await navigator.clipboard.writeText(text)
+  }
+  const copySelectedCurrentLineReference = (): void => {
+    if (!selectedCurrentLine) return
+    setCopiedSelectedLineReference(selectedCurrentLineReference)
+    setSelectedLineActionStatus('Copying line reference')
+    void writeDiffClipboardText(selectedCurrentLineReference)
+      .then(() => setSelectedLineActionStatus('Line reference copied'))
+      .catch(() => setSelectedLineActionStatus('Copy failed'))
+  }
+  const addSelectedCurrentLineToChat = (): void => {
+    if (!selectedCurrentLine) return
+    setAddedSelectedLineReference(selectedCurrentLineReference)
+    setSelectedLineActionStatus('Added selected line to chat')
+    window.dispatchEvent(new CustomEvent('orchestrator:add-composer-text', {
+      detail: {
+        text: `Review line ${selectedCurrentLineReference}:\n\n\`\`\`\n${selectedCurrentLine.text}\n\`\`\``
+      }
+    }))
+  }
   const selectedLineActions = selectedLine !== null ? (
     <div
       className="review-diff-selected-line-actions"
       data-testid="review-diff-selected-line-actions"
       data-review-selected-line-actions-for={`${selectedLine.side}:${selectedLine.lineNumber}`}
+      data-review-selected-line-action-status={selectedLineActionStatus}
+      data-review-selected-line-reference={selectedCurrentLineReference}
+      data-review-selected-line-copied-reference={copiedSelectedLineReference}
+      data-review-selected-line-added-reference={addedSelectedLineReference}
     >
       <span className="review-diff-selected-line-label">
         {selectedLine.side === 'new' ? 'Current' : 'Previous'} L{selectedLine.lineNumber}
       </span>
+      <IconButton
+        icon="copy"
+        label="Copy selected line reference"
+        size="sm"
+        variant="toolbar"
+        disabled={!selectedCurrentLine}
+        dataTestId="review-diff-line-copy-reference"
+        onClick={copySelectedCurrentLineReference}
+      />
+      <IconButton
+        icon="chat"
+        label="Add selected line to chat"
+        size="sm"
+        variant="toolbar"
+        disabled={!selectedCurrentLine}
+        dataTestId="review-diff-line-add-chat"
+        onClick={addSelectedCurrentLineToChat}
+      />
       <IconButton
         icon="file"
         label="Open selected line in Workbench"
@@ -3024,9 +3643,15 @@ function DiffLines({
         dataTestId="review-diff-line-toggle-blame"
         onClick={() => setBlameVisible((visible) => !visible)}
       />
+      {selectedLineActionStatus && (
+        <span className="review-diff-selected-line-status" role="status" aria-live="polite" aria-atomic="true">
+          {selectedLineActionStatus}
+        </span>
+      )}
     </div>
   ) : null
-  const selectLine = (line: SelectedDiffLine | null): void => {
+  const selectLine = (line: SelectedDiffLine | null, focusId?: string): void => {
+    setActiveDiffFocusId(focusId ?? null)
     setSelectedLine((current) => {
       if (line !== null && current?.side === line.side && current.lineNumber === line.lineNumber) return null
       return line
@@ -3079,6 +3704,8 @@ function DiffLines({
     return Array.from({ length: segment.count }, (_, index) => {
       const oldLine = segment.oldStart + index
       const newLine = segment.newStart + index
+      const oldFocusId = `hidden:${segment.key}:${index}:old`
+      const newFocusId = `hidden:${segment.key}:${index}:new`
       const text = hiddenContextSourceLines[newLine - 1] ?? ''
       if (renderMode === 'split') {
         return (
@@ -3096,7 +3723,10 @@ function DiffLines({
               lineNumber={oldLine}
               lineNumberSide="old"
               selectedLine={selectedLine}
+              focusId={oldFocusId}
+              focusable={isFocusableDiffLine(oldFocusId)}
               onSelectLine={selectLine}
+              onNavigateLine={navigateDiffLine}
               comments={commentsForLine('old', oldLine)}
               onAddComment={addComment}
               onUpdateComment={updateComment}
@@ -3113,7 +3743,10 @@ function DiffLines({
               lineNumber={newLine}
               lineNumberSide="new"
               selectedLine={selectedLine}
+              focusId={newFocusId}
+              focusable={isFocusableDiffLine(newFocusId)}
               onSelectLine={selectLine}
+              onNavigateLine={navigateDiffLine}
               comments={commentsForLine('new', newLine)}
               onAddComment={addComment}
               onUpdateComment={updateComment}
@@ -3134,7 +3767,10 @@ function DiffLines({
           lineNumber={newLine}
           lineNumberSide="new"
           selectedLine={selectedLine}
+          focusId={newFocusId}
+          focusable={isFocusableDiffLine(newFocusId)}
           onSelectLine={selectLine}
+          onNavigateLine={navigateDiffLine}
           comments={commentsForLine('new', newLine)}
           onAddComment={addComment}
           onUpdateComment={updateComment}
@@ -3183,6 +3819,28 @@ function DiffLines({
   const deleteComment = (id: string): void => {
     onCommentsChange((current) => current.filter((comment) => comment.id !== id))
   }
+  const copySuggestion = async (comment: ReviewDiffComment, suggestion: ReviewSuggestionBlock): Promise<void> => {
+    setSuggestionStatusById((current) => ({ ...current, [comment.id]: 'applying' }))
+    try {
+      await writeClipboardText(suggestion.text)
+      setSuggestionStatusById((current) => ({ ...current, [comment.id]: 'copied' }))
+    } catch {
+      setSuggestionStatusById((current) => ({ ...current, [comment.id]: 'failed' }))
+    }
+  }
+  const applySuggestion = async (comment: ReviewDiffComment, suggestion: ReviewSuggestionBlock): Promise<void> => {
+    if (!canApplyReviewSuggestion(comment)) return
+    setSuggestionStatusById((current) => ({ ...current, [comment.id]: 'applying' }))
+    try {
+      const currentText = await window.api.fs.readFile(absolutePath)
+      const nextText = applyReviewSuggestionToText(currentText ?? '', comment, suggestion.text)
+      await window.api.fs.writeFile(absolutePath, nextText)
+      await onConflictResolved()
+      setSuggestionStatusById((current) => ({ ...current, [comment.id]: 'applied' }))
+    } catch {
+      setSuggestionStatusById((current) => ({ ...current, [comment.id]: 'failed' }))
+    }
+  }
   const commentsForLine = (lineNumberSide?: 'old' | 'new', lineNumber?: number): ReviewDiffComment[] => {
     if (lineNumberSide === undefined || lineNumber === undefined) return []
     return comments.filter((comment) => comment.side === lineNumberSide && comment.lineNumber === lineNumber)
@@ -3224,6 +3882,16 @@ function DiffLines({
       setConflictActionStatus(null)
     }
   }
+  const markMergeConflictResolved = async (): Promise<void> => {
+    setConflictResolvedActionStatus('Marking file resolved')
+    try {
+      await onMarkResolved()
+      setConflictResolvedActionStatus('File marked resolved')
+    } catch {
+      setConflictResolvedActionStatus('Mark resolved failed')
+    }
+  }
+  const conflictResolutionComplete = conflicted && conflictSourceText !== null && conflictBlocks.length === 0
   if (!expanded) {
     return <CollapsedDiffLines lines={lines} mode={mode} hiddenWhitespaceChanges={hiddenWhitespaceChanges} />
   }
@@ -3251,10 +3919,17 @@ function DiffLines({
         data-review-large-diff-changed-bytes={renderWindow.changedBytes}
         data-review-large-diff-max-line-bytes={renderWindow.maxChangedLineBytes}
         data-review-large-diff-expanded={largeDiffExpanded ? 'true' : 'false'}
+        data-review-diff-keyboard-navigation="roving"
         data-review-merge-conflict-count={conflictBlocks.length}
         style={{ fontSize: 11, userSelect: 'text' }}
       >
         {selectedLineActions}
+        {conflictResolutionComplete && (
+          <ReviewMergeConflictResolvedActions
+            status={conflictResolvedActionStatus}
+            onMarkResolved={markMergeConflictResolved}
+          />
+        )}
         {hiddenWhitespaceChanges > 0 && <WhitespaceHiddenNotice count={hiddenWhitespaceChanges} />}
         {hiddenContextSegments.length > 1 && (
           <HiddenContextSummaryControls
@@ -3314,6 +3989,8 @@ function DiffLines({
           if (hunkIndex !== undefined && collapsedHunks.has(hunkIndex)) return null
           const left = type === 'addition' ? '' : line
           const right = type === 'deletion' ? '' : line
+          const leftFocusId = left ? `split:${i}:old` : undefined
+          const rightFocusId = right ? `split:${i}:new` : undefined
           const conflictHelper = mergeConflictHelperForLine(line, metadata, i)
           const searchLineState = diffSearchState.byLine.get(i)
           return (
@@ -3330,12 +4007,18 @@ function DiffLines({
                 lineNumber={left ? metadata?.oldLine : undefined}
                 lineNumberSide="old"
                 selectedLine={selectedLine}
+                focusId={leftFocusId}
+                focusable={isFocusableDiffLine(leftFocusId)}
                 onSelectLine={selectLine}
+                onNavigateLine={navigateDiffLine}
                 comments={left ? commentsForLine('old', metadata?.oldLine) : []}
                 onAddComment={addComment}
                 onUpdateComment={updateComment}
                 onSaveComment={saveComment}
                 onDeleteComment={deleteComment}
+                suggestionStatusById={suggestionStatusById}
+                onCopySuggestion={copySuggestion}
+                onApplySuggestion={applySuggestion}
                 blameVisible={blameVisible}
                 blameResult={blameResultForLine('old', left ? metadata?.oldLine : undefined)}
                 wordParts={left ? wordDiffParts.byLine.get(i) : undefined}
@@ -3349,12 +4032,18 @@ function DiffLines({
                 lineNumber={right ? metadata?.newLine : undefined}
                 lineNumberSide="new"
                 selectedLine={selectedLine}
+                focusId={rightFocusId}
+                focusable={isFocusableDiffLine(rightFocusId)}
                 onSelectLine={selectLine}
+                onNavigateLine={navigateDiffLine}
                 comments={right ? commentsForLine('new', metadata?.newLine) : []}
                 onAddComment={addComment}
                 onUpdateComment={updateComment}
                 onSaveComment={saveComment}
                 onDeleteComment={deleteComment}
+                suggestionStatusById={suggestionStatusById}
+                onCopySuggestion={copySuggestion}
+                onApplySuggestion={applySuggestion}
                 blameVisible={blameVisible}
                 blameResult={blameResultForLine('new', right ? metadata?.newLine : undefined)}
                 wordParts={right ? wordDiffParts.byLine.get(i) : undefined}
@@ -3397,10 +4086,17 @@ function DiffLines({
       data-review-large-diff-changed-bytes={renderWindow.changedBytes}
       data-review-large-diff-max-line-bytes={renderWindow.maxChangedLineBytes}
       data-review-large-diff-expanded={largeDiffExpanded ? 'true' : 'false'}
+      data-review-diff-keyboard-navigation="roving"
       data-review-merge-conflict-count={conflictBlocks.length}
       style={{ fontSize: 11, userSelect: 'text' }}
     >
       {selectedLineActions}
+      {conflictResolutionComplete && (
+        <ReviewMergeConflictResolvedActions
+          status={conflictResolvedActionStatus}
+          onMarkResolved={markMergeConflictResolved}
+        />
+      )}
       {hiddenWhitespaceChanges > 0 && <WhitespaceHiddenNotice count={hiddenWhitespaceChanges} />}
       {hiddenContextSegments.length > 1 && (
         <HiddenContextSummaryControls
@@ -3446,6 +4142,11 @@ function DiffLines({
           )
         }
         if (hunkIndex !== undefined && collapsedHunks.has(hunkIndex)) return null
+        const lineFocusId = metadata?.newLine !== undefined
+          ? `unified:${i}:new`
+          : metadata?.oldLine !== undefined
+            ? `unified:${i}:old`
+            : undefined
         const conflictHelper = mergeConflictHelperForLine(line, metadata, i)
         const searchLineState = diffSearchState.byLine.get(i)
         return (
@@ -3457,7 +4158,10 @@ function DiffLines({
             lineNumber={metadata?.newLine ?? metadata?.oldLine}
             lineNumberSide={metadata?.newLine !== undefined ? 'new' : metadata?.oldLine !== undefined ? 'old' : undefined}
             selectedLine={selectedLine}
+            focusId={lineFocusId}
+            focusable={isFocusableDiffLine(lineFocusId)}
             onSelectLine={selectLine}
+            onNavigateLine={navigateDiffLine}
             comments={commentsForLine(
               metadata?.newLine !== undefined ? 'new' : metadata?.oldLine !== undefined ? 'old' : undefined,
               metadata?.newLine ?? metadata?.oldLine
@@ -3466,6 +4170,9 @@ function DiffLines({
             onUpdateComment={updateComment}
             onSaveComment={saveComment}
             onDeleteComment={deleteComment}
+            suggestionStatusById={suggestionStatusById}
+            onCopySuggestion={copySuggestion}
+            onApplySuggestion={applySuggestion}
             blameVisible={blameVisible}
             blameResult={blameResultForLine(
               metadata?.newLine !== undefined ? 'new' : metadata?.oldLine !== undefined ? 'old' : undefined,
@@ -3739,12 +4446,18 @@ function DiffLineCell({
   lineNumber,
   lineNumberSide,
   selectedLine,
+  focusId,
+  focusable,
   onSelectLine,
+  onNavigateLine,
   comments,
   onAddComment,
   onUpdateComment,
   onSaveComment,
   onDeleteComment,
+  suggestionStatusById = {},
+  onCopySuggestion,
+  onApplySuggestion,
   blameVisible,
   blameResult,
   wordParts,
@@ -3758,12 +4471,18 @@ function DiffLineCell({
   lineNumber?: number
   lineNumberSide?: 'old' | 'new'
   selectedLine: SelectedDiffLine | null
-  onSelectLine: (line: SelectedDiffLine | null) => void
+  focusId?: string
+  focusable: boolean
+  onSelectLine: (line: SelectedDiffLine | null, focusId?: string) => void
+  onNavigateLine: (line: SelectedDiffLine | null, focusId: string | undefined, key: string) => void
   comments: ReviewDiffComment[]
   onAddComment: (line: SelectedDiffLine | null) => void
   onUpdateComment: (id: string, body: string) => void
   onSaveComment: (id: string) => void
   onDeleteComment: (id: string) => void
+  suggestionStatusById?: Record<string, ReviewSuggestionStatus>
+  onCopySuggestion?: (comment: ReviewDiffComment, suggestion: ReviewSuggestionBlock) => void | Promise<void>
+  onApplySuggestion?: (comment: ReviewDiffComment, suggestion: ReviewSuggestionBlock) => void | Promise<void>
   blameVisible: boolean
   blameResult: GitLineBlameResult | null
   wordParts?: WordDiffPart[]
@@ -3792,21 +4511,30 @@ function DiffLineCell({
   const displayValue = displayDiffLineValue(value, type)
   const gutterLineType = diffGutterLineType(type)
   const handleSelect = (): void => {
-    onSelectLine(lineKey)
+    onSelectLine(lineKey, focusId)
   }
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>): void => {
+    if (['ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) {
+      event.preventDefault()
+      onNavigateLine(lineKey, focusId, event.key)
+      return
+    }
     if (event.key !== 'Enter' && event.key !== ' ') return
     event.preventDefault()
     handleSelect()
   }
+  const reviewDiffLineKey = lineKey !== null ? `${lineKey.side}:${lineKey.lineNumber}` : undefined
   return (
     <div
       className={side ? `review-diff-line-cell review-split-diff-cell review-split-diff-cell-${side}` : 'review-diff-line-cell'}
       data-line-type={type}
       data-line-number={lineNumber}
       data-line-number-side={lineNumberSide}
+      data-review-diff-line-key={reviewDiffLineKey}
+      data-review-diff-focus-id={focusId}
       data-review-diff-indicators="bars"
       data-review-diff-gutter-line-type={gutterLineType}
+      data-review-line-focusable={focusable ? 'true' : undefined}
       data-review-selected-line={isSelected ? 'true' : undefined}
       data-review-search-line-match={isSearchMatch ? 'true' : undefined}
       data-review-search-line-match-count={searchMatch?.matchCount}
@@ -3816,7 +4544,7 @@ function DiffLineCell({
       data-review-line-comment-count={comments.length}
       data-review-line-has-comment={comments.length > 0 ? 'true' : undefined}
       aria-selected={isSelected ? 'true' : undefined}
-      tabIndex={lineKey !== null ? 0 : undefined}
+      tabIndex={focusable ? 0 : lineKey !== null ? -1 : undefined}
       role={lineKey !== null ? 'button' : undefined}
       onClick={lineKey !== null ? handleSelect : undefined}
       onKeyDown={lineKey !== null ? handleKeyDown : undefined}
@@ -3890,6 +4618,9 @@ function DiffLineCell({
           onChange={onUpdateComment}
           onSave={onSaveComment}
           onDelete={onDeleteComment}
+          suggestionStatusById={suggestionStatusById}
+          onCopySuggestion={onCopySuggestion}
+          onApplySuggestion={onApplySuggestion}
         />
       )}
       {conflictHelper !== undefined && (
@@ -3943,6 +4674,48 @@ function ReviewMergeConflictActions({ helper }: { helper: ReviewMergeConflictHel
       {helper.error && (
         <div className="review-merge-conflict-error" data-testid="review-merge-conflict-error">
           {helper.error}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ReviewMergeConflictResolvedActions({
+  status,
+  onMarkResolved
+}: {
+  status: string | null
+  onMarkResolved: () => Promise<void>
+}): JSX.Element {
+  return (
+    <div
+      className="review-merge-conflict-resolved"
+      data-testid="review-merge-conflict-resolved"
+      data-review-merge-conflict-resolved-status={status ?? ''}
+      role="group"
+      aria-label="Resolved merge conflict"
+    >
+      <div className="review-merge-conflict-copy">
+        <Icon name="check" size={14} />
+        <span>Conflict choices applied</span>
+        <span>Mark the file resolved to finish the Git state.</span>
+      </div>
+      <button
+        type="button"
+        className="review-merge-conflict-action"
+        data-testid="review-merge-conflict-mark-resolved"
+        disabled={status === 'Marking file resolved'}
+        onClick={(event) => {
+          event.stopPropagation()
+          void onMarkResolved()
+        }}
+      >
+        <span>Mark resolved</span>
+        <span>git add this file</span>
+      </button>
+      {status && (
+        <div className="review-merge-conflict-error" data-testid="review-merge-conflict-resolved-status" role="status" aria-live="polite" aria-atomic="true">
+          {status}
         </div>
       )}
     </div>
@@ -4034,111 +4807,241 @@ function ReviewDiffCommentStack({
   comments,
   onChange,
   onSave,
-  onDelete
+  onDelete,
+  suggestionStatusById = {},
+  onCopySuggestion,
+  onApplySuggestion
 }: {
   comments: ReviewDiffComment[]
   onChange: (id: string, body: string) => void
   onSave: (id: string) => void
   onDelete: (id: string) => void
+  suggestionStatusById?: Record<string, ReviewSuggestionStatus>
+  onCopySuggestion?: (comment: ReviewDiffComment, suggestion: ReviewSuggestionBlock) => void | Promise<void>
+  onApplySuggestion?: (comment: ReviewDiffComment, suggestion: ReviewSuggestionBlock) => void | Promise<void>
 }): JSX.Element {
   return (
     <span className="review-diff-comments" data-testid="review-diff-comments">
-      {comments.map((comment) => (
-        <span
-          key={comment.id}
-          className="review-diff-comment-card"
-          data-testid="review-diff-comment-card"
-          data-review-comment-id={comment.id}
-          data-review-comment-side={comment.side}
-          data-review-comment-line={comment.lineNumber}
-          data-review-comment-status={comment.status}
-          data-review-comment-provider-source={comment.source ?? ''}
-          data-review-comment-author={comment.author ?? ''}
-          data-review-comment-url={comment.url ?? ''}
-          data-review-comment-resolved={comment.resolved === undefined ? '' : comment.resolved ? 'true' : 'false'}
-          data-review-comment-outdated={comment.outdated === undefined ? '' : comment.outdated ? 'true' : 'false'}
-          data-review-comment-blame-source={comment.blame?.source ?? ''}
-          data-review-comment-blame-commit={comment.blame?.commit ?? ''}
-          data-review-comment-blame-author={comment.blame?.author ?? ''}
-          data-review-comment-blame-date={comment.blame?.authoredAt ?? ''}
-        >
-          <span className="review-diff-comment-header">
-            <span>{comment.status === 'provider' ? `${comment.author ?? 'GitHub'} review` : 'Review comment'}</span>
-            <span>{comment.side === 'new' ? '+' : '-'}{comment.lineNumber}</span>
-          </span>
-          {comment.status === 'draft' ? (
-            <>
-              <textarea
-                className="review-diff-comment-input"
-                data-testid="review-diff-comment-input"
-                aria-label={`Review comment for ${comment.side} line ${comment.lineNumber}`}
-                placeholder="Add a review note"
-                value={comment.body}
-                rows={2}
-                onClick={(event) => event.stopPropagation()}
-                onChange={(event) => onChange(comment.id, event.target.value)}
-              />
-              <span className="review-diff-comment-actions">
-                <IconButton
-                  icon="check"
-                  label="Save review comment"
-                  size="sm"
-                  variant="toolbar"
-                  disabled={comment.body.trim().length === 0}
-                  dataTestId="review-diff-comment-save"
-                  onClick={(event) => {
-                    event.stopPropagation()
-                    onSave(comment.id)
-                  }}
+      {comments.map((comment) => {
+        const suggestion = extractReviewSuggestionBlocks(comment.body)[0] ?? null
+        const suggestionStatus = suggestionStatusById[comment.id] ?? ''
+        const suggestionApplicable = suggestion !== null && canApplyReviewSuggestion(comment)
+        return (
+          <span
+            key={comment.id}
+            className="review-diff-comment-card"
+            data-testid="review-diff-comment-card"
+            data-review-comment-id={comment.id}
+            data-review-comment-side={comment.side}
+            data-review-comment-start-line={comment.startLine ?? ''}
+            data-review-comment-line={comment.lineNumber}
+            data-review-comment-status={comment.status}
+            data-review-comment-provider-source={comment.source ?? ''}
+            data-review-comment-author={comment.author ?? ''}
+            data-review-comment-url={comment.url ?? ''}
+            data-review-comment-resolved={comment.resolved === undefined ? '' : comment.resolved ? 'true' : 'false'}
+            data-review-comment-outdated={comment.outdated === undefined ? '' : comment.outdated ? 'true' : 'false'}
+            data-review-comment-suggestion={suggestion ? 'true' : 'false'}
+            data-review-comment-suggestion-status={suggestionStatus}
+            data-review-comment-blame-source={comment.blame?.source ?? ''}
+            data-review-comment-blame-commit={comment.blame?.commit ?? ''}
+            data-review-comment-blame-author={comment.blame?.author ?? ''}
+            data-review-comment-blame-date={comment.blame?.authoredAt ?? ''}
+          >
+            <span className="review-diff-comment-header">
+              <span>{comment.status === 'provider' ? `${comment.author ?? 'GitHub'} review` : 'Review comment'}</span>
+              <span>{comment.side === 'new' ? '+' : '-'}{comment.startLine && comment.startLine !== comment.lineNumber ? `${comment.startLine}-` : ''}{comment.lineNumber}</span>
+            </span>
+            {comment.status === 'draft' ? (
+              <>
+                <textarea
+                  className="review-diff-comment-input"
+                  data-testid="review-diff-comment-input"
+                  aria-label={`Review comment for ${comment.side} line ${comment.lineNumber}`}
+                  placeholder="Add a review note"
+                  value={comment.body}
+                  rows={2}
+                  onClick={(event) => event.stopPropagation()}
+                  onChange={(event) => onChange(comment.id, event.target.value)}
                 />
-                <IconButton
-                  icon="close"
-                  label="Delete review comment"
-                  size="sm"
-                  variant="toolbar"
-                  dataTestId="review-diff-comment-delete"
-                  onClick={(event) => {
-                    event.stopPropagation()
-                    onDelete(comment.id)
-                  }}
-                />
-              </span>
-            </>
-          ) : comment.status === 'provider' ? (
-            <>
-              <span className="review-diff-comment-provider-meta" data-testid="review-diff-comment-provider-meta">
-                <span>{comment.source === 'github' ? 'GitHub' : 'Provider'}</span>
-                {comment.resolved === false && <span>Unresolved</span>}
-                {comment.outdated === true && <span>Outdated</span>}
-                {comment.blame && (
-                  <span data-testid="review-diff-comment-provider-blame">
-                    {comment.blame.abbreviatedCommit ?? comment.blame.commit?.slice(0, 8) ?? 'Commit'}
-                    {comment.blame.author ? ` by ${comment.blame.author}` : ''}
-                  </span>
-                )}
-                {comment.url && (
-                  <button
-                    type="button"
-                    className="review-diff-comment-link"
-                    data-testid="review-diff-comment-provider-link"
+                <span className="review-diff-comment-actions">
+                  <IconButton
+                    icon="check"
+                    label="Save review comment"
+                    size="sm"
+                    variant="toolbar"
+                    disabled={comment.body.trim().length === 0}
+                    dataTestId="review-diff-comment-save"
                     onClick={(event) => {
                       event.stopPropagation()
-                      void window.api.browser.openExternal(comment.url ?? '')
+                      onSave(comment.id)
                     }}
+                  />
+                  <IconButton
+                    icon="close"
+                    label="Delete review comment"
+                    size="sm"
+                    variant="toolbar"
+                    dataTestId="review-diff-comment-delete"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      onDelete(comment.id)
+                    }}
+                  />
+                </span>
+              </>
+            ) : comment.status === 'provider' ? (
+              <>
+                <span className="review-diff-comment-provider-meta" data-testid="review-diff-comment-provider-meta">
+                  <span>{comment.source === 'github' ? 'GitHub' : 'Provider'}</span>
+                  {comment.resolved === false && <span>Unresolved</span>}
+                  {comment.outdated === true && <span>Outdated</span>}
+                  {comment.blame && (
+                    <span data-testid="review-diff-comment-provider-blame">
+                      {comment.blame.abbreviatedCommit ?? comment.blame.commit?.slice(0, 8) ?? 'Commit'}
+                      {comment.blame.author ? ` by ${comment.blame.author}` : ''}
+                    </span>
+                  )}
+                  {comment.url && (
+                    <button
+                      type="button"
+                      className="review-diff-comment-link"
+                      data-testid="review-diff-comment-provider-link"
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        void window.api.browser.openExternal(comment.url ?? '')
+                      }}
+                    >
+                      Open
+                    </button>
+                  )}
+                </span>
+                <span className="review-diff-comment-body" data-testid="review-diff-comment-body">{comment.body}</span>
+                {suggestion && (
+                  <span
+                    className="review-diff-comment-suggestion"
+                    data-testid="review-diff-comment-suggestion"
+                    data-review-comment-suggestion-lines={suggestion.lineCount}
                   >
-                    Open
-                  </button>
+                    <span className="review-diff-comment-suggestion-label">Suggested change</span>
+                    <code>{suggestion.preview}</code>
+                    <span className="review-diff-comment-actions">
+                      <button
+                        type="button"
+                        className="review-diff-comment-suggestion-button"
+                        data-testid="review-diff-comment-copy-suggestion"
+                        disabled={!onCopySuggestion || suggestionStatus === 'applying'}
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          void onCopySuggestion?.(comment, suggestion)
+                        }}
+                      >
+                        Copy
+                      </button>
+                      <button
+                        type="button"
+                        className="review-diff-comment-suggestion-button"
+                        data-testid="review-diff-comment-apply-suggestion"
+                        disabled={!onApplySuggestion || !suggestionApplicable || suggestionStatus === 'applying'}
+                        title={suggestionApplicable ? 'Apply suggestion to the local file' : 'Only current, unresolved new-side suggestions can be applied'}
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          void onApplySuggestion?.(comment, suggestion)
+                        }}
+                      >
+                        Apply
+                      </button>
+                      {suggestionStatus && (
+                        <span
+                          className="review-diff-comment-suggestion-status"
+                          data-testid="review-diff-comment-suggestion-status"
+                          role={suggestionStatus === 'failed' ? 'alert' : 'status'}
+                        >
+                          {reviewSuggestionStatusLabel(suggestionStatus)}
+                        </span>
+                      )}
+                    </span>
+                  </span>
                 )}
-              </span>
+              </>
+            ) : (
               <span className="review-diff-comment-body" data-testid="review-diff-comment-body">{comment.body}</span>
-            </>
-          ) : (
-            <span className="review-diff-comment-body" data-testid="review-diff-comment-body">{comment.body}</span>
-          )}
-        </span>
-      ))}
+            )}
+          </span>
+        )
+      })}
     </span>
   )
+}
+
+interface ReviewSuggestionBlock {
+  text: string
+  preview: string
+  lineCount: number
+}
+
+function extractReviewSuggestionBlocks(body: string): ReviewSuggestionBlock[] {
+  const blocks: ReviewSuggestionBlock[] = []
+  const pattern = /```suggestion[^\n\r]*(?:\r?\n)([\s\S]*?)(?:\r?\n)?```/g
+  let match: RegExpExecArray | null
+  while ((match = pattern.exec(body)) !== null) {
+    const text = normalizeSuggestionText(match[1] ?? '')
+    if (!text.trim()) continue
+    const lines = text.split('\n')
+    blocks.push({
+      text,
+      preview: lines.slice(0, 4).join('\n'),
+      lineCount: lines.length
+    })
+  }
+  return blocks
+}
+
+function normalizeSuggestionText(value: string): string {
+  return value.replace(/\r\n/g, '\n').replace(/\r/g, '\n').replace(/\n$/, '')
+}
+
+function canApplyReviewSuggestion(comment: ReviewDiffComment): boolean {
+  return comment.status === 'provider' &&
+    comment.side === 'new' &&
+    comment.resolved !== true &&
+    comment.outdated !== true &&
+    comment.lineNumber > 0 &&
+    (comment.startLine === undefined || comment.startLine > 0) &&
+    (comment.startLine === undefined || comment.startLine <= comment.lineNumber)
+}
+
+function applyReviewSuggestionToText(text: string, comment: ReviewDiffComment, suggestion: string): string {
+  if (!canApplyReviewSuggestion(comment)) throw new Error('Suggestion cannot be applied to this comment')
+  const newline = text.includes('\r\n') ? '\r\n' : '\n'
+  const hasTrailingNewline = /\r?\n$/.test(text)
+  const sourceLines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')
+  if (hasTrailingNewline) sourceLines.pop()
+  const replacementLines = normalizeSuggestionText(suggestion).split('\n')
+  const startLine = comment.startLine ?? comment.lineNumber
+  const startIndex = startLine - 1
+  const deleteCount = comment.lineNumber - startLine + 1
+  if (startIndex < 0 || startIndex >= sourceLines.length || deleteCount < 1) {
+    throw new Error('Suggestion line range is outside the current file')
+  }
+  sourceLines.splice(startIndex, deleteCount, ...replacementLines)
+  return `${sourceLines.join(newline)}${hasTrailingNewline ? newline : ''}`
+}
+
+async function writeClipboardText(text: string): Promise<void> {
+  if (typeof window.api.clipboard?.writeText === 'function') {
+    const didWrite = await window.api.clipboard.writeText(text)
+    if (!didWrite) throw new Error('Clipboard write failed')
+    return
+  }
+  await navigator.clipboard.writeText(text)
+}
+
+function reviewSuggestionStatusLabel(status: ReviewSuggestionStatus): string {
+  if (status === 'copied') return 'Copied'
+  if (status === 'applying') return 'Applying'
+  if (status === 'applied') return 'Applied'
+  return 'Failed'
 }
 
 function mergeProviderReviewComments(
@@ -4166,6 +5069,7 @@ function providerReviewCommentToDiffComment(comment: ReviewProviderComment): Rev
   return {
     id: `provider:${comment.source}:${comment.id}`,
     side: comment.side,
+    startLine: comment.startLine,
     lineNumber: comment.lineNumber,
     body: comment.body,
     status: 'provider',
@@ -4190,6 +5094,7 @@ interface ReviewDiffComment extends SelectedDiffLine {
   body: string
   status: 'draft' | 'saved' | 'provider'
   updatedAt: number
+  startLine?: number
   author?: string
   source?: ReviewProviderComment['source']
   url?: string | null
@@ -4260,6 +5165,11 @@ interface DiffLineMetadata {
   hunkIndex?: number
 }
 
+interface ReviewSelectedCurrentLine {
+  lineNumber: number
+  text: string
+}
+
 interface DiffHunkHeader {
   oldStart: number
   oldCount: number
@@ -4308,6 +5218,20 @@ function annotateDiffLines(lines: string[]): DiffLineMetadata[] {
     newLine += 1
   })
   return metadata
+}
+
+function reviewDiffSelectedCurrentLine(
+  lines: string[],
+  metadata: DiffLineMetadata[],
+  lineNumber: number
+): ReviewSelectedCurrentLine | null {
+  const index = metadata.findIndex((line) => line.newLine === lineNumber)
+  if (index === -1) return null
+  const rawLine = lines[index] ?? ''
+  return {
+    lineNumber,
+    text: displayDiffLineValue(rawLine, diffLineType(rawLine))
+  }
 }
 
 function summarizeDiffHunks(lines: string[], metadata: DiffLineMetadata[]): Map<number, { changedLineCount: number }> {
@@ -4562,6 +5486,27 @@ function resolveMergeConflictBlock(
 
 function joinPath(root: string, filePath: string): string {
   return `${root.replace(/\/+$/, '')}/${filePath.replace(/^\/+/, '')}`
+}
+
+function resolveCodexReviewStartRequest(source: ReviewDiffSource, ref: string): CodexReviewStartRequest | null {
+  if (source === 'branch') {
+    const branch = ref.trim()
+    return branch ? { target: { type: 'baseBranch', branch }, delivery: 'inline' } : null
+  }
+  if (source === 'commit') {
+    const sha = ref.trim()
+    return sha ? { target: { type: 'commit', sha, title: null }, delivery: 'inline' } : null
+  }
+  if (source === 'last-turn' || source === 'cloud') return null
+  return { target: { type: 'uncommittedChanges' }, delivery: 'inline' }
+}
+
+function codexReviewStartedMessage(request: CodexReviewStartRequest): string {
+  const target = request.target
+  if (target.type === 'baseBranch') return `Codex review started against ${target.branch}`
+  if (target.type === 'commit') return `Codex review started for commit ${target.sha.slice(0, 8)}`
+  if (target.type === 'custom') return 'Codex custom review started'
+  return 'Codex review started'
 }
 
 function basename(path: string): string {

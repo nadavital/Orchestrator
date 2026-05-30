@@ -217,6 +217,102 @@ test('codex app-server runtime starts a thread, starts a turn, and answers nativ
 
   proc.emitStdout({
     jsonrpc: '2.0',
+    id: 'file-approval-1',
+    method: 'item/fileChange/requestApproval',
+    params: {
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      itemId: 'file-1',
+      reason: 'Need write access for generated files.',
+      grantRoot: '/private/tmp/orchestrator-codex-generated'
+    }
+  })
+  assert.equal(manager.resolvePermission(session.id, true, true), true)
+  writes = writtenJson(proc)
+  assert.deepEqual(writes[writes.length - 1], {
+    id: 'file-approval-1',
+    result: { decision: 'acceptForSession' }
+  })
+  const filePermission = events.find((event) =>
+    event.type === 'permission.requested' &&
+    event.denials[0]?.tool_name === 'write'
+  )
+  assert.equal(filePermission?.type, 'permission.requested')
+  assert.equal(filePermission?.denials[0]?.tool_input.grantRoot, '/private/tmp/orchestrator-codex-generated')
+
+  proc.emitStdout({
+    jsonrpc: '2.0',
+    id: 'profile-approval-1',
+    method: 'item/permissions/requestApproval',
+    params: {
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      itemId: 'profile-1',
+      cwd: '/private/tmp/orchestrator-codex-generated',
+      reason: 'Need temporary network access.',
+      permissions: {
+        fileSystem: {
+          entries: [{
+            access: 'write',
+            path: { type: 'path', path: '/private/tmp/orchestrator-codex-generated' }
+          }]
+        },
+        network: { enabled: true }
+      }
+    }
+  })
+  assert.equal(manager.resolvePermission(session.id, true, false), true)
+  writes = writtenJson(proc)
+  assert.deepEqual(writes[writes.length - 1], {
+    id: 'profile-approval-1',
+    result: {
+      permissions: {
+        fileSystem: {
+          entries: [{
+            access: 'write',
+            path: { type: 'path', path: '/private/tmp/orchestrator-codex-generated' }
+          }]
+        },
+        network: { enabled: true }
+      },
+      scope: 'turn'
+    }
+  })
+  const profilePermission = events.find((event) =>
+    event.type === 'permission.requested' &&
+    event.denials[0]?.tool_name === 'permissions'
+  )
+  assert.equal(profilePermission?.type, 'permission.requested')
+  assert.deepEqual(profilePermission?.denials[0]?.tool_input.permissions, {
+    fileSystem: {
+      entries: [{
+        access: 'write',
+        path: { type: 'path', path: '/private/tmp/orchestrator-codex-generated' }
+      }]
+    },
+    network: { enabled: true }
+  })
+
+  proc.emitStdout({
+    jsonrpc: '2.0',
+    id: 'profile-approval-deny',
+    method: 'item/permissions/requestApproval',
+    params: {
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      itemId: 'profile-deny',
+      permissions: { network: { enabled: true } }
+    }
+  })
+  assert.equal(manager.resolvePermission(session.id, false, false), true)
+  writes = writtenJson(proc)
+  assert.deepEqual(writes[writes.length - 1], {
+    id: 'profile-approval-deny',
+    error: { code: -32000, message: 'Permission request declined by user.' }
+  })
+
+  proc.emitStdout({
+    jsonrpc: '2.0',
     id: 'question-1',
     method: 'item/tool/requestUserInput',
     params: {
@@ -231,6 +327,38 @@ test('codex app-server runtime starts a thread, starts a turn, and answers nativ
   assert.deepEqual(writes[writes.length - 1], {
     id: 'question-1',
     result: { answers: { target: { answers: ['staging'] } } }
+  })
+
+  proc.emitStdout({
+    jsonrpc: '2.0',
+    id: 'question-structured',
+    method: 'item/tool/requestUserInput',
+    params: {
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      itemId: 'question-structured-item',
+      questions: [
+        { id: 'target', question: 'Pick target?', options: [{ label: 'staging' }, { label: 'production' }] },
+        { id: 'token', question: 'Provide token?', isSecret: true }
+      ]
+    }
+  })
+  assert.equal(manager.answerUserInput(session.id, {
+    content: 'Target: staging\n\nToken: secret-token',
+    answers: {
+      target: ['staging'],
+      token: ['secret-token']
+    }
+  }), true)
+  writes = writtenJson(proc)
+  assert.deepEqual(writes[writes.length - 1], {
+    id: 'question-structured',
+    result: {
+      answers: {
+        target: { answers: ['staging'] },
+        token: { answers: ['secret-token'] }
+      }
+    }
   })
 
   proc.emitStdout({
@@ -384,6 +512,82 @@ test('codex app-server runtime advertises and answers supported Browser dynamic 
   })
   assert.equal(events.some((event) => event.type === 'browser.manager_state' && event.open === true), true)
   assert.equal(events.some((event) => event.type === 'assistant.status' && event.content === 'Browser tool requested: orchestrator.browser_read'), true)
+})
+
+test('codex app-server runtime starts native review turns', () => {
+  let fake: FakeAppServerProcess | null = null
+  const spawn: CodexAppServerSpawn = () => {
+    fake = new FakeAppServerProcess()
+    return fake
+  }
+  const manager = new CodexAppServerRuntimeManager(spawn)
+  const events: RunEvent[] = []
+
+  const result = manager.start({
+    sessionId: session.id,
+    session,
+    provider,
+    request: {
+      prompt: 'Review uncommitted changes',
+      cwd: process.cwd(),
+      model: 'gpt-5.4',
+      effort: 'high',
+      providerSessionId: null,
+      executionPolicy: 'default',
+      allowedTools: [],
+      runtime: 'app-server',
+      codexReviewStart: {
+        target: { type: 'uncommittedChanges' },
+        delivery: 'inline'
+      }
+    },
+    mode: 'start',
+    onRawData: () => {},
+    onParsedEvents: (parsed) => events.push(...parsed),
+    onExit: () => {}
+  })
+
+  assert.equal(result.ok, true)
+  assert.ok(fake)
+  const proc = fake as FakeAppServerProcess
+  let writes = writtenJson(proc)
+  proc.emitStdout({ id: writes[0].id, result: { protocolVersion: 'v2' } })
+  writes = writtenJson(proc)
+  proc.emitStdout({
+    id: writes[2].id,
+    result: { thread: { id: 'thread-review-1' }, model: 'gpt-5.4', cwd: process.cwd() }
+  })
+  writes = writtenJson(proc)
+  assert.equal(writes[3].method, 'review/start')
+  assert.deepEqual(writes[3].params, {
+    threadId: 'thread-review-1',
+    target: { type: 'uncommittedChanges' },
+    delivery: 'inline'
+  })
+
+  proc.emitStdout({ id: writes[3].id, result: { turn: { id: 'turn-review-1' }, reviewThreadId: 'thread-review-1' } })
+  proc.emitStdout({
+    jsonrpc: '2.0',
+    method: 'item/completed',
+    params: {
+      threadId: 'thread-review-1',
+      turnId: 'turn-review-1',
+      item: { type: 'enteredReviewMode', id: 'review-mode-1', review: 'current changes' }
+    }
+  })
+  proc.emitStdout({
+    jsonrpc: '2.0',
+    method: 'turn/completed',
+    params: { threadId: 'thread-review-1', turn: { id: 'turn-review-1', status: 'completed' } }
+  })
+
+  assert.equal(events.some((event) => event.type === 'session.started' && event.providerSessionId === 'thread-review-1'), true)
+  assert.equal(events.some((event) =>
+    event.type === 'review.mode.changed' &&
+    event.active === true &&
+    event.review === 'current changes'
+  ), true)
+  assert.equal(events.some((event) => event.type === 'run.completed'), true)
 })
 
 test('codex app-server runtime fails loudly when the process exits before responding', () => {

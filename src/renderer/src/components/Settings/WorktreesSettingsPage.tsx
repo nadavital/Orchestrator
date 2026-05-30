@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useState } from 'react'
 import type { Project, WorktreeInventoryItem } from '../../types'
 import { useSessionStore } from '../../store/sessions'
 import { useProjectStore } from '../../store/projects'
@@ -23,9 +23,11 @@ export default function WorktreesSettingsPage({ onClose }: WorktreesSettingsPage
   const [baseRef, setBaseRef] = useState('HEAD')
   const [branchName, setBranchName] = useState('')
   const [createBusy, setCreateBusy] = useState(false)
+  const [refreshBusy, setRefreshBusy] = useState(false)
   const [busyIds, setBusyIds] = useState<Record<string, boolean>>({})
   const [status, setStatus] = useState<string | null>(null)
   const [pendingDeleteWorktree, setPendingDeleteWorktree] = useState<WorktreeInventoryItem | null>(null)
+  const statusId = useId()
   const addSession = useSessionStore((state) => state.addSession)
   const updateSessionName = useSessionStore((state) => state.updateName)
   const setActiveSession = useSessionStore((state) => state.setActiveSession)
@@ -36,9 +38,26 @@ export default function WorktreesSettingsPage({ onClose }: WorktreesSettingsPage
   const activeCount = worktrees.filter((worktree) => worktree.state === 'ready').length
   const pendingCount = worktrees.filter((worktree) => worktree.state !== 'ready').length
 
-  const refreshWorktrees = useCallback(async (): Promise<void> => {
-    const next = await window.api.worktrees.list()
-    setWorktrees(next)
+  const refreshWorktrees = useCallback(async (options: { announce?: boolean } = {}): Promise<void> => {
+    if (options.announce) {
+      setRefreshBusy(true)
+      setStatus('Refreshing worktrees')
+    }
+    try {
+      const next = await window.api.worktrees.list()
+      setWorktrees(next)
+      if (options.announce) {
+        setStatus(`Worktrees refreshed: ${next.length} workspace${next.length === 1 ? '' : 's'}`)
+      }
+    } catch (error) {
+      if (options.announce) {
+        setStatus(`Refresh failed: ${error instanceof Error ? error.message : String(error)}`)
+      } else {
+        throw error
+      }
+    } finally {
+      if (options.announce) setRefreshBusy(false)
+    }
   }, [])
 
   useEffect(() => {
@@ -117,7 +136,13 @@ export default function WorktreesSettingsPage({ onClose }: WorktreesSettingsPage
           subtitle="Inspect app-managed worktrees, linked chats, and cleanup state before deleting a workspace."
           dataTestId="settings-content-layout-worktrees"
         >
-          <SettingsContentGroup className="worktrees-settings-content-group">
+          <SettingsContentGroup
+            className="worktrees-settings-content-group"
+            rootAttrs={{
+              tabIndex: -1,
+              'data-settings-search-anchor': 'worktrees-create'
+            }}
+          >
             <div className="settings-content-heading">
               <div className="settings-content-title">Create</div>
               <div className="settings-content-description">Create an app-managed worktree chat from a project, base ref, and optional branch name.</div>
@@ -180,8 +205,15 @@ export default function WorktreesSettingsPage({ onClose }: WorktreesSettingsPage
                   label="Worktrees"
                   description={`${activeCount} ready, ${pendingCount} pending or failed`}
                   control={(
-                    <button type="button" className="settings-action-button" onClick={() => { void refreshWorktrees() }}>
-                      Refresh
+                    <button
+                      type="button"
+                      className="settings-action-button"
+                      data-testid="worktrees-refresh"
+                      disabled={refreshBusy}
+                      aria-describedby={status ? statusId : undefined}
+                      onClick={() => { void refreshWorktrees({ announce: true }) }}
+                    >
+                      {refreshBusy ? 'Refreshing...' : 'Refresh'}
                     </button>
                   )}
                 />
@@ -217,6 +249,7 @@ export default function WorktreesSettingsPage({ onClose }: WorktreesSettingsPage
                         busy={busyIds[worktree.id] === true}
                         onDeleteRequest={setPendingDeleteWorktree}
                         onOpenConversation={openConversation}
+                        onStatus={setStatus}
                       />
                     ))}
                   </div>
@@ -225,7 +258,18 @@ export default function WorktreesSettingsPage({ onClose }: WorktreesSettingsPage
             </SettingsContentGroup>
           ))}
 
-          {status && <div className="worktrees-status">{status}</div>}
+          {status && (
+            <div
+              className="worktrees-status"
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+              id={statusId}
+              data-testid="worktrees-status"
+            >
+              {status}
+            </div>
+          )}
         </SettingsContentLayout>
         {pendingDeleteWorktree && (
           <ConfirmDialog
@@ -247,15 +291,75 @@ function WorktreeRow({
   busy,
   onDeleteRequest,
   onOpenConversation,
+  onStatus
 }: {
   worktree: WorktreeInventoryItem
   busy: boolean
   onDeleteRequest: (worktree: WorktreeInventoryItem) => void
   onOpenConversation: (conversationId: string) => void
+  onStatus: (status: string) => void
 }): JSX.Element {
+  const conversationsLabelId = useId()
+  const activeSessionId = useSessionStore((state) => state.activeSessionId)
+  const setActiveSession = useSessionStore((state) => state.setActiveSession)
+  const setShowTerminal = useSessionStore((state) => state.setShowTerminal)
+  const addTerminalTab = useSessionStore((state) => state.addTerminalTab)
+  const setActiveTerminalTab = useSessionStore((state) => state.setActiveTerminalTab)
+  const terminalSessionId = worktree.conversations[0]?.id ?? activeSessionId
+
+  const copyWorktreePath = async (): Promise<void> => {
+    onStatus('Copying worktree path')
+    try {
+      if (typeof window.api.clipboard?.writeText === 'function') {
+        const didWrite = await window.api.clipboard.writeText(worktree.workDir)
+        if (!didWrite) throw new Error('Clipboard write failed')
+      } else {
+        await navigator.clipboard.writeText(worktree.workDir)
+      }
+      const globals = window as typeof window & { __orchestratorLastWorktreeCopiedPathForSmoke?: string }
+      globals.__orchestratorLastWorktreeCopiedPathForSmoke = worktree.workDir
+      onStatus('Worktree path copied')
+    } catch {
+      onStatus('Copy worktree path failed')
+    }
+  }
+
+  const insertWorktreePathInTerminal = async (): Promise<void> => {
+    if (!terminalSessionId) {
+      onStatus('No chat available for terminal handoff')
+      return
+    }
+    onStatus('Opening terminal for worktree path')
+    try {
+      const state = useSessionStore.getState()
+      const currentPanel = state.uiState[terminalSessionId]?.terminalPanel
+      const existingTab = typeof currentPanel?.activeTabId === 'number'
+        ? currentPanel.activeTabId
+        : currentPanel?.tabs.find((tab): tab is number => typeof tab === 'number')
+      const tabId = existingTab ?? addTerminalTab(terminalSessionId)
+      setActiveSession(terminalSessionId)
+      setShowTerminal(terminalSessionId, true)
+      setActiveTerminalTab(terminalSessionId, tabId)
+      const terminalId = `${terminalSessionId}-${tabId}`
+      const globals = window as typeof window & {
+        __orchestratorLastWorktreeTerminalPathForSmoke?: string
+        __orchestratorLastWorktreeTerminalIdForSmoke?: string
+      }
+      globals.__orchestratorLastWorktreeTerminalPathForSmoke = worktree.workDir
+      globals.__orchestratorLastWorktreeTerminalIdForSmoke = terminalId
+      await window.api.terminal.spawn(terminalId, worktree.workDir)
+      await window.api.terminal.write(terminalId, shellQuote(worktree.workDir))
+      onStatus('Worktree path inserted in terminal')
+    } catch {
+      onStatus('Insert worktree path in terminal failed')
+    }
+  }
+
   return (
     <div
       className="worktrees-row"
+      role="group"
+      aria-label={`${worktreeStateLabel(worktree.state)} worktree at ${worktree.workDir}`}
       data-testid="worktree-settings-row"
       data-worktree-state={worktree.state}
       data-worktree-managed={String(worktree.managed)}
@@ -268,25 +372,48 @@ function WorktreeRow({
           </div>
           <code className="worktrees-path">{worktree.workDir}</code>
         </div>
-        <button
-          type="button"
-          className="settings-action-button settings-action-button-danger"
-          disabled={!worktree.managed || busy}
-          onClick={() => onDeleteRequest(worktree)}
-        >
-          {busy ? 'Deleting...' : 'Delete'}
-        </button>
+        <div className="worktrees-row-actions">
+          <button
+            type="button"
+            className="settings-action-button"
+            aria-label={`Copy worktree path ${worktree.workDir}`}
+            onClick={() => { void copyWorktreePath() }}
+            data-testid="worktree-copy-path"
+          >
+            Copy path
+          </button>
+          <button
+            type="button"
+            className="settings-action-button"
+            disabled={!terminalSessionId}
+            aria-label={`Insert worktree path in terminal ${worktree.workDir}`}
+            onClick={() => { void insertWorktreePathInTerminal() }}
+            data-testid="worktree-insert-terminal"
+          >
+            Terminal
+          </button>
+          <button
+            type="button"
+            className="settings-action-button settings-action-button-danger"
+            disabled={!worktree.managed || busy}
+            aria-label={`Delete worktree at ${worktree.workDir}`}
+            onClick={() => onDeleteRequest(worktree)}
+          >
+            {busy ? 'Deleting...' : 'Delete'}
+          </button>
+        </div>
       </div>
       <div className="worktrees-conversation-block">
-        <div className="worktrees-conversation-label">Conversations</div>
-        <div className="worktrees-conversation-list">
+        <div id={conversationsLabelId} className="worktrees-conversation-label">Conversations</div>
+        <div className="worktrees-conversation-list" role="list" aria-labelledby={conversationsLabelId}>
           {worktree.conversations.map((conversation) => (
-            <div key={conversation.id} className="worktrees-conversation-row" data-testid="worktree-conversation-row">
+            <div key={conversation.id} className="worktrees-conversation-row" role="listitem" data-testid="worktree-conversation-row">
               <span className="worktrees-conversation-title">{conversation.name}</span>
               <span className="worktrees-conversation-meta">{conversation.provider} · {formatRelativeTime(conversation.updatedAt)}</span>
               <button
                 type="button"
                 className="settings-action-button worktrees-open-chat-button"
+                aria-label={`Open ${conversation.name}`}
                 onClick={() => onOpenConversation(conversation.id)}
                 data-testid="worktree-open-conversation"
               >
@@ -331,4 +458,8 @@ function formatRelativeTime(timestamp: number): string {
   if (elapsedMs < day) return `${Math.floor(elapsedMs / hour)}h ago`
   if (elapsedMs < week) return `${Math.floor(elapsedMs / day)}d ago`
   return `${Math.floor(elapsedMs / week)}w ago`
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, `'\\''`)}'`
 }

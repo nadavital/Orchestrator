@@ -1,5 +1,6 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback } from 'react'
-import type { ReactNode, WheelEvent } from 'react'
+import { isValidElement, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useCallback } from 'react'
+import type { CSSProperties, ReactNode, RefObject, WheelEvent } from 'react'
+import { createPortal } from 'react-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
@@ -11,6 +12,10 @@ import {
   DisclosureSection,
   IconButton,
   MarkdownSurface,
+  MenuItem,
+  MenuSection,
+  MenuSectionLabel,
+  MenuSurface,
   ScrollEdgeButton,
   StatusBadge,
   SurfaceRow,
@@ -28,7 +33,7 @@ import {
   permissionRequestDetail,
   summarizeToolActivities
 } from '../../types'
-import type { Session, ChatMessage, FileChange, FileReference, ResultMessage, SessionRunEventRecord, ToolResultMessage, ToolUseMessage, UserInputQuestion } from '../../types'
+import type { Session, ChatMessage, FileChange, FileReference, OpenPathResult, PermissionRequestDetail, ResultMessage, SessionForkMode, SessionRunEventRecord, ToolResultMessage, ToolUseMessage, UserInputQuestion } from '../../types'
 import type { Attachment } from '../../types'
 import type { TranscriptSearchResult } from '../../types'
 import { useSessionStore } from '../../store/sessions'
@@ -50,12 +55,27 @@ interface Props {
 
 const TOOL_SUMMARY_SCROLL_THRESHOLD = 8
 const TOOL_SUMMARY_MAX_HEIGHT = 220
+const TOOL_SUMMARY_COLLAPSED_ESTIMATE = 42
 const FOLLOW_BOTTOM_THRESHOLD = 80
 const USER_MESSAGE_COLLAPSE_LENGTH = 1400
 const USER_MESSAGE_COLLAPSE_MIN_BREAK = 980
 const TRANSCRIPT_RENDER_CHUNK = 40
 const TRANSCRIPT_LAZY_LOAD_TOP_THRESHOLD = 360
 const TRANSCRIPT_VIRTUAL_OVERSCAN = 900
+const EMPTY_STATE_SUGGESTIONS = [
+  {
+    label: 'Review this branch',
+    prompt: 'Review the current branch and call out the highest-impact correctness, usability, and test gaps.'
+  },
+  {
+    label: 'Fix a flaky test',
+    prompt: 'Find the likely cause of the flaky test, make the smallest safe fix, and run the targeted test that proves it.'
+  },
+  {
+    label: 'Plan the next slice',
+    prompt: 'Inspect the current app state and propose the next small implementation slice with the exact validation it should pass.'
+  }
+]
 
 type DiffUpdatedRunEvent = Extract<SessionRunEventRecord['event'], { type: 'diff.updated' }>
 type ProviderCheckpointUndoStatus = 'not-applicable' | 'missing-checkpoint' | 'unsupported'
@@ -69,6 +89,12 @@ export default function ChatView({ sessionId }: Props): JSX.Element {
 
 function ChatViewContent({ session }: { session: Session }): JSX.Element {
   const projectName = useProjectStore((state) => state.projects.find((project) => project.id === session.projectId)?.name)
+  const addSession = useSessionStore((state) => state.addSession)
+  const setActiveSession = useSessionStore((state) => state.setActiveSession)
+  const transferBrowserWorkbench = useSessionStore((state) => state.transferBrowserWorkbench)
+  const setShowSettings = useSessionStore((state) => state.setShowSettings)
+  const setShowCapabilities = useSessionStore((state) => state.setShowCapabilities)
+  const addSessionToProject = useProjectStore((state) => state.addSessionToProject)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -78,6 +104,8 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
   const transcriptListRef = useRef<HTMLDivElement>(null)
   const measuredRowHeightsRef = useRef<Record<string, number>>({})
   const prependAnchorRef = useRef<TranscriptPrependAnchor | null>(null)
+  const readSyncedSessionRef = useRef<string | null>(null)
+  const [readSyncedSessionId, setReadSyncedSessionId] = useState<string | null>(null)
   const [showJumpToLatest, setShowJumpToLatest] = useState(false)
   const [preferredEditor, setPreferredEditor] = useState<PreferredEditor>('system')
   const [loadingEarlier, setLoadingEarlier] = useState(false)
@@ -90,6 +118,8 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
   const [renderLimit, setRenderLimit] = useState(() => Math.min(session.messages.length, TRANSCRIPT_RENDER_CHUNK))
   const [scrollMetrics, setScrollMetrics] = useState({ top: 0, height: 0, listOffsetTop: 0 })
   const [rowMeasurementVersion, setRowMeasurementVersion] = useState(0)
+  const [transcriptActionStatus, setTranscriptActionStatus] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
+  const [focusedMessageId, setFocusedMessageId] = useState<string | null>(null)
 
   useEffect(() => {
     const globals = window as typeof window & { __orchestratorChatViewCommitCount?: number }
@@ -106,6 +136,14 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
   const hiddenMessageCount = Math.max(0, totalMessageCount - visibleMessages.length)
   const transcriptItems = useMemo(() => groupTranscriptMessages(visibleMessages), [visibleMessages])
   const fileReferenceRoots = useMemo(() => sessionFileReferenceRoots(session), [session])
+  const hasStreamingAssistantMessage = useMemo(() => (
+    visibleMessages.some((message) => (
+      message.type === 'text' &&
+      message.role === 'assistant' &&
+      message.isStreaming === true
+    ))
+  ), [visibleMessages])
+  const showThinkingIndicator = isActiveSessionStatus(session.status) || hasStreamingAssistantMessage
   const lastMessage = session.messages[session.messages.length - 1]
   const lastTextLength = lastMessage?.type === 'text' ? lastMessage.content.length : 0
   const lastAssistantTextId = useMemo(() => {
@@ -115,6 +153,7 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
     }
     return null
   }, [session.messages])
+  const canRegenerateLastAssistant = !isActiveSessionStatus(session.status) && hasRetryableUserMessage(session)
   const loadedHiddenCount = Math.max(0, session.messages.length - visibleMessages.length)
   const unloadedBeforeCount = Math.max(0, totalMessageCount - session.messages.length)
   const virtualWindow = useMemo(() => buildVirtualTranscriptWindow(
@@ -127,6 +166,85 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
   useEffect(() => {
     loadingEarlierRef.current = loadingEarlier
   }, [loadingEarlier])
+
+  useEffect(() => {
+    setTranscriptActionStatus(null)
+    setFocusedMessageId(null)
+  }, [session.id])
+
+  const steerQueuedMessage = useCallback(async (messageId: string): Promise<void> => {
+    setTranscriptActionStatus({ text: 'Steering follow-up', tone: 'info' })
+    try {
+      await window.api.sessions.steerQueuedMessage(session.id, messageId)
+      setTranscriptActionStatus({ text: 'Follow-up will steer next', tone: 'info' })
+    } catch (error) {
+      setTranscriptActionStatus({ text: `Steer failed: ${errorText(error)}`, tone: 'danger' })
+    }
+  }, [session.id])
+
+  const cancelQueuedMessage = useCallback(async (messageId: string, queueState: 'queued' | 'steer_next'): Promise<void> => {
+    const label = queueState === 'steer_next' ? 'steering message' : 'queued message'
+    setTranscriptActionStatus({ text: `Canceling ${label}`, tone: 'info' })
+    try {
+      await window.api.sessions.cancelQueuedMessage(session.id, messageId)
+      setTranscriptActionStatus({ text: queueState === 'steer_next' ? 'Steering message canceled' : 'Queued message canceled', tone: 'info' })
+    } catch (error) {
+      setTranscriptActionStatus({ text: `Cancel failed: ${errorText(error)}`, tone: 'danger' })
+    }
+  }, [session.id])
+
+  const editUserMessageAsDraft = useCallback((messageId: string, content: string, attachments: Attachment[] = []): void => {
+    const text = content.trim()
+    if (!text && attachments.length === 0) return
+    window.dispatchEvent(new CustomEvent('orchestrator:set-composer-text', {
+      detail: {
+        sessionId: session.id,
+        text,
+        attachments,
+        source: {
+          kind: 'message-edit-draft',
+          messageId,
+          attachmentCount: attachments.length
+        }
+      }
+    }))
+    setTranscriptActionStatus({
+      text: attachments.length > 0
+        ? 'Copied message and attachments into composer draft'
+        : 'Copied message into composer draft',
+      tone: 'info'
+    })
+    window.setTimeout(() => {
+      const composer = document.querySelector<HTMLTextAreaElement>('[data-testid="composer-textarea"]')
+      composer?.focus()
+    }, 0)
+  }, [session.id])
+
+  const forkFromMessage = useCallback(async (messageId: string, mode: SessionForkMode = 'local'): Promise<void> => {
+    setTranscriptActionStatus({ text: 'Forking chat from selected message', tone: 'info' })
+    try {
+      const forked = await window.api.sessions.fork(session.id, mode, { throughMessageId: messageId })
+      const testWindow = window as typeof window & { __orchestratorLastMessageForkedSession?: { id: string; mode: SessionForkMode; sourceSessionId: string; sourceMessageId: string; messageCount: number; useWorktree: boolean; worktreeState?: Session['worktreeState'] } }
+      testWindow.__orchestratorLastMessageForkedSession = {
+        id: forked.id,
+        mode,
+        sourceSessionId: session.id,
+        sourceMessageId: messageId,
+        messageCount: forked.messages.length,
+        useWorktree: forked.useWorktree,
+        worktreeState: forked.worktreeState
+      }
+      addSession(forked)
+      transferBrowserWorkbench(session.id, forked.id)
+      addSessionToProject(forked.projectId, forked.id)
+      setActiveSession(forked.id)
+      setShowSettings(false)
+      setShowCapabilities(false)
+    } catch (error) {
+      setTranscriptActionStatus({ text: `Fork failed: ${errorText(error)}`, tone: 'danger' })
+      throw error
+    }
+  }, [addSession, addSessionToProject, session.id, setActiveSession, setShowCapabilities, setShowSettings, transferBrowserWorkbench])
 
   const updateScrollMetrics = useCallback(() => {
     const scroller = scrollContainerRef.current
@@ -144,6 +262,26 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
         : nextMetrics
     ))
   }, [])
+
+  const focusTranscriptMessage = useCallback((messageId: string, statusText: string): void => {
+    setRenderLimit((current) => Math.max(current, session.messages.length))
+    setFocusedMessageId(messageId)
+    setTranscriptActionStatus({ text: statusText, tone: 'info' })
+    window.setTimeout(() => {
+      const targetOffset = transcriptItemOffset(messageId, groupTranscriptMessages(session.messages), measuredRowHeightsRef.current)
+      const scroller = scrollContainerRef.current
+      if (scroller && targetOffset !== null) {
+        scroller.scrollTop = Math.max(0, (transcriptListRef.current?.offsetTop ?? 0) + targetOffset - Math.round(scroller.clientHeight * 0.35))
+        updateScrollMetrics()
+      }
+      window.requestAnimationFrame(() => {
+        const target = findTranscriptElementForMessage(messageId)
+        target?.scrollIntoView({ block: 'center' })
+        if (target instanceof HTMLElement) target.focus({ preventScroll: true })
+        updateScrollMetrics()
+      })
+    }, 0)
+  }, [session.messages, updateScrollMetrics])
 
   useLayoutEffect(() => {
     updateScrollMetrics()
@@ -269,6 +407,17 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
       }
     })
   }, [setFollowingBottom, updateScrollMetrics])
+
+  useEffect(() => {
+    const onComposerReserveChanged = (event: Event): void => {
+      const detail = (event as CustomEvent<{ sessionId?: string; height?: number }>).detail
+      if (detail?.sessionId !== session.id) return
+      updateScrollMetrics()
+      if (shouldFollowBottomRef.current) scrollToBottom()
+    }
+    window.addEventListener('orchestrator:composer-reserve-changed', onComposerReserveChanged)
+    return () => window.removeEventListener('orchestrator:composer-reserve-changed', onComposerReserveChanged)
+  }, [scrollToBottom, session.id, updateScrollMetrics])
 
   const handleVirtualRowHeight = useCallback((id: string, height: number) => {
     const previous = measuredRowHeightsRef.current[id]
@@ -438,6 +587,22 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
     }
   }, [session.id, visibleMessages.length])
 
+  useLayoutEffect(() => {
+    const transcriptReady = totalMessageCount === 0 || visibleMessages.length > 0
+    if (!transcriptReady || readSyncedSessionRef.current === session.id) return
+    if (useSessionStore.getState().activeSessionId !== session.id) return
+    useSessionStore.getState().setHasUnread(session.id, false)
+    readSyncedSessionRef.current = session.id
+    setReadSyncedSessionId(session.id)
+    window.dispatchEvent(new CustomEvent('orchestrator:active-transcript-visible', {
+      detail: {
+        sessionId: session.id,
+        renderedMessages: visibleMessages.length,
+        messageCount: totalMessageCount
+      }
+    }))
+  }, [session.id, totalMessageCount, visibleMessages.length])
+
   useEffect(() => {
     const openSearch = (): void => {
       setSharedFindActive(false)
@@ -535,6 +700,7 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
       limit: TRANSCRIPT_RENDER_CHUNK
     })
     if (!page) return
+    const targetOffset = transcriptItemOffset(result.messageId, groupTranscriptMessages(page.messages), {})
     useSessionStore.getState().mergeTranscriptPage(session.id, page, 'replace')
     setRenderLimit(page.messages.length)
     recordRendererMetric('transcript.search.jump-ready', startedAt, {
@@ -543,9 +709,17 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
       messages: page.messages.length
     })
     window.requestAnimationFrame(() => {
-      document.querySelector(`[data-message-id="${CSS.escape(result.messageId)}"]`)?.scrollIntoView({ block: 'center' })
+      const scroller = scrollContainerRef.current
+      if (scroller && targetOffset !== null) {
+        scroller.scrollTop = Math.max(0, targetOffset - Math.round(scroller.clientHeight * 0.35))
+        updateScrollMetrics()
+      }
+      window.requestAnimationFrame(() => {
+        findTranscriptElementForMessage(result.messageId)?.scrollIntoView({ block: 'center' })
+        updateScrollMetrics()
+      })
     })
-  }, [session.id])
+  }, [session.id, updateScrollMetrics])
 
   useEffect(() => {
     if (sharedSearchActiveResultIndex < searchResults.length) return
@@ -590,6 +764,33 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
   }, [handleJumpToSearchResult, searchResults, session.id, sharedSearchActiveResultIndex])
 
   useEffect(() => {
+    const onFocusWaitingCard = (event: Event): void => {
+      const detail = (event as CustomEvent<{ sessionId?: string; kind?: 'permission' | 'user_input' }>).detail
+      if (detail?.sessionId !== session.id) return
+      const kind = detail.kind ?? 'permission'
+      const target = session.messages
+        .slice()
+        .reverse()
+        .find((message) => (
+          message.type === 'result' &&
+          (kind === 'user_input'
+            ? (message.userInputQuestions?.length ?? 0) > 0
+            : (message.permissionDenials?.length ?? 0) > 0)
+        ))
+      if (!target) {
+        setTranscriptActionStatus({
+          text: kind === 'user_input' ? 'No user input card found in chat' : 'No permission card found in chat',
+          tone: 'danger'
+        })
+        return
+      }
+      focusTranscriptMessage(target.id, kind === 'user_input' ? 'User input request opened in chat' : 'Permission request opened in chat')
+    }
+    window.addEventListener('orchestrator:focus-waiting-card', onFocusWaitingCard)
+    return () => window.removeEventListener('orchestrator:focus-waiting-card', onFocusWaitingCard)
+  }, [focusTranscriptMessage, session.id, session.messages])
+
+  useEffect(() => {
     if (!sharedFindActive) return
     window.dispatchEvent(new CustomEvent('orchestrator:thread-find-status', {
       detail: {
@@ -604,9 +805,17 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
 
   if (session.messages.length === 0 && session.status !== 'running') {
     const promptTarget = projectName ?? 'this project'
+    const applyEmptyStateSuggestion = (prompt: string): void => {
+      window.dispatchEvent(new CustomEvent('orchestrator:add-composer-text', {
+        detail: { text: prompt }
+      }))
+    }
     return (
       <div
         data-testid="chat-empty-state"
+        id="orchestrator-chat-transcript"
+        role="region"
+        tabIndex={-1}
         aria-label="New chat ready"
         className="chat-empty-state flex-1 flex items-center justify-center px-6"
         style={{ background: 'var(--canvas-bg)' }}
@@ -625,18 +834,23 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
             Start with a goal, a bug, a branch, or a file you want to understand.
           </div>
           <div className="mt-4 flex flex-wrap justify-center gap-2">
-            {['Review this branch', 'Fix a flaky test', 'Plan the next slice'].map((suggestion) => (
-              <span
-                key={suggestion}
+            {EMPTY_STATE_SUGGESTIONS.map((suggestion) => (
+              <button
+                type="button"
+                key={suggestion.label}
+                data-testid="chat-empty-state-suggestion"
+                data-suggestion-label={suggestion.label}
+                onClick={() => applyEmptyStateSuggestion(suggestion.prompt)}
                 className="rounded-full border px-3 py-1 text-[12px]"
                 style={{
                   borderColor: 'var(--border-subtle)',
                   background: 'var(--surface-bg)',
-                  color: 'var(--text-secondary)'
+                  color: 'var(--text-secondary)',
+                  cursor: 'pointer'
                 }}
               >
-                {suggestion}
-              </span>
+                {suggestion.label}
+              </button>
             ))}
           </div>
           <div className="mt-8 text-left">
@@ -654,12 +868,21 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
     >
       <div
         data-testid="transcript-scroll"
+        id="orchestrator-chat-transcript"
         ref={scrollContainerRef}
+        role="region"
+        tabIndex={-1}
+        aria-label="Chat transcript"
         onScroll={handleScroll}
         onWheel={handleWheel}
         onTouchStart={handleTouchStart}
         className="h-full min-w-0 overflow-y-auto overflow-x-hidden px-6 py-5"
-        style={{ userSelect: 'text' }}
+        data-composer-reserve-aware="true"
+        data-active-transcript-read-synced={readSyncedSessionId === session.id ? 'true' : 'false'}
+        style={{
+          userSelect: 'text',
+          scrollPaddingBlockEnd: 'var(--composer-reserve-height, 0px)'
+        }}
       >
         <div
           className="mx-auto flex min-w-0 flex-col"
@@ -671,9 +894,19 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
           {hiddenMessageCount > 0 && (
             <LoadEarlierMessages
               hiddenCount={hiddenMessageCount}
+              visibleCount={visibleMessages.length}
+              totalCount={totalMessageCount}
+              loadedHiddenCount={loadedHiddenCount}
+              unloadedBeforeCount={unloadedBeforeCount}
               loading={loadingEarlier}
               onLoad={() => { void handleLoadEarlier('manual') }}
               onLoadAll={handleLoadAllLoaded}
+            />
+          )}
+          {hiddenMessageCount === 0 && totalMessageCount > TRANSCRIPT_RENDER_CHUNK && (
+            <TranscriptHistoryStatus
+              totalCount={totalMessageCount}
+              visibleCount={visibleMessages.length}
             />
           )}
           {unloadedBeforeCount > 0 && session.messages.length < Math.min(totalMessageCount, TRANSCRIPT_RENDER_CHUNK) && (
@@ -694,11 +927,15 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
               setSharedFindActive(false)
             }}
           />
+          {transcriptActionStatus && (
+            <TranscriptActionStatus status={transcriptActionStatus} />
+          )}
           <div
             ref={transcriptListRef}
             data-testid="virtualized-transcript"
             data-rendered-message-count={visibleMessages.length}
             data-total-message-count={totalMessageCount}
+            data-focused-message-id={focusedMessageId ?? ''}
             className="relative min-w-0"
             style={{ height: virtualWindow.totalHeight }}
           >
@@ -710,24 +947,32 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
                 <MeasuredTranscriptRow
                   key={id}
                   id={id}
+                  messageIds={transcriptItemMessageIds(item)}
                   onHeight={handleVirtualRowHeight}
                 >
                   {item.type === 'tool_group'
-                    ? <ToolActivitySummary messages={item.messages} />
+                    ? <ToolActivitySummary messages={item.messages} session={session} />
                     : (
                       <MessageRow
                         msg={item.message}
                         session={session}
+                        isFocused={focusedMessageId === item.message.id}
                         fileReferenceRoots={fileReferenceRoots}
                         preferredEditor={preferredEditor}
                         canCopy={item.message.id === lastAssistantTextId}
+                        canContinue={item.message.id === lastAssistantTextId && !isActiveSessionStatus(session.status)}
+                        canRegenerate={item.message.id === lastAssistantTextId && canRegenerateLastAssistant}
+                        onSteerQueuedMessage={steerQueuedMessage}
+                        onCancelQueuedMessage={cancelQueuedMessage}
+                        onEditUserMessageAsDraft={editUserMessageAsDraft}
+                        onForkFromMessage={forkFromMessage}
                       />
                     )}
                 </MeasuredTranscriptRow>
               ))}
             </div>
           </div>
-          {session.status === 'running' && <ThinkingIndicator />}
+          {showThinkingIndicator && <ThinkingIndicator streaming={hasStreamingAssistantMessage} />}
           <div ref={bottomRef} />
         </div>
       </div>
@@ -763,21 +1008,19 @@ function TranscriptLoadingState(): JSX.Element {
   )
 }
 
-function LoadEarlierMessages({
-  hiddenCount,
-  loading,
-  onLoad,
-  onLoadAll
+function TranscriptHistoryStatus({
+  totalCount,
+  visibleCount
 }: {
-  hiddenCount: number
-  loading: boolean
-  onLoad: () => void
-  onLoadAll: () => void
+  totalCount: number
+  visibleCount: number
 }): JSX.Element {
   return (
     <div className="flex justify-center">
       <SurfaceRow
-        dataTestId="load-earlier-messages"
+        dataTestId="long-thread-message-status"
+        data-visible-message-count={visibleCount}
+        data-total-message-count={totalCount}
         className="items-center gap-2 rounded-full px-3 py-1.5 text-xs"
         style={{
           background: 'var(--surface-bg)',
@@ -785,11 +1028,115 @@ function LoadEarlierMessages({
           color: 'var(--text-secondary)'
         }}
       >
-        <span>Earlier messages</span>
-        <Button variant="ghost" className="px-2 py-0.5" onClick={onLoad} disabled={loading}>
-          {loading ? 'Loading' : `Show ${hiddenCount.toLocaleString()}`}
+        <span>{totalCount.toLocaleString()} messages loaded</span>
+      </SurfaceRow>
+    </div>
+  )
+}
+
+function TranscriptActionStatus({
+  status
+}: {
+  status: { text: string; tone: 'info' | 'danger' }
+}): JSX.Element {
+  return (
+    <div className="flex justify-center">
+      <div
+        data-testid="transcript-action-status"
+        data-transcript-action-status-tone={status.tone}
+        role={status.tone === 'danger' ? 'alert' : 'status'}
+        aria-live={status.tone === 'danger' ? 'assertive' : 'polite'}
+        aria-atomic="true"
+        className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs"
+        style={{
+          background: status.tone === 'danger'
+            ? 'color-mix(in srgb, var(--color-red) 9%, var(--surface-bg))'
+            : 'var(--surface-bg)',
+          border: status.tone === 'danger'
+            ? '1px solid color-mix(in srgb, var(--color-red) 40%, var(--border-subtle))'
+            : '1px solid var(--border-subtle)',
+          color: status.tone === 'danger' ? 'var(--color-red)' : 'var(--text-secondary)'
+        }}
+      >
+        <span>{status.text}</span>
+      </div>
+    </div>
+  )
+}
+
+function LoadEarlierMessages({
+  hiddenCount,
+  visibleCount,
+  totalCount,
+  loadedHiddenCount,
+  unloadedBeforeCount,
+  loading,
+  onLoad,
+  onLoadAll
+}: {
+  hiddenCount: number
+  visibleCount: number
+  totalCount: number
+  loadedHiddenCount: number
+  unloadedBeforeCount: number
+  loading: boolean
+  onLoad: () => void
+  onLoadAll: () => void
+}): JSX.Element {
+  const nextBatchCount = Math.min(TRANSCRIPT_RENDER_CHUNK, hiddenCount)
+  const visibleTotalLabel = `${visibleCount.toLocaleString()} of ${totalCount.toLocaleString()} messages shown`
+  const primaryLabel = loading
+    ? 'Loading'
+    : loadedHiddenCount > 0
+      ? `Show ${nextBatchCount.toLocaleString()} earlier`
+      : `Load ${nextBatchCount.toLocaleString()} earlier`
+  const primaryAriaLabel = loading
+    ? `Loading earlier transcript messages. ${visibleTotalLabel}.`
+    : loadedHiddenCount > 0
+      ? `Show ${nextBatchCount.toLocaleString()} earlier loaded transcript messages. ${visibleTotalLabel}.`
+      : `Load ${nextBatchCount.toLocaleString()} earlier transcript messages. ${unloadedBeforeCount.toLocaleString()} earlier messages are not loaded yet. ${visibleTotalLabel}.`
+  const showAllAriaLabel = `Show all ${loadedHiddenCount.toLocaleString()} loaded earlier transcript messages. ${visibleTotalLabel}.`
+  return (
+    <div className="flex justify-center">
+      <SurfaceRow
+        dataTestId="load-earlier-messages"
+        ariaLabel={`Transcript history. ${visibleTotalLabel}. ${hiddenCount.toLocaleString()} earlier messages hidden.`}
+        data-hidden-message-count={hiddenCount}
+        data-loaded-hidden-count={loadedHiddenCount}
+        data-unloaded-before-count={unloadedBeforeCount}
+        data-visible-message-count={visibleCount}
+        data-total-message-count={totalCount}
+        className="items-center gap-2 rounded-full px-3 py-1.5 text-xs"
+        style={{
+          background: 'var(--surface-bg)',
+          border: '1px solid var(--border-subtle)',
+          color: 'var(--text-secondary)'
+        }}
+      >
+        <span>{visibleTotalLabel}</span>
+        <Button
+          variant="ghost"
+          className="px-2 py-0.5"
+          onClick={onLoad}
+          disabled={loading}
+          dataTestId="load-earlier-messages-primary"
+          ariaLabel={primaryAriaLabel}
+          title={primaryAriaLabel}
+        >
+          {primaryLabel}
         </Button>
-        <Button variant="ghost" className="px-2 py-0.5" onClick={onLoadAll}>Show loaded</Button>
+        {loadedHiddenCount > 0 && (
+          <Button
+            variant="ghost"
+            className="px-2 py-0.5"
+            onClick={onLoadAll}
+            dataTestId="load-earlier-messages-show-all"
+            ariaLabel={showAllAriaLabel}
+            title={showAllAriaLabel}
+          >
+            Show all loaded
+          </Button>
+        )}
       </SurfaceRow>
     </div>
   )
@@ -927,6 +1274,12 @@ function transcriptItemId(item: TranscriptItem): string {
   return item.type === 'tool_group' ? item.id : item.message.id
 }
 
+function transcriptItemMessageIds(item: TranscriptItem): string[] {
+  return item.type === 'tool_group'
+    ? item.messages.map((message) => message.id)
+    : [item.message.id]
+}
+
 function transcriptItemOffset(
   messageId: string,
   items: TranscriptItem[],
@@ -935,8 +1288,20 @@ function transcriptItemOffset(
   let offset = 0
   for (const item of items) {
     const id = transcriptItemId(item)
-    if (id === messageId) return offset
+    if (transcriptItemMessageIds(item).includes(messageId)) return offset
     offset += measuredHeights[id] ?? estimateTranscriptItemHeight(item)
+  }
+  return null
+}
+
+function findTranscriptElementForMessage(messageId: string): Element | null {
+  const directMessage = document.querySelector(`[data-message-id="${CSS.escape(messageId)}"]`)
+  if (directMessage) return directMessage
+
+  for (const row of document.querySelectorAll('[data-virtual-row-message-ids]')) {
+    if (!(row instanceof HTMLElement)) continue
+    const ids = row.dataset.virtualRowMessageIds?.split(' ') ?? []
+    if (ids.includes(messageId)) return row
   }
   return null
 }
@@ -947,7 +1312,7 @@ function estimateTranscriptMessagesHeight(messages: ChatMessage[]): number {
 
 function estimateTranscriptItemHeight(item: TranscriptItem): number {
   if (item.type === 'tool_group') {
-    return 58 + Math.min(item.messages.length, TOOL_SUMMARY_SCROLL_THRESHOLD) * 26 + TRANSCRIPT_VIRTUAL_ROW_GAP
+    return TOOL_SUMMARY_COLLAPSED_ESTIMATE + TRANSCRIPT_VIRTUAL_ROW_GAP
   }
   const message = item.message
   if (message.type === 'text') {
@@ -962,10 +1327,12 @@ function estimateTranscriptItemHeight(item: TranscriptItem): number {
 
 function MeasuredTranscriptRow({
   id,
+  messageIds,
   onHeight,
   children
 }: {
   id: string
+  messageIds: string[]
   onHeight: (id: string, height: number) => void
   children: ReactNode
 }): JSX.Element {
@@ -989,6 +1356,8 @@ function MeasuredTranscriptRow({
       ref={rowRef}
       data-testid="virtual-transcript-row"
       data-virtual-row-id={id}
+      data-virtual-row-message-ids={messageIds.join(' ')}
+      data-virtual-row-primary-message-id={messageIds[0] ?? ''}
       className="min-w-0"
       style={{ paddingBottom: TRANSCRIPT_VIRTUAL_ROW_GAP }}
     >
@@ -1005,7 +1374,7 @@ function groupTranscriptMessages(messages: ChatMessage[]): TranscriptItem[] {
     if (pendingTools.length === 0) return
     items.push({
       type: 'tool_group',
-      id: `tools-${pendingTools[0].id}-${pendingTools[pendingTools.length - 1].id}`,
+      id: `tools-${pendingTools[0].id}`,
       messages: pendingTools
     })
     pendingTools = []
@@ -1026,29 +1395,369 @@ function groupTranscriptMessages(messages: ChatMessage[]): TranscriptItem[] {
 
 function CopyButton({ getText }: { getText: () => string }): JSX.Element {
   const [copied, setCopied] = useState(false)
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'error'>('idle')
+  const copyStatusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => () => {
+    if (copyStatusTimeoutRef.current) window.clearTimeout(copyStatusTimeoutRef.current)
+  }, [])
 
   const handleCopy = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation()
+    if (copyStatusTimeoutRef.current) window.clearTimeout(copyStatusTimeoutRef.current)
     try {
-      await navigator.clipboard.writeText(getText())
+      const text = getText()
+      if (typeof window.api.clipboard?.writeText === 'function') {
+        const didWrite = await window.api.clipboard.writeText(text)
+        if (!didWrite) throw new Error('Clipboard write failed')
+      } else {
+        await navigator.clipboard.writeText(text)
+      }
       setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
+      setCopyStatus('copied')
+      copyStatusTimeoutRef.current = window.setTimeout(() => {
+        setCopied(false)
+        setCopyStatus('idle')
+        copyStatusTimeoutRef.current = null
+      }, 1500)
     } catch {
-      // clipboard unavailable
+      setCopied(false)
+      setCopyStatus('error')
+      copyStatusTimeoutRef.current = window.setTimeout(() => {
+        setCopyStatus('idle')
+        copyStatusTimeoutRef.current = null
+      }, 2200)
     }
   }, [getText])
 
   return (
-    <IconButton
-      icon={copied ? 'check' : 'copy'}
-      label={copied ? 'Copied' : 'Copy'}
-      size="sm"
-      tone={copied ? 'success' : 'neutral'}
-      onClick={handleCopy}
-      style={{
-        opacity: copied ? 1 : 0.55
-      }}
-    />
+    <>
+      <IconButton
+        icon={copied ? 'check' : 'copy'}
+        label={copyStatus === 'error' ? 'Copy failed' : copied ? 'Copied message' : 'Copy message'}
+        size="sm"
+        tone={copied ? 'success' : copyStatus === 'error' ? 'danger' : 'neutral'}
+        dataTestId="chat-message-copy"
+        onClick={handleCopy}
+        style={{
+          opacity: copied ? 1 : 0.55
+        }}
+      />
+      {copyStatus !== 'idle' && (
+        <span
+          className="sr-only"
+          data-testid="chat-message-copy-status"
+          data-copy-state={copyStatus}
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          {copyStatus === 'copied' ? 'Copied message' : 'Unable to copy message'}
+        </span>
+      )}
+    </>
+  )
+}
+
+function ContinueButton({ sessionId }: { sessionId: string }): JSX.Element {
+  const [state, setState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
+  const label = state === 'sending' ? 'Continuing' : state === 'sent' ? 'Continue sent' : state === 'error' ? 'Continue failed' : 'Continue'
+
+  const handleContinue = useCallback(async (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (state === 'sending') return
+    setState('sending')
+    try {
+      const ok = await window.api.sessions.continueLastTurn(sessionId)
+      setState(ok ? 'sent' : 'error')
+    } catch {
+      setState('error')
+    }
+  }, [sessionId, state])
+
+  return (
+    <Button
+      variant="ghost"
+      className="h-7 px-2 text-[11px]"
+      dataTestId="chat-continue-last-turn"
+      disabled={state === 'sending'}
+      title={label}
+      ariaLabel={label}
+      onClick={handleContinue}
+    >
+      {state === 'sending' ? <ThinkingDots /> : <Icon name="arrowRight" size={13} />}
+      <span
+        data-testid="chat-continue-last-turn-label"
+        data-continue-state={state}
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+      >
+        {label}
+      </span>
+    </Button>
+  )
+}
+
+function RegenerateButton({ sessionId }: { sessionId: string }): JSX.Element {
+  const [state, setState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
+  const label = state === 'sending' ? 'Regenerating' : state === 'sent' ? 'Regenerate sent' : state === 'error' ? 'Regenerate failed' : 'Regenerate'
+
+  const handleRegenerate = useCallback(async (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (state === 'sending') return
+    setState('sending')
+    try {
+      const ok = await window.api.sessions.retryLastUserMessage(sessionId)
+      setState(ok ? 'sent' : 'error')
+    } catch {
+      setState('error')
+    }
+  }, [sessionId, state])
+
+  return (
+    <Button
+      variant="ghost"
+      className="h-7 px-2 text-[11px]"
+      dataTestId="chat-regenerate-last-response"
+      disabled={state === 'sending'}
+      title={label}
+      ariaLabel={label}
+      onClick={handleRegenerate}
+    >
+      {state === 'sending' ? <ThinkingDots /> : <Icon name="refresh" size={13} />}
+      <span
+        data-testid="chat-regenerate-last-response-label"
+        data-regenerate-state={state}
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+      >
+        {label}
+      </span>
+    </Button>
+  )
+}
+
+function ForkFromMessageButton({
+  onFork,
+  canForkSameWorktree,
+  canForkNewWorktree
+}: {
+  onFork: (mode: SessionForkMode) => void | Promise<void>
+  canForkSameWorktree: boolean
+  canForkNewWorktree: boolean
+}): JSX.Element {
+  const [state, setState] = useState<'idle' | 'forking' | 'error'>('idle')
+  const [menuPosition, setMenuPosition] = useState<{ left: number; top: number } | null>(null)
+  const menuId = useId()
+  const label = state === 'forking' ? 'Forking chat' : state === 'error' ? 'Fork failed' : 'Fork from here'
+  const hasForkChoices = canForkSameWorktree || canForkNewWorktree
+
+  const forkWithMode = useCallback(async (mode: SessionForkMode) => {
+    if (state === 'forking') return
+    setMenuPosition(null)
+    setState('forking')
+    try {
+      await onFork(mode)
+    } catch {
+      setState('error')
+    }
+  }, [onFork, state])
+
+  const openMenu = useCallback((event: React.MouseEvent) => {
+    event.preventDefault()
+    event.stopPropagation()
+    if (state === 'forking') return
+    if (!hasForkChoices) {
+      void forkWithMode('local')
+      return
+    }
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
+    setMenuPosition({
+      left: Math.min(Math.max(rect.right - 214, 8), window.innerWidth - 222),
+      top: Math.min(rect.bottom + 6, window.innerHeight - 170)
+    })
+  }, [forkWithMode, hasForkChoices, state])
+
+  return (
+    <>
+      <IconButton
+        icon={state === 'forking' ? 'refresh' : 'branch'}
+        label={label}
+        size="sm"
+        tone={state === 'error' ? 'danger' : 'neutral'}
+        dataTestId="chat-message-fork"
+        ariaExpanded={menuPosition !== null}
+        ariaControls={hasForkChoices ? menuId : undefined}
+        ariaHasPopup={hasForkChoices ? 'menu' : undefined}
+        onClick={openMenu}
+        style={{ opacity: state === 'forking' ? 1 : 0.62 }}
+      />
+      {menuPosition && createPortal(
+        <MenuSurface
+          id={menuId}
+          onClose={() => setMenuPosition(null)}
+          data-testid="chat-message-fork-menu"
+          style={{
+            position: 'fixed',
+            left: menuPosition.left,
+            top: menuPosition.top,
+            zIndex: 120,
+            minWidth: 214
+          }}
+        >
+          <MenuSection>
+            <MenuSectionLabel>Fork from here</MenuSectionLabel>
+            <MenuItem
+              icon="branch"
+              label="Fork locally"
+              dataTestId="chat-message-fork-local"
+              onClick={() => void forkWithMode('local')}
+            />
+            {canForkSameWorktree && (
+              <MenuItem
+                icon="branch"
+                label="Fork in same worktree"
+                dataTestId="chat-message-fork-same-worktree"
+                onClick={() => void forkWithMode('same-worktree')}
+              />
+            )}
+            {canForkNewWorktree && (
+              <MenuItem
+                icon="branch"
+                label="Fork in new worktree"
+                dataTestId="chat-message-fork-new-worktree"
+                onClick={() => void forkWithMode('new-worktree')}
+              />
+            )}
+          </MenuSection>
+        </MenuSurface>,
+        document.body
+      )}
+    </>
+  )
+}
+
+function textFromReactNode(node: ReactNode): string {
+  if (node === null || node === undefined || typeof node === 'boolean') return ''
+  if (typeof node === 'string' || typeof node === 'number') return String(node)
+  if (Array.isArray(node)) return node.map(textFromReactNode).join('')
+  if (isValidElement<{ children?: ReactNode }>(node)) return textFromReactNode(node.props.children)
+  return ''
+}
+
+function CodeBlock({ className, children, lang, props }: {
+  className?: string
+  children: ReactNode
+  lang: string
+  props: Record<string, unknown>
+}): JSX.Element {
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'error'>('idle')
+  const copyStatusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const codeText = useMemo(() => textFromReactNode(children).replace(/\n$/, ''), [children])
+
+  useEffect(() => () => {
+    if (copyStatusTimeoutRef.current) window.clearTimeout(copyStatusTimeoutRef.current)
+  }, [])
+
+  const copyCode = useCallback(async (event: React.MouseEvent) => {
+    event.preventDefault()
+    event.stopPropagation()
+    if (copyStatusTimeoutRef.current) window.clearTimeout(copyStatusTimeoutRef.current)
+    try {
+      if (typeof window.api.clipboard?.writeText === 'function') {
+        const didWrite = await window.api.clipboard.writeText(codeText)
+        if (!didWrite) throw new Error('Clipboard write failed')
+      } else {
+        await navigator.clipboard.writeText(codeText)
+      }
+      setCopyStatus('copied')
+      copyStatusTimeoutRef.current = window.setTimeout(() => {
+        setCopyStatus('idle')
+        copyStatusTimeoutRef.current = null
+      }, 1500)
+    } catch {
+      setCopyStatus('error')
+      copyStatusTimeoutRef.current = window.setTimeout(() => {
+        setCopyStatus('idle')
+        copyStatusTimeoutRef.current = null
+      }, 2200)
+    }
+  }, [codeText])
+
+  return (
+    <div
+      data-testid="chat-code-block"
+      data-chat-code-language={lang || 'code'}
+      data-chat-code-copy-state={copyStatus}
+      style={{ position: 'relative', margin: '8px 0', maxWidth: '100%', minWidth: 0, overflow: 'hidden' }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 8,
+          minWidth: 0,
+          padding: '4px 8px 4px 10px',
+          background: 'var(--color-surface)',
+          borderRadius: '6px 6px 0 0',
+          borderBottom: '1px solid var(--color-border)'
+        }}
+      >
+        <span style={{ fontSize: 10, color: 'var(--color-text-muted)', fontFamily: 'monospace' }}>
+          {lang || 'code'}
+        </span>
+        <IconButton
+          icon={copyStatus === 'copied' ? 'check' : 'copy'}
+          label={copyStatus === 'error' ? 'Copy code failed' : copyStatus === 'copied' ? 'Copied code block' : 'Copy code block'}
+          size="sm"
+          variant="toolbar"
+          tone={copyStatus === 'copied' ? 'success' : copyStatus === 'error' ? 'danger' : 'neutral'}
+          dataTestId="chat-code-block-copy"
+          onClick={copyCode}
+        />
+      </div>
+      <pre
+        style={{
+          margin: 0,
+          padding: '10px 12px',
+          width: '100%',
+          maxWidth: '100%',
+          minWidth: 0,
+          boxSizing: 'border-box',
+          background: 'var(--color-surface)',
+          borderRadius: '0 0 6px 6px',
+          overflowX: 'auto',
+          overflowY: 'hidden',
+          fontSize: '0.82em',
+          lineHeight: 1.5
+        }}
+      >
+        <code
+          {...props}
+          className={className}
+          style={{ display: 'block', width: 'max-content', minWidth: '100%', whiteSpace: 'pre' }}
+        >
+          {children}
+        </code>
+      </pre>
+      {copyStatus !== 'idle' && (
+        <span
+          className="sr-only"
+          data-testid="chat-code-block-copy-status"
+          data-copy-state={copyStatus}
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          {copyStatus === 'copied' ? 'Copied code block' : 'Unable to copy code block'}
+        </span>
+      )}
+    </div>
   )
 }
 
@@ -1056,8 +1765,9 @@ function makeMarkdownComponents(isUser: boolean): Components {
   return {
     // Code blocks
     code({ className, children, ...props }) {
-      const isBlock = className?.startsWith('language-')
-      const lang = className?.replace('language-', '') ?? ''
+      const languageMatch = className?.match(/(?:^|\s)language-([A-Za-z0-9_-]+)/)
+      const isBlock = Boolean(languageMatch)
+      const lang = languageMatch?.[1] ?? ''
       if (!isBlock) {
         return (
           <code
@@ -1076,50 +1786,7 @@ function makeMarkdownComponents(isUser: boolean): Components {
           </code>
         )
       }
-      return (
-        <div style={{ position: 'relative', margin: '8px 0', maxWidth: '100%', minWidth: 0, overflow: 'hidden' }}>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'flex-start',
-              minWidth: 0,
-              padding: '4px 10px',
-              background: 'var(--color-surface)',
-              borderRadius: '6px 6px 0 0',
-              borderBottom: '1px solid var(--color-border)'
-            }}
-          >
-            <span style={{ fontSize: 10, color: 'var(--color-text-muted)', fontFamily: 'monospace' }}>
-              {lang || 'code'}
-            </span>
-          </div>
-          <pre
-            style={{
-              margin: 0,
-              padding: '10px 12px',
-              width: '100%',
-              maxWidth: '100%',
-              minWidth: 0,
-              boxSizing: 'border-box',
-              background: 'var(--color-surface)',
-              borderRadius: '0 0 6px 6px',
-              overflowX: 'auto',
-              overflowY: 'hidden',
-              fontSize: '0.82em',
-              lineHeight: 1.5
-            }}
-          >
-            <code
-              className={className}
-              style={{ display: 'block', minWidth: 'max-content' }}
-              {...props}
-            >
-              {children}
-            </code>
-          </pre>
-        </div>
-      )
+      return <CodeBlock className={className} lang={lang} props={props} children={children} />
     },
     // Paragraphs — no extra margin inside bubbles
     p({ children }) {
@@ -1232,20 +1899,57 @@ function makeMarkdownComponents(isUser: boolean): Components {
 const assistantComponents = makeMarkdownComponents(false)
 const userComponents = makeMarkdownComponents(true)
 
+function transcriptFocusStyle(isFocused: boolean): CSSProperties {
+  return isFocused
+    ? {
+        outline: '2px solid var(--accent)',
+        outlineOffset: 4,
+        borderRadius: 12,
+        scrollMarginBlock: 96
+      }
+    : { scrollMarginBlock: 96 }
+}
+
 function MessageRow({
   msg,
   session,
+  isFocused,
   fileReferenceRoots,
   preferredEditor,
-  canCopy
+  canCopy,
+  canContinue,
+  canRegenerate,
+  onSteerQueuedMessage,
+  onCancelQueuedMessage,
+  onEditUserMessageAsDraft,
+  onForkFromMessage
 }: {
   msg: ChatMessage
   session: Session
+  isFocused: boolean
   fileReferenceRoots: string[]
   preferredEditor: PreferredEditor
   canCopy: boolean
+  canContinue: boolean
+  canRegenerate: boolean
+  onSteerQueuedMessage: (messageId: string) => Promise<void>
+  onCancelQueuedMessage: (messageId: string, queueState: 'queued' | 'steer_next') => Promise<void>
+  onEditUserMessageAsDraft: (messageId: string, content: string, attachments?: Attachment[]) => void
+  onForkFromMessage: (messageId: string, mode?: SessionForkMode) => Promise<void>
 }): JSX.Element | null {
   const [isUserMessageExpanded, setIsUserMessageExpanded] = useState(false)
+  const openRightPanelFileTab = useSessionStore((state) => state.openRightPanelFileTab)
+  const wrapResultCard = (card: JSX.Element): JSX.Element => (
+    <div
+      data-message-id={msg.id}
+      data-transcript-focused-message={isFocused ? 'true' : 'false'}
+      tabIndex={isFocused ? -1 : undefined}
+      className="min-w-0 w-full"
+      style={transcriptFocusStyle(isFocused)}
+    >
+      {card}
+    </div>
+  )
 
   if (msg.type === 'text') {
     const isUser = msg.role === 'user'
@@ -1267,13 +1971,18 @@ function MessageRow({
       ? collapsedUserMessageContent(content)
       : content
     const queueState = isUser ? msg.queueState : undefined
+    const canEditAsDraft = isUser && !queueState && (content.trim().length > 0 || (msg.attachments?.length ?? 0) > 0)
+    const canForkFromMessage = !queueState && !msg.isStreaming && content.trim().length > 0 && (isUser || canCopy || canContinue)
     const fileReferences = !isUser && !isSystem
       ? extractFileReferences(content, session.workDir).slice(0, 8)
       : []
     return (
       <div
         data-message-id={msg.id}
+        data-transcript-focused-message={isFocused ? 'true' : 'false'}
+        tabIndex={isFocused ? -1 : undefined}
         className={`flex min-w-0 w-full ${isUser ? 'justify-end' : 'justify-start'}`}
+        style={transcriptFocusStyle(isFocused)}
       >
         <div
           className="min-w-0"
@@ -1285,7 +1994,7 @@ function MessageRow({
           }}
         >
           <div
-            className={`min-w-0 break-words ${isUser ? 'px-4 py-3 pr-9' : 'pr-8 py-1'}`}
+            className={`min-w-0 break-words ${isUser ? (canForkFromMessage ? 'px-4 py-3 pr-16' : 'px-4 py-3 pr-9') : (canContinue || canRegenerate || canForkFromMessage) ? 'pr-64 py-1' : 'pr-8 py-1'}`}
             style={{
               background: isUser ? 'var(--control-bg-active)' : 'transparent',
               color: 'var(--text-primary)',
@@ -1319,7 +2028,30 @@ function MessageRow({
                 |
               </span>
             )}
-            {fileReferences.length > 0 && <FileReferenceList files={fileReferences} cwd={session.workDir} searchRoots={fileReferenceRoots} preferredEditor={preferredEditor} />}
+            {!isUser && msg.interrupted && !msg.isStreaming && (
+              <div
+                className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-full px-2 py-1 text-[11px] font-medium"
+                data-testid="chat-partial-response-status"
+                style={{
+                  background: 'color-mix(in srgb, var(--color-yellow) 12%, var(--color-surface2))',
+                  border: '1px solid color-mix(in srgb, var(--color-yellow) 34%, var(--color-border))',
+                  color: 'var(--color-text-muted)'
+                }}
+              >
+                <span className="shrink-0" style={{ color: 'var(--color-yellow)' }}>{iconPath('warning')}</span>
+                <span className="min-w-0 truncate">Partial response stopped</span>
+              </div>
+            )}
+            {fileReferences.length > 0 && (
+              <FileReferenceList
+                files={fileReferences}
+                sessionId={session.id}
+                cwd={session.workDir}
+                searchRoots={fileReferenceRoots}
+                preferredEditor={preferredEditor}
+                onOpenWorkbenchFile={(root, filePath, line) => openRightPanelFileTab(session.id, filePath, { preview: true, line, root })}
+              />
+            )}
             {isUser && msg.attachments && msg.attachments.length > 0 && <MessageAttachmentList attachments={msg.attachments} />}
             {shouldCollapseUserMessage && (
               <div className="mt-2 flex justify-end">
@@ -1342,36 +2074,92 @@ function MessageRow({
               </div>
             )}
             {queueState && (
-              <div className="mt-2 flex items-center justify-end gap-2">
-                <span
-                  className="rounded-full px-2 py-0.5 text-[10px] font-medium"
-                  style={{ background: 'rgba(255,255,255,0.16)', color: 'rgba(255,255,255,0.82)' }}
-                >
-                  {queueState === 'steer_next' ? 'Steering next' : 'Queued'}
-                </span>
+              <div
+                className="mt-2 flex flex-wrap items-center justify-end gap-2"
+                data-testid="queued-message-actions"
+                data-queued-message-state={queueState}
+              >
+                <StatusBadge
+                  label={queueState === 'steer_next' ? 'Steering next' : 'Queued'}
+                  tone={queueState === 'steer_next' ? 'accent' : 'neutral'}
+                  pulse={queueState === 'steer_next'}
+                />
                 {queueState === 'queued' && (
-                  <button
-                    type="button"
-                    className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
-                    style={{ background: 'rgba(255,255,255,0.9)', color: 'var(--color-accent)' }}
+                  <Button
+                    variant="secondary"
+                    className="rounded-full px-2 py-0.5 text-[10px]"
+                    dataTestId="queued-message-steer"
+                    ariaLabel="Steer queued message"
                     title="Send after the current tool call completes"
-                    onClick={() => window.api.sessions.steerQueuedMessage(session.id, msg.id)}
+                    onClick={() => { void onSteerQueuedMessage(msg.id) }}
                   >
                     Steer
-                  </button>
+                  </Button>
                 )}
+                <Button
+                  variant="ghost"
+                  className="rounded-full px-2 py-0.5 text-[10px]"
+                  dataTestId="queued-message-cancel"
+                  ariaLabel={queueState === 'steer_next' ? 'Cancel steering message' : 'Cancel queued message'}
+                  title={queueState === 'steer_next' ? 'Cancel steering message' : 'Cancel queued message'}
+                  onClick={() => { void onCancelQueuedMessage(msg.id, queueState) }}
+                >
+                  Cancel
+                </Button>
               </div>
             )}
           </div>
-          {canCopy && (
+          {(canCopy || canContinue || canRegenerate || canForkFromMessage) && !isUser && (
             <div
+              className="flex items-center gap-1"
               style={{
                 position: 'absolute',
                 top: 2,
                 right: 0
               }}
             >
-              <CopyButton getText={() => content} />
+              {canContinue && <ContinueButton sessionId={session.id} />}
+              {canRegenerate && <RegenerateButton sessionId={session.id} />}
+              {canForkFromMessage && (
+                <ForkFromMessageButton
+                  canForkSameWorktree={session.useWorktree}
+                  canForkNewWorktree={Boolean(session.repoRoot)}
+                  onFork={(mode) => onForkFromMessage(msg.id, mode)}
+                />
+              )}
+              {canCopy && <CopyButton getText={() => content} />}
+            </div>
+          )}
+          {(canEditAsDraft || canForkFromMessage) && isUser && (
+            <div
+              className="flex items-center gap-1"
+              style={{
+                position: 'absolute',
+                top: 4,
+                right: 6
+              }}
+            >
+              {canEditAsDraft && (
+                <IconButton
+                  icon="pencil"
+                  label="Edit message as draft"
+                  size="sm"
+                  tone="neutral"
+                  dataTestId="chat-user-message-edit"
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    onEditUserMessageAsDraft(msg.id, content, msg.attachments ?? [])
+                  }}
+                  style={{ opacity: 0.62 }}
+                />
+              )}
+              {canForkFromMessage && (
+                <ForkFromMessageButton
+                  canForkSameWorktree={session.useWorktree}
+                  canForkNewWorktree={Boolean(session.repoRoot)}
+                  onFork={(mode) => onForkFromMessage(msg.id, mode)}
+                />
+              )}
             </div>
           )}
         </div>
@@ -1381,28 +2169,116 @@ function MessageRow({
 
   if (msg.type === 'result') {
     if (msg.subtype === 'waiting_for_user') {
-      return <UserInputCard msg={msg} sessionId={session.id} sessionStatus={session.status} />
+      return wrapResultCard(<UserInputCard msg={msg} sessionId={session.id} sessionStatus={session.status} />)
     }
     if (msg.permissionDenials && msg.permissionDenials.length > 0) {
-      return <PermissionCard msg={msg} sessionId={session.id} sessionStatus={session.status} />
+      return wrapResultCard(<PermissionCard msg={msg} sessionId={session.id} sessionStatus={session.status} />)
     }
     if (msg.subtype === 'status') {
-      return <StatusCard content={msg.content} session={session} />
+      return wrapResultCard(<StatusCard content={msg.content} session={session} />)
     }
     if (msg.subtype === 'success') return null
-    return (
-      <div className="flex justify-center">
-        <span
-          className="text-xs px-3 py-1 rounded-full"
-          style={{ background: '#2d1a1a', color: 'var(--color-red)' }}
-        >
-          ✗ Error{msg.content ? ` — ${msg.content.slice(0, 80)}` : ''}
-        </span>
-      </div>
-    )
+    return wrapResultCard(<ErrorRecoveryCard msg={msg} session={session} />)
   }
 
   return null
+}
+
+function ErrorRecoveryCard({ msg, session }: { msg: ResultMessage; session: Session }): JSX.Element {
+  const [retryState, setRetryState] = useState<'idle' | 'retrying' | 'sent' | 'error'>('idle')
+  const [retryError, setRetryError] = useState<string | null>(null)
+  const activeSession = isActiveSessionStatus(session.status)
+  const canRetry = hasRetryableUserMessage(session)
+  const actionLabel = activeSession ? 'Stop and retry' : 'Retry last message'
+
+  const retryLastMessage = async (): Promise<void> => {
+    if (!canRetry || retryState === 'retrying') return
+    setRetryState('retrying')
+    setRetryError(null)
+    try {
+      if (activeSession) {
+        await window.api.sessions.stop(session.id)
+        await new Promise((resolve) => setTimeout(resolve, 160))
+      }
+      const ok = await window.api.sessions.retryLastUserMessage(session.id)
+      if (!ok) {
+        setRetryState('error')
+        setRetryError('No retryable message is available.')
+        return
+      }
+      setRetryState('sent')
+    } catch (error) {
+      setRetryState('error')
+      setRetryError(error instanceof Error ? error.message : 'Retry failed.')
+    }
+  }
+
+  return (
+    <div className="flex justify-start min-w-0 w-full" role="group" aria-label="Run failure recovery">
+      <SurfaceRow
+        className="flex min-w-0 items-start gap-2 rounded-xl px-3 py-2 text-xs"
+        dataTestId="chat-error-recovery-card"
+        style={{
+          maxWidth: 'min(640px, 100%)',
+          background: 'color-mix(in srgb, var(--color-red) 8%, var(--color-surface2))',
+          border: '1px solid color-mix(in srgb, var(--color-red) 28%, var(--color-border))',
+          color: 'var(--color-text)'
+        }}
+      >
+        <span
+          className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded"
+          style={{ color: 'var(--color-red)', background: 'var(--color-surface)' }}
+        >
+          {iconPath('warning')}
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="text-[11px] font-semibold" style={{ color: 'var(--color-red)' }}>
+            Run failed
+          </div>
+          <div className="mt-0.5" style={{ color: 'var(--color-text)', overflowWrap: 'anywhere' }}>
+            {msg.content?.trim() || 'The provider run stopped before completing.'}
+          </div>
+          {(retryError || retryState === 'sent') && (
+            <div
+              className="mt-1 text-[11px]"
+              data-testid="chat-error-retry-status"
+              role={retryState === 'error' ? 'alert' : 'status'}
+              aria-live={retryState === 'error' ? 'assertive' : 'polite'}
+              aria-atomic="true"
+              style={{ color: retryState === 'error' ? 'var(--color-red)' : 'var(--color-green)' }}
+            >
+              {retryState === 'error' ? retryError : 'Retry sent'}
+            </div>
+          )}
+        </div>
+        <Button
+          variant="secondary"
+          className="shrink-0 px-3 py-1"
+          dataTestId="chat-error-retry-last"
+          disabled={!canRetry || retryState === 'retrying'}
+          ariaLabel={actionLabel}
+          onClick={() => { void retryLastMessage() }}
+        >
+          {retryState === 'retrying' ? 'Retrying...' : actionLabel}
+        </Button>
+      </SurfaceRow>
+    </div>
+  )
+}
+
+function hasRetryableUserMessage(session: Session): boolean {
+  return session.messages.some((message) =>
+    message.type === 'text' && message.role === 'user' && message.content.trim().length > 0
+  )
+}
+
+function isActiveSessionStatus(status: Session['status']): boolean {
+  return status === 'running' || status === 'waiting_for_permission' || status === 'waiting_for_user' || status === 'reconnecting'
+}
+
+function errorText(error: unknown): string {
+  if (error instanceof Error) return error.message
+  return String(error)
 }
 
 function collapsedUserMessageContent(content: string): string {
@@ -1580,13 +2456,20 @@ function ChangesReviewCard({ content, session, hideWhenEmpty = false }: { conten
       ? 'unsupported'
       : 'missing-checkpoint'
   const undoKind = reviewCardSource === 'last-turn'
-    ? providerCheckpointUndoStatus === 'missing-checkpoint'
-      ? 'provider-checkpoint-missing'
-      : 'provider-checkpoint-unsupported'
+    ? lastTurnDiff.trim().length > 0
+      ? 'local-reverse-patch'
+      : providerCheckpointUndoStatus === 'missing-checkpoint'
+        ? 'provider-checkpoint-missing'
+        : 'provider-checkpoint-unsupported'
     : 'local-current-change'
-  const canUndo = reviewCardSource === 'local' && !loading && files.length > 0 && undoState !== 'undoing'
+  const canUndo = !loading && files.length > 0 && undoState !== 'undoing' && (
+    reviewCardSource === 'local' ||
+    (reviewCardSource === 'last-turn' && lastTurnDiff.trim().length > 0)
+  )
   const undoTitle = canUndo
-    ? `Undo ${files.length} changed ${files.length === 1 ? 'file' : 'files'}`
+    ? reviewCardSource === 'last-turn'
+      ? `Undo last turn ${files.length} changed ${files.length === 1 ? 'file' : 'files'} locally`
+      : `Undo ${files.length} changed ${files.length === 1 ? 'file' : 'files'}`
     : reviewCardSource === 'last-turn'
       ? providerCheckpointUndoStatus === 'missing-checkpoint'
         ? 'Provider checkpoint id was not provided by this adapter'
@@ -1596,23 +2479,37 @@ function ChangesReviewCard({ content, session, hideWhenEmpty = false }: { conten
         : undoState === 'error'
           ? undoError ?? 'Undo failed'
           : 'No changed files to undo'
+  const reviewTitle = reviewCardSource === 'last-turn'
+    ? files.length > 0
+      ? `Open Review for last turn, ${files.length} changed ${files.length === 1 ? 'file' : 'files'}`
+      : 'Open Review for last turn'
+    : files.length > 0
+      ? `Open Review for ${files.length} changed ${files.length === 1 ? 'file' : 'files'}`
+      : 'Open Review'
   const undoReviewChanges = async (): Promise<void> => {
     if (!canUndo) return
     setUndoState('undoing')
     setUndoError(null)
     const paths = files.map((file) => file.path)
-    const result = await window.api.sessions.undoChangedFiles(session.id, paths)
+    const result = reviewCardSource === 'last-turn'
+      ? await window.api.sessions.undoLastTurnDiff(session.id, lastTurnDiff)
+      : await window.api.sessions.undoChangedFiles(session.id, paths)
+    const targetPaths = new Set(paths)
     if (!result.ok) {
       setUndoState('error')
       setUndoError(result.error ?? 'Undo failed')
-      setFiles(result.changedFiles)
+      setFiles(reviewCardSource === 'last-turn'
+        ? result.changedFiles.filter((file) => targetPaths.has(file.path))
+        : result.changedFiles)
       return
     }
-    setFiles(result.changedFiles)
+    setFiles(reviewCardSource === 'last-turn'
+      ? result.changedFiles.filter((file) => targetPaths.has(file.path))
+      : result.changedFiles)
     setDiffsByPath({})
     setExpandedPath(null)
     setExpanded(false)
-    setUndoState(result.discarded ? 'undone' : 'idle')
+    setUndoState(result.discarded || result.reverseApplied ? 'undone' : 'idle')
   }
 
   if (hideWhenEmpty && !loading && files.length === 0) return <></>
@@ -1654,6 +2551,7 @@ function ChangesReviewCard({ content, session, hideWhenEmpty = false }: { conten
               data-testid="codex-review-card-undo"
               disabled={!canUndo}
               title={undoTitle}
+              aria-label={undoTitle}
               onClick={() => { void undoReviewChanges() }}
             >
               {undoState === 'undoing' ? 'Undoing...' : 'Undo'}
@@ -1662,6 +2560,8 @@ function ChangesReviewCard({ content, session, hideWhenEmpty = false }: { conten
               type="button"
               className="codex-review-card-action codex-review-card-review-action"
               data-testid="codex-review-card-review"
+              title={reviewTitle}
+              aria-label={reviewTitle}
               onClick={openReview}
             >
               Review
@@ -1682,6 +2582,12 @@ function ChangesReviewCard({ content, session, hideWhenEmpty = false }: { conten
             visibleFiles.map((file) => {
               const fileExpanded = expandedPath === file.path
               const diffState = diffsByPath[file.path]
+              const fileStatusLabel = reviewCardStatusLabel(file)
+              const fileStatsLabel = [
+                file.additions > 0 ? `${file.additions} ${file.additions === 1 ? 'addition' : 'additions'}` : '',
+                file.deletions > 0 ? `${file.deletions} ${file.deletions === 1 ? 'deletion' : 'deletions'}` : ''
+              ].filter(Boolean).join(', ')
+              const fileActionLabel = `${fileStatusLabel} ${file.path}${fileStatsLabel ? `, ${fileStatsLabel}` : ''}`
               return (
                 <div
                   key={file.path}
@@ -1695,11 +2601,12 @@ function ChangesReviewCard({ content, session, hideWhenEmpty = false }: { conten
                     data-review-card-path={file.path}
                     data-review-card-status={reviewCardStatus(file)}
                     aria-expanded={fileExpanded}
+                    aria-label={fileActionLabel}
                     onClick={() => setExpandedPath((current) => current === file.path ? null : file.path)}
                     title={file.path}
                   >
                     <span className="codex-review-card-file-leading">
-                      <span className="codex-review-card-file-status">{reviewCardStatusLabel(file)}</span>
+                      <span className="codex-review-card-file-status">{fileStatusLabel}</span>
                       <span className="codex-review-card-path">{file.path}</span>
                     </span>
                     <span className="codex-review-card-file-stats">
@@ -1894,29 +2801,85 @@ function MessageAttachmentList({ attachments }: { attachments: Attachment[] }): 
   )
 }
 
-function FileReferenceList({ files, cwd, searchRoots, preferredEditor }: { files: FileReference[]; cwd: string; searchRoots: string[]; preferredEditor: PreferredEditor }): JSX.Element {
+function FileReferenceList({
+  files,
+  sessionId,
+  cwd,
+  searchRoots,
+  preferredEditor,
+  onOpenWorkbenchFile
+}: {
+  files: FileReference[]
+  sessionId: string
+  cwd: string
+  searchRoots: string[]
+  preferredEditor: PreferredEditor
+  onOpenWorkbenchFile: (root: string, filePath: string, line?: number) => void
+}): JSX.Element {
   return (
     <div className="mt-3 min-w-0 max-w-full space-y-1.5" aria-label="Referenced files" data-testid="file-reference-list">
       {files.map((file) => (
-        <FileReferenceCard key={`${file.path}:${file.line ?? ''}:${file.column ?? ''}`} file={file} cwd={cwd} searchRoots={searchRoots} preferredEditor={preferredEditor} />
+        <FileReferenceCard
+          key={`${file.path}:${file.line ?? ''}:${file.column ?? ''}`}
+          file={file}
+          sessionId={sessionId}
+          cwd={cwd}
+          searchRoots={searchRoots}
+          preferredEditor={preferredEditor}
+          onOpenWorkbenchFile={onOpenWorkbenchFile}
+        />
       ))}
     </div>
   )
 }
 
-function FileReferenceCard({ file, cwd, searchRoots, preferredEditor }: { file: FileReference; cwd: string; searchRoots: string[]; preferredEditor: PreferredEditor }): JSX.Element {
+function FileReferenceCard({
+  file,
+  sessionId,
+  cwd,
+  searchRoots,
+  preferredEditor,
+  onOpenWorkbenchFile
+}: {
+  file: FileReference
+  sessionId: string
+  cwd: string
+  searchRoots: string[]
+  preferredEditor: PreferredEditor
+  onOpenWorkbenchFile: (root: string, filePath: string, line?: number) => void
+}): JSX.Element {
+  const setShowTerminal = useSessionStore((state) => state.setShowTerminal)
+  const addTerminalTab = useSessionStore((state) => state.addTerminalTab)
+  const setActiveTerminalTab = useSessionStore((state) => state.setActiveTerminalTab)
   const [exists, setExists] = useState<boolean | null>(null)
   const [resolvedPath, setResolvedPath] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [lastOpenResult, setLastOpenResult] = useState<OpenPathResult | null>(null)
+  const [workbenchOpenStatus, setWorkbenchOpenStatus] = useState('')
+  const [attachStatus, setAttachStatus] = useState('')
+  const [copyStatus, setCopyStatus] = useState('')
+  const [terminalStatus, setTerminalStatus] = useState('')
   const displayPath = resolvedPath ?? file.path
   const displayLabel = resolvedPath ? fileName(resolvedPath) : file.label
   const targetLabel = file.line ? `:${file.line}${file.column ? `:${file.column}` : ''}` : ''
+  const openStatus = lastOpenResult ? fileReferenceOpenResultStatus(lastOpenResult) : ''
+  const workbenchTarget = resolvedPath
+    ? relativePathWithinRoots(uniqueRoots(cwd, searchRoots), resolvedPath)
+    : file.source === 'relative'
+      ? { root: cwd, filePath: file.path }
+      : null
+  const canOpenInWorkbench = exists === true && workbenchTarget !== null
 
   useEffect(() => {
     let cancelled = false
     setExists(null)
     setResolvedPath(null)
     setError(null)
+    setLastOpenResult(null)
+    setWorkbenchOpenStatus('')
+    setAttachStatus('')
+    setCopyStatus('')
+    setTerminalStatus('')
 
     const resolve = async (): Promise<void> => {
       try {
@@ -1955,8 +2918,14 @@ function FileReferenceCard({ file, cwd, searchRoots, preferredEditor }: { file: 
 
   const openPath = async (): Promise<void> => {
     setError(null)
-    const result = await window.api.fs.openPath(displayPath, { line: file.line, column: file.column })
-    if (!result.ok) setError(result.message ?? 'Unable to open file.')
+    try {
+      const result = await window.api.fs.openPath(displayPath, { line: file.line, column: file.column })
+      setLastOpenResult(result)
+      if (!result.ok) setError(result.message ?? 'Unable to open file.')
+    } catch {
+      setLastOpenResult(null)
+      setError('Unable to open file.')
+    }
   }
 
   const revealPath = async (): Promise<void> => {
@@ -1964,11 +2933,91 @@ function FileReferenceCard({ file, cwd, searchRoots, preferredEditor }: { file: 
     await window.api.fs.showInFolder(displayPath)
   }
 
+  const writeFileReferenceClipboardText = async (text: string): Promise<void> => {
+    if (typeof window.api.clipboard?.writeText === 'function') {
+      const didWrite = await window.api.clipboard.writeText(text)
+      if (!didWrite) throw new Error('Clipboard write failed')
+      return
+    }
+    await navigator.clipboard.writeText(text)
+  }
+
+  const copyPath = (): void => {
+    if (exists !== true || !resolvedPath) return
+    setCopyStatus('Copying path')
+    void writeFileReferenceClipboardText(resolvedPath)
+      .then(() => setCopyStatus('Path copied'))
+      .catch(() => setCopyStatus('Copy path failed'))
+  }
+
+  const insertPathInTerminal = (): void => {
+    if (exists !== true || !resolvedPath) return
+    setTerminalStatus('Opening terminal for path')
+    void (async () => {
+      try {
+        const state = useSessionStore.getState()
+        const currentPanel = state.uiState[sessionId]?.terminalPanel
+        const existingTab = typeof currentPanel?.activeTabId === 'number'
+          ? currentPanel.activeTabId
+          : currentPanel?.tabs.find((tab): tab is number => typeof tab === 'number')
+        const tabId = existingTab ?? addTerminalTab(sessionId)
+        setShowTerminal(sessionId, true)
+        setActiveTerminalTab(sessionId, tabId)
+        const terminalId = `${sessionId}-${tabId}`
+        const globals = window as typeof window & {
+          __orchestratorLastFileReferenceTerminalPathForSmoke?: string
+          __orchestratorLastFileReferenceTerminalIdForSmoke?: string
+        }
+        globals.__orchestratorLastFileReferenceTerminalPathForSmoke = resolvedPath
+        globals.__orchestratorLastFileReferenceTerminalIdForSmoke = terminalId
+        await window.api.terminal.spawn(terminalId, cwd)
+        await window.api.terminal.write(terminalId, shellQuote(resolvedPath))
+        setTerminalStatus('Path inserted in terminal')
+      } catch {
+        setTerminalStatus('Insert path in terminal failed')
+      }
+    })()
+  }
+
+  const openInWorkbench = (): void => {
+    if (!workbenchTarget) return
+    onOpenWorkbenchFile(workbenchTarget.root, workbenchTarget.filePath, file.line)
+    setWorkbenchOpenStatus(file.line ? `Opened in Workbench at line ${file.line}` : 'Opened in Workbench')
+  }
+
+  const attachToChat = (): void => {
+    if (exists !== true || !resolvedPath) return
+    const name = fileName(resolvedPath)
+    window.dispatchEvent(new CustomEvent('orchestrator:add-composer-attachment', {
+      detail: {
+        path: resolvedPath,
+        name
+      }
+    }))
+    setAttachStatus(`Attached ${name} to chat`)
+  }
+
   if (exists === false && file.source === 'relative') return <></>
 
   return (
     <div
       data-testid="file-reference-card"
+      data-file-reference-path={file.path}
+      data-file-reference-resolved-path={resolvedPath ?? ''}
+      data-file-reference-open-result-ok={lastOpenResult === null ? '' : lastOpenResult.ok ? 'true' : 'false'}
+      data-file-reference-open-result-target={lastOpenResult?.target ?? ''}
+      data-file-reference-open-result-method={lastOpenResult?.method ?? ''}
+      data-file-reference-open-result-line={lastOpenResult?.line ?? ''}
+      data-file-reference-open-result-column={lastOpenResult?.column ?? ''}
+      data-file-reference-open-result-fallback-from={lastOpenResult?.fallbackFrom ?? ''}
+      data-file-reference-open-result-opened-with={lastOpenResult?.openedWith ?? ''}
+      data-file-reference-workbench-root={workbenchTarget?.root ?? ''}
+      data-file-reference-workbench-path={workbenchTarget?.filePath ?? ''}
+      data-file-reference-workbench-opened={workbenchOpenStatus ? 'true' : 'false'}
+      data-file-reference-attachment-path={attachStatus ? resolvedPath ?? '' : ''}
+      data-file-reference-attached={attachStatus ? 'true' : 'false'}
+      data-file-reference-copy-status={copyStatus}
+      data-file-reference-terminal-status={terminalStatus}
       className="min-w-0 max-w-full overflow-hidden rounded-lg px-3 py-2 text-xs"
       style={{
         background: 'var(--color-surface)',
@@ -1991,38 +3040,162 @@ function FileReferenceCard({ file, cwd, searchRoots, preferredEditor }: { file: 
             missing
           </span>
         )}
-        <button
-          type="button"
-          onClick={openPath}
-          disabled={exists === false}
-          className="shrink-0 rounded-md px-2 py-1 transition-colors"
-          style={{
-            color: exists === false ? 'var(--color-text-muted)' : 'var(--color-accent)',
-            background: 'transparent',
-            border: '1px solid var(--color-border)',
-            opacity: exists === false ? 0.5 : 1
-          }}
-        >
-          {openButtonLabel(preferredEditor)}
-        </button>
-        <button
-          type="button"
-          onClick={revealPath}
-          disabled={exists === false}
-          className="shrink-0 rounded-md px-2 py-1 transition-colors"
-          style={{
-            color: exists === false ? 'var(--color-text-muted)' : 'var(--color-text)',
-            background: 'transparent',
-            border: '1px solid var(--color-border)',
-            opacity: exists === false ? 0.5 : 1
-          }}
-        >
-          Reveal
-        </button>
+        <div className="flex shrink-0 flex-wrap justify-end gap-1">
+          <button
+            type="button"
+            onClick={openPath}
+            disabled={exists === false}
+            data-testid="file-reference-open-external"
+            className="shrink-0 rounded-md px-2 py-1 transition-colors"
+            style={{
+              color: exists === false ? 'var(--color-text-muted)' : 'var(--color-accent)',
+              background: 'transparent',
+              border: '1px solid var(--color-border)',
+              opacity: exists === false ? 0.5 : 1
+            }}
+          >
+            {openButtonLabel(preferredEditor)}
+          </button>
+          <button
+            type="button"
+            onClick={openInWorkbench}
+            disabled={!canOpenInWorkbench}
+            data-testid="file-reference-open-workbench"
+            className="shrink-0 rounded-md px-2 py-1 transition-colors"
+            style={{
+              color: canOpenInWorkbench ? 'var(--color-text)' : 'var(--color-text-muted)',
+              background: 'transparent',
+              border: '1px solid var(--color-border)',
+              opacity: canOpenInWorkbench ? 1 : 0.5
+            }}
+          >
+            Workbench
+          </button>
+          <button
+            type="button"
+            onClick={attachToChat}
+            disabled={exists !== true || !resolvedPath}
+            data-testid="file-reference-attach-chat"
+            className="shrink-0 rounded-md px-2 py-1 transition-colors"
+            style={{
+              color: exists === true && resolvedPath ? 'var(--color-text)' : 'var(--color-text-muted)',
+              background: 'transparent',
+              border: '1px solid var(--color-border)',
+              opacity: exists === true && resolvedPath ? 1 : 0.5
+            }}
+          >
+            Attach
+          </button>
+          <button
+            type="button"
+            onClick={copyPath}
+            disabled={exists !== true || !resolvedPath}
+            data-testid="file-reference-copy-path"
+            className="shrink-0 rounded-md px-2 py-1 transition-colors"
+            style={{
+              color: exists === true && resolvedPath ? 'var(--color-text)' : 'var(--color-text-muted)',
+              background: 'transparent',
+              border: '1px solid var(--color-border)',
+              opacity: exists === true && resolvedPath ? 1 : 0.5
+            }}
+          >
+            Copy
+          </button>
+          <button
+            type="button"
+            onClick={insertPathInTerminal}
+            disabled={exists !== true || !resolvedPath}
+            data-testid="file-reference-insert-terminal"
+            className="shrink-0 rounded-md px-2 py-1 transition-colors"
+            style={{
+              color: exists === true && resolvedPath ? 'var(--color-text)' : 'var(--color-text-muted)',
+              background: 'transparent',
+              border: '1px solid var(--color-border)',
+              opacity: exists === true && resolvedPath ? 1 : 0.5
+            }}
+          >
+            Terminal
+          </button>
+          <button
+            type="button"
+            onClick={revealPath}
+            disabled={exists === false}
+            data-testid="file-reference-reveal"
+            className="shrink-0 rounded-md px-2 py-1 transition-colors"
+            style={{
+              color: exists === false ? 'var(--color-text-muted)' : 'var(--color-text)',
+              background: 'transparent',
+              border: '1px solid var(--color-border)',
+              opacity: exists === false ? 0.5 : 1
+            }}
+          >
+            Reveal
+          </button>
+        </div>
       </div>
       {error && (
         <div className="mt-1" style={{ color: 'var(--color-red)', fontSize: 10 }}>
           {error}
+        </div>
+      )}
+      {openStatus && !error && (
+        <div
+          className="mt-1"
+          data-testid="file-reference-open-status"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          style={{ color: 'var(--color-text-muted)', fontSize: 10 }}
+        >
+          {openStatus}
+        </div>
+      )}
+      {workbenchOpenStatus && (
+        <div
+          className="mt-1"
+          data-testid="file-reference-workbench-status"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          style={{ color: 'var(--color-text-muted)', fontSize: 10 }}
+        >
+          {workbenchOpenStatus}
+        </div>
+      )}
+      {attachStatus && (
+        <div
+          className="mt-1"
+          data-testid="file-reference-attachment-status"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          style={{ color: 'var(--color-text-muted)', fontSize: 10 }}
+        >
+          {attachStatus}
+        </div>
+      )}
+      {copyStatus && (
+        <div
+          className="mt-1"
+          data-testid="file-reference-copy-status"
+          role={copyStatus.includes('failed') ? 'alert' : 'status'}
+          aria-live={copyStatus.includes('failed') ? 'assertive' : 'polite'}
+          aria-atomic="true"
+          style={{ color: copyStatus.includes('failed') ? 'var(--color-red)' : 'var(--color-text-muted)', fontSize: 10 }}
+        >
+          {copyStatus}
+        </div>
+      )}
+      {terminalStatus && (
+        <div
+          className="mt-1"
+          data-testid="file-reference-terminal-status"
+          role={terminalStatus.includes('failed') ? 'alert' : 'status'}
+          aria-live={terminalStatus.includes('failed') ? 'assertive' : 'polite'}
+          aria-atomic="true"
+          style={{ color: terminalStatus.includes('failed') ? 'var(--color-red)' : 'var(--color-text-muted)', fontSize: 10 }}
+        >
+          {terminalStatus}
         </div>
       )}
     </div>
@@ -2031,6 +3204,21 @@ function FileReferenceCard({ file, cwd, searchRoots, preferredEditor }: { file: 
 
 function fileName(filePath: string): string {
   return filePath.split('/').filter(Boolean).at(-1) ?? filePath
+}
+
+function shellQuote(value: string): string {
+  return /^[A-Za-z0-9._/@:-]+$/.test(value) ? value : `'${value.replace(/'/g, `'\\''`)}'`
+}
+
+function relativePathWithinRoots(roots: string[], absolutePath: string): { root: string; filePath: string } | null {
+  const normalizedPath = absolutePath.replace(/\/+$/, '')
+  for (const root of roots) {
+    const normalizedRoot = root.replace(/\/+$/, '')
+    if (normalizedPath === normalizedRoot) continue
+    const prefix = `${normalizedRoot}/`
+    if (normalizedPath.startsWith(prefix)) return { root: normalizedRoot, filePath: normalizedPath.slice(prefix.length) }
+  }
+  return null
 }
 
 function normalizePreferredEditor(value: unknown): PreferredEditor {
@@ -2051,6 +3239,29 @@ function openButtonLabel(editor: PreferredEditor): string {
       return 'Open in Zed'
     case 'system':
       return 'Open'
+  }
+}
+
+function fileReferenceOpenResultStatus(result: OpenPathResult): string {
+  if (!result.ok) return result.message ? `Open failed: ${result.message}` : 'Open failed'
+  const target = fileReferenceOpenTargetLabel(result.target)
+  const location = result.line ? ` at line ${result.line}${result.column ? `:${result.column}` : ''}` : ''
+  const fallback = result.fallbackFrom ? ` via ${result.method}` : ''
+  return `Opened in ${target}${location}${fallback}`
+}
+
+function fileReferenceOpenTargetLabel(editor: PreferredEditor): string {
+  switch (editor) {
+    case 'cursor':
+      return 'Cursor'
+    case 'vscode':
+      return 'VS Code'
+    case 'vscode-insiders':
+      return 'VS Code Insiders'
+    case 'zed':
+      return 'Zed'
+    case 'system':
+      return 'System'
   }
 }
 
@@ -2080,7 +3291,215 @@ function fileReferenceSearchContent(message: ChatMessage): string | null {
   return null
 }
 
-function ToolActivitySummary({ messages }: { messages: Array<ToolUseMessage | ToolResultMessage> }): JSX.Element {
+function toolCommandText(tool: ToolUseMessage): string | null {
+  const command = tool.toolInput.command
+  if (typeof command === 'string' && command.trim()) return command
+  const cmd = tool.toolInput.cmd
+  if (typeof cmd === 'string' && cmd.trim()) return cmd
+  return null
+}
+
+function truncateText(text: string, maxLength: number): string {
+  if (text.length <= maxLength) return text
+  return `${text.slice(0, Math.max(0, maxLength - 3))}...`
+}
+
+function toolCommandComposerText(tool: ToolUseMessage, command: string, result?: ToolResultMessage): string {
+  const resultExcerpt = result?.content.trim()
+  return [
+    'Use this command context:',
+    `Tool: ${tool.toolName}`,
+    `Command: ${command}`,
+    resultExcerpt
+      ? `Result:\n${truncateText(resultExcerpt, 1800)}`
+      : null
+  ].filter(Boolean).join('\n')
+}
+
+function ToolActivityCommandCopy({ tool, result, session }: { tool: ToolUseMessage; result?: ToolResultMessage; session: Session }): JSX.Element | null {
+  const command = toolCommandText(tool)
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'error'>('idle')
+  const [chatStatus, setChatStatus] = useState<'idle' | 'added'>('idle')
+  const [terminalStatus, setTerminalStatus] = useState<'idle' | 'running' | 'sent' | 'error'>('idle')
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const chatTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const terminalTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const setShowTerminal = useSessionStore((state) => state.setShowTerminal)
+  const addTerminalTab = useSessionStore((state) => state.addTerminalTab)
+  const setActiveTerminalTab = useSessionStore((state) => state.setActiveTerminalTab)
+
+  useEffect(() => () => {
+    if (timeoutRef.current) window.clearTimeout(timeoutRef.current)
+    if (chatTimeoutRef.current) window.clearTimeout(chatTimeoutRef.current)
+    if (terminalTimeoutRef.current) window.clearTimeout(terminalTimeoutRef.current)
+  }, [])
+
+  const copyCommand = useCallback(async (event: React.MouseEvent) => {
+    event.preventDefault()
+    event.stopPropagation()
+    if (!command) return
+    if (timeoutRef.current) window.clearTimeout(timeoutRef.current)
+    try {
+      if (typeof window.api.clipboard?.writeText === 'function') {
+        const didWrite = await window.api.clipboard.writeText(command)
+        if (!didWrite) throw new Error('Clipboard write failed')
+      } else {
+        await navigator.clipboard.writeText(command)
+      }
+      setCopyStatus('copied')
+      timeoutRef.current = window.setTimeout(() => {
+        setCopyStatus('idle')
+        timeoutRef.current = null
+      }, 1500)
+    } catch {
+      setCopyStatus('error')
+      timeoutRef.current = window.setTimeout(() => {
+        setCopyStatus('idle')
+        timeoutRef.current = null
+      }, 2200)
+    }
+  }, [command])
+
+  const addCommandToChat = useCallback((event: React.MouseEvent) => {
+    event.preventDefault()
+    event.stopPropagation()
+    if (!command) return
+    if (chatTimeoutRef.current) window.clearTimeout(chatTimeoutRef.current)
+    window.dispatchEvent(new CustomEvent('orchestrator:add-composer-text', {
+      detail: { text: toolCommandComposerText(tool, command, result) }
+    }))
+    setChatStatus('added')
+    chatTimeoutRef.current = window.setTimeout(() => {
+      setChatStatus('idle')
+      chatTimeoutRef.current = null
+    }, 1500)
+  }, [command, result, tool])
+
+  const runCommandInTerminal = useCallback(async (event: React.MouseEvent) => {
+    event.preventDefault()
+    event.stopPropagation()
+    if (!command || terminalStatus === 'running') return
+    if (terminalTimeoutRef.current) window.clearTimeout(terminalTimeoutRef.current)
+    setTerminalStatus('running')
+    try {
+      const state = useSessionStore.getState()
+      const currentPanel = state.uiState[session.id]?.terminalPanel
+      const existingTab = typeof currentPanel?.activeTabId === 'number'
+        ? currentPanel.activeTabId
+        : currentPanel?.tabs.find((tab): tab is number => typeof tab === 'number')
+      const tabId = existingTab ?? addTerminalTab(session.id)
+      setShowTerminal(session.id, true)
+      setActiveTerminalTab(session.id, tabId)
+      const terminalId = `${session.id}-${tabId}`
+      const globals = window as typeof window & {
+        __orchestratorLastToolActivityTerminalCommandForSmoke?: string
+        __orchestratorLastToolActivityTerminalIdForSmoke?: string
+      }
+      globals.__orchestratorLastToolActivityTerminalCommandForSmoke = command
+      globals.__orchestratorLastToolActivityTerminalIdForSmoke = terminalId
+      await window.api.terminal.spawn(terminalId, session.workDir)
+      void window.api.terminal.runCommand(terminalId, command).catch(() => {
+        setTerminalStatus('error')
+      })
+      setTerminalStatus('sent')
+      terminalTimeoutRef.current = window.setTimeout(() => {
+        setTerminalStatus('idle')
+        terminalTimeoutRef.current = null
+      }, 1800)
+    } catch {
+      setTerminalStatus('error')
+      terminalTimeoutRef.current = window.setTimeout(() => {
+        setTerminalStatus('idle')
+        terminalTimeoutRef.current = null
+      }, 2200)
+    }
+  }, [addTerminalTab, command, session.id, session.workDir, setActiveTerminalTab, setShowTerminal, terminalStatus])
+
+  if (!command) return null
+
+  return (
+    <>
+      <IconButton
+        icon={copyStatus === 'copied' ? 'check' : 'copy'}
+        label={copyStatus === 'error' ? 'Copy command failed' : copyStatus === 'copied' ? 'Copied command' : 'Copy command'}
+        size="xs"
+        variant="toolbar"
+        tone={copyStatus === 'copied' ? 'success' : copyStatus === 'error' ? 'danger' : 'neutral'}
+        dataTestId="tool-activity-command-copy"
+        onClick={copyCommand}
+      />
+      <IconButton
+        icon={chatStatus === 'added' ? 'check' : 'chat'}
+        label={chatStatus === 'added' ? 'Added command to chat' : 'Add command to chat'}
+        size="xs"
+        variant="toolbar"
+        tone={chatStatus === 'added' ? 'success' : 'neutral'}
+        dataTestId="tool-activity-command-add-to-chat"
+        onClick={addCommandToChat}
+      />
+      <IconButton
+        icon={terminalStatus === 'sent' ? 'check' : 'terminal'}
+        label={
+          terminalStatus === 'running'
+            ? 'Running command in terminal'
+            : terminalStatus === 'sent'
+              ? 'Command sent to terminal'
+              : terminalStatus === 'error'
+                ? 'Run command in terminal failed'
+                : 'Run command in terminal'
+        }
+        size="xs"
+        variant="toolbar"
+        tone={terminalStatus === 'sent' ? 'success' : terminalStatus === 'error' ? 'danger' : 'neutral'}
+        dataTestId="tool-activity-command-run-terminal"
+        disabled={terminalStatus === 'running'}
+        onClick={(event) => { void runCommandInTerminal(event) }}
+      />
+      {copyStatus !== 'idle' && (
+        <span
+          className="sr-only"
+          data-testid="tool-activity-command-copy-status"
+          data-copy-state={copyStatus}
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          {copyStatus === 'copied' ? 'Copied command' : 'Unable to copy command'}
+        </span>
+      )}
+      {chatStatus !== 'idle' && (
+        <span
+          className="sr-only"
+          data-testid="tool-activity-command-add-to-chat-status"
+          data-command-chat-state={chatStatus}
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          Added command to chat
+        </span>
+      )}
+      <span
+        className="sr-only"
+        data-testid="tool-activity-command-run-terminal-status"
+        data-command-terminal-state={terminalStatus}
+        role={terminalStatus === 'error' ? 'alert' : 'status'}
+        aria-live={terminalStatus === 'error' ? 'assertive' : 'polite'}
+        aria-atomic="true"
+      >
+        {terminalStatus === 'running'
+          ? 'Running command in terminal'
+          : terminalStatus === 'sent'
+            ? 'Command sent to terminal'
+            : terminalStatus === 'error'
+              ? 'Unable to run command in terminal'
+              : ''}
+      </span>
+    </>
+  )
+}
+
+function ToolActivitySummary({ messages, session }: { messages: Array<ToolUseMessage | ToolResultMessage>; session: Session }): JSX.Element {
   const activities = pairToolActivities(messages)
   const orphanResults = messages.filter((message): message is ToolResultMessage => message.type === 'tool_result' && !activities.some((activity) => activity.result?.id === message.id))
   const hasErrors = activities.some((activity) => activity.result?.isError) || orphanResults.some((result) => result.isError)
@@ -2089,10 +3508,17 @@ function ToolActivitySummary({ messages }: { messages: Array<ToolUseMessage | To
   const shouldScroll = rowCount > TOOL_SUMMARY_SCROLL_THRESHOLD
 
   return (
-    <div className="flex justify-start min-w-0 w-full" data-testid="tool-activity-summary">
+    <div
+      className="flex justify-start min-w-0 w-full"
+      data-testid="tool-activity-summary"
+      data-tool-activity-row-count={rowCount}
+      data-tool-activity-has-errors={hasErrors ? 'true' : 'false'}
+      data-tool-activity-default-collapsed="true"
+    >
       <div className="w-full min-w-0" style={{ maxWidth: 'min(760px, 100%)' }}>
         <DisclosureSection
           title={<span style={{ color: hasErrors ? 'var(--color-red)' : 'var(--color-text-muted)' }}>{summary}</span>}
+          meta={<span className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>{rowCount} actions</span>}
         >
           <div
             data-testid="tool-activity-body"
@@ -2104,6 +3530,7 @@ function ToolActivitySummary({ messages }: { messages: Array<ToolUseMessage | To
             }}
           >
             <div className="min-w-0 space-y-1">
+              {hasErrors && <ToolFailureRecovery session={session} />}
               {activities.map((activity) => (
                 <div key={activity.tool.id} className="flex min-w-0 max-w-full items-start gap-2">
                   <span
@@ -2115,6 +3542,7 @@ function ToolActivitySummary({ messages }: { messages: Array<ToolUseMessage | To
                   <span className="min-w-0 flex-1 truncate" title={describeToolActivity(activity.tool)}>
                     {describeToolActivity(activity.tool)}
                   </span>
+                  <ToolActivityCommandCopy tool={activity.tool} result={activity.result} session={session} />
                 </div>
               ))}
               {orphanResults.map((result) => (
@@ -2135,6 +3563,78 @@ function ToolActivitySummary({ messages }: { messages: Array<ToolUseMessage | To
   )
 }
 
+function ToolFailureRecovery({ session }: { session: Session }): JSX.Element {
+  const [retryState, setRetryState] = useState<'idle' | 'retrying' | 'sent' | 'error'>('idle')
+  const [retryError, setRetryError] = useState<string | null>(null)
+  const activeSession = isActiveSessionStatus(session.status)
+  const canRetry = hasRetryableUserMessage(session)
+  const actionLabel = activeSession ? 'Stop and retry' : 'Retry last message'
+
+  const retryLastMessage = async (): Promise<void> => {
+    if (!canRetry || retryState === 'retrying') return
+    setRetryState('retrying')
+    setRetryError(null)
+    try {
+      if (activeSession) {
+        await window.api.sessions.stop(session.id)
+        await new Promise((resolve) => setTimeout(resolve, 160))
+      }
+      const ok = await window.api.sessions.retryLastUserMessage(session.id)
+      if (!ok) {
+        setRetryState('error')
+        setRetryError('No retryable message is available.')
+        return
+      }
+      setRetryState('sent')
+    } catch (error) {
+      setRetryState('error')
+      setRetryError(error instanceof Error ? error.message : 'Retry failed.')
+    }
+  }
+
+  return (
+    <div
+      className="mb-2 flex min-w-0 flex-wrap items-center gap-2 rounded-lg px-2 py-1.5"
+      data-testid="tool-failure-recovery"
+      role="group"
+      aria-label="Tool failure recovery"
+      style={{
+        background: 'color-mix(in srgb, var(--color-red) 8%, var(--color-surface2))',
+        border: '1px solid color-mix(in srgb, var(--color-red) 24%, var(--color-border))',
+        color: 'var(--color-text)'
+      }}
+    >
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-[11px] font-semibold" style={{ color: 'var(--color-red)' }}>
+          Tool failed
+        </div>
+        {(retryError || retryState === 'sent') && (
+          <div
+            className="truncate text-[11px]"
+            data-testid="tool-failure-retry-status"
+            role={retryState === 'error' ? 'alert' : 'status'}
+            aria-live={retryState === 'error' ? 'assertive' : 'polite'}
+            aria-atomic="true"
+            style={{ color: retryState === 'error' ? 'var(--color-red)' : 'var(--color-green)' }}
+          >
+            {retryState === 'error' ? retryError : 'Retry sent'}
+          </div>
+        )}
+      </div>
+      <Button
+        variant="secondary"
+        className="h-7 shrink-0 px-2 text-[11px]"
+        dataTestId="tool-failure-retry-last"
+        disabled={!canRetry || retryState === 'retrying'}
+        ariaLabel={actionLabel}
+        onClick={() => { void retryLastMessage() }}
+      >
+        {retryState === 'retrying' ? 'Retrying...' : actionLabel}
+      </Button>
+    </div>
+  )
+}
+
 function actionColor(risk: 'low' | 'medium' | 'high'): string {
   if (risk === 'high') return 'var(--color-red)'
   if (risk === 'medium') return 'var(--color-yellow)'
@@ -2151,22 +3651,101 @@ function UserInputCard({
   sessionStatus: Session['status']
 }): JSX.Element {
   const [answer, setAnswer] = useState('')
-  const [submitted, setSubmitted] = useState(false)
+  const [questionAnswers, setQuestionAnswers] = useState<Record<string, string[]>>({})
+  const [submitState, setSubmitState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  const answerInputRef = useRef<HTMLTextAreaElement | HTMLInputElement>(null)
   const questions = msg.userInputQuestions?.length ? msg.userInputQuestions : [{ question: msg.content }]
   const requestIsActive = sessionStatus === 'waiting_for_user'
-  const isAnswered = submitted || !requestIsActive
+  const isAnswered = submitState === 'sent' || !requestIsActive
+  const isSending = submitState === 'sending'
+  const hasMultipleQuestions = questions.length > 1
+  const hasSecretQuestion = questions.some((question) => question.isSecret)
+  const hasOtherQuestion = questions.some((question) => question.isOther)
+
+  useEffect(() => {
+    if (!requestIsActive || submitState === 'sent') return
+    answerInputRef.current?.focus({ preventScroll: true })
+  }, [requestIsActive, submitState])
+
+  const buildAnswerPayload = (freeform: string): { content: string; displayContent: string; answers: Record<string, string[]> } => {
+    const answers: Record<string, string[]> = {}
+    const selectedAnswers: string[] = []
+    const displaySelectedAnswers: string[] = []
+    for (const [index, question] of questions.entries()) {
+      const selected = questionAnswers[questionInputKey(question, index)]?.map((value) => value.trim()).filter(Boolean) ?? []
+      if (selected.length === 0) continue
+      const id = question.id ?? question.question ?? `answer-${index + 1}`
+      answers[id] = selected
+      const label = question.header ? `${question.header}: ${question.question}` : question.question
+      selectedAnswers.push(`${label}\nAnswer: ${selected.join(', ')}`)
+      displaySelectedAnswers.push(`${label}\nAnswer: ${question.isSecret ? '[secret answer]' : selected.join(', ')}`)
+    }
+    const trimmedFreeform = freeform.trim()
+    let freeformTargets: Array<{ question: UserInputQuestion; index: number }> = []
+    if (trimmedFreeform) {
+      freeformTargets = questions
+        .map((question, index) => ({ question, index }))
+        .filter(({ question }) => question.isOther || question.isSecret || (!question.options?.length && questions.length === 1))
+      const targets = freeformTargets.length > 0 ? freeformTargets : selectedAnswers.length === 0 ? questions.map((question, index) => ({ question, index })) : []
+      for (const { question, index } of targets) {
+        const id = question.id ?? question.question ?? `answer-${index + 1}`
+        answers[id] = [...(answers[id] ?? []), trimmedFreeform]
+      }
+    }
+    const content = selectedAnswers.length === 0
+      ? trimmedFreeform
+      : [...selectedAnswers, ...(trimmedFreeform ? [`Additional details:\n${trimmedFreeform}`] : [])].join('\n\n')
+    const displayFreeform = freeformTargets.some(({ question }) => question.isSecret) ? '[secret answer]' : trimmedFreeform
+    const displayContent = displaySelectedAnswers.length === 0
+      ? displayFreeform
+      : [...displaySelectedAnswers, ...(trimmedFreeform ? [`Additional details:\n${displayFreeform}`] : [])].join('\n\n')
+    return { content, displayContent, answers }
+  }
+
+  const answerPayload = buildAnswerPayload(answer)
+  const composedAnswer = answerPayload.content
 
   const submitAnswer = async (value: string): Promise<void> => {
     const trimmed = value.trim()
     if (!trimmed) return
-    setSubmitted(true)
-    await window.api.sessions.answerUserInput(sessionId, trimmed)
+    setSubmitState('sending')
+    setSubmitError(null)
+    try {
+      const result = await window.api.sessions.answerUserInput(sessionId, {
+        content: trimmed,
+        displayContent: answerPayload.displayContent,
+        answers: Object.keys(answerPayload.answers).length > 0 ? answerPayload.answers : undefined
+      })
+      if (result.ok) {
+        setSubmitState('sent')
+      } else {
+        setSubmitState('error')
+        setSubmitError(result.error ?? 'Could not resume the session.')
+      }
+    } catch (error) {
+      setSubmitState('error')
+      setSubmitError(error instanceof Error ? error.message : 'Could not resume the session.')
+    }
+  }
+
+  const selectQuestionAnswer = (question: UserInputQuestion, index: number, value: string): void => {
+    const key = questionInputKey(question, index)
+    setQuestionAnswers((current) => {
+      const currentValues = current[key] ?? []
+      if (!question.multiSelect) return { ...current, [key]: [value] }
+      const nextValues = currentValues.includes(value)
+        ? currentValues.filter((candidate) => candidate !== value)
+        : [...currentValues, value]
+      return { ...current, [key]: nextValues }
+    })
   }
 
   return (
     <div className="flex justify-center my-1">
       <SurfaceRow
         className="rounded-xl px-4 py-3 w-full"
+        dataTestId="chat-user-input-card"
         style={{
           maxWidth: 560,
           background: 'var(--color-surface2)',
@@ -2188,43 +3767,94 @@ function UserInputCard({
             <QuestionBlock
               key={`${question.question}-${index}`}
               question={question}
-              disabled={isAnswered}
-              onAnswer={submitAnswer}
+              index={index}
+              disabled={isAnswered || isSending}
+              selectedAnswers={questionAnswers[questionInputKey(question, index)] ?? []}
+              onSelectAnswer={(value) => {
+                if (hasMultipleQuestions) selectQuestionAnswer(question, index, value)
+                else void submitAnswer(value)
+              }}
             />
           ))}
         </div>
         {!isAnswered && (
           <form
-            className="mt-3 flex gap-2"
+            className="mt-3 flex flex-wrap gap-2"
+            data-testid="chat-user-input-form"
+            data-user-input-question-count={questions.length}
+            data-user-input-selected-count={Object.values(questionAnswers).filter((values) => values.some((value) => value.trim())).length}
+            data-user-input-selected-option-count={Object.values(questionAnswers).reduce((count, values) => count + values.filter((value) => value.trim()).length, 0)}
+            data-user-input-has-other={hasOtherQuestion ? 'true' : 'false'}
+            data-user-input-has-secret={hasSecretQuestion ? 'true' : 'false'}
+            data-user-input-answer-key-count={Object.keys(answerPayload.answers).length}
+            data-user-input-answer-keys={Object.keys(answerPayload.answers).join(' ')}
+            data-user-input-answer-has-secret={questions.some((question) => question.isSecret && Boolean(answerPayload.answers[question.id ?? question.question])) ? 'true' : 'false'}
             onSubmit={(event) => {
               event.preventDefault()
-              void submitAnswer(answer)
+              void submitAnswer(composedAnswer)
             }}
           >
-            <input
-              value={answer}
-              onChange={(event) => setAnswer(event.target.value)}
-              placeholder="Type an answer..."
-              className="min-w-0 flex-1 rounded-lg px-3 py-2 text-sm outline-none"
-              style={{
-                background: 'var(--color-surface)',
-                color: 'var(--color-text)',
-                border: '1px solid var(--color-border)'
-              }}
-            />
+            {hasSecretQuestion ? (
+              <input
+                ref={answerInputRef as RefObject<HTMLInputElement>}
+                type="password"
+                value={answer}
+                onChange={(event) => setAnswer(event.target.value)}
+                placeholder={hasOtherQuestion ? 'Type a secret answer or other option...' : 'Type a secret answer...'}
+                disabled={isSending}
+                autoComplete="off"
+                aria-label="Secret answer"
+                data-user-input-freeform-kind="secret"
+                className="min-h-9 min-w-0 flex-1 rounded-lg px-3 py-2 text-sm outline-none"
+                style={{
+                  background: 'var(--color-surface)',
+                  color: 'var(--color-text)',
+                  border: '1px solid var(--color-border)'
+                }}
+              />
+            ) : (
+              <textarea
+                ref={answerInputRef}
+                value={answer}
+                onChange={(event) => setAnswer(event.target.value)}
+                placeholder={hasOtherQuestion ? 'Add details or another option...' : hasMultipleQuestions ? 'Add details...' : 'Type an answer...'}
+                disabled={isSending}
+                rows={1}
+                aria-label={hasOtherQuestion ? 'Answer or other option' : 'Answer'}
+                data-user-input-freeform-kind={hasOtherQuestion ? 'other' : 'text'}
+                className="min-h-9 min-w-0 flex-1 resize-none rounded-lg px-3 py-2 text-sm outline-none"
+                style={{
+                  background: 'var(--color-surface)',
+                  color: 'var(--color-text)',
+                  border: '1px solid var(--color-border)'
+                }}
+              />
+            )}
             <Button
               type="submit"
-              disabled={!answer.trim()}
+              disabled={!composedAnswer.trim() || isSending}
               variant="primary"
               className="px-4 py-2"
+              dataTestId="chat-user-input-send"
             >
-              Send
+              {isSending ? 'Sending...' : 'Send'}
             </Button>
           </form>
         )}
+        {submitState === 'error' && submitError && (
+          <div
+            className="mt-2 text-xs"
+            data-testid="chat-user-input-error"
+            role="alert"
+            aria-live="assertive"
+            style={{ color: 'var(--color-red)' }}
+          >
+            {submitError}
+          </div>
+        )}
         {isAnswered && (
-          <div className="mt-2 text-xs" style={{ color: 'var(--color-green)' }}>
-            {submitted ? 'Answer sent - resuming...' : 'Answered'}
+          <div className="mt-2 text-xs" role="status" aria-live="polite" aria-atomic="true" style={{ color: 'var(--color-green)' }}>
+            {submitState === 'sent' ? 'Answer sent - resuming...' : 'Answered'}
           </div>
         )}
       </SurfaceRow>
@@ -2234,15 +3864,24 @@ function UserInputCard({
 
 function QuestionBlock({
   question,
+  index,
   disabled,
-  onAnswer
+  selectedAnswers,
+  onSelectAnswer
 }: {
   question: UserInputQuestion
+  index: number
   disabled: boolean
-  onAnswer: (answer: string) => Promise<void>
+  selectedAnswers: string[]
+  onSelectAnswer: (answer: string) => void
 }): JSX.Element {
   return (
-    <div>
+    <div
+      data-testid="chat-user-input-question"
+      data-question-index={index}
+      data-user-input-question-other={question.isOther ? 'true' : 'false'}
+      data-user-input-question-secret={question.isSecret ? 'true' : 'false'}
+    >
       {question.header && (
         <div className="mb-1 text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>
           {question.header}
@@ -2254,17 +3893,28 @@ function QuestionBlock({
       {question.options && question.options.length > 0 && (
         <div className="mt-2 grid gap-1.5">
           {question.options.map((option) => (
+            (() => {
+              const selected = selectedAnswers.includes(option.label)
+              return (
             <SurfaceRow
               as="button"
               key={option.label}
               disabled={disabled}
               className="rounded-lg px-3 py-2 text-left disabled:opacity-50"
+              dataTestId="chat-user-input-option"
+              data-selected={selected ? 'true' : 'false'}
+              data-user-input-option-description={option.description ?? ''}
+              ariaPressed={selected}
+              ariaLabel={[
+                `${selected ? 'Selected' : 'Select'} ${option.label}`,
+                option.description
+              ].filter(Boolean).join(': ')}
               style={{
-                background: 'var(--color-surface)',
+                background: selected ? 'color-mix(in srgb, var(--accent) 14%, var(--color-surface))' : 'var(--color-surface)',
                 color: 'var(--color-text)',
-                border: '1px solid var(--color-border)'
+                border: selected ? '1px solid color-mix(in srgb, var(--accent) 45%, var(--color-border))' : '1px solid var(--color-border)'
               }}
-              onClick={() => { if (!disabled) void onAnswer(option.label) }}
+              onClick={() => { if (!disabled) onSelectAnswer(option.label) }}
             >
               <div className="text-sm">{option.label}</div>
               {option.description && (
@@ -2273,6 +3923,8 @@ function QuestionBlock({
                 </div>
               )}
             </SurfaceRow>
+              )
+            })()
           ))}
         </div>
       )}
@@ -2280,42 +3932,140 @@ function QuestionBlock({
   )
 }
 
+function questionInputKey(question: UserInputQuestion, index: number): string {
+  return question.id ?? `${index}:${question.question}`
+}
+
+function permissionRequestCopyText(detail: PermissionRequestDetail): string {
+  const lines = [`${detail.title}: ${detail.toolName}`]
+  if (detail.summary) lines.push(`Summary: ${detail.summary}`)
+  for (const field of detail.fields) {
+    lines.push(`${field.label}: ${field.value}`)
+  }
+  return lines.join('\n')
+}
+
+function PermissionRequestCopyButton({ detail }: { detail: PermissionRequestDetail }): JSX.Element {
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'error'>('idle')
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const copyText = useMemo(() => permissionRequestCopyText(detail), [detail])
+
+  useEffect(() => () => {
+    if (timeoutRef.current) window.clearTimeout(timeoutRef.current)
+  }, [])
+
+  const copyDetails = useCallback(async (event: React.MouseEvent) => {
+    event.preventDefault()
+    event.stopPropagation()
+    if (timeoutRef.current) window.clearTimeout(timeoutRef.current)
+    try {
+      if (typeof window.api.clipboard?.writeText === 'function') {
+        const didWrite = await window.api.clipboard.writeText(copyText)
+        if (!didWrite) throw new Error('Clipboard write failed')
+      } else {
+        await navigator.clipboard.writeText(copyText)
+      }
+      setCopyStatus('copied')
+      timeoutRef.current = window.setTimeout(() => {
+        setCopyStatus('idle')
+        timeoutRef.current = null
+      }, 1500)
+    } catch {
+      setCopyStatus('error')
+      timeoutRef.current = window.setTimeout(() => {
+        setCopyStatus('idle')
+        timeoutRef.current = null
+      }, 2200)
+    }
+  }, [copyText])
+
+  return (
+    <>
+      <IconButton
+        icon={copyStatus === 'copied' ? 'check' : 'copy'}
+        label={copyStatus === 'error' ? 'Copy permission details failed' : copyStatus === 'copied' ? 'Copied permission details' : 'Copy permission details'}
+        size="xs"
+        variant="toolbar"
+        tone={copyStatus === 'copied' ? 'success' : copyStatus === 'error' ? 'danger' : 'neutral'}
+        dataTestId="chat-permission-copy-details"
+        onClick={copyDetails}
+      />
+      {copyStatus !== 'idle' && (
+        <span
+          className="sr-only"
+          data-testid="chat-permission-copy-details-status"
+          data-copy-state={copyStatus}
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          {copyStatus === 'copied' ? 'Copied permission details' : 'Unable to copy permission details'}
+        </span>
+      )}
+    </>
+  )
+}
+
 function PermissionCard({ msg, sessionId, sessionStatus }: { msg: ResultMessage; sessionId: string; sessionStatus: Session['status'] }): JSX.Element {
   const [decision, setDecision] = useState<'pending' | 'allowed_once' | 'allowed_session' | 'denied'>('pending')
+  const [submittingDecision, setSubmittingDecision] = useState<'allowed_once' | 'allowed_session' | 'denied' | null>(null)
+  const [submitError, setSubmitError] = useState<string | null>(null)
   const denials = msg.permissionDenials ?? []
   const requestDetails = denials.map(permissionRequestDetail)
   const toolNames = [...new Set(denials.map((d) => d.tool_name))]
   const isPlanApproval = denials.some((d) => d.tool_name === 'ExitPlanMode')
   const requestIsActive = sessionStatus === 'waiting_for_permission'
   const displayDecision = msg.permissionDecision ?? decision
+  const permissionTarget = permissionDecisionTarget(requestDetails, toolNames, isPlanApproval)
+  const allowOnceLabel = isPlanApproval ? 'Approve plan' : `Allow once for ${permissionTarget}`
+  const allowSessionLabel = `Allow for session for ${permissionTarget}`
+  const denyLabel = isPlanApproval ? 'Keep planning' : `Deny ${permissionTarget}`
+
+  const submitPermissionDecision = async (
+    nextDecision: 'allowed_once' | 'allowed_session' | 'denied',
+    action: () => Promise<{ ok: boolean; error?: string }>
+  ): Promise<void> => {
+    setSubmittingDecision(nextDecision)
+    setSubmitError(null)
+    try {
+      const result = await action()
+      if (result.ok) {
+        setDecision(nextDecision)
+      } else {
+        setSubmitError(result.error ?? 'The session could not resume from this approval.')
+      }
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : 'The session could not resume from this approval.')
+    } finally {
+      setSubmittingDecision(null)
+    }
+  }
 
   const handleAllowOnce = async (): Promise<void> => {
-    setDecision('allowed_once')
-    if (isPlanApproval) {
-      await window.api.sessions.grantAndResume(sessionId, toolNames)
-    } else {
-      await window.api.sessions.allowOnceAndResume(sessionId, toolNames)
-    }
+    await submitPermissionDecision('allowed_once', () =>
+      isPlanApproval
+        ? window.api.sessions.grantAndResume(sessionId, toolNames)
+        : window.api.sessions.allowOnceAndResume(sessionId, toolNames)
+    )
   }
 
   const handleAllowSession = async (): Promise<void> => {
-    setDecision('allowed_session')
-    await window.api.sessions.grantAndResume(sessionId, toolNames)
+    await submitPermissionDecision('allowed_session', () => window.api.sessions.grantAndResume(sessionId, toolNames))
   }
 
   const handleDeny = async (): Promise<void> => {
-    setDecision('denied')
-    if (isPlanApproval) {
-      await window.api.sessions.answerUserInput(sessionId, 'Keep planning. Do not exit plan mode yet.')
-    } else {
-      await window.api.sessions.denyPermission(sessionId)
-    }
+    await submitPermissionDecision('denied', () =>
+      isPlanApproval
+        ? window.api.sessions.answerUserInput(sessionId, 'Keep planning. Do not exit plan mode yet.')
+        : window.api.sessions.denyPermission(sessionId)
+    )
   }
 
   return (
     <div className="flex justify-center my-1">
       <SurfaceRow
         className="rounded-xl px-4 py-3 w-full"
+        dataTestId="chat-permission-card"
         style={{
           maxWidth: 560,
           background: 'var(--color-surface2)',
@@ -2355,6 +4105,9 @@ function PermissionCard({ msg, sessionId, sessionStatus }: { msg: ResultMessage;
                   }}
                 >
                   {detail.toolName}
+                </span>
+                <span className="ml-auto shrink-0">
+                  <PermissionRequestCopyButton detail={detail} />
                 </span>
               </div>
               {detail.fields.length > 0 ? (
@@ -2400,47 +4153,64 @@ function PermissionCard({ msg, sessionId, sessionStatus }: { msg: ResultMessage;
         </div>
         {decision === 'pending' && requestIsActive ? (
           isPlanApproval ? (
-            <div className="flex gap-2">
+            <div className="flex w-full min-w-0 max-w-full flex-wrap gap-2 overflow-hidden" data-testid="chat-permission-actions" role="group" aria-label="Plan approval actions">
               <Button
                 onClick={handleAllowOnce}
                 variant="primary"
-                className="flex-1"
+                disabled={submittingDecision !== null}
+                className="min-w-[112px] flex-1"
+                dataTestId="chat-permission-allow-once"
+                ariaLabel={allowOnceLabel}
               >
-                Approve Plan
+                {submittingDecision === 'allowed_once' ? 'Approving...' : 'Approve Plan'}
               </Button>
               <Button
                 onClick={handleDeny}
                 variant="secondary"
-                className="px-4"
+                disabled={submittingDecision !== null}
+                className="min-w-[104px] px-3"
+                dataTestId="chat-permission-deny"
+                ariaLabel={denyLabel}
               >
-                Keep Planning
+                {submittingDecision === 'denied' ? 'Sending...' : 'Keep Planning'}
               </Button>
             </div>
           ) : (
-            <div className="grid gap-2" style={{ gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr) auto' }}>
+            <div className="flex w-full min-w-0 max-w-full flex-wrap gap-2 overflow-hidden" data-testid="chat-permission-actions" role="group" aria-label="Permission decision actions">
               <Button
                 onClick={handleAllowOnce}
                 variant="primary"
+                disabled={submittingDecision !== null}
+                className="min-w-[96px] flex-1"
+                dataTestId="chat-permission-allow-once"
+                ariaLabel={allowOnceLabel}
               >
-                Allow Once
+                {submittingDecision === 'allowed_once' ? 'Allowing...' : 'Allow Once'}
               </Button>
               <Button
                 onClick={handleAllowSession}
                 variant="secondary"
+                disabled={submittingDecision !== null}
+                className="min-w-[108px] flex-1"
+                dataTestId="chat-permission-allow-session"
+                ariaLabel={allowSessionLabel}
               >
-                Allow Session
+                {submittingDecision === 'allowed_session' ? 'Allowing...' : 'Allow Session'}
               </Button>
               <Button
                 onClick={handleDeny}
                 variant="secondary"
-                className="px-4"
+                disabled={submittingDecision !== null}
+                className="min-w-[68px] px-3"
+                dataTestId="chat-permission-deny"
+                ariaLabel={denyLabel}
               >
-                Deny
+                {submittingDecision === 'denied' ? 'Denying...' : 'Deny'}
               </Button>
             </div>
           )
         ) : (
-          <div className="text-xs font-medium" style={{ color: permissionDecisionColor(displayDecision) }}>
+          <div className="text-xs font-medium" role="status" aria-live="polite" aria-atomic="true" style={{ color: permissionDecisionColor(displayDecision) }}>
             {displayDecision === 'allowed_session'
               ? isPlanApproval ? 'Plan approved' : requestIsActive ? 'Allowed for session - resuming...' : 'Allowed for session'
               : displayDecision === 'allowed_once'
@@ -2449,12 +4219,45 @@ function PermissionCard({ msg, sessionId, sessionStatus }: { msg: ResultMessage;
                   ? isPlanApproval ? 'Kept planning' : 'Denied'
                   : displayDecision === 'kept_planning'
                     ? 'Kept planning'
-                    : 'Handled'}
+                  : 'Handled'}
+          </div>
+        )}
+        {submitError && (
+          <div
+            className="mt-2 rounded-lg px-3 py-2 text-xs"
+            data-testid="chat-permission-error"
+            role="alert"
+            aria-live="assertive"
+            style={{
+              color: 'var(--color-red)',
+              background: 'color-mix(in srgb, var(--color-red) 10%, transparent)',
+              border: '1px solid color-mix(in srgb, var(--color-red) 28%, transparent)'
+            }}
+          >
+            {submitError}
           </div>
         )}
       </SurfaceRow>
     </div>
   )
+}
+
+function permissionDecisionTarget(
+  requestDetails: ReturnType<typeof permissionRequestDetail>[],
+  toolNames: string[],
+  isPlanApproval: boolean
+): string {
+  if (isPlanApproval) return 'plan approval'
+  if (requestDetails.length === 1) {
+    const kind = requestDetails[0]?.kind
+    if (kind === 'profile') return 'permission profile'
+    if (kind === 'command') return 'command permission'
+    if (kind === 'file') return 'file permission'
+    if (kind === 'network') return 'network permission'
+    if (kind === 'mcp') return 'MCP permission'
+    return `${toolNames[0] ?? 'tool'} permission`
+  }
+  return `${requestDetails.length || toolNames.length} permission requests`
 }
 
 function permissionDecisionColor(decision: ResultMessage['permissionDecision'] | 'pending'): string {
@@ -2469,8 +4272,21 @@ function permissionRiskColor(risk: 'low' | 'medium' | 'high'): string {
   return 'var(--color-green)'
 }
 
-function ThinkingIndicator(): JSX.Element {
+function ThinkingIndicator({ streaming }: { streaming: boolean }): JSX.Element {
+  const statusText = streaming ? 'Assistant response streaming' : 'Assistant is thinking'
   return (
-    <ThinkingDots />
+    <div className="flex justify-center">
+      <div
+        className="transcript-thinking-indicator"
+        data-testid="thinking-indicator"
+        data-thinking-indicator-streaming={streaming ? 'true' : 'false'}
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+      >
+        <ThinkingDots label={statusText} />
+        <span className="sr-only">{statusText}</span>
+      </div>
+    </div>
   )
 }

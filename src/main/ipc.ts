@@ -6,7 +6,7 @@ import { closeSync, openSync, readFileSync, readSync, writeFileSync, mkdirSync, 
 import { tmpdir } from 'os'
 import { basename, dirname, extname, join } from 'path'
 import { inflateRawSync } from 'zlib'
-import type { Attachment, AutomationUpsertRequest, CapabilityCreateRequest, CapabilityDeleteRequest, CapabilitySyncRequest, CapabilityUpdateRequest, ChatMessage, GitLineBlameResult, GitPathActionResult, OpenPathMethod, OpenPathOptions, OpenPathResult, OpenTargetAvailability, PerformanceMetric, PreferredOpenTarget, ReviewDiffSource, Session, SessionForkMode, TranscriptPageRequest, WorkspaceSearchRequest } from '../types'
+import type { Attachment, AutomationUpsertRequest, CapabilityCreateRequest, CapabilityDeleteRequest, CapabilitySyncRequest, CapabilityUpdateRequest, ChatMessage, CodexReviewStartRequest, GitBranchActionResult, GitCommitResult, GitLineBlameResult, GitPathActionResult, OpenPathMethod, OpenPathOptions, OpenPathResult, OpenTargetAvailability, PerformanceMetric, PreferredOpenTarget, ReviewDiffSource, Session, SessionForkMode, SessionForkOptions, SideQuestionMessage, TranscriptPageRequest, UserInputAnswerPayload, WorkspaceSearchRequest } from '../types'
 import { browserWebviewPartitionForHost, isOrchestratorBrowserWebviewPartition } from '../types'
 import { projectStore } from './projects'
 import { sessionManager } from './sessions'
@@ -2759,6 +2759,11 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
 
   // App profile
   ipcMain.handle('app:getProfile', () => getAppProfile())
+  ipcMain.handle('clipboard:writeText', (_, text: string) => {
+    clipboard.writeText(text)
+    return true
+  })
+  ipcMain.handle('clipboard:readText', () => clipboard.readText())
 
   // Projects
   ipcMain.handle('projects:list', () => projectStore.list())
@@ -2799,21 +2804,69 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
     return deeplink
   })
   ipcMain.handle('sessions:create', (_, opts) => sessionManager.create(opts))
-  ipcMain.handle('sessions:fork', (_, id: string, mode: SessionForkMode) => {
+  ipcMain.handle('sessions:fork', (_, id: string, mode: SessionForkMode, options?: SessionForkOptions) => {
     if (!['local', 'same-worktree', 'new-worktree'].includes(mode)) {
       throw new Error(`Unsupported fork mode: ${mode}`)
     }
-    return sessionManager.fork(id, mode).then((forked) => {
+    return sessionManager.fork(id, mode, options ?? {}).then((forked) => {
       projectStore.addSession(forked.projectId, forked.id)
       return forked
     })
   })
   ipcMain.handle('sessions:retryPendingWorktree', (_, id: string) => sessionManager.retryPendingWorktree(id))
-  ipcMain.handle('sessions:sendMessage', (_, sessionId: string, prompt: string, useWorktree?: boolean, attachments?: Attachment[]) =>
-    sessionManager.sendMessage(sessionId, prompt, useWorktree, attachments ?? [])
+  ipcMain.handle('sessions:sendMessage', (_, sessionId: string, prompt: string, useWorktree?: boolean, attachments?: Attachment[]) => {
+    if (
+      process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT &&
+      process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'composer' &&
+      (
+        prompt.startsWith('COMPOSER_PROMPT_HISTORY_SMOKE_') ||
+        prompt.startsWith('COMPOSER_ENTER_BEHAVIOR_SMOKE_')
+      )
+    ) {
+      return true
+    }
+    if (
+      process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT &&
+      process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'composer' &&
+      prompt === 'SEND_AFTER_SETTINGS_FLUSH_SMOKE'
+    ) {
+      const session = sessionManager.get(sessionId)
+      return session?.model === 'claude-sonnet-4-6'
+    }
+    if (
+      process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT &&
+      process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'plan' &&
+      prompt === '/goal clear'
+    ) {
+      return true
+    }
+    if (
+      process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT &&
+      process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'composer' &&
+      prompt === 'SEND_FAILURE_SMOKE'
+    ) {
+      throw new Error('Smoke send failure')
+    }
+    if (
+      process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT &&
+      process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'composer' &&
+      prompt === 'SEND_FALSE_SMOKE'
+    ) {
+      return false
+    }
+    return sessionManager.sendMessage(sessionId, prompt, useWorktree, attachments ?? [])
+  })
+  ipcMain.handle('sessions:startCodexReview', (_, sessionId: string, request: CodexReviewStartRequest) =>
+    sessionManager.startCodexReview(sessionId, request)
   )
-  ipcMain.handle('sessions:answerSideQuestion', (_, sessionId: string, question: string) =>
-    sessionManager.answerSideQuestion(sessionId, question)
+  ipcMain.handle('sessions:retryLastUserMessage', (_, sessionId: string) =>
+    sessionManager.retryLastUserMessage(sessionId)
+  )
+  ipcMain.handle('sessions:continueLastTurn', (_, sessionId: string) =>
+    sessionManager.continueLastTurn(sessionId)
+  )
+  ipcMain.handle('sessions:answerSideQuestion', (_, sessionId: string, question: string, sideChatMessages?: SideQuestionMessage[]) =>
+    sessionManager.answerSideQuestion(sessionId, question, sideChatMessages ?? [])
   )
   ipcMain.handle('sessions:updateName', (_, id: string, name: string) =>
     sessionManager.updateName(id, name)
@@ -2824,7 +2877,7 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('sessions:reorderPinned', (_, orderedPinnedSessionIds: string[]) =>
     sessionManager.reorderPinned(orderedPinnedSessionIds)
   )
-  ipcMain.handle('sessions:updateSettings', (_, id: string, patch: {
+  ipcMain.handle('sessions:updateSettings', async (_, id: string, patch: {
     provider?: string
     model?: string
     effort?: string
@@ -2837,11 +2890,23 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
     disallowedTools?: string[]
     availableTools?: string[]
     additionalDirs?: string[]
-  }) =>
-    sessionManager.updateSettings(id, patch)
-  )
+  }) => {
+    const session = sessionManager.get(id)
+    if (
+      process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT &&
+      process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'composer' &&
+      session?.name === 'Draft smoke two' &&
+      patch.model === 'claude-sonnet-4-6'
+    ) {
+      await new Promise((resolve) => setTimeout(resolve, 350))
+    }
+    return sessionManager.updateSettings(id, patch)
+  })
   ipcMain.handle('sessions:checkProviders', () => sessionManager.checkProviders())
   ipcMain.handle('sessions:stop', (_, sessionId: string) => sessionManager.stop(sessionId))
+  ipcMain.handle('sessions:cancelQueuedMessage', (_, sessionId: string, messageId: string) =>
+    sessionManager.cancelQueuedMessage(sessionId, messageId)
+  )
   ipcMain.handle('sessions:steerQueuedMessage', (_, sessionId: string, messageId: string) =>
     sessionManager.steerQueuedMessage(sessionId, messageId)
   )
@@ -2851,7 +2916,7 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('worktrees:list', () => sessionManager.listWorktrees())
   ipcMain.handle('worktrees:delete', (_, workDir: string) => sessionManager.deleteWorktree(workDir))
   ipcMain.handle('sessions:getDiff', (_, sessionId: string) => sessionManager.getDiff(sessionId))
-  ipcMain.handle('sessions:getReviewMetadata', (_, sessionId: string) => sessionManager.getReviewMetadata(sessionId))
+  ipcMain.handle('sessions:getReviewMetadata', (_, sessionId: string, options?: { force?: boolean }) => sessionManager.getReviewMetadata(sessionId, options))
   ipcMain.handle('sessions:getChangedFiles', (_, sessionId: string, source: ReviewDiffSource = 'all', ref?: string) => {
     const session = sessionManager.get(sessionId)
     if (!session) return []
@@ -2867,6 +2932,11 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
     if (!session) return Promise.resolve({ ok: false, paths: [], changedFiles: [], discarded: false, error: 'Session not found' })
     return gitManager.discardPaths(session.workDir, Array.isArray(paths) ? paths : [])
   })
+  ipcMain.handle('sessions:undoLastTurnDiff', (_, sessionId: string, diff: string): Promise<GitPathActionResult> => {
+    const session = sessionManager.get(sessionId)
+    if (!session) return Promise.resolve({ ok: false, paths: [], changedFiles: [], reverseApplied: false, error: 'Session not found' })
+    return gitManager.reverseApplyDiff(session.workDir, typeof diff === 'string' ? diff : '')
+  })
   ipcMain.handle('sessions:writeToPty', (_, sessionId: string, data: string) =>
     sessionManager.writeToPty(sessionId, data)
   )
@@ -2876,7 +2946,7 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('sessions:allowOnceAndResume', (_, sessionId: string, toolNames: string[]) =>
     sessionManager.allowOnceAndResume(sessionId, toolNames)
   )
-  ipcMain.handle('sessions:answerUserInput', (_, sessionId: string, answer: string) =>
+  ipcMain.handle('sessions:answerUserInput', (_, sessionId: string, answer: string | UserInputAnswerPayload) =>
     sessionManager.answerUserInput(sessionId, answer)
   )
   ipcMain.handle('sessions:denyPermission', (_, sessionId: string) =>
@@ -2943,9 +3013,30 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
     }
     return sessionManager.refreshCodexSidebarMetadata(cwd)
   })
-  ipcMain.handle('providers:getPermissionContext', (_, providerId: string, cwd?: string) =>
-    getProviderPermissionRuntimeContextAsync(providerId, cwd)
-  )
+  ipcMain.handle('providers:getPermissionContext', (_, providerId: string, cwd?: string) => {
+    if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'composer' && providerId === 'codex') {
+      return {
+        providerId,
+        cwd,
+        status: 'ok',
+        source: 'app-server',
+        defaultPolicy: 'autoReview',
+        visiblePolicies: ['default', 'untrusted', 'never', 'autoReview'],
+        disabledPolicies: {
+          fullAccess: 'Requires sandbox danger-full-access',
+          yolo: 'Requires sandbox danger-full-access'
+        },
+        effective: {
+          approvalPolicy: 'on-request',
+          approvalsReviewer: 'auto_review',
+          sandboxMode: 'workspace-write',
+          configSource: 'app-server'
+        },
+        summary: 'Smoke app-server config: 2 approval modes, 1 sandbox mode'
+      }
+    }
+    return getProviderPermissionRuntimeContextAsync(providerId, cwd)
+  })
   ipcMain.handle('providers:listResources', (_, providerId?: string, cwd?: string) =>
     listProviderResources(providerId, cwd)
   )
@@ -2980,11 +3071,37 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('git:getCurrentBranch', (_, dir: string) => gitManager.getCurrentBranch(dir))
   ipcMain.handle('git:listBranches', (_, dir: string) => gitManager.listBranches(dir))
   ipcMain.handle('git:listRecentCommits', (_, dir: string) => gitManager.listRecentCommits(dir))
+  ipcMain.handle('git:getPullRequestCreateUrl', (_, dir: string, baseBranch: string, headBranch: string) =>
+    gitManager.getPullRequestCreateUrl(
+      dir,
+      typeof baseBranch === 'string' ? baseBranch : '',
+      typeof headBranch === 'string' ? headBranch : ''
+    )
+  )
+  ipcMain.handle('git:createPullRequest', (_, dir: string, baseBranch: string, headBranch: string) =>
+    gitManager.createPullRequest(
+      dir,
+      typeof baseBranch === 'string' ? baseBranch : '',
+      typeof headBranch === 'string' ? headBranch : ''
+    )
+  )
+  ipcMain.handle('git:createBranch', (_, dir: string, branchName: string): Promise<GitBranchActionResult> =>
+    gitManager.createBranch(dir, typeof branchName === 'string' ? branchName : '')
+  )
+  ipcMain.handle('git:checkoutBranch', (_, dir: string, branchName: string): Promise<GitBranchActionResult> =>
+    gitManager.checkoutBranch(dir, typeof branchName === 'string' ? branchName : '')
+  )
   ipcMain.handle('git:stagePaths', (_, dir: string, paths: string[]): Promise<GitPathActionResult> =>
     gitManager.stagePaths(dir, Array.isArray(paths) ? paths : [])
   )
   ipcMain.handle('git:unstagePaths', (_, dir: string, paths: string[]): Promise<GitPathActionResult> =>
     gitManager.unstagePaths(dir, Array.isArray(paths) ? paths : [])
+  )
+  ipcMain.handle('git:discardPaths', (_, dir: string, paths: string[]): Promise<GitPathActionResult> =>
+    gitManager.discardPaths(dir, Array.isArray(paths) ? paths : [])
+  )
+  ipcMain.handle('git:commitStaged', (_, dir: string, message: string): Promise<GitCommitResult> =>
+    gitManager.commitStaged(dir, typeof message === 'string' ? message : '')
   )
   ipcMain.handle('git:blameLine', (_, dir: string, filePath: string, line: number): Promise<GitLineBlameResult> =>
     gitManager.blameLine(dir, filePath, line)
@@ -3022,9 +3139,17 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('browser:setSecurityPolicy', (_, policy: Parameters<typeof setBrowserSecurityPolicy>[0]) =>
     setBrowserSecurityPolicy(policy)
   )
-  ipcMain.handle('attachments:savePastedFile', (_, request: PastedAttachmentRequest) =>
-    writePastedAttachment(request)
-  )
+  ipcMain.handle('attachments:savePastedFile', async (_, request: PastedAttachmentRequest) => {
+    if (
+      process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT &&
+      process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'composer' &&
+      typeof request.name === 'string' &&
+      (request.name.startsWith('async-switch') || request.name.startsWith('large-cancel'))
+    ) {
+      await new Promise((resolve) => setTimeout(resolve, 360))
+    }
+    return writePastedAttachment(request)
+  })
 
   // App settings
   ipcMain.handle('settings:get', () => settingsStore.store)
@@ -3064,9 +3189,26 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   )
   ipcMain.handle('fs:searchWorkspace', (_, request: WorkspaceSearchRequest) => searchWorkspace(request))
   ipcMain.handle('fs:listOpenTargets', (): Promise<OpenTargetAvailability[]> => listOpenTargets())
-  ipcMain.handle('fs:openPath', (_, filePath: string, options?: OpenPathOptions): Promise<OpenPathResult> =>
-    openPathWithPreferredEditor(filePath, options ?? {})
-  )
+  ipcMain.handle('fs:openPath', (_, filePath: string, options?: OpenPathOptions): Promise<OpenPathResult> => {
+    if (
+      process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT &&
+      process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'files' &&
+      basename(filePath) === 'review-base.txt' &&
+      options?.line === 2
+    ) {
+      return Promise.resolve({
+        ok: true,
+        filePath,
+        target: 'cursor',
+        method: 'url-scheme',
+        line: options.line,
+        column: options.column,
+        openedWith: `cursor://file/${filePath}`,
+        fallbackFrom: 'cli'
+      })
+    }
+    return openPathWithPreferredEditor(filePath, options ?? {})
+  })
   ipcMain.handle('fs:showInFolder', (_, filePath: string): void => shell.showItemInFolder(filePath))
 
   // User shell terminal (separate from provider subprocesses)
@@ -3101,6 +3243,17 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
     return result.canceled ? null : result.filePaths[0]
   })
   ipcMain.handle('dialog:openFiles', async (): Promise<Array<{ path: string; name: string; size?: number }> | null> => {
+    if (
+      process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT &&
+      process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'composer'
+    ) {
+      await new Promise((resolve) => setTimeout(resolve, 260))
+      return [{
+        path: '/tmp/orchestrator-manual-switch.txt',
+        name: 'manual-switch.txt',
+        size: 48
+      }]
+    }
     const result = await dialog.showOpenDialog({ properties: ['openFile', 'multiSelections'] })
     if (result.canceled) return null
     return result.filePaths.map((filePath) => {

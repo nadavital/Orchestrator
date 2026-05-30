@@ -1,5 +1,13 @@
-import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react'
+import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react'
 import Icon, { type IconName } from '../shared/Icon'
+
+export interface WorkbenchTreeContextMenuEvent {
+  currentTarget: HTMLElement
+  clientX?: number
+  clientY?: number
+  preventDefault: () => void
+  stopPropagation: () => void
+}
 
 export interface WorkbenchTreeRow {
   id: string
@@ -25,9 +33,13 @@ export interface WorkbenchTreeRow {
   dataSearchMatchKind?: string
   dataSearchMatchLine?: number | string
   dataReviewSearchActive?: boolean
+  dataReviewGroupPath?: string
+  dataReviewFileCount?: number
+  dataReviewAdditions?: number
+  dataReviewDeletions?: number
   onSelect?: () => void
   onOpen?: () => void
-  onContextMenu?: (event: ReactMouseEvent, row: WorkbenchTreeRow) => void
+  onContextMenu?: (event: WorkbenchTreeContextMenuEvent, row: WorkbenchTreeRow) => void
 }
 
 interface WorkbenchTreeProps {
@@ -62,12 +74,17 @@ export default function WorkbenchTree({
   virtualizedThreshold = 80
 }: WorkbenchTreeProps): JSX.Element {
   const rootRef = useRef<HTMLDivElement | null>(null)
+  const keyboardFocusPendingRef = useRef(false)
   const [scrollTop, setScrollTop] = useState(0)
   const [viewportHeight, setViewportHeight] = useState(0)
   const shouldVirtualize = rows.length > virtualizedThreshold
   const activeRowIndex = useMemo(() => rows.findIndex((row) => row.active), [rows])
   const activeRow = activeRowIndex >= 0 ? rows[activeRowIndex] : null
   const activeRowId = activeRow?.id ?? ''
+  const focusableRowIndex = useMemo(() => {
+    if (activeRowIndex >= 0 && isKeyboardSelectableRow(rows[activeRowIndex])) return activeRowIndex
+    return rows.findIndex(isKeyboardSelectableRow)
+  }, [activeRowIndex, rows])
 
   useLayoutEffect(() => {
     const root = rootRef.current
@@ -141,6 +158,94 @@ export default function WorkbenchTree({
     return () => cancelFrame(frame)
   }, [activeRowId, revealActiveRow, rowHeight, viewportHeight])
 
+  useLayoutEffect(() => {
+    if (!keyboardFocusPendingRef.current || activeRowIndex < 0) return
+    keyboardFocusPendingRef.current = false
+    const root = rootRef.current
+    if (!root) return
+    const requestFrame = typeof window.requestAnimationFrame === 'function'
+      ? window.requestAnimationFrame.bind(window)
+      : (callback: FrameRequestCallback): number => window.setTimeout(() => callback(performance.now()), 16)
+    const cancelFrame = typeof window.cancelAnimationFrame === 'function'
+      ? window.cancelAnimationFrame.bind(window)
+      : window.clearTimeout
+    const frame = requestFrame(() => {
+      root
+        .querySelector<HTMLElement>(`[data-row-index="${activeRowIndex}"]`)
+        ?.focus({ preventScroll: true })
+    })
+    return () => cancelFrame(frame)
+  }, [activeRowIndex, rows])
+
+  const selectKeyboardRow = (nextIndex: number): boolean => {
+    const nextRow = rows[nextIndex]
+    if (!isKeyboardSelectableRow(nextRow)) return false
+    const root = rootRef.current
+    if (root && shouldVirtualize) {
+      const visibleHeight = root.clientHeight || viewportHeight || rowHeight * 12
+      const nextTop = nextIndex * rowHeight
+      const nextBottom = nextTop + rowHeight
+      const current = root.scrollTop
+      let nextScrollTop = current
+      if (nextTop < current) nextScrollTop = nextTop
+      else if (nextBottom > current + visibleHeight) nextScrollTop = Math.max(0, nextBottom - visibleHeight)
+      if (Math.abs(nextScrollTop - current) > 1) {
+        root.scrollTop = nextScrollTop
+        setScrollTop(nextScrollTop)
+      }
+    }
+    keyboardFocusPendingRef.current = true
+    nextRow.onSelect?.()
+    window.requestAnimationFrame(() => {
+      root
+        ?.querySelector<HTMLElement>(`[data-row-index="${nextIndex}"]`)
+        ?.focus({ preventScroll: true })
+    })
+    return true
+  }
+
+  const moveKeyboardSelection = (direction: 1 | -1): boolean => {
+    if (rows.length === 0) return false
+    const selectableIndexes = rows
+      .map((row, index) => isKeyboardSelectableRow(row) ? index : -1)
+      .filter((index) => index >= 0)
+    if (selectableIndexes.length === 0) return false
+    const focusedIndex = rowIndexFromEventTarget(document.activeElement, rootRef.current)
+    const currentIndex = focusedIndex ?? (activeRowIndex >= 0 ? activeRowIndex : selectableIndexes[0])
+    const orderedIndex = selectableIndexes.findIndex((index) => index === currentIndex)
+    const fallbackIndex = direction > 0 ? 0 : selectableIndexes.length - 1
+    const nextOrderedIndex = orderedIndex >= 0
+      ? Math.max(0, Math.min(selectableIndexes.length - 1, orderedIndex + direction))
+      : fallbackIndex
+    return selectKeyboardRow(selectableIndexes[nextOrderedIndex])
+  }
+
+  const selectKeyboardBoundary = (boundary: 'first' | 'last'): boolean => {
+    const selectableIndexes = rows
+      .map((row, index) => isKeyboardSelectableRow(row) ? index : -1)
+      .filter((index) => index >= 0)
+    const nextIndex = boundary === 'first' ? selectableIndexes[0] : selectableIndexes[selectableIndexes.length - 1]
+    return typeof nextIndex === 'number' ? selectKeyboardRow(nextIndex) : false
+  }
+
+  const handleTreeKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
+    if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) {
+      onKeyDown?.(event)
+      return
+    }
+    let handled = false
+    if (event.key === 'ArrowDown') handled = moveKeyboardSelection(1)
+    else if (event.key === 'ArrowUp') handled = moveKeyboardSelection(-1)
+    else if (event.key === 'Home') handled = selectKeyboardBoundary('first')
+    else if (event.key === 'End') handled = selectKeyboardBoundary('last')
+    if (handled) {
+      event.preventDefault()
+      event.stopPropagation()
+      return
+    }
+    onKeyDown?.(event)
+  }
+
   return (
     <div
       ref={rootRef}
@@ -152,13 +257,15 @@ export default function WorkbenchTree({
       data-sticky-directories={stickyDirectories ? 'true' : 'false'}
       data-virtualized={shouldVirtualize ? 'true' : 'false'}
       data-reveal-active-row={revealActiveRow ? 'true' : 'false'}
+      data-keyboard-navigation="roving"
+      data-focusable-row-index={focusableRowIndex >= 0 ? String(focusableRowIndex) : ''}
       data-active-row-index={activeRowIndex >= 0 ? String(activeRowIndex) : ''}
       data-active-row-id={activeRowId}
       data-active-row-visible={activeRowVisible ? 'true' : 'false'}
       role="tree"
       aria-label={ariaLabel}
-      tabIndex={0}
-      onKeyDown={onKeyDown}
+      tabIndex={focusableRowIndex >= 0 ? -1 : 0}
+      onKeyDownCapture={handleTreeKeyDown}
       onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
       style={{ '--workbench-tree-item-height': `${rowHeight}px` } as CSSProperties}
     >
@@ -176,6 +283,7 @@ export default function WorkbenchTree({
                 }}
                 index={stickyDirectory.index}
                 stickyClone
+                focusable={false}
               />
             </div>
           )}
@@ -186,6 +294,7 @@ export default function WorkbenchTree({
                 key={row.id}
                 row={row}
                 index={visibleWindow.startIndex + index}
+                focusable={visibleWindow.startIndex + index === focusableRowIndex}
               />
             ))}
             {visibleWindow.bottomPadding > 0 && <div aria-hidden="true" style={{ height: visibleWindow.bottomPadding }} />}
@@ -223,10 +332,12 @@ export function WorkbenchTreeMessage({
 function WorkbenchTreeRowView({
   row,
   index,
+  focusable,
   stickyClone = false
 }: {
   row: WorkbenchTreeRow
   index: number
+  focusable: boolean
   stickyClone?: boolean
 }): JSX.Element {
   const icon = row.icon ?? (row.kind === 'directory' ? 'folder' : 'file')
@@ -255,8 +366,13 @@ function WorkbenchTreeRowView({
     'data-search-match-kind': row.dataSearchMatchKind,
     'data-search-match-line': row.dataSearchMatchLine,
     'data-review-search-active': row.dataReviewSearchActive ? 'true' : undefined,
+    'data-review-group-path': row.dataReviewGroupPath,
+    'data-review-file-count': row.dataReviewFileCount,
+    'data-review-additions': row.dataReviewAdditions,
+    'data-review-deletions': row.dataReviewDeletions,
     'data-workbench-tree-row': 'true',
     'data-sticky-row': stickyClone ? 'true' : undefined,
+    'data-keyboard-focusable': focusable ? 'true' : 'false',
     'data-row-index': index,
     'data-tooltip-label': row.title,
     'data-native-title-free': row.title ? 'true' : undefined
@@ -286,6 +402,23 @@ function WorkbenchTreeRowView({
       )}
     </>
   )
+  const openKeyboardContextMenu = (target: HTMLElement): void => {
+    const rect = target.getBoundingClientRect()
+    row.onContextMenu?.({
+      preventDefault: () => {},
+      stopPropagation: () => {},
+      currentTarget: target,
+      clientX: rect.left + Math.min(24, Math.max(1, rect.width / 2)),
+      clientY: rect.top + Math.min(14, Math.max(4, rect.height / 2))
+    }, row)
+  }
+  const handleKeyDown = (event: KeyboardEvent<HTMLElement>): void => {
+    if (event.key !== 'ContextMenu' && !(event.shiftKey && event.key === 'F10')) return
+    if (!row.onContextMenu) return
+    event.preventDefault()
+    event.stopPropagation()
+    openKeyboardContextMenu(event.currentTarget)
+  }
 
   if (row.onSelect || row.onOpen) {
     return (
@@ -293,9 +426,11 @@ function WorkbenchTreeRowView({
         type="button"
         {...shared}
         disabled={row.disabled}
+        tabIndex={focusable ? 0 : -1}
         onClick={() => row.onSelect?.()}
         onDoubleClick={() => (row.onOpen ?? row.onSelect)?.()}
         onContextMenu={(event) => row.onContextMenu?.(event, row)}
+        onKeyDown={handleKeyDown}
       >
         {content}
       </button>
@@ -306,6 +441,7 @@ function WorkbenchTreeRowView({
     <div
       {...shared}
       onContextMenu={(event) => row.onContextMenu?.(event, row)}
+      onKeyDown={handleKeyDown}
     >
       {content}
     </div>
@@ -326,4 +462,17 @@ function gitStatusAttribute(status: string): string {
     default:
       return 'modified'
   }
+}
+
+function isKeyboardSelectableRow(row: WorkbenchTreeRow | undefined): row is WorkbenchTreeRow {
+  return Boolean(row && !row.disabled && (row.onSelect || row.onOpen))
+}
+
+function rowIndexFromEventTarget(target: EventTarget | null, root: HTMLElement | null): number | null {
+  if (!(target instanceof HTMLElement) || !root?.contains(target)) return null
+  const row = target.closest<HTMLElement>('[data-workbench-tree-row="true"]')
+  const raw = row?.getAttribute('data-row-index')
+  if (!raw) return null
+  const index = Number.parseInt(raw, 10)
+  return Number.isFinite(index) ? index : null
 }

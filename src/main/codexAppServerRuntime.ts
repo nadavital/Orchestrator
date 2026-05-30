@@ -1,6 +1,6 @@
 import { spawn as childSpawn } from 'child_process'
 import type { ChildProcessWithoutNullStreams, SpawnOptionsWithoutStdio } from 'child_process'
-import type { Attachment, RunEvent, RunRequest, Session } from '../types'
+import type { Attachment, RunEvent, RunRequest, Session, UserInputAnswerPayload } from '../types'
 import { codexRuntimePolicyConfig, providerSpawnEnv, resolveProviderCommand, type ProviderAdapter } from './providers'
 import { recordProviderRuntimeDebugEvent, updateProviderRuntimeConnection } from './providerRuntimeDiagnostics'
 
@@ -70,7 +70,7 @@ export interface CodexAppServerRun {
   stop(): void
   interrupt(): boolean
   resolvePermission(allow: boolean, persistGrant: boolean): boolean
-  answerUserInput(answer: string): boolean
+  answerUserInput(answer: string | UserInputAnswerPayload): boolean
 }
 
 interface PendingClientRequest {
@@ -219,16 +219,19 @@ class CodexAppServerSession implements CodexAppServerRun {
     return false
   }
 
-  answerUserInput(answer: string): boolean {
+  answerUserInput(answer: string | UserInputAnswerPayload): boolean {
     const pending = latestPending(this.pendingServerRequests, 'user_input') ??
       latestPending(this.pendingServerRequests, 'mcp_elicitation')
     if (!pending) return false
+
+    const normalized = normalizeUserInputAnswer(answer)
+    if (!normalized.content) return false
 
     this.pendingServerRequests.delete(pending.id)
     if (pending.kind === 'mcp_elicitation') {
       this.sendResponse(pending.id, {
         action: 'accept',
-        content: answer,
+        content: normalized.content,
         _meta: null
       })
       return true
@@ -239,9 +242,10 @@ class CodexAppServerSession implements CodexAppServerRun {
     for (const question of questions) {
       const rec = asRecord(question)
       const id = stringValue(rec?.id) ?? stringValue(rec?.question) ?? 'answer'
-      answers[id] = { answers: [answer] }
+      const structured = normalized.answers?.[id]?.map((value) => value.trim()).filter(Boolean) ?? []
+      answers[id] = { answers: structured.length > 0 ? structured : [normalized.content] }
     }
-    if (Object.keys(answers).length === 0) answers.answer = { answers: [answer] }
+    if (Object.keys(answers).length === 0) answers.answer = { answers: [normalized.content] }
     this.sendResponse(pending.id, { answers })
     return true
   }
@@ -288,6 +292,12 @@ class CodexAppServerSession implements CodexAppServerRun {
           sessionStartSource: 'startup'
         }
 
+    this.record(`Codex app-server ${method} request: model=${String(threadConfig.model ?? '')}, effort=${String(configFromRequest(request).model_reasoning_effort ?? '')}.`, {
+      method,
+      hostId: request.providerSessionId ?? undefined,
+      severity: 'debug',
+      noisy: true
+    })
     this.sendRequest(method, params, (result) => {
       const thread = asRecord(result.thread)
       const threadId = stringValue(thread?.id)
@@ -311,7 +321,38 @@ class CodexAppServerSession implements CodexAppServerRun {
         hostId: threadId
       })
       this.options.onParsedEvents([{ type: 'session.started', providerSessionId: threadId }])
-      this.startTurn(threadId)
+      if (request.codexReviewStart) this.startReview(threadId)
+      else this.startTurn(threadId)
+    }, (error) => {
+      if (this.transportFailed) return
+      this.options.onParsedEvents([{ type: 'run.failed', content: stringifyContent(error) }])
+    })
+  }
+
+  private startReview(threadId: string): void {
+    const request = this.options.request
+    const reviewStart = request.codexReviewStart
+    if (!reviewStart) return
+    this.record(`Codex app-server review/start request: target=${reviewStart.target.type}, delivery=${String(reviewStart.delivery ?? 'inline')}.`, {
+      method: 'review/start',
+      hostId: threadId,
+      severity: 'debug',
+      noisy: true
+    })
+    this.sendRequest('review/start', {
+      threadId,
+      target: reviewStart.target,
+      delivery: reviewStart.delivery ?? 'inline'
+    }, (result) => {
+      const turn = asRecord(result.turn)
+      const turnId = stringValue(turn?.id)
+      if (turnId) this.turnId = turnId
+      const reviewThreadId = stringValue(result.reviewThreadId)
+      if (reviewThreadId) this.threadId = reviewThreadId
+      this.record('Codex app-server started review turn.', {
+        method: 'review/start',
+        hostId: reviewThreadId ?? threadId
+      })
     }, (error) => {
       if (this.transportFailed) return
       this.options.onParsedEvents([{ type: 'run.failed', content: stringifyContent(error) }])
@@ -320,11 +361,18 @@ class CodexAppServerSession implements CodexAppServerRun {
 
   private startTurn(threadId: string): void {
     const request = this.options.request
+    const turnConfig = turnConfigFromRequest(request)
+    this.record(`Codex app-server turn/start request: model=${String(turnConfig.model ?? '')}, effort=${String(turnConfig.effort ?? '')}.`, {
+      method: 'turn/start',
+      hostId: threadId,
+      severity: 'debug',
+      noisy: true
+    })
     this.sendRequest('turn/start', {
       threadId,
       input: inputFromRequest(request),
       cwd: request.cwd,
-      ...turnConfigFromRequest(request)
+      ...turnConfig
     }, (result) => {
       const turn = asRecord(result.turn)
       const turnId = stringValue(turn?.id)
@@ -692,7 +740,7 @@ export class CodexAppServerRuntimeManager {
     return this.runs.get(sessionId)?.resolvePermission(allow, persistGrant) ?? false
   }
 
-  answerUserInput(sessionId: string, answer: string): boolean {
+  answerUserInput(sessionId: string, answer: string | UserInputAnswerPayload): boolean {
     return this.runs.get(sessionId)?.answerUserInput(answer) ?? false
   }
 }
@@ -807,6 +855,25 @@ function parseJsonObject(line: string): JsonObject | null {
 
 function asRecord(value: unknown): JsonObject | null {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as JsonObject : null
+}
+
+function normalizeUserInputAnswer(answer: string | UserInputAnswerPayload): UserInputAnswerPayload {
+  if (typeof answer === 'string') return { content: answer.trim() }
+  const content = typeof answer.content === 'string' ? answer.content.trim() : ''
+  const displayContent = typeof answer.displayContent === 'string' ? answer.displayContent.trim() : ''
+  const answers: Record<string, string[]> = {}
+  if (answer.answers && typeof answer.answers === 'object') {
+    for (const [key, values] of Object.entries(answer.answers)) {
+      if (!Array.isArray(values)) continue
+      const cleaned = values.map((value) => String(value).trim()).filter(Boolean)
+      if (cleaned.length > 0) answers[key] = cleaned
+    }
+  }
+  return {
+    content,
+    displayContent: displayContent && displayContent !== content ? displayContent : undefined,
+    answers: Object.keys(answers).length > 0 ? answers : undefined
+  }
 }
 
 function stringValue(...values: unknown[]): string | undefined {

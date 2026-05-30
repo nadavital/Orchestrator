@@ -42,6 +42,7 @@ const errorStatuses = new Set<Session['status']>([
 function SessionItem({ session }: Props): JSX.Element {
   const rowRef = useRef<HTMLDivElement>(null)
   const hoverSurfaceId = `session-hover-${session.id}`
+  const actionsMenuId = `session-actions-menu-${session.id}`
   const isActive = useSessionStore((state) => state.activeSessionId === session.id)
   const unread = useSessionStore((state) => state.uiState[session.id]?.hasUnread ?? false)
   const addSession = useSessionStore((state) => state.addSession)
@@ -82,6 +83,9 @@ function SessionItem({ session }: Props): JSX.Element {
   const automationRun = automationRuns.find((run) => run.status === 'RUNNING') ?? null
   const automationLabel = automation ? automationStatusLabel(automation, automationRun) : null
   const branchLabel = branch ?? inferredWorktreeBranch(session)
+  const forkLabel = session.forkedFromSessionName
+    ? `Forked from ${session.forkedFromSessionName}`
+    : null
   const threadKind = sidebarThreadKind(session)
   const labelColor = sidebarLabelColor(session)
   const isPinned = isSidebarPinnedSession(session)
@@ -313,9 +317,14 @@ function SessionItem({ session }: Props): JSX.Element {
         data-sidebar-label-color={labelColor}
         data-sidebar-provider-pinned={session.providerPinned ? 'true' : undefined}
         data-sidebar-pinned-thread-key={session.providerPinnedThreadKey ?? undefined}
+        data-sidebar-forked-from-session-id={session.forkedFromSessionId ?? undefined}
+        data-sidebar-forked-from-session-name={session.forkedFromSessionName ?? undefined}
+        data-sidebar-forked-from-message-id={session.forkedFromMessageId ?? undefined}
+        data-sidebar-fork-mode={session.forkMode ?? undefined}
         data-sidebar-projectless={projectless ? 'true' : undefined}
         data-sidebar-projectless-thread-id={session.providerProjectlessThreadId ?? undefined}
         data-sidebar-selected-key={rowSelectedKey}
+        data-sidebar-has-unread-state={unread ? 'true' : 'false'}
         onMouseEnter={() => showDetails(true)}
         onMouseLeave={hideDetails}
         onFocus={(event) => {
@@ -424,6 +433,9 @@ function SessionItem({ session }: Props): JSX.Element {
                 icon="ellipsis"
                 label="Chat actions"
                 size="sm"
+                ariaExpanded={menuPoint !== null}
+                ariaControls={actionsMenuId}
+                ariaHasPopup="menu"
                 onClick={openMenu}
                 style={{ color: 'var(--text-tertiary)' }}
               />
@@ -450,6 +462,7 @@ function SessionItem({ session }: Props): JSX.Element {
         >
           <div className="session-hover-card-title">{session.name}</div>
           <SessionHoverRow label="Project" value={project?.name ?? (projectless ? 'Chat' : 'No project')} />
+          {forkLabel && <SessionHoverRow label="Fork" value={forkLabel} />}
           {branchLabel && <SessionHoverRow label="Branch" value={branchLabel} />}
           {automationLabel && <SessionHoverRow label="Automation" value={automationLabel} />}
         </div>,
@@ -460,6 +473,7 @@ function SessionItem({ session }: Props): JSX.Element {
           session={session}
           x={menuPoint.x}
           y={menuPoint.y}
+          menuId={actionsMenuId}
           onClose={() => setMenuPoint(null)}
           onRemove={handleRemove}
           isUnread={unread}

@@ -23,6 +23,11 @@ import {
   WorkbenchSearchField
 } from '../shared/designSystem'
 
+type ShortcutActionStatus = {
+  text: string
+  tone: 'info' | 'danger'
+}
+
 export default function ShortcutsSettingsPage({
   shortcutOverrides,
   onSetShortcutOverrides
@@ -33,6 +38,7 @@ export default function ShortcutsSettingsPage({
   const [query, setQuery] = useState('')
   const [recordingCommand, setRecordingCommand] = useState<StableAppCommand | null>(null)
   const [recordingError, setRecordingError] = useState<string | null>(null)
+  const [actionStatus, setActionStatus] = useState<ShortcutActionStatus | null>(null)
   const shortcutPlatform = navigator.platform.toLowerCase().includes('mac') ? 'mac' : 'other'
   const shortcuts = visibleShortcutRows(shortcutOverrides).map((shortcut) => {
     const commandId = isEditableShortcutRow(shortcut.id) ? shortcut.id : null
@@ -78,6 +84,7 @@ export default function ShortcutsSettingsPage({
   const startRecording = (command: StableAppCommand): void => {
     setRecordingCommand(command)
     setRecordingError(null)
+    setActionStatus({ text: 'Recording shortcut', tone: 'info' })
   }
 
   const resetShortcut = (command: StableAppCommand): void => {
@@ -85,6 +92,7 @@ export default function ShortcutsSettingsPage({
     onSetShortcutOverrides(next)
     if (recordingCommand === command) setRecordingCommand(null)
     setRecordingError(null)
+    setActionStatus({ text: 'Shortcut reset', tone: 'info' })
   }
 
   const setShortcutBindingState = (
@@ -116,10 +124,14 @@ export default function ShortcutsSettingsPage({
     const disabledDefaults = current.disabledDefaults ?? []
     if (source === 'custom') {
       setShortcutBindingState(command, customShortcuts, disabledDefaults)
+      setRecordingError(null)
+      setActionStatus({ text: 'Shortcut removed', tone: 'info' })
       return
     }
     if (disabledDefaults.some((shortcut) => shortcutSequencesEqual(shortcut, sequence))) return
     setShortcutBindingState(command, customShortcuts, [...disabledDefaults, sequence])
+    setRecordingError(null)
+    setActionStatus({ text: 'Default shortcut disabled', tone: 'info' })
   }
 
   const recordShortcut = (event: KeyboardEvent<HTMLInputElement>, command: StableAppCommand): void => {
@@ -128,6 +140,7 @@ export default function ShortcutsSettingsPage({
     if (event.key === 'Escape') {
       setRecordingCommand(null)
       setRecordingError(null)
+      setActionStatus({ text: 'Recording canceled', tone: 'info' })
       return
     }
     if (event.key === 'Backspace' || event.key === 'Delete') {
@@ -137,17 +150,20 @@ export default function ShortcutsSettingsPage({
     const sequence = shortcutSequenceFromKeyboardEvent(event.nativeEvent, shortcutPlatform)
     if (!sequence) {
       setRecordingError('Use a modifier key')
+      setActionStatus({ text: 'Shortcut not saved', tone: 'danger' })
       return
     }
     const currentCustom = shortcutOverrideSequences(command, shortcutOverrides)
     const currentAssigned = commandShortcuts(command, shortcutOverrides)
     if (currentAssigned.some((shortcut) => shortcutSequencesEqual(shortcut, sequence))) {
       setRecordingError('Shortcut already assigned')
+      setActionStatus({ text: 'Shortcut not saved', tone: 'danger' })
       return
     }
     const conflict = findShortcutConflict(sequence, command, shortcutOverrides)
     if (conflict) {
       setRecordingError(`Conflicts with ${conflict.label}`)
+      setActionStatus({ text: 'Shortcut conflict', tone: 'danger' })
       return
     }
     const current = shortcutOverrideRecord(command, shortcutOverrides)
@@ -156,17 +172,27 @@ export default function ShortcutsSettingsPage({
     setShortcutBindingState(command, isDefaultShortcut ? currentCustom : [sequence, ...currentCustom], disabledDefaults)
     setRecordingCommand(null)
     setRecordingError(null)
+    setActionStatus({ text: 'Shortcut saved', tone: 'info' })
   }
 
   return (
-    <div data-settings-page-module="shortcuts">
+    <div
+      data-settings-page-module="shortcuts"
+      data-settings-shortcut-action-status={actionStatus?.text ?? ''}
+      data-settings-shortcut-action-status-tone={actionStatus?.tone ?? ''}
+    >
       <SettingsPageSection dataTestId="shortcuts-settings-section" className="shortcuts-settings-page">
         <SettingsContentLayout
           title="Shortcuts"
           subtitle="Customize keyboard shortcuts for shared app, Workbench, Browser, Review, and Terminal commands."
           dataTestId="settings-content-layout-shortcuts"
         >
-          <SettingsContentGroup>
+          <SettingsContentGroup
+            rootAttrs={{
+              tabIndex: -1,
+              'data-settings-search-anchor': 'shortcut-bindings'
+            }}
+          >
             <SettingsGroupContent>
               <SettingsSurface className="settings-shortcuts-table">
                 <div className="settings-shortcuts-search">
@@ -291,8 +317,26 @@ export default function ShortcutsSettingsPage({
               </SettingsSurface>
             </SettingsGroupContent>
           </SettingsContentGroup>
+          {actionStatus && (
+            <div
+              data-testid="settings-shortcut-action-status"
+              className="settings-shortcut-action-status"
+              data-settings-shortcut-action-status-tone={actionStatus.tone}
+              role={actionStatus.tone === 'danger' ? 'alert' : 'status'}
+              aria-live={actionStatus.tone === 'danger' ? 'assertive' : 'polite'}
+              aria-atomic="true"
+            >
+              {actionStatus.text}
+            </div>
+          )}
           {recordingError && (
-            <div data-testid="settings-shortcut-recording-error" className="settings-shortcut-recording-error">
+            <div
+              data-testid="settings-shortcut-recording-error"
+              className="settings-shortcut-recording-error"
+              role="alert"
+              aria-live="assertive"
+              aria-atomic="true"
+            >
               {recordingError}
             </div>
           )}

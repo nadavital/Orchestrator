@@ -1,11 +1,39 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { MouseEvent as ReactMouseEvent, MutableRefObject, PointerEvent as ReactPointerEvent } from 'react'
-import type { BrowserApprovalMode, BrowserDeviceMode, BrowserHistoryEntry, BrowserLocalServerRoute, BrowserTabState, BrowserUseCursorState, BrowserUseSurfaceBounds, BrowserUseSurfaceSize, BrowserWorkbenchState } from '../../store/sessions'
+import type { BrowserAnnotationState, BrowserApprovalMode, BrowserDeviceMode, BrowserHistoryEntry, BrowserLocalServerRoute, BrowserTabState, BrowserUseCursorState, BrowserUseSurfaceBounds, BrowserUseSurfaceSize, BrowserWorkbenchState } from '../../store/sessions'
 import type { BrowserUsePolicy } from '../../types'
 import { browserWebviewPartitionForHost, DEFAULT_BROWSER_USE_POLICY, normalizeBrowserUsePolicy } from '../../types'
 import { Badge, Button, IconButton, InspectorDisclosure, InspectorRow, InspectorSection, MenuItem, MenuMessage, MenuRow, MenuSection, MenuSectionLabel, MenuSurface, PanelMessage, PanelNotice, PanelTabStrip, PanelToolbar, ToolbarButton, WorkbenchSearchField } from '../shared/designSystem'
 import Icon from '../shared/Icon'
 import BrowserWebviewManager, { type BrowserVisibleGeometry, type WebviewElement } from './BrowserWebviewManager'
+
+const BROWSER_ACTIONS_MENU_ID = 'browser-actions-menu-surface'
+const BROWSER_ZOOM_PRESETS = [0.5, 0.75, 1, 1.25, 1.5, 2]
+
+type BrowserOriginPolicyKey =
+  | 'allowedOrigins'
+  | 'blockedOrigins'
+  | 'allowedDownloadOrigins'
+  | 'blockedDownloadOrigins'
+  | 'allowedUploadOrigins'
+  | 'blockedUploadOrigins'
+
+function oppositeOriginPolicyKey(key: BrowserOriginPolicyKey): BrowserOriginPolicyKey {
+  switch (key) {
+    case 'allowedOrigins':
+      return 'blockedOrigins'
+    case 'blockedOrigins':
+      return 'allowedOrigins'
+    case 'allowedDownloadOrigins':
+      return 'blockedDownloadOrigins'
+    case 'blockedDownloadOrigins':
+      return 'allowedDownloadOrigins'
+    case 'allowedUploadOrigins':
+      return 'blockedUploadOrigins'
+    case 'blockedUploadOrigins':
+      return 'allowedUploadOrigins'
+  }
+}
 
 interface Props {
   initialUrl?: string
@@ -94,6 +122,18 @@ interface BrowserCommentRegion {
 type BrowserCommentIntent = 'comment' | 'design-tweak'
 
 type BrowserTargetAction = 'click' | 'double_click' | 'type' | 'fill' | 'key' | 'select' | 'check' | 'read' | 'scroll'
+type BrowserTargetActionStatus = {
+  text: string
+  tone: 'info' | 'danger'
+}
+type BrowserScreenshotActionStatus = {
+  text: string
+  tone: 'info' | 'danger'
+}
+type BrowserActionStatus = {
+  text: string
+  tone: 'info' | 'danger'
+}
 type BrowserClientToolAction = 'click' | 'type' | 'fill' | 'key' | 'select' | 'check' | 'scroll'
 interface BrowserClientToolActionResult {
   ok: boolean
@@ -183,6 +223,7 @@ export default function BrowserPanel({
   const [error, setError] = useState<string | null>(null)
   const [screenshot, setScreenshot] = useState<string | null>(null)
   const [artifactPath, setArtifactPath] = useState<string | null>(null)
+  const [screenshotStatus, setScreenshotStatus] = useState<BrowserScreenshotActionStatus | null>(null)
   const [findMatches, setFindMatches] = useState(0)
   const [findActiveMatch, setFindActiveMatch] = useState(0)
   const [browserPanelCommandCount, setBrowserPanelCommandCount] = useState(0)
@@ -191,6 +232,8 @@ export default function BrowserPanel({
   const [cacheReloadCount, setCacheReloadCount] = useState(0)
   const [clearDataCount, setClearDataCount] = useState(0)
   const [lastClearDataKind, setLastClearDataKind] = useState<BrowserClearDataKind | ''>('')
+  const [clearDataStatus, setClearDataStatus] = useState<BrowserActionStatus | null>(null)
+  const clearDataStatusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [logs, setLogs] = useState<BrowserLogEntry[]>([])
   const [domSnapshot, setDomSnapshot] = useState('')
   const [visibleTargets, setVisibleTargets] = useState<VisibleTarget[]>([])
@@ -198,10 +241,15 @@ export default function BrowserPanel({
   const [assetBundlePath, setAssetBundlePath] = useState<string | null>(null)
   const [localTargets, setLocalTargets] = useState<LocalBrowserTarget[]>([])
   const [localTargetsLoading, setLocalTargetsLoading] = useState(false)
+  const [localTargetActionStatus, setLocalTargetActionStatus] = useState<BrowserActionStatus | null>(null)
+  const localTargetActionStatusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [selectedTargetId, setSelectedTargetId] = useState('')
   const [actionText, setActionText] = useState('')
   const [targetReadResult, setTargetReadResult] = useState<BrowserTargetReadResult | null>(null)
+  const [targetActionStatus, setTargetActionStatus] = useState<BrowserTargetActionStatus | null>(null)
   const [clipboardText, setClipboardText] = useState('')
+  const [copyUrlStatus, setCopyUrlStatus] = useState<BrowserActionStatus | null>(null)
+  const copyUrlStatusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [coordinateAction, setCoordinateAction] = useState({ x: 20, y: 20, scrollY: 360 })
   const [browserMenuOpen, setBrowserMenuOpen] = useState(false)
   const [pageContextMenu, setPageContextMenu] = useState<{ x: number; y: number } | null>(null)
@@ -209,8 +257,10 @@ export default function BrowserPanel({
   const [pendingComment, setPendingComment] = useState<BrowserPendingComment | null>(null)
   const [commentDraft, setCommentDraft] = useState('')
   const [commentIntent, setCommentIntent] = useState<BrowserCommentIntent>('comment')
+  const [commentHistoryStatus, setCommentHistoryStatus] = useState<BrowserActionStatus | null>(null)
   const [commentDragRegion, setCommentDragRegion] = useState<BrowserCommentRegion | null>(null)
   const [commentPreviewOriginalLocal, setCommentPreviewOriginalLocal] = useState(false)
+  const commentHistoryStatusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const commentDragStartRef = useRef<{ clientX: number; clientY: number; bounds: DOMRect } | null>(null)
   const suppressNextCommentClickRef = useRef(false)
   const [localTargetSort, setLocalTargetSort] = useState<'recent' | 'port'>('recent')
@@ -225,16 +275,20 @@ export default function BrowserPanel({
   const commentModeUnavailable = !currentUrl || !visible || Boolean(error)
   const commentModeUnavailableReason = commentUnavailableReason(currentUrl, visible, error)
   const commentPreviewOriginal = Boolean(workbench.commentPreviewOriginal) || commentPreviewOriginalLocal
+  const commentAnnotations = workbench.commentAnnotations ?? []
   const commentCoachmarkVisible = workbench.commentMode && !workbench.commentCoachmarkDismissed && pendingComment === null && !commentPreviewOriginal
   const pendingCommentScope = pendingComment?.region
     ? `Region ${pendingComment.region.xPercent}%, ${pendingComment.region.yPercent}% - ${pendingComment.region.widthPercent}% x ${pendingComment.region.heightPercent}%`
     : pendingComment
       ? `Point ${pendingComment.xPercent}%, ${pendingComment.yPercent}%`
       : ''
-  const showStatusRow = isLoading || blocked || devicePreviewActive
   const browserUseCursorText = workbench.browserUseCursorState?.visible
     ? `${Math.round(workbench.browserUseCursorState.x)},${Math.round(workbench.browserUseCursorState.y)}`
     : ''
+  const browserUseRuntimeSignal = hasBrowserUseRuntimeSignal(workbench)
+  const browserUseRuntimeLabel = workbench.browserUseActive ? 'Agent browsing' : 'Browser runtime'
+  const browserUseRuntimeDetail = browserUseRuntimeSummary(workbench, browserUseCursorText)
+  const showStatusRow = isLoading || blocked || devicePreviewActive || browserUseRuntimeSignal || ((copyUrlStatus !== null || clearDataStatus !== null) && !error)
   const sortedLocalTargets = sortLocalTargets(localTargets, localTargetSort)
   const hiddenLocalTargetUrls = new Set(workbench.hiddenLocalTargets)
   const visibleLocalTargets = sortedLocalTargets.filter((target) => !hiddenLocalTargetUrls.has(target.url))
@@ -246,6 +300,8 @@ export default function BrowserPanel({
   const visibleLocalServerRouteCount = [...localServerRoutesByTarget.values()].reduce((count, routes) => count + routes.length, 0)
   const hiddenLocalServerRouteCount = workbench.hiddenLocalServerRoutes.length
   const addressBadge = browserAddressBadge(currentUrl || address)
+  const hiddenPageTitle = title || activeTab.title || shortUrl(currentUrl) || 'Loaded page'
+  const hiddenPageUrl = currentUrl || activeTab.url || ''
   const browserWebviewTabs = browserTabsWithWebviews(workbench)
   const browserTransferSourceHostId = workbench.webviewTransferSourceHostId
   const browserTransferTargetHostId = workbench.webviewTransferTargetHostId
@@ -277,6 +333,24 @@ export default function BrowserPanel({
     }
     window.addEventListener('orchestrator:focus-browser-find', focusBrowserFind)
     return () => window.removeEventListener('orchestrator:focus-browser-find', focusBrowserFind)
+  }, [])
+
+  useEffect(() => {
+    const stepBrowserFind = (event: Event): void => {
+      const direction = (event as CustomEvent<{ direction?: number }>).detail?.direction === -1 ? 'previous' : 'next'
+      const query = workbenchRef.current.findQuery.trim()
+      if (!query) {
+        patchWorkbench({ findVisible: true })
+        window.requestAnimationFrame(() => {
+          findInputRef.current?.focus({ preventScroll: true })
+        })
+        return
+      }
+      patchWorkbench({ findVisible: true })
+      webviewRef.current?.findInPage(query, { findNext: true, forward: direction === 'next' })
+    }
+    window.addEventListener('orchestrator:browser-find-step', stepBrowserFind)
+    return () => window.removeEventListener('orchestrator:browser-find-step', stepBrowserFind)
   }, [])
 
   useEffect(() => {
@@ -343,9 +417,13 @@ export default function BrowserPanel({
 
   const refreshLocalTargets = async (): Promise<void> => {
     setLocalTargetsLoading(true)
+    setBrowserLocalTargetStatus({ text: 'Checking local servers', tone: 'info' })
     try {
       const targets = await window.api.browser.discoverLocalTargets(workbenchRef.current.history.map((item) => item.url))
       setLocalTargets(targets)
+      setBrowserLocalTargetStatus({ text: `${targets.length} local ${targets.length === 1 ? 'server' : 'servers'} found`, tone: 'info' })
+    } catch {
+      setBrowserLocalTargetStatus({ text: 'Local server refresh failed', tone: 'danger' })
     } finally {
       setLocalTargetsLoading(false)
     }
@@ -379,6 +457,7 @@ export default function BrowserPanel({
     setFindActiveMatch(0)
     setScreenshot(null)
     setArtifactPath(null)
+    setScreenshotStatus(null)
     setDomSnapshot('')
     setVisibleTargets([])
     setAssetInventory(null)
@@ -560,10 +639,12 @@ export default function BrowserPanel({
 
   const hideLocalTarget = (url: string): void => {
     patchWorkbench({ hiddenLocalTargets: Array.from(new Set([...workbenchRef.current.hiddenLocalTargets, url])) })
+    setBrowserLocalTargetStatus({ text: `Hidden ${shortUrl(url)}`, tone: 'info' })
   }
 
   const unhideLocalTarget = (url: string): void => {
     patchWorkbench({ hiddenLocalTargets: workbenchRef.current.hiddenLocalTargets.filter((targetUrl) => targetUrl !== url) })
+    setBrowserLocalTargetStatus({ text: `Restored ${shortUrl(url)}`, tone: 'info' })
   }
 
   const removeLocalServerRoute = (routeUrl: string): void => {
@@ -572,6 +653,7 @@ export default function BrowserPanel({
       hiddenLocalServerRoutes: Array.from(new Set([...current.hiddenLocalServerRoutes, routeUrl])),
       localServerRoutes: current.localServerRoutes.filter((route) => route.url !== routeUrl)
     })
+    setBrowserLocalTargetStatus({ text: `Route hidden: ${routePathLabel(routeUrl)}`, tone: 'info' })
   }
 
   const patchActiveTab = (patch: Partial<BrowserTabState>): void => {
@@ -591,6 +673,17 @@ export default function BrowserPanel({
     })
   }
 
+  const clearHistory = (): void => {
+    if (copyUrlStatusTimeoutRef.current) window.clearTimeout(copyUrlStatusTimeoutRef.current)
+    patchWorkbench({ history: [] })
+    setBrowserMenuOpen(false)
+    setCopyUrlStatus({ text: 'History cleared', tone: 'info' })
+    copyUrlStatusTimeoutRef.current = window.setTimeout(() => {
+      setCopyUrlStatus(null)
+      copyUrlStatusTimeoutRef.current = null
+    }, 2200)
+  }
+
   const navigate = (raw: string): void => {
     const nextUrl = normalizeUrl(raw)
     if (!nextUrl) return
@@ -602,6 +695,7 @@ export default function BrowserPanel({
     setError(null)
     setScreenshot(null)
     setArtifactPath(null)
+    setScreenshotStatus(null)
     setAddress(nextUrl)
     setCurrentUrl(nextUrl)
     patchActiveTab({ url: nextUrl, title: nextUrl, lastOpened: Date.now() })
@@ -651,12 +745,47 @@ export default function BrowserPanel({
   const captureScreenshot = async (): Promise<void> => {
     const webview = webviewRef.current
     if (!webview || !currentUrl) return
-    const image = await webview.capturePage()
-    const dataUrl = image.toDataURL()
-    setScreenshot(dataUrl)
-    const saved = await window.api.browser.saveDataUrlArtifact(dataUrl, `browser-${Date.now()}.png`)
-    setArtifactPath(saved.path)
-    patchWorkbench({ inspectorOpen: true, inspectorMode: 'console' })
+    setScreenshotStatus(null)
+    try {
+      const image = await webview.capturePage()
+      const dataUrl = image.toDataURL()
+      setScreenshot(dataUrl)
+      const saved = await window.api.browser.saveDataUrlArtifact(dataUrl, `browser-${Date.now()}.png`)
+      setArtifactPath(saved.path)
+      setScreenshotStatus({ text: 'Screenshot saved', tone: 'info' })
+      patchWorkbench({ inspectorOpen: true, inspectorMode: 'console' })
+    } catch {
+      setScreenshotStatus({ text: 'Screenshot failed', tone: 'danger' })
+    }
+  }
+
+  const addScreenshotToChat = (path: string | null): void => {
+    if (!path) {
+      setScreenshotStatus({ text: 'No screenshot to attach', tone: 'danger' })
+      return
+    }
+    addArtifactToChat(path)
+    setScreenshotStatus({ text: 'Screenshot attached', tone: 'info' })
+  }
+
+  const copyScreenshotPath = (path: string | null): void => {
+    if (!path) {
+      setScreenshotStatus({ text: 'No screenshot path', tone: 'danger' })
+      return
+    }
+    setScreenshotStatus({ text: 'Copying screenshot path', tone: 'info' })
+    void writeBrowserClipboardText(path)
+      .then(() => setScreenshotStatus({ text: 'Screenshot path copied', tone: 'info' }))
+      .catch(() => setScreenshotStatus({ text: 'Copy screenshot path failed', tone: 'danger' }))
+  }
+
+  const revealScreenshotArtifact = (path: string | null): void => {
+    if (!path) {
+      setScreenshotStatus({ text: 'No screenshot file', tone: 'danger' })
+      return
+    }
+    setScreenshotStatus({ text: 'Revealing screenshot', tone: 'info' })
+    void window.api.fs.showInFolder(path)
   }
 
   const searchInPage = (query: string): void => {
@@ -685,6 +814,10 @@ export default function BrowserPanel({
 
   const changeZoom = (delta: number): void => {
     const nextZoom = Math.max(0.5, Math.min(2, Number((workbench.zoomFactor + delta).toFixed(2))))
+    setZoomFactor(nextZoom)
+  }
+
+  const setZoomFactor = (nextZoom: number): void => {
     webviewRef.current?.setZoomFactor(nextZoom)
     patchWorkbench({ zoomFactor: nextZoom })
   }
@@ -695,10 +828,16 @@ export default function BrowserPanel({
   }
 
   const clearBrowserData = async (kind: BrowserClearDataKind): Promise<void> => {
-    await window.api.browser.clearData(kind, browserPartition)
-    setLastClearDataKind(kind)
-    setClearDataCount((count) => count + 1)
     setBrowserMenuOpen(false)
+    setBrowserClearDataStatus({ text: `Clearing ${clearDataKindLabel(kind)}`, tone: 'info' })
+    try {
+      await window.api.browser.clearData(kind, browserPartition)
+      setLastClearDataKind(kind)
+      setClearDataCount((count) => count + 1)
+      setBrowserClearDataStatus({ text: `${clearDataKindLabel(kind)} cleared`, tone: 'info' })
+    } catch {
+      setBrowserClearDataStatus({ text: `Clear ${clearDataKindLabel(kind)} failed`, tone: 'danger' })
+    }
   }
 
   const setCommentPreviewOriginal = (previewOriginal: boolean): void => {
@@ -779,9 +918,62 @@ export default function BrowserPanel({
     return () => window.removeEventListener('orchestrator:browser-panel-command', handleBrowserPanelCommand)
   })
 
-  const copyCurrentUrl = (): void => {
+  useEffect(() => () => {
+    if (copyUrlStatusTimeoutRef.current) window.clearTimeout(copyUrlStatusTimeoutRef.current)
+    if (localTargetActionStatusTimeoutRef.current) window.clearTimeout(localTargetActionStatusTimeoutRef.current)
+    if (clearDataStatusTimeoutRef.current) window.clearTimeout(clearDataStatusTimeoutRef.current)
+  }, [])
+
+  const setBrowserLocalTargetStatus = (status: BrowserActionStatus): void => {
+    if (localTargetActionStatusTimeoutRef.current) window.clearTimeout(localTargetActionStatusTimeoutRef.current)
+    setLocalTargetActionStatus(status)
+    localTargetActionStatusTimeoutRef.current = window.setTimeout(() => {
+      setLocalTargetActionStatus(null)
+      localTargetActionStatusTimeoutRef.current = null
+    }, 2200)
+  }
+
+  const setBrowserClearDataStatus = (status: BrowserActionStatus): void => {
+    if (clearDataStatusTimeoutRef.current) window.clearTimeout(clearDataStatusTimeoutRef.current)
+    setClearDataStatus(status)
+    clearDataStatusTimeoutRef.current = window.setTimeout(() => {
+      setClearDataStatus(null)
+      clearDataStatusTimeoutRef.current = null
+    }, 2200)
+  }
+
+  const writeBrowserClipboardText = async (text: string): Promise<void> => {
+    if (typeof window.api.clipboard?.writeText === 'function') {
+      const didWrite = await window.api.clipboard.writeText(text)
+      if (!didWrite) throw new Error('Clipboard write failed')
+      return
+    }
+    await navigator.clipboard.writeText(text)
+  }
+
+  const setBrowserCommentHistoryStatus = (status: BrowserActionStatus): void => {
+    if (commentHistoryStatusTimeoutRef.current) window.clearTimeout(commentHistoryStatusTimeoutRef.current)
+    setCommentHistoryStatus(status)
+    commentHistoryStatusTimeoutRef.current = window.setTimeout(() => {
+      setCommentHistoryStatus(null)
+      commentHistoryStatusTimeoutRef.current = null
+    }, 2200)
+  }
+
+  const copyCurrentUrl = async (): Promise<void> => {
     if (!currentUrl) return
-    void navigator.clipboard.writeText(currentUrl)
+    if (copyUrlStatusTimeoutRef.current) window.clearTimeout(copyUrlStatusTimeoutRef.current)
+    setCopyUrlStatus({ text: 'Copying URL', tone: 'info' })
+    try {
+      await writeBrowserClipboardText(currentUrl)
+      setCopyUrlStatus({ text: 'URL copied', tone: 'info' })
+    } catch {
+      setCopyUrlStatus({ text: 'Copy URL failed', tone: 'danger' })
+    }
+    copyUrlStatusTimeoutRef.current = window.setTimeout(() => {
+      setCopyUrlStatus(null)
+      copyUrlStatusTimeoutRef.current = null
+    }, 2200)
   }
 
   const addPageContextToChat = async (): Promise<void> => {
@@ -806,6 +998,12 @@ export default function BrowserPanel({
     }))
     setPageContextMenu(null)
     setBrowserMenuOpen(false)
+    if (copyUrlStatusTimeoutRef.current) window.clearTimeout(copyUrlStatusTimeoutRef.current)
+    setCopyUrlStatus({ text: 'Page context added to chat', tone: 'info' })
+    copyUrlStatusTimeoutRef.current = window.setTimeout(() => {
+      setCopyUrlStatus(null)
+      copyUrlStatusTimeoutRef.current = null
+    }, 2200)
   }
 
   const commentRegionFromDrag = (
@@ -948,6 +1146,7 @@ export default function BrowserPanel({
       commentIntent === 'design-tweak' ? 'Design tweak for this browser page:' : 'Comment on this browser page:',
       `URL: ${currentUrl}`,
       title ? `Title: ${title}` : '',
+      artifactPath ? `Screenshot: ${artifactPath}` : '',
       pendingComment.region
         ? `Region: ${pendingComment.region.xPercent}%, ${pendingComment.region.yPercent}% - ${pendingComment.region.widthPercent}% x ${pendingComment.region.heightPercent}%`
         : `Point: ${pendingComment.xPercent}%, ${pendingComment.yPercent}%`,
@@ -958,8 +1157,25 @@ export default function BrowserPanel({
         : '',
       pendingComment.visibleStructure ? `\nVisible page structure:\n${pendingComment.visibleStructure}` : ''
     ].filter(Boolean)
+    const text = lines.join('\n')
+    const annotation: BrowserAnnotationState = {
+      id: `browser-comment-${Date.now()}`,
+      intent: commentIntent,
+      url: currentUrl,
+      title: title || null,
+      scope: pendingComment.region
+        ? `Region ${pendingComment.region.xPercent}%, ${pendingComment.region.yPercent}% - ${pendingComment.region.widthPercent}% x ${pendingComment.region.heightPercent}%`
+        : `Point ${pendingComment.xPercent}%, ${pendingComment.yPercent}%`,
+      body,
+      text,
+      screenshotPath: artifactPath,
+      createdAt: Date.now()
+    }
+    if (artifactPath) {
+      addArtifactToChat(artifactPath)
+    }
     window.dispatchEvent(new CustomEvent('orchestrator:add-composer-text', {
-      detail: { text: lines.join('\n') }
+      detail: { text }
     }))
     setLastCommentPoint(pendingComment.region
       ? `${pendingComment.region.xPercent},${pendingComment.region.yPercent},${pendingComment.region.widthPercent},${pendingComment.region.heightPercent}`
@@ -968,7 +1184,27 @@ export default function BrowserPanel({
     setCommentDraft('')
     setCommentIntent('comment')
     setCommentPreviewOriginalLocal(false)
-    patchWorkbench({ commentMode: false, commentCoachmarkDismissed: true, commentPreviewOriginal: false })
+    patchWorkbench({
+      commentMode: false,
+      commentCoachmarkDismissed: true,
+      commentPreviewOriginal: false,
+      commentAnnotations: [annotation, ...commentAnnotations.filter((item) => item.id !== annotation.id)].slice(0, 20)
+    })
+  }
+
+  const addBrowserAnnotationToChat = (annotation: BrowserAnnotationState): void => {
+    if (annotation.screenshotPath) addArtifactToChat(annotation.screenshotPath)
+    window.dispatchEvent(new CustomEvent('orchestrator:add-composer-text', {
+      detail: { text: annotation.text }
+    }))
+    setBrowserCommentHistoryStatus({ text: 'Annotation added to chat', tone: 'info' })
+  }
+
+  const copyBrowserAnnotation = (annotation: BrowserAnnotationState): void => {
+    setBrowserCommentHistoryStatus({ text: 'Copying annotation', tone: 'info' })
+    void writeBrowserClipboardText(annotation.text)
+      .then(() => setBrowserCommentHistoryStatus({ text: 'Annotation copied', tone: 'info' }))
+      .catch(() => setBrowserCommentHistoryStatus({ text: 'Copy annotation failed', tone: 'danger' }))
   }
 
   const cancelPointComment = (): void => {
@@ -1062,6 +1298,7 @@ export default function BrowserPanel({
     const saved = await window.api.browser.saveDataUrlArtifact(dataUrl, `browser-client-tool-${Date.now()}.png`)
     setScreenshot(dataUrl)
     setArtifactPath(saved.path)
+    setScreenshotStatus({ text: 'Screenshot saved', tone: 'info' })
     patchWorkbench({ inspectorOpen: true, inspectorMode: 'console' })
     return {
       ok: true,
@@ -1307,35 +1544,55 @@ export default function BrowserPanel({
 
   const runTargetAction = async (action: BrowserTargetAction): Promise<void> => {
     if (!selectedTargetId || !webviewRef.current) return
-    const result = await webviewRef.current.executeJavaScript<BrowserTargetReadResult | boolean>(
-      `window.__orchestratorBrowserAction(${JSON.stringify({ action, nodeId: selectedTargetId, text: actionText, x: 0, y: coordinateAction.scrollY })})`,
-      true
-    )
-    setTargetReadResult(action === 'read' && result && typeof result === 'object' ? result : null)
-    await runInspection()
+    try {
+      const result = await webviewRef.current.executeJavaScript<BrowserTargetReadResult | boolean>(
+        `window.__orchestratorBrowserAction(${JSON.stringify({ action, nodeId: selectedTargetId, text: actionText, x: 0, y: coordinateAction.scrollY })})`,
+        true
+      )
+      setTargetReadResult(action === 'read' && result && typeof result === 'object' ? result : null)
+      setTargetActionStatus({ text: targetActionStatusText(action), tone: 'info' })
+      await runInspection()
+    } catch {
+      setTargetActionStatus({ text: `${targetActionStatusText(action)} failed`, tone: 'danger' })
+    }
   }
 
   const runCoordinateAction = async (action: 'click' | 'scroll'): Promise<void> => {
     if (!webviewRef.current) return
-    await webviewRef.current.executeJavaScript(
-      `window.__orchestratorBrowserAction(${JSON.stringify({
-        action,
-        x: coordinateAction.x,
-        y: coordinateAction.y,
-        scrollY: coordinateAction.scrollY
-      })})`,
-      true
-    )
-    await runInspection()
+    try {
+      await webviewRef.current.executeJavaScript(
+        `window.__orchestratorBrowserAction(${JSON.stringify({
+          action,
+          x: coordinateAction.x,
+          y: coordinateAction.y,
+          scrollY: coordinateAction.scrollY
+        })})`,
+        true
+      )
+      setTargetActionStatus({ text: action === 'click' ? 'Coordinate click ran' : 'Coordinate scroll ran', tone: 'info' })
+      await runInspection()
+    } catch {
+      setTargetActionStatus({ text: action === 'click' ? 'Coordinate click failed' : 'Coordinate scroll failed', tone: 'danger' })
+    }
   }
 
   const readClipboard = async (): Promise<void> => {
-    const text = await webviewRef.current?.executeJavaScript<string>('navigator.clipboard.readText().catch(() => "")', true)
-    setClipboardText(text ?? '')
+    try {
+      const text = await webviewRef.current?.executeJavaScript<string>('navigator.clipboard.readText().catch(() => "")', true)
+      setClipboardText(text ?? '')
+      setTargetActionStatus({ text: 'Page clipboard read', tone: 'info' })
+    } catch {
+      setTargetActionStatus({ text: 'Page clipboard read failed', tone: 'danger' })
+    }
   }
 
   const writeClipboard = async (): Promise<void> => {
-    await webviewRef.current?.executeJavaScript(`navigator.clipboard.writeText(${JSON.stringify(clipboardText)}).catch(() => undefined)`, true)
+    try {
+      await webviewRef.current?.executeJavaScript(`navigator.clipboard.writeText(${JSON.stringify(clipboardText)}).catch(() => undefined)`, true)
+      setTargetActionStatus({ text: 'Page clipboard written', tone: 'info' })
+    } catch {
+      setTargetActionStatus({ text: 'Page clipboard write failed', tone: 'danger' })
+    }
   }
 
   const bundleAssets = async (): Promise<void> => {
@@ -1350,16 +1607,23 @@ export default function BrowserPanel({
     setAssetBundlePath(bundle.manifestPath)
   }
 
-  const addOriginPolicy = (key: keyof Pick<BrowserWorkbenchState, 'allowedOrigins' | 'blockedOrigins' | 'allowedDownloadOrigins' | 'blockedDownloadOrigins' | 'allowedUploadOrigins' | 'blockedUploadOrigins'>): void => {
+  const addOriginPolicy = (key: BrowserOriginPolicyKey): void => {
     if (!urlOrigin) return
     const origin = originKey(urlOrigin)
     const values = workbench[key]
-    if (values.includes(origin)) return
-    patchWorkbench({ [key]: [...values, origin] } as Partial<BrowserWorkbenchState>)
+    const oppositeKey = oppositeOriginPolicyKey(key)
+    const patch: Partial<BrowserWorkbenchState> = {
+      [key]: values.includes(origin) ? values : [...values, origin]
+    }
+    if (oppositeKey) {
+      patch[oppositeKey] = workbench[oppositeKey].filter((value) => value !== origin)
+    }
+    patchWorkbench(patch)
   }
 
-  const clearOriginPolicy = (key: keyof Pick<BrowserWorkbenchState, 'allowedOrigins' | 'blockedOrigins' | 'allowedDownloadOrigins' | 'blockedDownloadOrigins' | 'allowedUploadOrigins' | 'blockedUploadOrigins'>): void => {
-    patchWorkbench({ [key]: [] } as Partial<BrowserWorkbenchState>)
+  const clearOriginPolicy = (keyOrKeys: BrowserOriginPolicyKey | BrowserOriginPolicyKey[]): void => {
+    const keys = Array.isArray(keyOrKeys) ? keyOrKeys : [keyOrKeys]
+    patchWorkbench(Object.fromEntries(keys.map((key) => [key, []])) as Partial<BrowserWorkbenchState>)
   }
 
   const openExternal = (): void => {
@@ -1409,7 +1673,10 @@ export default function BrowserPanel({
       data-browser-comment-intent={pendingComment ? commentIntent : ''}
       data-browser-comment-pending-point={pendingComment ? `${pendingComment.xPercent},${pendingComment.yPercent}` : ''}
       data-browser-comment-pending-region={pendingComment?.region ? `${pendingComment.region.xPercent},${pendingComment.region.yPercent},${pendingComment.region.widthPercent},${pendingComment.region.heightPercent}` : ''}
+      data-browser-comment-screenshot-path={artifactPath ?? ''}
       data-browser-last-comment={lastCommentPoint}
+      data-browser-comment-history-count={commentAnnotations.length}
+      data-browser-comment-history-latest={commentAnnotations[0]?.body ?? ''}
       data-browser-webview-host-id={hostId}
       data-browser-webview-source-host-id={browserWebviewHostId}
       data-browser-webview-partition={browserPartition}
@@ -1427,6 +1694,8 @@ export default function BrowserPanel({
       data-browser-panel-last-command={lastBrowserPanelCommand}
       data-browser-clear-data={clearDataCount}
       data-browser-clear-data-kind={lastClearDataKind}
+      data-browser-clear-data-status={clearDataStatus?.text ?? ''}
+      data-browser-clear-data-status-tone={clearDataStatus?.tone ?? ''}
       data-browser-find-matches={findMatches}
       data-browser-find-active-match={findActiveMatch}
       data-browser-lifecycle-syncs={lifecycleSyncCount}
@@ -1436,6 +1705,8 @@ export default function BrowserPanel({
       data-browser-error={error ?? ''}
       data-browser-current-url={currentUrl}
       data-browser-dom-targets={visibleTargets.length}
+      data-browser-target-action-status={targetActionStatus?.text ?? ''}
+      data-browser-target-action-status-tone={targetActionStatus?.tone ?? ''}
       data-browser-asset-count={assetInventory?.summary.totalCount ?? 0}
       data-browser-inline-svg-count={assetInventory?.summary.inlineSvgCount ?? 0}
       data-browser-log-count={logs.length}
@@ -1455,6 +1726,7 @@ export default function BrowserPanel({
           className="browser-shell-tab-strip"
           stripTestId="browser-tab-strip"
           tabRowTestId="browser-tab-row"
+          tabListLabel="Browser tabs"
           actionsTestId="browser-tab-actions"
           onActivate={selectTab}
           onClose={closeTab}
@@ -1466,6 +1738,7 @@ export default function BrowserPanel({
       <PanelToolbar
         as="form"
         className="browser-toolbar"
+        ariaLabel="Browser toolbar"
         onSubmit={(event) => {
           event.preventDefault()
           navigate(address)
@@ -1523,10 +1796,14 @@ export default function BrowserPanel({
             size="sm"
             active={browserMenuOpen}
             dataTestId="browser-actions-menu"
+            ariaExpanded={browserMenuOpen}
+            ariaControls={BROWSER_ACTIONS_MENU_ID}
+            ariaHasPopup="menu"
             onClick={() => setBrowserMenuOpen((open) => !open)}
           />
           {browserMenuOpen && (
             <MenuSurface
+              id={BROWSER_ACTIONS_MENU_ID}
               onClose={() => setBrowserMenuOpen(false)}
               className="browser-actions-menu"
               style={{ position: 'absolute', right: 0, top: 32, width: 236, zIndex: 100 }}
@@ -1583,9 +1860,17 @@ export default function BrowserPanel({
                   ariaLabel="Copy browser URL"
                   disabled={!currentUrl}
                   onClick={() => {
-                    void navigator.clipboard.writeText(currentUrl)
+                    void copyCurrentUrl()
                     setBrowserMenuOpen(false)
                   }}
+                />
+                <MenuItem
+                  icon="chat"
+                  label="Add page context"
+                  ariaLabel="Add browser page context to chat"
+                  disabled={!currentUrl || !visible || Boolean(error)}
+                  dataTestId="browser-menu-add-page-context"
+                  onClick={() => void addPageContextToChat()}
                 />
                 <MenuItem
                   icon="external"
@@ -1652,6 +1937,13 @@ export default function BrowserPanel({
                       <span className="browser-history-url min-w-0 truncate">{shortUrl(item.url)}</span>
                     </MenuRow>
                   ))}
+                  <MenuItem
+                    icon="eraser"
+                    label="Clear history"
+                    ariaLabel="Clear browser history"
+                    dataTestId="browser-clear-history"
+                    onClick={clearHistory}
+                  />
                 </MenuSection>
               )}
               <MenuSection className="browser-action-section">
@@ -1675,10 +1967,7 @@ export default function BrowserPanel({
                     data-testid="browser-zoom-reset"
                     className="browser-action-value"
                     disabled={!currentUrl}
-                    onClick={() => {
-                      webviewRef.current?.setZoomFactor(1)
-                      patchWorkbench({ zoomFactor: 1 })
-                    }}
+                    onClick={() => setZoomFactor(1)}
                   >
                     {Math.round(workbench.zoomFactor * 100)}%
                   </button>
@@ -1707,13 +1996,31 @@ export default function BrowserPanel({
                   onClick={() => patchWorkbench({ visible: !visible })}
                 />
               </MenuSection>
+              <MenuSection className="browser-action-section" dataTestId="browser-zoom-presets-section">
+                <MenuSectionLabel className="browser-action-label">Zoom presets</MenuSectionLabel>
+                {BROWSER_ZOOM_PRESETS.map((preset) => {
+                  const percent = Math.round(preset * 100)
+                  const active = Math.abs(workbench.zoomFactor - preset) < 0.001
+                  return (
+                    <MenuItem
+                      key={preset}
+                      icon={active ? 'check' : 'zoomIn'}
+                      label={`${percent}%`}
+                      ariaLabel={`Set browser zoom to ${percent}%`}
+                      disabled={!currentUrl}
+                      dataTestId={`browser-zoom-preset-${percent}`}
+                      onClick={() => setZoomFactor(preset)}
+                    />
+                  )
+                })}
+              </MenuSection>
             </MenuSurface>
           )}
         </div>
       </PanelToolbar>
 
       {workbench.findVisible && (
-        <PanelToolbar className="browser-find-toolbar">
+        <PanelToolbar className="browser-find-toolbar" ariaLabel="Browser find toolbar">
           <WorkbenchSearchField
             value={workbench.findQuery}
             onChange={searchInPage}
@@ -1753,6 +2060,22 @@ export default function BrowserPanel({
             {isLoading && <Badge tone="neutral">Loading</Badge>}
             {error && <Badge tone="danger">Failed</Badge>}
             {blocked && <Badge tone="warning">Blocked origin</Badge>}
+            {browserUseRuntimeSignal && (
+              <span
+                className="browser-use-status-pill"
+                data-testid="browser-use-status"
+                data-browser-use-status-active={workbench.browserUseActive ? 'true' : 'false'}
+                data-browser-use-status-detail={browserUseRuntimeDetail}
+                role="status"
+                aria-live="polite"
+                aria-atomic="true"
+                aria-label={`${browserUseRuntimeLabel}: ${browserUseRuntimeDetail}`}
+                title={`${browserUseRuntimeLabel}: ${browserUseRuntimeDetail}`}
+              >
+                <Icon name="browser" size={12} />
+                <span>{browserUseRuntimeLabel}</span>
+              </span>
+            )}
             <span className="min-w-0 flex-1 truncate" style={{ color: error ? 'var(--state-danger)' : 'var(--text-tertiary)' }}>
               {error ?? title ?? currentUrl}
             </span>
@@ -1760,8 +2083,32 @@ export default function BrowserPanel({
           {error && (
             <div className="browser-status-actions">
               <button type="button" data-testid="browser-error-retry" onClick={retryCurrentPage}>Retry</button>
-              <button type="button" data-testid="browser-error-copy-url" onClick={copyCurrentUrl}>Copy URL</button>
+              <button type="button" data-testid="browser-error-copy-url" onClick={() => { void copyCurrentUrl() }}>Copy URL</button>
             </div>
+          )}
+          {copyUrlStatus && (
+            <span
+              className="browser-copy-url-status"
+              data-testid="browser-copy-url-status"
+              data-browser-copy-url-status-tone={copyUrlStatus.tone}
+              role={copyUrlStatus.tone === 'danger' ? 'alert' : 'status'}
+              aria-live={copyUrlStatus.tone === 'danger' ? 'assertive' : 'polite'}
+              aria-atomic="true"
+            >
+              {copyUrlStatus.text}
+            </span>
+          )}
+          {clearDataStatus && (
+            <span
+              className="browser-clear-data-status"
+              data-testid="browser-clear-data-status"
+              data-browser-clear-data-status-tone={clearDataStatus.tone}
+              role={clearDataStatus.tone === 'danger' ? 'alert' : 'status'}
+              aria-live={clearDataStatus.tone === 'danger' ? 'assertive' : 'polite'}
+              aria-atomic="true"
+            >
+              {clearDataStatus.text}
+            </span>
           )}
           {!error && devicePreviewActive && (
             <div className="flex items-center gap-1">
@@ -1822,7 +2169,8 @@ export default function BrowserPanel({
                 <BrowserLoadErrorPane
                   error={error}
                   url={currentUrl}
-                  onCopyUrl={copyCurrentUrl}
+                  copyStatus={copyUrlStatus}
+                  onCopyUrl={() => { void copyCurrentUrl() }}
                   onHardReload={hardReloadCurrentPage}
                   onOpenExternal={openExternal}
                   onRetry={retryCurrentPage}
@@ -2053,7 +2401,12 @@ export default function BrowserPanel({
                 </div>
               )
             ) : (
-              <div className="browser-hidden-state" data-testid="browser-hidden-state">
+              <div
+                className="browser-hidden-state"
+                data-testid="browser-hidden-state"
+                data-browser-hidden-title={hiddenPageTitle}
+                data-browser-hidden-url={hiddenPageUrl}
+              >
                 <div className="browser-hidden-webview-host" aria-hidden="true">
                   <BrowserWebviewManager
                     hostId={hostId}
@@ -2081,8 +2434,12 @@ export default function BrowserPanel({
                 </div>
                 <Icon name="browser" size={26} />
                 <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Hidden</div>
+                <div className="browser-hidden-page" data-testid="browser-hidden-page">
+                  <div className="browser-hidden-page-title">{hiddenPageTitle}</div>
+                  {hiddenPageUrl && <div className="browser-hidden-page-url">{shortUrl(hiddenPageUrl)}</div>}
+                </div>
                 <div className="max-w-56 text-xs" style={{ color: 'var(--text-tertiary)' }}>
-                  The page is still loaded.
+                  The page is still loaded and will resume when shown.
                 </div>
                 <Button
                   ariaLabel="Show browser surface"
@@ -2150,6 +2507,18 @@ export default function BrowserPanel({
                     </button>
                   </div>
                 </div>
+                {localTargetActionStatus && (
+                  <span
+                    className="browser-local-target-action-status"
+                    data-testid="browser-local-target-action-status"
+                    data-browser-local-target-action-status-tone={localTargetActionStatus.tone}
+                    role={localTargetActionStatus.tone === 'danger' ? 'alert' : 'status'}
+                    aria-live={localTargetActionStatus.tone === 'danger' ? 'assertive' : 'polite'}
+                    aria-atomic="true"
+                  >
+                    {localTargetActionStatus.text}
+                  </span>
+                )}
                 <div className="browser-local-targets-list" aria-live="polite">
                   {shownLocalTargets.length > 0 ? shownLocalTargets.map((target) => {
                     const targetRoutes = localServerRoutesByTarget.get(target.url) ?? []
@@ -2304,7 +2673,7 @@ export default function BrowserPanel({
 
         {workbench.inspectorOpen && (
           <div className="browser-inspector-drawer">
-            <PanelToolbar className="browser-inspector-toolbar" dataTestId="browser-inspector-toolbar">
+            <PanelToolbar className="browser-inspector-toolbar" dataTestId="browser-inspector-toolbar" ariaLabel="Browser inspector toolbar">
               {BROWSER_INSPECTOR_TABS.map(({ mode, label, icon }) => (
                 <button
                   key={mode}
@@ -2345,7 +2714,14 @@ export default function BrowserPanel({
                   logs={logs}
                   artifactPath={artifactPath}
                   screenshot={screenshot}
-                  onAddScreenshot={() => addArtifactToChat(artifactPath)}
+                  screenshotStatus={screenshotStatus}
+                  annotations={commentAnnotations}
+                  annotationStatus={commentHistoryStatus}
+                  onAddScreenshot={() => addScreenshotToChat(artifactPath)}
+                  onCopyScreenshotPath={() => copyScreenshotPath(artifactPath)}
+                  onRevealScreenshot={() => revealScreenshotArtifact(artifactPath)}
+                  onAddAnnotation={addBrowserAnnotationToChat}
+                  onCopyAnnotation={copyBrowserAnnotation}
                   onClear={() => setLogs([])}
                 />
               )}
@@ -2356,6 +2732,7 @@ export default function BrowserPanel({
                   selectedTargetId={selectedTargetId}
                   actionText={actionText}
                   targetReadResult={targetReadResult}
+                  targetActionStatus={targetActionStatus}
                   coordinateAction={coordinateAction}
                   clipboardText={clipboardText}
                   onActionTextChange={setActionText}
@@ -2392,6 +2769,7 @@ export default function BrowserPanel({
 }
 
 function BrowserLoadErrorPane({
+  copyStatus,
   error,
   url,
   onCopyUrl,
@@ -2399,6 +2777,7 @@ function BrowserLoadErrorPane({
   onOpenExternal,
   onRetry
 }: {
+  copyStatus: { text: string; tone: 'info' | 'danger' } | null
   error: string
   url: string
   onCopyUrl: () => void
@@ -2411,6 +2790,10 @@ function BrowserLoadErrorPane({
 
   return (
     <PanelNotice
+      actionsAttrs={{
+        role: 'group',
+        'aria-label': 'Browser load error recovery actions'
+      }}
       actions={(
         <>
           <Button className="browser-load-error-action" dataTestId="browser-load-error-retry" onClick={onRetry} variant="primary">Retry</Button>
@@ -2424,10 +2807,27 @@ function BrowserLoadErrorPane({
       dataTestId="browser-load-error"
       description={loadErrorSummary(error, host)}
       icon={<Icon name="browser" size={22} />}
+      rootAttrs={{
+        role: 'alert',
+        'aria-live': 'assertive',
+        'aria-atomic': 'true'
+      }}
       state="load-error"
       title="Page unavailable"
       tone="danger"
     >
+      {copyStatus && (
+        <span
+          className="browser-copy-url-status"
+          data-testid="browser-load-error-copy-status"
+          data-browser-copy-url-status-tone={copyStatus.tone}
+          role={copyStatus.tone === 'danger' ? 'alert' : 'status'}
+          aria-live={copyStatus.tone === 'danger' ? 'assertive' : 'polite'}
+          aria-atomic="true"
+        >
+          {copyStatus.text}
+        </span>
+      )}
       <div className="orchestrator-panel-notice-suggestions browser-load-error-suggestions">
         <span>Try</span>
         {suggestions.map((suggestion) => (
@@ -2442,13 +2842,27 @@ function ConsolePane({
   logs,
   artifactPath,
   screenshot,
+  screenshotStatus,
+  annotations,
+  annotationStatus,
   onAddScreenshot,
+  onCopyScreenshotPath,
+  onRevealScreenshot,
+  onAddAnnotation,
+  onCopyAnnotation,
   onClear
 }: {
   logs: BrowserLogEntry[]
   artifactPath: string | null
   screenshot: string | null
+  screenshotStatus: BrowserScreenshotActionStatus | null
+  annotations: BrowserAnnotationState[]
+  annotationStatus: BrowserActionStatus | null
   onAddScreenshot: () => void
+  onCopyScreenshotPath: () => void
+  onRevealScreenshot: () => void
+  onAddAnnotation: (annotation: BrowserAnnotationState) => void
+  onCopyAnnotation: (annotation: BrowserAnnotationState) => void
   onClear: () => void
 }): JSX.Element {
   return (
@@ -2457,18 +2871,63 @@ function ConsolePane({
         <Badge tone="neutral">console {logs.length}</Badge>
         {artifactPath && <Badge tone="success">screenshot saved</Badge>}
         {artifactPath && (
-          <button
-            type="button"
-            className="text-xs font-semibold"
-            style={{ color: 'var(--accent)' }}
-            onClick={onAddScreenshot}
+          <div
+            className="flex min-w-0 items-center gap-1"
+            data-testid="browser-screenshot-actions"
+            role="group"
+            aria-label="Browser screenshot actions"
+            data-browser-screenshot-artifact-path={artifactPath}
           >
-            Add screenshot
-          </button>
+            <IconButton
+              icon="paperclip"
+              label="Add screenshot to chat"
+              size="sm"
+              variant="toolbar"
+              dataTestId="browser-screenshot-add-chat"
+              onClick={onAddScreenshot}
+            />
+            <IconButton
+              icon="copy"
+              label="Copy screenshot path"
+              size="sm"
+              variant="toolbar"
+              dataTestId="browser-screenshot-copy-path"
+              onClick={onCopyScreenshotPath}
+            />
+            <IconButton
+              icon="folder"
+              label="Reveal screenshot file"
+              size="sm"
+              variant="toolbar"
+              dataTestId="browser-screenshot-reveal"
+              onClick={onRevealScreenshot}
+            />
+          </div>
         )}
         <button type="button" className="ml-auto text-xs" style={{ color: 'var(--text-secondary)' }} onClick={onClear}>Clear</button>
       </div>
-      {artifactPath && <div className="truncate" style={{ color: 'var(--text-tertiary)' }}>{artifactPath}</div>}
+      {screenshotStatus && (
+        <div
+          className="browser-screenshot-status"
+          data-testid="browser-screenshot-status"
+          data-browser-screenshot-status-tone={screenshotStatus.tone}
+          role={screenshotStatus.tone === 'danger' ? 'alert' : 'status'}
+          aria-live={screenshotStatus.tone === 'danger' ? 'assertive' : 'polite'}
+          aria-atomic="true"
+        >
+          {screenshotStatus.text}
+        </div>
+      )}
+      {artifactPath && (
+        <div
+          className="truncate"
+          data-testid="browser-screenshot-artifact-path"
+          data-browser-screenshot-artifact-path={artifactPath}
+          style={{ color: 'var(--text-tertiary)' }}
+        >
+          {artifactPath}
+        </div>
+      )}
       {screenshot && (
         <img
           data-testid="browser-screenshot-preview"
@@ -2478,6 +2937,12 @@ function ConsolePane({
           style={{ borderColor: 'var(--border-subtle)' }}
         />
       )}
+      <BrowserAnnotationHistory
+        annotations={annotations}
+        status={annotationStatus}
+        onAddAnnotation={onAddAnnotation}
+        onCopyAnnotation={onCopyAnnotation}
+      />
       <div className="space-y-1">
         {logs.length === 0 ? (
           <PanelMessage compact dataTestId="browser-console-empty" state="empty">
@@ -2491,6 +2956,96 @@ function ConsolePane({
         ))}
       </div>
     </div>
+  )
+}
+
+function BrowserAnnotationHistory({
+  annotations,
+  status,
+  onAddAnnotation,
+  onCopyAnnotation
+}: {
+  annotations: BrowserAnnotationState[]
+  status: BrowserActionStatus | null
+  onAddAnnotation: (annotation: BrowserAnnotationState) => void
+  onCopyAnnotation: (annotation: BrowserAnnotationState) => void
+}): JSX.Element {
+  return (
+    <section className="space-y-1" data-testid="browser-comment-history" data-browser-comment-history-count={annotations.length}>
+      <div className="flex items-center gap-2">
+        <Badge tone={annotations.length > 0 ? 'accent' : 'neutral'}>annotations {annotations.length}</Badge>
+        <span className="min-w-0 truncate text-[11px]" style={{ color: 'var(--text-tertiary)' }}>
+          {annotations.length > 0 ? 'Saved visual comments for this Browser tab' : 'No saved visual comments'}
+        </span>
+      </div>
+      {status && (
+        <div
+          className="browser-comment-history-status"
+          data-testid="browser-comment-history-status"
+          data-browser-comment-history-status-tone={status.tone}
+          role={status.tone === 'danger' ? 'alert' : 'status'}
+          aria-live={status.tone === 'danger' ? 'assertive' : 'polite'}
+          aria-atomic="true"
+        >
+          {status.text}
+        </div>
+      )}
+      {annotations.length === 0 ? (
+        <PanelMessage compact dataTestId="browser-comment-history-empty" state="empty">
+          Browser comments you send will stay here for reuse.
+        </PanelMessage>
+      ) : (
+        <div className="space-y-1" data-testid="browser-comment-history-list" role="list" aria-label="Browser annotation history">
+          {annotations.slice(0, 5).map((annotation) => (
+            <div
+              key={annotation.id}
+              className="rounded-md px-2 py-1.5"
+              data-testid="browser-comment-history-item"
+              data-browser-comment-history-intent={annotation.intent}
+              data-browser-comment-history-scope={annotation.scope}
+              data-browser-comment-history-screenshot={annotation.screenshotPath ?? ''}
+              role="listitem"
+              style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)' }}
+            >
+              <div className="flex min-w-0 items-start gap-2">
+                <div className="min-w-0 flex-1">
+                  <div className="flex min-w-0 items-center gap-1.5">
+                    <span className="text-[11px] font-medium" style={{ color: 'var(--text-primary)' }}>
+                      {annotation.intent === 'design-tweak' ? 'Design tweak' : 'Comment'}
+                    </span>
+                    <span className="min-w-0 truncate text-[10px]" style={{ color: 'var(--text-tertiary)' }}>
+                      {annotation.scope}
+                    </span>
+                    {annotation.screenshotPath && <Badge tone="success">screenshot</Badge>}
+                  </div>
+                  <div className="mt-0.5 line-clamp-2 text-[11px]" style={{ color: 'var(--text-secondary)' }}>
+                    {annotation.body || shortUrl(annotation.url)}
+                  </div>
+                </div>
+                <div className="flex shrink-0 items-center gap-1" role="group" aria-label="Browser annotation actions">
+                  <IconButton
+                    icon="paperclip"
+                    label="Add annotation to chat"
+                    size="sm"
+                    variant="toolbar"
+                    dataTestId="browser-comment-history-add-chat"
+                    onClick={() => onAddAnnotation(annotation)}
+                  />
+                  <IconButton
+                    icon="copy"
+                    label="Copy annotation"
+                    size="sm"
+                    variant="toolbar"
+                    dataTestId="browser-comment-history-copy"
+                    onClick={() => onCopyAnnotation(annotation)}
+                  />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
   )
 }
 
@@ -2514,6 +3069,7 @@ function TargetsPane({
   selectedTargetId,
   actionText,
   targetReadResult,
+  targetActionStatus,
   coordinateAction,
   clipboardText,
   onActionTextChange,
@@ -2529,6 +3085,7 @@ function TargetsPane({
   selectedTargetId: string
   actionText: string
   targetReadResult: BrowserTargetReadResult | null
+  targetActionStatus: BrowserTargetActionStatus | null
   coordinateAction: { x: number; y: number; scrollY: number }
   clipboardText: string
   onActionTextChange: (value: string) => void
@@ -2615,6 +3172,18 @@ function TargetsPane({
             <span className="truncate">{targetReadResult.selector || 'none'}</span>
           </div>
         )}
+        {targetActionStatus && (
+          <div
+            data-testid="browser-target-action-status"
+            className="browser-target-action-status"
+            data-browser-target-action-status-tone={targetActionStatus.tone}
+            role={targetActionStatus.tone === 'danger' ? 'alert' : 'status'}
+            aria-live={targetActionStatus.tone === 'danger' ? 'assertive' : 'polite'}
+            aria-atomic="true"
+          >
+            {targetActionStatus.text}
+          </div>
+        )}
       </InspectorSection>
       <div className="browser-target-side-stack">
         <InspectorDisclosure title="Pointer" className="browser-target-secondary-panel" dataTestId="browser-target-pointer-panel">
@@ -2648,6 +3217,25 @@ function TargetsPane({
 
 function targetActionNeedsText(action: BrowserTargetAction): boolean {
   return action === 'type' || action === 'fill' || action === 'key' || action === 'select'
+}
+
+function targetActionStatusText(action: BrowserTargetAction): string {
+  if (action === 'read') return 'Target state read'
+  if (action === 'double_click') return 'Target double click ran'
+  return `Target ${action.replace('_', ' ')} ran`
+}
+
+function clearDataKindLabel(kind: BrowserClearDataKind): string {
+  switch (kind) {
+    case 'all':
+      return 'all browser data'
+    case 'cache':
+      return 'browser cache'
+    case 'cookies':
+      return 'browser cookies'
+    case 'siteData':
+      return 'browser site data'
+  }
 }
 
 function AssetsPane({ inventory, bundlePath, onBundle }: { inventory: PageAssetInventory | null; bundlePath: string | null; onBundle: () => void }): JSX.Element {
@@ -2752,8 +3340,8 @@ function SecurityPane({
   workbench: BrowserWorkbenchState
   currentOrigin: string
   onPatch: (patch: Partial<BrowserWorkbenchState>) => void
-  onAddOriginPolicy: (key: 'allowedOrigins' | 'blockedOrigins' | 'allowedDownloadOrigins' | 'blockedDownloadOrigins' | 'allowedUploadOrigins' | 'blockedUploadOrigins') => void
-  onClearOriginPolicy: (key: 'allowedOrigins' | 'blockedOrigins' | 'allowedDownloadOrigins' | 'blockedDownloadOrigins' | 'allowedUploadOrigins' | 'blockedUploadOrigins') => void
+  onAddOriginPolicy: (key: BrowserOriginPolicyKey) => void
+  onClearOriginPolicy: (key: BrowserOriginPolicyKey | BrowserOriginPolicyKey[]) => void
 }): JSX.Element {
   return (
     <div className="browser-security-pane" data-testid="browser-security-pane">
@@ -2783,10 +3371,26 @@ function SecurityPane({
         />
       </InspectorSection>
       <InspectorSection title="Origins" className="browser-security-card browser-security-policies" dataTestId="browser-security-policies" variant="raised">
-        <PolicyRow label="Allowed" values={workbench.allowedOrigins} onAdd={() => onAddOriginPolicy('allowedOrigins')} onClear={() => onClearOriginPolicy('allowedOrigins')} />
-        <PolicyRow label="Blocked" values={workbench.blockedOrigins} onAdd={() => onAddOriginPolicy('blockedOrigins')} onClear={() => onClearOriginPolicy('blockedOrigins')} />
-        <PolicyRow label="Downloads" values={workbench.allowedDownloadOrigins} blockedValues={workbench.blockedDownloadOrigins} onAdd={() => onAddOriginPolicy('allowedDownloadOrigins')} onClear={() => onClearOriginPolicy('allowedDownloadOrigins')} />
-        <PolicyRow label="Uploads" values={workbench.allowedUploadOrigins} blockedValues={workbench.blockedUploadOrigins} onAdd={() => onAddOriginPolicy('allowedUploadOrigins')} onClear={() => onClearOriginPolicy('allowedUploadOrigins')} />
+        <PolicyRow label="Allowed" values={workbench.allowedOrigins} addLabel="Allow" onAdd={() => onAddOriginPolicy('allowedOrigins')} onClear={() => onClearOriginPolicy('allowedOrigins')} />
+        <PolicyRow label="Blocked" values={workbench.blockedOrigins} addLabel="Block" onAdd={() => onAddOriginPolicy('blockedOrigins')} onClear={() => onClearOriginPolicy('blockedOrigins')} />
+        <PolicyRow
+          label="Downloads"
+          values={workbench.allowedDownloadOrigins}
+          blockedValues={workbench.blockedDownloadOrigins}
+          addLabel="Allow"
+          onAdd={() => onAddOriginPolicy('allowedDownloadOrigins')}
+          onBlock={() => onAddOriginPolicy('blockedDownloadOrigins')}
+          onClear={() => onClearOriginPolicy(['allowedDownloadOrigins', 'blockedDownloadOrigins'])}
+        />
+        <PolicyRow
+          label="Uploads"
+          values={workbench.allowedUploadOrigins}
+          blockedValues={workbench.blockedUploadOrigins}
+          addLabel="Allow"
+          onAdd={() => onAddOriginPolicy('allowedUploadOrigins')}
+          onBlock={() => onAddOriginPolicy('blockedUploadOrigins')}
+          onClear={() => onClearOriginPolicy(['allowedUploadOrigins', 'blockedUploadOrigins'])}
+        />
       </InspectorSection>
     </div>
   )
@@ -2813,20 +3417,24 @@ function PolicyRow({
   label,
   values,
   blockedValues = [],
+  addLabel = 'Add',
   onAdd,
+  onBlock,
   onClear
 }: {
   label: string
   values: string[]
   blockedValues?: string[]
+  addLabel?: string
   onAdd: () => void
+  onBlock?: () => void
   onClear: () => void
 }): JSX.Element {
-  const summary = values.length > 0
-    ? values.join(', ')
-    : blockedValues.length > 0
-      ? `blocked: ${blockedValues.join(', ')}`
-      : 'none'
+  const summary = [
+    values.length > 0 ? `allowed: ${values.join(', ')}` : null,
+    blockedValues.length > 0 ? `blocked: ${blockedValues.join(', ')}` : null
+  ].filter(Boolean).join(' · ') || 'none'
+  const hasPolicyValues = values.length > 0 || blockedValues.length > 0
   return (
     <InspectorRow className="browser-policy-row" dataTestId="browser-security-policy-row" variant="muted">
       <div className="min-w-0">
@@ -2834,8 +3442,9 @@ function PolicyRow({
         <div className="browser-policy-value">{summary}</div>
       </div>
       <div className="browser-policy-actions">
-        <ActionButton label="Add" onClick={onAdd} />
-        <ActionButton label="Clear" onClick={onClear} disabled={values.length === 0} />
+        <ActionButton label={addLabel} onClick={onAdd} />
+        {onBlock && <ActionButton label="Block" onClick={onBlock} />}
+        <ActionButton label="Clear" onClick={onClear} disabled={!hasPolicyValues} />
       </div>
     </InspectorRow>
   )
@@ -2901,6 +3510,7 @@ function normalizeWorkbench(state: BrowserWorkbenchState | undefined, initialUrl
     commentMode: state?.commentMode ?? false,
     commentCoachmarkDismissed: state?.commentCoachmarkDismissed ?? false,
     commentPreviewOriginal: state?.commentPreviewOriginal ?? false,
+    commentAnnotations: normalizeBrowserAnnotations(state?.commentAnnotations ?? []),
     visible: state?.visible ?? true,
     activeTabId: tabs.some((tab) => tab.id === state?.activeTabId) ? state!.activeTabId : tabs[0].id,
     tabs,
@@ -2986,6 +3596,31 @@ function normalizeBrowserUseSurfaceBounds(bounds: BrowserUseSurfaceBounds | null
     height: clampViewportSize(bounds.height, 'height'),
     ...(Number.isFinite(scale) && scale > 0 ? { scale: Math.round(scale * 1000) / 1000 } : {})
   }
+}
+
+function normalizeBrowserAnnotations(annotations: BrowserAnnotationState[] | null | undefined): BrowserAnnotationState[] {
+  if (!Array.isArray(annotations)) return []
+  return annotations
+    .filter((annotation): annotation is BrowserAnnotationState =>
+      annotation !== null &&
+      typeof annotation === 'object' &&
+      typeof annotation.id === 'string' &&
+      typeof annotation.url === 'string' &&
+      typeof annotation.text === 'string' &&
+      (annotation.intent === 'comment' || annotation.intent === 'design-tweak')
+    )
+    .map((annotation) => ({
+      id: annotation.id,
+      intent: annotation.intent,
+      url: annotation.url,
+      title: typeof annotation.title === 'string' ? annotation.title : null,
+      scope: typeof annotation.scope === 'string' ? annotation.scope : 'Point',
+      body: typeof annotation.body === 'string' ? annotation.body : '',
+      text: annotation.text,
+      screenshotPath: typeof annotation.screenshotPath === 'string' ? annotation.screenshotPath : null,
+      createdAt: Number.isFinite(annotation.createdAt) ? annotation.createdAt : 0
+    }))
+    .slice(0, 20)
 }
 
 function normalizeLocalServerRoutes(routes: BrowserLocalServerRoute[] | null | undefined): BrowserLocalServerRoute[] {
@@ -3155,6 +3790,30 @@ function normalizeBrowserUseCursorState(state: BrowserUseCursorState | null | un
     x,
     y
   }
+}
+
+function hasBrowserUseRuntimeSignal(workbench: BrowserWorkbenchState): boolean {
+  return workbench.browserUseActive ||
+    Boolean(workbench.browserUseTurnId) ||
+    workbench.browserUseViewportSize !== null ||
+    workbench.browserUseCaptureSurfaceSize !== null ||
+    workbench.browserUseCaptureBounds !== null ||
+    workbench.browserUseCursorState !== null
+}
+
+function browserUseRuntimeSummary(workbench: BrowserWorkbenchState, cursorText: string): string {
+  const viewport = workbench.browserUseViewportSize
+  const capture = workbench.browserUseCaptureSurfaceSize
+  const bounds = workbench.browserUseCaptureBounds
+  const parts = [
+    viewport ? `Viewport ${viewport.width}x${viewport.height}` : null,
+    capture ? `Capture ${capture.width}x${capture.height}` : null,
+    bounds ? `Bounds ${bounds.x},${bounds.y}` : null,
+    cursorText ? `Cursor ${cursorText}` : null
+  ].filter(Boolean)
+  if (parts.length > 0) return parts.join(' · ')
+  if (workbench.browserUseTurnId) return `Turn ${workbench.browserUseTurnId}`
+  return 'Runtime signal received'
 }
 
 function addArtifactToChat(path: string | null): void {

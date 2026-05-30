@@ -1,6 +1,6 @@
 # Provider Integration Runbook
 
-Last updated: 2026-05-26
+Last updated: 2026-05-30
 
 Use this when adding or deepening Claude, Codex, Cursor, Copilot, or a future coding-agent provider. The durable rule is: provider-specific behavior belongs at the adapter/runtime boundary; UI should consume shared Orchestrator events, capabilities, and metadata whenever possible.
 
@@ -45,10 +45,15 @@ Use this when adding or deepening Claude, Codex, Cursor, Copilot, or a future co
 | Command | What it proves | Current result |
 | --- | --- | --- |
 | `npm run live:providers` | General live provider smoke path. | Use when checking installed provider availability and basic runtime health. |
-| `npm run live:claude-capabilities` | Claude capability/resource behavior. | Use before claiming deeper Claude integration parity. |
+| `npm run live:claude-capabilities` | Claude capability/resource behavior. | Refreshed 2026-05-30: current environment is unavailable for structured Claude proof. `claude --version` reports `2.1.51`, `auth status`, MCP, plugin, and agents probes pass, but `claude auto-mode defaults` returns API 401 invalid credentials, so the harness skips quota-using structured scenarios. Artifact: `/Users/nadav/Desktop/Orchestrator/tmp/claude-live-capabilities/_summary/summary.json`. |
 | `npm run live:codex-appserver` | Basic Codex app-server thread/turn completion. | Proves the app-server transport can run a turn. |
-| `npm run live:codex-browser-appserver` | Whether live Codex app-server exposes browser-use events/tools to this client. | Currently blocked at this stdio client boundary; no browser-use surface is exposed. |
-| `npm run live:codex-review-appserver` | Live Codex `turn/diff/updated` and `thread/rollback` behavior. | Emits provider session/turn diff events with no checkpoint id; `thread/rollback` rolls back thread history but not workspace git diff. |
+| `npm run live:codex-browser-appserver` | Whether live Codex app-server exposes browser-use events/tools to this client. | Refreshed 2026-05-30: still blocked at this stdio client boundary. The live turn completed with `session.started`, assistant deltas, tool started/completed items, and `run.completed`, but emitted 0 browser-use events, sent 0 browser/tool server requests, and replied `CODEX_BROWSER_LIVE_NO_BROWSER`. Artifact: `/Users/nadav/Desktop/Orchestrator/tmp/codex-browser-appserver-live-proof/result.json`. |
+| `npm run live:codex-pinned-threads` | Codex sidebar thread-list and pinned-thread mutation boundary. | Refreshed 2026-05-30: proves `thread/list` is supported through the live app-server while `list-pinned-threads`, `set-thread-pinned`, and `set-pinned-threads-order` currently return unknown-variant errors. Orchestrator must keep provider-projected pin actions read-only until a supported mutation route exists. Artifact: `/Users/nadav/Desktop/Orchestrator/tmp/codex-pinned-threads-live-proof/result.json`. |
+| `npm run live:codex-review-appserver` | Live Codex `turn/diff/updated` and `thread/rollback` behavior. | Refreshed 2026-05-30: emits provider session/turn diff events with no checkpoint id; `thread/rollback` rolls back thread history but not workspace git diff. Artifact: `/Users/nadav/Desktop/Orchestrator/tmp/codex-review-appserver-live-proof/result.json`. |
+| `pnpm run live:codex-review-start` | Native Codex app-server `review/start` behavior. | Proves uncommitted inline, base-branch inline, commit inline, and custom-instruction inline review targets start real review turns and emit typed `review.mode.changed` events. Use only for Review slices, not routine UI smoke; normal UI checks should use the focused Review smoke. |
+| `pnpm run live:github-review-metadata -- --pr <number-or-url>` | Read-only hosted GitHub Review metadata proof. | Added 2026-05-30: compiles the main Git normalizers, reads PR metadata through `gh pr view`, queries review threads through `gh api graphql`, and writes `tmp/github-review-metadata-live-proof/result.json`. Current PR #4 proof passed with authenticated merged-PR metadata but `commentedProof=false` because the selected PR has no live comments, so commented-PR UI proof remains open until a safe commented target exists. The auto-commented variant records every scanned PR with issue-comment, inline-thread-comment, and total comment counts so an unavailable result is auditable. |
+
+Provider Settings should surface auth failures from any safe no-quota probe, not only a provider's explicit auth command. For Claude, `auto-mode defaults` is a no-quota readiness probe; API 401 invalid credentials there should make the Auth row show an error before the user starts a run.
 
 ## Claude Integration Notes
 
@@ -77,8 +82,15 @@ Current Codex evidence:
 - They do not include a checkpoint id.
 - `thread/rollback` accepts `{ threadId, numTurns: 1 }` for persisted threads.
 - That rollback removes turns from Codex thread history but leaves the edited workspace file and git diff unchanged.
+- Latest evidence: elevated `npm run live:codex-review-appserver` on 2026-05-30 produced 3 normalized diff events, `checkpointIds=[]`, a successful `numTurns:1` rollback attempt, and confirmed the proof file plus git diff were still edited after rollback.
 
-Therefore Review Last turn Undo must remain disabled for provider diffs unless a future provider API restores the working tree or Orchestrator intentionally pairs provider-history rollback with a local git discard over exact provider diff paths.
+Current Orchestrator fallback:
+
+- Last turn Review can reverse-apply the exact provider unified diff locally with `git apply --reverse`.
+- This restores workspace files only when the patch still applies cleanly and refuses unsafe paths.
+- It does not rewrite provider thread history and must not be described as provider checkpoint rollback.
+
+Therefore provider-history checkpoint Undo remains disabled unless a future provider API restores both provider history and workspace changes. The local reverse-patch action is a workspace fallback for daily coding, not a provider rollback adapter.
 
 ## Verification Ladder
 

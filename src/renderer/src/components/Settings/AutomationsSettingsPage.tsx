@@ -10,6 +10,11 @@ import {
   SettingsSurface
 } from '../shared/designSystem'
 
+type AutomationActionStatus = {
+  text: string
+  tone: 'info' | 'danger'
+}
+
 export default function AutomationsSettingsPage({
   sessions,
 }: {
@@ -18,7 +23,7 @@ export default function AutomationsSettingsPage({
   const [automations, setAutomations] = useState<Automation[]>([])
   const [runsByAutomation, setRunsByAutomation] = useState<Record<string, AutomationRun[]>>({})
   const [busyIds, setBusyIds] = useState<Record<string, boolean>>({})
-  const [status, setStatus] = useState<string | null>(null)
+  const [status, setStatus] = useState<AutomationActionStatus | null>(null)
   const [pendingDeleteAutomation, setPendingDeleteAutomation] = useState<Automation | null>(null)
 
   const sessionNames = useMemo(() => new Map(sessions.map((session) => [session.id, session.name])), [sessions])
@@ -63,6 +68,15 @@ export default function AutomationsSettingsPage({
     }
   }, [refreshAutomations])
 
+  const refreshWithStatus = async (): Promise<void> => {
+    try {
+      await refreshAutomations()
+      setStatus({ text: 'Automations refreshed', tone: 'info' })
+    } catch (error) {
+      setStatus({ text: `Refresh failed: ${errorText(error)}`, tone: 'danger' })
+    }
+  }
+
   const runAction = async (
     automation: Automation,
     label: string,
@@ -79,7 +93,9 @@ export default function AutomationsSettingsPage({
         window.dispatchEvent(new CustomEvent('orchestrator:automation-deleted', { detail: automation }))
       }
       await refreshAutomations()
-      setStatus(`${label}: ${automation.name}`)
+      setStatus({ text: `${label}: ${automation.name}`, tone: 'info' })
+    } catch (error) {
+      setStatus({ text: `${label} failed: ${errorText(error)}`, tone: 'danger' })
     } finally {
       setBusyIds((current) => ({ ...current, [automation.id]: false }))
     }
@@ -91,7 +107,11 @@ export default function AutomationsSettingsPage({
   }
 
   return (
-    <div data-settings-page-module="automations">
+    <div
+      data-settings-page-module="automations"
+      data-settings-automations-action-status={status?.text ?? ''}
+      data-settings-automations-action-status-tone={status?.tone ?? ''}
+    >
       <SettingsPageSection dataTestId="automations-settings-section" className="automations-settings-page">
         <SettingsContentLayout
           title="Automations"
@@ -105,7 +125,7 @@ export default function AutomationsSettingsPage({
             </div>
             <SettingsGroupContent>
               <SettingsSurface className="automations-settings-surface" dataTestId="automations-current-surface">
-                <AutomationInventoryRow activeCount={currentAutomations.length} pausedCount={pausedAutomations.length} onRefresh={refreshAutomations} />
+                <AutomationInventoryRow activeCount={currentAutomations.length} pausedCount={pausedAutomations.length} onRefresh={refreshWithStatus} />
                 <AutomationList
                   automations={currentAutomations}
                   runsByAutomation={runsByAutomation}
@@ -167,7 +187,18 @@ export default function AutomationsSettingsPage({
                     })}
                   </div>
                 )}
-                {status && <div className="automations-status">{status}</div>}
+                {status && (
+                  <div
+                    className="automations-status"
+                    data-testid="automations-action-status"
+                    data-automations-action-status-tone={status.tone}
+                    role={status.tone === 'danger' ? 'alert' : 'status'}
+                    aria-live={status.tone === 'danger' ? 'assertive' : 'polite'}
+                    aria-atomic="true"
+                  >
+                    {status.text}
+                  </div>
+                )}
               </SettingsSurface>
             </SettingsGroupContent>
           </SettingsContentGroup>
@@ -247,6 +278,8 @@ function AutomationList({
             data-testid="automation-settings-row"
             data-automation-status={automation.status}
             data-automation-run-status={runningRun?.status}
+            role="group"
+            aria-label={`Automation ${automation.name}`}
           >
             <div className="automations-row-main">
               <div className="automations-row-title">
@@ -272,15 +305,28 @@ function AutomationList({
                 className="settings-action-button"
                 disabled={actionsDisabled || automation.status !== 'ACTIVE'}
                 onClick={() => { void onRunNow(automation) }}
+                aria-label={`Run ${automation.name} now`}
               >
                 Run now
               </button>
               {automation.status === 'ACTIVE' ? (
-                <button type="button" className="settings-action-button" disabled={actionsDisabled} onClick={() => { void onPause(automation) }}>
+                <button
+                  type="button"
+                  className="settings-action-button"
+                  disabled={actionsDisabled}
+                  onClick={() => { void onPause(automation) }}
+                  aria-label={`Pause ${automation.name}`}
+                >
                   Pause
                 </button>
               ) : (
-                <button type="button" className="settings-action-button" disabled={actionsDisabled} onClick={() => { void onResume(automation) }}>
+                <button
+                  type="button"
+                  className="settings-action-button"
+                  disabled={actionsDisabled}
+                  onClick={() => { void onResume(automation) }}
+                  aria-label={`Resume ${automation.name}`}
+                >
                   Resume
                 </button>
               )}
@@ -289,6 +335,7 @@ function AutomationList({
                 className="settings-action-button settings-action-button-danger"
                 disabled={actionsDisabled}
                 onClick={() => onDeleteRequest(automation)}
+                aria-label={`Delete ${automation.name}`}
               >
                 Delete
               </button>
@@ -352,4 +399,9 @@ function isAutomation(value: unknown): value is Automation {
 
 function isAutomationRun(value: unknown): value is AutomationRun {
   return Boolean(value && typeof value === 'object' && 'automationId' in value && 'trigger' in value)
+}
+
+function errorText(error: unknown): string {
+  if (error instanceof Error) return error.message
+  return String(error)
 }

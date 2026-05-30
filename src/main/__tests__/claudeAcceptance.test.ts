@@ -222,6 +222,14 @@ test('Claude slash command surface follows feature support without a user-visibl
   assert.ok(commands.some((command) => command.name === '/agents' && command.group === 'App'))
 })
 
+test('Codex slash command surface does not advertise unsupported goal routing', () => {
+  const runtime = getProviderRuntimeInfo().codex
+  const commands = availableSlashCommands(runtime)
+  const goal = commands.find((command) => command.name === '/goal')
+
+  assert.equal(goal, undefined)
+})
+
 test('Diff summary makes deletion and large changes visible without dumping patches', () => {
   const files: FileChange[] = [
     { path: 'src/index.ts', status: 'M', additions: 4, deletions: 2 },

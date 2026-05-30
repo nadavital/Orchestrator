@@ -1,6 +1,6 @@
 # Codex App-Server Support Matrix
 
-Last checked: 2026-05-26
+Last checked: 2026-05-29
 Local Codex CLI: `codex-cli 0.128.0`
 
 ## Research Basis
@@ -29,6 +29,43 @@ Local Codex CLI: `codex-cli 0.128.0`
 - Review/rollback boundary proof:
   - `npm run live:codex-review-appserver`
   - `tmp/codex-review-appserver-live-proof/result.json`
+- Review/start boundary proof:
+  - `npm run live:codex-review-start`
+  - `tmp/codex-review-start-live-proof/result.json`
+  - `tmp/codex-review-start-base-branch-live-proof/result.json`
+  - `tmp/codex-review-start-commit-live-proof/result.json`
+  - `tmp/codex-review-start-custom-live-proof/result.json`
+- Composer model/policy boundary proof:
+  - `npm run live:codex-composer-appserver`
+  - `tmp/codex-composer-appserver-live-proof/result.json`
+- Composer command-approval boundary proof:
+  - `npm run live:codex-composer-approval`
+  - `tmp/codex-composer-approval-live-proof/result.json`
+- Composer resume boundary proof:
+  - `npm run live:codex-composer-resume`
+  - `tmp/codex-composer-resume-live-proof/result.json`
+- Composer runtime lifecycle boundary proof:
+  - `npm run live:codex-composer-runtime-lifecycle`
+  - `tmp/codex-composer-runtime-lifecycle-live-proof/result.json`
+- Composer session lifecycle boundary proof:
+  - `npm run live:codex-composer-session-lifecycle`
+  - `tmp/codex-composer-session-lifecycle-live-proof/result.json`
+- Composer renderer lifecycle boundary proof:
+  - `npm run live:codex-composer-renderer-lifecycle`
+  - Focused live UI smoke evidence: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-transcript-live-lifecycle-1779986634530.json`
+- Composer partial-response continuation boundary proof:
+  - `npm run live:codex-composer-partial-continue`
+  - Focused live UI smoke evidence: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-transcript-live-partial-continue-1779987197970.json`
+- Composer model-switch continuation boundary proof:
+  - `npm run live:codex-composer-model-switch`
+  - Focused live UI smoke evidence: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-transcript-live-model-switch-1779987672302.json`
+- Composer plan-update boundary proof:
+  - `npm run live:codex-composer-plan`
+  - `tmp/codex-composer-plan-live-proof/result.json`
+- Composer goal-command boundary proof:
+  - `npm run live:codex-composer-goal`
+  - `tmp/codex-composer-goal-live-proof/result.json`
+  - Current evidence is a negative boundary: live Codex app-server turns for `/goal ...` and `/goal clear` completed as ordinary prompt text and emitted no `thread/goal/updated` or `thread/goal/cleared` notifications.
 
 ## Status Legend
 
@@ -45,22 +82,22 @@ Local Codex CLI: `codex-cli 0.128.0`
 | Capability area | Orchestrator status | Notes |
 | --- | --- | --- |
 | App-server stdio transport | Supported | Starts `codex app-server --listen stdio://`, sends `initialize`, then `initialized`. |
-| Core chat loop | Supported | Starts/resumes thread and starts turns through app-server. |
+| Core chat loop | Supported | Starts/resumes thread and starts turns through app-server. Live composer resume proof confirms a persisted Codex thread can be resumed from a fresh app-server process with the same thread id and prior-turn context; live runtime lifecycle proof confirms Orchestrator's `CodexAppServerRuntimeManager` emits the expected runtime events while doing the same through the production runtime wrapper; live session lifecycle proof confirms compiled `sessionManager.sendMessage`, `continueLastTurn`, and `retryLastUserMessage` all complete against the same live Codex provider session; live renderer lifecycle proof confirms the real transcript Continue and Retry buttons invoke those live resume paths from the app UI; live partial-response proof confirms the visible interrupted-assistant Continue path resumes the same provider session; live model-switch proof confirms an existing provider session resumes with the updated Orchestrator model. |
 | Follow-up while running | Supported | Uses `turn/steer` when an app-server turn is active. |
 | Stop/interrupt | Supported | Uses `turn/interrupt` when a Codex app-server turn id is known. |
-| Command/file/permission approvals | Supported | Handles `item/commandExecution/requestApproval`, `item/fileChange/requestApproval`, and `item/permissions/requestApproval`; maps allow once/session/deny back to app-server responses. |
+| Command/file/permission approvals | Supported | Handles `item/commandExecution/requestApproval`, `item/fileChange/requestApproval`, and `item/permissions/requestApproval`; maps allow once/session/deny back to app-server responses. The live composer proofs confirm Codex returns Orchestrator's requested managed permission profile, can complete an allowed workspace-write command without an explicit approval request, and can send a real command approval request that Orchestrator answers successfully. |
 | User questions | Supported | Handles `item/tool/requestUserInput` and sends structured answers. |
 | MCP elicitation | Supported | Handles `mcpServer/elicitation/request` and sends accept response. |
 | Assistant streaming | Supported | Handles `item/agentMessage/delta` and suppresses duplicate final text. |
 | Tool items | Parsed | Handles command, file change, MCP tool, dynamic tool, web search, image view/generation, review-mode, reasoning, hook, and compaction item shapes through existing generic cards/status messages. |
-| Plan mode / plan updates | Supported | Handles `turn/plan/updated`; renders through existing plan state/UI path. |
-| Goal updates | Parsed | Handles `thread/goal/updated` and `thread/goal/cleared` as status messages. No persistent goal panel yet. |
+| Plan mode / plan updates | Supported | Handles `turn/plan/updated`; renders through existing plan state/UI path. Live `npm run live:codex-composer-plan` proves a real app-server turn can emit a native plan update without command execution. |
+| Goal updates | Partial | Handles `thread/goal/updated` and `thread/goal/cleared`; Plan reconstructs live and persisted goal metrics. Live proof shows `/goal ...` and `/goal clear` are not app-server-routed commands in the current Codex path, so Orchestrator does not advertise `/goal` and shows goal clear as an explicit unavailable boundary. |
 | Subagents / multi-agent | Parsed | Handles `collabAgentToolCall` as `agent.started/completed/failed`. Agent transcript depth still depends on emitted items we map. |
 | Token usage | Partial | `thread/tokenUsage/updated` is currently a status message, not a full `UsageSummary` rollup. |
-| Diff updates | Parsed | App-server `turn/diff/updated` becomes a `diff.updated` event/status and preserves provider session, turn, and optional checkpoint ids. Orchestrator Diff panel still reads workspace git diff. |
+| Diff updates | Partial | App-server `turn/diff/updated` becomes a `diff.updated` event/status, preserves provider session, turn, and optional checkpoint ids, and feeds Last turn Review cards/panel state from the provider unified diff. Workspace git diff remains the default local Review source. |
 | Side questions | External | `/btw` exists as Orchestrator-owned detached side question. It is not a Codex app-server same-thread side channel. |
-| Review mode | Parsed | `enteredReviewMode` and `exitedReviewMode` render as status messages; `review/start` is not productized. Existing `/review` still uses Codex headless review. |
-| Skills/plugins/apps browsers | Partial | App-server settings surfaces list skills, hooks, plugins, and apps; the Capabilities page also discovers file-backed Codex skills, plugins, MCP config, and AGENTS instructions. Native install/configuration UI is still missing. |
+| Review mode | Partial | `enteredReviewMode` and `exitedReviewMode` normalize into typed `review.mode.changed` state, persist through transcript status rows, and surface in the Plan tab with an Open Review action. Live `npm run live:codex-review-start` proves native app-server `review/start` accepts uncommitted, base-branch, commit, and custom-instruction targets with inline delivery and emits review-mode items. Codex-backed Review panels now expose native start actions for the proven uncommitted, branch, commit, and custom Review paths. |
+| Skills/plugins/apps browsers | Partial | App-server settings surfaces list skills, hooks, plugins, and apps; the Capabilities page also discovers file-backed Codex skills, plugins, MCP config, and AGENTS instructions. Mentionable skills/plugins/apps can now add textual mentions to the active chat draft. Native input-item transport and install/configuration UI remain missing. |
 | Browser-use client tools | Partial | Codex desktop has browser-use webview state and turn-route capture/release code in the app bundle, but the live browser-use proof completes without `browser.manager_state`, browser server requests, or dynamic browser tool calls. Orchestrator now advertises renderer-backed `orchestrator.browser_open` and `orchestrator.browser_read` dynamic tools on `thread/start.dynamicTools`, routes supported `item/tool/call` requests to the Browser panel renderer, and preserves the visible unsupported boundary for other client tools. Live provider-emitted browser-use behavior still needs proof. |
 | Account/model/config/filesystem/MCP management | Partial | Read-only app-server settings surfaces cover models, model-provider capabilities, auth/account/rate limits, config, config requirements, MCP status, external agent config detection, and thread lists. Filesystem and mutating management APIs are still not productized. |
 | Realtime/audio | Parsed | Realtime/audio notifications are consumed as generic status/delta events. There is no voice/realtime UI. |
@@ -71,14 +108,14 @@ Local Codex CLI: `codex-cli 0.128.0`
 | App-server method group | Methods | Orchestrator support |
 | --- | --- | --- |
 | Initialization | `initialize` plus client `initialized` notification | Supported. |
-| Thread create/resume | `thread/start`, `thread/resume` | Supported for normal Codex sessions. |
-| Thread fork/history/list/read | `thread/fork`, `thread/list`, `thread/loaded/list`, `thread/read`, `thread/turns/list` | Partial. `thread/list` and `thread/loaded/list` are exposed as read-only settings surfaces; fork/read/turn listing are not productized. |
-| Thread metadata/lifecycle | `thread/archive`, `thread/unarchive`, `thread/unsubscribe`, `thread/name/set`, `thread/metadata/update` | Not wired. |
+| Thread create/resume | `thread/start`, `thread/resume` | Supported for normal Codex sessions. Live `npm run live:codex-composer-resume` starts a non-ephemeral thread, resumes it from a fresh process, and validates prior-turn context before archiving the disposable thread. Live `npm run live:codex-composer-runtime-lifecycle` covers the same start/resume path through Orchestrator's runtime manager and event normalization layer. Live `npm run live:codex-composer-session-lifecycle` covers the main-process sessionManager send/continue/retry lifecycle above the runtime layer. Live `npm run live:codex-composer-renderer-lifecycle` covers the actual renderer Continue/Retry controls above `sessionManager`; live `npm run live:codex-composer-partial-continue` covers the visible interrupted-assistant Continue path; live `npm run live:codex-composer-model-switch` covers a resumed thread after changing the Orchestrator session model. |
+| Thread fork/history/list/read | `thread/fork`, `thread/list`, `thread/loaded/list`, `thread/read`, `thread/turns/list` | Partial. `thread/list` and `thread/loaded/list` are exposed as read-only settings surfaces; fork/read/turn listing are not productized. Live `npm run live:codex-pinned-threads` also proves `thread/list` works as the only currently supported sidebar-thread state read path for the pinned-thread boundary. |
+| Thread metadata/lifecycle | `thread/archive`, `thread/unarchive`, `thread/unsubscribe`, `thread/name/set`, `thread/metadata/update` | Not wired. Live pinned-thread proof records `list-pinned-threads`, `set-thread-pinned`, and `set-pinned-threads-order` as unsupported app-server methods; generated schema for `thread/metadata/update` only advertises Git metadata, not pin state. |
 | Thread context operations | `thread/compact/start`, `thread/rollback`, `thread/inject_items` | Partial. Live proof shows `thread/rollback` accepts `{ threadId, numTurns: 1 }` on persisted threads and rewrites thread history, but it does not revert the workspace file/git diff. It is not a Review Undo implementation by itself. |
 | Thread shell command | `thread/shellCommand` | Not wired. Existing terminal/shell surfaces are Orchestrator-owned. |
 | Guardian denied action | `thread/approveGuardianDeniedAction` | Not wired. |
-| Turn execution | `turn/start`, `turn/steer`, `turn/interrupt` | Supported. |
-| Review | `review/start` | Not wired. Review-mode items are parsed, but the app-server review starter is not productized. |
+| Turn execution | `turn/start`, `turn/steer`, `turn/interrupt` | Supported. Live composer proof covers a real `thread/start`/`turn/start` with model, effort, approval policy, sandbox profile, command execution, and final assistant token. |
+| Review | `review/start` | Supported for the proven uncommitted inline, base-branch inline, commit inline, and custom-instruction inline paths through `sessions.startCodexReview` and the Codex app-server runtime. Detached delivery remains unwired. |
 | Skills/hooks | `skills/list`, `skills/config/write`, `hooks/list` | Partial. `skills/list` and `hooks/list` are exposed as read-only settings surfaces; config write is not wired. |
 | Plugin marketplace | `marketplace/add`, `marketplace/remove`, `marketplace/upgrade` | Not wired. |
 | Plugins | `plugin/list`, `plugin/read`, `plugin/install`, `plugin/uninstall` | Partial. `plugin/list` is exposed as a read-only settings surface; read/install/uninstall are not wired. |
@@ -119,11 +156,11 @@ Local Codex CLI: `codex-cli 0.128.0`
 | Errors | `error` | Supported as `run.failed`. |
 | Thread start | `thread/started` | Supported as `session.started`. |
 | Thread status/name/archive/closed | `thread/status/changed`, `thread/archived`, `thread/unarchived`, `thread/closed`, `thread/name/updated` | Parsed as generic status messages. |
-| Goal | `thread/goal/updated`, `thread/goal/cleared` | Parsed into status messages. No dedicated goal UI. |
+| Goal | `thread/goal/updated`, `thread/goal/cleared` | Partial dedicated Goal UI in Plan, including live/persisted metrics. Live `/goal` mutation is blocked by the current app-server behavior; `/goal clear` is not advertised as supported and the Plan clear affordance is disabled with an explicit boundary. |
 | Token usage | `thread/tokenUsage/updated` | Partial; status message only. |
 | Turn lifecycle | `turn/started`, `turn/completed` | Supported/parsed. `turn/completed` drives run completion/failure; `turn/started` is a status message. |
 | Plans | `turn/plan/updated`, `item/plan/delta` | `turn/plan/updated` supported. `item/plan/delta` currently streams text-like deltas. |
-| Diff | `turn/diff/updated` | Parsed as `diff.updated` with provider session, turn, and optional checkpoint metadata; existing Diff panel reads git diff separately. |
+| Diff | `turn/diff/updated` | Parsed as `diff.updated` with provider session, turn, optional checkpoint metadata, and provider unified-diff content for Last turn Review cards/panel state. Existing local Diff remains the workspace git source. |
 | Hook lifecycle | `hook/started`, `hook/completed` | Parsed as generic status messages. |
 | Items | `item/started`, `item/completed` | Parsed for supported item types. |
 | Assistant message streaming | `item/agentMessage/delta` | Supported. |
@@ -161,24 +198,24 @@ Local Codex CLI: `codex-cli 0.128.0`
 | `webSearch` | Parsed | Generic web search tool card on start/complete. |
 | `imageView` | Parsed | Generic image-view tool card on start/complete. No dedicated viewer path. |
 | `imageGeneration` | Parsed | Generic image-generation tool card on start/complete. No dedicated gallery/viewer path. |
-| `enteredReviewMode` / `exitedReviewMode` | Parsed | Generic review-mode status messages. App-server review mode is not productized. |
+| `enteredReviewMode` / `exitedReviewMode` | Parsed | Typed `review.mode.changed` state, persisted status rows, and Plan Open Review handoff exist. Live `review/start` proof confirms native start emits these items. |
 | `contextCompaction` | Parsed | Generic compaction status message. |
 
 ## Feature-Specific Verdicts
 
 | User-facing Codex feature | Current support | What works now | Missing for first-class parity |
 | --- | --- | --- | --- |
-| Goal | Parsed | `thread/goal/updated` and `thread/goal/cleared` become status messages. | Goal panel, set/get/clear commands, budget/progress controls. |
-| Plan mode | Supported | `turn/plan/updated` feeds existing plan UI. | Real live fixture for Codex plan-producing turn. |
+| Goal | Partial | `thread/goal/updated` and `thread/goal/cleared` feed the Plan goal surface, and persisted `Goal:` rows reconstruct status, tokens, budget, elapsed time, and progress. | A real app-server goal mutation request or supported slash route. Current live proof shows `/goal ...` and `/goal clear` are treated as ordinary prompt text, so richer update/clear controls are blocked until Codex exposes a proven command/API path. |
+| Plan mode | Supported | `turn/plan/updated` feeds existing plan UI, and `npm run live:codex-composer-plan` now proves a real plan-producing app-server turn. | Richer live plan timing/UI comparison only if product-visible behavior diverges. |
 | Subagents | Parsed | `collabAgentToolCall` maps to agent lifecycle and existing Agents sidebar path. | Rich child transcript capture if Codex emits child-thread items separately; live multi-agent fixture. |
 | Side questions | External | `/btw` side question exists as Orchestrator-owned detached provider call. | App-server-native same-thread side channel, if product wants Codex parity with Mac app behavior. |
-| Approvals | Supported | Command/file/permission requests round-trip through app-server. | Live approval-producing Codex UI smoke and auto-review/guardian details. |
+| Approvals | Supported | Command approval requests round-trip through app-server in the live composer approval proof; file/profile permission requests are implemented through the same runtime path and now have parser/UI coverage as first-class `File Approval` and `Permission Profile` transcript cards under `permissionVariantCards=true`. | Deterministic live file/profile permission fixtures plus auto-review/guardian details. |
 | MCP elicitation | Supported | Request maps to user input and responds through JSON-RPC. | Live MCP form fixture and structured schema-aware form UI. |
-| Apps/connectors | Partial | `app/list` is available as a read-only app-server settings surface. | Browser/mention insertion with `app://...` and connector invocation UI. |
+| Apps/connectors | Partial | `app/list` is available as a read-only app-server settings surface. Capabilities can insert textual `app://...` mentions into the active chat draft. | Native app mention input items and connector invocation UI. |
 | Browser-use client tools | Partial | Manual Browser panel state, tabs, navigation, inspection, comments, security policy, and local-target discovery are Orchestrator-owned and provider-neutral. The Codex desktop bundle has browser-use client route evidence, the live dynamicTools proof confirms the app-server transport can advertise and answer dynamic client tools, the live Browser tools proof confirms Codex requests real `orchestrator.browser_open` / `orchestrator.browser_read`, and Orchestrator has renderer-backed Browser open/read tools routed from `item/tool/call`. Focused Browser smoke gates the main IPC to renderer webview loopback with `browserClientToolBridge=true`. The live browser-use proof still emits no native browser events or provider-specific browser-use requests. If a server requests an unimplemented client dynamic tool, the unsupported boundary remains visible in the transcript and test-covered. | Broader click/type/screenshot tools only from real browser-use requests, explicit product scope, or a full installed-app end-to-end run. |
-| Skills | Partial | `skills/list` and `hooks/list` are available as read-only app-server settings surfaces. Capabilities discovers documented `$HOME/.agents/skills` and repo `.agents/skills`; create/edit/delete is file-backed. Prompt can still mention `$skill`. | `skills/config/write`, native skill input items, and provider enable/disable controls. |
-| Plugins | Partial | `plugin/list` is available as a read-only app-server settings surface. Capabilities creates portable `.codex-plugin/plugin.json` packages and local `.agents/plugins/marketplace.json` entries. | Marketplace/plugin read/install/uninstall UI and `plugin://...` mention insertion. |
-| Review | Partial/external | Existing provider command surface can use headless review command; review-mode items are parsed. | `review/start` inline/detached app-server flow and review mode item UI. |
+| Skills | Partial | `skills/list` and `hooks/list` are available as read-only app-server settings surfaces. Capabilities discovers documented `$HOME/.agents/skills` and repo `.agents/skills`; create/edit/delete is file-backed. Capabilities can insert textual `$skill` mentions into the active chat draft. | `skills/config/write`, native skill input items, and provider enable/disable controls. |
+| Plugins | Partial | `plugin/list` is available as a read-only app-server settings surface. Capabilities creates portable `.codex-plugin/plugin.json` packages and local `.agents/plugins/marketplace.json` entries. Capabilities can insert textual `plugin://...` mentions into the active chat draft. | Marketplace/plugin read/install/uninstall UI and native plugin mention input items. |
+| Review | Partial/external | Existing provider command surface can use headless review command; review-mode items are parsed, native `review/start` uncommitted, base-branch, commit, and custom-instruction inline flows are live-proven, and Codex Review panels can start those native paths. | Detached review handling, richer review-mode item UI, and exact live visual timing. |
 | Model/account/settings | Partial | Read-only settings surfaces cover models, model-provider capabilities, account/auth/rate limits, config, config requirements, and feature flags. | Promote app-server model/account data into primary settings controls and add safe write flows where needed. |
 | Filesystem/search | External | Orchestrator has its own file refs/git diff paths. | App-server `fs/*`, `fs/watch`, fuzzy file search integration. |
 | Realtime/audio | Parsed | Realtime transcript/audio lifecycle notifications are parsed as generic deltas/status. | Full realtime session and audio UI. |
@@ -186,20 +223,21 @@ Local Codex CLI: `codex-cli 0.128.0`
 ## Recommended Next Implementation Slices
 
 1. Codex Goal UI:
-   - Keep `/goal ...` routed through the app-server turn and render the resulting `thread/goal/updated` state persistently.
-   - Render a small Goal panel with objective, status, token budget, tokens used, and clear action.
+   - Status: local Plan goal rendering now preserves live and persisted objective/status/token metrics and Orchestrator parses `thread/goal/updated` / `thread/goal/cleared` when they are emitted.
+   - Boundary: `npm run live:codex-composer-goal` proves the current Codex app-server treats `/goal ...` and `/goal clear` as ordinary turn text and emits no goal notifications, so Orchestrator no longer advertises `/goal` or exposes an active clear action for Codex sessions.
+   - Remaining: a proven app-server goal mutation request or supported slash route, richer update controls after that route exists, and exact live Goal timing.
 
 2. Codex App/Skill/Plugin Browser:
-   - Promote the read-only settings surfaces into a real browser/picker.
-   - Add `plugin/read`, safe install/uninstall flows, and composer insertion for native `skill` and `mention` input items.
+   - Status: Capabilities acts as the current browser/picker and can add textual `$skill`, `plugin://...`, and `app://...` mentions to the active chat draft.
+   - Remaining: promote native app-server detail/read surfaces, add `plugin/read`, safe install/uninstall flows, and replace textual handoff with native `skill` / `mention` input items when the provider adapter supports them.
 
 3. Codex Review Mode:
-   - Add `review/start` for uncommitted/base/commit/custom targets.
-   - Parse `enteredReviewMode` and `exitedReviewMode` into a review card/sidebar section.
+   - Status: `enteredReviewMode` and `exitedReviewMode` now parse into typed review-mode state, persist through transcript status rows, and surface in the right Workbench Plan tab with an Open Review action. `npm run live:codex-review-start` proves the native uncommitted, base-branch, commit, and custom-instruction inline `review/start` contracts against the real app-server, and Codex Review panels can start those native paths.
+   - Remaining: wire detached review handling, improve richer review-mode item UI, and keep the live proof opt-in for Review slices instead of routine smoke.
 
 4. Native App-Server Diff:
-   - Feed `diff.updated` into the existing Diff panel or a Codex turn-diff card.
-   - Decide how it coexists with the current workspace git-diff panel.
+   - Status: `diff.updated` now feeds transcript Last turn Review cards and the Review panel's Last turn source while local workspace git diff stays the default local source.
+   - Remaining: live provider timing proof for more real Codex diff shapes and any future provider-backed workspace checkpoint restore path.
 
 5. Rich Progress:
    - Replace generic command/file/MCP/reasoning status messages with dedicated progress UI where the product needs it.

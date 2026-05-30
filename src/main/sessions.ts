@@ -5,7 +5,7 @@ import { execFile } from 'child_process'
 import { readFileSync } from 'fs'
 import { performance } from 'perf_hooks'
 import { promisify } from 'util'
-import type { Attachment, AutomationPermissionSnapshot, Session, SessionForkMode, SessionListItem, ChatMessage, ProviderRuntimeKind, ProviderSidebarSyncResult, ReviewMetadata, RunEvent, RunRequest, SessionStatus, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary, WorktreeInventoryItem } from '../types'
+import type { Attachment, AutomationPermissionSnapshot, CodexReviewStartRequest, Session, SessionForkMode, SessionForkOptions, SessionListItem, ChatMessage, TextMessage, ProviderRuntimeKind, ProviderSidebarSyncResult, ReviewMetadata, RunEvent, RunRequest, SessionStatus, SideQuestionMessage, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary, UserInputAnswerPayload, WorktreeInventoryItem } from '../types'
 import { PROVIDER_DEFS, applyAutomationPermissionSnapshot, finalizeInterruptedMessages, getDefaultPermissionMode } from '../types'
 import { gitManager } from './git'
 import { getProvider, PROVIDERS, providerSpawnEnv, resolveProviderBinary, resolveProviderCommand, runCodexAppServerCommandSurfaceRaw } from './providers'
@@ -26,6 +26,8 @@ interface SessionStore {
   sessions: Session[]
 }
 
+type SessionActionResult = { ok: boolean; error?: string }
+
 migrateLegacyUserData()
 
 const store = new Store<SessionStore>({ defaults: { sessions: [] } })
@@ -39,6 +41,26 @@ let codexSidebarRefreshAfterRunTimer: ReturnType<typeof setTimeout> | null = nul
 let codexSidebarRecurringRefreshTimer: ReturnType<typeof setInterval> | null = null
 let codexSidebarRecurringRefreshInFlight = false
 let codexSidebarLastRefreshAt: number | null = null
+const smokeSideQuestionFailures = new Set<string>()
+
+function normalizeUserInputAnswer(answer: string | UserInputAnswerPayload): UserInputAnswerPayload {
+  if (typeof answer === 'string') return { content: answer.trim() }
+  const content = typeof answer.content === 'string' ? answer.content.trim() : ''
+  const displayContent = typeof answer.displayContent === 'string' ? answer.displayContent.trim() : ''
+  const answers: Record<string, string[]> = {}
+  if (answer.answers && typeof answer.answers === 'object') {
+    for (const [key, values] of Object.entries(answer.answers)) {
+      if (!Array.isArray(values)) continue
+      const cleaned = values.map((value) => String(value).trim()).filter(Boolean)
+      if (cleaned.length > 0) answers[key] = cleaned
+    }
+  }
+  return {
+    content,
+    displayContent: displayContent && displayContent !== content ? displayContent : undefined,
+    answers: Object.keys(answers).length > 0 ? answers : undefined
+  }
+}
 
 interface PendingFollowUp {
   id: string
@@ -50,6 +72,11 @@ interface PendingFollowUp {
 interface SendMessageOptions {
   permissionSnapshot?: AutomationPermissionSnapshot | null
   onProviderRunComplete?: (result: { ok: boolean; error?: string | null }) => void
+}
+
+interface CodexReviewStartResult {
+  ok: boolean
+  error?: string
 }
 
 const pendingFollowUps = new Map<string, PendingFollowUp[]>()
@@ -97,6 +124,27 @@ function normalizeSession(session: Session): Session {
   }
 }
 
+function cloneMessageForFork(message: ChatMessage): ChatMessage {
+  if (message.type === 'text') {
+    return {
+      ...message,
+      attachments: message.attachments?.map((attachment) => ({ ...attachment }))
+    }
+  }
+  return { ...message }
+}
+
+function pinOrderAfterSource(source: Session, sessions: Session[]): number | undefined {
+  if (source.pinned !== true) return undefined
+  const sourceOrder = typeof source.pinOrder === 'number' ? source.pinOrder : nextPinOrder(sessions)
+  const nextPinnedOrder = sessions
+    .filter((session) => session.id !== source.id && session.pinned === true && typeof session.pinOrder === 'number' && session.pinOrder > sourceOrder)
+    .map((session) => session.pinOrder!)
+    .sort((a, b) => a - b)[0]
+  if (typeof nextPinnedOrder === 'number') return sourceOrder + ((nextPinnedOrder - sourceOrder) / 2)
+  return sourceOrder + 1
+}
+
 function automatedReviewSmokeMetadata(): ReviewMetadata | undefined {
   const view = process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW
   if (!process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT || !(view === 'diff' || view?.startsWith('diff-') || view === 'environment' || view === 'inspector')) return undefined
@@ -137,7 +185,7 @@ function automatedReviewSmokeMetadata(): ReviewMetadata | undefined {
           path: 'review-base.txt',
           side: 'new',
           lineNumber: 2,
-          body: 'Provider inline review from GitHub',
+          body: "Provider inline review from GitHub\n\n```suggestion\nafter review with provider suggestion\n```",
           author: 'Grace',
           url: 'https://github.com/openai/orchestrator/pull/42#discussion_r1',
           resolved: false,
@@ -153,7 +201,8 @@ function automatedReviewSmokeMetadata(): ReviewMetadata | undefined {
           }
         }
       ]
-    }
+    },
+    providerWarnings: ['Inline review comments unavailable: smoke warning from provider adapter']
   }
 }
 
@@ -206,6 +255,30 @@ function requestFromSession(session: Session, prompt: string): RunRequest {
     useThinking: session.useThinking,
     useFast: session.useFast
   }
+}
+
+function codexReviewStartLabel(request: CodexReviewStartRequest): string {
+  const target = request.target
+  if (target.type === 'baseBranch') return `Review changes against ${target.branch}`
+  if (target.type === 'commit') return `Review commit ${target.title || target.sha}`
+  if (target.type === 'custom') return 'Review custom instructions'
+  return 'Review uncommitted changes'
+}
+
+function promptWithPersonalization(prompt: string): string {
+  const enabled = settingsStore.get('personalizationEnabled', false)
+  if (!enabled) return prompt
+  const customInstructions = settingsStore.get('personalizationCustomInstructions', '').trim()
+  const codingPreferences = settingsStore.get('personalizationCodingPreferences', '').trim()
+  if (!customInstructions && !codingPreferences) return prompt
+
+  const sections = [
+    '<orchestrator_personalization>',
+    customInstructions ? `Custom instructions:\n${customInstructions}` : '',
+    codingPreferences ? `Coding preferences:\n${codingPreferences}` : '',
+    '</orchestrator_personalization>'
+  ].filter(Boolean)
+  return `${sections.join('\n\n')}\n\n${prompt}`
 }
 
 function claudeResourceAttachmentSpecs(attachments: Attachment[] = []): Attachment[] {
@@ -294,7 +367,7 @@ function mergeUsageSummary(current: UsageSummary | undefined, next: UsageSummary
   }
 }
 
-function sideQuestionPrompt(session: Session, question: string): string {
+function sideQuestionPrompt(session: Session, question: string, sideChatMessages: SideQuestionMessage[] = []): string {
   const transcript = session.messages
     .slice(-16)
     .flatMap((message) => {
@@ -304,10 +377,18 @@ function sideQuestionPrompt(session: Session, question: string): string {
       return []
     })
     .join('\n\n')
+  const sideChatContext = sideChatMessages
+    .filter((message) => message.status !== 'pending' && message.content.trim())
+    .slice(-10)
+    .map((message) => `${message.role}: ${message.content.replace(/\s+/g, ' ').trim().slice(0, 1600)}`)
+    .join('\n\n')
 
   return [
     'You are answering a side question about an active Orchestrator coding-agent session.',
-    'Answer directly and do not edit files. Use the transcript context below when it is relevant.',
+    'Answer directly and do not edit files. Use the side-chat context first for follow-ups, then the transcript when it is relevant.',
+    '',
+    'Side-chat context:',
+    sideChatContext || '(No side-chat messages yet.)',
     '',
     'Transcript context:',
     transcript || '(No transcript yet.)',
@@ -365,6 +446,20 @@ function markPendingFollowUp(sessionId: string, messageId: string, mode: Pending
   current[index] = { ...current[index], mode }
   pendingFollowUps.set(sessionId, current)
   return true
+}
+
+function removePendingFollowUp(sessionId: string, messageId: string): boolean {
+  const current = pendingFollowUps.get(sessionId)
+  if (!current) return false
+  const next = current.filter((item) => item.id !== messageId)
+  if (next.length === current.length) return false
+  if (next.length === 0) pendingFollowUps.delete(sessionId)
+  else pendingFollowUps.set(sessionId, next)
+  return true
+}
+
+function pendingFollowUpMessageIds(sessionId: string): Set<string> {
+  return new Set((pendingFollowUps.get(sessionId) ?? []).map((item) => item.id))
 }
 
 function hasSteerableFollowUp(sessionId: string): boolean {
@@ -669,6 +764,19 @@ export const sessionManager = {
     send('session:messageUpdated', { id, message })
   },
 
+  removeMessage(id: string, messageId: string): boolean {
+    const sessions = store.get('sessions', [])
+    const s = sessions.find((s) => s.id === id)
+    if (!s) return false
+
+    const nextMessages = s.messages.filter((message) => message.id !== messageId)
+    if (nextMessages.length === s.messages.length) return false
+    s.messages = nextMessages
+    store.set('sessions', sessions)
+    send('session:messageRemoved', { id, messageId })
+    return true
+  },
+
   async create(opts: {
     projectId: string
     workDir: string
@@ -727,7 +835,7 @@ export const sessionManager = {
     return session
   },
 
-  async fork(sessionId: string, mode: SessionForkMode): Promise<Session> {
+  async fork(sessionId: string, mode: SessionForkMode, options: SessionForkOptions = {}): Promise<Session> {
     const source = this.get(sessionId)
     if (!source) throw new Error(`Session ${sessionId} not found`)
 
@@ -754,23 +862,34 @@ export const sessionManager = {
       worktreeState = source.worktreeState
     }
 
+    const sourceMessages = options.throughMessageId
+      ? source.messages.slice(0, source.messages.findIndex((message) => message.id === options.throughMessageId) + 1)
+      : source.messages
+    if (options.throughMessageId && sourceMessages.length === 0) {
+      throw new Error(`Message ${options.throughMessageId} not found`)
+    }
+
     const messages: ChatMessage[] = [
-      ...source.messages.map((message) => ({ ...message })),
+      ...sourceMessages.map(cloneMessageForFork),
       {
         id: `forked-from-${source.id}-${now}`,
         role: 'system',
         type: 'text',
-        content: `Forked from "${source.name}".`,
+        content: options.throughMessageId
+          ? `Forked from "${source.name}" at a selected message.`
+          : `Forked from "${source.name}".`,
         timestamp: now
       }
     ]
+    const sessions = ensurePinnedOrders(store.get('sessions', []))
+    const forkPinOrder = pinOrderAfterSource(source, sessions)
 
     const forked: Session = {
       ...source,
       id,
       name: `Forked: ${source.name}`,
-      pinned: false,
-      pinOrder: undefined,
+      pinned: source.pinned === true,
+      pinOrder: forkPinOrder,
       projectId: source.projectId,
       workDir,
       useWorktree,
@@ -778,12 +897,29 @@ export const sessionManager = {
       repoRoot,
       providerSessionId: null,
       claudeSessionId: null,
+      providerThreadSource: undefined,
+      providerHostId: undefined,
+      providerHostLabel: undefined,
+      providerWorktreeSourceRoot: undefined,
+      providerWorktreeRoot: undefined,
+      providerWorktreeHostId: undefined,
+      providerWorktreeHostLabel: undefined,
+      providerPinned: false,
+      providerPinOrder: undefined,
+      providerPinnedThreadKey: undefined,
+      providerProjectless: false,
+      providerProjectlessThreadId: undefined,
       status: worktreeState === 'pending' ? 'reconnecting' : 'idle',
       messages,
       messageCount: messages.length,
       messagesLoaded: true,
       previewText: undefined,
       latestMessageAt: now,
+      forkedFromSessionId: source.id,
+      forkedFromSessionName: source.name,
+      forkedFromMessageId: options.throughMessageId,
+      forkedAt: now,
+      forkMode: mode,
       archivedAt: undefined,
       createdAt: now
     }
@@ -1074,7 +1210,12 @@ export const sessionManager = {
         if (followUp) {
           for (const message of this.get(sessionId)?.messages ?? []) {
             if (message.type === 'text' && message.isStreaming) {
-              this.upsertMessage(sessionId, { ...message, isStreaming: false })
+              const settledMessage: TextMessage = {
+                ...message,
+                isStreaming: false
+              }
+              if (message.role === 'assistant') settledMessage.interrupted = true
+              this.upsertMessage(sessionId, settledMessage)
             }
           }
           void this.runQueuedFollowUp(sessionId, followUp)
@@ -1133,8 +1274,12 @@ export const sessionManager = {
     const session = this.get(sessionId)
     if (!session) throw new Error(`Session ${sessionId} not found`)
     const activeProviderId = session.provider ?? 'claude'
-    const effectivePrompt = promptWithLocalAttachments(prompt, attachments)
+    const effectivePrompt = promptWithPersonalization(promptWithLocalAttachments(prompt, attachments))
     const runtimeAttachments = activeProviderId === 'codex' ? attachments : claudeResourceAttachmentSpecs(attachments)
+    const simulateSendStartFailure =
+      process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT &&
+      process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'composer' &&
+      prompt === 'SEND_PROVIDER_FALSE_SMOKE'
     if (providerRuntime.hasActiveRun(sessionId)) {
       if (session.runtime === 'interactive' && session.status === 'idle') {
         const userMsg: ChatMessage = {
@@ -1187,7 +1332,9 @@ export const sessionManager = {
 
     // Auto-name session from first user message (uniform across all providers)
     const freshSession = this.get(sessionId)
-    if (freshSession && freshSession.messages.filter((m) => m.role === 'user').length === 0) {
+    const shouldAutoName = freshSession && freshSession.messages.filter((m) => m.role === 'user').length === 0
+    const previousName = freshSession?.name
+    if (freshSession && shouldAutoName) {
       const collapsed = prompt.replace(/\s+/g, ' ').trim()
       const autoName = collapsed.length > 60 ? collapsed.slice(0, 60) + '…' : collapsed
       this.updateName(sessionId, autoName)
@@ -1195,8 +1342,9 @@ export const sessionManager = {
 
     this.updateStatus(sessionId, 'running')
 
+    const userMessageId = uuidv4()
     const userMsg: ChatMessage = {
-      id: uuidv4(),
+      id: userMessageId,
       role: 'user',
       type: 'text',
       content: prompt,
@@ -1211,7 +1359,224 @@ export const sessionManager = {
       ...requestFromSession(currentSession, effectivePrompt),
       attachments: provider.id === 'codex' ? attachments : claudeResourceAttachmentSpecs(attachments)
     }, options.permissionSnapshot)
-    return this.startProviderRun(sessionId, currentSession, provider, runRequest, 'start', options.onProviderRunComplete)
+    try {
+      const started = simulateSendStartFailure
+        ? false
+        : await this.startProviderRun(sessionId, currentSession, provider, runRequest, 'start', options.onProviderRunComplete)
+      if (!started) {
+        this.removeMessage(sessionId, userMessageId)
+        if (previousName && shouldAutoName) this.updateName(sessionId, previousName)
+        if (simulateSendStartFailure) {
+          const message = 'Provider runtime failed to start.'
+          this.appendMessage(sessionId, [{
+            id: uuidv4(),
+            role: 'system',
+            type: 'result',
+            content: message,
+            subtype: 'error_during_execution',
+            timestamp: Date.now()
+          }])
+          this.updateStatus(sessionId, 'error')
+          options.onProviderRunComplete?.({ ok: false, error: message })
+        }
+      }
+      return started
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      this.removeMessage(sessionId, userMessageId)
+      if (previousName && shouldAutoName) this.updateName(sessionId, previousName)
+      this.appendMessage(sessionId, [{
+        id: uuidv4(),
+        role: 'system',
+        type: 'result',
+        content: message,
+        subtype: 'error_during_execution',
+        timestamp: Date.now()
+      }])
+      this.updateStatus(sessionId, 'error')
+      options.onProviderRunComplete?.({ ok: false, error: message })
+      return false
+    }
+  },
+
+  async startCodexReview(sessionId: string, request: CodexReviewStartRequest): Promise<CodexReviewStartResult> {
+    const session = this.get(sessionId)
+    if (!session) return { ok: false, error: `Session ${sessionId} not found` }
+    if ((session.provider ?? 'claude') !== 'codex') return { ok: false, error: 'Native Review mode is only available for Codex sessions.' }
+    if (providerRuntime.hasActiveRun(sessionId)) return { ok: false, error: 'A provider run is already active in this session.' }
+
+    const label = codexReviewStartLabel(request)
+    this.updateStatus(sessionId, 'running')
+    const userMessageId = uuidv4()
+    this.appendMessage(sessionId, [{
+      id: userMessageId,
+      role: 'user',
+      type: 'text',
+      content: label,
+      timestamp: Date.now()
+    }])
+
+    const currentSession = this.get(sessionId) ?? session
+    const provider = getProvider('codex')
+    const runRequest: RunRequest = {
+      ...requestFromSession(currentSession, label),
+      runtime: 'app-server',
+      codexReviewStart: request
+    }
+    const mode = currentSession.providerSessionId ? 'resume' : 'start'
+    try {
+      const started = await this.startProviderRun(sessionId, currentSession, provider, runRequest, mode)
+      if (!started) {
+        this.removeMessage(sessionId, userMessageId)
+        this.updateStatus(sessionId, 'error')
+        return { ok: false, error: 'Codex Review failed to start.' }
+      }
+      return { ok: true }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      this.removeMessage(sessionId, userMessageId)
+      this.appendMessage(sessionId, [{
+        id: uuidv4(),
+        role: 'system',
+        type: 'result',
+        content: message,
+        subtype: 'error_during_execution',
+        timestamp: Date.now()
+      }])
+      this.updateStatus(sessionId, 'error')
+      return { ok: false, error: message }
+    }
+  },
+
+  async retryLastUserMessage(sessionId: string): Promise<boolean> {
+    const session = this.get(sessionId)
+    if (!session) throw new Error(`Session ${sessionId} not found`)
+    const lastUserMessage = [...session.messages]
+      .reverse()
+      .find((message): message is TextMessage & { role: 'user' } =>
+        message.type === 'text' && message.role === 'user' && message.content.trim().length > 0
+    )
+    if (!lastUserMessage) return false
+    if (providerRuntime.hasActiveRun(sessionId)) return false
+    const simulateRetryPreparationFailure =
+      process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT &&
+      (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-layout' ||
+        process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-tool-failure') &&
+      lastUserMessage.content.includes('RETRY_PREPARE_THROW_SMOKE')
+    if (
+      process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT &&
+      (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-layout' ||
+        process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-tool-failure') &&
+      !simulateRetryPreparationFailure
+    ) {
+      return true
+    }
+
+    const attachments = lastUserMessage.attachments ?? []
+    const provider = getProvider(session.provider ?? 'claude')
+    const effectivePrompt = promptWithPersonalization(promptWithLocalAttachments(lastUserMessage.content, attachments))
+    const runtimeAttachments = provider.id === 'codex' ? attachments : claudeResourceAttachmentSpecs(attachments)
+    this.updateStatus(sessionId, 'running')
+
+    const currentSession = this.get(sessionId)!
+    const mode = currentSession.providerSessionId ? 'resume' : 'start'
+    const runRequest: RunRequest = {
+      ...requestFromSession(currentSession, effectivePrompt),
+      runtime: currentSession.runtime,
+      attachments: runtimeAttachments
+    }
+    try {
+      if (simulateRetryPreparationFailure) throw new Error('Smoke retry request preparation failed.')
+      return await this.startProviderRun(sessionId, currentSession, provider, runRequest, mode)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      this.appendMessage(sessionId, [{
+        id: uuidv4(),
+        role: 'system',
+        type: 'result',
+        content: message,
+        subtype: 'error_during_execution',
+        timestamp: Date.now()
+      }])
+      this.updateStatus(sessionId, 'error')
+      return false
+    }
+  },
+
+  async continueLastTurn(sessionId: string): Promise<boolean> {
+    const session = this.get(sessionId)
+    if (!session) throw new Error(`Session ${sessionId} not found`)
+    if (providerRuntime.hasActiveRun(sessionId)) return false
+    const lastAssistantText = [...session.messages].reverse().find((message): message is TextMessage =>
+      message.type === 'text' && message.role === 'assistant' && message.content.trim().length > 0
+    )
+    if (!lastAssistantText) return false
+    const simulateContinueStartFailure =
+      process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT &&
+      process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-layout' &&
+      lastAssistantText.content.includes('CONTINUE_START_FAIL_SMOKE')
+    if (
+      process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT &&
+      process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-layout' &&
+      !simulateContinueStartFailure
+    ) {
+      return true
+    }
+
+    const prompt = lastAssistantText.interrupted
+      ? 'Continue from where you left off. The previous assistant response stopped mid-stream; do not repeat completed content unless necessary.'
+      : 'Continue from where you left off.'
+    const effectivePrompt = promptWithPersonalization(prompt)
+    const continueMessageId = uuidv4()
+    this.updateStatus(sessionId, 'running')
+    this.appendMessage(sessionId, [{
+      id: continueMessageId,
+      role: 'user',
+      type: 'text',
+      content: prompt,
+      timestamp: Date.now()
+    }])
+
+    const currentSession = this.get(sessionId)!
+    const provider = getProvider(currentSession.provider ?? 'claude')
+    const mode = currentSession.providerSessionId ? 'resume' : 'start'
+    const runRequest: RunRequest = {
+      ...requestFromSession(currentSession, effectivePrompt),
+      runtime: currentSession.runtime,
+      attachments: []
+    }
+    try {
+      const started = simulateContinueStartFailure
+        ? false
+        : await this.startProviderRun(sessionId, currentSession, provider, runRequest, mode)
+      if (!started) {
+        this.removeMessage(sessionId, continueMessageId)
+        if (simulateContinueStartFailure) {
+          this.appendMessage(sessionId, [{
+            id: uuidv4(),
+            role: 'system',
+            type: 'result',
+            content: 'Provider runtime failed to start.',
+            subtype: 'error_during_execution',
+            timestamp: Date.now()
+          }])
+          this.updateStatus(sessionId, 'error')
+        }
+      }
+      return started
+    } catch (error) {
+      this.removeMessage(sessionId, continueMessageId)
+      this.appendMessage(sessionId, [{
+        id: uuidv4(),
+        role: 'system',
+        type: 'result',
+        content: error instanceof Error ? error.message : String(error),
+        subtype: 'error_during_execution',
+        timestamp: Date.now()
+      }])
+      this.updateStatus(sessionId, 'error')
+      return false
+    }
   },
 
   applyRunEvents(sessionId: string, events: RunEvent[]): void {
@@ -1334,10 +1699,21 @@ export const sessionManager = {
       session?.status === 'waiting_for_permission' ||
       session?.status === 'waiting_for_user' ||
       session?.status === 'reconnecting'
+    const queuedMessageIds = pendingFollowUpMessageIds(sessionId)
     if (providerRuntime.hasActiveRun(sessionId)) {
       for (const message of session?.messages ?? []) {
+        if (message.type === 'text' && queuedMessageIds.has(message.id)) {
+          this.removeMessage(sessionId, message.id)
+          continue
+        }
         if (message.type === 'text' && (message.queueState || message.isStreaming)) {
-          this.upsertMessage(sessionId, { ...message, queueState: undefined, isStreaming: false })
+          const settledMessage: TextMessage = {
+            ...message,
+            queueState: undefined,
+            isStreaming: false
+          }
+          if (message.role === 'assistant' && message.isStreaming) settledMessage.interrupted = true
+          this.upsertMessage(sessionId, settledMessage)
         }
       }
       clearRuntimeState(sessionId)
@@ -1347,6 +1723,18 @@ export const sessionManager = {
       clearRuntimeState(sessionId)
       this.updateStatus(sessionId, 'idle')
     }
+  },
+
+  cancelQueuedMessage(sessionId: string, messageId: string): boolean {
+    const removedPending = removePendingFollowUp(sessionId, messageId)
+    const sessions = store.get('sessions', [])
+    const rawMessage = sessions
+      .find((session) => session.id === sessionId)
+      ?.messages.find((candidate) => candidate.id === messageId)
+    if (rawMessage?.type === 'text' && (rawMessage.queueState || removedPending)) {
+      return this.removeMessage(sessionId, messageId) || removedPending
+    }
+    return removedPending
   },
 
   steerQueuedMessage(sessionId: string, messageId: string): void {
@@ -1364,9 +1752,6 @@ export const sessionManager = {
     if (!session) return
 
     const queuedMessage = session.messages.find((message) => message.id === followUp.id && message.type === 'text')
-    if (queuedMessage?.type === 'text') {
-      this.upsertMessage(sessionId, { ...queuedMessage, queueState: undefined })
-    }
 
     this.updateStatus(sessionId, 'running')
 
@@ -1377,21 +1762,42 @@ export const sessionManager = {
       runtime: session.runtime,
       attachments: followUp.attachments ?? []
     }
-    await this.startProviderRun(sessionId, session, provider, runRequest, mode)
+    try {
+      if (
+        process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT &&
+        followUp.prompt.includes('QUEUED_FOLLOW_UP_START_FAIL_SMOKE')
+      ) {
+        throw new Error('Smoke queued follow-up failed to start.')
+      }
+      const started = await this.startProviderRun(sessionId, session, provider, runRequest, mode)
+      if (started && queuedMessage?.type === 'text') {
+        this.upsertMessage(sessionId, { ...queuedMessage, queueState: undefined })
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      this.appendMessage(sessionId, [{
+        id: uuidv4(),
+        role: 'system',
+        type: 'result',
+        content: message,
+        subtype: 'error_during_execution',
+        timestamp: Date.now()
+      }])
+      this.updateStatus(sessionId, 'error')
+    }
   },
 
-  async grantAndResume(sessionId: string, toolNames: string[]): Promise<void> {
-    await this.resumeAfterPermission(sessionId, toolNames, true)
+  async grantAndResume(sessionId: string, toolNames: string[]): Promise<SessionActionResult> {
+    return this.resumeAfterPermission(sessionId, toolNames, true)
   },
 
-  async allowOnceAndResume(sessionId: string, toolNames: string[]): Promise<void> {
-    await this.resumeAfterPermission(sessionId, toolNames, false)
+  async allowOnceAndResume(sessionId: string, toolNames: string[]): Promise<SessionActionResult> {
+    return this.resumeAfterPermission(sessionId, toolNames, false)
   },
 
-  async resumeAfterPermission(sessionId: string, toolNames: string[], persistGrant: boolean): Promise<void> {
+  async resumeAfterPermission(sessionId: string, toolNames: string[], persistGrant: boolean): Promise<SessionActionResult> {
     const session = this.get(sessionId)
-    if (!session) return
-    markLatestPermissionDecision(sessionId, persistGrant ? 'allowed_session' : 'allowed_once')
+    if (!session) return { ok: false, error: `Session ${sessionId} not found.` }
 
     if (approvalBroker.hasPendingApproval(sessionId)) {
       const sessions = store.get('sessions', [])
@@ -1406,8 +1812,9 @@ export const sessionManager = {
       } else {
         approvalBroker.resolveSessionApproval(sessionId, true)
       }
+      markLatestPermissionDecision(sessionId, persistGrant ? 'allowed_session' : 'allowed_once')
       this.updateStatus(sessionId, 'running')
-      return
+      return { ok: true }
     }
 
     if (providerRuntime.resolvePermission(sessionId, true, persistGrant)) {
@@ -1419,11 +1826,14 @@ export const sessionManager = {
           store.set('sessions', sessions)
         }
       }
+      markLatestPermissionDecision(sessionId, persistGrant ? 'allowed_session' : 'allowed_once')
       this.updateStatus(sessionId, 'running')
-      return
+      return { ok: true }
     }
 
-    if (!session.providerSessionId) return
+    if (!session.providerSessionId) {
+      return { ok: false, error: 'No active provider session is available to resume.' }
+    }
     if (providerRuntime.hasActiveRun(sessionId)) providerRuntime.stop(sessionId)
 
     const sessions = store.get('sessions', [])
@@ -1437,6 +1847,11 @@ export const sessionManager = {
 
     const currentSession = this.get(sessionId)!
     const resumeProvider = getProvider(currentSession.provider ?? 'claude')
+    const simulatePermissionResumePreparationFailure =
+      process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT &&
+      currentSession.messages.some((message) =>
+        message.type === 'text' && message.content.includes('PERMISSION_RESUME_PREPARE_THROW_SMOKE')
+      )
     let runRequest: RunRequest = {
       ...requestFromSession(currentSession, 'Permission granted. Please continue.'),
       allowedTools: persistGrant
@@ -1444,26 +1859,65 @@ export const sessionManager = {
         : mergeToolNames(currentSession.allowedTools, toolNames),
       runtime: currentSession.runtime
     }
-    await this.startProviderRun(sessionId, currentSession, resumeProvider, runRequest, 'resume')
+    let started = false
+    try {
+      if (simulatePermissionResumePreparationFailure) throw new Error('Smoke permission resume request preparation failed.')
+      started = await this.startProviderRun(sessionId, currentSession, resumeProvider, runRequest, 'resume')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      this.appendMessage(sessionId, [{
+        id: uuidv4(),
+        role: 'system',
+        type: 'result',
+        content: message,
+        subtype: 'error_during_execution',
+        timestamp: Date.now()
+      }])
+      this.updateStatus(sessionId, 'error')
+      return { ok: false, error: message }
+    }
+    if (!started) return { ok: false, error: 'Provider runtime failed to resume after permission approval.' }
+    markLatestPermissionDecision(sessionId, persistGrant ? 'allowed_session' : 'allowed_once')
+    return { ok: true }
   },
 
-  async answerUserInput(sessionId: string, answer: string): Promise<void> {
+  async answerUserInput(sessionId: string, answer: string | UserInputAnswerPayload): Promise<SessionActionResult> {
     const session = this.get(sessionId)
-    if (!session) return
-    const trimmed = answer.trim()
-    if (!trimmed) return
-    if (session.status === 'waiting_for_permission') markLatestPermissionDecision(sessionId, 'kept_planning')
-
-    if (providerRuntime.answerUserInput(sessionId, trimmed)) {
+    if (!session) return { ok: false, error: `Session ${sessionId} not found.` }
+    const payload = normalizeUserInputAnswer(answer)
+    const trimmed = payload.content
+    const displayContent = payload.displayContent ?? trimmed
+    if (!trimmed) return { ok: false, error: 'Answer is empty.' }
+    const simulateUserInputResumePreparationFailure =
+      process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT &&
+      trimmed.includes('SMOKE_USER_INPUT_RESUME_THROW')
+    if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT && !simulateUserInputResumePreparationFailure) {
+      if (trimmed.includes('SMOKE_MISSING_RESUME')) {
+        return { ok: false, error: 'No active provider session is available to resume.' }
+      }
       this.appendMessage(sessionId, [{
         id: uuidv4(),
         role: 'user',
         type: 'text',
-        content: trimmed,
+        content: displayContent,
         timestamp: Date.now()
       }])
+      if (session.status === 'waiting_for_permission') markLatestPermissionDecision(sessionId, 'kept_planning')
       this.updateStatus(sessionId, 'running')
-      return
+      return { ok: true }
+    }
+
+    if (providerRuntime.answerUserInput(sessionId, payload)) {
+      this.appendMessage(sessionId, [{
+        id: uuidv4(),
+        role: 'user',
+        type: 'text',
+        content: displayContent,
+        timestamp: Date.now()
+      }])
+      if (session.status === 'waiting_for_permission') markLatestPermissionDecision(sessionId, 'kept_planning')
+      this.updateStatus(sessionId, 'running')
+      return { ok: true }
     }
 
     if (providerRuntime.hasActiveRun(sessionId) && session.runtime === 'interactive') {
@@ -1471,23 +1925,26 @@ export const sessionManager = {
         id: uuidv4(),
         role: 'user',
         type: 'text',
-        content: trimmed,
+        content: displayContent,
         timestamp: Date.now()
       }])
+      if (session.status === 'waiting_for_permission') markLatestPermissionDecision(sessionId, 'kept_planning')
       this.updateStatus(sessionId, 'running')
       providerRuntime.write(sessionId, `${trimmed}\r`)
-      return
+      return { ok: true }
     }
 
     if (providerRuntime.hasActiveRun(sessionId)) providerRuntime.stop(sessionId)
 
-    if (!session.providerSessionId) return
+    if (!session.providerSessionId) {
+      return { ok: false, error: 'No active provider session is available to resume.' }
+    }
 
     this.appendMessage(sessionId, [{
       id: uuidv4(),
       role: 'user',
       type: 'text',
-      content: trimmed,
+      content: displayContent,
       timestamp: Date.now()
     }])
     this.updateStatus(sessionId, 'running')
@@ -1501,16 +1958,38 @@ export const sessionManager = {
       ),
       runtime: currentSession.runtime
     }
-    await this.startProviderRun(sessionId, currentSession, resumeProvider, runRequest, 'resume')
+    let started = false
+    try {
+      if (simulateUserInputResumePreparationFailure) throw new Error('Smoke user input resume request preparation failed.')
+      started = await this.startProviderRun(sessionId, currentSession, resumeProvider, runRequest, 'resume')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      this.appendMessage(sessionId, [{
+        id: uuidv4(),
+        role: 'system',
+        type: 'result',
+        content: message,
+        subtype: 'error_during_execution',
+        timestamp: Date.now()
+      }])
+      this.updateStatus(sessionId, 'error')
+      return { ok: false, error: message }
+    }
+    if (!started) return { ok: false, error: 'Provider runtime failed to resume after user input.' }
+    if (session.status === 'waiting_for_permission') markLatestPermissionDecision(sessionId, 'kept_planning')
+    return { ok: true }
   },
 
-  denyPermission(sessionId: string): void {
-    markLatestPermissionDecision(sessionId, 'denied')
+  denyPermission(sessionId: string): SessionActionResult {
+    const session = this.get(sessionId)
+    if (!session) return { ok: false, error: `Session ${sessionId} not found.` }
     if (providerRuntime.resolvePermission(sessionId, false, false)) {
+      markLatestPermissionDecision(sessionId, 'denied')
       this.updateStatus(sessionId, 'running')
-      return
+      return { ok: true }
     }
     if (approvalBroker.hasPendingApproval(sessionId)) {
+      markLatestPermissionDecision(sessionId, 'denied')
       approvalBroker.resolveSessionApprovals(sessionId, false, 'Denied by user.')
       this.updateStatus(sessionId, 'running')
       setTimeout(() => {
@@ -1531,7 +2010,7 @@ export const sessionManager = {
         }])
         this.updateStatus(sessionId, 'idle')
       }, 150)
-      return
+      return { ok: true }
     }
 
     if (providerRuntime.hasActiveRun(sessionId)) {
@@ -1543,6 +2022,7 @@ export const sessionManager = {
       clearRuntimeState(sessionId)
       providerRuntime.stop(sessionId)
     }
+    markLatestPermissionDecision(sessionId, 'denied')
     this.appendMessage(sessionId, [{
       id: uuidv4(),
       role: 'system',
@@ -1552,14 +2032,80 @@ export const sessionManager = {
       timestamp: Date.now()
     }])
     this.updateStatus(sessionId, 'idle')
+    return { ok: true }
   },
 
-  async answerSideQuestion(sessionId: string, question: string): Promise<{ ok: boolean; answer: string; error?: string; usage?: UsageSummary }> {
+  async answerSideQuestion(sessionId: string, question: string, sideChatMessages: SideQuestionMessage[] = []): Promise<{ ok: boolean; answer: string; error?: string; usage?: UsageSummary }> {
     const session = this.get(sessionId)
     if (!session) return { ok: false, answer: '', error: `Session ${sessionId} not found.` }
     const trimmed = question.trim()
     if (!trimmed) return { ok: false, answer: '', error: 'Question is empty.' }
+    const effectivePrompt = promptWithPersonalization(sideQuestionPrompt(session, trimmed, sideChatMessages))
     if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT) {
+      if (trimmed.toLowerCase().includes('smoke follow-up context check')) {
+        const hasPriorUser = effectivePrompt.includes('user: smoke threaded context seed')
+        const hasPriorAssistant = effectivePrompt.includes('assistant: Smoke side answer for: smoke threaded context seed')
+        return {
+          ok: hasPriorUser && hasPriorAssistant,
+          answer: hasPriorUser && hasPriorAssistant
+            ? 'Smoke side follow-up retained prior side-chat context'
+            : '',
+          error: hasPriorUser && hasPriorAssistant ? undefined : 'Smoke side follow-up context missing.',
+          usage: {
+            inputTokens: 18,
+            outputTokens: 9,
+            totalTokens: 27,
+            totalCostUsd: 0,
+            durationMs: 120,
+            apiDurationMs: 80,
+            turns: 1
+          }
+        }
+      }
+      if (trimmed.toLowerCase().includes('smoke personalization check')) {
+        const hasCustomInstructions = effectivePrompt.includes('SMOKE_SIDE_CUSTOM_INSTRUCTIONS')
+        const hasCodingPreferences = effectivePrompt.includes('SMOKE_SIDE_CODING_PREFS')
+        return {
+          ok: hasCustomInstructions && hasCodingPreferences,
+          answer: hasCustomInstructions && hasCodingPreferences
+            ? 'Smoke side personalization applied: SMOKE_SIDE_CUSTOM_INSTRUCTIONS + SMOKE_SIDE_CODING_PREFS'
+            : '',
+          error: hasCustomInstructions && hasCodingPreferences ? undefined : 'Smoke side personalization missing.',
+          usage: {
+            inputTokens: 14,
+            outputTokens: 7,
+            totalTokens: 21,
+            totalCostUsd: 0,
+            durationMs: 120,
+            apiDurationMs: 80,
+            turns: 1
+          }
+        }
+      }
+      if (trimmed.toLowerCase().includes('smoke retry failure')) {
+        const smokeFailureKey = `${sessionId}:${trimmed}`
+        if (!smokeSideQuestionFailures.has(smokeFailureKey)) {
+          smokeSideQuestionFailures.add(smokeFailureKey)
+          return {
+            ok: false,
+            answer: '',
+            error: `Smoke side question failed for: ${trimmed}`
+          }
+        }
+        return {
+          ok: true,
+          answer: `Smoke retry recovered for: ${trimmed}`,
+          usage: {
+            inputTokens: 12,
+            outputTokens: 8,
+            totalTokens: 20,
+            totalCostUsd: 0,
+            durationMs: 120,
+            apiDurationMs: 80,
+            turns: 1
+          }
+        }
+      }
       return {
         ok: true,
         answer: `Smoke side answer for: ${trimmed}`,
@@ -1577,7 +2123,7 @@ export const sessionManager = {
 
     const provider = getProvider(session.provider ?? 'claude')
     const request: RunRequest = {
-      ...requestFromSession(session, sideQuestionPrompt(session, trimmed)),
+      ...requestFromSession(session, effectivePrompt),
       providerSessionId: null,
       executionPolicy: provider.id === 'claude' ? 'dontAsk' : session.permissionMode,
       allowedTools: [],
@@ -1629,6 +2175,9 @@ export const sessionManager = {
     for (const provider of Object.values(PROVIDERS)) {
       result[provider.id] = resolveProviderBinary(provider) !== null
     }
+    if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'settings-providers') {
+      result.copilot = false
+    }
     return result
   },
 
@@ -1656,10 +2205,10 @@ export const sessionManager = {
     return gitManager.getDiff(session.workDir)
   },
 
-  async getReviewMetadata(sessionId: string): Promise<ReviewMetadata | undefined> {
+  async getReviewMetadata(sessionId: string, options: { force?: boolean } = {}): Promise<ReviewMetadata | undefined> {
     const session = this.get(sessionId)
     if (!session) return undefined
-    if (session.reviewMetadata) return session.reviewMetadata
+    if (session.reviewMetadata && options.force !== true) return session.reviewMetadata
     const metadata = await gitManager.getReviewMetadata(session.workDir)
     if (!metadata) return undefined
     const sessions = store.get('sessions', [])

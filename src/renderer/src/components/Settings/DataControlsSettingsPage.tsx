@@ -13,10 +13,15 @@ import {
   SettingsSurface
 } from '../shared/designSystem'
 
+type DataControlsActionStatus = {
+  text: string
+  tone: 'info' | 'danger'
+}
+
 export default function DataControlsSettingsPage(): JSX.Element {
   const [profile, setProfile] = useState<AppProfile | null>(null)
   const [archivedSessions, setArchivedSessions] = useState<SessionListItem[]>([])
-  const [archiveStatus, setArchiveStatus] = useState<string | null>(null)
+  const [archiveStatus, setArchiveStatus] = useState<DataControlsActionStatus | null>(null)
   const [pendingDeleteSession, setPendingDeleteSession] = useState<SessionListItem | null>(null)
   const addSession = useSessionStore((state) => state.addSession)
   const addSessionToProject = useProjectStore((state) => state.addSessionToProject)
@@ -26,29 +31,77 @@ export default function DataControlsSettingsPage(): JSX.Element {
     void refreshArchivedSessions()
   }, [])
 
-  const refreshArchivedSessions = async (): Promise<void> => {
+  const refreshArchivedSessions = async (): Promise<SessionListItem[]> => {
     const archived = await window.api.sessions.listArchivedSummaries()
     setArchivedSessions(archived)
+    return archived
+  }
+
+  const refreshArchivedSessionsWithStatus = async (): Promise<void> => {
+    try {
+      const archived = await refreshArchivedSessions()
+      setArchiveStatus({
+        text: archived.length === 0 ? 'Archived chats refreshed' : `Archived chats refreshed: ${archived.length}`,
+        tone: 'info'
+      })
+    } catch (error) {
+      setArchiveStatus({ text: `Refresh failed: ${errorText(error)}`, tone: 'danger' })
+    }
+  }
+
+  const openDataFolder = async (): Promise<void> => {
+    if (!profile?.userDataDir) return
+    try {
+      await window.api.fs.openPath(profile.userDataDir)
+      setArchiveStatus({ text: 'Opened data folder', tone: 'info' })
+    } catch (error) {
+      setArchiveStatus({ text: `Open data folder failed: ${errorText(error)}`, tone: 'danger' })
+    }
+  }
+
+  const copyDataPath = async (): Promise<void> => {
+    if (!profile?.userDataDir) return
+    try {
+      await writeClipboardText(profile.userDataDir)
+      setArchiveStatus({ text: 'Data path copied', tone: 'info' })
+    } catch {
+      setArchiveStatus({ text: 'Unable to copy data path', tone: 'danger' })
+    }
   }
 
   const restoreArchivedSession = async (sessionId: string): Promise<void> => {
-    const restored = await window.api.sessions.restoreArchived(sessionId)
-    if (!restored) return
-    addSession(restored)
-    addSessionToProject(restored.projectId, restored.id)
-    await refreshArchivedSessions()
-    setArchiveStatus(`Restored ${restored.name}`)
+    try {
+      const restored = await window.api.sessions.restoreArchived(sessionId)
+      if (!restored) {
+        setArchiveStatus({ text: 'Archived chat not found', tone: 'danger' })
+        return
+      }
+      addSession(restored)
+      addSessionToProject(restored.projectId, restored.id)
+      await refreshArchivedSessions()
+      setArchiveStatus({ text: `Restored ${restored.name}`, tone: 'info' })
+    } catch (error) {
+      setArchiveStatus({ text: `Restore failed: ${errorText(error)}`, tone: 'danger' })
+    }
   }
 
   const deleteArchivedSession = async (session: SessionListItem): Promise<void> => {
-    await window.api.sessions.remove(session.id)
-    await refreshArchivedSessions()
-    setArchiveStatus(`Deleted ${session.name}`)
-    setPendingDeleteSession((current) => current?.id === session.id ? null : current)
+    try {
+      await window.api.sessions.remove(session.id)
+      await refreshArchivedSessions()
+      setArchiveStatus({ text: `Deleted ${session.name}`, tone: 'info' })
+      setPendingDeleteSession((current) => current?.id === session.id ? null : current)
+    } catch (error) {
+      setArchiveStatus({ text: `Delete failed: ${errorText(error)}`, tone: 'danger' })
+    }
   }
 
   return (
-    <div data-settings-page-module="data-controls">
+    <div
+      data-settings-page-module="data-controls"
+      data-settings-data-controls-action-status={archiveStatus?.text ?? ''}
+      data-settings-data-controls-action-status-tone={archiveStatus?.tone ?? ''}
+    >
       <SettingsPageSection dataTestId="data-controls-settings-section" className="data-controls-settings-page">
         <SettingsContentLayout
           title="Data controls"
@@ -79,7 +132,7 @@ export default function DataControlsSettingsPage(): JSX.Element {
                           type="button"
                           className="settings-action-button"
                           disabled={!profile?.userDataDir}
-                          onClick={() => { if (profile?.userDataDir) void window.api.fs.openPath(profile.userDataDir) }}
+                          onClick={() => { void openDataFolder() }}
                         >
                           Open data folder
                         </button>
@@ -87,7 +140,7 @@ export default function DataControlsSettingsPage(): JSX.Element {
                           type="button"
                           className="settings-action-button"
                           disabled={!profile?.userDataDir}
-                          onClick={() => { if (profile?.userDataDir) void navigator.clipboard.writeText(profile.userDataDir) }}
+                          onClick={() => { void copyDataPath() }}
                         >
                           Copy path
                         </button>
@@ -110,7 +163,7 @@ export default function DataControlsSettingsPage(): JSX.Element {
                   label="Inventory"
                   description={archivedSessions.length === 0 ? 'No archived chats' : `${archivedSessions.length} archived chat${archivedSessions.length === 1 ? '' : 's'}`}
                   control={(
-                    <button type="button" className="settings-action-button" onClick={() => void refreshArchivedSessions()}>
+                    <button type="button" className="settings-action-button" onClick={() => void refreshArchivedSessionsWithStatus()}>
                       Refresh
                     </button>
                   )}
@@ -141,7 +194,18 @@ export default function DataControlsSettingsPage(): JSX.Element {
                     ))}
                   </div>
                 )}
-                {archiveStatus && <div className="data-controls-status">{archiveStatus}</div>}
+                {archiveStatus && (
+                  <div
+                    className="data-controls-status"
+                    data-testid="data-controls-action-status"
+                    data-data-controls-action-status-tone={archiveStatus.tone}
+                    role={archiveStatus.tone === 'danger' ? 'alert' : 'status'}
+                    aria-live={archiveStatus.tone === 'danger' ? 'assertive' : 'polite'}
+                    aria-atomic="true"
+                  >
+                    {archiveStatus.text}
+                  </div>
+                )}
               </SettingsSurface>
             </SettingsGroupContent>
           </SettingsContentGroup>
@@ -159,6 +223,19 @@ export default function DataControlsSettingsPage(): JSX.Element {
       </SettingsPageSection>
     </div>
   )
+}
+
+async function writeClipboardText(text: string): Promise<void> {
+  if (typeof window.api.clipboard?.writeText === 'function') {
+    const didWrite = await window.api.clipboard.writeText(text)
+    if (didWrite) return
+  }
+  await navigator.clipboard.writeText(text)
+}
+
+function errorText(error: unknown): string {
+  if (error instanceof Error) return error.message
+  return String(error)
 }
 
 function formatRelativeTime(timestamp: number): string {

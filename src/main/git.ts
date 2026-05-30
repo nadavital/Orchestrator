@@ -1,9 +1,9 @@
 import { simpleGit } from 'simple-git'
 import { join, resolve, sep } from 'path'
 import { mkdirSync } from 'fs'
-import { execFile, spawnSync } from 'child_process'
+import { execFile, spawn, spawnSync } from 'child_process'
 import { promisify } from 'util'
-import type { FileChange, GitLineBlameResult, GitPathActionResult, GitRefOption, ReviewDiffSource, ReviewMetadata, ReviewCheckStatus, ReviewProviderBlame } from '../types'
+import type { FileChange, GitBranchActionResult, GitCommitResult, GitLineBlameResult, GitPathActionResult, GitPullRequestCreateResult, GitPullRequestCreateUrlResult, GitRefOption, ReviewDiffSource, ReviewMetadata, ReviewCheckStatus, ReviewProviderBlame } from '../types'
 
 const execFileAsync = promisify(execFile)
 
@@ -91,6 +91,162 @@ export const gitManager = {
       }).filter((option) => option.name.length > 0)
     } catch {
       return []
+    }
+  },
+
+  async createBranch(cwd: string, branchName: string): Promise<GitBranchActionResult> {
+    const cleanBranchName = normalizeBranchName(branchName)
+    if (!cleanBranchName) {
+      return { ok: false, branches: await this.listBranches(cwd), currentBranch: await this.getCurrentBranch(cwd), error: 'Enter a branch name.' }
+    }
+
+    try {
+      const git = simpleGit(cwd)
+      await git.raw(['check-ref-format', '--branch', cleanBranchName])
+      await git.raw(['checkout', '-b', cleanBranchName])
+      return {
+        ok: true,
+        branchName: cleanBranchName,
+        currentBranch: await this.getCurrentBranch(cwd),
+        branches: await this.listBranches(cwd)
+      }
+    } catch (error) {
+      return {
+        ok: false,
+        branchName: cleanBranchName,
+        currentBranch: await this.getCurrentBranch(cwd),
+        branches: await this.listBranches(cwd),
+        error: error instanceof Error ? error.message : String(error)
+      }
+    }
+  },
+
+  async checkoutBranch(cwd: string, branchName: string): Promise<GitBranchActionResult> {
+    const cleanBranchName = normalizeBranchName(branchName)
+    if (!cleanBranchName) {
+      return { ok: false, branches: await this.listBranches(cwd), currentBranch: await this.getCurrentBranch(cwd), error: 'Choose a branch.' }
+    }
+
+    try {
+      const git = simpleGit(cwd)
+      await git.raw(['check-ref-format', '--branch', cleanBranchName])
+      await git.raw(['checkout', cleanBranchName])
+      return {
+        ok: true,
+        branchName: cleanBranchName,
+        currentBranch: await this.getCurrentBranch(cwd),
+        branches: await this.listBranches(cwd)
+      }
+    } catch (error) {
+      return {
+        ok: false,
+        branchName: cleanBranchName,
+        currentBranch: await this.getCurrentBranch(cwd),
+        branches: await this.listBranches(cwd),
+        error: error instanceof Error ? error.message : String(error)
+      }
+    }
+  },
+
+  async getPullRequestCreateUrl(cwd: string, baseBranch: string, headBranch: string): Promise<GitPullRequestCreateUrlResult> {
+    const cleanBase = normalizeBranchName(baseBranch)
+    const cleanHead = normalizeBranchName(headBranch)
+    if (!cleanBase || !cleanHead) {
+      return { ok: false, error: 'Choose a base and topic branch.' }
+    }
+    if (cleanBase === cleanHead) {
+      return { ok: false, baseBranch: cleanBase, headBranch: cleanHead, error: 'Create or switch to a topic branch first.' }
+    }
+
+    try {
+      const git = simpleGit(cwd)
+      const remotes = await git.getRemotes(true)
+      const githubRemote = remotes
+        .map((remote) => {
+          const remoteUrl = [remote.refs.fetch, remote.refs.push]
+            .find((url): url is string => typeof url === 'string' && parseGitHubRemoteUrl(url) !== null)
+          return remoteUrl ? { name: remote.name, url: remoteUrl, repositoryUrl: parseGitHubRemoteUrl(remoteUrl) } : null
+        })
+        .find((remote): remote is { name: string; url: string; repositoryUrl: string } => Boolean(remote?.repositoryUrl))
+      if (!githubRemote) {
+        return { ok: false, baseBranch: cleanBase, headBranch: cleanHead, error: 'No GitHub remote found for this workspace.' }
+      }
+      const localBranchExists = await gitRefExists(git, `refs/heads/${cleanHead}`)
+      const upstreamBranch = localBranchExists ? await getBranchUpstream(git, cleanHead) : null
+      const remoteBranch = `${githubRemote.name}/${cleanHead}`
+      const branchPublished = Boolean(upstreamBranch) || await gitRefExists(git, `refs/remotes/${githubRemote.name}/${cleanHead}`)
+      return {
+        ok: true,
+        url: `${githubRemote.repositoryUrl}/compare/${encodeURIComponent(cleanBase)}...${encodeURIComponent(cleanHead)}?quick_pull=1`,
+        remoteUrl: githubRemote.url,
+        remoteName: githubRemote.name,
+        baseBranch: cleanBase,
+        headBranch: cleanHead,
+        branchPublished,
+        upstreamBranch: upstreamBranch || undefined,
+        remoteBranch,
+        pushCommand: branchPublished ? undefined : `git push -u ${shellQuote(githubRemote.name)} ${shellQuote(cleanHead)}`
+      }
+    } catch (error) {
+      return {
+        ok: false,
+        baseBranch: cleanBase,
+        headBranch: cleanHead,
+        error: error instanceof Error ? error.message : String(error)
+      }
+    }
+  },
+
+  async createPullRequest(cwd: string, baseBranch: string, headBranch: string): Promise<GitPullRequestCreateResult> {
+    const cleanBase = normalizeBranchName(baseBranch)
+    const cleanHead = normalizeBranchName(headBranch)
+    if (!cleanBase || !cleanHead) {
+      return { ok: false, error: 'Choose a base and topic branch.' }
+    }
+    if (cleanBase === cleanHead) {
+      return { ok: false, baseBranch: cleanBase, headBranch: cleanHead, error: 'Create or switch to a topic branch first.' }
+    }
+
+    const command = `gh pr create --fill --base ${shellQuote(cleanBase)} --head ${shellQuote(cleanHead)}`
+    try {
+      const { stdout, stderr } = await execFileAsync('gh', [
+        'pr',
+        'create',
+        '--fill',
+        '--base',
+        cleanBase,
+        '--head',
+        cleanHead
+      ], {
+        cwd,
+        encoding: 'utf-8',
+        timeout: 30000,
+        maxBuffer: 1024 * 1024
+      })
+      const url = parseGitHubPullRequestUrl(stdout) ?? parseGitHubPullRequestUrl(stderr)
+      let metadata: ReviewMetadata | undefined
+      try {
+        metadata = await this.getReviewMetadata(cwd)
+      } catch {
+        metadata = undefined
+      }
+      const fallbackMetadata = !metadata && url ? reviewMetadataFromPullRequestUrl(url, cleanBase, cleanHead) : undefined
+      return {
+        ok: true,
+        ...(url ? { url } : {}),
+        ...(metadata ?? fallbackMetadata ? { metadata: metadata ?? fallbackMetadata } : {}),
+        baseBranch: cleanBase,
+        headBranch: cleanHead,
+        command
+      }
+    } catch (error) {
+      return {
+        ok: false,
+        baseBranch: cleanBase,
+        headBranch: cleanHead,
+        command,
+        error: commandErrorMessage(error)
+      }
     }
   },
 
@@ -274,6 +430,35 @@ export const gitManager = {
     }
   },
 
+  async commitStaged(cwd: string, message: string): Promise<GitCommitResult> {
+    const cleanMessage = normalizeCommitMessage(message)
+    const changedFiles = await this.getChangedFiles(cwd)
+    if (!cleanMessage) {
+      return { ok: false, changedFiles, error: 'Enter a commit message.' }
+    }
+    if (!changedFiles.some((file) => file.staged)) {
+      return { ok: false, changedFiles, error: 'No staged changes to commit.' }
+    }
+
+    try {
+      const git = simpleGit(cwd)
+      await git.raw(['commit', '-m', cleanMessage])
+      const commit = (await git.raw(['rev-parse', '--short', 'HEAD'])).trim()
+      return {
+        ok: true,
+        changedFiles: await this.getChangedFiles(cwd),
+        commit,
+        message: cleanMessage
+      }
+    } catch (error) {
+      return {
+        ok: false,
+        changedFiles: await this.getChangedFiles(cwd),
+        error: error instanceof Error ? error.message : String(error)
+      }
+    }
+  },
+
   async discardPaths(cwd: string, paths: string[]): Promise<GitPathActionResult> {
     const cleanPaths = normalizePathList(paths)
     if (cleanPaths.length === 0) {
@@ -314,6 +499,41 @@ export const gitManager = {
         paths: cleanPaths,
         changedFiles: await this.getChangedFiles(cwd),
         discarded: false,
+        error: error instanceof Error ? error.message : String(error)
+      }
+    }
+  },
+
+  async reverseApplyDiff(cwd: string, diff: string): Promise<GitPathActionResult> {
+    const cleanDiff = typeof diff === 'string' ? diff.trimEnd() : ''
+    const cleanPaths = pathsFromUnifiedDiff(cleanDiff)
+    if (!cleanDiff || cleanPaths.length === 0) {
+      return { ok: false, paths: [], changedFiles: await this.getChangedFiles(cwd), reverseApplied: false, error: 'No provider diff is available to undo.' }
+    }
+    const unsafePath = cleanPaths.find((path) => !isSafeRelativePath(cwd, path))
+    if (unsafePath) {
+      return {
+        ok: false,
+        paths: cleanPaths,
+        changedFiles: await this.getChangedFiles(cwd),
+        reverseApplied: false,
+        error: `Refusing to reverse-apply unsafe path: ${unsafePath}`
+      }
+    }
+    try {
+      await runGitApply(cwd, ['apply', '--reverse', '--whitespace=nowarn', '-'], `${cleanDiff}\n`)
+      return {
+        ok: true,
+        paths: cleanPaths,
+        changedFiles: await this.getChangedFiles(cwd),
+        reverseApplied: true
+      }
+    } catch (error) {
+      return {
+        ok: false,
+        paths: cleanPaths,
+        changedFiles: await this.getChangedFiles(cwd),
+        reverseApplied: false,
         error: error instanceof Error ? error.message : String(error)
       }
     }
@@ -377,9 +597,14 @@ export const gitManager = {
       if (metadata && threadComments?.commentsByPath) {
         metadata.providerCommentsByPath = threadComments.commentsByPath
       }
+      if (metadata && threadComments?.warning) {
+        metadata.providerWarnings = [...(metadata.providerWarnings ?? []), threadComments.warning]
+      }
       return metadata
-    } catch {
-      return undefined
+    } catch (error) {
+      const message = commandErrorMessage(error)
+      if (isGitHubReviewMetadataUnavailableErrorMessage(message)) return undefined
+      throw new Error(`Review metadata refresh failed: ${firstCommandErrorLine(message) || (error instanceof Error ? error.message : String(error))}`)
     }
   }
 }
@@ -442,7 +667,7 @@ async function getGitHubReviewThreadCommentSummary(
   cwd: string,
   pullRequestId: string,
   url: string | null
-): Promise<{ summary?: ReviewMetadata['comments']; commentsByPath?: NonNullable<ReviewMetadata['providerCommentsByPath']> } | undefined> {
+): Promise<{ summary?: ReviewMetadata['comments']; commentsByPath?: NonNullable<ReviewMetadata['providerCommentsByPath']>; warning?: string } | undefined> {
   try {
     const { stdout } = await execFileAsync('gh', [
       'api',
@@ -458,9 +683,14 @@ async function getGitHubReviewThreadCommentSummary(
       maxBuffer: 1024 * 1024
     })
     return reviewThreadCommentMetadataFromGitHub(JSON.parse(stdout), url)
-  } catch {
-    return undefined
+  } catch (error) {
+    return { warning: reviewProviderMetadataWarningFromCommandError(commandErrorMessage(error)) }
   }
+}
+
+export function reviewProviderMetadataWarningFromCommandError(message: string): string {
+  const firstLine = firstCommandErrorLine(message)
+  return `Inline review comments unavailable${firstLine ? `: ${firstLine}` : ''}`
 }
 
 export function reviewMetadataFromGitHubPullRequestView(value: unknown): ReviewMetadata | undefined {
@@ -647,6 +877,7 @@ export function reviewThreadCommentMetadataFromGitHub(
     if (!resolved) unresolved += 1
     const path = stringValue(thread.path)
     const lineNumber = numberValue(thread.line) ?? numberValue(thread.originalLine)
+    const startLine = numberValue(thread.startLine) ?? numberValue(thread.originalStartLine)
     const side = reviewThreadCommentSide(thread.diffSide)
     const comments = asRecord(thread.comments)
     const commentNodes = Array.isArray(comments?.nodes) ? comments.nodes : []
@@ -666,6 +897,7 @@ export function reviewThreadCommentMetadataFromGitHub(
         source: 'github' as const,
         path,
         side,
+        ...(startLine !== undefined && startLine !== lineNumber ? { startLine } : {}),
         lineNumber,
         body,
         ...(author ? { author } : {}),
@@ -744,6 +976,53 @@ function reviewPullRequestState(value: unknown): NonNullable<ReviewMetadata['pul
   return 'open'
 }
 
+export function parseGitHubPullRequestUrl(value: string): string | undefined {
+  const match = /https:\/\/github\.com\/[^\s/]+\/[^\s/]+\/pull\/\d+/i.exec(value)
+  return match?.[0]
+}
+
+function reviewMetadataFromPullRequestUrl(url: string, baseBranch: string, headBranch: string): ReviewMetadata | undefined {
+  const match = /\/pull\/(\d+)(?:$|[/?#])/i.exec(url)
+  const number = match ? Number.parseInt(match[1], 10) : NaN
+  if (!Number.isFinite(number)) return undefined
+  return {
+    pullRequest: {
+      number,
+      url,
+      state: 'open',
+      branch: headBranch,
+      baseBranch
+    }
+  }
+}
+
+function commandErrorMessage(error: unknown): string {
+  const record = asRecord(error)
+  const stderr = stringValue(record?.stderr)
+  const stdout = stringValue(record?.stdout)
+  if (stderr) return stderr
+  if (stdout) return stdout
+  return error instanceof Error ? error.message : String(error)
+}
+
+export function isGitHubReviewMetadataUnavailableErrorMessage(message: string): boolean {
+  const normalized = message.toLowerCase()
+  return [
+    'no pull requests found',
+    'no pull request found',
+    'no pull request associated',
+    'could not find any pull requests',
+    'there is no pull request'
+  ].some((needle) => normalized.includes(needle))
+}
+
+function firstCommandErrorLine(message: string): string {
+  return message
+    .split('\n')
+    .map((line) => line.trim())
+    .find(Boolean) ?? ''
+}
+
 function numberValue(value: unknown): number | undefined {
   if (typeof value === 'number' && Number.isFinite(value)) return value
   if (typeof value !== 'string') return undefined
@@ -776,11 +1055,112 @@ function normalizePathList(paths: string[]): string[] {
   return clean
 }
 
+function normalizeCommitMessage(message: string): string {
+  return message
+    .replace(/\r\n?/g, '\n')
+    .split('\n')
+    .map((line) => line.trimEnd())
+    .join('\n')
+    .trim()
+}
+
+function normalizeBranchName(branchName: string): string {
+  return branchName.trim()
+}
+
+async function getBranchUpstream(git: ReturnType<typeof simpleGit>, branchName: string): Promise<string | null> {
+  try {
+    const upstream = await git.raw(['rev-parse', '--abbrev-ref', '--symbolic-full-name', `${branchName}@{upstream}`])
+    return upstream.trim() || null
+  } catch {
+    return null
+  }
+}
+
+async function gitRefExists(git: ReturnType<typeof simpleGit>, refName: string): Promise<boolean> {
+  try {
+    const output = await git.raw(['show-ref', '--verify', refName])
+    return output.trim().length > 0
+  } catch {
+    return false
+  }
+}
+
+function shellQuote(value: string): string {
+  return /^[A-Za-z0-9._/@:-]+$/.test(value) ? value : `'${value.replace(/'/g, `'\\''`)}'`
+}
+
+export function parseGitHubRemoteUrl(remoteUrl: string): string | null {
+  const trimmed = remoteUrl.trim().replace(/\/$/, '')
+  if (!trimmed) return null
+  const httpsMatch = /^https:\/\/github\.com\/([^/]+)\/(.+?)(?:\.git)?$/i.exec(trimmed)
+  if (httpsMatch) return normalizeGitHubRepositoryUrl(httpsMatch[1], httpsMatch[2])
+  const sshMatch = /^git@github\.com:([^/]+)\/(.+?)(?:\.git)?$/i.exec(trimmed)
+  if (sshMatch) return normalizeGitHubRepositoryUrl(sshMatch[1], sshMatch[2])
+  const sshUrlMatch = /^ssh:\/\/git@github\.com\/([^/]+)\/(.+?)(?:\.git)?$/i.exec(trimmed)
+  if (sshUrlMatch) return normalizeGitHubRepositoryUrl(sshUrlMatch[1], sshUrlMatch[2])
+  return null
+}
+
+function normalizeGitHubRepositoryUrl(owner: string, repository: string): string | null {
+  const cleanOwner = owner.trim()
+  const cleanRepository = repository.trim().replace(/\.git$/i, '')
+  if (!cleanOwner || !cleanRepository || cleanRepository.includes('/') || cleanRepository.includes('..')) return null
+  return `https://github.com/${cleanOwner}/${cleanRepository}`
+}
+
+function pathsFromUnifiedDiff(diff: string): string[] {
+  const seen = new Set<string>()
+  const paths: string[] = []
+  for (const line of diff.split('\n')) {
+    const match = /^diff --git a\/(.+) b\/(.+)$/.exec(line.trimEnd())
+    if (!match) continue
+    for (const value of [match[1], match[2]]) {
+      const path = normalizeDiffPath(value)
+      if (!path || seen.has(path)) continue
+      seen.add(path)
+      paths.push(path)
+    }
+  }
+  return paths
+}
+
+function normalizeDiffPath(value: string | undefined): string | null {
+  const path = value?.trim()
+  if (!path || path === '/dev/null') return null
+  return path
+}
+
 function isSafeRelativePath(cwd: string, filePath: string): boolean {
   if (filePath.startsWith('/') || filePath.includes('\0')) return false
   const root = resolve(cwd)
   const target = resolve(cwd, filePath)
   return target !== root && target.startsWith(`${root}${sep}`)
+}
+
+function runGitApply(cwd: string, args: string[], input: string): Promise<void> {
+  return new Promise((resolvePromise, reject) => {
+    const child = spawn('git', args, {
+      cwd,
+      stdio: ['pipe', 'pipe', 'pipe']
+    })
+    let stdout = ''
+    let stderr = ''
+    child.stdout.setEncoding('utf8')
+    child.stderr.setEncoding('utf8')
+    child.stdout.on('data', (chunk) => { stdout += String(chunk) })
+    child.stderr.on('data', (chunk) => { stderr += String(chunk) })
+    child.on('error', reject)
+    child.on('close', (code) => {
+      if (code === 0) {
+        resolvePromise()
+        return
+      }
+      const message = stderr.trim() || stdout.trim() || `git ${args.join(' ')} failed with exit code ${code ?? 'unknown'}`
+      reject(new Error(message))
+    })
+    child.stdin.end(input)
+  })
 }
 
 async function getChangedFilesForGitDiff(git: ReturnType<typeof simpleGit>, diffArgs: string[]): Promise<FileChange[]> {

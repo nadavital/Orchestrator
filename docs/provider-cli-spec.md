@@ -157,7 +157,7 @@ Provider features:
 | Computer/browser use | `verified-cli` | Feature flags `computer_use`, `browser_use`, `in_app_browser` true. | Not provider-surfaced. |
 | MCP elicitation | `verified-cli` | Feature flag `tool_call_mcp_elicitation` true; app-server protocol has `mcpServer/elicitation/request`. | Implemented through app-server user-input mapping and response handling. |
 | Request user input | `verified-cli` | Feature flag `default_mode_request_user_input` false; app-server protocol has `item/tool/requestUserInput`. | Implemented through app-server question mapping and response handling. |
-| Auto-review approvals | `verified-schema` | App-server v2 schema exposes `approvalsReviewer: "auto_review"` and config key `approvals_reviewer`. | Advanced Codex permission mode passes the config; live behavior still needs approval-producing verification. |
+| Auto-review approvals | `verified-schema` | App-server v2 schema exposes `approvalsReviewer: "auto_review"` and config key `approvals_reviewer`. | Advanced Codex permission mode passes the config; live user-review command approval is proven by `npm run live:codex-composer-approval`, but auto-review-specific behavior still needs approval-producing verification. |
 | Hooks | `verified-cli` | Feature flag `codex_hooks` true. | Not surfaced. |
 | Runtime metrics | `verified-cli` | Feature flag `runtime_metrics` false/under development. | Not surfaced. |
 

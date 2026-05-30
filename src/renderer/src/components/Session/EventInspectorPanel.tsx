@@ -1,7 +1,7 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useSessionStore } from '../../store/sessions'
-import type { AgentNode, AgentStatus, Session } from '../../types'
-import { Badge, InspectorCard, MetricPill, PanelHeader, TabButton } from '../shared/designSystem'
+import type { AgentNode, AgentStatus, Session, SessionRunEventRecord } from '../../types'
+import { Badge, InspectorCard, InspectorRow, InspectorSection, MetricPill, PanelHeader, TabButton, ToolbarButton, WorkbenchSearchField } from '../shared/designSystem'
 import { deriveSessionAgentNodes } from './agentNodes'
 
 interface Props {
@@ -10,9 +10,30 @@ interface Props {
   activeAgentId?: string | null
 }
 
+type EventSeverityFilter = 'all' | 'issues' | 'failures' | 'waiting'
+type EventSourceFilter = 'all' | 'agents' | 'tools' | 'approvals' | 'connection'
+type FailureCauseGroup = {
+  cause: string
+  count: number
+  latest: string
+  timestamp: number
+  records: SessionRunEventRecord[]
+}
+
+async function writeClipboardText(text: string): Promise<void> {
+  if (typeof window.api.clipboard?.writeText === 'function') {
+    const didWrite = await window.api.clipboard.writeText(text)
+    if (didWrite === false) throw new Error('clipboard write failed')
+    return
+  }
+  await navigator.clipboard.writeText(text)
+}
+
 export default function EventInspectorPanel({ session, embedded = false, activeAgentId = null }: Props): JSX.Element {
-  const { eventBuffers, uiState, setActiveAgent, closeAgentTab } = useSessionStore()
+  const { eventBuffers, rawBuffers, uiState, setActiveAgent, closeAgentTab } = useSessionStore()
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null)
   const events = eventBuffers[session.id] ?? []
+  const rawLog = rawBuffers[session.id] ?? ''
   const agents = useMemo(() => deriveSessionAgentNodes(session, events), [events, session])
   const openAgentIds = uiState[session.id]?.agentTabIds ?? (activeAgentId ? [activeAgentId] : [])
   const pinnedAgents = openAgentIds
@@ -24,6 +45,11 @@ export default function EventInspectorPanel({ session, embedded = false, activeA
     [activeAgentId, visibleAgents]
   )
   const stats = useMemo(() => agentStats(agents), [agents])
+  const recentEvents = useMemo(() => events.slice(-4).reverse(), [events])
+  const selectedEvent = useMemo(
+    () => events.find((record) => record.id === selectedEventId) ?? recentEvents[0] ?? null,
+    [events, recentEvents, selectedEventId]
+  )
 
   return (
     <section
@@ -44,9 +70,20 @@ export default function EventInspectorPanel({ session, embedded = false, activeA
       )}
 
       {(!embedded || stats.total > 0) && <AgentOverview stats={stats} embedded={embedded} />}
+      <SessionContextSummary
+        session={session}
+        stats={stats}
+        events={events}
+        recentEvents={recentEvents}
+        rawLog={rawLog}
+        selectedEventId={selectedEvent?.id ?? null}
+        selectedEvent={selectedEvent}
+        embedded={embedded}
+        onSelectEvent={setSelectedEventId}
+      />
 
       {visibleAgents.length === 0 ? (
-        <EmptyState providerId={session.provider ?? 'provider'} embedded={embedded} />
+        <EmptyState providerId={session.provider ?? 'provider'} embedded={embedded} hasEvents={events.length > 0} />
       ) : (
         <div className="flex flex-col min-h-0 min-w-0 flex-1 overflow-hidden">
           <div
@@ -66,7 +103,15 @@ export default function EventInspectorPanel({ session, embedded = false, activeA
             </div>
           </div>
 
-          {selectedAgent && <AgentConversation agent={selectedAgent} />}
+          {selectedAgent && (
+            <AgentConversation
+              session={session}
+              agent={selectedAgent}
+              events={events}
+              selectedEventId={selectedEvent?.id ?? null}
+              onSelectEvent={setSelectedEventId}
+            />
+          )}
         </div>
       )}
     </section>
@@ -112,14 +157,741 @@ function AgentStat({ label, value, tone }: { label: string; value: number; tone:
   )
 }
 
-function EmptyState({ providerId, embedded = false }: { providerId: string; embedded?: boolean }): JSX.Element {
+function SessionContextSummary({
+  session,
+  stats,
+  events,
+  recentEvents,
+  rawLog,
+  selectedEventId,
+  selectedEvent,
+  onSelectEvent,
+  embedded = false
+}: {
+  session: Session
+  stats: ReturnType<typeof agentStats>
+  events: SessionRunEventRecord[]
+  recentEvents: SessionRunEventRecord[]
+  rawLog: string
+  selectedEventId: string | null
+  selectedEvent: SessionRunEventRecord | null
+  onSelectEvent: (id: string) => void
+  embedded?: boolean
+}): JSX.Element {
+  const [eventQuery, setEventQuery] = useState('')
+  const [eventSeverityFilter, setEventSeverityFilter] = useState<EventSeverityFilter>('all')
+  const [eventSourceFilter, setEventSourceFilter] = useState<EventSourceFilter>('all')
+  const [sessionActionStatus, setSessionActionStatus] = useState<string | null>(null)
+  const [issueActionStatus, setIssueActionStatus] = useState<string | null>(null)
+  const [transportActionStatus, setTransportActionStatus] = useState<string | null>(null)
+  const messageCount = session.messageCount ?? session.messages.length
+  const workDirLabel = compactPath(session.workDir)
+  const transportLines = useMemo(() => transportLogLines(rawLog), [rawLog])
+  const visibleEvents = useMemo(() => {
+    const query = eventQuery.trim().toLowerCase()
+    const hasActiveFilter = eventSeverityFilter !== 'all' || eventSourceFilter !== 'all'
+    const candidates = query || hasActiveFilter
+      ? events.slice().reverse()
+      : recentEvents
+    return candidates
+      .filter((record) => eventMatchesSeverityFilter(record, eventSeverityFilter))
+      .filter((record) => eventMatchesSourceFilter(record, eventSourceFilter))
+      .filter((record) => !query || eventSearchText(record).includes(query))
+      .slice(0, query || hasActiveFilter ? 8 : 4)
+  }, [eventQuery, eventSeverityFilter, eventSourceFilter, events, recentEvents])
+  const issueEvents = useMemo(() => (
+    events
+      .slice()
+      .reverse()
+      .filter(isRuntimeIssueEvent)
+      .slice(0, 4)
+  ), [events])
+  const runtimeIssueCounts = useMemo(() => {
+    return issueEvents.reduce((counts, record) => {
+      if (eventTone(record) === 'danger') counts.failures += 1
+      else counts.waiting += 1
+      return counts
+    }, { failures: 0, waiting: 0 })
+  }, [issueEvents])
+  const failureCauseGroups = useMemo(() => groupFailureCauses(issueEvents), [issueEvents])
+  const buildSessionContextText = (): string => sessionContextSummaryText({
+    session,
+    stats,
+    events,
+    visibleEvents,
+    transportLines
+  })
+  const copySessionContext = async (): Promise<void> => {
+    try {
+      await writeClipboardText(buildSessionContextText())
+      setSessionActionStatus('Session context copied')
+    } catch {
+      setSessionActionStatus('Unable to copy session context')
+    }
+  }
+  const addSessionContextToChat = (): void => {
+    window.dispatchEvent(new CustomEvent('orchestrator:add-composer-text', {
+      detail: {
+        text: buildSessionContextText()
+      }
+    }))
+    setSessionActionStatus('Session context added to chat')
+  }
+  const buildFailureGroupText = (group: FailureCauseGroup): string => [
+    'Investigate this runtime failure group:',
+    `Thread: ${session.title || session.id}`,
+    `Runtime: ${[session.provider, session.model].filter(Boolean).join(' / ') || 'Unknown runtime'}`,
+    `Status: ${session.status}`,
+    `Workspace: ${session.workDir || 'Unknown workspace'}`,
+    `Cause: ${group.cause}`,
+    `Count: ${group.count}`,
+    `Latest: ${group.latest}`,
+    '',
+    'Events:',
+    ...group.records
+      .slice()
+      .sort((a, b) => b.timestamp - a.timestamp)
+      .slice(0, 4)
+      .map((record) => `- ${record.event.type} at ${formatClockTime(record.timestamp)}: ${failureDetail(record)}`)
+  ].join('\n')
+  const copyFailureGroup = async (group: FailureCauseGroup): Promise<void> => {
+    try {
+      await writeClipboardText(buildFailureGroupText(group))
+      setIssueActionStatus('Failure group copied')
+    } catch {
+      setIssueActionStatus('Unable to copy failure group')
+    }
+  }
+  const addFailureGroupToChat = (group: FailureCauseGroup): void => {
+    window.dispatchEvent(new CustomEvent('orchestrator:add-composer-text', {
+      detail: {
+        text: buildFailureGroupText(group)
+      }
+    }))
+    setIssueActionStatus('Failure group added to chat')
+  }
+  const buildTransportLogText = (): string => [
+    'Investigate this provider transport log excerpt:',
+    `Thread: ${session.title || session.id}`,
+    `Runtime: ${[session.provider, session.model].filter(Boolean).join(' / ') || 'Unknown runtime'}`,
+    `Status: ${session.status}`,
+    `Workspace: ${session.workDir || 'Unknown workspace'}`,
+    '',
+    'Recent redacted transport lines:',
+    ...transportLines.map((line) => `- ${line.label}: ${line.preview}`)
+  ].join('\n')
+  const copyTransportLog = async (): Promise<void> => {
+    if (transportLines.length === 0) return
+    try {
+      await writeClipboardText(buildTransportLogText())
+      setTransportActionStatus('Transport log copied')
+    } catch {
+      setTransportActionStatus('Unable to copy transport log')
+    }
+  }
+  const addTransportLogToChat = (): void => {
+    if (transportLines.length === 0) return
+    window.dispatchEvent(new CustomEvent('orchestrator:add-composer-text', {
+      detail: {
+        text: buildTransportLogText()
+      }
+    }))
+    setTransportActionStatus('Transport log added to chat')
+  }
+
+  return (
+    <div
+      className={`grid shrink-0 gap-2 ${embedded ? 'px-2 py-2' : 'px-4 py-3'}`}
+      data-testid="agent-session-context"
+      style={{ borderBottom: '1px solid var(--border-subtle)' }}
+    >
+      <InspectorSection
+        title={(
+          <div className="flex min-w-0 items-center justify-between gap-2">
+            <span className="truncate">Session</span>
+            <div className="flex shrink-0 items-center gap-1">
+              <ToolbarButton
+                icon="copy"
+                label="Copy session context"
+                dataTestId="agent-session-context-copy"
+                onClick={() => { void copySessionContext() }}
+                size="sm"
+                variant="toolbar"
+              />
+              <ToolbarButton
+                icon="chat"
+                label="Add session context to chat"
+                dataTestId="agent-session-context-add-to-chat"
+                onClick={addSessionContextToChat}
+                size="sm"
+                variant="toolbar"
+              />
+            </div>
+          </div>
+        )}
+        variant="raised"
+      >
+        <InspectorRow dataTestId="agent-session-runtime">
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-xs font-semibold" style={{ color: 'var(--color-text)' }}>
+              {[session.provider, session.model].filter(Boolean).join(' · ') || 'Runtime'}
+            </div>
+            <div className="truncate text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
+              {workDirLabel}
+            </div>
+          </div>
+          <Badge tone={sessionStatusTone(session.status)}>{session.status}</Badge>
+        </InspectorRow>
+        <div className="grid grid-cols-3 gap-1.5">
+          <CompactMetric label="Messages" value={messageCount} />
+          <CompactMetric label="Events" value={events.length} />
+          <CompactMetric label="Agents" value={stats.total} />
+        </div>
+        {sessionActionStatus && (
+          <div
+            className="rounded-md px-2 py-1 text-[11px]"
+            data-testid="agent-session-context-action-status"
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+            style={{
+              color: 'var(--accent)',
+              background: 'color-mix(in srgb, var(--accent) 8%, var(--surface-bg))',
+              border: '1px solid var(--border-subtle)'
+            }}
+          >
+            {sessionActionStatus}
+          </div>
+        )}
+      </InspectorSection>
+
+      {issueEvents.length > 0 && (
+        <InspectorSection
+          title="Runtime issues"
+          dataTestId="agent-runtime-issues"
+          className="gap-2"
+        >
+          <div
+            className="grid grid-cols-2 gap-1.5"
+            data-testid="agent-runtime-issue-summary"
+            data-agent-runtime-issue-count={issueEvents.length}
+            data-agent-runtime-failure-count={runtimeIssueCounts.failures}
+            data-agent-runtime-waiting-count={runtimeIssueCounts.waiting}
+          >
+            <CompactMetric label="Failures" value={runtimeIssueCounts.failures} />
+            <CompactMetric label="Waiting" value={runtimeIssueCounts.waiting} />
+          </div>
+          {failureCauseGroups.length > 0 && (
+            <div
+              className="grid gap-1.5"
+              data-testid="agent-runtime-failure-groups"
+              data-agent-runtime-failure-group-count={failureCauseGroups.length}
+            >
+              {failureCauseGroups.map((group) => (
+                <InspectorRow
+                  key={group.cause}
+                  variant="muted"
+                  dataTestId="agent-runtime-failure-group"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-[11px] font-semibold" style={{ color: 'var(--color-text)' }}>
+                      {group.cause}
+                    </div>
+                    <div className="truncate text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
+                      {group.latest}
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <ToolbarButton
+                      icon="copy"
+                      label={`Copy ${group.cause} failure group`}
+                      dataTestId="agent-runtime-failure-group-copy"
+                      onClick={() => { void copyFailureGroup(group) }}
+                      size="sm"
+                      variant="toolbar"
+                    />
+                    <ToolbarButton
+                      icon="chat"
+                      label={`Add ${group.cause} failure group to chat`}
+                      dataTestId="agent-runtime-failure-group-add-to-chat"
+                      onClick={() => addFailureGroupToChat(group)}
+                      size="sm"
+                      variant="toolbar"
+                    />
+                  </div>
+                  <Badge tone="danger">{group.count}</Badge>
+                </InspectorRow>
+              ))}
+            </div>
+          )}
+          {issueActionStatus && (
+            <div
+              className="rounded-md px-2 py-1 text-[11px]"
+              data-testid="agent-runtime-issue-action-status"
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+              style={{
+                color: 'var(--accent)',
+                background: 'color-mix(in srgb, var(--accent) 8%, var(--surface-bg))',
+                border: '1px solid var(--border-subtle)'
+              }}
+            >
+              {issueActionStatus}
+            </div>
+          )}
+          <div className="grid gap-1.5">
+            {issueEvents.map((record) => (
+              <button
+                key={record.id}
+                type="button"
+                className="orchestrator-inspector-row text-left"
+                data-inspector-row="true"
+                data-inspector-row-variant="muted"
+                data-testid="agent-runtime-issue"
+                data-agent-event-selected={selectedEventId === record.id ? 'true' : 'false'}
+                aria-pressed={selectedEventId === record.id}
+                aria-label={eventActionLabel(record)}
+                onClick={() => onSelectEvent(record.id)}
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[11px] font-semibold" style={{ color: 'var(--color-text)' }}>
+                    {eventTitle(record)}
+                  </div>
+                  <div className="truncate text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
+                    {formatClockTime(record.timestamp)}
+                  </div>
+                </div>
+                <Badge tone={eventTone(record)}>{eventBadge(record)}</Badge>
+              </button>
+            ))}
+          </div>
+        </InspectorSection>
+      )}
+
+      {transportLines.length > 0 && (
+        <InspectorSection
+          title={(
+            <span className="flex min-w-0 items-center justify-between gap-2">
+              <span className="truncate">Transport log</span>
+              <span className="flex shrink-0 items-center gap-1">
+                <ToolbarButton
+                  icon="copy"
+                  label="Copy transport log"
+                  dataTestId="agent-transport-log-copy"
+                  onClick={() => { void copyTransportLog() }}
+                  size="sm"
+                  variant="toolbar"
+                />
+                <ToolbarButton
+                  icon="chat"
+                  label="Add transport log to chat"
+                  dataTestId="agent-transport-log-add-to-chat"
+                  onClick={addTransportLogToChat}
+                  size="sm"
+                  variant="toolbar"
+                />
+              </span>
+            </span>
+          )}
+          dataTestId="agent-transport-log"
+          className="gap-1.5"
+        >
+          <div
+            className="grid gap-1.5"
+            data-testid="agent-transport-log-list"
+            data-agent-transport-log-bytes={rawLog.length}
+            data-agent-transport-log-lines={transportLines.length}
+          >
+            {transportLines.map((line, index) => (
+              <InspectorRow
+                key={`${line.label}-${index}`}
+                variant="muted"
+                dataTestId="agent-transport-log-line"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[11px] font-semibold" style={{ color: 'var(--color-text)' }}>
+                    {line.label}
+                  </div>
+                  <div className="truncate text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
+                    {line.preview}
+                  </div>
+                </div>
+                <Badge tone="neutral">raw</Badge>
+              </InspectorRow>
+            ))}
+          </div>
+          {transportActionStatus && (
+            <div
+              className="rounded-md px-2 py-1 text-[11px]"
+              data-testid="agent-transport-log-action-status"
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+              style={{
+                color: 'var(--accent)',
+                background: 'color-mix(in srgb, var(--accent) 8%, var(--surface-bg))',
+                border: '1px solid var(--border-subtle)'
+              }}
+            >
+              {transportActionStatus}
+            </div>
+          )}
+        </InspectorSection>
+      )}
+
+      {recentEvents.length > 0 && (
+        <InspectorSection
+          title="Recent activity"
+          dataTestId="agent-recent-events"
+          className="gap-2"
+        >
+          <WorkbenchSearchField
+            value={eventQuery}
+            onChange={setEventQuery}
+            placeholder="Search runtime events"
+            clearLabel="Clear runtime event search"
+            dataTestId="agent-event-search"
+            clearDataTestId="agent-event-search-clear"
+            className="w-full"
+            inputClassName="text-[11px]"
+            ariaLabel="Search runtime events"
+          />
+          <div
+            className="grid grid-cols-2 gap-1.5"
+            data-testid="agent-event-filter-controls"
+            data-agent-event-severity-filter={eventSeverityFilter}
+            data-agent-event-source-filter={eventSourceFilter}
+          >
+            <EventFilterSelect<EventSeverityFilter>
+              label="Severity"
+              value={eventSeverityFilter}
+              dataTestId="agent-event-severity-filter"
+              onChange={setEventSeverityFilter}
+              options={[
+                { value: 'all', label: 'All severities' },
+                { value: 'issues', label: 'Issues only' },
+                { value: 'failures', label: 'Failures' },
+                { value: 'waiting', label: 'Waiting' }
+              ]}
+            />
+            <EventFilterSelect<EventSourceFilter>
+              label="Source"
+              value={eventSourceFilter}
+              dataTestId="agent-event-source-filter"
+              onChange={setEventSourceFilter}
+              options={[
+                { value: 'all', label: 'All sources' },
+                { value: 'agents', label: 'Agents' },
+                { value: 'tools', label: 'Tools' },
+                { value: 'approvals', label: 'Approvals' },
+                { value: 'connection', label: 'Connection' }
+              ]}
+            />
+          </div>
+          <div
+            className="grid gap-1.5"
+            data-testid="agent-recent-event-list"
+            data-agent-event-filtered-count={visibleEvents.length}
+            data-agent-event-query-active={eventQuery.trim() ? 'true' : 'false'}
+            data-agent-event-severity-filter={eventSeverityFilter}
+            data-agent-event-source-filter={eventSourceFilter}
+          >
+            {visibleEvents.length > 0 ? visibleEvents.map((record) => (
+              <button
+                key={record.id}
+                type="button"
+                className="orchestrator-inspector-row text-left"
+                data-inspector-row="true"
+                data-inspector-row-variant="muted"
+                data-testid="agent-recent-event"
+                data-agent-event-selected={selectedEventId === record.id ? 'true' : 'false'}
+                aria-pressed={selectedEventId === record.id}
+                aria-label={eventActionLabel(record)}
+                onClick={() => onSelectEvent(record.id)}
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[11px] font-semibold" style={{ color: 'var(--color-text)' }}>
+                    {eventTitle(record)}
+                  </div>
+                  <div className="truncate text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
+                    {formatClockTime(record.timestamp)}
+                  </div>
+                </div>
+                <Badge tone={eventTone(record)}>{eventBadge(record)}</Badge>
+              </button>
+            )) : (
+              <div
+                className="rounded-md px-2 py-1.5 text-[11px]"
+                data-testid="agent-recent-event-empty"
+                style={{
+                  background: 'var(--surface-muted)',
+                  color: 'var(--color-text-muted)',
+                  border: '1px solid var(--border-subtle)'
+                }}
+              >
+                No matching runtime events.
+              </div>
+            )}
+          </div>
+        </InspectorSection>
+      )}
+
+      {selectedEvent && (
+        <EventDetailCard session={session} record={selectedEvent} />
+      )}
+    </div>
+  )
+}
+
+function EventDetailCard({ session, record }: { session: Session; record: SessionRunEventRecord }): JSX.Element {
+  const payload = compactJson(record.event)
+  const [copyStatus, setCopyStatus] = useState<string | null>(null)
+  const copyPayload = (): void => {
+    const writeText = window.api.clipboard?.writeText
+      ? window.api.clipboard.writeText(payload).then(() => undefined)
+      : navigator.clipboard.writeText(payload)
+    void writeText
+      .then(() => setCopyStatus('Event payload copied'))
+      .catch(() => setCopyStatus('Unable to copy event payload'))
+  }
+  const addEventToChat = (): void => {
+    window.dispatchEvent(new CustomEvent('orchestrator:add-composer-text', {
+      detail: {
+        text: [
+          'Investigate this runtime event:',
+          `Thread: ${session.title || session.id}`,
+          `Runtime: ${[session.provider, session.model].filter(Boolean).join(' / ') || 'Unknown runtime'}`,
+          `Status: ${session.status}`,
+          `Workspace: ${session.workDir || 'Unknown workspace'}`,
+          `Type: ${record.event.type}`,
+          `Time: ${formatClockTime(record.timestamp)}`,
+          '',
+          payload
+        ].join('\n')
+      }
+    }))
+    setCopyStatus('Event added to chat')
+  }
+  const waitingCardKind = record.event.type === 'permission.requested'
+    ? 'permission'
+    : record.event.type === 'user_input.requested'
+      ? 'user_input'
+      : null
+  const openWaitingCardInChat = (): void => {
+    if (!waitingCardKind) return
+    window.dispatchEvent(new CustomEvent('orchestrator:focus-waiting-card', {
+      detail: { sessionId: session.id, kind: waitingCardKind }
+    }))
+    setCopyStatus(waitingCardKind === 'user_input' ? 'User input request opened in chat' : 'Permission request opened in chat')
+  }
+
+  return (
+    <InspectorSection title="Event detail" dataTestId="agent-event-detail">
+      <InspectorRow dataTestId="agent-event-detail-summary" variant="muted">
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-[11px] font-semibold" style={{ color: 'var(--color-text)' }}>
+            {eventTitle(record)}
+          </div>
+          <div className="truncate text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
+            {formatClockTime(record.timestamp)}
+          </div>
+        </div>
+        <Badge tone={eventTone(record)}>{record.event.type}</Badge>
+      </InspectorRow>
+      <div className="flex min-w-0 items-center gap-1.5" data-testid="agent-event-detail-actions" aria-label="Runtime event actions">
+        <ToolbarButton
+          icon="copy"
+          label="Copy payload"
+          dataTestId="agent-event-detail-copy"
+          onClick={copyPayload}
+          size="sm"
+          variant="toolbar"
+        />
+        <ToolbarButton
+          icon="chat"
+          label="Add to chat"
+          dataTestId="agent-event-detail-add-to-chat"
+          onClick={addEventToChat}
+          size="sm"
+          variant="toolbar"
+        />
+        {waitingCardKind && (
+          <ToolbarButton
+            icon="arrowRight"
+            label={waitingCardKind === 'user_input' ? 'Open question in chat' : 'Open approval in chat'}
+            dataTestId="agent-event-detail-open-in-chat"
+            onClick={openWaitingCardInChat}
+            size="sm"
+            variant="toolbar"
+          />
+        )}
+        {copyStatus && (
+          <span
+            className="min-w-0 truncate rounded-md px-2 py-1 text-[11px]"
+            data-testid="agent-event-detail-copy-status"
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+            style={{
+              color: copyStatus.startsWith('Unable') ? 'var(--state-danger)' : 'var(--accent)',
+              background: copyStatus.startsWith('Unable')
+                ? 'color-mix(in srgb, var(--state-danger) 8%, var(--surface-bg))'
+                : 'color-mix(in srgb, var(--accent) 8%, var(--surface-bg))',
+              border: '1px solid var(--border-subtle)'
+            }}
+          >
+            {copyStatus}
+          </span>
+        )}
+      </div>
+      <pre
+        className="m-0 max-h-32 overflow-auto rounded-md px-2 py-1.5 text-[11px]"
+        data-testid="agent-event-detail-payload"
+        style={{
+          background: 'color-mix(in srgb, var(--surface-bg) 86%, var(--canvas-bg))',
+          border: '1px solid var(--border-subtle)',
+          color: 'var(--color-text-muted)',
+          lineHeight: 1.45,
+          whiteSpace: 'pre-wrap',
+          overflowWrap: 'anywhere'
+        }}
+      >
+        {payload}
+      </pre>
+    </InspectorSection>
+  )
+}
+
+function transportLogLines(rawLog: string): Array<{ label: string; preview: string }> {
+  return rawLog
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .slice(-4)
+    .map((line) => ({
+      label: transportLogLabel(line),
+      preview: compactText(transportLogPreview(line))
+    }))
+}
+
+function transportLogLabel(line: string): string {
+  try {
+    const parsed = JSON.parse(line) as unknown
+    if (!parsed || typeof parsed !== 'object') return 'Provider output'
+    const record = parsed as Record<string, unknown>
+    const type = typeof record.type === 'string' ? record.type : null
+    const subtype = typeof record.subtype === 'string' ? record.subtype : null
+    if (type && subtype) return `${type}.${subtype}`
+    if (type) return type
+  } catch {
+    // Non-JSON stdout/stderr remains useful as raw transport context.
+  }
+  return 'Provider output'
+}
+
+function transportLogPreview(line: string): string {
+  try {
+    const parsed = JSON.parse(line) as unknown
+    if (parsed && typeof parsed === 'object') {
+      const record = parsed as Record<string, unknown>
+      if (typeof record.content === 'string') return redactTransportLogLine(record.content)
+      const message = record.message
+      if (message && typeof message === 'object') {
+        const content = (message as Record<string, unknown>).content
+        if (typeof content === 'string') return redactTransportLogLine(content)
+      }
+      const sessionId = typeof record.session_id === 'string' ? record.session_id : null
+      const redacted = redactTransportLogLine(line)
+      if (sessionId) {
+        return redacted.includes('[redacted]')
+          ? `session ${sessionId} · [redacted]`
+          : `session ${sessionId}`
+      }
+      return redacted
+    }
+  } catch {
+    // Fall through to redacted raw text.
+  }
+  return redactTransportLogLine(line)
+}
+
+function redactTransportLogLine(line: string): string {
+  return line
+    .replace(/(api[_-]?key|token|secret|password)(["'\s:=]+)([^"',\s}]+)/gi, '$1$2[redacted]')
+    .replace(/sk-[A-Za-z0-9_-]{12,}/g, 'sk-[redacted]')
+}
+
+function CompactMetric({ label, value }: { label: string; value: number }): JSX.Element {
+  return (
+    <InspectorCard className="rounded-md px-2 py-1.5 min-w-0">
+      <div className="truncate text-[10.5px] font-semibold" style={{ color: 'var(--color-text-muted)' }}>
+        {label}
+      </div>
+      <div className="truncate text-xs font-semibold" style={{ color: 'var(--color-text)' }}>
+        {value}
+      </div>
+    </InspectorCard>
+  )
+}
+
+function EventFilterSelect<T extends string>({
+  label,
+  value,
+  options,
+  dataTestId,
+  onChange
+}: {
+  label: string
+  value: T
+  options: Array<{ value: T; label: string }>
+  dataTestId: string
+  onChange: (value: T) => void
+}): JSX.Element {
+  return (
+    <label className="grid min-w-0 gap-1">
+      <span className="truncate text-[10.5px] font-semibold" style={{ color: 'var(--color-text-muted)' }}>
+        {label}
+      </span>
+      <select
+        value={value}
+        data-testid={dataTestId}
+        onChange={(event) => onChange(event.target.value as T)}
+        className="h-7 min-w-0 rounded-md px-2 text-[11px] font-medium outline-none"
+        style={{
+          background: 'var(--surface-bg)',
+          border: '1px solid var(--border-subtle)',
+          color: 'var(--color-text)'
+        }}
+      >
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  )
+}
+
+function EmptyState({
+  providerId,
+  embedded = false,
+  hasEvents = false
+}: {
+  providerId: string
+  embedded?: boolean
+  hasEvents?: boolean
+}): JSX.Element {
   const title = embedded ? 'No agents yet' : 'No agent activity yet'
   const body = embedded
-    ? 'Agent transcripts will appear here.'
+    ? hasEvents
+      ? 'This session has runtime activity, but no subagent transcript has been opened yet.'
+      : 'Session diagnostics are available above. Agent transcripts will appear here when a side task starts.'
     : `When ${providerId} starts a subagent or side task, its status and transcript will appear here.`
 
   return (
-    <div className="flex-1 min-h-0 p-3">
+    <div className="flex-1 min-h-0 overflow-y-auto p-3" data-testid="agent-empty-state">
       <InspectorCard className="p-3">
         <div className="text-xs font-semibold" style={{ color: 'var(--color-text)' }}>
           {title}
@@ -130,6 +902,182 @@ function EmptyState({ providerId, embedded = false }: { providerId: string; embe
       </InspectorCard>
     </div>
   )
+}
+
+function sessionStatusTone(status: Session['status']): 'accent' | 'success' | 'warning' | 'danger' | 'neutral' {
+  if (status === 'running') return 'success'
+  if (status === 'waiting_for_permission' || status === 'waiting_for_user') return 'warning'
+  if (status === 'provider_error' || status === 'auth_error' || status === 'model_error' || status === 'quota_error' || status === 'rate_limit_error' || status === 'error') return 'danger'
+  if (status === 'idle') return 'accent'
+  return 'neutral'
+}
+
+function sessionContextSummaryText({
+  session,
+  stats,
+  events,
+  visibleEvents,
+  transportLines
+}: {
+  session: Session
+  stats: ReturnType<typeof agentStats>
+  events: SessionRunEventRecord[]
+  visibleEvents: SessionRunEventRecord[]
+  transportLines: ReturnType<typeof transportLogLines>
+}): string {
+  const runtime = [session.provider, session.model].filter(Boolean).join(' / ') || 'Unknown runtime'
+  const messageCount = session.messageCount ?? session.messages.length
+  return [
+    'Use this agent activity session context:',
+    `Thread: ${session.title || session.id}`,
+    `Runtime: ${runtime}`,
+    `Status: ${session.status}`,
+    `Workspace: ${session.workDir || 'Unknown workspace'}`,
+    `Messages: ${messageCount}`,
+    `Events: ${events.length}`,
+    `Agents: ${stats.total} total, ${stats.active} active, ${stats.waiting} waiting, ${stats.issues} issues`,
+    '',
+    'Recent visible events:',
+    ...(visibleEvents.length > 0
+      ? visibleEvents.slice(0, 6).map((record) => `- ${record.event.type} at ${formatClockTime(record.timestamp)}: ${failureDetail(record)}`)
+      : ['- None']),
+    ...(transportLines.length > 0
+      ? [
+          '',
+          'Recent redacted transport lines:',
+          ...transportLines.slice(0, 4).map((line) => `- ${line.label}: ${line.preview}`)
+        ]
+      : [])
+  ].join('\n')
+}
+
+function eventTone(record: SessionRunEventRecord): 'accent' | 'success' | 'warning' | 'danger' | 'neutral' {
+  const { type } = record.event
+  if (type === 'run.failed' || type === 'agent.failed') return 'danger'
+  if (type === 'tool.completed' && record.event.isError) return 'danger'
+  if (type === 'permission.requested' || type === 'user_input.requested' || type === 'connection.reconnecting' || type === 'connection.retrying') return 'warning'
+  if (type === 'run.completed' || type === 'agent.completed' || type === 'tool.completed') return 'success'
+  if (type.startsWith('assistant.') || type.startsWith('agent.')) return 'accent'
+  return 'neutral'
+}
+
+function eventBadge(record: SessionRunEventRecord): string {
+  return record.event.type.split('.')[0]
+}
+
+function eventActionLabel(record: SessionRunEventRecord): string {
+  return `${eventTitle(record)}, ${eventBadge(record)} event, ${formatClockTime(record.timestamp)}`
+}
+
+function isRuntimeIssueEvent(record: SessionRunEventRecord): boolean {
+  const { event } = record
+  if (event.type === 'run.failed' || event.type === 'agent.failed') return true
+  if (event.type === 'tool.completed') return event.isError
+  return event.type === 'permission.requested' ||
+    event.type === 'user_input.requested' ||
+    event.type === 'connection.reconnecting' ||
+    event.type === 'connection.retrying'
+}
+
+function groupFailureCauses(records: SessionRunEventRecord[]): FailureCauseGroup[] {
+  const groups = new Map<string, FailureCauseGroup>()
+  for (const record of records) {
+    if (eventTone(record) !== 'danger') continue
+    const cause = failureCause(record)
+    const previous = groups.get(cause)
+    if (!previous || record.timestamp > previous.timestamp) {
+      groups.set(cause, {
+        cause,
+        count: (previous?.count ?? 0) + 1,
+        latest: failureDetail(record),
+        timestamp: record.timestamp,
+        records: previous ? [...previous.records, record] : [record]
+      })
+    } else {
+      previous.count += 1
+      previous.records.push(record)
+    }
+  }
+  return [...groups.values()].sort((a, b) => b.count - a.count || b.timestamp - a.timestamp)
+}
+
+function failureCause(record: SessionRunEventRecord): string {
+  const { event } = record
+  if (event.type === 'tool.completed' && event.isError) return `Tool: ${event.toolUseId}`
+  if (event.type === 'agent.failed') return 'Agent failed'
+  if (event.type === 'run.failed') return 'Provider run'
+  return 'Failure'
+}
+
+function failureDetail(record: SessionRunEventRecord): string {
+  const { event } = record
+  if (event.type === 'tool.completed' && event.isError) return compactText(event.content)
+  if (event.type === 'agent.failed') return event.agent.summary ?? event.agent.name ?? event.agent.id
+  if (event.type === 'run.failed') return event.content ?? 'Run failed'
+  return eventTitle(record)
+}
+
+function eventMatchesSeverityFilter(record: SessionRunEventRecord, filter: EventSeverityFilter): boolean {
+  if (filter === 'all') return true
+  if (filter === 'issues') return isRuntimeIssueEvent(record)
+  const tone = eventTone(record)
+  if (filter === 'failures') return tone === 'danger'
+  return tone === 'warning'
+}
+
+function eventMatchesSourceFilter(record: SessionRunEventRecord, filter: EventSourceFilter): boolean {
+  if (filter === 'all') return true
+  const { type } = record.event
+  if (filter === 'agents') return type.startsWith('agent.')
+  if (filter === 'tools') return type.startsWith('tool.')
+  if (filter === 'approvals') return type === 'permission.requested' || type === 'user_input.requested'
+  return type === 'connection.reconnecting' || type === 'connection.retrying'
+}
+
+function eventTitle(record: SessionRunEventRecord): string {
+  const { event } = record
+  if (event.type === 'assistant.status') return event.content || 'Assistant status'
+  if (event.type === 'assistant.text' || event.type === 'assistant.text.delta') return compactText(event.content)
+  if (event.type === 'tool.started') return `Started ${event.toolName}`
+  if (event.type === 'tool.completed') return event.isError ? 'Tool failed' : 'Tool completed'
+  if (event.type === 'agent.started' || event.type === 'agent.updated' || event.type === 'agent.completed' || event.type === 'agent.failed') {
+    return event.agent.name ?? event.agent.role ?? event.agent.id
+  }
+  if (event.type === 'permission.requested') return event.content ?? 'Permission requested'
+  if (event.type === 'user_input.requested') return event.content
+  if (event.type === 'run.failed') return event.content ?? 'Run failed'
+  if (event.type === 'run.completed') return event.content ?? 'Run completed'
+  return event.type.replace(/\./g, ' ')
+}
+
+function eventSearchText(record: SessionRunEventRecord): string {
+  return [
+    record.event.type,
+    eventTitle(record),
+    compactJson(record.event)
+  ].join('\n').toLowerCase()
+}
+
+function compactPath(path: string): string {
+  const parts = path.split('/').filter(Boolean)
+  if (parts.length <= 3) return path || 'Workspace'
+  return `.../${parts.slice(-3).join('/')}`
+}
+
+function compactText(text: string): string {
+  const compacted = text.replace(/\s+/g, ' ').trim()
+  if (compacted.length <= 72) return compacted || 'Assistant update'
+  return `${compacted.slice(0, 69)}...`
+}
+
+function compactJson(value: unknown): string {
+  const serialized = JSON.stringify(value, null, 2) ?? ''
+  if (serialized.length <= 1400) return serialized
+  return `${serialized.slice(0, 1397)}...`
+}
+
+function formatClockTime(timestamp: number): string {
+  return new Date(timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
 }
 
 function agentStats(agents: AgentNode[]): {
@@ -175,13 +1123,67 @@ function AgentTab({
   )
 }
 
-function AgentConversation({ agent }: { agent: AgentNode }): JSX.Element {
+function AgentConversation({
+  session,
+  agent,
+  events,
+  selectedEventId,
+  onSelectEvent
+}: {
+  session: Session
+  agent: AgentNode
+  events: SessionRunEventRecord[]
+  selectedEventId: string | null
+  onSelectEvent: (id: string) => void
+}): JSX.Element {
+  const [actionStatus, setActionStatus] = useState<string | null>(null)
   const transcript = agent.transcript?.trim()
   const summary = agent.summary?.trim()
   const displaySummary = summary && summary !== agent.role && summary !== agent.name ? summary : undefined
+  const timelineEvents = useMemo(() => selectedAgentTimeline(agent, events), [agent, events])
+  const handoffText = transcript || displaySummary || ''
+  const buildAgentTranscriptText = (): string => [
+    'Use this agent transcript context:',
+    `Thread: ${session.title || session.id}`,
+    `Agent: ${agentDisplayName(agent)}`,
+    `Status: ${agent.status}`,
+    `Runtime: ${[agent.providerId, agent.model].filter(Boolean).join(' / ') || [session.provider, session.model].filter(Boolean).join(' / ') || 'Unknown runtime'}`,
+    `Workspace: ${session.workDir || 'Unknown workspace'}`,
+    '',
+    boundedAgentTranscript(handoffText)
+  ].join('\n')
+  const copyAgentTranscript = async (): Promise<void> => {
+    if (!handoffText) {
+      setActionStatus('No agent transcript available')
+      return
+    }
+    try {
+      await writeClipboardText(buildAgentTranscriptText())
+      setActionStatus('Agent transcript copied')
+    } catch {
+      setActionStatus('Unable to copy agent transcript')
+    }
+  }
+  const addAgentTranscriptToChat = (): void => {
+    if (!handoffText) {
+      setActionStatus('No agent transcript available')
+      return
+    }
+    window.dispatchEvent(new CustomEvent('orchestrator:add-composer-text', {
+      detail: {
+        text: buildAgentTranscriptText()
+      }
+    }))
+    setActionStatus('Agent transcript added to chat')
+  }
 
   return (
-    <div className="flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden p-3">
+    <div
+      className="flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden p-3"
+      data-testid="agent-selected-conversation"
+      data-agent-id={agent.id}
+      data-agent-action-status={actionStatus ?? ''}
+    >
       <div className="flex items-start justify-between gap-3 min-w-0">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 min-w-0">
@@ -197,7 +1199,54 @@ function AgentConversation({ agent }: { agent: AgentNode }): JSX.Element {
             </div>
           )}
         </div>
+        <div className="flex shrink-0 items-center gap-1">
+          <ToolbarButton
+            icon="copy"
+            label="Copy agent transcript"
+            dataTestId="agent-selected-copy"
+            onClick={() => { void copyAgentTranscript() }}
+            disabled={!handoffText}
+            size="sm"
+            variant="toolbar"
+          />
+          <ToolbarButton
+            icon="chat"
+            label="Add agent transcript to chat"
+            dataTestId="agent-selected-add-to-chat"
+            onClick={addAgentTranscriptToChat}
+            disabled={!handoffText}
+            size="sm"
+            variant="toolbar"
+          />
+        </div>
       </div>
+      {actionStatus && (
+        <div
+          className="mt-2 rounded-md px-2 py-1 text-[11px]"
+          data-testid="agent-selected-action-status"
+          role={actionStatus.startsWith('No ') ? 'alert' : 'status'}
+          aria-live={actionStatus.startsWith('No ') ? 'assertive' : 'polite'}
+          aria-atomic="true"
+          style={{
+            color: actionStatus.startsWith('No ') ? 'var(--state-danger)' : 'var(--accent)',
+            background: actionStatus.startsWith('No ')
+              ? 'color-mix(in srgb, var(--state-danger) 8%, var(--surface-bg))'
+              : 'color-mix(in srgb, var(--accent) 8%, var(--surface-bg))',
+            border: '1px solid var(--border-subtle)'
+          }}
+        >
+          {actionStatus}
+        </div>
+      )}
+
+      {timelineEvents.length > 0 && (
+        <AgentTimeline
+          agent={agent}
+          events={timelineEvents}
+          selectedEventId={selectedEventId}
+          onSelectEvent={onSelectEvent}
+        />
+      )}
 
       {transcript ? (
         <TranscriptBlock content={transcript} />
@@ -207,6 +1256,70 @@ function AgentConversation({ agent }: { agent: AgentNode }): JSX.Element {
         <EmptyText>Waiting for transcript text from this agent.</EmptyText>
       )}
     </div>
+  )
+}
+
+function agentDisplayName(agent: AgentNode): string {
+  return [agent.name ?? agent.role ?? agent.id, agent.id === (agent.name ?? agent.role) ? null : agent.id]
+    .filter(Boolean)
+    .join(' · ')
+}
+
+function boundedAgentTranscript(text: string): string {
+  const trimmed = text.trim()
+  if (trimmed.length <= 2800) return trimmed
+  return `${trimmed.slice(0, 2800)}\n...[truncated]`
+}
+
+function AgentTimeline({
+  agent,
+  events,
+  selectedEventId,
+  onSelectEvent
+}: {
+  agent: AgentNode
+  events: SessionRunEventRecord[]
+  selectedEventId: string | null
+  onSelectEvent: (id: string) => void
+}): JSX.Element {
+  return (
+    <InspectorSection
+      title="Timeline"
+      className="mt-3 gap-1.5"
+      dataTestId="agent-selected-timeline"
+    >
+      <div
+        className="grid gap-1.5"
+        data-testid="agent-selected-timeline-list"
+        data-agent-id={agent.id}
+        data-agent-timeline-count={events.length}
+      >
+        {events.map((record) => (
+          <button
+            key={record.id}
+            type="button"
+            className="orchestrator-inspector-row text-left"
+            data-inspector-row="true"
+            data-inspector-row-variant="muted"
+            data-testid="agent-selected-timeline-event"
+            data-agent-event-selected={selectedEventId === record.id ? 'true' : 'false'}
+            aria-pressed={selectedEventId === record.id}
+            aria-label={eventActionLabel(record)}
+            onClick={() => onSelectEvent(record.id)}
+          >
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-[11px] font-semibold" style={{ color: 'var(--color-text)' }}>
+                {agentTimelineTitle(record)}
+              </div>
+              <div className="truncate text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
+                {formatClockTime(record.timestamp)}
+              </div>
+            </div>
+            <Badge tone={eventTone(record)}>{eventBadge(record)}</Badge>
+          </button>
+        ))}
+      </div>
+    </InspectorSection>
   )
 }
 
@@ -228,6 +1341,36 @@ function TranscriptBlock({ content, muted = false }: { content: string; muted?: 
       {content}
     </InspectorCard>
   )
+}
+
+function selectedAgentTimeline(agent: AgentNode, events: SessionRunEventRecord[]): SessionRunEventRecord[] {
+  return events
+    .filter((record) => eventBelongsToAgent(record, agent.id))
+    .sort((a, b) => a.timestamp - b.timestamp)
+    .slice(-6)
+}
+
+function eventBelongsToAgent(record: SessionRunEventRecord, agentId: string): boolean {
+  const { event } = record
+  if (
+    event.type === 'agent.started' ||
+    event.type === 'agent.updated' ||
+    event.type === 'agent.completed' ||
+    event.type === 'agent.failed'
+  ) {
+    return event.agent.id === agentId
+  }
+  if (event.type === 'agent.text.delta' || event.type === 'agent.text.completed') return event.agentId === agentId
+  if (event.type === 'tool.started') return event.id === agentId
+  if (event.type === 'tool.completed') return event.toolUseId === agentId
+  return false
+}
+
+function agentTimelineTitle(record: SessionRunEventRecord): string {
+  const { event } = record
+  if (event.type === 'agent.text.delta') return compactText(event.content)
+  if (event.type === 'agent.text.completed') return 'Agent text completed'
+  return eventTitle(record)
 }
 
 function agentStatusTone(status: AgentStatus): 'accent' | 'success' | 'warning' | 'danger' {

@@ -1,7 +1,7 @@
 import { spawn as ptySpawn } from 'node-pty'
 import type { IPty } from 'node-pty'
 import { BrowserWindow } from 'electron'
-import type { RunEvent, RunRequest, Session } from '../types'
+import type { RunEvent, RunRequest, Session, UserInputAnswerPayload } from '../types'
 import { approvalBroker } from './approvalBroker'
 import { browserClientDynamicTools, callBrowserClientTool, isBrowserClientDynamicTool } from './browserClientTools'
 import { CodexAppServerRuntimeManager } from './codexAppServerRuntime'
@@ -341,7 +341,7 @@ export class ProviderRuntimeManager {
     return this.appServerRuntime.resolvePermission(sessionId, allow, persistGrant)
   }
 
-  answerUserInput(sessionId: string, answer: string): boolean {
+  answerUserInput(sessionId: string, answer: string | UserInputAnswerPayload): boolean {
     return this.appServerRuntime.answerUserInput(sessionId, answer)
   }
 

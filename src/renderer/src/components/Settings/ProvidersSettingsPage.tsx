@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react'
+import { useCallback, useEffect, useId, useRef, useState, type CSSProperties, type Dispatch, type ReactNode, type SetStateAction } from 'react'
 import {
   DndContext, closestCenter, type DragEndEvent,
   KeyboardSensor, PointerSensor, useSensor, useSensors
@@ -14,6 +14,7 @@ import {
   getPrimaryPermissionModes,
   getVisibleModels,
   type PermissionExecutionContract,
+  type ProviderCapabilityGap,
   type ProviderPermissionMode,
   type ProviderPermissionRuntimeContext,
   type ProviderCommandSurface,
@@ -29,6 +30,7 @@ import {
 } from '../../types'
 import ProviderIcon from '../shared/ProviderIcon'
 import Icon from '../shared/Icon'
+import { useSessionStore } from '../../store/sessions'
 import {
   DiagnosticPill,
   SettingsContentLayout,
@@ -98,6 +100,32 @@ export default function ProvidersSettingsPage({
     : visibleModels[0]?.id ?? currentModel
   const [sidebarSyncLoading, setSidebarSyncLoading] = useState(false)
   const [sidebarSyncResult, setSidebarSyncResult] = useState<ProviderSidebarSyncResult | null>(null)
+  const [permissionContextLoading, setPermissionContextLoading] = useState(false)
+  const [permissionContextRefreshStatus, setPermissionContextRefreshStatus] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
+  const permissionContextCwd = sessions.find((session) => session.provider === selectedId)?.workDir ?? sessions[0]?.workDir
+
+  const loadPermissionContext = useCallback(async (options: { announce?: boolean } = {}): Promise<void> => {
+    setPermissionContextLoading(true)
+    if (options.announce) {
+      setPermissionContextRefreshStatus({ text: 'Refreshing permission config', tone: 'info' })
+    }
+    try {
+      const context = await window.api.providers.getPermissionContext(selectedId, permissionContextCwd)
+      onSetProviderPermissionContexts((current) => ({ ...current, [selectedId]: context }))
+      if (options.announce) {
+        setPermissionContextRefreshStatus({
+          text: context.status === 'ok' ? 'Permission config refreshed' : 'Permission config fallback refreshed',
+          tone: 'info'
+        })
+      }
+    } catch {
+      if (options.announce) {
+        setPermissionContextRefreshStatus({ text: 'Permission config refresh failed', tone: 'danger' })
+      }
+    } finally {
+      setPermissionContextLoading(false)
+    }
+  }, [onSetProviderPermissionContexts, permissionContextCwd, selectedId])
 
   useEffect(() => {
     if (advancedOpen) onLoadProviderDiagnostics(selectedId)
@@ -106,18 +134,18 @@ export default function ProvidersSettingsPage({
   useEffect(() => {
     setSidebarSyncLoading(false)
     setSidebarSyncResult(null)
+    setPermissionContextRefreshStatus(null)
   }, [selectedId])
 
   useEffect(() => {
     let alive = true
-    const cwd = sessions.find((session) => session.provider === selectedId)?.workDir ?? sessions[0]?.workDir
-    window.api.providers.getPermissionContext(selectedId, cwd)
-      .then((context) => {
-        if (alive) onSetProviderPermissionContexts((current) => ({ ...current, [selectedId]: context }))
-      })
+    loadPermissionContext()
       .catch(() => undefined)
+      .finally(() => {
+        if (!alive) setPermissionContextLoading(false)
+      })
     return () => { alive = false }
-  }, [onSetProviderPermissionContexts, selectedId, sessions])
+  }, [loadPermissionContext])
 
   const handleVisibleModelsChange = (ids: string[]): void => {
     onSetProviderModels(selectedId, ids)
@@ -127,8 +155,16 @@ export default function ProvidersSettingsPage({
   const refreshSidebarMetadata = async (): Promise<void> => {
     const cwd = sessions.find((session) => session.provider === selectedId)?.workDir ?? sessions[0]?.workDir
     setSidebarSyncLoading(true)
+    setSidebarSyncResult(null)
     try {
       setSidebarSyncResult(await window.api.providers.refreshSidebarMetadata(selectedId, cwd))
+    } catch (error) {
+      setSidebarSyncResult({
+        ok: false,
+        providerId: selectedId,
+        changed: 0,
+        error: errorText(error)
+      })
     } finally {
       setSidebarSyncLoading(false)
     }
@@ -143,7 +179,13 @@ export default function ProvidersSettingsPage({
           dataTestId="settings-content-layout-providers"
         >
           <div className="provider-settings-stack">
-            <SettingsContentGroup className="provider-settings-content-group">
+            <SettingsContentGroup
+              className="provider-settings-content-group"
+              rootAttrs={{
+                tabIndex: -1,
+                'data-settings-search-anchor': 'provider-picker'
+              }}
+            >
               <SettingsSectionHeading
                 title="Provider"
                 description="Choose the default agent provider and check whether its local runtime is ready."
@@ -169,7 +211,13 @@ export default function ProvidersSettingsPage({
 
         {/* Per-provider content — key forces clean remount on provider switch, stopping DnD jitter */}
         <div key={selectedId}>
-          <SettingsContentGroup className="provider-settings-content-group">
+          <SettingsContentGroup
+            className="provider-settings-content-group"
+            rootAttrs={{
+              tabIndex: -1,
+              'data-settings-search-anchor': 'provider-defaults'
+            }}
+          >
             <SettingsSectionHeading
               title="Defaults"
               description="Configure the model, reasoning, permissions, and visible model list for this provider."
@@ -198,6 +246,7 @@ export default function ProvidersSettingsPage({
                         items={providerDef.effortLevels}
                         value={currentEffort}
                         color={providerDef.color}
+                        ariaLabel={`${providerDef.name} thinking level`}
                         onChange={(id) => onSetDefaultEffort(selectedId, id)}
                       />
                     )}
@@ -214,12 +263,16 @@ export default function ProvidersSettingsPage({
                           items={primaryPermissionModes}
                           value={currentPermissionMode}
                           color={providerDef.color}
+                          ariaLabel={`${providerDef.name} permission mode`}
                           onChange={(id) => onSetDefaultPermissionMode(selectedId, id)}
                         />
                         <ProviderPermissionContract
                           policy={runtime?.policies[currentPermissionMode]}
                           context={permissionContext}
                           color={providerDef.color}
+                          refreshing={permissionContextLoading}
+                          refreshStatus={permissionContextRefreshStatus}
+                          onRefresh={() => { void loadPermissionContext({ announce: true }) }}
                         />
                       </div>
                     )}
@@ -260,10 +313,19 @@ export default function ProvidersSettingsPage({
                         providerId={selectedId}
                         color={providerDef.color}
                         surfaces={settingsCommandSurfaces}
+                        sessions={sessions}
                       />
                     )}
                   />
                 )}
+
+                {runtime?.registry.gaps.length ? (
+                  <SettingsRow
+                    label="Boundaries"
+                    className="provider-settings-row provider-settings-row-stacked"
+                    control={<ProviderBoundarySummary gaps={runtime.registry.gaps} color={providerDef.color} />}
+                  />
+                ) : null}
               </SettingsSurface>
             </SettingsGroupContent>
           </SettingsContentGroup>
@@ -355,8 +417,15 @@ function ProviderStatusDetails({
   sidebarSyncLoading?: boolean
   onRefreshSidebarMetadata?: () => Promise<void>
 }): JSX.Element {
+  const providerSidebarStatusId = useId()
+  const sidebarSyncStatus = sidebarSyncStatusState(sidebarSyncLoading === true, sidebarSyncResult)
   return (
-    <div className="provider-status-card" data-testid="provider-status-card">
+    <div
+      className="provider-status-card"
+      data-testid="provider-status-card"
+      data-provider-sidebar-refresh-status={sidebarSyncStatus?.text ?? ''}
+      data-provider-sidebar-refresh-status-tone={sidebarSyncStatus?.tone ?? ''}
+    >
       <div className="provider-status-section">
         <div className="provider-status-section-title">
           <span>Status</span>
@@ -367,6 +436,7 @@ function ProviderStatusDetails({
               data-testid="provider-sidebar-metadata-refresh"
               onClick={() => { void onRefreshSidebarMetadata() }}
               disabled={sidebarSyncLoading === true}
+              aria-describedby={sidebarSyncStatus ? providerSidebarStatusId : undefined}
             >
               {sidebarSyncLoading ? 'Refreshing...' : 'Refresh chats'}
             </button>
@@ -379,10 +449,18 @@ function ProviderStatusDetails({
         ) : (
           <InlineMutedText>Open details to check local CLI status.</InlineMutedText>
         )}
-        {onRefreshSidebarMetadata && sidebarSyncResult && (
-          <InlineMutedText>
-            {sidebarSyncStatusText(sidebarSyncResult)}
-          </InlineMutedText>
+        {onRefreshSidebarMetadata && sidebarSyncStatus && (
+          <div
+            id={providerSidebarStatusId}
+            className="provider-sidebar-refresh-status"
+            data-testid="provider-sidebar-metadata-refresh-status"
+            data-provider-sidebar-refresh-status-tone={sidebarSyncStatus.tone}
+            role={sidebarSyncStatus.tone === 'danger' ? 'alert' : 'status'}
+            aria-live={sidebarSyncStatus.tone === 'danger' ? 'assertive' : 'polite'}
+            aria-atomic="true"
+          >
+            {sidebarSyncStatus.text}
+          </div>
         )}
       </div>
       <div className="provider-status-section">
@@ -416,14 +494,29 @@ function sidebarSyncStatusText(result: ProviderSidebarSyncResult): string {
   return `Updated ${result.changed} chat${result.changed === 1 ? '' : 's'}.`
 }
 
+function sidebarSyncStatusState(
+  loading: boolean,
+  result: ProviderSidebarSyncResult | null | undefined
+): { text: string; tone: 'info' | 'danger' } | null {
+  if (loading) return { text: 'Refreshing chats', tone: 'info' }
+  if (!result) return null
+  return { text: sidebarSyncStatusText(result), tone: result.ok ? 'info' : 'danger' }
+}
+
 function ProviderPermissionContract({
   policy,
   context,
-  color
+  color,
+  refreshing,
+  refreshStatus,
+  onRefresh
 }: {
   policy?: ResolvedExecutionPolicy
   context?: ProviderPermissionRuntimeContext
   color: string
+  refreshing: boolean
+  refreshStatus: { text: string; tone: 'info' | 'danger' } | null
+  onRefresh: () => void
 }): JSX.Element | null {
   if (!policy?.execution && (!context || context.source === 'static')) return null
   const chips = policy?.execution ? permissionExecutionLabels(policy.execution) : []
@@ -463,18 +556,54 @@ function ProviderPermissionContract({
         </div>
       )}
       {context && context.source !== 'static' && (
-        <div
-          data-testid="settings-permission-runtime-context"
-          style={{
-            marginTop: 6,
-            color: context.status === 'ok' ? 'var(--color-green)' : 'var(--color-text-muted)',
-            fontSize: 10.5,
-            lineHeight: 1.35
-          }}
-          title={context.cwd ? `${context.summary ?? ''} ${context.cwd}` : context.summary}
-        >
-          {context.status === 'ok' ? 'Live config' : 'Config fallback'} · {context.summary ?? 'Permission config checked.'}
-        </div>
+        <>
+          <div
+            data-testid="settings-permission-runtime-context"
+            data-permission-context-refreshing={refreshing ? 'true' : 'false'}
+            data-permission-context-source={context.source}
+            data-permission-context-status={context.status}
+            style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              alignItems: 'center',
+              gap: 6,
+              marginTop: 6,
+              color: context.status === 'ok' ? 'var(--color-green)' : 'var(--color-text-muted)',
+              fontSize: 10.5,
+              lineHeight: 1.35
+            }}
+            title={context.cwd ? `${context.summary ?? ''} ${context.cwd}` : context.summary}
+          >
+            <span>{context.status === 'ok' ? 'Live config' : 'Config fallback'} · {context.summary ?? 'Permission config checked.'}</span>
+            <button
+              type="button"
+              className="provider-details-inline-action"
+              data-testid="settings-permission-runtime-refresh"
+              aria-label="Refresh provider permission config"
+              disabled={refreshing}
+              onClick={onRefresh}
+            >
+              <Icon name="refresh" size={11} />
+              {refreshing ? 'Refreshing' : 'Refresh'}
+            </button>
+          </div>
+          {refreshStatus && (
+            <div
+              data-testid="settings-permission-runtime-refresh-status"
+              role={refreshStatus.tone === 'danger' ? 'alert' : 'status'}
+              aria-live={refreshStatus.tone === 'danger' ? 'assertive' : 'polite'}
+              aria-atomic="true"
+              style={{
+                marginTop: 5,
+                color: refreshStatus.tone === 'danger' ? 'var(--color-red)' : color,
+                fontSize: 10.5,
+                fontWeight: 600
+              }}
+            >
+              {refreshStatus.text}
+            </div>
+          )}
+        </>
       )}
     </div>
   )
@@ -510,10 +639,102 @@ function ProviderRuntimeEventsCard({
   events: ProviderRuntimeDebugEvent[]
   color: string
 }): JSX.Element {
+  const [actionStatus, setActionStatus] = useState<{ text: string; tone: 'info' | 'danger'; action: 'copy' | 'chat' } | null>(null)
+  const statusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const activeSessionId = useSessionStore((state) => state.activeSessionId)
+  const setComposerDraft = useSessionStore((state) => state.setComposerDraft)
   const visibleEvents = events.slice(-4).reverse()
   const visibleConnections = connections.slice(-2).reverse()
+  useEffect(() => () => {
+    if (statusTimeoutRef.current) window.clearTimeout(statusTimeoutRef.current)
+  }, [])
+  const handleCopy = async (): Promise<void> => {
+    if (statusTimeoutRef.current) window.clearTimeout(statusTimeoutRef.current)
+    try {
+      await writeClipboardText(formatProviderRuntimeActivity(connections, events))
+      setActionStatus({ text: 'Runtime activity copied', tone: 'info', action: 'copy' })
+    } catch (error) {
+      setActionStatus({ text: `Copy failed: ${errorText(error)}`, tone: 'danger', action: 'copy' })
+    }
+    statusTimeoutRef.current = window.setTimeout(() => {
+      setActionStatus(null)
+      statusTimeoutRef.current = null
+    }, 1800)
+  }
+
+  const addRuntimeActivityToChat = (): void => {
+    if (statusTimeoutRef.current) window.clearTimeout(statusTimeoutRef.current)
+    if (!activeSessionId) {
+      setActionStatus({ text: 'No active chat selected', tone: 'danger', action: 'chat' })
+    } else {
+      const text = [
+        'Use this provider runtime activity:',
+        formatProviderRuntimeActivity(connections, events)
+      ].join('\n')
+      const currentDraft = useSessionStore.getState().uiState[activeSessionId]?.composerDraft?.trimEnd() ?? ''
+      const globals = window as typeof window & { __orchestratorLastProviderRuntimeActivityForSmoke?: string }
+      globals.__orchestratorLastProviderRuntimeActivityForSmoke = text
+      setComposerDraft(activeSessionId, currentDraft ? `${currentDraft}\n\n${text}` : text)
+      setActionStatus({ text: 'Runtime activity added to chat', tone: 'info', action: 'chat' })
+    }
+    statusTimeoutRef.current = window.setTimeout(() => {
+      setActionStatus(null)
+      statusTimeoutRef.current = null
+    }, 1800)
+  }
+
+  const copySucceeded = actionStatus?.action === 'copy' && actionStatus.tone === 'info'
   return (
-    <div data-testid="provider-runtime-events-card" style={{ display: 'grid', gap: 6 }}>
+    <div
+      data-testid="provider-runtime-events-card"
+      data-provider-runtime-copy-status={actionStatus?.action === 'copy' ? actionStatus.text : ''}
+      data-provider-runtime-copy-status-tone={actionStatus?.action === 'copy' ? actionStatus.tone : ''}
+      data-provider-runtime-add-chat-status={actionStatus?.action === 'chat' ? actionStatus.text : ''}
+      data-provider-runtime-add-chat-status-tone={actionStatus?.action === 'chat' ? actionStatus.tone : ''}
+      style={{ display: 'grid', gap: 6 }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, minWidth: 0 }}>
+        <InlineMutedText>Latest runtime activity</InlineMutedText>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+          <button
+            type="button"
+            className="provider-details-inline-action"
+            data-testid="provider-runtime-events-add-chat"
+            aria-label="Add provider runtime activity to chat"
+            onClick={addRuntimeActivityToChat}
+            style={{ '--provider-color': color } as CSSProperties}
+          >
+            <Icon name="chat" size={11} />
+            Add to chat
+          </button>
+          <button
+            type="button"
+            className="provider-details-inline-action"
+            data-testid="provider-runtime-events-copy"
+            aria-label="Copy provider runtime activity"
+            onClick={() => { void handleCopy() }}
+            style={{ '--provider-color': color } as CSSProperties}
+          >
+            <Icon name="copy" size={11} />
+            {copySucceeded ? 'Copied' : 'Copy'}
+          </button>
+        </div>
+      </div>
+      {actionStatus && (
+        <div
+          data-testid="provider-runtime-events-action-status"
+          role={actionStatus.tone === 'danger' ? 'alert' : 'status'}
+          aria-live={actionStatus.tone === 'danger' ? 'assertive' : 'polite'}
+          aria-atomic="true"
+          style={{
+            color: actionStatus.tone === 'danger' ? 'var(--state-danger)' : 'var(--text-secondary)',
+            fontSize: 10.5,
+            fontWeight: 600
+          }}
+        >
+          {actionStatus.text}
+        </div>
+      )}
       {visibleConnections.length === 0 && visibleEvents.length === 0 && (
         <InlineMutedText>No runtime activity recorded for this provider yet.</InlineMutedText>
       )}
@@ -609,6 +830,49 @@ function ProviderRuntimeEventsCard({
   )
 }
 
+function formatProviderRuntimeActivity(
+  connections: ProviderRuntimeConnectionState[],
+  events: ProviderRuntimeDebugEvent[]
+): string {
+  const lines = ['Provider runtime activity']
+  const visibleConnections = connections.slice(-4).reverse()
+  const visibleEvents = events.slice(-8).reverse()
+
+  if (visibleConnections.length === 0 && visibleEvents.length === 0) {
+    lines.push('No runtime activity recorded for this provider yet.')
+    return lines.join('\n')
+  }
+
+  if (visibleConnections.length > 0) {
+    lines.push('', 'Connections:')
+    for (const connection of visibleConnections) {
+      lines.push([
+        `- ${connection.status}`,
+        connection.providerId,
+        connection.runtime,
+        connection.version,
+        connection.hostId,
+        connection.message
+      ].filter(Boolean).join(' · '))
+    }
+  }
+
+  if (visibleEvents.length > 0) {
+    lines.push('', 'Events:')
+    for (const event of visibleEvents) {
+      lines.push([
+        `- ${event.severity}`,
+        event.runtime,
+        event.method,
+        event.hostId,
+        event.message
+      ].filter(Boolean).join(' · '))
+    }
+  }
+
+  return lines.join('\n')
+}
+
 function ProviderSetupDetails({ providerDef }: { providerDef: typeof PROVIDER_DEFS[string] }): JSX.Element {
   return (
     <div className="provider-setup-card" data-testid="provider-setup-card">
@@ -660,43 +924,23 @@ function ProviderDropdown({
   return (
     <div
       data-testid="provider-selector-card"
-      style={{
-        display: 'grid',
-        gap: 8,
-        marginBottom: 10
-      }}
+      data-provider-selector-surface="shared"
+      className="provider-selector-card"
+      style={{ '--provider-color': color } as CSSProperties}
     >
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'minmax(170px, 1fr) minmax(180px, 280px) auto',
-          alignItems: 'center',
-          gap: 10
-        }}
-      >
+      <div className="provider-selector-grid">
         <div
           data-testid="provider-selector-summary"
-          style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}
+          className="provider-selector-summary"
         >
-          <span
-            style={{
-              width: 24,
-              height: 24,
-              borderRadius: 7,
-              display: 'grid',
-              placeItems: 'center',
-              background: `${color}18`,
-              color,
-              flexShrink: 0
-            }}
-          >
+          <span className="provider-selector-icon">
             <ProviderIcon providerId={providerId} size={16} color={color} />
           </span>
-          <span className="min-w-0" style={{ display: 'grid', gap: 1 }}>
-            <span style={{ color: 'var(--color-text)', fontSize: 13, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <span className="provider-selector-copy">
+            <span className="provider-selector-name">
               {selectedProvider?.name ?? 'Provider'}
             </span>
-            <span style={{ color: 'var(--color-text-muted)', fontSize: 11, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <span className="provider-selector-status">
               {providerStatus}
             </span>
           </span>
@@ -705,18 +949,7 @@ function ProviderDropdown({
           aria-label="Provider"
           value={selectedId}
           onChange={(event) => onSelect(event.target.value)}
-          style={{
-            width: '100%',
-            height: 30,
-            borderRadius: 7,
-            border: '1px solid var(--color-border)',
-            background: 'var(--color-surface2)',
-            color: 'var(--color-text)',
-            fontSize: 12,
-            fontWeight: 600,
-            padding: '0 8px',
-            outline: 'none',
-          }}
+          className="provider-selector-select"
         >
           {providers.map((provider) => (
             <option key={provider.id} value={provider.id}>{provider.name}</option>
@@ -726,18 +959,7 @@ function ProviderDropdown({
           <button
             onClick={onSetDefault}
             disabled={!installed}
-            style={{
-              height: 30,
-              padding: '0 10px',
-              borderRadius: 7,
-              border: `1px solid ${installed ? color : 'var(--color-border)'}`,
-              background: installed ? `${color}12` : 'var(--color-surface2)',
-              color: installed ? color : 'var(--color-text-muted)',
-              cursor: installed ? 'pointer' : 'default',
-              fontSize: 12,
-              fontWeight: 600,
-              whiteSpace: 'nowrap'
-            }}
+            className="settings-action-button provider-selector-default-action"
           >
             Set default
           </button>
@@ -748,14 +970,46 @@ function ProviderDropdown({
   )
 }
 
+function ProviderBoundarySummary({ gaps, color }: { gaps: ProviderCapabilityGap[]; color: string }): JSX.Element {
+  const counts = gaps.reduce((acc, gap) => {
+    acc[gap.status] = (acc[gap.status] ?? 0) + 1
+    return acc
+  }, {} as Record<ProviderCapabilityGap['status'], number>)
+  const highPriorityGap = gaps.find((gap) => gap.severity === 'high') ?? gaps[0]
+  const summary = [
+    counts.partial ? `${counts.partial} partial` : null,
+    counts.missing ? `${counts.missing} missing` : null,
+    counts.blocked ? `${counts.blocked} blocked` : null
+  ].filter(Boolean).join(' · ')
+
+  return (
+    <div
+      className="provider-boundary-summary"
+      data-testid="provider-boundary-summary"
+      data-provider-boundary-count={gaps.length}
+      data-provider-boundary-partial-count={counts.partial ?? 0}
+      data-provider-boundary-missing-count={counts.missing ?? 0}
+      data-provider-boundary-blocked-count={counts.blocked ?? 0}
+    >
+      <div className="provider-boundary-summary-main">
+        <span className="provider-boundary-summary-count" style={{ color }}>{summary || `${gaps.length} tracked`}</span>
+        <span className="provider-boundary-summary-text">{highPriorityGap.summary}</span>
+      </div>
+      <div className="provider-boundary-summary-next">{highPriorityGap.nextStep}</div>
+    </div>
+  )
+}
+
 function ProviderCommandSurfaces({
   providerId,
   color,
-  surfaces
+  surfaces,
+  sessions
 }: {
   providerId: string
   color: string
   surfaces: ProviderCommandSurface[]
+  sessions: SessionListItem[]
 }): JSX.Element {
   const runnableSurfaces = surfaces.filter((surface) => surface.quota === 'none' && !surface.mutatesState)
   const mutatingSurfaces = surfaces.filter((surface) => surface.mutatesState)
@@ -763,7 +1017,27 @@ function ProviderCommandSurfaces({
   const [results, setResults] = useState<Record<string, ProviderCommandSurfaceResult>>({})
   const [loading, setLoading] = useState<Record<string, boolean>>({})
   const [openId, setOpenId] = useState<string | null>(null)
+  const [terminalStatus, setTerminalStatus] = useState<{ surfaceId: string; text: string; tone: 'info' | 'danger' } | null>(null)
+  const statusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const activeSessionId = useSessionStore((state) => state.activeSessionId)
+  const setActiveSession = useSessionStore((state) => state.setActiveSession)
+  const setShowTerminal = useSessionStore((state) => state.setShowTerminal)
+  const addTerminalTab = useSessionStore((state) => state.addTerminalTab)
+  const setActiveTerminalTab = useSessionStore((state) => state.setActiveTerminalTab)
   const selectedSurface = surfaces.find((surface) => surface.id === openId)
+
+  useEffect(() => () => {
+    if (statusTimeoutRef.current) window.clearTimeout(statusTimeoutRef.current)
+  }, [])
+
+  const showTerminalStatus = (surfaceId: string, text: string, tone: 'info' | 'danger'): void => {
+    if (statusTimeoutRef.current) window.clearTimeout(statusTimeoutRef.current)
+    setTerminalStatus({ surfaceId, text, tone })
+    statusTimeoutRef.current = window.setTimeout(() => {
+      setTerminalStatus((current) => current?.surfaceId === surfaceId ? null : current)
+      statusTimeoutRef.current = null
+    }, 1800)
+  }
 
   const runSurface = async (surface: ProviderCommandSurface): Promise<void> => {
     if (surface.quota !== 'none' || surface.mutatesState) return
@@ -774,6 +1048,44 @@ function ProviderCommandSurfaces({
       setResults((current) => ({ ...current, [surface.id]: result }))
     } finally {
       setLoading((current) => ({ ...current, [surface.id]: false }))
+    }
+  }
+
+  const insertSurfaceInTerminal = async (surface: ProviderCommandSurface): Promise<void> => {
+    const terminalSession =
+      sessions.find((session) => session.id === activeSessionId) ??
+      sessions.find((session) => session.provider === providerId) ??
+      sessions[0]
+    if (!terminalSession) {
+      showTerminalStatus(surface.id, 'No chat available for terminal handoff', 'danger')
+      return
+    }
+    const commandText = providerSurfaceTerminalCommand(providerId, surface)
+    showTerminalStatus(surface.id, 'Opening terminal for provider command', 'info')
+    try {
+      const state = useSessionStore.getState()
+      const currentPanel = state.uiState[terminalSession.id]?.terminalPanel
+      const existingTab = typeof currentPanel?.activeTabId === 'number'
+        ? currentPanel.activeTabId
+        : currentPanel?.tabs.find((tab): tab is number => typeof tab === 'number')
+      const tabId = existingTab ?? addTerminalTab(terminalSession.id)
+      setActiveSession(terminalSession.id)
+      setShowTerminal(terminalSession.id, true)
+      setActiveTerminalTab(terminalSession.id, tabId)
+      const terminalId = `${terminalSession.id}-${tabId}`
+      const globals = window as typeof window & {
+        __orchestratorLastProviderCommandTerminalCommandForSmoke?: string
+        __orchestratorLastProviderCommandTerminalIdForSmoke?: string
+        __orchestratorLastProviderCommandTerminalSurfaceForSmoke?: string
+      }
+      globals.__orchestratorLastProviderCommandTerminalCommandForSmoke = commandText
+      globals.__orchestratorLastProviderCommandTerminalIdForSmoke = terminalId
+      globals.__orchestratorLastProviderCommandTerminalSurfaceForSmoke = surface.id
+      await window.api.terminal.spawn(terminalId, terminalSession.workDir)
+      await window.api.terminal.write(terminalId, commandText)
+      showTerminalStatus(surface.id, 'Provider command inserted in terminal', 'info')
+    } catch {
+      showTerminalStatus(surface.id, 'Insert provider command in terminal failed', 'danger')
     }
   }
 
@@ -796,20 +1108,9 @@ function ProviderCommandSurfaces({
       </div>
       <select
         data-testid="provider-capability-select"
+        className="provider-capability-select"
         value={openId ?? ''}
         onChange={(event) => setOpenId(event.target.value || null)}
-        style={{
-          width: 'min(340px, 100%)',
-          height: 32,
-          borderRadius: 7,
-          border: '1px solid var(--color-border)',
-          background: 'var(--color-surface2)',
-          color: 'var(--color-text)',
-          padding: '0 10px',
-          fontSize: 12,
-          fontWeight: 650,
-          outline: 'none',
-        }}
       >
         <option value="">Choose a check</option>
         {surfaces.map((surface) => (
@@ -819,11 +1120,15 @@ function ProviderCommandSurfaces({
 
       {selectedSurface ? (
         <CommandSurfaceOutput
+          providerId={providerId}
           color={color}
           surface={selectedSurface}
           result={results[selectedSurface.id]}
           loading={loading[selectedSurface.id] === true}
           onRun={(surface) => runSurface(surface)}
+          onInsertTerminal={(surface) => { void insertSurfaceInTerminal(surface) }}
+          terminalStatus={terminalStatus?.surfaceId === selectedSurface.id ? terminalStatus : null}
+          terminalAvailable={sessions.length > 0}
         />
       ) : null}
     </div>
@@ -831,17 +1136,25 @@ function ProviderCommandSurfaces({
 }
 
 function CommandSurfaceOutput({
+  providerId,
   color,
   surface,
   result,
   loading,
-  onRun
+  onRun,
+  onInsertTerminal,
+  terminalStatus,
+  terminalAvailable
 }: {
+  providerId: string
   color: string
   surface?: ProviderCommandSurface
   result?: ProviderCommandSurfaceResult
   loading: boolean
   onRun: (surface: ProviderCommandSurface) => void
+  onInsertTerminal: (surface: ProviderCommandSurface) => void
+  terminalStatus: { text: string; tone: 'info' | 'danger' } | null
+  terminalAvailable: boolean
 }): JSX.Element {
   if (!surface) return <></>
   const runnable = surface.quota === 'none' && !surface.mutatesState
@@ -860,81 +1173,114 @@ function CommandSurfaceOutput({
   return (
     <div
       data-testid="provider-capability-output"
-      style={{
-        border: '1px solid var(--color-border)',
-        borderRadius: 8,
-        overflow: 'hidden',
-        background: 'var(--color-surface2)',
-      }}
+      data-provider-command-output-surface="shared"
+      data-provider-command-runnable={runnable ? 'true' : 'false'}
+      data-provider-command-terminal-status={terminalStatus?.text ?? ''}
+      data-provider-command-terminal-status-tone={terminalStatus?.tone ?? ''}
+      className="provider-command-output"
     >
       <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 12,
-          padding: '9px 10px',
-          borderBottom: output || loading || !runnable ? '1px solid var(--color-border)' : 'none',
-        }}
+        className="provider-command-output-header"
+        data-has-body={output || loading || !runnable ? 'true' : 'false'}
       >
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text)' }}>{surface.label}</div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 4 }}>
+        <div className="provider-command-output-copy">
+          <div className="provider-command-output-title">{surface.label}</div>
+          <div className="provider-command-output-meta">
             {meta.map((item) => (
               <span
                 key={item}
-                style={{
-                  minHeight: 20,
-                  padding: '2px 6px',
-                  borderRadius: 999,
-                  border: '1px solid var(--color-border)',
-                  background: 'var(--color-surface)',
-                  color: 'var(--color-text-muted)',
-                  fontSize: 10,
-                  fontWeight: 700
-                }}
+                className="provider-command-output-chip"
               >
                 {item}
               </span>
             ))}
           </div>
         </div>
-        <button
-          disabled={!runnable || loading}
-          onClick={() => onRun(surface)}
-          style={{
-            padding: '6px 10px',
-            borderRadius: 7,
-            border: `1px solid ${runnable ? color : 'var(--color-border)'}`,
-            background: runnable ? color : 'var(--color-surface)',
-            color: runnable ? '#fff' : 'var(--color-text-muted)',
-            cursor: runnable && !loading ? 'pointer' : 'default',
-            fontSize: 11,
-            fontWeight: 700,
-            flexShrink: 0,
-            opacity: loading ? 0.65 : 1,
-          }}
-        >
-          {loading ? 'Running' : runnable ? 'Refresh' : surface.quota === 'none' ? 'Manual' : 'Quota'}
-        </button>
+        <div className="provider-command-output-actions">
+          <button
+            className="provider-command-output-action"
+            data-runnable={runnable ? 'true' : 'false'}
+            disabled={!runnable || loading}
+            onClick={() => onRun(surface)}
+            style={{ '--provider-accent': color } as CSSProperties}
+          >
+            {loading ? 'Running' : runnable ? 'Refresh' : surface.quota === 'none' ? 'Manual' : 'Quota'}
+          </button>
+          {!runnable && (
+            <button
+              type="button"
+              className="provider-command-output-action"
+              data-runnable="true"
+              disabled={!terminalAvailable}
+              data-testid="provider-command-output-terminal"
+              aria-label={`Insert ${surface.label} command in terminal`}
+              onClick={() => onInsertTerminal(surface)}
+              style={{ '--provider-accent': color } as CSSProperties}
+            >
+              Terminal
+            </button>
+          )}
+        </div>
       </div>
 
       {!runnable ? (
-        <div style={{ padding: 10, fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.45 }}>
+        <div className="provider-command-output-message">
           {surface.mutatesState
             ? 'This changes provider or project state. Orchestrator keeps it as an explicit terminal handoff.'
             : 'This may spend model quota or open an interactive provider flow, so it is not run from settings.'}
-          {surface.note && <div style={{ marginTop: 6 }}>{surface.note}</div>}
+          <code className="provider-command-output-command">{providerSurfaceTerminalCommand(providerId, surface)}</code>
+          {surface.note && <div className="provider-command-output-note">{surface.note}</div>}
+          {terminalStatus && (
+            <div
+              data-testid="provider-command-output-terminal-status"
+              role={terminalStatus.tone === 'danger' ? 'alert' : 'status'}
+              aria-live={terminalStatus.tone === 'danger' ? 'assertive' : 'polite'}
+              aria-atomic="true"
+              className="provider-command-output-terminal-status"
+              data-provider-command-terminal-status-tone={terminalStatus.tone}
+            >
+              {terminalStatus.text}
+            </div>
+          )}
         </div>
       ) : output ? (
         <StructuredCommandOutput output={output} color={color} surface={surface} />
       ) : (
-        <div style={{ padding: 10, fontSize: 12, color: result ? statusColor : 'var(--color-text-muted)' }}>
+        <div
+          className="provider-command-output-message"
+          style={{ color: result ? statusColor : undefined }}
+        >
           {loading ? 'Running…' : result ? result.status : 'Refresh to check this capability.'}
         </div>
       )}
     </div>
   )
+}
+
+function providerSurfaceTerminalCommand(providerId: string, surface: ProviderCommandSurface): string {
+  return [providerSurfaceBinary(providerId), ...surface.command].map(shellQuoteCommandArg).join(' ')
+}
+
+function providerSurfaceBinary(providerId: string): string {
+  switch (providerId) {
+    case 'claude':
+      return 'claude'
+    case 'codex':
+      return 'codex'
+    case 'copilot':
+      return 'copilot'
+    case 'cursor':
+      return 'agent'
+    case 'gemini':
+      return 'gemini'
+    default:
+      return providerId || 'provider'
+  }
+}
+
+function shellQuoteCommandArg(value: string): string {
+  if (/^[A-Za-z0-9_./:=@%+,-]+$/.test(value)) return value
+  return `'${value.replace(/'/g, "'\\''")}'`
 }
 
 function StructuredCommandOutput({ output, color, surface }: { output: string; color: string; surface?: ProviderCommandSurface }): JSX.Element {
@@ -1507,11 +1853,13 @@ function SegmentedControl({
   items,
   value,
   color: _color,
+  ariaLabel,
   onChange,
 }: {
   items: Array<{ id: string; label: string }>
   value: string
   color: string
+  ariaLabel: string
   onChange: (id: string) => void
 }): JSX.Element {
   return (
@@ -1519,6 +1867,7 @@ function SegmentedControl({
       value={value}
       onChange={onChange}
       options={items.map((item) => ({ value: item.id, label: item.label }))}
+      ariaLabel={ariaLabel}
       className="settings-segmented-control"
     />
   )
@@ -1556,6 +1905,8 @@ function ProviderConfigEditor({ providerId, color }: { providerId: string; color
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
+  const editorState = error ? 'error' : dirty ? 'dirty' : 'clean'
+  const statusTone = error ? 'error' : saved ? 'success' : hasRedactions ? 'warning' : 'muted'
 
   useEffect(() => {
     const load = async (): Promise<void> => {
@@ -1598,42 +1949,22 @@ function ProviderConfigEditor({ providerId, color }: { providerId: string; color
   }
 
   return (
-    <div data-testid="provider-config-editor" data-expanded={open ? 'true' : 'false'} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 10,
-        }}
-      >
-        <span
-          style={{
-            minWidth: 0,
-            fontSize: 10.5,
-            fontFamily: 'monospace',
-            color: 'var(--color-text-muted)',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-          }}
-        >
+    <div
+      data-testid="provider-config-editor"
+      data-expanded={open ? 'true' : 'false'}
+      data-config-editor-surface="shared"
+      data-config-editor-state={editorState}
+      className="provider-config-editor"
+      style={{ '--provider-color': color } as CSSProperties}
+    >
+      <div className="provider-config-editor-header">
+        <span className="provider-config-path">
           {path || 'Loading...'}
         </span>
         <button
           type="button"
           onClick={() => setOpen((value) => !value)}
-          style={{
-            flexShrink: 0,
-            padding: '5px 9px',
-            borderRadius: 7,
-            border: '1px solid var(--color-border)',
-            background: 'var(--color-surface2)',
-            color: 'var(--color-text)',
-            cursor: 'pointer',
-            fontSize: 11,
-            fontWeight: 650,
-          }}
+          className="settings-action-button provider-config-toggle"
         >
           {open ? 'Hide' : 'Edit config'}
         </button>
@@ -1650,40 +1981,17 @@ function ProviderConfigEditor({ providerId, color }: { providerId: string; color
             }}
             spellCheck={false}
             placeholder={providerId === 'cursor' ? '{\n  "network": {\n    "useHttp1ForAgent": true\n  }\n}' : ''}
-            style={{
-              width: '100%',
-              minHeight: 84,
-              maxHeight: 180,
-              resize: 'vertical',
-              padding: 10,
-              borderRadius: 8,
-              border: `1px solid ${error ? '#F87171' : dirty ? color : 'var(--color-border)'}`,
-              background: 'var(--color-surface2)',
-              color: 'var(--color-text)',
-              outline: 'none',
-              fontSize: 11,
-              lineHeight: '16px',
-              fontFamily: 'ui-monospace, SFMono-Regular, monospace',
-              boxSizing: 'border-box',
-            }}
+            className="provider-config-textarea"
           />
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-            <div style={{ fontSize: 11, color: error ? '#F87171' : 'var(--color-text-muted)' }}>
+          <div className="provider-config-footer">
+            <ProviderConfigStatus tone={statusTone}>
               {error || (hasRedactions ? 'Secrets redacted; edit locally to change this file.' : saved ? 'Saved' : 'Local file override')}
-            </div>
+            </ProviderConfigStatus>
             <button
+              type="button"
               onClick={save}
               disabled={!dirty || saving || hasRedactions}
-              style={{
-                padding: '6px 12px',
-                borderRadius: 7,
-                border: `1px solid ${dirty && !hasRedactions ? color : 'var(--color-border)'}`,
-                background: dirty && !hasRedactions ? color : 'var(--color-surface2)',
-                color: dirty && !hasRedactions ? '#fff' : 'var(--color-text-muted)',
-                cursor: dirty && !hasRedactions ? 'pointer' : 'default',
-                fontSize: 11,
-                fontWeight: 650,
-              }}
+              className="settings-action-button provider-config-save"
             >
               {saving ? 'Saving...' : 'Save'}
             </button>
@@ -1691,15 +1999,31 @@ function ProviderConfigEditor({ providerId, color }: { providerId: string; color
         </>
       )}
       {!open && (
-        <div
-          style={{
-            fontSize: 11,
-            color: error ? '#F87171' : 'var(--color-text-muted)',
-          }}
-        >
+        <ProviderConfigStatus tone={statusTone}>
           {error || (hasRedactions ? 'Secrets redacted.' : saved ? 'Saved' : 'Local file override')}
-        </div>
+        </ProviderConfigStatus>
       )}
+    </div>
+  )
+}
+
+function ProviderConfigStatus({
+  tone,
+  children
+}: {
+  tone: 'error' | 'success' | 'warning' | 'muted'
+  children: ReactNode
+}): JSX.Element {
+  return (
+    <div
+      className="provider-config-status"
+      data-tone={tone}
+      data-provider-config-status-tone={tone}
+      role={tone === 'error' ? 'alert' : 'status'}
+      aria-live={tone === 'error' ? 'assertive' : 'polite'}
+      aria-atomic="true"
+    >
+      {children}
     </div>
   )
 }
@@ -2225,12 +2549,15 @@ function ModelListManager({
     <div
       data-testid="provider-model-list"
       data-expanded={editing ? 'true' : 'false'}
-      style={{ display: 'flex', flexDirection: 'column', gap: 8 }}
+      data-model-list-surface="shared"
+      data-model-list-mode={editing ? 'editing' : 'collapsed'}
+      className="provider-model-list"
+      style={{ '--provider-color': providerDef.color } as CSSProperties}
     >
       {editing ? (
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={visibleIds} strategy={verticalListSortingStrategy}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <div className="provider-model-list-stack">
               {visibleIds.map((id) => {
                 const meta = providerDef.models.find((m) => m.id === id)
                 return (
@@ -2244,7 +2571,7 @@ function ModelListManager({
                 )
               })}
               {visibleIds.length === 0 && (
-                <div style={{ fontSize: 11, color: 'var(--color-text-muted)', padding: '8px 0' }}>
+                <div className="provider-model-list-empty">
                   No models selected. The catalog defaults are used.
                 </div>
               )}
@@ -2253,45 +2580,24 @@ function ModelListManager({
         </DndContext>
       ) : (
         <div className="provider-model-list-collapsed">
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              minWidth: 0,
-              minHeight: 28,
-              overflow: 'hidden'
-            }}
-          >
+          <div className="provider-model-list-preview">
             {visibleIds.length > 0 ? (
               visibleIds.slice(0, 4).map((id) => {
                 const meta = providerDef.models.find((m) => m.id === id)
                 return (
                   <span
                     key={id}
-                    style={{
-                      maxWidth: 160,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                      padding: '5px 8px',
-                      borderRadius: 999,
-                      border: '1px solid var(--color-border)',
-                      background: 'var(--color-surface)',
-                      color: 'var(--color-text)',
-                      fontSize: 11,
-                      fontWeight: 650
-                    }}
+                    className="provider-model-chip"
                   >
                     {meta?.label ?? id}
                   </span>
                 )
               })
             ) : (
-              <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>Catalog defaults</span>
+              <span className="provider-model-list-muted">Catalog defaults</span>
             )}
             {visibleIds.length > 4 && (
-              <span style={{ fontSize: 11, fontWeight: 650, color: 'var(--color-text-muted)' }}>
+              <span className="provider-model-list-overflow-count">
                 +{visibleIds.length - 4}
               </span>
             )}
@@ -2316,29 +2622,23 @@ function ModelListManager({
 
       {/* Catalog toggle chips */}
       {editing && providerDef.models.length > 0 && (
-        <div>
-          <div
-            data-testid="provider-model-catalog-label"
-            style={{ fontSize: 11, fontWeight: 650, color: 'var(--color-text-muted)', marginBottom: 5 }}
-          >
+        <div className="provider-model-catalog">
+          <div data-testid="provider-model-catalog-label" className="provider-model-catalog-label">
             Catalog
           </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+          <div className="provider-model-catalog-grid">
             {providerDef.models.map((m) => {
               const included = visibleIds.includes(m.id)
               return (
                 <button
+                  type="button"
                   key={m.id}
                   onClick={() => addCatalog(m.id)}
-                  style={{
-                    padding: '3px 8px', borderRadius: 6, fontSize: 11,
-                    background: included ? `${providerDef.color}10` : 'var(--color-surface)',
-                    border: `1px solid ${included ? providerDef.color : 'var(--color-border)'}`,
-                    color: included ? providerDef.color : 'var(--color-text)',
-                    cursor: 'pointer'
-                  }}
+                  className="provider-model-catalog-chip"
+                  data-selected={included ? 'true' : 'false'}
                 >
-                  {included ? '✓ ' : ''}{m.label}
+                  {included && <Icon name="check" size={11} />}
+                  <span>{m.label}</span>
                 </button>
               )
             })}
@@ -2348,28 +2648,19 @@ function ModelListManager({
 
       {/* Custom model ID input */}
       {editing && (
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div className="provider-model-custom-row">
           <input
             value={customInput}
             onChange={(e) => setCustomInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') addCustom() }}
             placeholder="Custom model ID"
-            style={{
-              flex: 1, padding: '6px 10px', borderRadius: 6, fontSize: 11, fontFamily: 'monospace',
-              background: 'var(--color-surface2)', border: '1px solid var(--color-border)',
-              color: 'var(--color-text)', outline: 'none'
-            }}
+            className="provider-model-custom-input"
           />
           <button
+            type="button"
             onClick={addCustom}
             disabled={!customInput.trim()}
-            style={{
-              padding: '6px 14px', borderRadius: 6, fontSize: 11, fontWeight: 500, flexShrink: 0,
-              background: customInput.trim() ? 'var(--color-accent)' : 'var(--color-surface2)',
-              border: `1px solid ${customInput.trim() ? 'var(--color-accent)' : 'var(--color-border)'}`,
-              color: customInput.trim() ? '#fff' : 'var(--color-text-muted)',
-              cursor: customInput.trim() ? 'pointer' : 'default'
-            }}
+            className="settings-action-button provider-model-custom-add"
           >
             Add
           </button>
@@ -2388,36 +2679,31 @@ function SortableModelRow({ id, label, modelId, onRemove }: {
   return (
     <div
       ref={setNodeRef}
+      className="provider-model-sortable-row"
+      data-dragging={isDragging ? 'true' : 'false'}
       style={{
         transform: CSS.Transform.toString(transform),
-        transition,
-        opacity: isDragging ? 0.5 : 1,
-        display: 'flex', alignItems: 'center', gap: 8,
-        minHeight: 30,
-        padding: '4px 9px', borderRadius: 7,
-        background: 'var(--color-surface)', border: '1px solid var(--color-border)'
+        transition
       }}
     >
-      {/* Drag handle */}
-      <span
+      <button
+        type="button"
+        aria-label={`Reorder ${label}`}
+        className="provider-model-row-grip"
         {...attributes}
         {...listeners}
-        style={{ cursor: 'grab', color: 'var(--color-text-muted)', fontSize: 14, lineHeight: 1, userSelect: 'none' }}
       >
-        ⠿
-      </span>
-      <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12 }}>{label}</span>
-      <span style={{ minWidth: 0, maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 10, fontFamily: 'monospace', color: 'var(--color-text-muted)' }}>{modelId}</span>
+        <Icon name="menu" size={13} />
+      </button>
+      <span className="provider-model-row-label">{label}</span>
+      <span className="provider-model-row-id">{modelId}</span>
       <button
+        type="button"
+        aria-label={`Remove ${label}`}
         onClick={onRemove}
-        style={{
-          background: 'transparent', border: 'none', cursor: 'pointer',
-          color: 'var(--color-text-muted)', fontSize: 14, lineHeight: 1, padding: '0 2px'
-        }}
-        onMouseEnter={(e) => (e.currentTarget.style.color = '#F87171')}
-        onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--color-text-muted)')}
+        className="provider-model-row-remove"
       >
-        ×
+        <Icon name="close" size={13} />
       </button>
     </div>
   )
@@ -2499,14 +2785,28 @@ function ClaudeEndpointField({ color }: { color: string }): JSX.Element {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function InstallCommand({ cmd }: { cmd: string }): JSX.Element {
-  const [copied, setCopied] = useState(false)
-  const handleCopy = (): void => {
-    navigator.clipboard.writeText(cmd)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1500)
+  const [status, setStatus] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
+  const statusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => {
+    if (statusTimeoutRef.current) window.clearTimeout(statusTimeoutRef.current)
+  }, [])
+  const handleCopy = async (): Promise<void> => {
+    if (statusTimeoutRef.current) window.clearTimeout(statusTimeoutRef.current)
+    try {
+      await writeClipboardText(cmd)
+      setStatus({ text: 'Install command copied', tone: 'info' })
+    } catch (error) {
+      setStatus({ text: `Copy failed: ${errorText(error)}`, tone: 'danger' })
+    }
+    statusTimeoutRef.current = window.setTimeout(() => {
+      setStatus(null)
+      statusTimeoutRef.current = null
+    }, 1800)
   }
   return (
     <div
+      data-testid="provider-install-command"
+      data-provider-install-command-status-tone={status?.tone ?? ''}
       style={{
         display: 'flex', alignItems: 'center', gap: 12,
         padding: '6px 10px', borderRadius: 8,
@@ -2520,16 +2820,50 @@ function InstallCommand({ cmd }: { cmd: string }): JSX.Element {
         {cmd}
       </span>
       <button
-        onClick={handleCopy}
+        data-testid="provider-install-command-copy"
+        onClick={() => { void handleCopy() }}
         style={{
           flexShrink: 0, padding: '2px 8px', borderRadius: 4, fontSize: 11,
-          background: copied ? 'var(--color-green)' : 'var(--color-surface)',
+          background: status?.tone === 'info' ? 'var(--color-green)' : 'var(--color-surface)',
           border: '1px solid var(--color-border)',
-          color: copied ? '#fff' : 'var(--color-text-muted)', cursor: 'pointer', fontWeight: 500
+          color: status?.tone === 'info' ? '#fff' : 'var(--color-text-muted)', cursor: 'pointer', fontWeight: 500
         }}
       >
-        {copied ? 'Copied!' : 'Copy'}
+        {status?.tone === 'info' ? 'Copied' : 'Copy'}
       </button>
+      {status && (
+        <span
+          data-testid="provider-install-command-status"
+          role={status.tone === 'danger' ? 'alert' : 'status'}
+          aria-live={status.tone === 'danger' ? 'assertive' : 'polite'}
+          aria-atomic="true"
+          style={{
+            flexShrink: 0,
+            maxWidth: 160,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            fontSize: 11,
+            fontWeight: 500,
+            color: status.tone === 'danger' ? 'var(--state-danger)' : 'var(--color-text-muted)'
+          }}
+        >
+          {status.text}
+        </span>
+      )}
     </div>
   )
+}
+
+async function writeClipboardText(text: string): Promise<void> {
+  if (typeof window.api.clipboard?.writeText === 'function') {
+    const didWrite = await window.api.clipboard.writeText(text)
+    if (didWrite) return
+  }
+  await navigator.clipboard.writeText(text)
+}
+
+function errorText(error: unknown): string {
+  if (error instanceof Error) return error.message
+  return String(error)
 }

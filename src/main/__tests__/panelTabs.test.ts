@@ -1,8 +1,12 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  BOTTOM_PANEL_TRANSFER_TAB_KINDS,
+  bottomPanelTransferPolicyLabel,
+  canCloseBottomPanelTab,
   closePanelTab,
   filePanelTabId,
+  isBottomPanelTransferTabKind,
   movePanelTabByDirection,
   parseFilePanelTabId,
   pinPanelTab,
@@ -15,7 +19,7 @@ import {
   resetPanelTabSet,
   transferPanelTab,
   upsertPanelTab
-} from '../../types'
+} from '../../types/panelTabs'
 
 test('file panel tab ids include host and decode legacy path-only ids', () => {
   const id = filePanelTabId('/Users/nadav/Desktop/Orchestrator', 'Nested Folder/nested note.md')
@@ -134,6 +138,12 @@ test('panel tab transfer preserves source and target when the tab cannot be move
 })
 
 test('panel tab transfer availability exposes the shared shell boundary', () => {
+  assert.deepEqual([...BOTTOM_PANEL_TRANSFER_TAB_KINDS], ['terminal', 'plan'])
+  assert.equal(isBottomPanelTransferTabKind('terminal'), true)
+  assert.equal(isBottomPanelTransferTabKind('plan'), true)
+  assert.equal(isBottomPanelTransferTabKind('browser'), false)
+  assert.equal(bottomPanelTransferPolicyLabel(), 'Bottom panel supports Terminal and Plan tabs.')
+
   assert.deepEqual(resolvePanelTabTransferAvailability('bottom', 'right', 'terminal'), {
     model: 'shared',
     sourcePanel: 'bottom',
@@ -148,6 +158,15 @@ test('panel tab transfer availability exposes the shared shell boundary', () => 
     sourcePanel: 'right',
     targetPanel: 'bottom',
     tabKind: 'terminal',
+    supported: true,
+    reason: 'available'
+  })
+
+  assert.deepEqual(resolvePanelTabTransferAvailability('right', 'bottom', 'plan'), {
+    model: 'shared',
+    sourcePanel: 'right',
+    targetPanel: 'bottom',
+    tabKind: 'plan',
     supported: true,
     reason: 'available'
   })
@@ -331,4 +350,17 @@ test('panel new-tab target routes browser and terminal focus through the shell',
     bottomPanelActiveTabId: null,
     bottomPanelTabCount: 1
   }), null)
+})
+
+test('bottom panel close policy protects single terminals but allows final plan tab', () => {
+  assert.equal(canCloseBottomPanelTab(0, [0]), false)
+  assert.equal(canCloseBottomPanelTab('plan', ['plan']), true)
+  assert.equal(canCloseBottomPanelTab(0, [0, 'plan']), true)
+  assert.equal(canCloseBottomPanelTab('plan', [0, 'plan']), true)
+
+  assert.equal(resolvePanelNewTabTarget('bottom-panel', {
+    bottomPanelOpen: true,
+    bottomPanelActiveTabId: 'plan',
+    bottomPanelTabCount: 1
+  }), 'bottom-terminal')
 })

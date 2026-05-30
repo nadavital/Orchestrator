@@ -59,6 +59,7 @@ test('interrupted runs settle streaming and queued text messages', () => {
       content: 'partial',
       timestamp: 1,
       isStreaming: false,
+      interrupted: true,
       queueState: undefined
     },
     {
