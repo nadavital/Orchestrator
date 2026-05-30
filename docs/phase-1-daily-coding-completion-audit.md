@@ -104,6 +104,12 @@ Elevated `npm run smoke:ui:daily-coding -- --full --keep-going` passed all 17 da
 
 No local UI failures were exposed by this pass. The remaining Phase 1 work should stay focused on live/provider proof and real dogfood workflow breaks, not another local action/status micro-pass.
 
+## 2026-05-30 Daily-Coding Dogfood Refresh
+
+Elevated `npm run smoke:ui:daily-coding -- --full --keep-going` passed all 17 daily-coding targets after the Review Last turn local undo, Settings host provider handoff, hosted Review metadata error-boundary, and Claude provider-boundary documentation checkpoints. Manifest: `/Users/nadav/Desktop/Orchestrator/tmp/daily-coding-smoke/daily-coding-smoke-1780107805539.json`.
+
+This run passed header, session switching, composer, transcript layout, permission/user-input cards, Workbench/Git, Agent Activity, right panel, Environment, Review, Files/source tabs, Browser, Terminal, Settings, provider Settings, and side chat. It does not close the remaining live Codex screenshot, provider-adapter/proof, browser-use runtime-signal, or Phase 2 renderer-fidelity gaps.
+
 ## 2026-05-29 Codex Plan Live Proof
 
 Added `npm run live:codex-composer-plan`, an opt-in live Codex app-server proof mode in `scripts/codex-composer-appserver-live-proof.mjs`. It starts a real app-server turn in a disposable workspace, asks Codex to produce a native plan update without shell commands or file edits, and requires an observed `turn/plan/updated` notification plus the final assistant token.
