@@ -45,7 +45,7 @@ Use this when adding or deepening Claude, Codex, Cursor, Copilot, or a future co
 | Command | What it proves | Current result |
 | --- | --- | --- |
 | `npm run live:providers` | General live provider smoke path. | Use when checking installed provider availability and basic runtime health. |
-| `npm run live:claude-capabilities` | Claude capability/resource behavior. | Use before claiming deeper Claude integration parity. |
+| `npm run live:claude-capabilities` | Claude capability/resource behavior. | Current environment is unavailable for structured Claude proof: `claude --version` reports `2.1.51`, resource probes can run, but `claude auto-mode defaults` returns API 401 invalid credentials, so the harness skips quota-using structured scenarios. Artifact: `/Users/nadav/Desktop/Orchestrator/tmp/claude-live-capabilities/_summary/summary.json`. |
 | `npm run live:codex-appserver` | Basic Codex app-server thread/turn completion. | Proves the app-server transport can run a turn. |
 | `npm run live:codex-browser-appserver` | Whether live Codex app-server exposes browser-use events/tools to this client. | Currently blocked at this stdio client boundary; no browser-use surface is exposed. |
 | `npm run live:codex-review-appserver` | Live Codex `turn/diff/updated` and `thread/rollback` behavior. | Emits provider session/turn diff events with no checkpoint id; `thread/rollback` rolls back thread history but not workspace git diff. |

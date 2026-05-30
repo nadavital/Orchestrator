@@ -66,6 +66,7 @@ Do not call Claude support complete unless:
 
 ## Latest Notes
 
+- 2026-05-29: `npm run live:claude-capabilities` now preflights no-quota Claude probes before structured scenarios. Current local evidence is `Unavailable`, not a passing Claude proof: `claude --version` reports `2.1.51`, `auth status` reports a logged-in account, but `auto-mode defaults` returns API 401 invalid credentials, so the harness skips `plain`, `file_ops`, `plan_mode`, and `streaming` structured scenarios. Artifact: `/Users/nadav/Desktop/Orchestrator/tmp/claude-live-capabilities/_summary/summary.json`.
 - 2026-05-13: Claude native runtime selection was removed from normal chat and stale Claude sessions normalize back to structured/headless before sending.
 - 2026-05-13: Structured plan sidebar, subagent tabs, attachments, usage, and side questions were verified in isolated dev UI profiles.
 - 2026-05-13: The old Claude-native terminal parser, native prompt bridge, and runtime-parity script were removed so Claude support stays structured-first.

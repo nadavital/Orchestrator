@@ -80,3 +80,9 @@ Verification:
 The daily-coding runner now extracts nested smoke `outputPath` and `screenshotPath` from both stdout and stderr. This matters because focused smoke failures can print their diagnostic JSON on stderr; without parsing both streams, the manifest can lose the artifact path needed to inspect the actual failed surface. The changed-file planner also runs the runner unit test whenever the daily-coding smoke script changes.
 
 Verification: `npm run smoke:ui:changed:static`, `npm run smoke:ui:daily-coding -- --list`, and elevated `npm run smoke:ui:daily-coding -- --only header` passed. Header manifest: `/Users/nadav/Desktop/Orchestrator/tmp/daily-coding-smoke/daily-coding-smoke-1780102327846.json`.
+
+## 2026-05-29 Claude Provider Boundary Check
+
+Non-Codex provider proof remains unavailable in the current local environment. The Claude live capability harness now runs no-quota probes before structured scenarios and skips quota-using scenarios when the probes show invalid credentials. Current elevated evidence: `claude --version` reports `2.1.51`, Claude resource probes can run, but `claude auto-mode defaults` returns API 401 invalid credentials. The harness therefore skipped `plain`, `file_ops`, `plan_mode`, and `streaming` structured scenarios instead of treating failed auth responses as product behavior.
+
+Artifact: `/Users/nadav/Desktop/Orchestrator/tmp/claude-live-capabilities/_summary/summary.json`.

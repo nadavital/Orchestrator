@@ -263,12 +263,79 @@ function runNoQuotaProbe(id, args) {
   }
 }
 
+function parseProbeJson(probe) {
+  try {
+    return JSON.parse(probe.output)
+  } catch {
+    return null
+  }
+}
+
+function shouldSkipStructuredScenarios(probes) {
+  const authProbe = probes.find((probe) => probe.id === 'auth-status')
+  if (!authProbe) return null
+  const authStatus = parseProbeJson(authProbe)
+  if (authStatus?.loggedIn === false) {
+    return 'Claude CLI is installed but not authenticated.'
+  }
+  if (!authProbe.ok && /not logged in|not authenticated|login|loggedIn.+false/i.test(authProbe.output)) {
+    return 'Claude CLI is installed but not authenticated.'
+  }
+  const authFailureProbe = probes.find((probe) =>
+    /authentication_error|invalid authentication credentials|failed to authenticate/i.test(probe.output)
+  )
+  if (authFailureProbe) {
+    return `Claude CLI authentication failed during ${authFailureProbe.id}.`
+  }
+  return null
+}
+
+function summarizeProbes(probes) {
+  return probes.map((probe) => ({
+    id: probe.id,
+    ok: probe.ok,
+    args: probe.args,
+    outputPreview: probe.output.split('\n').slice(0, 8)
+  }))
+}
+
 resetArtifacts()
 
 console.log('Running live Claude capability suite. Structured scenarios may use Claude quota.')
 console.log(`  model=${liveSmokeModel('claude')} effort=${liveSmokeEffort('claude')}`)
 console.log(`  scenarios=${selectedScenarioIds.join(', ')}`)
 console.log(`  artifacts=${artifactRoot}`)
+console.log('')
+
+const probes = [
+  runNoQuotaProbe('version', ['--version']),
+  runNoQuotaProbe('auth-status', ['auth', 'status']),
+  runNoQuotaProbe('mcp-list', ['mcp', 'list']),
+  runNoQuotaProbe('plugin-list-json', ['plugin', 'list', '--json']),
+  runNoQuotaProbe('auto-mode-defaults', ['auto-mode', 'defaults']),
+  runNoQuotaProbe('agents-list', ['agents'])
+]
+
+for (const probe of probes) {
+  console.log(`${probe.ok ? 'PASS' : 'FAIL'} probe ${probe.id}`)
+  if (!probe.ok) console.log(`  ${probe.output.split('\n')[0] ?? ''}`)
+}
+
+const structuredSkipReason = shouldSkipStructuredScenarios(probes)
+if (structuredSkipReason) {
+  console.log('')
+  console.log(`SKIP structured scenarios: ${structuredSkipReason}`)
+  const summary = {
+    generatedAt: new Date().toISOString(),
+    status: 'unavailable',
+    reason: structuredSkipReason,
+    scenarios: selectedScenarioIds.map((id) => ({ id, ok: false, reason: structuredSkipReason, skipped: true })),
+    probes: summarizeProbes(probes)
+  }
+  writeArtifact('_summary', 'summary.json', summary)
+  process.exit(1)
+}
+
 console.log('')
 
 const selectedScenarios = scenarios.filter((scenario) => selectedScenarioIds.includes(scenario.id))
@@ -281,22 +348,9 @@ for (const scenario of selectedScenarios) {
   if (result.assistantText) console.log(`  assistant: ${result.assistantText.slice(0, 180)}`)
 }
 
-const probes = [
-  runNoQuotaProbe('auth-status', ['auth', 'status']),
-  runNoQuotaProbe('mcp-list', ['mcp', 'list']),
-  runNoQuotaProbe('plugin-list-json', ['plugin', 'list', '--json']),
-  runNoQuotaProbe('auto-mode-defaults', ['auto-mode', 'defaults']),
-  runNoQuotaProbe('agents-list', ['agents'])
-]
-
-console.log('')
-for (const probe of probes) {
-  console.log(`${probe.ok ? 'PASS' : 'FAIL'} probe ${probe.id}`)
-  if (!probe.ok) console.log(`  ${probe.output.split('\n')[0] ?? ''}`)
-}
-
 const summary = {
   generatedAt: new Date().toISOString(),
+  status: 'complete',
   scenarios: scenarioResults.map((result) => ({
     id: result.id,
     ok: result.ok,
@@ -305,7 +359,7 @@ const summary = {
     jsonlFiles: result.jsonlFiles,
     workspace: result.workspace
   })),
-  probes: probes.map((probe) => ({ id: probe.id, ok: probe.ok, args: probe.args, outputPreview: probe.output.split('\n').slice(0, 8) }))
+  probes: summarizeProbes(probes)
 }
 writeArtifact('_summary', 'summary.json', summary)
 
