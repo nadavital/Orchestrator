@@ -63,3 +63,14 @@ Added `npm run smoke:ui:daily-coding` as the midpoint between tiny changed-files
 Verification: `node -c scripts/run-daily-coding-smoke.mjs`, `npm run smoke:ui:daily-coding -- --list`, `node -e "JSON.parse(require('fs').readFileSync('package.json','utf8')); console.log('package-json-ok')"`, and `git diff --check` passed. Focused elevated `npm run smoke:ui:daily-coding -- --only header` passed after the expected sandbox localhost bind failure on the unelevated attempt; daily manifest `/Users/nadav/Desktop/Orchestrator/tmp/daily-coding-smoke/daily-coding-smoke-1780100404708.json`; smoke JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-header-1780100396221.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-header-1780100396221.png`.
 
 Full milestone result: elevated `npm run smoke:ui:daily-coding -- --full --keep-going` passed all 17 daily-coding targets with no failed surfaces. Manifest: `/Users/nadav/Desktop/Orchestrator/tmp/daily-coding-smoke/daily-coding-smoke-1780100822131.json`. This is strong local fixture evidence for Phase 1 daily-coding readiness across header/session routing, composer/transcript, permission/user-input, Workbench/Git/Agent Activity, Environment, Review, Files, Browser, Terminal, Settings, provider Settings, and side chat. It does not close provider-backed live gaps or Phase 2 renderer fidelity.
+
+## 2026-05-29 Packaged Daily-Coding Check
+
+Packaged verification found one real daily-coding issue: the Workbench Git pull-request command handoff could append a generated `gh pr create` command to an existing terminal draft when the smoke had already inserted a file path into the active terminal tab. That was a usability bug, not visual polish. The fix opens a fresh terminal tab for the generated PR command while keeping file/path terminal handoffs on the active terminal.
+
+Verification:
+
+- `npm run smoke:ui:changed:static` passed for `src/main/index.ts`, `src/main/terminal.ts`, and `src/renderer/src/components/Session/GitPanel.tsx`.
+- `npm run pack:mac` passed and rebuilt `dist/mac-arm64/Orchestrator.app`.
+- Elevated `npm run smoke:ui:daily-coding -- --packaged --only workbench-new-tab --verbose` passed after the fix. Manifest: `/Users/nadav/Desktop/Orchestrator/tmp/daily-coding-smoke/daily-coding-smoke-1780101908989.json`; smoke JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-workbench-new-tab-1780101892520.json`.
+- Elevated `npm run smoke:ui:daily-coding -- --packaged --only header,session-switch,composer,workbench-new-tab,browser,terminal --keep-going` passed the original packaged subset that exposed the bug. Manifest: `/Users/nadav/Desktop/Orchestrator/tmp/daily-coding-smoke/daily-coding-smoke-1780102021969.json`.

@@ -9772,6 +9772,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 let workbenchNewTabGitPrMetadataWorks = false;
                 let workbenchNewTabGitPrCommandHandoffWorks = false;
                 let workbenchNewTabGitPrCommandTerminalHandoffWorks = false;
+                let workbenchNewTabGitPrCommandTerminalDebug = null;
                 let workbenchNewTabGitRefreshStatusWorks = false;
                 let workbenchNewTabGitStatusHandoffWorks = false;
                 let workbenchNewTabGitCommitDraftHandoffWorks = false;
@@ -10246,13 +10247,17 @@ function runAutomatedFocusedSurfaceSmoke(
                       const terminalBuffer = terminalId
                         ? await window.api?.terminal?.getBuffer?.(terminalId).catch(() => '') ?? ''
                         : '';
+                      const terminalBufferHasPrCommand =
+                        terminalBuffer.includes('gh pr create') &&
+                        terminalBuffer.includes('--head') &&
+                        terminalBuffer.includes(smokeBranchName.slice(0, 15)) &&
+                        terminalBuffer.includes(smokeBranchName.slice(-16));
                       if (
                         gitStatusAfterPrTerminal instanceof HTMLElement &&
                         gitStatusAfterPrTerminal.textContent?.includes('PR command inserted in terminal') === true &&
                         terminalCommand.includes('gh pr create') &&
                         terminalCommand.includes(smokeBranchName) &&
-                        terminalBuffer.includes('gh pr create') &&
-                        terminalBuffer.includes(smokeBranchName)
+                        terminalBufferHasPrCommand
                       ) {
                         break;
                       }
@@ -10264,6 +10269,29 @@ function runAutomatedFocusedSurfaceSmoke(
                       ? await window.api?.terminal?.getBuffer?.(terminalId).catch(() => '') ?? ''
                       : '';
                     const bottomPanelAfterPrTerminal = document.querySelector('[data-testid="session-bottom-panel"]');
+                    const terminalBufferHasPrCommand =
+                      terminalBuffer.includes('gh pr create') &&
+                      terminalBuffer.includes('--head') &&
+                      terminalBuffer.includes(smokeBranchName.slice(0, 15)) &&
+                      terminalBuffer.includes(smokeBranchName.slice(-16));
+                    workbenchNewTabGitPrCommandTerminalDebug = {
+                      statusText: gitStatusAfterPrTerminal instanceof HTMLElement ? gitStatusAfterPrTerminal.textContent : null,
+                      statusRole: gitStatusAfterPrTerminal instanceof HTMLElement ? gitStatusAfterPrTerminal.getAttribute('role') : null,
+                      statusLive: gitStatusAfterPrTerminal instanceof HTMLElement ? gitStatusAfterPrTerminal.getAttribute('aria-live') : null,
+                      terminalId,
+                      terminalCommandPreview: terminalCommand.slice(0, 240),
+                      terminalCommandHasGhPrCreate: terminalCommand.includes('gh pr create'),
+                      terminalCommandHasBranch: terminalCommand.includes(smokeBranchName),
+                      terminalBufferLength: terminalBuffer.length,
+                      terminalBufferPreview: terminalBuffer.slice(-320),
+                      terminalBufferHasGhPrCreate: terminalBuffer.includes('gh pr create'),
+                      terminalBufferHasBranch: terminalBuffer.includes(smokeBranchName),
+                      terminalBufferHasPrCommand,
+                      terminalBufferHasGithubUrl: terminalBuffer.includes('https://github.com/'),
+                      activeTerminalId: bottomPanelAfterPrTerminal instanceof HTMLElement
+                        ? bottomPanelAfterPrTerminal.getAttribute('data-bottom-panel-active-terminal-id')
+                        : null
+                    };
                     workbenchNewTabGitPrCommandTerminalHandoffWorks =
                       gitStatusAfterPrTerminal instanceof HTMLElement &&
                       gitStatusAfterPrTerminal.getAttribute('role') === 'status' &&
@@ -10271,8 +10299,7 @@ function runAutomatedFocusedSurfaceSmoke(
                       gitStatusAfterPrTerminal.textContent?.includes('PR command inserted in terminal') === true &&
                       terminalCommand.includes('gh pr create') &&
                       terminalCommand.includes(smokeBranchName) &&
-                      terminalBuffer.includes('gh pr create') &&
-                      terminalBuffer.includes(smokeBranchName) &&
+                      terminalBufferHasPrCommand &&
                       !terminalBuffer.includes('https://github.com/') &&
                       bottomPanelAfterPrTerminal instanceof HTMLElement &&
                       bottomPanelAfterPrTerminal.getAttribute('data-bottom-panel-active-terminal-id') === terminalId;
@@ -11281,6 +11308,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   workbenchNewTabGitPrMetadataWorks,
                   workbenchNewTabGitPrCommandHandoffWorks,
                   workbenchNewTabGitPrCommandTerminalHandoffWorks,
+                  workbenchNewTabGitPrCommandTerminalDebug,
                   workbenchNewTabGitRefreshStatusWorks,
                   workbenchNewTabGitStatusHandoffWorks,
                   workbenchNewTabGitCommitDraftHandoffWorks,

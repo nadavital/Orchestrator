@@ -169,13 +169,17 @@ function wrapPty(pty: IPty): ManagedTerminalShell {
 }
 
 function wrapPipeShell(child: ChildProcessWithoutNullStreams): ManagedTerminalShell {
+  const listeners = new Set<(data: string) => void>()
   return {
     write: (data) => {
-      if (!child.stdin.destroyed) child.stdin.write(data)
+      if (child.stdin.destroyed) return
+      child.stdin.write(data)
+      for (const listener of listeners) listener(data)
     },
     resize: () => undefined,
     kill: () => child.kill(),
     onData: (listener) => {
+      listeners.add(listener)
       child.stdout.on('data', (data) => listener(data.toString()))
       child.stderr.on('data', (data) => listener(data.toString()))
       child.on('error', (error) => listener(`${error.message}\r\n`))

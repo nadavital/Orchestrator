@@ -471,12 +471,7 @@ export default function GitPanel({
     setActionState('terminal')
     setActionMessage({ text: 'Opening terminal for PR command', tone: 'info' })
     try {
-      const state = useSessionStore.getState()
-      const currentPanel = state.uiState[sessionId]?.terminalPanel
-      const existingTab = typeof currentPanel?.activeTabId === 'number'
-        ? currentPanel.activeTabId
-        : currentPanel?.tabs.find((tab): tab is number => typeof tab === 'number')
-      const tabId = existingTab ?? addTerminalTab(sessionId)
+      const tabId = addTerminalTab(sessionId)
       setShowTerminal(sessionId, true)
       setActiveTerminalTab(sessionId, tabId)
       const terminalId = `${sessionId}-${tabId}`
