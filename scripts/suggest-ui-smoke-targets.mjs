@@ -242,6 +242,18 @@ const broadTriggers = [
 
 const staticValidationRules = [
   {
+    label: 'Daily coding smoke runner unit coverage',
+    patterns: [/^scripts\/run-daily-coding-smoke\.mjs$/, /^scripts\/run-daily-coding-smoke\.test\.mjs$/],
+    checks: [
+      {
+        kind: 'static',
+        label: 'Daily coding smoke runner unit coverage',
+        command: 'node',
+        args: ['--test', 'scripts/run-daily-coding-smoke.test.mjs']
+      }
+    ]
+  },
+  {
     label: 'Panel tab unit policy',
     patterns: [/^src\/types\/panelTabs\.ts$/, /^src\/main\/__tests__\/panelTabs\.test\.ts$/],
     checks: [

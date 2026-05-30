@@ -74,3 +74,9 @@ Verification:
 - `npm run pack:mac` passed and rebuilt `dist/mac-arm64/Orchestrator.app`.
 - Elevated `npm run smoke:ui:daily-coding -- --packaged --only workbench-new-tab --verbose` passed after the fix. Manifest: `/Users/nadav/Desktop/Orchestrator/tmp/daily-coding-smoke/daily-coding-smoke-1780101908989.json`; smoke JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-workbench-new-tab-1780101892520.json`.
 - Elevated `npm run smoke:ui:daily-coding -- --packaged --only header,session-switch,composer,workbench-new-tab,browser,terminal --keep-going` passed the original packaged subset that exposed the bug. Manifest: `/Users/nadav/Desktop/Orchestrator/tmp/daily-coding-smoke/daily-coding-smoke-1780102021969.json`.
+
+## 2026-05-29 Daily-Coding Failure Artifact Traceability
+
+The daily-coding runner now extracts nested smoke `outputPath` and `screenshotPath` from both stdout and stderr. This matters because focused smoke failures can print their diagnostic JSON on stderr; without parsing both streams, the manifest can lose the artifact path needed to inspect the actual failed surface. The changed-file planner also runs the runner unit test whenever the daily-coding smoke script changes.
+
+Verification: `npm run smoke:ui:changed:static`, `npm run smoke:ui:daily-coding -- --list`, and elevated `npm run smoke:ui:daily-coding -- --only header` passed. Header manifest: `/Users/nadav/Desktop/Orchestrator/tmp/daily-coding-smoke/daily-coding-smoke-1780102327846.json`.
