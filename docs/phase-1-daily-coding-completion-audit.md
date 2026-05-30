@@ -18,6 +18,7 @@ This checkpoint exists to prevent Phase 1 from drifting into low-value parity po
 - 2026-05-30 live Review rollback refresh: elevated `npm run live:codex-review-appserver` still proves Codex app-server `turn/diff/updated` events include provider session/turn ids but no checkpoint ids, and a successful `{ threadId, numTurns: 1 }` `thread/rollback` leaves the workspace file and git diff changed. Evidence: `tmp/codex-review-appserver-live-proof/result.json`.
 - 2026-05-30 Settings host provider handoff: unavailable remote-host Settings pages now offer a direct Provider Settings jump in addition to Local recovery, so a remote host adapter boundary is not a dead end. Evidence: focused `--settings` smoke `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1780106704811.json`.
 - 2026-05-30 hosted Review metadata error boundary: Git/Review metadata refresh now treats true no-PR responses as unavailable but surfaces hosted-provider failures such as GitHub auth/network/API errors instead of silently reporting "No hosted metadata found." Evidence: `gitChanges.test.js` classifier coverage and focused `--workbench-new-tab` smoke `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-workbench-new-tab-1780107163714.json`.
+- 2026-05-30 hosted Review metadata live proof: `pnpm run live:github-review-metadata -- --pr 4` passed against merged PR #4 and wrote `tmp/github-review-metadata-live-proof/result.json` with authenticated hosted PR metadata. The artifact records `commentedProof=false` because PR #4 has no live comments, so this improves provider-proof traceability without closing the commented-PR gap.
 
 ## Must Fix Before Calling Phase 1 Daily-Use Ready
 
@@ -162,6 +163,8 @@ Completion boundary: this proves local daily-coding readiness for Phase 1 fixtur
 `npm run compare:codex-side-panels -- --no-fail` now writes `actionableGapSummary` into `tmp/codex-side-panel-comparison/comparison-report.json` and the Markdown report. The current summary is `localActionable=0`, `liveProof=7`, `providerAdapter=8`, `providerProof=2`, `runtimeSignal=1`, and `phase2Renderer=1`, with the recommendation: local UI parity has no actionable gap in this report; next work should be fresh dogfood, authenticated live proof, provider contracts, or explicit Phase 2 renderer work.
 
 This is the current anti-loop gate. If the comparison keeps reporting `localActionable=0`, do not start another broad local side-panel polish pass unless fresh dogfood or user-visible runtime behavior contradicts the report.
+
+2026-05-30 hosted Review proof follow-up: the comparison now consumes `tmp/github-review-metadata-live-proof/result.json` for read-only authenticated GitHub Review metadata proof. The current artifact is useful but not sufficient to reduce the remaining provider-proof count because the selected safe target, PR #4, has no live issue comments or review-thread comments.
 
 ## 2026-05-30 Live Codex UI Capture Boundary
 

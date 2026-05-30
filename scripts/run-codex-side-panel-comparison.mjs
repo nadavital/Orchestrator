@@ -370,10 +370,23 @@ function buildContracts() {
         { basename: 'review-runtime-bridge-CZUIqW4U.js', terms: ['set-review-pane-snapshot-metrics-for-host', 'reviewDiffFilesTotal'] },
         { basename: 'review-header-toolbar-6CN1dM2m.js', terms: ['checks', 'reviewer'] }
       ],
+      sourceEvidence: [
+        { path: 'scripts/github-review-metadata-live-proof.mjs', terms: ['reviewMetadataFromGitHubPullRequestView', 'reviewThreadCommentMetadataFromGitHub', 'commentedProof'] },
+        { path: 'package.json', terms: ['live:github-review-metadata'] }
+      ],
+      artifactEvidence: [
+        {
+          path: 'tmp/github-review-metadata-live-proof/result.json',
+          checks: [
+            { path: 'status', equals: 'passed' },
+            { path: 'authenticated', equals: true }
+          ]
+        }
+      ],
       smokeChecks: ['reviewMetadataToolbar', 'reviewMetadataFlyoutShared', 'reviewTranscriptCardLastTurn', 'reviewFileHeaderPathFirst', 'reviewLastTurnVisualState', 'reviewProviderSourceUnavailableReasons', 'reviewWorktreeProviderSource', 'reviewFullSourceBlame', 'reviewLineComments'],
       statusWhenCovered: 'fixture-covered',
-      caveat: 'Fixture and local/GitHub-backed paths pass, including a direct Last turn transcript-card Review screenshot with the changed-files rail hidden, focused proof that the Last turn card exposes local reverse-patch undo without claiming provider checkpoint rollback, general PR and inline/threaded review comment summaries, provider comment line rendering, GitHub review-comment commit/blame metadata, and explicit unsupported-provider source reasons for unavailable cloud/worktree rows. Live commented-PR proof, provider-native hosted/cloud sources, and provider-history checkpoint rollback are not live-proven.',
-      next: 'Add one real provider-backed Review source when an adapter exists.',
+      caveat: 'Fixture and local/GitHub-backed paths pass, including a direct Last turn transcript-card Review screenshot with the changed-files rail hidden, focused proof that the Last turn card exposes local reverse-patch undo without claiming provider checkpoint rollback, general PR and inline/threaded review comment summaries, provider comment line rendering, GitHub review-comment commit/blame metadata, and explicit unsupported-provider source reasons for unavailable cloud/worktree rows. The read-only GitHub live harness proves authenticated hosted PR metadata when a PR target exists and separately records whether the selected PR has live comments. Live commented-PR proof, provider-native hosted/cloud sources, and provider-history checkpoint rollback are not live-proven unless that artifact reports `commentedProof=true`.',
+      next: 'Use `pnpm run live:github-review-metadata` for read-only hosted Review proof; add one real provider-backed commented Review source only when a safe commented PR target exists.',
       openIssues: [
         {
           category: 'provider-adapter',
@@ -382,8 +395,8 @@ function buildContracts() {
         },
         {
           category: 'provider-proof',
-          issue: 'Live commented-PR Review proof is not present in the current installed comparison.',
-          requiredEvidence: 'Live provider-backed PR/comment session fixture or authenticated adapter proof.'
+          issue: 'Live commented-PR Review proof is not present for the current safe GitHub target.',
+          requiredEvidence: 'Live provider-backed PR/comment session fixture, or the read-only GitHub metadata artifact with `commentedProof=true` against a safe commented PR.'
         },
         {
           category: 'provider-adapter',
