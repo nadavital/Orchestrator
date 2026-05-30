@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import test from 'node:test'
 
-import { gitManager, isGitHubReviewMetadataUnavailableErrorMessage, mergeReviewCommentSummaries, parseGitHubPullRequestUrl, parseGitHubRemoteUrl, reviewMetadataFromGitHubPullRequestView, reviewThreadCommentMetadataFromGitHub, reviewThreadCommentSummaryFromGitHub } from '../git'
+import { gitManager, isGitHubReviewMetadataUnavailableErrorMessage, mergeReviewCommentSummaries, parseGitHubPullRequestUrl, parseGitHubRemoteUrl, reviewMetadataFromGitHubPullRequestView, reviewProviderMetadataWarningFromCommandError, reviewThreadCommentMetadataFromGitHub, reviewThreadCommentSummaryFromGitHub } from '../git'
 
 test('changed files preserve paths with spaces without git porcelain quotes', async () => {
   const root = mkdtempSync(join(tmpdir(), 'orchestrator-git-changes-'))
@@ -583,6 +583,17 @@ test('GitHub Review metadata errors distinguish no PR from hosted provider failu
   assert.equal(isGitHubReviewMetadataUnavailableErrorMessage('error connecting to api.github.com\ncheck your internet connection'), false)
   assert.equal(isGitHubReviewMetadataUnavailableErrorMessage('HTTP 401: Bad credentials'), false)
   assert.equal(isGitHubReviewMetadataUnavailableErrorMessage('The token in default is invalid.'), false)
+})
+
+test('GitHub inline review metadata warnings keep the first provider error line', () => {
+  assert.equal(
+    reviewProviderMetadataWarningFromCommandError('HTTP 401: Bad credentials\nTry gh auth login'),
+    'Inline review comments unavailable: HTTP 401: Bad credentials'
+  )
+  assert.equal(
+    reviewProviderMetadataWarningFromCommandError(''),
+    'Inline review comments unavailable'
+  )
 })
 
 test('GitHub PR review thread JSON normalizes to inline comment metadata', () => {

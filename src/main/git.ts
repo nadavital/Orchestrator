@@ -597,6 +597,9 @@ export const gitManager = {
       if (metadata && threadComments?.commentsByPath) {
         metadata.providerCommentsByPath = threadComments.commentsByPath
       }
+      if (metadata && threadComments?.warning) {
+        metadata.providerWarnings = [...(metadata.providerWarnings ?? []), threadComments.warning]
+      }
       return metadata
     } catch (error) {
       const message = commandErrorMessage(error)
@@ -664,7 +667,7 @@ async function getGitHubReviewThreadCommentSummary(
   cwd: string,
   pullRequestId: string,
   url: string | null
-): Promise<{ summary?: ReviewMetadata['comments']; commentsByPath?: NonNullable<ReviewMetadata['providerCommentsByPath']> } | undefined> {
+): Promise<{ summary?: ReviewMetadata['comments']; commentsByPath?: NonNullable<ReviewMetadata['providerCommentsByPath']>; warning?: string } | undefined> {
   try {
     const { stdout } = await execFileAsync('gh', [
       'api',
@@ -680,9 +683,14 @@ async function getGitHubReviewThreadCommentSummary(
       maxBuffer: 1024 * 1024
     })
     return reviewThreadCommentMetadataFromGitHub(JSON.parse(stdout), url)
-  } catch {
-    return undefined
+  } catch (error) {
+    return { warning: reviewProviderMetadataWarningFromCommandError(commandErrorMessage(error)) }
   }
+}
+
+export function reviewProviderMetadataWarningFromCommandError(message: string): string {
+  const firstLine = firstCommandErrorLine(message)
+  return `Inline review comments unavailable${firstLine ? `: ${firstLine}` : ''}`
 }
 
 export function reviewMetadataFromGitHubPullRequestView(value: unknown): ReviewMetadata | undefined {

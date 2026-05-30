@@ -201,7 +201,8 @@ function automatedReviewSmokeMetadata(): ReviewMetadata | undefined {
           }
         }
       ]
-    }
+    },
+    providerWarnings: ['Inline review comments unavailable: smoke warning from provider adapter']
   }
 }
 

@@ -1975,6 +1975,7 @@ function ReviewMetadataStrip({
   const hasMetadata = Boolean(metadata.pullRequest || metadata.checks || metadata.reviewers || metadata.comments)
   if (!hasMetadata) return <></>
   const summary = reviewMetadataSummary(metadata)
+  const providerWarnings = (metadata.providerWarnings ?? []).filter((warning) => warning.trim().length > 0)
   return (
     <div
       className="review-metadata-strip relative"
@@ -1984,6 +1985,7 @@ function ReviewMetadataStrip({
       data-review-metadata-reviewers={reviewReviewerCount(metadata.reviewers)}
       data-review-metadata-comments={metadata.comments?.total ?? 0}
       data-review-metadata-comments-unresolved={metadata.comments?.unresolved ?? 0}
+      data-review-metadata-warnings={providerWarnings.length}
       data-review-metadata-state={metadataState}
       data-review-metadata-error={metadataError ?? ''}
     >
@@ -2065,6 +2067,15 @@ function ReviewMetadataStrip({
                 externalUrl={metadata.comments.url ?? metadata.pullRequest?.url ?? null}
                 onSelect={() => onOpenPanelChange('comments')}
               />
+            )}
+            {providerWarnings.length > 0 && (
+              <MenuMessage
+                compact
+                dataTestId="review-metadata-provider-warning"
+                state="provider-warning"
+              >
+                <span title={providerWarnings.join('\n')}>{providerWarnings[0]}</span>
+              </MenuMessage>
             )}
           </MenuSection>
         </MenuSurface>

@@ -1283,6 +1283,7 @@ export interface ReviewMetadata {
   reviewers?: ReviewReviewerSummary
   comments?: ReviewCommentSummary
   providerCommentsByPath?: Record<string, ReviewProviderComment[]>
+  providerWarnings?: string[]
 }
 
 export interface Session {

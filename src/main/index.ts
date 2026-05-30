@@ -17821,6 +17821,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   const reviewMetadataReviewersRow = document.querySelector('[data-testid="review-metadata-reviewers-row"]');
                   const reviewMetadataComments = document.querySelector('[data-testid="review-metadata-comments"]');
                   const reviewMetadataCommentsRow = document.querySelector('[data-testid="review-metadata-comments-row"]');
+                  const reviewMetadataWarning = document.querySelector('[data-testid="review-metadata-provider-warning"]');
                   if (
                     reviewMetadataStrip instanceof HTMLElement &&
                     reviewMetadataMenuButton.getAttribute('aria-haspopup') === 'menu' &&
@@ -17832,6 +17833,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     reviewMetadataStrip.getAttribute('data-review-metadata-reviewers') === '4' &&
                     reviewMetadataStrip.getAttribute('data-review-metadata-comments') === '5' &&
                     reviewMetadataStrip.getAttribute('data-review-metadata-comments-unresolved') === '1' &&
+                    reviewMetadataStrip.getAttribute('data-review-metadata-warnings') === '1' &&
                     reviewMetadataStrip.getAttribute('data-review-metadata-state') === 'loaded' &&
                     reviewMetadataRefreshButton instanceof HTMLButtonElement &&
                     reviewMetadataRefreshButton.getAttribute('aria-label') === 'Refresh review metadata' &&
@@ -17845,7 +17847,10 @@ function runAutomatedFocusedSurfaceSmoke(
                     reviewMetadataChecks.getAttribute('data-review-check-status') === 'failing' &&
                     (reviewMetadataReviewers.textContent ?? '').includes('4 reviewers') &&
                     (reviewMetadataComments.textContent ?? '').includes('5 comments') &&
-                    (reviewMetadataComments.textContent ?? '').includes('1 unresolved')
+                    (reviewMetadataComments.textContent ?? '').includes('1 unresolved') &&
+                    reviewMetadataWarning instanceof HTMLElement &&
+                    reviewMetadataWarning.getAttribute('data-menu-message-state') === 'provider-warning' &&
+                    (reviewMetadataWarning.textContent ?? '').includes('Inline review comments unavailable')
                   ) {
                     reviewMetadataMenuStateWorks = true;
                     reviewMetadataToolbarWorks = true;
@@ -32651,7 +32656,8 @@ function seedAutomatedReviewCardSmokeSession(sessionId: string): void {
               createdAt: '2026-05-25T12:00:00Z'
             }
           ]
-        }
+        },
+        providerWarnings: ['Inline review comments unavailable: smoke warning from provider adapter']
       }
     })
   }
