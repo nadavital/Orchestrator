@@ -6,7 +6,20 @@ export type PanelBrowserCommandTarget = 'browser'
 export type PanelNewTabTarget = 'browser' | 'right-terminal' | 'bottom-terminal'
 export type PanelTabTransferPanelId = 'right' | 'bottom'
 export type PanelTabTransferSupportReason = 'available' | 'same-panel' | 'unsupported-tab-kind' | 'unsupported-target'
-export const BOTTOM_PANEL_TRANSFER_TAB_KINDS = ['terminal', 'plan'] as const
+export const BOTTOM_PANEL_TRANSFER_TAB_KINDS = [
+  'terminal',
+  'plan',
+  'environment',
+  'git',
+  'diff',
+  'agents',
+  'extensions',
+  'side',
+  'files',
+  'browser',
+  'file',
+  'sidechat'
+] as const
 export type BottomPanelTransferTabKind = typeof BOTTOM_PANEL_TRANSFER_TAB_KINDS[number]
 
 export interface PanelTabTransferAvailability {
@@ -133,7 +146,7 @@ export function resolvePanelNewTabTarget(
 }
 
 export function canCloseBottomPanelTab(tabId: PanelTabId, tabs: PanelTabId[]): boolean {
-  return tabs.length > 1 || tabId === 'plan'
+  return tabs.length > 1 || typeof tabId !== 'number'
 }
 
 export function isBottomPanelTransferTabKind(tabKind: string): tabKind is BottomPanelTransferTabKind {
@@ -141,7 +154,7 @@ export function isBottomPanelTransferTabKind(tabKind: string): tabKind is Bottom
 }
 
 export function bottomPanelTransferPolicyLabel(): string {
-  return `Bottom panel supports ${BOTTOM_PANEL_TRANSFER_TAB_KINDS.map((kind) => kind === 'plan' ? 'Plan' : 'Terminal').join(' and ')} tabs.`
+  return 'Bottom panel supports Workbench tabs.'
 }
 
 export function resolvePanelTabTransferAvailability(

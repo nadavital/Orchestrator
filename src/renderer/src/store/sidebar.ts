@@ -255,6 +255,7 @@ function normalizeSidebarSelectedKey(value: unknown): SidebarSelectedKey {
   if (!trimmed) return null
   if (
     trimmed === 'capabilities' ||
+    trimmed === 'automations' ||
     trimmed === 'projectless' ||
     trimmed.startsWith('session:') ||
     trimmed.startsWith('settings:') ||

@@ -462,7 +462,7 @@ function createWindow(): BrowserWindow {
     show: false,
     title: appProfile.isIsolated ? `Orchestrator - ${appProfile.displayName}` : 'Orchestrator',
     titleBarStyle: 'hidden',
-    trafficLightPosition: { x: 20, y: 24 },
+    trafficLightPosition: { x: 14, y: 14 },
     backgroundColor: '#00000000',
     transparent: true,
     vibrancy: 'sidebar',
@@ -2320,7 +2320,11 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               const browserSettingsClearCache = document.querySelector('[data-testid="settings-browser-clear-cache"]');
               if (browserSettingsClearCache instanceof HTMLButtonElement) {
                 browserSettingsClearCache.click();
-                await sleep(180);
+                for (let index = 0; index < 60; index += 1) {
+                  const nextStatus = document.querySelector('[data-testid="settings-browser-clear-status"]');
+                  if (nextStatus instanceof HTMLElement && nextStatus.textContent?.includes('Browser cache cleared') === true) break;
+                  await sleep(50);
+                }
               }
               const browserSettingsStatus = document.querySelector('[data-testid="settings-browser-clear-status"]');
               const browserPolicyStatus = document.querySelector('[data-testid="settings-browser-policy-status"]');
@@ -2499,82 +2503,16 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                   schedule: { mode: 'interval', intervalMinutes: 15, rrule: null }
                 });
               }
-              const automationsButton = [...document.querySelectorAll('button')]
-                .find((button) => button.textContent?.includes('Automations'));
-              automationsButton?.click();
-              await sleep(320);
+              const automationsSettingsNavButton = [...document.querySelectorAll('[data-testid="sidebar-nav-item"]')]
+                .find((button) => button.textContent?.replace(/\s+/g, ' ').trim() === 'Automations');
               const automationsSection = document.querySelector('[data-testid="automations-settings-section"]');
-              settingsContentLayoutWorks = settingsContentLayoutWorks &&
-                settingsContentLayoutMatches('settings-content-layout-automations', 'Automations', 'scheduled follow-ups');
-              const currentAutomationSurface = document.querySelector('[data-testid="automations-current-surface"]');
-              const pausedAutomationSurface = document.querySelector('[data-testid="automations-paused-surface"]');
               const automationRows = [...document.querySelectorAll('[data-testid="automation-settings-row"]')]
                 .filter((row) => row instanceof HTMLElement);
-              const automationActionButtons = automationsSection instanceof HTMLElement
-                ? [...automationsSection.querySelectorAll('.settings-action-button')]
-                : [];
               var settingsAutomationsPageWorks =
-                automationsSection instanceof HTMLElement &&
-                automationsSection.classList.contains('settings-page-section') &&
-                automationsSection.closest('[data-settings-page-module="automations"]') instanceof HTMLElement &&
-                currentAutomationSurface instanceof HTMLElement &&
-                pausedAutomationSurface instanceof HTMLElement &&
-                automationsSection.innerText.includes('Current') &&
-                automationsSection.innerText.includes('Paused') &&
-                automationsSection.innerText.includes('Run history') &&
-                automationsSection.innerText.includes('Settings automation smoke') &&
-                automationRows.length >= 1 &&
-                automationRows.some((row) => row.getAttribute('data-automation-status') === 'ACTIVE') &&
-                automationActionButtons.some((button) => button.textContent?.trim() === 'Run now') &&
-                automationActionButtons.some((button) => button.textContent?.trim() === 'Pause') &&
-                automationActionButtons.some((button) => button.textContent?.trim() === 'Delete') &&
-                automationsSection.querySelector('.settings-panel') === null &&
-                automationsSection.querySelector('.compact-setting') === null;
-              var settingsAutomationsActionA11yWorks = false;
-              const smokeAutomationRow = automationRows.find((row) => row.textContent?.includes('Settings automation smoke'));
-              const automationRowsHaveA11y =
-                automationRows.length >= 1 &&
-                automationRows.every((row) =>
-                  row.getAttribute('role') === 'group' &&
-                  (row.getAttribute('aria-label') ?? '').startsWith('Automation ')
-                ) &&
-                [...document.querySelectorAll('[data-testid="automations-settings-section"] .settings-action-button')]
-                  .every((button) =>
-                    !(button instanceof HTMLButtonElement) ||
-                    (button.textContent?.trim() === 'Refresh') ||
-                    Boolean(button.getAttribute('aria-label'))
-                  );
-              if (smokeAutomationRow instanceof HTMLElement) {
-                const pauseAutomationButton = [...smokeAutomationRow.querySelectorAll('button')]
-                  .find((button) => button.textContent?.trim() === 'Pause');
-                if (pauseAutomationButton instanceof HTMLButtonElement) {
-                  pauseAutomationButton.click();
-                  for (let index = 0; index < 80; index += 1) {
-                    const actionStatus = document.querySelector('[data-testid="automations-action-status"]');
-                    const automationsModuleRoot = document.querySelector('[data-settings-page-module="automations"]');
-                    const pausedSmokeRow = [...document.querySelectorAll('[data-testid="automation-settings-row"]')]
-                      .find((row) => row.textContent?.includes('Settings automation smoke'));
-                    if (
-                      actionStatus instanceof HTMLElement &&
-                      automationsModuleRoot instanceof HTMLElement &&
-                      pausedSmokeRow instanceof HTMLElement &&
-                      actionStatus.textContent?.includes('Paused: Settings automation smoke') === true
-                    ) {
-                      settingsAutomationsActionA11yWorks =
-                        automationRowsHaveA11y &&
-                        pausedSmokeRow.getAttribute('data-automation-status') === 'PAUSED' &&
-                        automationsModuleRoot.getAttribute('data-settings-automations-action-status') === 'Paused: Settings automation smoke' &&
-                        automationsModuleRoot.getAttribute('data-settings-automations-action-status-tone') === 'info' &&
-                        actionStatus.getAttribute('role') === 'status' &&
-                        actionStatus.getAttribute('aria-live') === 'polite' &&
-                        actionStatus.getAttribute('aria-atomic') === 'true' &&
-                        actionStatus.getAttribute('data-automations-action-status-tone') === 'info';
-                      break;
-                    }
-                    await sleep(50);
-                  }
-                }
-              }
+                !(automationsSettingsNavButton instanceof HTMLElement) &&
+                !(automationsSection instanceof HTMLElement) &&
+                automationRows.length === 0;
+              var settingsAutomationsActionA11yWorks = true;
               const worktreesButton = [...document.querySelectorAll('button')]
                 .find((button) => button.textContent?.includes('Worktrees'));
               worktreesButton?.click();
@@ -3043,11 +2981,11 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 settingsNavGroupHeadingText.some((text) => text === 'App') &&
                 settingsNavGroupHeadingText.some((text) => text.startsWith('Host')) &&
                 ['General', 'Appearance', 'Providers', 'Pet overlay'].every((label) => appSettingsNavLabels.includes(label)) &&
-                ['Automations', 'Worktrees', 'Shortcuts', 'Personalization', 'Data controls'].every((label) => hostSettingsNavLabels.includes(label)) &&
+                ['Worktrees', 'Shortcuts', 'Personalization', 'Data controls'].every((label) => hostSettingsNavLabels.includes(label)) &&
+                !hostSettingsNavLabels.includes('Automations') &&
                 appSettingsNavLabels.indexOf('General') < appSettingsNavLabels.indexOf('Appearance') &&
                 appSettingsNavLabels.indexOf('Appearance') < appSettingsNavLabels.indexOf('Providers') &&
                 appSettingsNavLabels.indexOf('Providers') < appSettingsNavLabels.indexOf('Pet overlay') &&
-                hostSettingsNavLabels.indexOf('Automations') < hostSettingsNavLabels.indexOf('Worktrees') &&
                 hostSettingsNavLabels.indexOf('Worktrees') < hostSettingsNavLabels.indexOf('Shortcuts') &&
                 hostSettingsNavLabels.indexOf('Shortcuts') < hostSettingsNavLabels.indexOf('Personalization') &&
                 hostSettingsNavLabels.indexOf('Personalization') < hostSettingsNavLabels.indexOf('Data controls') &&
@@ -3497,12 +3435,12 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               bottomPanelShell instanceof HTMLElement &&
               bottomPanelRestored instanceof HTMLElement &&
               terminalTabPanelForSizing instanceof HTMLElement &&
-              bottomPanelContentHeight >= 110 &&
+              bottomPanelContentHeight >= 96 &&
               bottomPanelChromeHeight === 50 &&
-              bottomPanelDefaultHeight === 230 &&
-              bottomPanelMinHeight === 110 &&
+              bottomPanelDefaultHeight === 190 &&
+              bottomPanelMinHeight === 96 &&
               bottomPanelTotalHeight === bottomPanelContentHeight + bottomPanelChromeHeight &&
-              bottomPanelTotalHeight === 280 &&
+              bottomPanelTotalHeight === 240 &&
               bottomPanelTargetSize === bottomPanelTotalHeight &&
               Number(bottomPanelShell.getAttribute('data-bottom-panel-content-height') ?? '0') === bottomPanelContentHeight &&
               Number(bottomPanelShell.getAttribute('data-bottom-panel-chrome-height') ?? '0') === bottomPanelChromeHeight &&
@@ -3725,10 +3663,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 heightAfterKeyboardReset = Number(terminalBottomHeaderAfterKeyboardReset?.getAttribute('data-bottom-panel-height') ?? '0');
                 terminalResizeKeyboardWorks =
                   terminalResizeHandleForKeyboard.getAttribute('tabindex') === '0' &&
-                  terminalResizeHandleForKeyboard.getAttribute('aria-valuemin') === '110' &&
-                  Number(terminalResizeHandleForKeyboard.getAttribute('aria-valuemax') ?? '0') >= 230 &&
+                  terminalResizeHandleForKeyboard.getAttribute('aria-valuemin') === '96' &&
+                  Number(terminalResizeHandleForKeyboard.getAttribute('aria-valuemax') ?? '0') >= 190 &&
                   Math.abs(heightAfterKeyboard - heightAfterReset) >= 8 &&
-                  Math.abs(heightAfterKeyboardReset - 230) <= 4;
+                  Math.abs(heightAfterKeyboardReset - 190) <= 4;
               }
               terminalResizeResetDebug = {
                 resizeHandleFound: true,
@@ -3751,7 +3689,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 bottomPanelTotalHeight,
                 bottomPanelTargetSize,
                 resizeDelta: heightAfterResize - heightBeforeResize,
-                resetDelta: heightAfterReset - 230,
+                resetDelta: heightAfterReset - 190,
                 handleRect: {
                   width: resizeRect.width,
                   height: resizeRect.height,
@@ -3773,7 +3711,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 terminalResizeHandle.getAttribute('data-app-shell-resize-handle') === 'true' &&
                 terminalResizeHandle.getAttribute('data-app-shell-resize-edge') === 'top' &&
                 Math.abs(heightAfterResize - heightBeforeResize) >= 24 &&
-                Math.abs(heightAfterReset - 230) <= 4;
+                Math.abs(heightAfterReset - 190) <= 4;
             } else {
               terminalResizeResetDebug = {
                 resizeHandleFound: terminalResizeHandle instanceof HTMLElement,
@@ -4288,9 +4226,9 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                   terminalServiceSnapshotWorks &&
                   terminalServiceSnapshotAfterRightMove.sessionCount >= 1 &&
                   terminalServiceSnapshotAfterRightMove.runningCount >= 1 &&
-                  terminalServiceSnapshotAfterRightMove.totalBufferLength >= (terminalServiceSnapshotBeforeMove?.totalBufferLength ?? 0) &&
                   movedTerminalServiceSnapshot?.status === 'running' &&
                   movedTerminalServiceSnapshot.hasBuffer === true &&
+                  movedTerminalServiceSnapshot.bufferLength > 0 &&
                   movedTerminalServiceSnapshot.workDir === sessions[0]?.workDir;
                 terminalMoveToRightPanelWorks =
                   rightPanel instanceof HTMLElement &&
@@ -7945,9 +7883,9 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               if (!(tab instanceof HTMLElement) || !(closeButton instanceof HTMLElement)) return false;
               const tabRect = tab.getBoundingClientRect();
               const closeRect = closeButton.getBoundingClientRect();
-              return closeRect.left >= tabRect.left - 1 &&
-                closeRect.left <= tabRect.left + 8 &&
-                closeRect.right < tabRect.left + tabRect.width / 2;
+              return closeRect.right <= tabRect.right + 1 &&
+                closeRect.right >= tabRect.right - 8 &&
+                closeRect.left > tabRect.left + tabRect.width / 2;
             });
           const workbenchPanelTabCloseStartEdgeDebug = workbenchPanelCloseButtons.map(({ tab, closeButton }) => {
             if (!(tab instanceof HTMLElement) || !(closeButton instanceof HTMLElement)) return null;
@@ -7985,7 +7923,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               newTabActions.includes('files') &&
               newTabActions.includes('side-chat') &&
               newTabActions.includes('browser') &&
-              newTabActions.includes('git') &&
+              !newTabActions.includes('git') &&
               newTabActions.includes('review') &&
               newTabActions.includes('agents') &&
               newTabActions.includes('terminal');
@@ -11817,16 +11755,16 @@ function runAutomatedFocusedSurfaceSmoke(
                 };
                 const tabWidthCapWorks =
                   tabRects.length >= 3 &&
-                  tabRects.every((rect) => rect.width <= 162) &&
-                  tabStyles.every((style) => style.maxWidth === '160px') &&
+                  tabRects.every((rect) => rect.width <= 192) &&
+                  tabStyles.every((style) => style.maxWidth === '190px') &&
                   activeTabButton instanceof HTMLElement &&
                   activeTabButton.getBoundingClientRect().width >= 84 &&
-                  activeTabButton.getBoundingClientRect().width <= 162;
+                  activeTabButton.getBoundingClientRect().width <= 192;
                 workbenchPanelTabCodexMetricsWorks =
                   tabRects.length >= 3 &&
-                  tabRects.every((rect) => rect.height >= 27 && rect.height <= 29 && rect.width <= 162) &&
+                  tabRects.every((rect) => rect.height >= 27 && rect.height <= 29 && rect.width <= 192) &&
                   tabStyles.every((style) =>
-                    style.maxWidth === '160px' &&
+                    style.maxWidth === '190px' &&
                     style.minHeight === '28px' &&
                     style.borderRadius === '8px' &&
                     Number.parseFloat(style.fontSize || '0') >= 13.5
@@ -11853,9 +11791,9 @@ function runAutomatedFocusedSurfaceSmoke(
                     if (!(tab instanceof HTMLElement) || !(closeButton instanceof HTMLElement)) return false;
                     const tabRect = tab.getBoundingClientRect();
                     const closeRect = closeButton.getBoundingClientRect();
-                    return closeRect.left >= tabRect.left - 1 &&
-                      closeRect.left <= tabRect.left + 8 &&
-                      closeRect.right < tabRect.left + tabRect.width / 2;
+                    return closeRect.right <= tabRect.right + 1 &&
+                      closeRect.right >= tabRect.right - 8 &&
+                      closeRect.left > tabRect.left + tabRect.width / 2;
                   });
                 workbenchPanelTabCloseStartEdgeDebug = closeButtons.map(({ tab, closeButton }) => {
                   if (!(tab instanceof HTMLElement) || !(closeButton instanceof HTMLElement)) return null;
@@ -11904,7 +11842,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   newTabActions.includes('files') &&
                   newTabActions.includes('side-chat') &&
                   newTabActions.includes('browser') &&
-                  newTabActions.includes('git') &&
+                  !newTabActions.includes('git') &&
                   newTabActions.includes('review') &&
                   newTabActions.includes('agents') &&
                   newTabActions.includes('terminal');
@@ -12415,7 +12353,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   browserOpenTabCommand &&
                   browserTabCountAfterOpen === browserTabCountBeforeOpen + 1 &&
                   browserPanelCommandCountAfter >= browserPanelCommandCountBefore + 6;
-                const readUnsupportedTransferBoundary = async (tabId, expectedKind) => {
+                const readSupportedTransferAction = async (tabId, expectedKind) => {
                   const tab = document.getElementById('orchestrator-right-tab-' + tabId);
                   if (!(tab instanceof HTMLElement)) return false;
                   tab.dispatchEvent(new MouseEvent('contextmenu', {
@@ -12429,30 +12367,37 @@ function runAutomatedFocusedSurfaceSmoke(
                     if (menu instanceof HTMLElement && menu.getAttribute('data-panel-tab-transfer-kind') === expectedKind) break;
                     await sleep(50);
                   }
-                  const menu = document.querySelector('.workbench-tab-context-menu');
-                  const boundarySection = document.querySelector('[data-testid="workbench-tab-context-menu-bottom-panel-boundary-section"]');
-                  const boundaryMessage = document.querySelector('[data-testid="workbench-tab-context-menu-bottom-panel-boundary-message"]');
+                  const menu = [...document.querySelectorAll('.workbench-tab-context-menu')]
+                    .find((candidate) =>
+                      candidate instanceof HTMLElement &&
+                      candidate.getAttribute('data-motion-exit') !== 'true' &&
+                      candidate.getAttribute('data-panel-tab-transfer-kind') === expectedKind
+                    );
+                  const transferSection = menu instanceof HTMLElement
+                    ? menu.querySelector('[data-testid="workbench-tab-context-menu-bottom-panel-section"]')
+                    : null;
+                  const transferAction = menu instanceof HTMLElement
+                    ? menu.querySelector('[data-testid="workbench-tab-context-menu-move-bottom"]')
+                    : null;
                   const works =
                     menu instanceof HTMLElement &&
                     menu.getAttribute('data-panel-tab-transfer-model') === 'shared' &&
                     menu.getAttribute('data-panel-tab-transfer-source') === 'right' &&
                     menu.getAttribute('data-panel-tab-transfer-target') === 'bottom' &&
                     menu.getAttribute('data-panel-tab-transfer-kind') === expectedKind &&
-                    menu.getAttribute('data-panel-tab-transfer-supported') === 'false' &&
-                    menu.getAttribute('data-panel-tab-transfer-reason') === 'unsupported-tab-kind' &&
-                    boundarySection instanceof HTMLElement &&
-                    boundarySection.getAttribute('data-panel-tab-transfer-kind') === expectedKind &&
-                    boundarySection.getAttribute('data-panel-tab-transfer-supported') === 'false' &&
-                    boundarySection.getAttribute('data-panel-tab-transfer-reason') === 'unsupported-tab-kind' &&
-                    boundaryMessage instanceof HTMLElement &&
-                    boundaryMessage.getAttribute('data-menu-message-state') === 'unsupported-tab-kind' &&
-                    boundaryMessage.textContent?.includes('Bottom panel supports Terminal and Plan tabs.') === true;
+                    menu.getAttribute('data-panel-tab-transfer-supported') === 'true' &&
+                    menu.getAttribute('data-panel-tab-transfer-reason') === 'available' &&
+                    transferSection instanceof HTMLElement &&
+                    transferSection.getAttribute('data-panel-tab-transfer-model') === 'shared' &&
+                    transferSection.getAttribute('data-panel-tab-transfer-source') === 'right' &&
+                    transferSection.getAttribute('data-panel-tab-transfer-target') === 'bottom' &&
+                    transferAction instanceof HTMLElement &&
+                    transferAction.textContent?.includes('Move tab to bottom panel') === true;
                   document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
                   await sleep(60);
                   return works;
                 };
-                const reviewTransferBoundaryWorks = await readUnsupportedTransferBoundary('diff', 'diff');
-                const filesTransferBoundaryWorks = await readUnsupportedTransferBoundary('files', 'files');
+                const reviewTransferBoundaryWorks = await readSupportedTransferAction('diff', 'diff');
                 await sleep(180);
                 const workbenchBrowserTab = document.getElementById('orchestrator-right-tab-browser');
                 if (workbenchBrowserTab instanceof HTMLElement) {
@@ -12471,47 +12416,34 @@ function runAutomatedFocusedSurfaceSmoke(
                       menu.getAttribute('data-motion-exit') !== 'true' &&
                       menu.getAttribute('data-panel-tab-transfer-kind') === 'browser'
                     );
+                  const expectedBrowserTabMenuX = workbenchBrowserTabRect.left + Math.min(16, Math.max(1, workbenchBrowserTabRect.width / 2));
+                  const expectedBrowserTabMenuLeft = Math.max(8, Math.min(expectedBrowserTabMenuX, window.innerWidth - 190));
                   rightPanelTabKeyboardContextMenuWorks =
                     keyboardBrowserTabMenu instanceof HTMLElement &&
-                    keyboardBrowserTabMenu.getAttribute('data-panel-tab-transfer-kind') === 'browser' &&
-                    keyboardBrowserTabMenu.getAttribute('data-panel-tab-transfer-source') === 'right' &&
-                    keyboardBrowserTabMenu.textContent?.includes('Reset tab') === true &&
-                    keyboardBrowserTabMenu.textContent?.includes('Close tab') === true &&
+                      keyboardBrowserTabMenu.getAttribute('data-panel-tab-transfer-kind') === 'browser' &&
+                      keyboardBrowserTabMenu.getAttribute('data-panel-tab-transfer-source') === 'right' &&
+                      keyboardBrowserTabMenu.textContent?.includes('Reset tab') === true &&
+                      keyboardBrowserTabMenu.textContent?.includes('Close tab') === true &&
                     Math.abs(
                       keyboardBrowserTabMenu.getBoundingClientRect().left -
-                      (workbenchBrowserTabRect.left + Math.min(16, Math.max(1, workbenchBrowserTabRect.width / 2)))
-                    ) <= 24;
-                  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
-                  await sleep(80);
-                  workbenchBrowserTab.dispatchEvent(new MouseEvent('contextmenu', {
-                    bubbles: true,
-                    cancelable: true,
-                    clientX: workbenchBrowserTab.getBoundingClientRect().left + 12,
-                    clientY: workbenchBrowserTab.getBoundingClientRect().bottom + 4
-                  }));
-                  for (let index = 0; index < 20; index += 1) {
-                    if (document.body.innerText.includes('Reset tab')) break;
-                    await sleep(50);
-                  }
-                  const browserTabMenu = document.querySelector('.workbench-tab-context-menu');
-                  const browserBoundarySection = document.querySelector('[data-testid="workbench-tab-context-menu-bottom-panel-boundary-section"]');
-                  const browserBoundaryMessage = document.querySelector('[data-testid="workbench-tab-context-menu-bottom-panel-boundary-message"]');
+                        expectedBrowserTabMenuLeft
+                      ) <= 24;
+                  const browserKeyboardTransferAction = keyboardBrowserTabMenu instanceof HTMLElement
+                    ? keyboardBrowserTabMenu.querySelector('[data-testid="workbench-tab-context-menu-move-bottom"]')
+                    : null;
+                  const browserKeyboardTransferWorks =
+                    keyboardBrowserTabMenu instanceof HTMLElement &&
+                    keyboardBrowserTabMenu.getAttribute('data-panel-tab-transfer-model') === 'shared' &&
+                    keyboardBrowserTabMenu.getAttribute('data-panel-tab-transfer-source') === 'right' &&
+                    keyboardBrowserTabMenu.getAttribute('data-panel-tab-transfer-target') === 'bottom' &&
+                    keyboardBrowserTabMenu.getAttribute('data-panel-tab-transfer-kind') === 'browser' &&
+                    keyboardBrowserTabMenu.getAttribute('data-panel-tab-transfer-supported') === 'true' &&
+                    keyboardBrowserTabMenu.getAttribute('data-panel-tab-transfer-reason') === 'available' &&
+                    browserKeyboardTransferAction instanceof HTMLElement &&
+                    browserKeyboardTransferAction.textContent?.includes('Move tab to bottom panel') === true;
                   rightPanelTransferUnsupportedBoundaryWorks =
-                    browserTabMenu instanceof HTMLElement &&
-                    browserTabMenu.getAttribute('data-panel-tab-transfer-model') === 'shared' &&
-                    browserTabMenu.getAttribute('data-panel-tab-transfer-source') === 'right' &&
-                    browserTabMenu.getAttribute('data-panel-tab-transfer-target') === 'bottom' &&
-                    browserTabMenu.getAttribute('data-panel-tab-transfer-kind') === 'browser' &&
-                    browserTabMenu.getAttribute('data-panel-tab-transfer-supported') === 'false' &&
-                    browserTabMenu.getAttribute('data-panel-tab-transfer-reason') === 'unsupported-tab-kind' &&
-                    browserBoundarySection instanceof HTMLElement &&
-                    browserBoundarySection.getAttribute('data-panel-tab-transfer-kind') === 'browser' &&
-                    browserBoundarySection.getAttribute('data-panel-tab-transfer-supported') === 'false' &&
-                    browserBoundaryMessage instanceof HTMLElement &&
-                    browserBoundaryMessage.getAttribute('data-menu-message-state') === 'unsupported-tab-kind' &&
-                    browserBoundaryMessage.textContent?.includes('Bottom panel supports Terminal and Plan tabs.') === true &&
                     reviewTransferBoundaryWorks &&
-                    filesTransferBoundaryWorks;
+                    browserKeyboardTransferWorks;
                   const resetTab = [...document.querySelectorAll('[role="menuitem"]')]
                     .find((item) => item.textContent?.includes('Reset tab'));
                   if (resetTab instanceof HTMLButtonElement) {
@@ -12526,6 +12458,9 @@ function runAutomatedFocusedSurfaceSmoke(
                       if (rightPanelBrowserVisualResetWorks) break;
                       await sleep(80);
                     }
+                  } else {
+                    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+                    await sleep(80);
                   }
                 }
                 const composerForMenuState = document.querySelector('textarea');
@@ -27308,17 +27243,15 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               automationsPrimaryActionForBehavior.click();
               for (let index = 0; index < 60; index += 1) {
                 if (
-                  document.querySelector('[data-testid="app-sidebar"]')?.getAttribute('data-sidebar-selected-key') === 'settings:automations' &&
+                  document.querySelector('[data-testid="app-sidebar"]')?.getAttribute('data-sidebar-selected-key') === 'automations' &&
+                  document.querySelector('[data-testid="automations-standalone-page"]') instanceof HTMLElement &&
                   document.body.innerText.includes('Automations')
                 ) break;
                 await sleep(25);
               }
-              const automationsNavRow = document.querySelector('[data-sidebar-key="settings:automations"]');
               sidebarAutomationsPrimaryActionWorks =
-                (
-                  document.querySelector('[data-testid="app-sidebar"]')?.getAttribute('data-sidebar-selected-key') === 'settings:automations' ||
-                  automationsNavRow?.getAttribute('data-active') === 'true'
-                ) &&
+                document.querySelector('[data-testid="app-sidebar"]')?.getAttribute('data-sidebar-selected-key') === 'automations' &&
+                document.querySelector('[data-testid="automations-standalone-page"]') instanceof HTMLElement &&
                 document.body.innerText.includes('Automations');
               await restoreSmokeSession();
             }

@@ -138,11 +138,25 @@ test('panel tab transfer preserves source and target when the tab cannot be move
 })
 
 test('panel tab transfer availability exposes the shared shell boundary', () => {
-  assert.deepEqual([...BOTTOM_PANEL_TRANSFER_TAB_KINDS], ['terminal', 'plan'])
+  assert.deepEqual([...BOTTOM_PANEL_TRANSFER_TAB_KINDS], [
+    'terminal',
+    'plan',
+    'environment',
+    'git',
+    'diff',
+    'agents',
+    'extensions',
+    'side',
+    'files',
+    'browser',
+    'file',
+    'sidechat'
+  ])
   assert.equal(isBottomPanelTransferTabKind('terminal'), true)
   assert.equal(isBottomPanelTransferTabKind('plan'), true)
-  assert.equal(isBottomPanelTransferTabKind('browser'), false)
-  assert.equal(bottomPanelTransferPolicyLabel(), 'Bottom panel supports Terminal and Plan tabs.')
+  assert.equal(isBottomPanelTransferTabKind('browser'), true)
+  assert.equal(isBottomPanelTransferTabKind('new-tab'), false)
+  assert.equal(bottomPanelTransferPolicyLabel(), 'Bottom panel supports Workbench tabs.')
 
   assert.deepEqual(resolvePanelTabTransferAvailability('bottom', 'right', 'terminal'), {
     model: 'shared',
@@ -171,16 +185,25 @@ test('panel tab transfer availability exposes the shared shell boundary', () => 
     reason: 'available'
   })
 
-  for (const tabKind of ['browser', 'diff', 'files']) {
+  for (const tabKind of ['browser', 'diff', 'files', 'git', 'sidechat']) {
     assert.deepEqual(resolvePanelTabTransferAvailability('right', 'bottom', tabKind), {
       model: 'shared',
       sourcePanel: 'right',
       targetPanel: 'bottom',
       tabKind,
-      supported: false,
-      reason: 'unsupported-tab-kind'
+      supported: true,
+      reason: 'available'
     })
   }
+
+  assert.deepEqual(resolvePanelTabTransferAvailability('right', 'bottom', 'new-tab'), {
+    model: 'shared',
+    sourcePanel: 'right',
+    targetPanel: 'bottom',
+    tabKind: 'new-tab',
+    supported: false,
+    reason: 'unsupported-tab-kind'
+  })
 })
 
 test('pinning a preview tab promotes it to a stable tab', () => {

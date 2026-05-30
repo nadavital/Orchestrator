@@ -1425,7 +1425,7 @@ export function TabButton({
         onClick()
       }}
     >
-      <span className="min-w-0 truncate">{children}</span>
+      <span className="motion-tab-label-host">{children}</span>
       {onClose && (
         <button
           type="button"

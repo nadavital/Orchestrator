@@ -979,6 +979,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
       ? `Queue message (${sendShortcutTitle})`
       : `Send (${sendShortcutTitle})`
   const additionalContextDirs = session.additionalDirs ?? []
+  const showComposerContextChips = Boolean(effectiveMode || additionalContextDirs.length > 0)
   const workspaceLabel = pathBaseName(session.workDir) || session.workDir
   const additionalDirsLabel = additionalContextDirs.length === 1
     ? pathBaseName(additionalContextDirs[0]) || additionalContextDirs[0]
@@ -1017,9 +1018,9 @@ function InputBar({ session, isNew }: Props): JSX.Element {
         style={{
           maxWidth: isNew ? 700 : 860,
           background: 'var(--surface-bg)',
-          border: '1px solid var(--border-subtle)',
+          border: isNew ? '1px solid var(--border-subtle)' : '1px solid color-mix(in srgb, var(--border-subtle) 68%, transparent)',
           borderRadius: 'var(--radius-xl)',
-          boxShadow: isNew ? 'var(--shadow-composer)' : '0 6px 18px rgba(15, 23, 42, 0.045)',
+          boxShadow: isNew ? 'var(--shadow-composer)' : 'none',
           position: 'relative',
           transition: 'box-shadow 140ms ease, border-color 140ms ease'
         }}
@@ -1071,14 +1072,16 @@ function InputBar({ session, isNew }: Props): JSX.Element {
           />
         </div>
         <div
-          className="flex flex-wrap gap-1.5 px-4 pb-2"
+          className="composer-context-chips flex flex-wrap gap-1.5 px-4 pb-2"
           data-testid="composer-context-chips"
+          data-composer-context-visible={showComposerContextChips ? 'true' : 'false'}
           data-composer-context-workdir={session.workDir}
           data-composer-context-workspace-label={workspaceLabel}
           data-composer-context-additional-dir-count={additionalContextDirs.length}
           data-composer-context-worktree={effectiveMode ? 'true' : 'false'}
           role="list"
           aria-label="Current composer context"
+          hidden={!showComposerContextChips}
         >
           <ComposerContextChip
             icon="folder"

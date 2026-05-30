@@ -32,6 +32,7 @@ export default function WorktreesSettingsPage({ onClose }: WorktreesSettingsPage
   const updateSessionName = useSessionStore((state) => state.updateName)
   const setActiveSession = useSessionStore((state) => state.setActiveSession)
   const removeSession = useSessionStore((state) => state.removeSession)
+  const setShowSettings = useSessionStore((state) => state.setShowSettings)
   const addSessionToProject = useProjectStore((state) => state.addSessionToProject)
 
   const groupedWorktrees = useMemo(() => groupByRepo(worktrees), [worktrees])
@@ -120,12 +121,24 @@ export default function WorktreesSettingsPage({ onClose }: WorktreesSettingsPage
     }
   }
 
-  const openConversation = (conversationId: string): void => {
+  const openConversation = async (conversationId: string): Promise<void> => {
     const testWindow = window as typeof window & { __orchestratorLastOpenedWorktreeConversationId?: string }
     testWindow.__orchestratorLastOpenedWorktreeConversationId = conversationId
-    setActiveSession(conversationId)
-    setStatus('Opened linked chat')
-    onClose?.()
+    try {
+      const currentSessions = useSessionStore.getState().sessions
+      if (!currentSessions.some((session) => session.id === conversationId)) {
+        const stored = await window.api.sessions.get(conversationId)
+        if (!stored || stored.archivedAt) throw new Error('Linked chat is not available locally')
+        addSession(stored)
+        addSessionToProject(stored.projectId, stored.id)
+      }
+      setActiveSession(conversationId)
+      setStatus('Opened linked chat')
+      setShowSettings(false)
+      onClose?.()
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : 'Could not open linked chat')
+    }
   }
 
   return (
@@ -296,7 +309,7 @@ function WorktreeRow({
   worktree: WorktreeInventoryItem
   busy: boolean
   onDeleteRequest: (worktree: WorktreeInventoryItem) => void
-  onOpenConversation: (conversationId: string) => void
+  onOpenConversation: (conversationId: string) => void | Promise<void>
   onStatus: (status: string) => void
 }): JSX.Element {
   const conversationsLabelId = useId()
@@ -414,7 +427,7 @@ function WorktreeRow({
                 type="button"
                 className="settings-action-button worktrees-open-chat-button"
                 aria-label={`Open ${conversation.name}`}
-                onClick={() => onOpenConversation(conversation.id)}
+                onClick={() => { void onOpenConversation(conversation.id) }}
                 data-testid="worktree-open-conversation"
               >
                 Open

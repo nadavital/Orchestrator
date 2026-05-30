@@ -117,7 +117,7 @@ export default function SideQuestionPanel({ session, chatId, embedded }: Props):
 
   return (
     <div
-      className={embedded ? 'h-full min-h-0 flex flex-col p-3' : 'flex flex-col'}
+      className={embedded ? 'side-chat-panel h-full min-h-0 flex flex-col' : 'side-chat-panel flex flex-col'}
       data-testid={chatId ? 'side-chat-panel' : 'side-question-panel'}
       data-side-chat-id={chatId ?? ''}
       data-side-chat-message-count={messages.length}
@@ -128,14 +128,14 @@ export default function SideQuestionPanel({ session, chatId, embedded }: Props):
       style={{ color: 'var(--color-text)' }}
     >
       {chatId && (
-        <div className="mb-2 flex shrink-0 items-start gap-2">
+        <div className="side-chat-header">
           <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+            <div className="side-chat-title">
               {sideChat?.title ?? 'Side chat'}
             </div>
             {context && (
               <div
-                className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px]"
+                className="side-chat-context-meta"
                 data-testid="side-chat-context-meta"
                 data-side-chat-context-source={context.source}
                 data-side-chat-context-message-count={context.messageCount}
@@ -160,7 +160,7 @@ export default function SideQuestionPanel({ session, chatId, embedded }: Props):
               </div>
             )}
             {(messages.length > 0 || pending || errorCount > 0) && (
-              <div className="mt-0.5 text-[11px]" style={{ color: 'var(--text-tertiary)' }}>
+              <div className="side-chat-count-line">
                 {messages.length} message{messages.length === 1 ? '' : 's'}
                 {pending ? ' · answering' : ''}
                 {errorCount > 0 ? ` · ${errorCount} error${errorCount === 1 ? '' : 's'}` : ''}
@@ -178,7 +178,7 @@ export default function SideQuestionPanel({ session, chatId, embedded }: Props):
         </div>
       )}
       <div
-        className="flex-1 min-h-0 overflow-y-auto space-y-2.5 pr-1"
+        className="side-chat-message-log"
         role={chatId ? 'log' : undefined}
         aria-live={chatId ? 'polite' : undefined}
         aria-relevant={chatId ? 'additions text' : undefined}
@@ -195,9 +195,11 @@ export default function SideQuestionPanel({ session, chatId, embedded }: Props):
               key={message.id}
               role={chatId ? 'article' : undefined}
               aria-label={chatId ? `${message.role === 'user' ? 'You' : 'Side answer'}: ${message.status}` : undefined}
+              data-side-chat-message-role={message.role}
+              data-side-chat-message-status={message.status}
             >
               <InspectorCard
-                className="p-3 text-sm"
+                className="side-chat-message"
                 active={message.role === 'user'}
                 style={{
                   color: message.status === 'error' ? 'var(--color-red)' : 'var(--color-text)'

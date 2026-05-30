@@ -538,14 +538,6 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
       onSelect: () => openToolTab('browser')
     },
     {
-      id: 'git',
-      title: 'Git',
-      description: hasGitTab ? 'Switch to open Git tab' : 'Stage and review changes',
-      icon: 'branch',
-      state: hasGitTab ? 'open' : 'new',
-      onSelect: () => openToolTab('git')
-    },
-    {
       id: 'review',
       title: 'Review',
       description: ui?.showDiff || hasDiffTab ? 'Switch to open Review tab' : 'View code changes',
@@ -836,6 +828,7 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
       </div>
       {tabMenu && (
         <MenuSurface
+          key={`${tabMenu.tabId}:${Math.round(tabMenu.x)}:${Math.round(tabMenu.y)}`}
           className="workbench-tab-context-menu"
           data-panel-tab-transfer-model={tabMenuTransferAvailability?.model ?? 'shared'}
           data-panel-tab-transfer-source="right"
@@ -874,33 +867,11 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
               />
             )}
           </MenuSection>
-          {terminalTabIdFromTabId(tabMenu.tabId) !== null && (
+          {tabMenuTransferAvailability?.supported && (
             <MenuSection
-              dataTestId="workbench-tab-context-menu-terminal-section"
-              data-panel-tab-transfer-model="shared"
-              data-panel-tab-transfer-source="right"
-              data-panel-tab-transfer-target="bottom"
-            >
-              <MenuSectionLabel>Terminal</MenuSectionLabel>
-              <MenuItem
-                icon="terminal"
-                label="Move tab to bottom panel"
-                dataTestId="workbench-tab-context-menu-move-bottom"
-                onClick={() => {
-                  transferSessionPanelTab(session.id, {
-                    sourcePanel: 'right',
-                    targetPanel: 'bottom',
-                    tabKind: 'terminal',
-                    tabId: tabMenu.tabId
-                  })
-                  setTabMenu(null)
-                }}
-              />
-            </MenuSection>
-          )}
-          {tabMenu.tabId === 'plan' && tabMenuTransferAvailability?.supported && (
-            <MenuSection
-              dataTestId="workbench-tab-context-menu-bottom-panel-section"
+              dataTestId={terminalTabIdFromTabId(tabMenu.tabId) !== null
+                ? 'workbench-tab-context-menu-terminal-section'
+                : 'workbench-tab-context-menu-bottom-panel-section'}
               data-panel-tab-transfer-model="shared"
               data-panel-tab-transfer-source="right"
               data-panel-tab-transfer-target="bottom"
@@ -909,12 +880,14 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
               <MenuItem
                 icon="panelRight"
                 label="Move tab to bottom panel"
-                dataTestId="workbench-tab-context-menu-move-plan-bottom"
+                dataTestId={tabMenu.tabId === 'plan'
+                  ? 'workbench-tab-context-menu-move-plan-bottom'
+                  : 'workbench-tab-context-menu-move-bottom'}
                 onClick={() => {
                   transferSessionPanelTab(session.id, {
                     sourcePanel: 'right',
                     targetPanel: 'bottom',
-                    tabKind: 'plan',
+                    tabKind: tabMenuTransferKind as RightPanelTabKind,
                     tabId: tabMenu.tabId
                   })
                   setTabMenu(null)

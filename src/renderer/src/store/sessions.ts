@@ -6,8 +6,8 @@ import type { SettingsSectionId } from '../../../types'
 export type SettingsSection = SettingsSectionId
 export type RightPanelTabKind = 'new-tab' | 'environment' | 'git' | 'plan' | 'diff' | 'agents' | 'extensions' | 'side' | 'files' | 'browser' | 'file' | 'sidechat' | 'terminal'
 export type RightPanelTabId = Exclude<RightPanelTabKind, 'file' | 'sidechat' | 'terminal'> | `file:${string}` | `sidechat:${string}` | `terminal:${number}`
-export type BottomPanelTabKind = 'terminal' | 'plan'
-export type BottomPanelTabId = number | 'plan'
+export type BottomPanelTabKind = Exclude<RightPanelTabKind, 'new-tab' | 'terminal'> | 'terminal'
+export type BottomPanelTabId = number | Exclude<RightPanelTabId, 'new-tab' | `terminal:${number}`>
 export type GitFocusTarget = 'branch' | 'commit' | 'pull-request'
 
 export interface SourceAnnotationState {
@@ -328,7 +328,7 @@ interface SessionState {
 }
 
 const SESSION_STORE_TAIL_MESSAGES = 64
-export const DEFAULT_TERMINAL_PANEL_CONTENT_HEIGHT = 230
+export const DEFAULT_TERMINAL_PANEL_CONTENT_HEIGHT = 190
 export const LEGACY_TERMINAL_PANEL_CONTENT_HEIGHTS = [260, 350] as const
 
 export const defaultUI: SessionUIState = {
@@ -1345,8 +1345,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           tabId,
           (tab) => {
             if (typeof tab.id === 'number') return rightPanelTab(terminalTabId(tab.id))
-            if (tab.id === 'plan') return rightPanelTab('plan')
-            return null
+            return rightPanelTab(tab.id)
           },
           { activate: true, replacePreview: true }
         )
@@ -1383,9 +1382,9 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       const terminalId = terminalTabIdFromTabId(rightPanelTabId)
       const bottomTabId: BottomPanelTabId | null = terminalId !== null
         ? terminalId
-        : rightPanelTabId === 'plan'
-          ? 'plan'
-          : null
+        : rightPanelTabId === 'new-tab'
+          ? null
+          : rightPanelTabId
       if (bottomTabId === null) return s
       const rightPanelSource =
         rightPanelTabId === 'plan' &&

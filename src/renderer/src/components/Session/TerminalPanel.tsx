@@ -1,17 +1,26 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
-import { DEFAULT_TERMINAL_PANEL_CONTENT_HEIGHT, defaultUI, useSessionStore } from '../../store/sessions'
+import { DEFAULT_TERMINAL_PANEL_CONTENT_HEIGHT, defaultUI, filePathFromTabId, sideChatIdFromTabId, useSessionStore } from '../../store/sessions'
 import type { BottomPanelTabId, BottomPanelTabKind } from '../../store/sessions'
 import type { Session } from '../../types'
 import { canCloseBottomPanelTab } from '../../../../types/panelTabs'
 import { AppShellPanel, IconButton, MenuItem, MenuSection, MenuSectionLabel, MenuSurface, PanelResizeHandle, PanelTabStrip, ToolbarButton, exitFullscreenForPanelTab, panelTabContextMenuPoint, panelTabDomId, panelTabPanelDomId, useAppShellBottomPanelLayout, useAppShellResizeController } from '../shared/designSystem'
+import BrowserPanel from './BrowserPanel'
+import DiffPanel from './DiffPanel'
+import EnvironmentPanel from './EnvironmentPanel'
+import EventInspectorPanel from './EventInspectorPanel'
+import ExtensionsPanel from './ExtensionsPanel'
+import FileTabPanel from './FileTabPanel'
+import FilesPanel from './FilesPanel'
+import GitPanel from './GitPanel'
 import PlanPanel from './PlanPanel'
+import SideQuestionPanel from './SideQuestionPanel'
 import TerminalView from './TerminalView'
 
-const MIN_TERMINAL_HEIGHT = 110
-const MAX_TERMINAL_HEIGHT = 600
+const MIN_TERMINAL_HEIGHT = 96
+const MAX_TERMINAL_HEIGHT = 420
 const DEFAULT_TERMINAL_HEIGHT = DEFAULT_TERMINAL_PANEL_CONTENT_HEIGHT
-const MIN_PRIMARY_CONTENT_HEIGHT = 260
+const MIN_PRIMARY_CONTENT_HEIGHT = 360
 const TERMINAL_PANEL_CHROME_HEIGHT = 50
 
 type TerminalActionStatus = {
@@ -44,6 +53,13 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
   const transferSessionPanelTab = useSessionStore((state) => state.transferSessionPanelTab)
   const closeTerminalTab = useSessionStore((state) => state.closeTerminalTab)
   const openRightPanelBrowserUrl = useSessionStore((state) => state.openRightPanelBrowserUrl)
+  const setShowDiff = useSessionStore((state) => state.setShowDiff)
+  const openRightPanelTab = useSessionStore((state) => state.openRightPanelTab)
+  const focusRightPanelGitTarget = useSessionStore((state) => state.focusRightPanelGitTarget)
+  const focusRightPanelReviewPath = useSessionStore((state) => state.focusRightPanelReviewPath)
+  const updateRightPanelFileTabState = useSessionStore((state) => state.updateRightPanelFileTabState)
+  const setRightPanelBrowserUrl = useSessionStore((state) => state.setRightPanelBrowserUrl)
+  const setRightPanelBrowserWorkbench = useSessionStore((state) => state.setRightPanelBrowserWorkbench)
   const [terminalMenu, setTerminalMenu] = useState<{ tabId: BottomPanelTabId; x: number; y: number } | null>(null)
   const [terminalActionStatus, setTerminalActionStatus] = useState<TerminalActionStatus | null>(null)
   const [terminalOutputs, setTerminalOutputs] = useState<Record<string, string>>({})
@@ -77,7 +93,7 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
   const terminalId = (tab: number): string => `${session.id}-${tab}`
   const terminalTabs = tabs.map((tabId, idx) => ({
     id: tabId,
-    label: bottomPanelTabLabel(tabId, idx, tabs),
+    label: bottomPanelTabLabel(tabId, idx, tabs, ui),
     icon: bottomPanelTabIcon(tabId),
     kind: bottomPanelTabKind(tabId),
     closable: canCloseBottomPanelTab(tabId, tabs),
@@ -85,6 +101,8 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
   }))
   const activeTabKind = bottomPanelTabKind(activeTab)
   const activeTerminalId = typeof activeTab === 'number' ? terminalId(activeTab) : null
+  const activeFilePath = typeof activeTab === 'string' ? filePathFromTabId(activeTab) : null
+  const activeSideChatId = typeof activeTab === 'string' ? sideChatIdFromTabId(activeTab) : null
   const activeTerminalOutput = activeTerminalId ? terminalOutputs[activeTerminalId] ?? '' : ''
   const activeTerminalSelection = activeTerminalId ? terminalSelections[activeTerminalId] ?? '' : ''
   const activeCommandState = activeTerminalId ? terminalCommandStates[activeTerminalId] : undefined
@@ -266,14 +284,14 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
     if (typeof tabId === 'number') window.api.terminal.kill(terminalId(tabId))
     const closingFinalTab = tabs.length <= 1
     closeTerminalTab(session.id, tabId)
-    setPanelActionStatus({ text: `${bottomPanelTabLabel(tabId, 0, [tabId])} tab closed`, tone: 'info' })
+    setPanelActionStatus({ text: `${bottomPanelTabLabel(tabId, 0, [tabId], ui)} tab closed`, tone: 'info' })
     setTerminalMenu(null)
     if (closingFinalTab) focusBottomPanelToggle()
   }
 
   const moveTab = (tabId: BottomPanelTabId, direction: 'left' | 'right'): void => {
     moveTerminalTab(session.id, tabId, direction)
-    setPanelActionStatus({ text: `${bottomPanelTabLabel(tabId, 0, [tabId])} tab moved ${direction}`, tone: 'info' })
+    setPanelActionStatus({ text: `${bottomPanelTabLabel(tabId, 0, [tabId], ui)} tab moved ${direction}`, tone: 'info' })
     setTerminalMenu(null)
   }
 
@@ -284,7 +302,7 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
       tabKind: bottomPanelTabKind(tabId),
       tabId
     })
-    setPanelActionStatus({ text: `${bottomPanelTabLabel(tabId, 0, [tabId])} moved to right panel`, tone: 'info' })
+    setPanelActionStatus({ text: `${bottomPanelTabLabel(tabId, 0, [tabId], ui)} moved to right panel`, tone: 'info' })
     setTerminalMenu(null)
   }
 
@@ -504,7 +522,7 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
                 data-panel-tab-transfer-source="bottom"
                 data-panel-tab-transfer-target="right"
               >
-                <MenuSectionLabel>{terminalMenu ? bottomPanelTabLabel(terminalMenu.tabId, 0, [terminalMenu.tabId]) : 'Tab'}</MenuSectionLabel>
+              <MenuSectionLabel>{terminalMenu ? bottomPanelTabLabel(terminalMenu.tabId, 0, [terminalMenu.tabId], ui) : 'Tab'}</MenuSectionLabel>
                 <MenuItem
                   icon="panelRight"
                   label="Move tab to right panel"
@@ -549,6 +567,65 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
                 onSelectionChange={handleTerminalSelectionChange}
                 onCommandSubmitted={handleTerminalCommandSubmitted}
               />
+            ) : activeTab === 'environment' ? (
+              <EnvironmentPanel
+                session={session}
+                embedded
+                onOpenReview={() => setShowDiff(session.id, true)}
+                onOpenGit={(target) => {
+                  if (target) focusRightPanelGitTarget(session.id, target)
+                  else openRightPanelTab(session.id, 'git')
+                }}
+              />
+            ) : activeTab === 'git' ? (
+              <GitPanel
+                session={session}
+                embedded
+                focusPath={null}
+                focusRequest={undefined}
+                focusTarget={null}
+                focusTargetRequest={undefined}
+                onOpenReview={(path) => {
+                  if (path) focusRightPanelReviewPath(session.id, path)
+                  else setShowDiff(session.id, true)
+                }}
+              />
+            ) : activeTab === 'diff' ? (
+              <DiffPanel sessionId={session.id} workDir={session.workDir} embedded />
+            ) : activeTab === 'agents' ? (
+              <EventInspectorPanel session={session} embedded activeAgentId={null} />
+            ) : activeTab === 'extensions' ? (
+              <ExtensionsPanel provider={session.provider ?? 'claude'} workDir={session.workDir} embedded />
+            ) : activeTab === 'browser' ? (
+              <BrowserPanel
+                embedded
+                hostId={`bottom:${session.id}:browser`}
+                initialUrl={ui.browserUrl ?? ''}
+                browserState={ui.browserWorkbench}
+                onUrlChange={(url) => setRightPanelBrowserUrl(session.id, url)}
+                onBrowserStateChange={(patch) => setRightPanelBrowserWorkbench(session.id, patch)}
+              />
+            ) : activeTab === 'files' ? (
+              <FilesPanel sessionId={session.id} workDir={session.workDir} embedded />
+            ) : activeFilePath ? (
+              <FileTabPanel
+                workDir={session.workDir}
+                sessionId={session.id}
+                filePath={activeFilePath}
+                tabId={activeTab}
+                sourceWrap
+                sourceSearchIndex={0}
+                sourceSearchQuery=""
+                sourceAnnotations={[]}
+                sourceBlameVisible={false}
+                sourceRevealRequest={0}
+                onPin={() => undefined}
+                onFileTabStateChange={(tabId, patch) => updateRightPanelFileTabState(session.id, tabId, patch)}
+              />
+            ) : activeTab === 'side' ? (
+              <SideQuestionPanel session={session} embedded />
+            ) : activeSideChatId ? (
+              <SideQuestionPanel session={session} chatId={activeSideChatId} embedded />
             ) : (
               <PlanPanel session={session} embedded />
             )}
@@ -560,14 +637,41 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
 }
 
 function bottomPanelTabKind(tabId: BottomPanelTabId): BottomPanelTabKind {
-  return typeof tabId === 'number' ? 'terminal' : 'plan'
+  if (typeof tabId === 'number') return 'terminal'
+  if (tabId.startsWith('file:')) return 'file'
+  if (tabId.startsWith('sidechat:')) return 'sidechat'
+  return tabId
 }
 
-function bottomPanelTabIcon(tabId: BottomPanelTabId): 'terminal' | 'plan' {
-  return typeof tabId === 'number' ? 'terminal' : 'plan'
+function bottomPanelTabIcon(tabId: BottomPanelTabId): 'terminal' | 'plan' | 'settings' | 'branch' | 'diff' | 'agents' | 'extensions' | 'chat' | 'folder' | 'browser' | 'file' {
+  const kind = bottomPanelTabKind(tabId)
+  if (kind === 'environment') return 'settings'
+  if (kind === 'git') return 'branch'
+  if (kind === 'diff') return 'diff'
+  if (kind === 'agents') return 'agents'
+  if (kind === 'extensions') return 'extensions'
+  if (kind === 'side' || kind === 'sidechat') return 'chat'
+  if (kind === 'files') return 'folder'
+  if (kind === 'browser') return 'browser'
+  if (kind === 'file') return 'file'
+  return kind === 'terminal' ? 'terminal' : 'plan'
 }
 
-function bottomPanelTabLabel(tabId: BottomPanelTabId, index: number, tabs: BottomPanelTabId[]): string {
+function bottomPanelTabLabel(tabId: BottomPanelTabId, index: number, tabs: BottomPanelTabId[], ui?: ReturnType<typeof useSessionStore.getState>['uiState'][string]): string {
+  if (typeof tabId === 'string') {
+    if (tabId === 'environment') return 'Environment'
+    if (tabId === 'git') return 'Git'
+    if (tabId === 'diff') return 'Review'
+    if (tabId === 'agents') return 'Agents'
+    if (tabId === 'extensions') return 'Extensions'
+    if (tabId === 'side') return 'Side'
+    if (tabId === 'files') return 'Files'
+    if (tabId === 'browser') return 'Browser'
+    const sideChatId = sideChatIdFromTabId(tabId)
+    if (sideChatId) return ui?.sideChats?.find((chat) => chat.id === sideChatId)?.title ?? 'Side chat'
+    const filePath = filePathFromTabId(tabId)
+    if (filePath) return basename(filePath)
+  }
   if (tabId === 'plan') return 'Plan'
   const terminalTabs = tabs.filter((tab): tab is number => typeof tab === 'number')
   const terminalOrdinal = terminalTabs.findIndex((tab) => tab === tabId) + 1
@@ -575,7 +679,12 @@ function bottomPanelTabLabel(tabId: BottomPanelTabId, index: number, tabs: Botto
 }
 
 function bottomPanelTabCloseLabel(tabId: BottomPanelTabId): string {
-  return tabId === 'plan' ? 'Close plan tab' : 'Close terminal'
+  if (typeof tabId === 'number') return 'Close terminal'
+  return `Close ${bottomPanelTabLabel(tabId, 0, [tabId])}`
+}
+
+function basename(path: string): string {
+  return path.split('/').filter(Boolean).at(-1) ?? path
 }
 
 function focusBottomPanelToggle(): void {

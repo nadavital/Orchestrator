@@ -1411,7 +1411,7 @@ export const SETTINGS_NAVIGATION_GROUP_DEFINITIONS: SettingsNavigationGroupDefin
   {
     id: 'host',
     label: 'Host',
-    sections: ['automations', 'worktrees', 'shortcuts', 'personalization', 'browser', 'data']
+    sections: ['worktrees', 'shortcuts', 'personalization', 'browser', 'data']
   }
 ]
 

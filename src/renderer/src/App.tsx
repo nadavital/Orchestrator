@@ -7,6 +7,7 @@ import type { SettingsSection } from './store/sessions'
 import Sidebar from './components/Sidebar/Sidebar'
 import SessionPane from './components/Session/SessionPane'
 import SettingsPage from './components/SettingsModal'
+import AutomationsSettingsPage from './components/Settings/AutomationsSettingsPage'
 import CapabilitiesPage from './components/CapabilitiesPage'
 import DesignSystemPreview from './components/DesignSystemPreview'
 import CommandPalette, { type CommandPaletteAction } from './components/CommandPalette'
@@ -160,8 +161,10 @@ export default function App(): JSX.Element {
   const showCapabilities = useSessionStore((state) => state.showCapabilities)
   const settingsSection = useSessionStore((state) => state.settingsSection)
   const settingsHostId = useSessionStore((state) => state.settingsHostId)
+  const sessions = useSessionStore((state) => state.sessions)
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
   const [renamingActiveChat, setRenamingActiveChat] = useState(false)
+  const [showAutomations, setShowAutomations] = useState(false)
   const [shellFocusArea, setShellFocusArea] = useState<ShellFocusArea>('main')
   const [shortcutOverrides, setShortcutOverrides] = useState<ShortcutOverrides>({})
   const [threadFindVisible, setThreadFindVisible] = useState(false)
@@ -201,6 +204,12 @@ export default function App(): JSX.Element {
         if (window.location.hash !== '#design-system') setShowSettings(false)
         return
       }
+      if (route.section === 'automations') {
+        setShowSettings(false)
+        setShowCapabilities(false)
+        setShowAutomations(true)
+        return
+      }
       setSettingsSection(route.section as SettingsSection)
       if (route.hostId) setSettingsHostId(route.hostId)
       setShowCapabilities(false)
@@ -218,6 +227,7 @@ export default function App(): JSX.Element {
   useEffect(() => {
     if (window.location.hash === '#design-system') return
     if (showSettings) {
+      setShowAutomations(false)
       replaceRouteUrl(settingsRouteUrl(settingsSection, settingsHostId))
       return
     }
@@ -229,9 +239,9 @@ export default function App(): JSX.Element {
 
   useEffect(() => {
     if (window.location.hash === '#design-system') return
-    if (showSettings || showCapabilities || sessionRouteNotice || !activeSessionId) return
+    if (showSettings || showCapabilities || showAutomations || sessionRouteNotice || !activeSessionId) return
     replaceRouteUrl(sessionRouteUrl(activeSessionId))
-  }, [activeSessionId, sessionRouteNotice, showCapabilities, showSettings])
+  }, [activeSessionId, sessionRouteNotice, showAutomations, showCapabilities, showSettings])
 
   useEffect(() => {
     const inspectMissingSessionRoute = (sessionId: string): void => {
@@ -239,6 +249,7 @@ export default function App(): JSX.Element {
       sessionRouteNoticeRequestRef.current = requestId
       setShowSettings(false)
       setShowCapabilities(false)
+      setShowAutomations(false)
       setSessionRouteNotice({
         kind: 'resolving',
         sessionId,
@@ -350,10 +361,26 @@ export default function App(): JSX.Element {
     const sessionState = useSessionStore.getState()
     const projectState = useProjectStore.getState()
     const active = sessionState.sessions.find((session) => session.id === sessionState.activeSessionId)
-    const targetProject = active
+    let targetProject = active
       ? projectState.projects.find((project) => project.id === active.projectId)
       : projectState.projects.at(-1)
-    if (!targetProject) return
+    if (!targetProject) {
+      const dir = await window.api.dialog.openDirectory()
+      if (!dir) return
+      const name = dir.split('/').pop() ?? dir
+      targetProject = await window.api.projects.add(name, dir)
+      projectState.addProject(targetProject)
+    }
+    const projectStat = await window.api.fs.statPath(targetProject.rootPath)
+    if (!projectStat.exists || !projectStat.isDirectory) {
+      projectState.removeProject(targetProject.id)
+      await window.api.projects.remove(targetProject.id)
+      for (const staleSession of sessionState.sessions.filter((session) => session.projectId === targetProject.id)) {
+        sessionState.removeSession(staleSession.id)
+        projectState.removeSessionFromProject(targetProject.id, staleSession.id)
+      }
+      return createNewChat()
+    }
 
     if (active && (active.messageCount ?? active.messages.length) === 0 && active.status !== 'running' && !hasComposerDraft(sessionState.uiState[active.id])) {
       await window.api.sessions.remove(active.id)
@@ -374,6 +401,9 @@ export default function App(): JSX.Element {
     sessionState.setActiveSession(session.id)
     sessionState.setShowCapabilities(false)
     sessionState.setShowSettings(false)
+    setShowAutomations(false)
+    setSessionRouteNotice(null)
+    replaceRouteUrl(sessionRouteUrl(session.id))
   }, [])
 
   const switchChat = useCallback((direction: 1 | -1): void => {
@@ -650,11 +680,13 @@ export default function App(): JSX.Element {
     pushRouteUrl(settingsRouteUrl(section, useSessionStore.getState().settingsHostId))
     setSettingsSection(section)
     setShowCapabilities(false)
+    setShowAutomations(false)
     setShowSettings(true)
   }, [setSettingsSection, setShowCapabilities, setShowSettings])
 
   const closeSettings = useCallback((): void => {
     setShowSettings(false)
+    setShowAutomations(false)
     const focusComposer = (): boolean => {
       const composer = document.querySelector<HTMLTextAreaElement>('[data-testid="composer-textarea"]')
       if (!(composer instanceof HTMLTextAreaElement) || composer.disabled) return false
@@ -694,6 +726,7 @@ export default function App(): JSX.Element {
       setSessionRouteNotice(null)
       setShowSettings(false)
       setShowCapabilities(false)
+      setShowAutomations(false)
       setActiveSession(restored.id)
       replaceRouteUrl(sessionRouteUrl(restored.id))
     } catch (error) {
@@ -715,12 +748,15 @@ export default function App(): JSX.Element {
 
   const openSidebarPlugins = useCallback((): void => {
     setShowSettings(false)
+    setShowAutomations(false)
     setShowCapabilities(true)
   }, [setShowCapabilities, setShowSettings])
 
   const openSidebarAutomations = useCallback((): void => {
-    openSettings('automations')
-  }, [openSettings])
+    setShowSettings(false)
+    setShowCapabilities(false)
+    setShowAutomations(true)
+  }, [setShowCapabilities, setShowSettings])
 
   const canCloseActivePanelTab = useCallback((): boolean => {
     const { activeSessionId, uiState } = useSessionStore.getState()
@@ -1217,16 +1253,26 @@ export default function App(): JSX.Element {
       flushSync(() => {
         state.setShowSettings(false)
         state.setShowCapabilities(false)
+        setShowAutomations(false)
         state.setActiveSession(sessionId)
       })
       return true
     }
 
     const navigateToSettings = (section: SettingsSection, hostId: string | null): void => {
+      if (section === 'automations') {
+        flushSync(() => {
+          setShowSettings(false)
+          setShowCapabilities(false)
+          setShowAutomations(true)
+        })
+        return
+      }
       flushSync(() => {
         setSettingsSection(section)
         setSettingsHostId(hostId ?? 'local')
         setShowCapabilities(false)
+        setShowAutomations(false)
         setShowSettings(true)
       })
       pushRouteUrl(settingsRouteUrl(section, hostId))
@@ -1298,6 +1344,7 @@ export default function App(): JSX.Element {
           setSessionRouteNotice(null)
           setShowSettings(false)
           setShowCapabilities(false)
+          setShowAutomations(false)
           setActiveSession(effectiveNavigation.sessionId)
         } else if (effectiveNavigation?.kind === 'session') {
           setSessionRouteNotice({
@@ -1309,6 +1356,7 @@ export default function App(): JSX.Element {
           setSessionRouteNotice(notice)
           setShowSettings(false)
           setShowCapabilities(false)
+          setShowAutomations(false)
           if (reuseCandidate) {
             setActiveSession(reuseCandidate.id)
           } else {
@@ -1574,6 +1622,8 @@ export default function App(): JSX.Element {
         onSearch={openSidebarSearch}
         onOpenPlugins={openSidebarPlugins}
         onOpenAutomations={openSidebarAutomations}
+        onCloseAutomations={() => setShowAutomations(false)}
+        isAutomationsOpen={showAutomations}
         isCollapsed={leftSidebarCollapsed}
         onToggleSidebar={() => setLeftSidebarCollapsed((collapsed) => !collapsed)}
       />
@@ -1581,7 +1631,11 @@ export default function App(): JSX.Element {
         className="content-shell main-surface flex-1 flex flex-col min-w-0 min-h-0"
         data-app-shell-main-content-frame="codex-continuous"
       >
-        {showSettings ? (
+        {showAutomations ? (
+          <MotionView viewKey="automations" className="flex flex-col overflow-hidden">
+            <AutomationsStandalonePage sessions={sessions} onClose={() => setShowAutomations(false)} />
+          </MotionView>
+        ) : showSettings ? (
           <MotionView viewKey={`settings:${settingsSection}`} className="flex flex-col overflow-hidden">
             <SettingsPage
               section={settingsSection}
@@ -1599,6 +1653,7 @@ export default function App(): JSX.Element {
                 notice={sessionRouteNotice}
                 onRestore={() => { void restoreArchivedRouteSession() }}
                 onReturn={returnToActiveChatFromRouteNotice}
+                onNewChat={() => { void createNewChat() }}
               />
             ) : deferredActiveSessionId ? (
               <MotionView viewKey="session" animate={false} className="flex flex-col overflow-hidden">
@@ -1783,11 +1838,13 @@ function ThreadFindBar({
 function SessionRouteRecoveryView({
   notice,
   onRestore,
-  onReturn
+  onReturn,
+  onNewChat
 }: {
   notice: SessionRouteNotice
   onRestore: () => void
   onReturn: () => void
+  onNewChat: () => void
 }): JSX.Element {
   const isArchived = notice.kind === 'archived'
   const isResolving = notice.kind === 'resolving'
@@ -1843,8 +1900,47 @@ function SessionRouteRecoveryView({
             >
               Return to current chat
             </button>
+            <button
+              type="button"
+              className="session-route-recovery-secondary"
+              data-testid="session-route-recovery-new-chat"
+              onClick={onNewChat}
+            >
+              New chat
+            </button>
           </div>
         </div>
+      </div>
+    </div>
+  )
+}
+
+function AutomationsStandalonePage({
+  sessions,
+  onClose
+}: {
+  sessions: ReturnType<typeof useSessionStore.getState>['sessions']
+  onClose: () => void
+}): JSX.Element {
+  return (
+    <div className="automations-standalone-shell" data-testid="automations-standalone-page" data-app-shell-focus-area="main">
+      <div className="automations-standalone-topbar" data-app-shell-header-band="shared">
+        <div className="automations-standalone-title">
+          <Icon name="clock" size={14} />
+          <span>Automations</span>
+        </div>
+        <button
+          type="button"
+          className="settings-back-button"
+          data-testid="automations-back-to-chat"
+          onClick={onClose}
+        >
+          <Icon name="chat" size={14} />
+          Chat
+        </button>
+      </div>
+      <div className="automations-standalone-body">
+        <AutomationsSettingsPage sessions={sessions} />
       </div>
     </div>
   )
