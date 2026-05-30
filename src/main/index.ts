@@ -4630,6 +4630,9 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                   const bottomPanelAfterOpenTabMenu = document.querySelector('[data-testid="session-bottom-panel"]');
                   const bottomBrowserTab = document.querySelector('[data-app-shell-tab-controller="bottom"][role="tab"][data-tab-id="browser"][data-tab-kind="browser"]');
                   const bottomBrowserPanel = document.querySelector('[role="tabpanel"][data-app-shell-tab-panel-controller="bottom"][data-tab-id="browser"][data-tab-kind="browser"] [data-testid="browser-panel"]');
+                  const bottomBrowserTabLabel = bottomBrowserTab instanceof HTMLElement
+                    ? bottomBrowserTab.querySelector('.panel-tab-label')
+                    : null;
                   bottomPanelOpenTabMenuWorks =
                     openTabMenu instanceof HTMLElement &&
                     browserMenuItem instanceof HTMLButtonElement &&
@@ -4638,6 +4641,9 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                     bottomPanelAfterOpenTabMenu.getAttribute('data-bottom-panel-active-tab') === 'browser' &&
                     bottomPanelAfterOpenTabMenu.getAttribute('data-bottom-panel-tab-kinds')?.split(',').includes('browser') === true &&
                     bottomBrowserTab instanceof HTMLElement &&
+                    bottomBrowserTabLabel instanceof HTMLElement &&
+                    bottomBrowserTabLabel.textContent?.trim() === 'Browser' &&
+                    bottomBrowserTabLabel.scrollWidth <= bottomBrowserTabLabel.clientWidth + 2 &&
                     bottomBrowserPanel instanceof HTMLElement;
                   const firstBottomTerminalTab = document.querySelector('[data-app-shell-tab-controller="bottom"][role="tab"][data-tab-kind="terminal"]');
                   if (firstBottomTerminalTab instanceof HTMLElement) {

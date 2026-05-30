@@ -1632,6 +1632,14 @@
     min-width: 56px;
   }
 
+  [data-testid='terminal-panel-tabstrip'] .motion-tab-button[data-tab-id='browser'] {
+    min-width: 92px;
+  }
+
+  [data-testid='terminal-panel-tabstrip'] .motion-tab-button[data-tab-id='browser'] .panel-tab-label {
+    min-width: 58px;
+  }
+
   .workbench-new-tab-panel {
     display: flex;
     height: 100%;
