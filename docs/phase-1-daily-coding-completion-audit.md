@@ -110,6 +110,12 @@ Elevated `npm run smoke:ui:daily-coding -- --full --keep-going` passed all 17 da
 
 This run passed header, session switching, composer, transcript layout, permission/user-input cards, Workbench/Git, Agent Activity, right panel, Environment, Review, Files/source tabs, Browser, Terminal, Settings, provider Settings, and side chat. It does not close the remaining live Codex screenshot, provider-adapter/proof, browser-use runtime-signal, or Phase 2 renderer-fidelity gaps.
 
+## 2026-05-30 Live Codex UI Capture Boundary
+
+Elevated `npm run compare:codex-side-panels -- --capture-live-codex --no-fail` refreshed `tmp/codex-side-panel-comparison/comparison-report.json` at `2026-05-30T02:26:03.862Z` with `mismatch=0`, `needsSmoke=0`, `needsProof=0`, `blocked=8`, and 19 remaining parity gaps. The live capture path found a visible Codex window through CoreGraphics (`id=65887`, bounds `0,30,1384,1320`), but `screencapture -l65887` failed with `could not create image from window`, region capture failed with `could not create image from rect`, and the full-screen fallback produced `/private/tmp/codex-current-screen.png` as a 5120x2880 all-black image (`nonBlank=false`, `nonBlackRatio=0`, `luminanceStdDev=0`, `colorBucketCount=1`).
+
+This is a useful stop condition for the live-pixel part of Phase 1: local Orchestrator UI comparison remains clean, but the remaining live Codex UI rows should not consume more implementation time until there is a nonblank capture route or manual side-by-side evidence.
+
 ## 2026-05-29 Codex Plan Live Proof
 
 Added `npm run live:codex-composer-plan`, an opt-in live Codex app-server proof mode in `scripts/codex-composer-appserver-live-proof.mjs`. It starts a real app-server turn in a disposable workspace, asks Codex to produce a native plan update without shell commands or file edits, and requires an observed `turn/plan/updated` notification plus the final assistant token.
