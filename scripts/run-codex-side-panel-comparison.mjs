@@ -554,9 +554,9 @@ function buildContracts() {
       scope: 'Settings window/surface',
       captureIds: ['settings', 'settings-providers', 'pets'],
       codexAssetNames: ['settings-', 'appearance-settings-', 'personalization-settings-', 'remote-connections-settings-', 'worktrees-settings-', 'browser-use-settings-'],
-      smokeChecks: ['settingsHostContext', 'settingsHostAdapterBoundary', 'settingsPersonalizationHostBoundary', 'settingsContentLayout', 'settingsBrowserPage', 'settingsBrowserSurface', 'settingsBrowserModule', 'settingsBrowserPolicyPersistence'],
+      smokeChecks: ['settingsHostContext', 'settingsHostAdapterBoundary', 'settingsHostUnavailableProviderSettingsHandoff', 'settingsPersonalizationHostBoundary', 'settingsContentLayout', 'settingsBrowserPage', 'settingsBrowserSurface', 'settingsBrowserModule', 'settingsBrowserPolicyPersistence'],
       statusWhenCovered: 'fixture-covered',
-      caveat: 'Host-scoped unavailable states are explicit, and the Browser Settings page exposes real host-scoped in-app Browser data clearing plus persisted Browser Use approval/history/download/upload and domain-policy defaults. Real remote-host adapters, Codex Personalization data, and provider-backed Browser Use adapters remain incomplete.',
+      caveat: 'Host-scoped unavailable states are explicit, unavailable host pages can jump directly to Provider Settings or recover to Local settings, and the Browser Settings page exposes real host-scoped in-app Browser data clearing plus persisted Browser Use approval/history/download/upload and domain-policy defaults. Real remote-host adapters, Codex Personalization data, and provider-backed Browser Use adapters remain incomplete.',
       next: 'Add host adapters only where provider data exists; deepen Browser Use settings only when a provider or browser-use runtime exposes more policy state.',
       openIssues: [
         {

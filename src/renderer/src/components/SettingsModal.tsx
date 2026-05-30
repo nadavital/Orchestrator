@@ -658,6 +658,7 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
             <SettingsHostAdapterUnavailable
               section={effectiveSection}
               hostLabel={selectedSettingsHost.label}
+              onOpenProviders={() => navigateSettingsSection('providers')}
               onSwitchLocal={switchToLocalSettingsHost}
             />
           ) : (
@@ -766,10 +767,12 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
 function SettingsHostAdapterUnavailable({
   section,
   hostLabel,
+  onOpenProviders,
   onSwitchLocal,
 }: {
   section: SettingsSection
   hostLabel: string
+  onOpenProviders: () => void
   onSwitchLocal: () => void
 }): JSX.Element {
   return (
@@ -791,6 +794,15 @@ function SettingsHostAdapterUnavailable({
                 Use Local to edit app settings, or refresh provider metadata when a host adapter becomes available.
               </div>
               <div className="settings-host-adapter-actions">
+                <button
+                  type="button"
+                  className="settings-action-button"
+                  data-testid="settings-host-open-providers"
+                  aria-label={`Open Provider settings for ${hostLabel}`}
+                  onClick={onOpenProviders}
+                >
+                  Open Provider Settings
+                </button>
                 <button
                   type="button"
                   className="settings-action-button"

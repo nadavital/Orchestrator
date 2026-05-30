@@ -1882,6 +1882,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               }
               const remoteShortcutsContent = document.querySelector('[data-settings-content-host-id="codex:remote-mac"]');
               const remoteHostUnavailable = document.querySelector('[data-testid="settings-host-adapter-unavailable"]');
+              const openProvidersFromUnavailableButton = document.querySelector('[data-testid="settings-host-open-providers"]');
+              var settingsHostUnavailableProviderSettingsHandoffWorks = false;
               var settingsHostUnavailableLocalRecoveryWorks = false;
               var settingsHostAdapterBoundaryWorks =
                 remoteShortcutsNav instanceof HTMLButtonElement &&
@@ -1892,7 +1894,31 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 remoteShortcutsContent.getAttribute('data-settings-host-adapter') === 'unavailable' &&
                 remoteHostUnavailable instanceof HTMLElement &&
                 remoteHostUnavailable.textContent?.includes('Remote Mac') &&
+                openProvidersFromUnavailableButton instanceof HTMLButtonElement &&
+                openProvidersFromUnavailableButton.textContent?.includes('Open Provider Settings') &&
+                (openProvidersFromUnavailableButton.getAttribute('aria-label') ?? '') === 'Open Provider settings for Remote Mac' &&
                 !(document.querySelector('[data-testid="shortcuts-settings-section"]') instanceof HTMLElement);
+              if (openProvidersFromUnavailableButton instanceof HTMLButtonElement) {
+                openProvidersFromUnavailableButton.click();
+                await sleep(160);
+                const providerHandoffContent = document.querySelector('[data-settings-content-host-id="codex:remote-mac"]');
+                settingsHostUnavailableProviderSettingsHandoffWorks =
+                  settingsShell instanceof HTMLElement &&
+                  settingsShell.getAttribute('data-settings-host-id') === 'codex:remote-mac' &&
+                  settingsShell.getAttribute('data-settings-active-section') === 'providers' &&
+                  providerHandoffContent instanceof HTMLElement &&
+                  providerHandoffContent.getAttribute('data-settings-content-scope') === 'app' &&
+                  providerHandoffContent.getAttribute('data-settings-host-adapter') === 'app-global' &&
+                  document.querySelector('[data-testid="provider-settings-section"]') instanceof HTMLElement;
+                const remoteShortcutsNavAfterProvider = settingsHostNavGroup instanceof HTMLElement
+                  ? [...settingsHostNavGroup.querySelectorAll('[data-testid="sidebar-nav-item"]')]
+                    .find((row) => row.textContent?.replace(/\\s+/g, ' ').trim() === 'Shortcuts')
+                  : null;
+                if (remoteShortcutsNavAfterProvider instanceof HTMLButtonElement) {
+                  remoteShortcutsNavAfterProvider.click();
+                  await sleep(140);
+                }
+              }
               const switchHostLocalButton = document.querySelector('[data-testid="settings-host-switch-local"]');
               if (switchHostLocalButton instanceof HTMLButtonElement) {
                 switchHostLocalButton.click();
@@ -8851,6 +8877,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             settingsHostContextWorks: typeof settingsHostContextWorks === 'boolean' ? settingsHostContextWorks : null,
             settingsHostSectionFilteringWorks: typeof settingsHostSectionFilteringWorks === 'boolean' ? settingsHostSectionFilteringWorks : null,
             settingsHostAdapterBoundaryWorks: typeof settingsHostAdapterBoundaryWorks === 'boolean' ? settingsHostAdapterBoundaryWorks : null,
+            settingsHostUnavailableProviderSettingsHandoffWorks: typeof settingsHostUnavailableProviderSettingsHandoffWorks === 'boolean' ? settingsHostUnavailableProviderSettingsHandoffWorks : null,
             settingsHostUnavailableLocalRecoveryWorks: typeof settingsHostUnavailableLocalRecoveryWorks === 'boolean' ? settingsHostUnavailableLocalRecoveryWorks : null,
             settingsPersonalizationLocalWorks: typeof settingsPersonalizationLocalWorks === 'boolean' ? settingsPersonalizationLocalWorks : null,
             settingsPersonalizationActionStatusWorks: typeof settingsPersonalizationActionStatusWorks === 'boolean' ? settingsPersonalizationActionStatusWorks : null,

@@ -3174,6 +3174,7 @@ child.on('exit', async (code) => {
         settingsHostContext: captureView !== 'settings' || result.settingsHostContextWorks === true,
         settingsHostSectionFiltering: captureView !== 'settings' || result.settingsHostSectionFilteringWorks === true,
         settingsHostAdapterBoundary: captureView !== 'settings' || result.settingsHostAdapterBoundaryWorks === true,
+        settingsHostUnavailableProviderSettingsHandoff: captureView !== 'settings' || result.settingsHostUnavailableProviderSettingsHandoffWorks === true,
         settingsHostUnavailableLocalRecovery: captureView !== 'settings' || result.settingsHostUnavailableLocalRecoveryWorks === true,
         settingsPersonalizationLocal: captureView !== 'settings' || result.settingsPersonalizationLocalWorks === true,
         settingsPersonalizationActionStatus: captureView !== 'settings' || result.settingsPersonalizationActionStatusWorks === true,
