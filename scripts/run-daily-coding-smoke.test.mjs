@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { extractChildArtifactPaths } from './run-daily-coding-smoke.mjs'
+import { extractChildArtifactPaths, normalizeCliArgs } from './run-daily-coding-smoke.mjs'
+
+test('normalizes package-manager option separators before runner args', () => {
+  assert.deepEqual(normalizeCliArgs(['--', '--only', 'header']), ['--only', 'header'])
+  assert.deepEqual(normalizeCliArgs(['--', '--', '--full', '--keep-going']), ['--full', '--keep-going'])
+  assert.deepEqual(normalizeCliArgs(['--only=header']), ['--only=header'])
+})
 
 test('extracts child smoke artifact paths from stderr failures', () => {
   const paths = extractChildArtifactPaths('', [

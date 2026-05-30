@@ -126,7 +126,14 @@ function main() {
   process.exit(manifest.passed ? 0 : 1)
 }
 
+export function normalizeCliArgs(args) {
+  const normalized = [...args]
+  while (normalized[0] === '--') normalized.shift()
+  return normalized
+}
+
 function parseArgs(args) {
+  args = normalizeCliArgs(args)
   const parsed = {
     full: false,
     installed: false,
@@ -162,7 +169,7 @@ function parseArgs(args) {
   for (const target of parsed.targets) {
     if (!allowedTargets.has(target)) {
       console.error(`Unknown daily-coding target: ${target}`)
-      console.error('Run npm run smoke:ui:daily-coding -- --list to see supported targets.')
+      console.error('Run pnpm run smoke:ui:daily-coding --list to see supported targets.')
       process.exit(1)
     }
   }

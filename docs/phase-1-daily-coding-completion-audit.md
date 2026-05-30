@@ -33,7 +33,7 @@ This checkpoint exists to prevent Phase 1 from drifting into low-value parity po
 3. Provider lifecycle boundaries must stay explicit. Codex app-server send/resume/continue/retry/approval/model-switch paths have live proof, but non-Codex provider lifecycle proof and deterministic live non-command permission/user-input fixtures remain open. Do not implement speculative adapters; prove or clearly mark the boundary.
 4. Settings must stay honest about provider/account/runtime adapters. Local settings, personalization, browser policy, provider config, shortcuts, worktrees, automations, and data-control flows have smoke coverage. Provider-native account/runtime sync and real remote-host pages remain known adapter gaps.
 5. Header, right Workbench panel, bottom panel, and route/window focus behavior must pass together in the final visual/contact-sheet check. The user explicitly observed that panels can pass individually while still feeling unlike Codex when they meet the header incorrectly.
-6. Milestone validation should use the curated daily-coding smoke runner instead of repeatedly choosing between tiny changed-file smokes and the full side-panel comparison. Use `npm run smoke:ui:daily-coding` for the core app-coding surfaces, `npm run smoke:ui:daily-coding -- --full` for the broader Phase 1 milestone gate, and `npm run smoke:ui:daily-coding -- --only header,composer,browser` when validating a known subset.
+6. Milestone validation should use the curated daily-coding smoke runner instead of repeatedly choosing between tiny changed-file smokes and the full side-panel comparison. Use `pnpm run smoke:ui:daily-coding` for the core app-coding surfaces, `pnpm run smoke:ui:daily-coding --full` for the broader Phase 1 milestone gate, and `pnpm run smoke:ui:daily-coding --only header,composer,browser` when validating a known subset. The runner also tolerates a leading package-manager `--` separator for compatibility with older notes.
 
 ## Accept As Good Enough For Phase 1 Unless New Evidence Shows A Break
 
@@ -60,7 +60,7 @@ The final local proof gates are clean. Next Phase 1 work should not be another l
 - Hosted/native Review data such as PR metadata/actions, comments, blame, hosted sources, and checkpoint Undo.
 - Live Codex UI screenshot/proof boundaries only when the app/browser can produce nonblank comparable captures.
 - A real day-to-day dogfood pass across app shell, chat/composer, Browser, Terminal, Git/Review, Settings, and side chat, filing only workflow breaks that block coding use.
-- After the next meaningful app-shell or workflow batch, run `npm run smoke:ui:daily-coding -- --full --keep-going` and use its manifest as the Phase 1 dogfood checklist before deciding whether more local UI work is warranted.
+- After the next meaningful app-shell or workflow batch, run `pnpm run smoke:ui:daily-coding --full --keep-going` and use its manifest as the Phase 1 dogfood checklist before deciding whether more local UI work is warranted.
 
 ## 2026-05-29 Daily-Coding Smoke Runner
 
@@ -124,6 +124,12 @@ This keeps the Browser runtime-signal gap open. Orchestrator's dynamic Browser t
 Merged `origin/main` into `codex-side-panel-parity-stabilization` after the main branch contained prior PR merge commits from this same parity branch. The branch is now 0 commits behind `origin/main`, which removes stale branch topology from the Phase 1 readiness work without introducing new product conflicts.
 
 Verification stayed targeted to the user's panel/header concern instead of rerunning the full milestone suite. `pnpm run smoke:ui:changed:static` found no changed files after the merge topology update. The first unelevated focused smoke hit the known sandbox localhost bind boundary (`EPERM 127.0.0.1:5173`) before app code ran; the elevated rerun passed `header`, `right-panel`, and `terminal` in one daily-coding manifest. Evidence: `/Users/nadav/Desktop/Orchestrator/tmp/daily-coding-smoke/daily-coding-smoke-1780110441452.json`, with focused artifacts `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-header-1780110393852.json`, `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1780110402475.json`, and `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1780110422018.json`.
+
+## 2026-05-30 Composer/Transcript/Inspector/Settings Focused Check And Runner Argument Fix
+
+Elevated `pnpm run smoke:ui:daily-coding --only composer,transcript-layout,agent-inspector,settings --keep-going` passed the focused daily-use subset for the main composer, transcript layout, Agent Activity inspector, and Settings. Manifest: `/Users/nadav/Desktop/Orchestrator/tmp/daily-coding-smoke/daily-coding-smoke-1780110673203.json`; focused artifacts: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1780110597005.json`, `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-transcript-layout-1780110625928.json`, `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-agent-inspector-1780110643831.json`, and `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1780110654266.json`.
+
+This pass exposed a runner ergonomics issue rather than a product UI failure: `pnpm run smoke:ui:daily-coding -- --only ...` forwarded the literal separator to the runner and failed with `Unknown option: --`. The runner now strips leading package-manager separators before parsing options, so both older copied commands and the preferred direct `pnpm run smoke:ui:daily-coding --only ...` form work.
 
 ## 2026-05-30 Live Codex UI Capture Boundary
 
