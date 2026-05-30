@@ -3073,6 +3073,13 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
       typeof headBranch === 'string' ? headBranch : ''
     )
   )
+  ipcMain.handle('git:createPullRequest', (_, dir: string, baseBranch: string, headBranch: string) =>
+    gitManager.createPullRequest(
+      dir,
+      typeof baseBranch === 'string' ? baseBranch : '',
+      typeof headBranch === 'string' ? headBranch : ''
+    )
+  )
   ipcMain.handle('git:createBranch', (_, dir: string, branchName: string): Promise<GitBranchActionResult> =>
     gitManager.createBranch(dir, typeof branchName === 'string' ? branchName : '')
   )

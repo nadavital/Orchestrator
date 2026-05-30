@@ -2001,6 +2001,16 @@ export interface GitPullRequestCreateUrlResult {
   error?: string
 }
 
+export interface GitPullRequestCreateResult {
+  ok: boolean
+  url?: string
+  metadata?: ReviewMetadata
+  baseBranch?: string
+  headBranch?: string
+  command?: string
+  error?: string
+}
+
 export interface ReviewMetadataRequestOptions {
   force?: boolean
 }

@@ -9768,6 +9768,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 let workbenchNewTabGitPrCommandWorks = false;
                 let workbenchNewTabGitPrCreateUrlWorks = false;
                 let workbenchNewTabGitPrPushCommandWorks = false;
+                let workbenchNewTabGitPrCreateActionWorks = false;
                 let workbenchNewTabGitPrMetadataWorks = false;
                 let workbenchNewTabGitPrCommandHandoffWorks = false;
                 let workbenchNewTabGitPrCommandTerminalHandoffWorks = false;
@@ -10099,6 +10100,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   const gitPrCard = document.querySelector('[data-testid="git-pr-card"]');
                   const gitPrCommandInput = document.querySelector('[data-testid="git-pr-command"]');
                   const gitOpenCreatePr = document.querySelector('[data-testid="git-open-create-pr"]');
+                  const gitCreatePr = document.querySelector('[data-testid="git-create-pr"]');
                   const gitCopyPrCommand = document.querySelector('[data-testid="git-copy-pr-command"]');
                   const gitAddPrCommandToChat = document.querySelector('[data-testid="git-add-pr-command-to-chat"]');
                   if (
@@ -10171,6 +10173,13 @@ function runAutomatedFocusedSurfaceSmoke(
                     gitPrCard.getAttribute('data-git-pr-branch-published') === 'false' &&
                     gitPrPublishStatus instanceof HTMLElement &&
                     gitPrPublishStatus.textContent?.includes('Branch not pushed') === true;
+                  workbenchNewTabGitPrCreateActionWorks =
+                    workbenchNewTabGitPrCreateUrlWorks &&
+                    gitCreatePr instanceof HTMLButtonElement &&
+                    gitCreatePr.disabled &&
+                    gitCreatePr.getAttribute('title') === 'Push branch before creating PR' &&
+                    gitPrCard.getAttribute('data-git-pr-create-state') === 'idle' &&
+                    gitPrCard.getAttribute('data-git-pr-create-result-error') === '';
                   if (
                     workbenchNewTabGitPrCommandWorks &&
                     gitPrPushCommandInput instanceof HTMLInputElement &&
@@ -10536,6 +10545,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     workbenchNewTabGitPrCommandWorks &&
                     workbenchNewTabGitPrCreateUrlWorks &&
                     workbenchNewTabGitPrPushCommandWorks &&
+                    workbenchNewTabGitPrCreateActionWorks &&
                     workbenchNewTabGitPrMetadataWorks &&
                     workbenchNewTabGitPrCommandHandoffWorks &&
                     workbenchNewTabGitPrCommandTerminalHandoffWorks &&
@@ -11267,6 +11277,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   workbenchNewTabGitPrCommandWorks,
                   workbenchNewTabGitPrCreateUrlWorks,
                   workbenchNewTabGitPrPushCommandWorks,
+                  workbenchNewTabGitPrCreateActionWorks,
                   workbenchNewTabGitPrMetadataWorks,
                   workbenchNewTabGitPrCommandHandoffWorks,
                   workbenchNewTabGitPrCommandTerminalHandoffWorks,

@@ -1,6 +1,6 @@
 import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { fileStatusLabel } from '../../types'
-import type { FileChange, GitRefOption, ReviewMetadata, Session } from '../../types'
+import type { FileChange, GitPullRequestCreateResult, GitRefOption, ReviewMetadata, Session } from '../../types'
 import type { GitFocusTarget } from '../../store/sessions'
 import { useSessionStore } from '../../store/sessions'
 import Icon, { type IconName } from '../shared/Icon'
@@ -17,6 +17,7 @@ interface Props {
 }
 
 type GitActionState = 'idle' | 'loading' | 'staging' | 'unstaging' | 'branching' | 'checking-out' | 'committing' | 'discarding' | 'terminal'
+type GitPullRequestCreateState = 'idle' | 'creating' | 'created' | 'error'
 
 export default function GitPanel({
   session,
@@ -43,6 +44,8 @@ export default function GitPanel({
   const [prRemoteBranch, setPrRemoteBranch] = useState('')
   const [prUpstreamBranch, setPrUpstreamBranch] = useState('')
   const [prPushCommand, setPrPushCommand] = useState('')
+  const [prCreateState, setPrCreateState] = useState<GitPullRequestCreateState>('idle')
+  const [prCreateError, setPrCreateError] = useState<string | null>(null)
   const [loadedReviewMetadata, setLoadedReviewMetadata] = useState<ReviewMetadata | undefined>(session.reviewMetadata)
   const [reviewMetadataState, setReviewMetadataState] = useState<'idle' | 'loading' | 'loaded' | 'unavailable' | 'error'>(
     session.reviewMetadata ? 'loaded' : 'idle'
@@ -159,6 +162,8 @@ export default function GitPanel({
     setPrRemoteBranch('')
     setPrUpstreamBranch('')
     setPrPushCommand('')
+    setPrCreateState('idle')
+    setPrCreateError(null)
     if (!prCommand) return
     void window.api.git.getPullRequestCreateUrl(workDir, defaultBaseBranch, currentBranch)
       .then((result) => {
@@ -406,6 +411,43 @@ export default function GitPanel({
     globals.__orchestratorLastGitPrCreateUrlForSmoke = prCreateUrl
     setActionMessage({ text: 'Opening create PR', tone: 'info' })
     void window.api.browser.openExternal(prCreateUrl)
+  }
+
+  const runCreatePullRequest = async (): Promise<void> => {
+    if (!prCommand || prBranchPublished !== true || pullRequestUrl || busy) return
+    setActionState('loading')
+    setPrCreateState('creating')
+    setPrCreateError(null)
+    setActionMessage({ text: 'Creating pull request', tone: 'info' })
+    try {
+      const result: GitPullRequestCreateResult = await window.api.git.createPullRequest(workDir, defaultBaseBranch, currentBranch)
+      const globals = window as typeof window & {
+        __orchestratorLastGitPrCreateResultForSmoke?: GitPullRequestCreateResult
+      }
+      globals.__orchestratorLastGitPrCreateResultForSmoke = result
+      if (!result.ok) {
+        const message = result.error ?? 'Create pull request failed'
+        setPrCreateState('error')
+        setPrCreateError(message)
+        setActionMessage({ text: message, tone: 'danger' })
+        return
+      }
+      if (result.metadata) {
+        setLoadedReviewMetadata(result.metadata)
+        setReviewMetadataState('loaded')
+      } else {
+        await refreshPullRequestMetadata()
+      }
+      setPrCreateState('created')
+      setActionMessage({ text: 'Pull request created', tone: 'info' })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Create pull request failed'
+      setPrCreateState('error')
+      setPrCreateError(message)
+      setActionMessage({ text: message, tone: 'danger' })
+    } finally {
+      setActionState('idle')
+    }
   }
 
   const addPullRequestCommandToChat = (): void => {
@@ -766,6 +808,8 @@ export default function GitPanel({
           data-git-pr-remote-branch={prRemoteBranch}
           data-git-pr-upstream-branch={prUpstreamBranch}
           data-git-pr-push-command={prPushCommand}
+          data-git-pr-create-state={prCreateState}
+          data-git-pr-create-result-error={prCreateError ?? ''}
           data-git-pr-metadata-state={reviewMetadataState}
           data-git-pr-metadata-error={reviewMetadataError ?? ''}
           data-git-pr-number={pullRequest?.number ?? ''}
@@ -815,6 +859,15 @@ export default function GitPanel({
               >
                 Open create PR
               </Button>
+              <Button
+                variant="primary"
+                dataTestId="git-create-pr"
+                disabled={busy || !prCommand || prBranchPublished !== true || Boolean(pullRequestUrl)}
+                title={pullRequestUrl ? 'Pull request already exists' : prBranchPublished === false ? 'Push branch before creating PR' : prBranchPublished === null ? 'Checking branch publish state' : 'Create pull request with GitHub CLI'}
+                onClick={() => { void runCreatePullRequest() }}
+              >
+                Create PR
+              </Button>
               {prCommand && (
                 <div className="git-commit-meta" data-testid="git-pr-publish-status">
                   {prBranchPublished === false
@@ -822,6 +875,8 @@ export default function GitPanel({
                     : prBranchPublished === true
                       ? `Branch published${prUpstreamBranch ? ` at ${prUpstreamBranch}` : prRemoteBranch ? ` at ${prRemoteBranch}` : ''}.`
                       : 'Checking branch publish state.'}
+                  {prCreateState === 'created' && ' Pull request created.'}
+                  {prCreateState === 'error' && prCreateError ? ` ${prCreateError}` : ''}
                 </div>
               )}
               {prPushCommand && (

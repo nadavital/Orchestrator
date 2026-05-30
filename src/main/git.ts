@@ -3,7 +3,7 @@ import { join, resolve, sep } from 'path'
 import { mkdirSync } from 'fs'
 import { execFile, spawnSync } from 'child_process'
 import { promisify } from 'util'
-import type { FileChange, GitBranchActionResult, GitCommitResult, GitLineBlameResult, GitPathActionResult, GitPullRequestCreateUrlResult, GitRefOption, ReviewDiffSource, ReviewMetadata, ReviewCheckStatus, ReviewProviderBlame } from '../types'
+import type { FileChange, GitBranchActionResult, GitCommitResult, GitLineBlameResult, GitPathActionResult, GitPullRequestCreateResult, GitPullRequestCreateUrlResult, GitRefOption, ReviewDiffSource, ReviewMetadata, ReviewCheckStatus, ReviewProviderBlame } from '../types'
 
 const execFileAsync = promisify(execFile)
 
@@ -193,6 +193,54 @@ export const gitManager = {
         baseBranch: cleanBase,
         headBranch: cleanHead,
         error: error instanceof Error ? error.message : String(error)
+      }
+    }
+  },
+
+  async createPullRequest(cwd: string, baseBranch: string, headBranch: string): Promise<GitPullRequestCreateResult> {
+    const cleanBase = normalizeBranchName(baseBranch)
+    const cleanHead = normalizeBranchName(headBranch)
+    if (!cleanBase || !cleanHead) {
+      return { ok: false, error: 'Choose a base and topic branch.' }
+    }
+    if (cleanBase === cleanHead) {
+      return { ok: false, baseBranch: cleanBase, headBranch: cleanHead, error: 'Create or switch to a topic branch first.' }
+    }
+
+    const command = `gh pr create --fill --base ${shellQuote(cleanBase)} --head ${shellQuote(cleanHead)}`
+    try {
+      const { stdout, stderr } = await execFileAsync('gh', [
+        'pr',
+        'create',
+        '--fill',
+        '--base',
+        cleanBase,
+        '--head',
+        cleanHead
+      ], {
+        cwd,
+        encoding: 'utf-8',
+        timeout: 30000,
+        maxBuffer: 1024 * 1024
+      })
+      const url = parseGitHubPullRequestUrl(stdout) ?? parseGitHubPullRequestUrl(stderr)
+      const metadata = await this.getReviewMetadata(cwd)
+      const fallbackMetadata = !metadata && url ? reviewMetadataFromPullRequestUrl(url, cleanBase, cleanHead) : undefined
+      return {
+        ok: true,
+        ...(url ? { url } : {}),
+        ...(metadata ?? fallbackMetadata ? { metadata: metadata ?? fallbackMetadata } : {}),
+        baseBranch: cleanBase,
+        headBranch: cleanHead,
+        command
+      }
+    } catch (error) {
+      return {
+        ok: false,
+        baseBranch: cleanBase,
+        headBranch: cleanHead,
+        command,
+        error: commandErrorMessage(error)
       }
     }
   },
@@ -876,6 +924,35 @@ function reviewPullRequestState(value: unknown): NonNullable<ReviewMetadata['pul
   if (raw === 'merged') return 'merged'
   if (raw === 'closed') return 'closed'
   return 'open'
+}
+
+export function parseGitHubPullRequestUrl(value: string): string | undefined {
+  const match = /https:\/\/github\.com\/[^\s/]+\/[^\s/]+\/pull\/\d+/i.exec(value)
+  return match?.[0]
+}
+
+function reviewMetadataFromPullRequestUrl(url: string, baseBranch: string, headBranch: string): ReviewMetadata | undefined {
+  const match = /\/pull\/(\d+)(?:$|[/?#])/i.exec(url)
+  const number = match ? Number.parseInt(match[1], 10) : NaN
+  if (!Number.isFinite(number)) return undefined
+  return {
+    pullRequest: {
+      number,
+      url,
+      state: 'open',
+      branch: headBranch,
+      baseBranch
+    }
+  }
+}
+
+function commandErrorMessage(error: unknown): string {
+  const record = asRecord(error)
+  const stderr = stringValue(record?.stderr)
+  const stdout = stringValue(record?.stdout)
+  if (stderr) return stderr
+  if (stdout) return stdout
+  return error instanceof Error ? error.message : String(error)
 }
 
 function numberValue(value: unknown): number | undefined {

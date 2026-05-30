@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import test from 'node:test'
 
-import { gitManager, mergeReviewCommentSummaries, parseGitHubRemoteUrl, reviewMetadataFromGitHubPullRequestView, reviewThreadCommentMetadataFromGitHub, reviewThreadCommentSummaryFromGitHub } from '../git'
+import { gitManager, mergeReviewCommentSummaries, parseGitHubPullRequestUrl, parseGitHubRemoteUrl, reviewMetadataFromGitHubPullRequestView, reviewThreadCommentMetadataFromGitHub, reviewThreadCommentSummaryFromGitHub } from '../git'
 
 test('changed files preserve paths with spaces without git porcelain quotes', async () => {
   const root = mkdtempSync(join(tmpdir(), 'orchestrator-git-changes-'))
@@ -209,6 +209,30 @@ test('GitHub remote URL parser supports common clone URL forms', () => {
   assert.equal(parseGitHubRemoteUrl('git@github.com:nadavital/Orchestrator.git'), 'https://github.com/nadavital/Orchestrator')
   assert.equal(parseGitHubRemoteUrl('ssh://git@github.com/nadavital/Orchestrator.git'), 'https://github.com/nadavital/Orchestrator')
   assert.equal(parseGitHubRemoteUrl('ssh://git@example.com/nadavital/Orchestrator.git'), null)
+})
+
+test('GitHub pull request create output parser extracts PR URL', () => {
+  assert.equal(
+    parseGitHubPullRequestUrl('Creating pull request for codex/feature into main in openai/orchestrator\nhttps://github.com/openai/orchestrator/pull/77\n'),
+    'https://github.com/openai/orchestrator/pull/77'
+  )
+  assert.equal(parseGitHubPullRequestUrl('no pull request was created'), undefined)
+})
+
+test('pull request creation validates base and topic branches before gh mutation', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'orchestrator-git-pr-create-validate-'))
+  try {
+    const missingBranch = await gitManager.createPullRequest(root, 'main', '   ')
+    assert.equal(missingBranch.ok, false)
+    assert.match(missingBranch.error ?? '', /base and topic branch/i)
+
+    const sameBranch = await gitManager.createPullRequest(root, 'main', 'main')
+    assert.equal(sameBranch.ok, false)
+    assert.match(sameBranch.error ?? '', /topic branch/i)
+    assert.equal(sameBranch.command, undefined)
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
 })
 
 test('changed files expose unmerged conflict state for review helpers', async () => {
