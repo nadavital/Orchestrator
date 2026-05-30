@@ -5,6 +5,7 @@ import { join, resolve } from 'path'
 import { fileURLToPath } from 'url'
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)))
+const DEFAULT_SLOW_TARGET_THRESHOLD_MS = 30000
 const targetSets = {
   core: [
     '--header',
@@ -109,12 +110,15 @@ function main() {
   }
 
   const failed = results.filter((result) => result.status !== 0)
+  const slowTargets = slowTargetsForResults(results, options.slowTargetThresholdMs)
   const manifest = {
     createdAt: new Date().toISOString(),
     mode: options.installed ? 'installed' : options.packaged ? 'packaged' : 'dev',
     set: options.targets.length > 0 ? 'custom' : options.full ? 'full' : 'core',
     targets,
     durationMs: Date.now() - startedAt,
+    slowTargetThresholdMs: options.slowTargetThresholdMs,
+    slowTargets,
     passed: failed.length === 0 && results.length === targets.length,
     results
   }
@@ -122,7 +126,15 @@ function main() {
   writeFileSync(manifestPath, JSON.stringify(manifest, null, 2))
 
   console.log('')
-  console.log(JSON.stringify({ manifestPath, passed: manifest.passed, failed: failed.map((result) => result.target) }, null, 2))
+  console.log(JSON.stringify({
+    manifestPath,
+    passed: manifest.passed,
+    failed: failed.map((result) => result.target),
+    slowTargets: slowTargets.map((result) => ({
+      target: result.target,
+      durationMs: result.durationMs
+    }))
+  }, null, 2))
   process.exit(manifest.passed ? 0 : 1)
 }
 
@@ -141,6 +153,7 @@ function parseArgs(args) {
     list: false,
     outDir: undefined,
     packaged: false,
+    slowTargetThresholdMs: DEFAULT_SLOW_TARGET_THRESHOLD_MS,
     targets: [],
     verbose: false
   }
@@ -151,6 +164,8 @@ function parseArgs(args) {
     else if (arg === '--keep-going') parsed.keepGoing = true
     else if (arg === '--list') parsed.list = true
     else if (arg === '--packaged') parsed.packaged = true
+    else if (arg === '--slow-threshold-ms') parsed.slowTargetThresholdMs = parsePositiveInteger(args[++index], '--slow-threshold-ms')
+    else if (arg.startsWith('--slow-threshold-ms=')) parsed.slowTargetThresholdMs = parsePositiveInteger(arg.slice('--slow-threshold-ms='.length), '--slow-threshold-ms')
     else if (arg === '--verbose') parsed.verbose = true
     else if (arg === '--out') parsed.outDir = args[++index]
     else if (arg.startsWith('--out=')) parsed.outDir = arg.slice('--out='.length)
@@ -178,6 +193,22 @@ function parseArgs(args) {
 
 function splitTargets(value) {
   return String(value).split(',').map((item) => item.trim()).filter(Boolean)
+}
+
+function parsePositiveInteger(value, optionName) {
+  const parsed = Number.parseInt(String(value ?? ''), 10)
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    console.error(`Expected a positive integer for ${optionName}.`)
+    process.exit(1)
+  }
+  return parsed
+}
+
+export function slowTargetsForResults(results, thresholdMs = DEFAULT_SLOW_TARGET_THRESHOLD_MS) {
+  return results
+    .filter((result) => result.durationMs >= thresholdMs)
+    .map((result) => ({ ...result }))
+    .sort((a, b) => b.durationMs - a.durationMs)
 }
 
 function matchJsonString(value, key) {

@@ -131,6 +131,12 @@ Elevated `pnpm run smoke:ui:daily-coding --only composer,transcript-layout,agent
 
 This pass exposed a runner ergonomics issue rather than a product UI failure: `pnpm run smoke:ui:daily-coding -- --only ...` forwarded the literal separator to the runner and failed with `Unknown option: --`. The runner now strips leading package-manager separators before parsing options, so both older copied commands and the preferred direct `pnpm run smoke:ui:daily-coding --only ...` form work.
 
+## 2026-05-30 Review/Files/Browser Focused Check And Slow-Target Reporting
+
+Elevated `pnpm run smoke:ui:daily-coding --only diff-core,files,browser --keep-going` passed the focused Review, Files/source tabs, and Browser cluster. Manifest: `/Users/nadav/Desktop/Orchestrator/tmp/daily-coding-smoke/daily-coding-smoke-1780110950730.json`; focused artifacts: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-core-1780110869748.json`, `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1780110883367.json`, and `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1780110921537.json`.
+
+No local product failure surfaced in that cluster. The useful finding was validation cost: Files/source tabs took 38.2s, while Review took 13.6s and Browser took 29.3s. The daily-coding runner now writes `slowTargetThresholdMs` and sorted `slowTargets` into each manifest and final summary so slow surfaces are visible when deciding whether to run a focused `--only` subset, a core milestone, or the full suite.
+
 ## 2026-05-30 Live Codex UI Capture Boundary
 
 Elevated `npm run compare:codex-side-panels -- --capture-live-codex --no-fail` refreshed `tmp/codex-side-panel-comparison/comparison-report.json` at `2026-05-30T02:26:03.862Z` with `mismatch=0`, `needsSmoke=0`, `needsProof=0`, `blocked=8`, and 19 remaining parity gaps. The live capture path found a visible Codex window through CoreGraphics (`id=65887`, bounds `0,30,1384,1320`), but `screencapture -l65887` failed with `could not create image from window`, region capture failed with `could not create image from rect`, and the full-screen fallback produced `/private/tmp/codex-current-screen.png` as a 5120x2880 all-black image (`nonBlank=false`, `nonBlackRatio=0`, `luminanceStdDev=0`, `colorBucketCount=1`).
