@@ -1309,7 +1309,11 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 await sleep(100);
               }
               const permissionRuntimeContext = document.querySelector('[data-testid="settings-permission-runtime-context"]');
-              const permissionRuntimeRefresh = document.querySelector('[data-testid="settings-permission-runtime-refresh"]');
+              let permissionRuntimeRefresh = document.querySelector('[data-testid="settings-permission-runtime-refresh"]');
+              for (let index = 0; permissionRuntimeRefresh instanceof HTMLButtonElement && permissionRuntimeRefresh.disabled && index < 20; index += 1) {
+                await sleep(100);
+                permissionRuntimeRefresh = document.querySelector('[data-testid="settings-permission-runtime-refresh"]');
+              }
               if (permissionRuntimeRefresh instanceof HTMLButtonElement) {
                 permissionRuntimeRefresh.click();
                 for (let index = 0; index < 12; index += 1) {
