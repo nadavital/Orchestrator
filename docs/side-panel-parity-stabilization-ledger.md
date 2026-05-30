@@ -72,6 +72,14 @@ Before committing a slice:
 
 Routine Phase 1 iteration should not run the no-flag/full UI smoke for tiny source diffs. Use the generated focused target first, and reserve full inventory/no-flag smoke for uncovered broad-smoke changes, coordinated shell contracts, package dependency/config/runtime changes, or pre-merge confidence checkpoints. Package `scripts`-only edits are now classified separately so proof-harness command additions do not create false broad-smoke pressure.
 
+For milestone/dogfood checks, use `npm run smoke:ui:daily-coding` instead of the full side-panel inventory. The core set covers the header/session/composer/transcript/workbench/Review/Files/Browser/Terminal/Settings path that matters for daily coding. The optional `--full` set adds permission/user-input, Agent Activity, Environment, provider Settings, and side chat. This runner is intentionally slower than changed-file smokes and intentionally narrower than visual parity inventory.
+
+2026-05-29 daily-coding smoke-runner checkpoint:
+
+- Added `scripts/run-daily-coding-smoke.mjs` and `npm run smoke:ui:daily-coding`.
+- `--list` prints the core/full target sets, `--only` validates a comma-separated subset, `--packaged`/`--installed` reuse the same target set against packaged app modes, and `--keep-going` records every failure instead of stopping at the first failed target.
+- Verification passed for syntax/list/package JSON/whitespace and an elevated representative `--only header` run. Daily manifest: `/Users/nadav/Desktop/Orchestrator/tmp/daily-coding-smoke/daily-coding-smoke-1780100404708.json`.
+
 2026-05-29 final local proof-gate refresh:
 
 - `npm run build` passed.

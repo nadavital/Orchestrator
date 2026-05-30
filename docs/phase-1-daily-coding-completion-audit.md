@@ -27,6 +27,7 @@ This checkpoint exists to prevent Phase 1 from drifting into low-value parity po
 3. Provider lifecycle boundaries must stay explicit. Codex app-server send/resume/continue/retry/approval/model-switch paths have live proof, but non-Codex provider lifecycle proof and deterministic live non-command permission/user-input fixtures remain open. Do not implement speculative adapters; prove or clearly mark the boundary.
 4. Settings must stay honest about provider/account/runtime adapters. Local settings, personalization, browser policy, provider config, shortcuts, worktrees, automations, and data-control flows have smoke coverage. Provider-native account/runtime sync and real remote-host pages remain known adapter gaps.
 5. Header, right Workbench panel, bottom panel, and route/window focus behavior must pass together in the final visual/contact-sheet check. The user explicitly observed that panels can pass individually while still feeling unlike Codex when they meet the header incorrectly.
+6. Milestone validation should use the curated daily-coding smoke runner instead of repeatedly choosing between tiny changed-file smokes and the full side-panel comparison. Use `npm run smoke:ui:daily-coding` for the core app-coding surfaces, `npm run smoke:ui:daily-coding -- --full` for the broader Phase 1 milestone gate, and `npm run smoke:ui:daily-coding -- --only header,composer,browser` when validating a known subset.
 
 ## Accept As Good Enough For Phase 1 Unless New Evidence Shows A Break
 
@@ -35,6 +36,7 @@ This checkpoint exists to prevent Phase 1 from drifting into low-value parity po
 - Exact Codex pixel spacing, animation timing, or live screenshot parity while current capture routes produce black or unavailable Codex screenshots.
 - Additional bottom-panel tab kinds beyond Terminal and Plan unless there is a clear coding workflow demand.
 - More broad smoke runs for tiny diffs when `smoke:ui:changed:*` selects a focused target.
+- Running the curated daily-coding smoke after every small diff. It is a milestone/dogfood gate, not the routine edit loop.
 
 ## Phase 2 Backlog
 
@@ -52,3 +54,10 @@ The final local proof gates are clean. Next Phase 1 work should not be another l
 - Hosted/native Review data such as PR metadata/actions, comments, blame, hosted sources, and checkpoint Undo.
 - Live Codex UI screenshot/proof boundaries only when the app/browser can produce nonblank comparable captures.
 - A real day-to-day dogfood pass across app shell, chat/composer, Browser, Terminal, Git/Review, Settings, and side chat, filing only workflow breaks that block coding use.
+- After the next meaningful app-shell or workflow batch, run `npm run smoke:ui:daily-coding -- --full --keep-going` and use its manifest as the Phase 1 dogfood checklist before deciding whether more local UI work is warranted.
+
+## 2026-05-29 Daily-Coding Smoke Runner
+
+Added `npm run smoke:ui:daily-coding` as the midpoint between tiny changed-files smokes and the full side-panel visual inventory. The core target set covers header/session/composer/transcript/workbench/Review/Files/Browser/Terminal/Settings. The full target set adds permission/user-input, Agent Activity, Environment, provider Settings, and side chat.
+
+Verification: `node -c scripts/run-daily-coding-smoke.mjs`, `npm run smoke:ui:daily-coding -- --list`, `node -e "JSON.parse(require('fs').readFileSync('package.json','utf8')); console.log('package-json-ok')"`, and `git diff --check` passed. Focused elevated `npm run smoke:ui:daily-coding -- --only header` passed after the expected sandbox localhost bind failure on the unelevated attempt; daily manifest `/Users/nadav/Desktop/Orchestrator/tmp/daily-coding-smoke/daily-coding-smoke-1780100404708.json`; smoke JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-header-1780100396221.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-header-1780100396221.png`.
