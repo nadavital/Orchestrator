@@ -1,5 +1,5 @@
 import type { IpcMain } from 'electron'
-import { dialog, app, clipboard, shell, session } from 'electron'
+import { BrowserWindow, dialog, app, clipboard, shell, session } from 'electron'
 import { execFile } from 'child_process'
 import { request as httpRequest } from 'http'
 import { closeSync, openSync, readFileSync, readSync, writeFileSync, mkdirSync, readdirSync, existsSync, statSync } from 'fs'
@@ -3239,7 +3239,10 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
 
   // File dialog
   ipcMain.handle('dialog:openDirectory', async () => {
-    const result = await dialog.showOpenDialog({ properties: ['openDirectory', 'createDirectory'] })
+    const parentWindow = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0] ?? null
+    const result = parentWindow
+      ? await dialog.showOpenDialog(parentWindow, { properties: ['openDirectory', 'createDirectory'] })
+      : await dialog.showOpenDialog({ properties: ['openDirectory', 'createDirectory'] })
     return result.canceled ? null : result.filePaths[0]
   })
   ipcMain.handle('dialog:openFiles', async (): Promise<Array<{ path: string; name: string; size?: number }> | null> => {

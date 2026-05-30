@@ -24536,6 +24536,10 @@ function runAutomatedSessionSwitchSmoke(win: BrowserWindow, outputPath: string, 
               await sleep(25);
             }
             const restoredRouteHash = window.location.hash;
+            const archivedRestoreSnapshot = {
+              title: document.querySelector('[data-testid="active-session-title"]')?.textContent ?? '',
+              transcript: document.querySelector('[data-testid="transcript-scroll"]')?.innerText ?? ''
+            };
             const missingId = 'missing-route-smoke';
             window.location.hash = routeHashFor(missingId);
             let missingRecovery = null;
@@ -24554,14 +24558,39 @@ function runAutomatedSessionSwitchSmoke(win: BrowserWindow, outputPath: string, 
               if (!(document.querySelector('[data-testid="session-route-recovery"]') instanceof HTMLElement)) break;
               await sleep(25);
             }
+            const missingRouteReturnCleared = !(document.querySelector('[data-testid="session-route-recovery"]') instanceof HTMLElement);
+            const missingNewChatId = 'missing-route-new-chat-smoke';
+            window.location.hash = routeHashFor(missingNewChatId);
+            let missingNewChatRecovery = null;
+            for (let index = 0; index < 100; index += 1) {
+              missingNewChatRecovery = document.querySelector('[data-testid="session-route-recovery"]');
+              if (
+                missingNewChatRecovery instanceof HTMLElement &&
+                missingNewChatRecovery.getAttribute('data-session-route-recovery-kind') === 'missing' &&
+                missingNewChatRecovery.getAttribute('data-session-route-recovery-id') === missingNewChatId
+              ) break;
+              await sleep(25);
+            }
+            const newChatButton = document.querySelector('[data-testid="session-route-recovery-new-chat"]');
+            if (newChatButton instanceof HTMLButtonElement) newChatButton.click();
+            let newChatTitle = '';
+            let newChatRouteHash = '';
+            let newChatRecoveryCleared = false;
+            for (let index = 0; index < 140; index += 1) {
+              newChatTitle = document.querySelector('[data-testid="active-session-title"]')?.textContent ?? '';
+              newChatRouteHash = window.location.hash;
+              newChatRecoveryCleared = !(document.querySelector('[data-testid="session-route-recovery"]') instanceof HTMLElement);
+              if (newChatRecoveryCleared && newChatTitle.includes('New Chat') && !newChatRouteHash.includes(missingNewChatId)) break;
+              await sleep(25);
+            }
             return {
               archivedRouteRecoveryVisible:
                 archivedRecovery instanceof HTMLElement &&
                 archivedRecovery.getAttribute('data-session-route-recovery-kind') === 'archived' &&
                 document.body.innerText.includes(${JSON.stringify(archivedRoute.name)}),
               archivedRouteRestoreWorks:
-                document.querySelector('[data-testid="active-session-title"]')?.textContent?.includes(${JSON.stringify(archivedRoute.name)}) === true &&
-                document.querySelector('[data-testid="transcript-scroll"]')?.innerText?.includes('SESSION_SWITCH_SMOKE_ARCHIVED_ROUTE') === true,
+                archivedRestoreSnapshot.title.includes(${JSON.stringify(archivedRoute.name)}) &&
+                archivedRestoreSnapshot.transcript.includes('SESSION_SWITCH_SMOKE_ARCHIVED_ROUTE'),
               archivedRouteRestoredHash: restoredRouteHash,
               sessionRouteResolvingVisible:
                 resolvingSnapshot.kind === 'resolving' &&
@@ -24585,7 +24614,15 @@ function runAutomatedSessionSwitchSmoke(win: BrowserWindow, outputPath: string, 
                 missingRecovery instanceof HTMLElement &&
                 missingRecovery.getAttribute('data-session-route-recovery-kind') === 'missing' &&
                 missingRecovery.getAttribute('data-session-route-recovery-id') === missingId,
-              missingRouteReturnWorks: !(document.querySelector('[data-testid="session-route-recovery"]') instanceof HTMLElement)
+              missingRouteReturnWorks:
+                missingRouteReturnCleared,
+              missingRouteNewChatWorks:
+                missingNewChatRecovery instanceof HTMLElement &&
+                missingNewChatRecovery.getAttribute('data-session-route-recovery-kind') === 'missing' &&
+                missingNewChatRecovery.getAttribute('data-session-route-recovery-id') === missingNewChatId &&
+                newChatRecoveryCleared &&
+                newChatTitle.includes('New Chat') &&
+                !newChatRouteHash.includes(missingNewChatId)
             };
           })()
         `) : {
@@ -24594,7 +24631,8 @@ function runAutomatedSessionSwitchSmoke(win: BrowserWindow, outputPath: string, 
           archivedRouteRestoredHash: null,
           sessionRouteResolvingVisible: false,
           missingRouteRecoveryVisible: false,
-          missingRouteReturnWorks: false
+          missingRouteReturnWorks: false,
+          missingRouteNewChatWorks: false
         }
 
         win.webContents.send('pet:navigate', first.id)

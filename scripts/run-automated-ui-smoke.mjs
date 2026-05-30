@@ -1822,6 +1822,7 @@ child.on('exit', async (code) => {
         sessionRouteResolvingVisible: result.sessionRouteResolvingVisible === true,
         missingRouteRecoveryVisible: result.missingRouteRecoveryVisible === true,
         missingRouteReturnWorks: result.missingRouteReturnWorks === true,
+        missingRouteNewChatWorks: result.missingRouteNewChatWorks === true,
         firstTranscriptFound: result.firstTranscriptFound === true,
         firstTitleFound: result.firstTitleFound === true,
         firstRouteUpdated: result.firstRouteUpdated === true,

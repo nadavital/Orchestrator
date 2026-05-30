@@ -376,6 +376,8 @@ export default function App(): JSX.Element {
       projectState.removeProject(targetProject.id)
       await window.api.projects.remove(targetProject.id)
       for (const staleSession of sessionState.sessions.filter((session) => session.projectId === targetProject.id)) {
+        await window.api.sessions.remove(staleSession.id)
+        await window.api.projects.removeSession(targetProject.id, staleSession.id)
         sessionState.removeSession(staleSession.id)
         projectState.removeSessionFromProject(targetProject.id, staleSession.id)
       }
