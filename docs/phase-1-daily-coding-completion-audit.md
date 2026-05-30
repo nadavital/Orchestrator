@@ -93,6 +93,8 @@ Non-Codex provider proof remains unavailable in the current local environment. T
 
 Artifact: `/Users/nadav/Desktop/Orchestrator/tmp/claude-live-capabilities/_summary/summary.json`.
 
+2026-05-30 refresh: elevated `npm run live:claude-capabilities` still records `status=unavailable`. The real current boundary is not CLI absence: `auth status`, MCP list, plugin list, and agents probes pass, but `auto-mode defaults` returns API 401 invalid credentials, so structured `plain`, `file_ops`, `plan_mode`, and `streaming` scenarios remain skipped. Artifact timestamp: `2026-05-30T02:54:39.475Z`.
+
 ## 2026-05-29 Provider Settings Auth Diagnostics
 
 Provider Settings now surfaces auth failures found by no-quota provider probes, not only the provider's primary auth command. This keeps the UI honest when a provider can report a local account or version but still fail a safe runtime readiness probe before a real run. The current Claude registry includes `auto-mode defaults` as a no-quota probe, and a probe response such as API 401 invalid credentials promotes the Provider Settings Auth row to an error with the failing probe label.

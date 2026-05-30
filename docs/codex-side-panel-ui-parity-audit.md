@@ -11054,3 +11054,13 @@ Implemented: no product UI was changed. Elevated `npm run live:codex-browser-app
 Verification: the first live proof attempt hit the expected sandbox session-store permission boundary. The elevated rerun completed a real Codex turn with `session.started`, assistant deltas, tool started/completed items, and `run.completed`, but produced 0 browser-use events, sent 0 browser/tool server requests, and replied `CODEX_BROWSER_LIVE_NO_BROWSER`. Evidence JSON `/Users/nadav/Desktop/Orchestrator/tmp/codex-browser-appserver-live-proof/result.json`; regenerated comparison report `/Users/nadav/Desktop/Orchestrator/tmp/codex-side-panel-comparison/comparison-report.json`, created at `2026-05-30T02:50:56.048Z`.
 
 Remaining: this confirms the native browser-use runtime-signal gap is still a provider boundary, not a local Browser UI bug. Continue Browser expansion only from real browser-use events, provider design-change application events, non-Codex browser/local-server adapters with evidence, or live Codex Browser pixel/timing captures.
+
+### 2026-05-30 - Claude Capability Boundary Refresh
+
+Product evidence: non-Codex provider lifecycle proof remains part of Phase 1, but the app should not claim Claude daily-coding parity from local fixture smokes when the live Claude CLI cannot complete even a no-quota readiness probe.
+
+Implemented: no product UI was changed. Elevated `npm run live:claude-capabilities` refreshed the Claude capability artifact and separated real provider readiness from sandbox noise. The first unelevated attempt failed on sandboxed writes under `~/.claude`; the elevated rerun is the authoritative artifact.
+
+Verification: elevated `npm run live:claude-capabilities` reports `status=unavailable`. `claude --version` returns `2.1.51`, and `auth status`, MCP list, plugin list, and agents probes pass. `claude auto-mode defaults` returns API 401 invalid credentials, so the harness skips structured `plain`, `file_ops`, `plan_mode`, and `streaming` scenarios instead of spending quota or treating auth failure as app behavior. Evidence JSON `/Users/nadav/Desktop/Orchestrator/tmp/claude-live-capabilities/_summary/summary.json`, generated at `2026-05-30T02:54:39.475Z`.
+
+Remaining: Claude and other non-Codex providers should stay marked unavailable for daily-coding lifecycle proof until their live capability suites can run with valid credentials/runtime state. Do not build provider-specific adapters from the skipped scenarios.
