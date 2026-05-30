@@ -68,6 +68,11 @@ const report = {
   smokeRun,
   liveCaptureAttempt,
   summary,
+  statusCounts: summary.statusCounts,
+  remainingParityGaps: summary.remainingParityGaps,
+  remainingParityGapCount: summary.remainingParityGaps.length,
+  remainingParityGapCounts: summary.remainingParityGapCounts,
+  optionalFileEvidenceFailures: summary.optionalFileEvidenceFailures,
   rows,
   captures: (manifest?.captures ?? []).map((capture) => ({
     id: capture.id,
