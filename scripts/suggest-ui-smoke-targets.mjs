@@ -260,13 +260,19 @@ const broadTriggers = [
 const staticValidationRules = [
   {
     label: 'Daily coding smoke runner unit coverage',
-    patterns: [/^scripts\/run-daily-coding-smoke\.mjs$/, /^scripts\/run-daily-coding-smoke\.test\.mjs$/],
+    patterns: [/^scripts\/run-daily-coding-smoke\.mjs$/, /^scripts\/run-daily-coding-smoke\.test\.mjs$/, /^scripts\/report-phase1-readiness\.mjs$/, /^scripts\/report-phase1-readiness\.test\.mjs$/],
     checks: [
       {
         kind: 'static',
         label: 'Daily coding smoke runner unit coverage',
         command: 'node',
         args: ['--test', 'scripts/run-daily-coding-smoke.test.mjs']
+      },
+      {
+        kind: 'static',
+        label: 'Phase 1 readiness report unit coverage',
+        command: 'node',
+        args: ['--test', 'scripts/report-phase1-readiness.test.mjs']
       }
     ]
   },
