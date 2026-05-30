@@ -78,6 +78,32 @@ function main() {
   const resultPath = join(outputDir, 'result.json')
 
   try {
+    const selection = resolvePullRequestSelection(options)
+    if (selection.unavailable) {
+      const proof = {
+        status: 'unavailable',
+        startedAt,
+        completedAt: new Date().toISOString(),
+        cwd: root,
+        selector: selection.selector,
+        repo: options.repo ?? null,
+        authenticated: true,
+        candidateScan: selection.candidateScan,
+        commentedProof: false,
+        warning: selection.warning,
+        boundary: selection.boundary
+      }
+      writeFileSync(resultPath, `${JSON.stringify(proof, null, 2)}\n`)
+      console.log(JSON.stringify({
+        resultPath,
+        status: proof.status,
+        selector: proof.selector,
+        commentedProof: false,
+        candidateCount: selection.candidateScan?.candidateCount ?? 0,
+        warning: proof.warning
+      }, null, 2))
+      process.exit(1)
+    }
     const view = readPullRequestView(options)
     const metadata = reviewMetadataFromGitHubPullRequestView(view)
     if (!metadata?.pullRequest) throw new Error('GitHub PR metadata did not include a pull request.')
@@ -96,8 +122,9 @@ function main() {
       startedAt,
       completedAt: new Date().toISOString(),
       cwd: root,
-      selector: options.pr ?? 'current-branch',
+      selector: selection.selector,
       repo: options.repo ?? null,
+      candidateScan: selection.candidateScan,
       authenticated: true,
       pullRequest: metadata.pullRequest,
       checks: summarizeChecks(metadata.checks),
@@ -115,6 +142,7 @@ function main() {
     console.log(JSON.stringify({
       resultPath,
       status: proof.status,
+      selector: proof.selector,
       pullRequest: proof.pullRequest,
       commentedProof,
       commentTotal: mergedComments?.total ?? 0,
@@ -127,7 +155,7 @@ function main() {
       startedAt,
       completedAt: new Date().toISOString(),
       cwd: root,
-      selector: options.pr ?? 'current-branch',
+      selector: options.autoCommentedPr ? 'auto-commented-pr' : (options.pr ?? 'current-branch'),
       repo: options.repo ?? null,
       authenticated: false,
       error: error instanceof Error ? error.message : String(error)
@@ -145,7 +173,9 @@ function parseArgs(args) {
     outDir: process.env.GITHUB_REVIEW_METADATA_PROOF_ARTIFACT_DIR ?? 'tmp/github-review-metadata-live-proof',
     pr: process.env.GITHUB_REVIEW_METADATA_PR,
     repo: process.env.GITHUB_REVIEW_METADATA_REPO,
-    requireComments: process.env.GITHUB_REVIEW_METADATA_REQUIRE_COMMENTS === '1'
+    requireComments: process.env.GITHUB_REVIEW_METADATA_REQUIRE_COMMENTS === '1',
+    autoCommentedPr: process.env.GITHUB_REVIEW_METADATA_AUTO_COMMENTED_PR === '1',
+    scanLimit: parsePositiveInteger(process.env.GITHUB_REVIEW_METADATA_SCAN_LIMIT ?? '30', 'GITHUB_REVIEW_METADATA_SCAN_LIMIT')
   }
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index]
@@ -156,11 +186,122 @@ function parseArgs(args) {
     else if (arg === '--repo') parsed.repo = args[++index]
     else if (arg.startsWith('--repo=')) parsed.repo = arg.slice('--repo='.length)
     else if (arg === '--require-comments') parsed.requireComments = true
+    else if (arg === '--auto-commented-pr') {
+      parsed.autoCommentedPr = true
+      parsed.requireComments = true
+    } else if (arg === '--scan-limit') parsed.scanLimit = parsePositiveInteger(args[++index], '--scan-limit')
+    else if (arg.startsWith('--scan-limit=')) parsed.scanLimit = parsePositiveInteger(arg.slice('--scan-limit='.length), '--scan-limit')
     else {
       throw new Error(`Unknown option: ${arg}`)
     }
   }
   return parsed
+}
+
+function resolvePullRequestSelection(options) {
+  if (!options.autoCommentedPr) {
+    return {
+      selector: options.pr ?? 'current-branch',
+      candidateScan: null,
+      unavailable: false
+    }
+  }
+
+  const candidates = readPullRequestCandidates(options)
+  const candidatesWithThreadCounts = candidates.map((candidate) => ({
+    ...candidate,
+    ...readCandidateReviewThreadCommentCount(options, candidate)
+  }))
+  const commentedCandidates = candidatesWithThreadCounts.filter((candidate) => Number(candidate.totalCommentCount ?? 0) > 0)
+  const selected = commentedCandidates[0] ?? null
+  const candidateScan = {
+    mode: 'auto-commented-pr',
+    limit: options.scanLimit,
+    scannedCount: candidatesWithThreadCounts.length,
+    candidateCount: commentedCandidates.length,
+    threadScanWarningCount: candidatesWithThreadCounts.filter((candidate) => candidate.threadScanWarning).length,
+    candidates: commentedCandidates.map((candidate) => ({
+      number: candidate.number,
+      title: candidate.title,
+      state: candidate.state,
+      url: candidate.url,
+      commentCount: candidate.commentCount,
+      providerCommentCount: candidate.providerCommentCount,
+      totalCommentCount: candidate.totalCommentCount,
+      updatedAt: candidate.updatedAt
+    }))
+  }
+  if (!selected) {
+    return {
+      selector: 'auto-commented-pr',
+      candidateScan,
+      unavailable: true,
+      warning: `No PR with issue or review-thread comments found in the latest ${candidatesWithThreadCounts.length} pull request(s).`,
+      boundary: 'Authenticated GitHub PR scanning is available, but this repository currently has no safe commented PR target for commented Review provider proof.'
+    }
+  }
+  options.pr = String(selected.number)
+  return {
+    selector: `auto-commented-pr:${selected.number}`,
+    candidateScan: {
+      ...candidateScan,
+      selected: {
+        number: selected.number,
+        title: selected.title,
+        state: selected.state,
+        url: selected.url,
+        commentCount: selected.commentCount,
+        providerCommentCount: selected.providerCommentCount,
+        totalCommentCount: selected.totalCommentCount,
+        updatedAt: selected.updatedAt
+      }
+    },
+    unavailable: false
+  }
+}
+
+function readPullRequestCandidates(options) {
+  const args = [
+    'pr',
+    'list',
+    '--state',
+    'all',
+    '--limit',
+    String(options.scanLimit),
+    '--json',
+    'id,number,title,state,url,updatedAt,comments'
+  ]
+  if (options.repo) args.push('--repo', options.repo)
+  const list = JSON.parse(runGh(args))
+  return (Array.isArray(list) ? list : []).map((entry) => ({
+    id: entry.id ?? '',
+    number: entry.number,
+    title: entry.title ?? '',
+    state: entry.state ?? '',
+    url: entry.url ?? '',
+    updatedAt: entry.updatedAt ?? '',
+    commentCount: Array.isArray(entry.comments) ? entry.comments.length : 0
+  }))
+}
+
+function readCandidateReviewThreadCommentCount(options, candidate) {
+  if (!candidate.id) return { providerCommentCount: 0, totalCommentCount: candidate.commentCount ?? 0, threadScanWarning: 'GitHub PR id missing.' }
+  const threadResult = readReviewThreads(options, candidate.id)
+  if (threadResult.warning || !threadResult.payload) {
+    return {
+      providerCommentCount: 0,
+      totalCommentCount: candidate.commentCount ?? 0,
+      threadScanWarning: threadResult.warning ?? 'Inline review comments unavailable.'
+    }
+  }
+  const threadMetadata = reviewThreadCommentMetadataFromGitHub(threadResult.payload, candidate.url ?? null)
+  const providerCommentCount = Object.values(threadMetadata?.commentsByPath ?? {})
+    .reduce((total, comments) => total + comments.length, 0)
+  return {
+    providerCommentCount,
+    totalCommentCount: (candidate.commentCount ?? 0) + providerCommentCount,
+    threadScanWarning: null
+  }
 }
 
 function readPullRequestView(options) {
@@ -216,4 +357,10 @@ function summarizeReviewers(reviewers) {
 
 function firstLine(value) {
   return String(value ?? '').split('\n').map((line) => line.trim()).find(Boolean) ?? 'unknown error'
+}
+
+function parsePositiveInteger(value, name) {
+  const parsed = Number.parseInt(String(value ?? ''), 10)
+  if (!Number.isFinite(parsed) || parsed <= 0) throw new Error(`Expected a positive integer for ${name}.`)
+  return parsed
 }

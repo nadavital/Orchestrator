@@ -84,6 +84,14 @@ export function buildPhase1ReadinessReport({ rootDir = root, sinceHours = 72, no
         commentedProof: proof.commentedProof === true,
         boundary: proof.boundary ?? proof.warning ?? null
       })),
+      githubReviewMetadataComments: summarizeProof(rootDir, 'tmp/github-review-metadata-commented-live-proof/result.json', (proof) => ({
+        status: proof.status ?? null,
+        authenticated: proof.authenticated === true,
+        commentedProof: proof.commentedProof === true,
+        candidateCount: numberValue(proof.candidateScan?.candidateCount) ?? null,
+        scannedCount: numberValue(proof.candidateScan?.scannedCount) ?? null,
+        boundary: proof.boundary ?? proof.warning ?? null
+      })),
       claudeCapabilities: summarizeProof(rootDir, 'tmp/claude-live-capabilities/_summary/summary.json', (proof) => ({
         status: proof.status ?? null,
         unavailableReason: proof.unavailableReason ?? proof.reason ?? proof.error ?? null

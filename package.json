@@ -89,6 +89,7 @@
     "live:codex-review-appserver": "node -e \"require('fs').rmSync('out-test',{recursive:true,force:true})\" && tsc -p tsconfig.node.json --outDir out-test --module commonjs && node scripts/codex-review-appserver-live-proof.mjs",
     "live:codex-review-start": "node -e \"require('fs').rmSync('out-test',{recursive:true,force:true})\" && tsc -p tsconfig.node.json --outDir out-test --module commonjs && node scripts/codex-review-start-live-proof.mjs",
     "live:github-review-metadata": "node -e \"require('fs').rmSync('out-test',{recursive:true,force:true})\" && tsc -p tsconfig.node.json --outDir out-test --module commonjs && node scripts/github-review-metadata-live-proof.mjs",
+    "live:github-review-metadata:comments": "node -e \"require('fs').rmSync('out-test',{recursive:true,force:true})\" && tsc -p tsconfig.node.json --outDir out-test --module commonjs && node scripts/github-review-metadata-live-proof.mjs --auto-commented-pr --require-comments --out tmp/github-review-metadata-commented-live-proof",
     "live:claude-capabilities": "tsc -p tsconfig.node.json --outDir out-test --module commonjs && node scripts/claude-live-capability-suite.mjs",
     "preview": "electron-vite preview",
     "rebuild": "electron-rebuild -f -w node-pty",

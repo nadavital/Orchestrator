@@ -136,6 +136,52 @@ test('classifies blocked browser runtime proof without making local readiness fa
   assert.equal(report.proofArtifacts.codexBrowserRuntime.browserUseEventCount, 0)
 })
 
+test('summarizes unavailable commented PR provider proof scan', () => {
+  const root = mkdtempSync(join(tmpdir(), 'orchestrator-phase1-commented-pr-scan-'))
+  writeJson(root, 'tmp/daily-coding-smoke/daily-coding-smoke-1.json', {
+    createdAt: '2026-05-30T03:00:00.000Z',
+    mode: 'dev',
+    set: 'full',
+    results: fullTargets.map((target) => ({ target, status: 0, durationMs: 1000 }))
+  })
+  writeJson(root, 'tmp/codex-side-panel-comparison/comparison-report.json', {
+    statusCounts: {
+      'fixture-covered': 9
+    },
+    remainingParityGapCount: 1,
+    remainingParityGapCounts: {
+      'provider-proof': 1
+    },
+    actionableGapSummary: {
+      localActionable: 0
+    }
+  })
+  writeJson(root, 'tmp/github-review-metadata-commented-live-proof/result.json', {
+    status: 'unavailable',
+    authenticated: true,
+    commentedProof: false,
+    completedAt: '2026-05-30T04:10:00.000Z',
+    candidateScan: {
+      scannedCount: 4,
+      candidateCount: 0
+    },
+    boundary: 'No safe commented PR target.'
+  })
+
+  const report = buildPhase1ReadinessReport({
+    rootDir: root,
+    sinceHours: 72,
+    nowMs: Date.parse('2026-05-30T04:00:00.000Z')
+  })
+
+  assert.equal(report.overall.localDailyUseReady, true)
+  assert.equal(report.proofArtifacts.githubReviewMetadataComments.status, 'unavailable')
+  assert.equal(report.proofArtifacts.githubReviewMetadataComments.authenticated, true)
+  assert.equal(report.proofArtifacts.githubReviewMetadataComments.commentedProof, false)
+  assert.equal(report.proofArtifacts.githubReviewMetadataComments.scannedCount, 4)
+  assert.equal(report.proofArtifacts.githubReviewMetadataComments.candidateCount, 0)
+})
+
 test('summarizes blocked Codex composer user-input proof', () => {
   const root = mkdtempSync(join(tmpdir(), 'orchestrator-phase1-user-input-blocked-'))
   writeJson(root, 'tmp/daily-coding-smoke/daily-coding-smoke-1.json', {
