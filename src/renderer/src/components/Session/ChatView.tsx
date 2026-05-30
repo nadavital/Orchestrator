@@ -94,6 +94,7 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
   const transferBrowserWorkbench = useSessionStore((state) => state.transferBrowserWorkbench)
   const setShowSettings = useSessionStore((state) => state.setShowSettings)
   const setShowCapabilities = useSessionStore((state) => state.setShowCapabilities)
+  const removeMessage = useSessionStore((state) => state.removeMessage)
   const addSessionToProject = useProjectStore((state) => state.addSessionToProject)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -187,11 +188,12 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
     setTranscriptActionStatus({ text: `Canceling ${label}`, tone: 'info' })
     try {
       await window.api.sessions.cancelQueuedMessage(session.id, messageId)
+      removeMessage(session.id, messageId)
       setTranscriptActionStatus({ text: queueState === 'steer_next' ? 'Steering message canceled' : 'Queued message canceled', tone: 'info' })
     } catch (error) {
       setTranscriptActionStatus({ text: `Cancel failed: ${errorText(error)}`, tone: 'danger' })
     }
-  }, [session.id])
+  }, [removeMessage, session.id])
 
   const editUserMessageAsDraft = useCallback((messageId: string, content: string, attachments: Attachment[] = []): void => {
     const text = content.trim()

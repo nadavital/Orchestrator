@@ -151,9 +151,9 @@ export default function SessionActionsMenu({
   }
 
   const openInNewWindow = async (): Promise<void> => {
-    await window.api.app.openSessionWindow(session.id)
     const testWindow = window as typeof window & { __orchestratorLastOpenedSessionWindowId?: string }
     testWindow.__orchestratorLastOpenedSessionWindowId = session.id
+    await window.api.app.openSessionWindow(session.id)
     onClose()
   }
 
