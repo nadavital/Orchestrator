@@ -77,8 +77,9 @@ For milestone/dogfood checks, use `npm run smoke:ui:daily-coding` instead of the
 2026-05-29 daily-coding smoke-runner checkpoint:
 
 - Added `scripts/run-daily-coding-smoke.mjs` and `npm run smoke:ui:daily-coding`.
-- `--list` prints the core/full target sets, `--only` validates a comma-separated subset, `--packaged`/`--installed` reuse the same target set against packaged app modes, and `--keep-going` records every failure instead of stopping at the first failed target.
-- Verification passed for syntax/list/package JSON/whitespace and an elevated representative `--only header` run. Daily manifest: `/Users/nadav/Desktop/Orchestrator/tmp/daily-coding-smoke/daily-coding-smoke-1780100404708.json`.
+- `--list` prints the core/full target sets, `--only` validates a comma-separated subset, `--packaged`/`--installed` reuse the same target set against packaged app modes, `--keep-going` records every failure instead of stopping at the first failed target, and `--verbose` restores nested per-smoke output when investigating a specific target.
+- Verification passed for syntax/list/package JSON/whitespace and an elevated representative `--only header` run. Latest concise-output daily manifest: `/Users/nadav/Desktop/Orchestrator/tmp/daily-coding-smoke/daily-coding-smoke-1780100928719.json`.
+- Full elevated milestone run passed with `npm run smoke:ui:daily-coding -- --full --keep-going`; manifest `/Users/nadav/Desktop/Orchestrator/tmp/daily-coding-smoke/daily-coding-smoke-1780100822131.json`. The runner now defaults to concise per-target pass/fail lines while retaining nested output on failure or `--verbose`, so milestone checks remain readable.
 
 2026-05-29 final local proof-gate refresh:
 

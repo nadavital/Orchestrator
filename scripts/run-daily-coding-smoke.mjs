@@ -5,7 +5,6 @@ import { join, resolve } from 'path'
 import { fileURLToPath } from 'url'
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)))
-const options = parseArgs(process.argv.slice(2))
 const targetSets = {
   core: [
     '--header',
@@ -41,6 +40,7 @@ const targetSets = {
   ]
 }
 const allowedTargets = new Set([...targetSets.core, ...targetSets.full])
+const options = parseArgs(process.argv.slice(2))
 
 const targets = options.targets.length > 0
   ? options.targets
@@ -74,15 +74,31 @@ for (const target of targets) {
     encoding: 'utf-8',
     stdio: ['ignore', 'pipe', 'pipe']
   })
-  if (result.stdout) process.stdout.write(result.stdout)
-  if (result.stderr) process.stderr.write(result.stderr)
+  const outputPath = matchJsonString(result.stdout, 'outputPath')
+  const screenshotPath = matchJsonString(result.stdout, 'screenshotPath')
   const summary = {
     target,
     status: result.status ?? 1,
     signal: result.signal ?? null,
-    durationMs: Date.now() - started
+    durationMs: Date.now() - started,
+    outputPath,
+    screenshotPath
   }
   results.push(summary)
+  if (summary.status === 0) {
+    const seconds = (summary.durationMs / 1000).toFixed(1)
+    const suffix = outputPath ? ` -> ${outputPath}` : ''
+    console.log(`[daily-coding-smoke] passed ${target} in ${seconds}s${suffix}`)
+    if (options.verbose) {
+      if (result.stdout) process.stdout.write(result.stdout)
+      if (result.stderr) process.stderr.write(result.stderr)
+    }
+  } else {
+    const seconds = (summary.durationMs / 1000).toFixed(1)
+    console.log(`[daily-coding-smoke] failed ${target} in ${seconds}s`)
+    if (result.stdout) process.stdout.write(result.stdout)
+    if (result.stderr) process.stderr.write(result.stderr)
+  }
   if (summary.status !== 0 && !options.keepGoing) break
 }
 
@@ -111,7 +127,8 @@ function parseArgs(args) {
     list: false,
     outDir: undefined,
     packaged: false,
-    targets: []
+    targets: [],
+    verbose: false
   }
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index]
@@ -120,6 +137,7 @@ function parseArgs(args) {
     else if (arg === '--keep-going') parsed.keepGoing = true
     else if (arg === '--list') parsed.list = true
     else if (arg === '--packaged') parsed.packaged = true
+    else if (arg === '--verbose') parsed.verbose = true
     else if (arg === '--out') parsed.outDir = args[++index]
     else if (arg.startsWith('--out=')) parsed.outDir = arg.slice('--out='.length)
     else if (arg === '--only') parsed.targets.push(...splitTargets(args[++index] ?? ''))
@@ -146,4 +164,10 @@ function parseArgs(args) {
 
 function splitTargets(value) {
   return String(value).split(',').map((item) => item.trim()).filter(Boolean)
+}
+
+function matchJsonString(value, key) {
+  const pattern = new RegExp(`"${key}"\\s*:\\s*"([^"]+)"`)
+  const match = pattern.exec(value ?? '')
+  return match?.[1] ?? null
 }
