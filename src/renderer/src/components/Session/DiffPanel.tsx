@@ -22,6 +22,7 @@ interface Props {
 
 type ReviewDiffMode = 'unified' | 'split'
 type ReviewMetadataPanel = 'pull-request' | 'checks' | 'reviewers' | 'comments'
+type ReviewMetadataState = 'idle' | 'loading' | 'loaded' | 'unavailable' | 'error'
 type ReviewSourceSupport = {
   hasLastTurnDiff: boolean
   hasLocalProviderSource: boolean
@@ -114,6 +115,8 @@ export default function DiffPanel({ sessionId, workDir, embedded = false, focusP
   const [commitRefQuery, setCommitRefQuery] = useState('')
   const [reviewMetadataOpen, setReviewMetadataOpen] = useState<ReviewMetadataPanel | null>(null)
   const [loadedReviewMetadata, setLoadedReviewMetadata] = useState<ReviewMetadata | undefined>(undefined)
+  const [reviewMetadataState, setReviewMetadataState] = useState<ReviewMetadataState>('idle')
+  const [reviewMetadataError, setReviewMetadataError] = useState<string | null>(null)
   const [reviewGitActionMessage, setReviewGitActionMessage] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
   const [reviewPathActionPending, setReviewPathActionPending] = useState<'stage' | 'unstage' | null>(null)
   const [reviewRowMenu, setReviewRowMenu] = useState<{ path: string; x: number; y: number } | null>(null)
@@ -130,7 +133,7 @@ export default function DiffPanel({ sessionId, workDir, embedded = false, focusP
   const reviewSession = useSessionStore((state) => state.sessions.find((candidate) => candidate.id === sessionId))
   const storeReviewMetadata = useSessionStore((state) => state.sessions.find((candidate) => candidate.id === sessionId)?.reviewMetadata)
   const lastTurnDiff = useSessionStore((state) => latestDiffUpdatedContent(state.eventBuffers[sessionId] ?? []))
-  const reviewMetadata = storeReviewMetadata ?? loadedReviewMetadata
+  const reviewMetadata = loadedReviewMetadata ?? storeReviewMetadata
   const lastTurnReviewFiles = useMemo(() => parseFileChangesFromUnifiedDiff(lastTurnDiff), [lastTurnDiff])
   const reviewSourceSupport = useMemo<ReviewSourceSupport>(() => {
     const threadSource = reviewSession?.providerThreadSource
@@ -327,20 +330,51 @@ export default function DiffPanel({ sessionId, workDir, embedded = false, focusP
   useEffect(() => {
     if (storeReviewMetadata) {
       setLoadedReviewMetadata(storeReviewMetadata)
+      setReviewMetadataState('loaded')
+      setReviewMetadataError(null)
       return
     }
     let cancelled = false
+    setReviewMetadataState('loading')
+    setReviewMetadataError(null)
     window.api.sessions.getReviewMetadata(sessionId)
       .then((metadata) => {
-        if (!cancelled) setLoadedReviewMetadata(metadata)
+        if (cancelled) return
+        setLoadedReviewMetadata(metadata)
+        setReviewMetadataState(metadata ? 'loaded' : 'unavailable')
       })
-      .catch(() => {
-        if (!cancelled) setLoadedReviewMetadata(undefined)
+      .catch((error) => {
+        if (cancelled) return
+        setLoadedReviewMetadata(undefined)
+        setReviewMetadataState('error')
+        setReviewMetadataError(error instanceof Error ? error.message : 'Review metadata unavailable')
       })
     return () => {
       cancelled = true
     }
   }, [sessionId, storeReviewMetadata])
+
+  const refreshReviewMetadata = async (): Promise<void> => {
+    setReviewMetadataState('loading')
+    setReviewMetadataError(null)
+    setReviewGitActionMessage({ text: 'Refreshing review metadata', tone: 'info' })
+    try {
+      const metadata = await window.api.sessions.getReviewMetadata(sessionId, { force: true })
+      setLoadedReviewMetadata(metadata)
+      if (metadata) {
+        setReviewMetadataState('loaded')
+        setReviewGitActionMessage({ text: 'Review metadata refreshed', tone: 'info' })
+      } else {
+        setReviewMetadataState('unavailable')
+        setReviewGitActionMessage({ text: 'No hosted review metadata found', tone: 'info' })
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Refresh review metadata failed'
+      setReviewMetadataState('error')
+      setReviewMetadataError(message)
+      setReviewGitActionMessage({ text: message, tone: 'danger' })
+    }
+  }
 
   useEffect(() => {
     const focusReviewSearch = (): void => {
@@ -1501,12 +1535,15 @@ export default function DiffPanel({ sessionId, workDir, embedded = false, focusP
         {reviewMetadata && (
           <ReviewMetadataStrip
             metadata={reviewMetadata}
+            metadataState={reviewMetadataState}
+            metadataError={reviewMetadataError}
             openPanel={reviewMetadataOpen}
             onOpenPanelChange={(panel) => {
               setReviewMetadataOpen(panel)
               setReviewOptionsOpen(false)
               setFileJumpOpen(false)
             }}
+            onRefresh={() => { void refreshReviewMetadata() }}
           />
         )}
         <IconButton
@@ -1922,12 +1959,18 @@ export default function DiffPanel({ sessionId, workDir, embedded = false, focusP
 
 function ReviewMetadataStrip({
   metadata,
+  metadataState,
+  metadataError,
   openPanel,
-  onOpenPanelChange
+  onOpenPanelChange,
+  onRefresh
 }: {
   metadata: ReviewMetadata
+  metadataState: ReviewMetadataState
+  metadataError: string | null
   openPanel: ReviewMetadataPanel | null
   onOpenPanelChange: (panel: ReviewMetadataPanel | null) => void
+  onRefresh: () => void
 }): JSX.Element {
   const hasMetadata = Boolean(metadata.pullRequest || metadata.checks || metadata.reviewers || metadata.comments)
   if (!hasMetadata) return <></>
@@ -1941,6 +1984,8 @@ function ReviewMetadataStrip({
       data-review-metadata-reviewers={reviewReviewerCount(metadata.reviewers)}
       data-review-metadata-comments={metadata.comments?.total ?? 0}
       data-review-metadata-comments-unresolved={metadata.comments?.unresolved ?? 0}
+      data-review-metadata-state={metadataState}
+      data-review-metadata-error={metadataError ?? ''}
     >
       <IconButton
         icon="plan"
@@ -1953,6 +1998,15 @@ function ReviewMetadataStrip({
         ariaControls={REVIEW_METADATA_MENU_ID}
         ariaHasPopup="menu"
         onClick={() => onOpenPanelChange(openPanel === null ? 'pull-request' : null)}
+      />
+      <IconButton
+        icon="refresh"
+        label="Refresh review metadata"
+        size="sm"
+        variant="toolbar"
+        disabled={metadataState === 'loading'}
+        dataTestId="review-refresh-metadata"
+        onClick={onRefresh}
       />
       {openPanel !== null && (
         <MenuSurface

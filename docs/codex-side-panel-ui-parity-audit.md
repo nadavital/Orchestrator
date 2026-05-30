@@ -10964,3 +10964,13 @@ Implemented: the session review-metadata IPC path now supports a forced refresh,
 Verification: `pnpm run smoke:ui:changed:static` passed `git diff --check`, `pnpm exec tsc --noEmit`, smoke harness syntax, clean node-test compilation, `providers.test.js`, and `gitChanges.test.js`. Elevated `pnpm run smoke:ui:changed:smoke` passed focused `--workbench-new-tab`, `--environment`, and `--session-switch`; the Workbench smoke now gates the new Git PR metadata path under `workbenchNewTabGitPrMetadata=true`. `npm run build` also passed.
 
 Remaining: this closes Git-panel consumption and refresh of hosted PR metadata. It does not implement authenticated PR submission, live GitHub push/result reconciliation, provider-native PR actions, checkpoint Undo, or deeper hosted Review workflows.
+
+### 2026-05-29 - Review Hosted Metadata Refresh
+
+Product evidence: Review could display hosted GitHub PR metadata, checks, reviewers, comments, provider inline comments, blame, and suggestion cards after metadata was loaded, but the Review surface itself had no direct refresh action. That made Review stale for a day-to-day coding loop where comments, checks, and reviewer state change while the panel is open.
+
+Implemented: the Review metadata strip now exposes a `Refresh review metadata` toolbar action wired to the forced `sessions:getReviewMetadata` path. The strip publishes metadata load/error state through stable attributes, refresh results report through the existing Review action-status channel, and refreshed metadata is preferred locally so updated hosted comments/checks/reviewers can appear without reopening the panel.
+
+Verification: `pnpm run smoke:ui:changed:static` passed `git diff --check`, `pnpm exec tsc --noEmit`, and syntax checks for `scripts/run-automated-ui-smoke.mjs` plus `scripts/suggest-ui-smoke-targets.mjs`. The focused smoke planner now routes Review metadata diffs to `--diff-metadata`, suppressing unrelated Review local-diff and Agent Activity smoke for this metadata-only path. Elevated `pnpm run smoke:ui:changed:smoke` ran only `node scripts/run-automated-ui-smoke.mjs --diff-metadata` and passed with `reviewMetadataToolbar=true`, `reviewMetadataFlyoutShared=true`, and `reviewMetadataMenuState=true`; evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-metadata-1780099479257.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-metadata-1780099479257.png`.
+
+Remaining: this closes Review-side hosted metadata refresh affordance only. Authenticated PR submission, live GitHub push/result reconciliation, checkpoint Undo, provider-hosted source roots, and deeper hosted Review workflows remain separate provider-backed work.

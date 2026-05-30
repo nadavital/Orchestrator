@@ -17733,6 +17733,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 (!(finalRightPanelAddTab instanceof HTMLElement) || finalDiffToolbarRect.right > finalRightPanelAddTab.getBoundingClientRect().left);
               const reviewMetadataStrip = document.querySelector('[data-testid="review-metadata-strip"]');
               const reviewMetadataMenuButton = document.querySelector('[data-testid="review-metadata-menu"]');
+              const reviewMetadataRefreshButton = document.querySelector('[data-testid="review-refresh-metadata"]');
               let reviewMetadataToolbarWorks = false;
               let reviewMetadataFlyoutSharedWorks = false;
               let reviewMetadataMenuStateWorks = false;
@@ -17762,6 +17763,10 @@ function runAutomatedFocusedSurfaceSmoke(
                     reviewMetadataStrip.getAttribute('data-review-metadata-reviewers') === '4' &&
                     reviewMetadataStrip.getAttribute('data-review-metadata-comments') === '5' &&
                     reviewMetadataStrip.getAttribute('data-review-metadata-comments-unresolved') === '1' &&
+                    reviewMetadataStrip.getAttribute('data-review-metadata-state') === 'loaded' &&
+                    reviewMetadataRefreshButton instanceof HTMLButtonElement &&
+                    reviewMetadataRefreshButton.getAttribute('aria-label') === 'Refresh review metadata' &&
+                    reviewMetadataRefreshButton.disabled === false &&
                     reviewMetadataPr instanceof HTMLElement &&
                     reviewMetadataChecks instanceof HTMLElement &&
                     reviewMetadataReviewers instanceof HTMLElement &&

@@ -32,6 +32,7 @@ const captureViewOptions = [
   { flag: '--diff-loading', view: 'diff-loading', surface: 'Review', scope: 'Review loading state only' },
   { flag: '--diff-conflict', view: 'diff-conflict', surface: 'Review', scope: 'Merge-conflict helpers' },
   { flag: '--diff-narrow', view: 'diff-narrow', surface: 'Review', scope: 'Narrow/mobile Review layout' },
+  { flag: '--diff-metadata', view: 'diff-metadata', surface: 'Review', scope: 'Hosted Review metadata toolbar and menu state' },
   { flag: '--diff-core', view: 'diff-core', surface: 'Review', scope: 'Local diff layout, file tree, line selection, local git actions' },
   { flag: '--diff-last-turn', view: 'diff-last-turn', surface: 'Review', scope: 'Provider Last turn diff card and single-column Review state' },
   { flag: '--diff-source', view: 'diff-source', surface: 'Review', scope: 'Source search, provider metadata, comments, blame, full-file rows' },
@@ -84,7 +85,7 @@ const profile = 'automated-ui-smoke'
 const userDataDir = join(tmpdir(), 'orchestrator-profiles', `${profile}-${captureView}`)
 const workspaceDir = join(tmpdir(), 'orchestrator-automated-ui-workspace')
 const isDiffCaptureView = captureView === 'diff' || captureView.startsWith('diff-')
-const fixtureWorkspaceViews = new Set(['inspector', 'right-panel', 'workbench-launcher', 'workbench-new-tab', 'agent-inspector', 'environment', 'workbench-perf', 'cross-panel-keyboard', 'diff', 'diff-entry', 'diff-empty', 'diff-loading', 'diff-conflict', 'diff-narrow', 'diff-core', 'diff-last-turn', 'diff-source', 'diff-preview', 'files', 'side-chat', 'browser'])
+const fixtureWorkspaceViews = new Set(['inspector', 'right-panel', 'workbench-launcher', 'workbench-new-tab', 'agent-inspector', 'environment', 'workbench-perf', 'cross-panel-keyboard', 'diff', 'diff-entry', 'diff-empty', 'diff-loading', 'diff-conflict', 'diff-narrow', 'diff-metadata', 'diff-core', 'diff-last-turn', 'diff-source', 'diff-preview', 'files', 'side-chat', 'browser'])
 const resetWorkspaceViews = new Set([...fixtureWorkspaceViews, 'sidebar', 'multi-window-focus', 'worktree-lifecycle'])
 const outputPath = join(tmpdir(), `orchestrator-automated-ui-smoke-${captureView}-${Date.now()}.json`)
 const screenshotPath = join(tmpdir(), `orchestrator-automated-ui-smoke-${captureView}-${Date.now()}.png`)
@@ -248,6 +249,12 @@ function buildDiffChecks(result, view) {
       'reviewNarrowToolbarContained',
       'reviewNarrowSidePaneContained',
       'reviewNarrowDiffReadable'
+    ],
+    'diff-metadata': [
+      'isolatedProfile',
+      'reviewMetadataToolbar',
+      'reviewMetadataFlyoutShared',
+      'reviewMetadataMenuState'
     ],
     'diff-core': [
       'isolatedProfile',

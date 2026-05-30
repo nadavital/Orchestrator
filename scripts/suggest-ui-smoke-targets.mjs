@@ -22,6 +22,7 @@ const targetRules = [
   { flag: '--cross-panel-keyboard', label: 'Right/bottom panel keyboard', patterns: [/^src\/types\/panelTabs\.ts$/] },
   { flag: '--files', label: 'Files and source tabs', patterns: [/^src\/renderer\/src\/components\/Session\/Files/, /^src\/renderer\/src\/components\/Session\/File/, /^src\/main\/fs/, /^src\/main\/workspace/] },
   { flag: '--diff-core', label: 'Review local diff', patterns: [/^src\/renderer\/src\/components\/Session\/(Diff|Review)/, /^src\/main\/diff/, /^src\/main\/gitChanges/] },
+  { flag: '--diff-metadata', label: 'Review hosted metadata', patterns: [] },
   { flag: '--diff-source', label: 'Review sources', patterns: [/^src\/renderer\/src\/components\/Session\/.*Source/, /^src\/main\/providers\/.*review/i, /^scripts\/codex-review/] },
   { flag: '--settings-providers', label: 'Provider Settings', patterns: [/^src\/renderer\/src\/components\/Settings\/Providers/, /^src\/main\/providers/, /^src\/main\/provider/] },
   { flag: '--settings', label: 'Settings', patterns: [/^src\/renderer\/src\/components\/Settings\//, /^src\/renderer\/src\/components\/Settings/, /^src\/main\/settings/, /^src\/main\/appSettings/] },
@@ -148,6 +149,12 @@ const diffRules = [
     label: 'Review merge conflicts',
     filePatterns: [/^src\/renderer\/src\/components\/Session\/DiffPanel\.tsx$/, /^src\/renderer\/src\/index\.css$/, /^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
     diffPatterns: [/review-merge-conflict/, /reviewMergeConflict/]
+  },
+  {
+    flag: '--diff-metadata',
+    label: 'Review hosted metadata',
+    filePatterns: [/^src\/renderer\/src\/components\/Session\/DiffPanel\.tsx$/, /^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
+    diffPatterns: [/ReviewMetadataStrip/, /reviewMetadata/, /review-metadata/, /review-refresh-metadata/, /Refresh review metadata/]
   },
   {
     flag: '--diff-core',
@@ -469,6 +476,7 @@ function suggestTargets(paths) {
   suppressHeaderForEnvironmentSmokeHelperDiff(matched, paths)
   restoreDiffTargets(matched, paths)
   suppressDiffCoreForMergeConflictDiff(matched)
+  suppressDiffCoreForReviewMetadataDiff(matched, paths)
   suppressSettingsForProviderSettingsDiff(matched, paths)
   suppressSettingsProvidersForUserInputDiff(matched, paths)
   suppressSharedSurfacesForUserInputAnswerDiff(matched, paths)
@@ -499,6 +507,7 @@ function suggestTargets(paths) {
   suppressComposerForWorkbenchGitHandoffDiff(matched, paths)
   suppressComposerForAgentInspectorHandoffDiff(matched, paths)
   suppressWorkbenchLauncherForAgentInspectorDiff(matched, paths)
+  suppressAgentInspectorForReviewMetadataDiff(matched, paths)
   suppressComposerForExtensionsHandoffDiff(matched, paths)
   suppressTerminalForWorkbenchGitPrTerminalHandoffDiff(matched, paths)
   suppressTerminalForWorkbenchGitFileTerminalHandoffDiff(matched, paths)
@@ -955,6 +964,25 @@ function suppressDiffCoreForMergeConflictDiff(matched) {
   matched.delete('--diff-core')
 }
 
+function suppressDiffCoreForReviewMetadataDiff(matched, paths) {
+  const diffCore = matched.get('--diff-core')
+  const metadata = matched.get('--diff-metadata')
+  if (!diffCore || !metadata) return
+  if (!diffCore.files.every((file) =>
+    file === 'src/renderer/src/components/Session/DiffPanel.tsx' ||
+    file === 'scripts/run-automated-ui-smoke.mjs' ||
+    file === 'src/main/index.ts'
+  )) return
+  const diff = [
+    paths.includes('src/renderer/src/components/Session/DiffPanel.tsx') ? diffForFile('src/renderer/src/components/Session/DiffPanel.tsx') : '',
+    paths.includes('scripts/run-automated-ui-smoke.mjs') ? diffForFile('scripts/run-automated-ui-smoke.mjs') : '',
+    paths.includes('src/main/index.ts') ? diffForFile('src/main/index.ts') : ''
+  ].join('\n')
+  if (!/ReviewMetadataStrip|reviewMetadata|review-metadata|review-refresh-metadata|Refresh review metadata/.test(diff)) return
+  if (/reviewRowKeyboardContextMenu|reviewRowAddToChat|reviewRowInsertPathTerminal|reviewGitApplyTerminalHandoff|reviewTreeKeyboardNavigation|reviewSelectedGitPathActions|review-stage-selected-file|review-unstage-selected-file|reviewGitHandoffSelectedFile|gitReviewHandoffSelectedFile/.test(diff)) return
+  matched.delete('--diff-core')
+}
+
 function suppressDesignSystemForWorktreesSettingsCssDiff(matched, paths) {
   const designSystem = matched.get('--design-system')
   const settings = matched.get('--settings')
@@ -1083,6 +1111,20 @@ function suppressWorkbenchLauncherForAgentInspectorDiff(matched, paths) {
   ].join('\n')
   if (!/agent-inspector|agentSessionContext|agentRuntimeEvent|agentRuntimeFailureGroup|agentTransportLog|agentSelectedTimeline|agentSelectedTranscript|agent-.*add-to-chat|agent-.*copy|agent-selected-timeline/.test(diff)) return
   matched.delete('--workbench-launcher')
+}
+
+function suppressAgentInspectorForReviewMetadataDiff(matched, paths) {
+  const inspector = matched.get('--agent-inspector')
+  const metadata = matched.get('--diff-metadata')
+  if (!inspector || !metadata) return
+  if (!inspector.files.every((file) => file === 'scripts/run-automated-ui-smoke.mjs' || file === 'src/main/index.ts')) return
+  const diff = [
+    paths.includes('scripts/run-automated-ui-smoke.mjs') ? diffForFile('scripts/run-automated-ui-smoke.mjs') : '',
+    paths.includes('src/main/index.ts') ? diffForFile('src/main/index.ts') : ''
+  ].join('\n')
+  if (!/reviewMetadata|review-metadata|review-refresh-metadata|Refresh review metadata/.test(diff)) return
+  if (/agentRuntimeEvent|agentRuntimeFailureGroup|agentTransportLog|agentSessionContext|agentSelectedTimeline|agentSelectedTranscript|agent-.*add-to-chat|agent-.*copy|agent-selected-timeline/.test(diff)) return
+  matched.delete('--agent-inspector')
 }
 
 function suppressComposerForExtensionsHandoffDiff(matched, paths) {
