@@ -92,3 +92,15 @@ Artifact: `/Users/nadav/Desktop/Orchestrator/tmp/claude-live-capabilities/_summa
 Provider Settings now surfaces auth failures found by no-quota provider probes, not only the provider's primary auth command. This keeps the UI honest when a provider can report a local account or version but still fail a safe runtime readiness probe before a real run. The current Claude registry includes `auto-mode defaults` as a no-quota probe, and a probe response such as API 401 invalid credentials promotes the Provider Settings Auth row to an error with the failing probe label.
 
 Verification: `npm run smoke:ui:changed:static` passed TypeScript plus all 77 provider tests, including the new auth-failure parser coverage. Elevated `npm run smoke:ui:changed:smoke` passed the focused Provider Settings smoke after the harness wait was hardened for slower diagnostics; evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-providers-1780103128372.json`.
+
+## 2026-05-29 Daily-Coding Dogfood Refresh
+
+Elevated `npm run smoke:ui:daily-coding -- --full --keep-going` passed all 17 daily-coding targets again after the provider-auth checkpoint. Manifest: `/Users/nadav/Desktop/Orchestrator/tmp/daily-coding-smoke/daily-coding-smoke-1780103586824.json`. This confirms the local app shell, chat/composer, transcript, permission/user-input cards, Workbench/Git, Agent Activity, right panel, Environment, Review, Files, Browser, Terminal, Settings, provider Settings, and side chat fixtures are currently green.
+
+No local UI failures were exposed by this pass. The remaining Phase 1 work should stay focused on live/provider proof and real dogfood workflow breaks, not another local action/status micro-pass.
+
+## 2026-05-29 Codex Plan Live Proof
+
+Added `npm run live:codex-composer-plan`, an opt-in live Codex app-server proof mode in `scripts/codex-composer-appserver-live-proof.mjs`. It starts a real app-server turn in a disposable workspace, asks Codex to produce a native plan update without shell commands or file edits, and requires an observed `turn/plan/updated` notification plus the final assistant token.
+
+Verification: `npm run smoke:ui:changed:static` passed for `package.json` and the live proof harness. Elevated `npm run live:codex-composer-plan` passed with `planUpdateCount=1`, `commandExecutionCount=0`, model `gpt-5.4-mini`, effort `low`, and artifact `/Users/nadav/Desktop/Orchestrator/tmp/codex-composer-plan-live-proof/result.json`. The recorded plan steps were `Inspect app-server plan surface` and `Record live plan evidence`.

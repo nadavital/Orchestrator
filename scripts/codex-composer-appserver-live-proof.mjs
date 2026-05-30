@@ -20,13 +20,23 @@ const effort = process.env.CODEX_COMPOSER_PROOF_EFFORT ?? 'low'
 const executionPolicy = process.env.CODEX_COMPOSER_PROOF_POLICY ?? 'default'
 const requireApproval = process.env.CODEX_COMPOSER_PROOF_REQUIRE_APPROVAL === '1'
 const requireUserInput = process.env.CODEX_COMPOSER_PROOF_REQUIRE_USER_INPUT === '1'
+const requirePlan = process.env.CODEX_COMPOSER_PROOF_REQUIRE_PLAN === '1'
 const expectedToken = 'CODEX_COMPOSER_LIVE_OK'
-const proofFileName = requireUserInput
+const enabledProofModes = [requireApproval, requireUserInput, requirePlan].filter(Boolean).length
+if (enabledProofModes > 1) {
+  console.error('Only one CODEX_COMPOSER_PROOF_REQUIRE_* mode can be enabled at a time.')
+  process.exit(1)
+}
+const proofFileName = requirePlan
+  ? 'live-composer-plan-proof.txt'
+  : requireUserInput
   ? 'live-composer-user-input-proof.txt'
   : requireApproval
     ? 'live-composer-approval-proof.txt'
     : 'live-composer-permission-proof.txt'
-const proofToken = requireUserInput
+const proofToken = requirePlan
+  ? 'CODEX_COMPOSER_PLAN_OK'
+  : requireUserInput
   ? 'CODEX_COMPOSER_USER_INPUT_OK'
   : requireApproval
     ? 'CODEX_COMPOSER_APPROVAL_OK'
@@ -37,16 +47,20 @@ const commandText = requireApproval
   ? `printf '${proofToken}\\n' > ../${proofFileName}`
   : `printf '${proofToken}\\n' > ${proofFileName}`
 const prompt = process.env.CODEX_COMPOSER_PROOF_PROMPT ?? [
-  requireUserInput
+  requirePlan
+    ? 'This is a live Orchestrator/Codex app-server plan-update proof in a disposable git workspace.'
+    : requireUserInput
     ? 'This is a live Orchestrator/Codex app-server user-input proof in a disposable git workspace.'
     : requireApproval
       ? 'This is a live Orchestrator/Codex app-server approval-card proof in a disposable git workspace.'
       : 'This is a live Orchestrator/Codex app-server Composer model and permission proof in a disposable git workspace.',
-  requireUserInput
+  requirePlan
+    ? 'Create a native plan update with exactly two steps: Inspect app-server plan surface, and Record live plan evidence. Do not edit files and do not run shell commands.'
+    : requireUserInput
     ? 'First use the native user-input request tool to ask exactly this question: Which proof token should I write? Use a single question id named proof-token if the tool allows ids. After the client answers, use command execution to write exactly the answer you received followed by a newline to live-composer-user-input-proof.txt in the current workspace.'
     : `Use command execution to run exactly this command: ${commandText}`,
   'Do not edit any other file.',
-  `After the command succeeds, reply with exactly ${expectedToken}.`
+  `After the required action succeeds, reply with exactly ${expectedToken}.`
 ].join(' ')
 
 const policy = codexRuntimePolicyConfig(executionPolicy)
@@ -88,6 +102,8 @@ const permissionResponses = []
 const userInputRequests = []
 const userInputResponses = []
 const commandExecutions = []
+const planUpdates = []
+const planDeltas = []
 const turnIds = new Set()
 
 const timeout = setTimeout(() => {
@@ -155,14 +171,15 @@ try {
 
   await waitForCompletion()
   const fileText = safeReadProofFile()
-  const gitDiff = requireApproval ? '' : runGit(['diff', '--', proofFileName])
+  const gitDiff = requireApproval || requirePlan ? '' : runGit(['diff', '--', proofFileName])
   const assistantSawOk = assistantText.includes(expectedToken)
-  const editApplied = fileText.includes(proofToken) && (requireApproval || gitDiff.includes(proofToken))
-  const commandCompleted = commandExecutions.some((execution) =>
+  const editApplied = requirePlan || (fileText.includes(proofToken) && (requireApproval || gitDiff.includes(proofToken)))
+  const commandCompleted = requirePlan || commandExecutions.some((execution) =>
     execution.method === 'item/completed' &&
     execution.status === 'completed' &&
     execution.command.includes(proofToken)
   )
+  const planUpdated = !requirePlan || planUpdates.length > 0 || planDeltas.length > 0 || events.some((event) => event.type === 'plan.updated')
   const approvalRoundTrip = !requireApproval || (
     permissionRequests.length > 0 &&
     permissionResponses.length > 0 &&
@@ -181,8 +198,10 @@ try {
   const userInputUnavailable = requireUserInput &&
     /request_user_input is unavailable/i.test(`${stderr}\n${assistantText}`)
 
-  if (editApplied && assistantSawOk && commandCompleted && threadPolicyMatches && approvalRoundTrip && userInputRoundTrip) {
-    finish(true, requireUserInput
+  if (editApplied && assistantSawOk && commandCompleted && threadPolicyMatches && approvalRoundTrip && userInputRoundTrip && planUpdated) {
+    finish(true, requirePlan
+      ? 'live Codex app-server emitted a native plan update during a real turn'
+      : requireUserInput
       ? 'live Codex app-server requested user input, accepted the client answer, and completed the answer-dependent command'
       : requireApproval
         ? 'live Codex app-server requested command approval, accepted the client response, and completed the approved command'
@@ -195,6 +214,8 @@ try {
     finish(false, 'live Codex app-server reported request_user_input is unavailable in Default mode')
   } else if (!userInputRoundTrip) {
     finish(false, 'live Codex app-server did not complete a user-input request/response round trip')
+  } else if (!planUpdated) {
+    finish(false, 'live Codex app-server did not emit a native plan update')
   } else if (!commandCompleted) {
     finish(false, 'live Codex app-server completed without a completed commandExecution item for the proof command')
   } else if (!editApplied) {
@@ -255,6 +276,12 @@ function handleLine(line) {
       exitCode: message.params.item.exitCode ?? null,
       cwd: message.params.item.cwd ?? null
     })
+  }
+  if (message.method === 'turn/plan/updated') {
+    planUpdates.push(message.params ?? {})
+  }
+  if (message.method === 'item/plan/delta') {
+    planDeltas.push(message.params ?? {})
   }
 
   if (message.id != null && !message.method) {
@@ -396,6 +423,7 @@ function writeArtifacts(result) {
     executionPolicy,
     requireApproval,
     requireUserInput,
+    requirePlan,
     policy,
     prompt,
     threadId,
@@ -412,6 +440,8 @@ function writeArtifacts(result) {
     userInputRequests,
     userInputResponses,
     commandExecutions,
+    planUpdates,
+    planDeltas,
     eventTypes: [...new Set(events.map((event) => event.type))],
     events,
     assistantText,
@@ -458,9 +488,12 @@ function finish(ok, reason) {
     executionPolicy: result.executionPolicy,
     requireApproval: result.requireApproval,
     requireUserInput: result.requireUserInput,
+    requirePlan: result.requirePlan,
     permissionRequestCount: result.permissionRequests.length,
     userInputRequestCount: result.userInputRequests.length,
     commandExecutionCount: result.commandExecutions.length,
+    planUpdateCount: result.planUpdates.length,
+    planDeltaCount: result.planDeltas.length,
     methods: result.methods
   }
   console.log(JSON.stringify(summary, null, 2))

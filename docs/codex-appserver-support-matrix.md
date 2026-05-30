@@ -59,6 +59,9 @@ Local Codex CLI: `codex-cli 0.128.0`
 - Composer model-switch continuation boundary proof:
   - `npm run live:codex-composer-model-switch`
   - Focused live UI smoke evidence: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-transcript-live-model-switch-1779987672302.json`
+- Composer plan-update boundary proof:
+  - `npm run live:codex-composer-plan`
+  - `tmp/codex-composer-plan-live-proof/result.json`
 
 ## Status Legend
 
@@ -83,7 +86,7 @@ Local Codex CLI: `codex-cli 0.128.0`
 | MCP elicitation | Supported | Handles `mcpServer/elicitation/request` and sends accept response. |
 | Assistant streaming | Supported | Handles `item/agentMessage/delta` and suppresses duplicate final text. |
 | Tool items | Parsed | Handles command, file change, MCP tool, dynamic tool, web search, image view/generation, review-mode, reasoning, hook, and compaction item shapes through existing generic cards/status messages. |
-| Plan mode / plan updates | Supported | Handles `turn/plan/updated`; renders through existing plan state/UI path. |
+| Plan mode / plan updates | Supported | Handles `turn/plan/updated`; renders through existing plan state/UI path. Live `npm run live:codex-composer-plan` proves a real app-server turn can emit a native plan update without command execution. |
 | Goal updates | Partial | Handles `thread/goal/updated` and `thread/goal/cleared`; Plan reconstructs live and persisted goal metrics and exposes `/goal clear` routing for Codex sessions. Richer update controls and live clear proof remain. |
 | Subagents / multi-agent | Parsed | Handles `collabAgentToolCall` as `agent.started/completed/failed`. Agent transcript depth still depends on emitted items we map. |
 | Token usage | Partial | `thread/tokenUsage/updated` is currently a status message, not a full `UsageSummary` rollup. |
@@ -199,7 +202,7 @@ Local Codex CLI: `codex-cli 0.128.0`
 | User-facing Codex feature | Current support | What works now | Missing for first-class parity |
 | --- | --- | --- | --- |
 | Goal | Parsed | `thread/goal/updated` and `thread/goal/cleared` become status messages. | Goal panel, set/get/clear commands, budget/progress controls. |
-| Plan mode | Supported | `turn/plan/updated` feeds existing plan UI. | Real live fixture for Codex plan-producing turn. |
+| Plan mode | Supported | `turn/plan/updated` feeds existing plan UI, and `npm run live:codex-composer-plan` now proves a real plan-producing app-server turn. | Richer live plan timing/UI comparison only if product-visible behavior diverges. |
 | Subagents | Parsed | `collabAgentToolCall` maps to agent lifecycle and existing Agents sidebar path. | Rich child transcript capture if Codex emits child-thread items separately; live multi-agent fixture. |
 | Side questions | External | `/btw` side question exists as Orchestrator-owned detached provider call. | App-server-native same-thread side channel, if product wants Codex parity with Mac app behavior. |
 | Approvals | Supported | Command approval requests round-trip through app-server in the live composer approval proof; file/profile permission requests are implemented through the same runtime path and now have parser/UI coverage as first-class `File Approval` and `Permission Profile` transcript cards under `permissionVariantCards=true`. | Deterministic live file/profile permission fixtures plus auto-review/guardian details. |
