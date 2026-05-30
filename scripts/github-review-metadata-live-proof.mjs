@@ -220,6 +220,17 @@ function resolvePullRequestSelection(options) {
     scannedCount: candidatesWithThreadCounts.length,
     candidateCount: commentedCandidates.length,
     threadScanWarningCount: candidatesWithThreadCounts.filter((candidate) => candidate.threadScanWarning).length,
+    scanned: candidatesWithThreadCounts.map((candidate) => ({
+      number: candidate.number,
+      title: candidate.title,
+      state: candidate.state,
+      url: candidate.url,
+      commentCount: candidate.commentCount,
+      providerCommentCount: candidate.providerCommentCount,
+      totalCommentCount: candidate.totalCommentCount,
+      updatedAt: candidate.updatedAt,
+      threadScanWarning: candidate.threadScanWarning ?? null
+    })),
     candidates: commentedCandidates.map((candidate) => ({
       number: candidate.number,
       title: candidate.title,

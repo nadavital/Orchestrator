@@ -93,6 +93,7 @@ export function buildPhase1ReadinessReport({ rootDir = root, sinceHours = 72, no
         commentedProof: proof.commentedProof === true,
         candidateCount: numberValue(proof.candidateScan?.candidateCount) ?? null,
         scannedCount: numberValue(proof.candidateScan?.scannedCount) ?? null,
+        scannedPullRequests: summarizeScannedPullRequests(proof.candidateScan?.scanned),
         boundary: proof.boundary ?? proof.warning ?? null
       })),
       claudeCapabilities: summarizeProof(rootDir, 'tmp/claude-live-capabilities/_summary/summary.json', (proof) => ({
@@ -238,6 +239,9 @@ function formatProofSummary(proof) {
   if ('commentedProof' in proof) parts.push(`commentedProof=${proof.commentedProof ? 'yes' : 'no'}`)
   if ('candidateCount' in proof && proof.candidateCount !== null) parts.push(`candidateCount=${proof.candidateCount}`)
   if ('scannedCount' in proof && proof.scannedCount !== null) parts.push(`scanned=${proof.scannedCount}`)
+  if (Array.isArray(proof.scannedPullRequests) && proof.scannedPullRequests.length > 0) {
+    parts.push(`scannedPRs=${formatScannedPullRequests(proof.scannedPullRequests)}`)
+  }
   if ('browserUseEventCount' in proof && proof.browserUseEventCount !== null) parts.push(`browserEvents=${proof.browserUseEventCount}`)
   if ('userInputRequestCount' in proof && proof.userInputRequestCount !== null) parts.push(`userInputRequests=${proof.userInputRequestCount}`)
   if (Array.isArray(proof.unsupportedMethods) && proof.unsupportedMethods.length > 0) {
@@ -254,6 +258,29 @@ function formatSlowTargets(targets, thresholdMs) {
   return slowTargets
     .map((target) => `${target.target} ${formatDuration(target.durationMs)}`)
     .join(', ')
+}
+
+function summarizeScannedPullRequests(scanned) {
+  if (!Array.isArray(scanned)) return []
+  return scanned
+    .map((candidate) => ({
+      number: numberValue(candidate?.number) ?? null,
+      state: typeof candidate?.state === 'string' ? candidate.state : null,
+      commentCount: numberValue(candidate?.commentCount) ?? 0,
+      providerCommentCount: numberValue(candidate?.providerCommentCount) ?? 0,
+      totalCommentCount: numberValue(candidate?.totalCommentCount) ?? 0,
+      threadScanWarning: typeof candidate?.threadScanWarning === 'string' ? candidate.threadScanWarning : null
+    }))
+    .filter((candidate) => candidate.number !== null)
+}
+
+function formatScannedPullRequests(scannedPullRequests) {
+  const shown = scannedPullRequests.slice(0, 5).map((candidate) => {
+    const warning = candidate.threadScanWarning ? '!' : ''
+    return `#${candidate.number}(${candidate.totalCommentCount}${warning})`
+  })
+  const remaining = scannedPullRequests.length - shown.length
+  return remaining > 0 ? `${shown.join(', ')} +${remaining} more` : shown.join(', ')
 }
 
 function formatDuration(durationMs) {

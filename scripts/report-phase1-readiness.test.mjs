@@ -175,7 +175,11 @@ test('summarizes unavailable commented PR provider proof scan', () => {
     completedAt: '2026-05-30T04:10:00.000Z',
     candidateScan: {
       scannedCount: 4,
-      candidateCount: 0
+      candidateCount: 0,
+      scanned: [
+        { number: 4, state: 'MERGED', commentCount: 0, providerCommentCount: 0, totalCommentCount: 0 },
+        { number: 3, state: 'CLOSED', commentCount: 0, providerCommentCount: 0, totalCommentCount: 0, threadScanWarning: 'Inline review comments unavailable.' }
+      ]
     },
     boundary: 'No safe commented PR target.'
   })
@@ -192,6 +196,17 @@ test('summarizes unavailable commented PR provider proof scan', () => {
   assert.equal(report.proofArtifacts.githubReviewMetadataComments.commentedProof, false)
   assert.equal(report.proofArtifacts.githubReviewMetadataComments.scannedCount, 4)
   assert.equal(report.proofArtifacts.githubReviewMetadataComments.candidateCount, 0)
+  assert.deepEqual(
+    report.proofArtifacts.githubReviewMetadataComments.scannedPullRequests.map((candidate) => ({
+      number: candidate.number,
+      totalCommentCount: candidate.totalCommentCount,
+      threadScanWarning: candidate.threadScanWarning
+    })),
+    [
+      { number: 4, totalCommentCount: 0, threadScanWarning: null },
+      { number: 3, totalCommentCount: 0, threadScanWarning: 'Inline review comments unavailable.' }
+    ]
+  )
 })
 
 test('summarizes blocked Codex composer user-input proof', () => {
