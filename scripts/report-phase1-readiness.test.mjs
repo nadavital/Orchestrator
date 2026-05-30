@@ -44,6 +44,14 @@ test('reports local daily-use ready while external parity gaps remain', () => {
       'provider-proof': 1,
       'runtime-signal': 1
     },
+    remainingParityGaps: [
+      {
+        area: 'Review provider metadata',
+        category: 'provider-proof',
+        issue: 'No commented PR proof.',
+        nextAction: 'Run authenticated live proof when a safe target exists.'
+      }
+    ],
     actionableGapSummary: {
       localActionable: 0
     }
@@ -64,6 +72,8 @@ test('reports local daily-use ready while external parity gaps remain', () => {
   assert.equal(report.overall.localDailyUseReady, true)
   assert.equal(report.overall.fullParityComplete, false)
   assert.match(report.overall.recommendation, /remaining work is external/)
+  assert.equal(report.comparison.remainingParityGaps.length, 1)
+  assert.equal(report.comparison.remainingParityGaps[0].category, 'provider-proof')
   assert.equal(report.proofArtifacts.githubReviewMetadata.authenticated, true)
   assert.equal(report.proofArtifacts.githubReviewMetadata.commentedProof, false)
 })
@@ -226,13 +236,15 @@ test('summarizes blocked Codex composer user-input proof', () => {
 
 test('ignores package-manager option separators in cli args', async () => {
   const child = await import('node:child_process')
-  const result = child.spawnSync(process.execPath, ['scripts/report-phase1-readiness.mjs', '--', '--markdown'], {
+  const result = child.spawnSync(process.execPath, ['scripts/report-phase1-readiness.mjs', '--', '--markdown', '--details'], {
     cwd: process.cwd(),
     encoding: 'utf8'
   })
   assert.equal(result.stderr, '')
   assert.equal(result.status === 0 || result.status === 1, true)
   assert.match(result.stdout, /Phase 1 Readiness/)
+  assert.match(result.stdout, /Proof Artifacts/)
+  assert.match(result.stdout, /Remaining Gaps/)
 })
 
 function writeJson(root, relativePath, value) {

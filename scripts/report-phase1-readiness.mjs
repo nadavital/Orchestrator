@@ -17,7 +17,7 @@ function main() {
     sinceHours: options.sinceHours,
     nowMs: Date.now()
   })
-  if (options.markdown) printMarkdown(report)
+  if (options.markdown) printMarkdown(report, { details: options.details })
   else console.log(JSON.stringify(report, null, 2))
 
   const complete = options.requireFullParity ? report.overall.fullParityComplete : report.overall.localDailyUseReady
@@ -70,6 +70,7 @@ export function buildPhase1ReadinessReport({ rootDir = root, sinceHours = 72, no
           statusCounts,
           remainingParityGapCount,
           remainingParityGapCounts,
+          remainingParityGaps: Array.isArray(comparison.remainingParityGaps) ? comparison.remainingParityGaps : [],
           actionableGapSummary
         }
       : {
@@ -120,13 +121,15 @@ function parseArgs(args) {
   args = [...args]
   while (args[0] === '--') args.shift()
   const parsed = {
+    details: false,
     markdown: false,
     requireFullParity: false,
     sinceHours: 72
   }
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index]
-    if (arg === '--markdown') parsed.markdown = true
+    if (arg === '--details') parsed.details = true
+    else if (arg === '--markdown') parsed.markdown = true
     else if (arg === '--require-full-parity') parsed.requireFullParity = true
     else if (arg === '--since-hours') parsed.sinceHours = parsePositiveInteger(args[++index], '--since-hours')
     else if (arg.startsWith('--since-hours=')) parsed.sinceHours = parsePositiveInteger(arg.slice('--since-hours='.length), '--since-hours')
@@ -176,7 +179,7 @@ function nextRecommendation({ dailyCoding, localComparisonReady, localActionable
   return 'Phase 1 parity evidence is complete.'
 }
 
-function printMarkdown(report) {
+function printMarkdown(report, { details = false } = {}) {
   console.log(`# Phase 1 Readiness`)
   console.log('')
   console.log(`- Local daily-use ready: ${report.overall.localDailyUseReady ? 'yes' : 'no'}`)
@@ -185,6 +188,26 @@ function printMarkdown(report) {
   console.log(`- Comparison local-ready: ${report.comparison.localComparisonReady ? 'yes' : 'no'}`)
   console.log(`- Remaining parity gaps: ${formatGapCounts(report.comparison.remainingParityGapCounts ?? {}) || 'none'}`)
   console.log(`- Recommendation: ${report.overall.recommendation}`)
+  if (!details) return
+
+  console.log('')
+  console.log(`## Proof Artifacts`)
+  for (const [name, proof] of Object.entries(report.proofArtifacts ?? {})) {
+    console.log(`- ${name}: ${formatProofSummary(proof)}`)
+  }
+
+  const gaps = Array.isArray(report.comparison.remainingParityGaps) ? report.comparison.remainingParityGaps : []
+  if (gaps.length > 0) {
+    console.log('')
+    console.log(`## Remaining Gaps`)
+    for (const gap of gaps) {
+      const area = gap.area ?? 'Unknown area'
+      const category = gap.category ?? 'uncategorized'
+      const issue = gap.issue ?? 'No issue summary.'
+      const next = gap.nextAction ?? null
+      console.log(`- ${area} [${category}]: ${issue}${next ? ` Next: ${next}` : ''}`)
+    }
+  }
 }
 
 function readJson(path) {
@@ -201,6 +224,25 @@ function formatGapCounts(counts) {
     .filter(([, count]) => Number(count) > 0)
     .map(([key, count]) => `${key}=${count}`)
     .join(', ')
+}
+
+function formatProofSummary(proof) {
+  if (!proof?.available) return `missing (${proof?.path ?? 'unknown path'})`
+  const parts = []
+  if (proof.status) parts.push(`status=${proof.status}`)
+  if (proof.completedAt) parts.push(`completedAt=${proof.completedAt}`)
+  if ('authenticated' in proof) parts.push(`authenticated=${proof.authenticated ? 'yes' : 'no'}`)
+  if ('commentedProof' in proof) parts.push(`commentedProof=${proof.commentedProof ? 'yes' : 'no'}`)
+  if ('candidateCount' in proof && proof.candidateCount !== null) parts.push(`candidateCount=${proof.candidateCount}`)
+  if ('scannedCount' in proof && proof.scannedCount !== null) parts.push(`scanned=${proof.scannedCount}`)
+  if ('browserUseEventCount' in proof && proof.browserUseEventCount !== null) parts.push(`browserEvents=${proof.browserUseEventCount}`)
+  if ('userInputRequestCount' in proof && proof.userInputRequestCount !== null) parts.push(`userInputRequests=${proof.userInputRequestCount}`)
+  if (Array.isArray(proof.unsupportedMethods) && proof.unsupportedMethods.length > 0) {
+    parts.push(`unsupported=${proof.unsupportedMethods.join('|')}`)
+  }
+  const boundary = proof.boundary ?? proof.conclusion ?? proof.unavailableReason ?? null
+  if (boundary) parts.push(`boundary=${boundary}`)
+  return parts.length > 0 ? parts.join('; ') : `available (${proof.path})`
 }
 
 function numberValue(value) {
