@@ -491,9 +491,9 @@
     min-inline-size: var(--orchestrator-sidebar-width);
     max-inline-size: var(--orchestrator-sidebar-width);
     overflow-x: hidden;
-    background: var(--panel-bg);
-    backdrop-filter: blur(18px);
-    -webkit-backdrop-filter: blur(18px);
+    background: color-mix(in srgb, var(--canvas-bg) 84%, var(--surface-bg));
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
   }
 
   .app-sidebar * {

@@ -462,7 +462,7 @@ function createWindow(): BrowserWindow {
     show: false,
     title: appProfile.isIsolated ? `Orchestrator - ${appProfile.displayName}` : 'Orchestrator',
     titleBarStyle: 'hidden',
-    trafficLightPosition: { x: 14, y: 14 },
+    trafficLightPosition: { x: 18, y: 14 },
     backgroundColor: '#00000000',
     transparent: true,
     vibrancy: 'sidebar',
