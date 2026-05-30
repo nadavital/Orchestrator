@@ -8,8 +8,8 @@ This checkpoint exists to prevent Phase 1 from drifting into low-value parity po
 
 ## Current Readiness
 
-- Local daily-coding workflows are roughly 85-90% of the Phase 1 target after the final local proof gates passed.
-- The full Phase 1 objective is roughly 75-80% complete because provider-backed data, non-Codex lifecycle proof, and live Codex evidence boundaries remain.
+- Local daily-coding workflows are fixture-ready for the Phase 1 target after the final focused and packaged proof gates passed. The latest aggregate summary considered 21 recent manifests and reported `full.complete=true` across all 17 targets.
+- The full Phase 1 objective is not complete because provider-backed data, non-Codex lifecycle proof, live Codex evidence boundaries, Browser native runtime signals, and Phase 2 renderer fidelity remain outside local fixture proof.
 - The current side-panel comparison has no executable local mismatches in the refreshed 27-capture inventory, but it still reports remaining parity gaps that are mostly live Codex UI proof, provider adapters/proof, runtime signal, and renderer fidelity.
 - The high-risk work is no longer another local action-status or copy-button pass. It is proving the app as a coherent coding tool across app shell, chat/composer, Git/Review, Browser, Terminal, Settings, and provider lifecycle boundaries.
 - 2026-05-29 Codex Goal boundary: Orchestrator now keeps Goal useful where it is proven, not where it is guessed. Plan renders live/persisted goal metrics, but live `npm run live:codex-composer-goal` showed `/goal ...` and `/goal clear` emit no app-server goal notifications, so `/goal` is no longer advertised and the Codex Plan clear action is a disabled unavailable boundary. Evidence: `tmp/codex-composer-goal-live-proof/result.json`; focused changed-smoke evidence: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-plan-1780104674275.json`.
