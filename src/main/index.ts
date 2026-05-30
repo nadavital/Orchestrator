@@ -3509,6 +3509,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             var terminalBottomPanelLabelsWorks = false;
             var bottomPanelPlanTransferWorks = false;
             var bottomPanelPlanToolbarActionWorks = false;
+            var bottomPanelOpenTabMenuWorks = false;
             var bottomPanelPlanAddToChatWorks = false;
             const activeTerminalTabForA11y = document.querySelector('[data-testid="session-bottom-panel"] [role="tab"][data-active="true"]');
             const terminalPanelForA11y = document.querySelector('[role="tabpanel"][data-app-shell-tab-panel-controller="bottom"]');
@@ -4581,6 +4582,36 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                         }
                       }
                     }
+                  }
+                }
+
+                const bottomPanelOpenTabMenuButton = document.querySelector('[data-testid="bottom-panel-open-tab-menu"]');
+                if (bottomPanelOpenTabMenuButton instanceof HTMLButtonElement) {
+                  bottomPanelOpenTabMenuButton.click();
+                  await sleep(160);
+                  const openTabMenu = document.querySelector('[data-testid="bottom-panel-open-tab-menu-surface"]');
+                  const browserMenuItem = document.querySelector('[data-testid="bottom-panel-open-browser"]');
+                  const gitMenuItem = document.querySelector('[data-testid="bottom-panel-open-git"]');
+                  if (browserMenuItem instanceof HTMLButtonElement) {
+                    browserMenuItem.click();
+                    await sleep(320);
+                  }
+                  const bottomPanelAfterOpenTabMenu = document.querySelector('[data-testid="session-bottom-panel"]');
+                  const bottomBrowserTab = document.querySelector('[data-app-shell-tab-controller="bottom"][role="tab"][data-tab-id="browser"][data-tab-kind="browser"]');
+                  const bottomBrowserPanel = document.querySelector('[role="tabpanel"][data-app-shell-tab-panel-controller="bottom"][data-tab-id="browser"][data-tab-kind="browser"] [data-testid="browser-panel"]');
+                  bottomPanelOpenTabMenuWorks =
+                    openTabMenu instanceof HTMLElement &&
+                    browserMenuItem instanceof HTMLButtonElement &&
+                    !(gitMenuItem instanceof HTMLElement) &&
+                    bottomPanelAfterOpenTabMenu instanceof HTMLElement &&
+                    bottomPanelAfterOpenTabMenu.getAttribute('data-bottom-panel-active-tab') === 'browser' &&
+                    bottomPanelAfterOpenTabMenu.getAttribute('data-bottom-panel-tab-kinds')?.split(',').includes('browser') === true &&
+                    bottomBrowserTab instanceof HTMLElement &&
+                    bottomBrowserPanel instanceof HTMLElement;
+                  const firstBottomTerminalTab = document.querySelector('[data-app-shell-tab-controller="bottom"][role="tab"][data-tab-kind="terminal"]');
+                  if (firstBottomTerminalTab instanceof HTMLElement) {
+                    firstBottomTerminalTab.click();
+                    await sleep(120);
                   }
                 }
               }
@@ -8771,6 +8802,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             terminalBottomPanelLabelsWorks: typeof terminalBottomPanelLabelsWorks === 'boolean' ? terminalBottomPanelLabelsWorks : null,
             bottomPanelPlanTransferWorks: typeof bottomPanelPlanTransferWorks === 'boolean' ? bottomPanelPlanTransferWorks : null,
             bottomPanelPlanToolbarActionWorks: typeof bottomPanelPlanToolbarActionWorks === 'boolean' ? bottomPanelPlanToolbarActionWorks : null,
+            bottomPanelOpenTabMenuWorks: typeof bottomPanelOpenTabMenuWorks === 'boolean' ? bottomPanelOpenTabMenuWorks : null,
             bottomPanelPlanAddToChatWorks: typeof bottomPanelPlanAddToChatWorks === 'boolean' ? bottomPanelPlanAddToChatWorks : null,
             terminalLinkScopedRoutingWorks: typeof terminalLinkScopedRoutingWorks === 'boolean' ? terminalLinkScopedRoutingWorks : null,
             terminalLinkRoutingWorks: typeof terminalLinkRoutingWorks === 'boolean' ? terminalLinkRoutingWorks : null,

@@ -2846,6 +2846,7 @@ child.on('exit', async (code) => {
           terminalBottomPanelLabels: result.terminalBottomPanelLabelsWorks === true,
           bottomPanelPlanTransfer: result.bottomPanelPlanTransferWorks === true,
           bottomPanelPlanToolbarAction: result.bottomPanelPlanToolbarActionWorks === true,
+          bottomPanelOpenTabMenu: result.bottomPanelOpenTabMenuWorks === true,
           bottomPanelPlanAddToChat: result.bottomPanelPlanAddToChatWorks === true,
           terminalLinkRouting: result.terminalLinkRoutingWorks === true,
           terminalLinkScopedRouting: result.terminalLinkScopedRoutingWorks === true,

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
-import { DEFAULT_TERMINAL_PANEL_CONTENT_HEIGHT, defaultUI, filePathFromTabId, sideChatIdFromTabId, useSessionStore } from '../../store/sessions'
+import { DEFAULT_TERMINAL_PANEL_CONTENT_HEIGHT, defaultUI, filePathFromTabId, sideChatContextSnapshot, sideChatIdFromTabId, sideChatTabId, useSessionStore } from '../../store/sessions'
 import type { BottomPanelTabId, BottomPanelTabKind } from '../../store/sessions'
 import type { Session } from '../../types'
 import { canCloseBottomPanelTab } from '../../../../types/panelTabs'
@@ -52,6 +52,7 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
   const moveTerminalTab = useSessionStore((state) => state.moveTerminalTab)
   const transferSessionPanelTab = useSessionStore((state) => state.transferSessionPanelTab)
   const closeTerminalTab = useSessionStore((state) => state.closeTerminalTab)
+  const openSideChat = useSessionStore((state) => state.openSideChat)
   const openRightPanelBrowserUrl = useSessionStore((state) => state.openRightPanelBrowserUrl)
   const setShowDiff = useSessionStore((state) => state.setShowDiff)
   const openRightPanelTab = useSessionStore((state) => state.openRightPanelTab)
@@ -66,6 +67,7 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
   const [terminalSelections, setTerminalSelections] = useState<Record<string, string>>({})
   const [terminalCommandStates, setTerminalCommandStates] = useState<Record<string, TerminalCommandState>>({})
   const terminalActionStatusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [bottomTabMenuOpen, setBottomTabMenuOpen] = useState(false)
   const terminalPanel = ui.terminalPanel ?? { height: DEFAULT_TERMINAL_HEIGHT, tabs: [0], activeTabId: 0, nextTabId: 1 }
   const terminalResizeController = useAppShellResizeController({
     edge: 'top',
@@ -132,6 +134,7 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
     if (tabs.includes('plan')) {
       setActiveTerminalTab(session.id, 'plan')
       setPanelActionStatus({ text: 'Plan tab selected', tone: 'info' })
+      setBottomTabMenuOpen(false)
       return
     }
 
@@ -144,6 +147,49 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
     setPanelActionStatus(moved
       ? { text: 'Plan opened in bottom panel', tone: 'info' }
       : { text: 'Plan tab unavailable', tone: 'danger' })
+    setBottomTabMenuOpen(false)
+  }
+
+  const openBottomWorkbenchTab = (
+    tabId: Exclude<BottomPanelTabId, number>,
+    tabKind: BottomPanelTabKind,
+    label: string
+  ): void => {
+    if (tabs.includes(tabId)) {
+      setShowTerminal(session.id, true)
+      setActiveTerminalTab(session.id, tabId)
+      setPanelActionStatus({ text: `${label} tab selected`, tone: 'info' })
+      setBottomTabMenuOpen(false)
+      return
+    }
+
+    openRightPanelTab(session.id, tabId)
+    const moved = transferSessionPanelTab(session.id, {
+      sourcePanel: 'right',
+      targetPanel: 'bottom',
+      tabKind,
+      tabId
+    })
+    setPanelActionStatus(moved
+      ? { text: `${label} opened in bottom panel`, tone: 'info' }
+      : { text: `${label} tab unavailable`, tone: 'danger' })
+    setBottomTabMenuOpen(false)
+  }
+
+  const openSideChatInBottomPanel = (): void => {
+    const chatId = crypto.randomUUID()
+    const tabId = sideChatTabId(chatId)
+    openSideChat(session.id, chatId, 'Side chat', sideChatContextSnapshot(session, 'workbench-new-tab'))
+    const moved = transferSessionPanelTab(session.id, {
+      sourcePanel: 'right',
+      targetPanel: 'bottom',
+      tabKind: 'sidechat',
+      tabId
+    })
+    setPanelActionStatus(moved
+      ? { text: 'Side chat opened in bottom panel', tone: 'info' }
+      : { text: 'Side chat tab unavailable', tone: 'danger' })
+    setBottomTabMenuOpen(false)
   }
 
   const clearActiveTerminal = useCallback((): void => {
@@ -422,6 +468,15 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
                   )}
                   <IconButton icon="plus" label="New terminal" size="sm" variant="toolbar" onClick={addTab} />
                   <IconButton
+                    icon="panelRight"
+                    label="Open tab in bottom panel"
+                    size="sm"
+                    variant="toolbar"
+                    active={bottomTabMenuOpen}
+                    dataTestId="bottom-panel-open-tab-menu"
+                    onClick={() => setBottomTabMenuOpen((open) => !open)}
+                  />
+                  <IconButton
                     icon="plan"
                     label="Open Plan in bottom panel"
                     size="sm"
@@ -482,6 +537,86 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
               )}
             />
           </div>
+
+          {bottomTabMenuOpen && (
+            <MenuSurface
+              className="bottom-panel-open-tab-menu"
+              data-testid="bottom-panel-open-tab-menu-surface"
+              data-bottom-panel-open-tab-menu="true"
+              onClose={() => setBottomTabMenuOpen(false)}
+              style={{
+                position: 'fixed',
+                right: 8,
+                bottom: terminalPanelTotalHeight + 8,
+                width: 214,
+                zIndex: 80
+              }}
+            >
+              <MenuSection dataTestId="bottom-panel-open-tab-menu-primary-section">
+                <MenuSectionLabel>Open in bottom panel</MenuSectionLabel>
+                <MenuItem
+                  icon="terminal"
+                  label="New terminal"
+                  dataTestId="bottom-panel-open-terminal"
+                  onClick={() => {
+                    addTab()
+                    setBottomTabMenuOpen(false)
+                  }}
+                />
+                <MenuItem
+                  icon="plan"
+                  label={tabs.includes('plan') ? 'Select Plan' : 'Plan'}
+                  dataTestId="bottom-panel-open-plan-from-menu"
+                  onClick={openPlanTab}
+                />
+                <MenuItem
+                  icon="settings"
+                  label={tabs.includes('environment') ? 'Select Environment' : 'Environment'}
+                  dataTestId="bottom-panel-open-environment"
+                  onClick={() => openBottomWorkbenchTab('environment', 'environment', 'Environment')}
+                />
+                <MenuItem
+                  icon="diff"
+                  label={tabs.includes('diff') ? 'Select Review' : 'Review'}
+                  dataTestId="bottom-panel-open-review"
+                  onClick={() => openBottomWorkbenchTab('diff', 'diff', 'Review')}
+                />
+                <MenuItem
+                  icon="folder"
+                  label={tabs.includes('files') ? 'Select Files' : 'Files'}
+                  dataTestId="bottom-panel-open-files"
+                  onClick={() => openBottomWorkbenchTab('files', 'files', 'Files')}
+                />
+                <MenuItem
+                  icon="browser"
+                  label={tabs.includes('browser') ? 'Select Browser' : 'Browser'}
+                  dataTestId="bottom-panel-open-browser"
+                  onClick={() => openBottomWorkbenchTab('browser', 'browser', 'Browser')}
+                />
+                <MenuItem
+                  icon="chat"
+                  label="Side chat"
+                  dataTestId="bottom-panel-open-side-chat"
+                  onClick={openSideChatInBottomPanel}
+                />
+              </MenuSection>
+              <MenuSection dataTestId="bottom-panel-open-tab-menu-secondary-section">
+                <MenuSectionLabel>Diagnostics</MenuSectionLabel>
+                <MenuItem
+                  icon="agents"
+                  label={tabs.includes('agents') ? 'Select Agents' : 'Agents'}
+                  dataTestId="bottom-panel-open-agents"
+                  onClick={() => openBottomWorkbenchTab('agents', 'agents', 'Agents')}
+                />
+                <MenuItem
+                  icon="extensions"
+                  label={tabs.includes('extensions') ? 'Select Extensions' : 'Extensions'}
+                  dataTestId="bottom-panel-open-extensions"
+                  onClick={() => openBottomWorkbenchTab('extensions', 'extensions', 'Extensions')}
+                />
+              </MenuSection>
+            </MenuSurface>
+          )}
 
           {terminalMenu && (
             <MenuSurface
