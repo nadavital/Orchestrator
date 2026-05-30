@@ -222,14 +222,12 @@ test('Claude slash command surface follows feature support without a user-visibl
   assert.ok(commands.some((command) => command.name === '/agents' && command.group === 'App'))
 })
 
-test('Codex slash command surface exposes goal routing through the app-server turn', () => {
+test('Codex slash command surface does not advertise unsupported goal routing', () => {
   const runtime = getProviderRuntimeInfo().codex
   const commands = availableSlashCommands(runtime)
   const goal = commands.find((command) => command.name === '/goal')
 
-  assert.equal(goal?.group, 'Provider')
-  assert.equal(goal?.runtime, 'app-server')
-  assert.equal(goal?.handler, 'send-to-provider')
+  assert.equal(goal, undefined)
 })
 
 test('Diff summary makes deletion and large changes visible without dumping patches', () => {

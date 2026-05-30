@@ -3279,24 +3279,17 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 await sleep(80);
               }
             }
-            var planGoalClearActionWorks = false;
+            var planGoalClearBoundaryWorks = false;
             if (goalClear instanceof HTMLButtonElement) {
-              goalClear.click();
-              for (let index = 0; index < 20; index += 1) {
-                const clearStatus = document.querySelector('[data-testid="plan-goal-clear-status"]');
-                if (
-                  clearStatus instanceof HTMLElement &&
-                  clearStatus.getAttribute('role') === 'status' &&
-                  clearStatus.getAttribute('aria-live') === 'polite' &&
-                  clearStatus.getAttribute('aria-atomic') === 'true' &&
-                  clearStatus.getAttribute('data-plan-goal-clear-status-tone') === 'info' &&
-                  clearStatus.textContent?.includes('Clear requested') === true
-                ) {
-                  planGoalClearActionWorks = true;
-                  break;
-                }
-                await sleep(80);
-              }
+              const clearStatus = document.querySelector('[data-testid="plan-goal-clear-status"]');
+              planGoalClearBoundaryWorks =
+                goalClear.disabled === true &&
+                goalClear.getAttribute('aria-label')?.includes('Goal clear is unavailable') === true &&
+                goalClear.getAttribute('title')?.includes('Codex app-server') === true &&
+                clearStatus instanceof HTMLElement &&
+                clearStatus.getAttribute('role') === 'note' &&
+                clearStatus.getAttribute('data-plan-goal-clear-status-tone') === 'warning' &&
+                clearStatus.textContent?.includes('Clear unavailable') === true;
             }
             if (goalToggle instanceof HTMLButtonElement) {
               goalToggle.click();
@@ -3308,7 +3301,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               planGoalToggleCompactWorks &&
               planGoalPersistedMetricsWorks &&
               planAddToChatWorks &&
-              planGoalClearActionWorks &&
+              planGoalClearBoundaryWorks &&
               document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-active-tab') === 'plan' &&
               document.body.innerText.includes('Reduce Plan panel verbosity') &&
               document.body.innerText.includes(hiddenSentence) &&
@@ -8745,7 +8738,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             planReviewModeOpenWorks: typeof planReviewModeOpenWorks === 'boolean' ? planReviewModeOpenWorks : null,
             planGoalPersistedMetricsWorks: typeof planGoalPersistedMetricsWorks === 'boolean' ? planGoalPersistedMetricsWorks : null,
             planAddToChatWorks: typeof planAddToChatWorks === 'boolean' ? planAddToChatWorks : null,
-            planGoalClearActionWorks: typeof planGoalClearActionWorks === 'boolean' ? planGoalClearActionWorks : null,
+            planGoalClearBoundaryWorks: typeof planGoalClearBoundaryWorks === 'boolean' ? planGoalClearBoundaryWorks : null,
             planAgentTabShimmerWorks: typeof planAgentTabShimmerWorks === 'boolean' ? planAgentTabShimmerWorks : null,
             planAgentStatLabelsCalm: typeof planAgentStatLabelsCalm === 'boolean' ? planAgentStatLabelsCalm : null,
             agentRuntimeEventDetailWorks: typeof agentRuntimeEventDetailWorks === 'boolean' ? agentRuntimeEventDetailWorks : null,

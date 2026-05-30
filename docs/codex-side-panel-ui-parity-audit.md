@@ -9805,6 +9805,16 @@ Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.
 
 Remaining: this closes local `/goal` discovery and clear request routing only. Live proof that Codex returns `thread/goal/cleared` for the clear action, richer update forms, and exact live Codex Goal timing remain separate app-server follow-ups.
 
+### 2026-05-29 - Codex Goal App-Server Boundary Correction
+
+Product evidence: the previous local `/goal` routing pass assumed that sending `/goal ...` and `/goal clear` through a Codex app-server turn would be interpreted as goal commands. Live proof invalidated that assumption: `npm run live:codex-composer-goal` started a real Codex app-server thread, sent `/goal Record live Codex goal evidence`, then `/goal clear`, and the app-server emitted no `thread/goal/updated` or `thread/goal/cleared` notifications. The turns completed as ordinary prompt text.
+
+Implemented: the Codex provider slash-command metadata no longer advertises `/goal`. The Plan goal block still renders live and persisted goal metrics, but the Codex-backed `Clear` affordance is disabled and explains that clear is unavailable in the current app-server goal command path. The smoke contract was renamed from `planGoalClearAction` to `planGoalClearBoundary` so future checks prove the honest boundary instead of a fake action.
+
+Verification: `npm run smoke:ui:changed:static`, `node --test out-test/src/main/__tests__/claudeAcceptance.test.js`, and elevated `npm run smoke:ui:changed:smoke` passed. Elevated `npm run live:codex-composer-goal` exited with the expected negative boundary result and wrote the live artifact. Latest focused evidence: Settings Providers JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-providers-1780104660644.json`; Plan JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-plan-1780104674275.json`; Plan screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-plan-1780104674275.png`. Live boundary artifact `/Users/nadav/Desktop/Orchestrator/tmp/codex-composer-goal-live-proof/result.json`.
+
+Remaining: goal update/clear controls are blocked until Codex exposes a real app-server goal mutation request or a proven slash-command route. Do not reopen local `/goal` UI polish without new live provider evidence.
+
 ### 2026-05-29 - Codex Review Mode Plan Surface
 
 Product evidence: the Codex app-server matrix tracks Review Mode as a Phase 1 app-server gap. Orchestrator already parsed `turn/diff/updated` into local Review surfaces, but `enteredReviewMode` / `exitedReviewMode` were flattened into generic status messages. That meant the right-side Plan/agent state did not show that Codex had entered review mode, and reloads could not recover a first-class review-mode state from the transcript.

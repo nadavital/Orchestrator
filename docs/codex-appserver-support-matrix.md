@@ -62,6 +62,10 @@ Local Codex CLI: `codex-cli 0.128.0`
 - Composer plan-update boundary proof:
   - `npm run live:codex-composer-plan`
   - `tmp/codex-composer-plan-live-proof/result.json`
+- Composer goal-command boundary proof:
+  - `npm run live:codex-composer-goal`
+  - `tmp/codex-composer-goal-live-proof/result.json`
+  - Current evidence is a negative boundary: live Codex app-server turns for `/goal ...` and `/goal clear` completed as ordinary prompt text and emitted no `thread/goal/updated` or `thread/goal/cleared` notifications.
 
 ## Status Legend
 
@@ -87,7 +91,7 @@ Local Codex CLI: `codex-cli 0.128.0`
 | Assistant streaming | Supported | Handles `item/agentMessage/delta` and suppresses duplicate final text. |
 | Tool items | Parsed | Handles command, file change, MCP tool, dynamic tool, web search, image view/generation, review-mode, reasoning, hook, and compaction item shapes through existing generic cards/status messages. |
 | Plan mode / plan updates | Supported | Handles `turn/plan/updated`; renders through existing plan state/UI path. Live `npm run live:codex-composer-plan` proves a real app-server turn can emit a native plan update without command execution. |
-| Goal updates | Partial | Handles `thread/goal/updated` and `thread/goal/cleared`; Plan reconstructs live and persisted goal metrics and exposes `/goal clear` routing for Codex sessions. Richer update controls and live clear proof remain. |
+| Goal updates | Partial | Handles `thread/goal/updated` and `thread/goal/cleared`; Plan reconstructs live and persisted goal metrics. Live proof shows `/goal ...` and `/goal clear` are not app-server-routed commands in the current Codex path, so Orchestrator does not advertise `/goal` and shows goal clear as an explicit unavailable boundary. |
 | Subagents / multi-agent | Parsed | Handles `collabAgentToolCall` as `agent.started/completed/failed`. Agent transcript depth still depends on emitted items we map. |
 | Token usage | Partial | `thread/tokenUsage/updated` is currently a status message, not a full `UsageSummary` rollup. |
 | Diff updates | Partial | App-server `turn/diff/updated` becomes a `diff.updated` event/status, preserves provider session, turn, and optional checkpoint ids, and feeds Last turn Review cards/panel state from the provider unified diff. Workspace git diff remains the default local Review source. |
@@ -152,7 +156,7 @@ Local Codex CLI: `codex-cli 0.128.0`
 | Errors | `error` | Supported as `run.failed`. |
 | Thread start | `thread/started` | Supported as `session.started`. |
 | Thread status/name/archive/closed | `thread/status/changed`, `thread/archived`, `thread/unarchived`, `thread/closed`, `thread/name/updated` | Parsed as generic status messages. |
-| Goal | `thread/goal/updated`, `thread/goal/cleared` | Partial dedicated Goal UI in Plan, including persisted metrics and `/goal clear` request routing. Live clear/update proof and richer update controls remain. |
+| Goal | `thread/goal/updated`, `thread/goal/cleared` | Partial dedicated Goal UI in Plan, including live/persisted metrics. Live `/goal` mutation is blocked by the current app-server behavior; `/goal clear` is not advertised as supported and the Plan clear affordance is disabled with an explicit boundary. |
 | Token usage | `thread/tokenUsage/updated` | Partial; status message only. |
 | Turn lifecycle | `turn/started`, `turn/completed` | Supported/parsed. `turn/completed` drives run completion/failure; `turn/started` is a status message. |
 | Plans | `turn/plan/updated`, `item/plan/delta` | `turn/plan/updated` supported. `item/plan/delta` currently streams text-like deltas. |
@@ -201,7 +205,7 @@ Local Codex CLI: `codex-cli 0.128.0`
 
 | User-facing Codex feature | Current support | What works now | Missing for first-class parity |
 | --- | --- | --- | --- |
-| Goal | Parsed | `thread/goal/updated` and `thread/goal/cleared` become status messages. | Goal panel, set/get/clear commands, budget/progress controls. |
+| Goal | Partial | `thread/goal/updated` and `thread/goal/cleared` feed the Plan goal surface, and persisted `Goal:` rows reconstruct status, tokens, budget, elapsed time, and progress. | A real app-server goal mutation request or supported slash route. Current live proof shows `/goal ...` and `/goal clear` are treated as ordinary prompt text, so richer update/clear controls are blocked until Codex exposes a proven command/API path. |
 | Plan mode | Supported | `turn/plan/updated` feeds existing plan UI, and `npm run live:codex-composer-plan` now proves a real plan-producing app-server turn. | Richer live plan timing/UI comparison only if product-visible behavior diverges. |
 | Subagents | Parsed | `collabAgentToolCall` maps to agent lifecycle and existing Agents sidebar path. | Rich child transcript capture if Codex emits child-thread items separately; live multi-agent fixture. |
 | Side questions | External | `/btw` side question exists as Orchestrator-owned detached provider call. | App-server-native same-thread side channel, if product wants Codex parity with Mac app behavior. |
@@ -219,8 +223,9 @@ Local Codex CLI: `codex-cli 0.128.0`
 ## Recommended Next Implementation Slices
 
 1. Codex Goal UI:
-   - Status: local Plan goal rendering now preserves live and persisted objective/status/token metrics, Codex sessions expose `/goal` as an app-server slash command, and the Goal panel can request `/goal clear`.
-   - Remaining: live clear/update proof against Codex `thread/goal/cleared`, richer update controls, and exact live Goal timing.
+   - Status: local Plan goal rendering now preserves live and persisted objective/status/token metrics and Orchestrator parses `thread/goal/updated` / `thread/goal/cleared` when they are emitted.
+   - Boundary: `npm run live:codex-composer-goal` proves the current Codex app-server treats `/goal ...` and `/goal clear` as ordinary turn text and emits no goal notifications, so Orchestrator no longer advertises `/goal` or exposes an active clear action for Codex sessions.
+   - Remaining: a proven app-server goal mutation request or supported slash route, richer update controls after that route exists, and exact live Goal timing.
 
 2. Codex App/Skill/Plugin Browser:
    - Status: Capabilities acts as the current browser/picker and can add textual `$skill`, `plugin://...`, and `app://...` mentions to the active chat draft.

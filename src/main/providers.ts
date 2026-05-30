@@ -980,12 +980,6 @@ const providerRegistries: Record<string, ProviderCapabilityRegistry> = {
       commandSurface('appserver-loaded-threads', 'Loaded threads', 'runtime', ['app-server', 'thread/loaded/list'], 'app-server', 'none', false, 'settings', { featureId: 'app-server' })
     ],
     slashCommands: [
-      slashCommand('/goal', 'Set or clear the Codex thread goal', 'provider', 'app-server', 'send-to-provider', {
-        featureId: 'app-server',
-        arguments: [
-          { name: 'objective-or-clear', optional: true, description: 'Goal text, status update, or clear' }
-        ]
-      }),
       slashCommand('/review', 'Review uncommitted changes with Codex', 'provider', 'headless', 'insert-prompt', {
         featureId: 'review',
         prompt: 'Review the current uncommitted changes. Prioritize bugs, regressions, and missing tests.'

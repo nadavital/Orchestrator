@@ -21,20 +21,26 @@ const executionPolicy = process.env.CODEX_COMPOSER_PROOF_POLICY ?? 'default'
 const requireApproval = process.env.CODEX_COMPOSER_PROOF_REQUIRE_APPROVAL === '1'
 const requireUserInput = process.env.CODEX_COMPOSER_PROOF_REQUIRE_USER_INPUT === '1'
 const requirePlan = process.env.CODEX_COMPOSER_PROOF_REQUIRE_PLAN === '1'
+const requireGoal = process.env.CODEX_COMPOSER_PROOF_REQUIRE_GOAL === '1'
 const expectedToken = 'CODEX_COMPOSER_LIVE_OK'
-const enabledProofModes = [requireApproval, requireUserInput, requirePlan].filter(Boolean).length
+const goalObjective = process.env.CODEX_COMPOSER_PROOF_GOAL_OBJECTIVE ?? 'Record live Codex goal evidence'
+const enabledProofModes = [requireApproval, requireUserInput, requirePlan, requireGoal].filter(Boolean).length
 if (enabledProofModes > 1) {
   console.error('Only one CODEX_COMPOSER_PROOF_REQUIRE_* mode can be enabled at a time.')
   process.exit(1)
 }
-const proofFileName = requirePlan
+const proofFileName = requireGoal
+  ? 'live-composer-goal-proof.txt'
+  : requirePlan
   ? 'live-composer-plan-proof.txt'
   : requireUserInput
   ? 'live-composer-user-input-proof.txt'
   : requireApproval
     ? 'live-composer-approval-proof.txt'
     : 'live-composer-permission-proof.txt'
-const proofToken = requirePlan
+const proofToken = requireGoal
+  ? 'CODEX_COMPOSER_GOAL_OK'
+  : requirePlan
   ? 'CODEX_COMPOSER_PLAN_OK'
   : requireUserInput
   ? 'CODEX_COMPOSER_USER_INPUT_OK'
@@ -47,21 +53,25 @@ const commandText = requireApproval
   ? `printf '${proofToken}\\n' > ../${proofFileName}`
   : `printf '${proofToken}\\n' > ${proofFileName}`
 const prompt = process.env.CODEX_COMPOSER_PROOF_PROMPT ?? [
-  requirePlan
+  requireGoal
+    ? `/goal ${goalObjective}`
+    : requirePlan
     ? 'This is a live Orchestrator/Codex app-server plan-update proof in a disposable git workspace.'
     : requireUserInput
     ? 'This is a live Orchestrator/Codex app-server user-input proof in a disposable git workspace.'
     : requireApproval
       ? 'This is a live Orchestrator/Codex app-server approval-card proof in a disposable git workspace.'
       : 'This is a live Orchestrator/Codex app-server Composer model and permission proof in a disposable git workspace.',
-  requirePlan
+  requireGoal
+    ? ''
+    : requirePlan
     ? 'Create a native plan update with exactly two steps: Inspect app-server plan surface, and Record live plan evidence. Do not edit files and do not run shell commands.'
     : requireUserInput
     ? 'First use the native user-input request tool to ask exactly this question: Which proof token should I write? Use a single question id named proof-token if the tool allows ids. After the client answers, use command execution to write exactly the answer you received followed by a newline to live-composer-user-input-proof.txt in the current workspace.'
     : `Use command execution to run exactly this command: ${commandText}`,
-  'Do not edit any other file.',
-  `After the required action succeeds, reply with exactly ${expectedToken}.`
-].join(' ')
+  requireGoal ? '' : 'Do not edit any other file.',
+  requireGoal ? '' : `After the required action succeeds, reply with exactly ${expectedToken}.`
+].filter(Boolean).join(' ')
 
 const policy = codexRuntimePolicyConfig(executionPolicy)
 const resolved = resolveProviderCommand(provider, { binary: provider.binary, args: ['app-server', '--listen', 'stdio://'] })
@@ -91,6 +101,8 @@ let threadStartResult = null
 let turnStartResult = null
 let threadStartParams = null
 let turnStartParams = null
+const turnStartResults = []
+const turnStartParamList = []
 const pending = new Map()
 const methods = []
 const rawLines = []
@@ -104,6 +116,8 @@ const userInputResponses = []
 const commandExecutions = []
 const planUpdates = []
 const planDeltas = []
+const goalUpdates = []
+const goalClears = []
 const turnIds = new Set()
 
 const timeout = setTimeout(() => {
@@ -157,29 +171,31 @@ try {
   threadId = threadStartResult?.thread?.id ?? null
   if (!threadId) throw new Error('thread/start did not return a thread id')
 
-  turnStartParams = {
-    threadId,
-    input: [{ type: 'text', text: prompt, text_elements: [] }],
-    cwd: workspaceDir,
-    model,
-    effort,
-    approvalPolicy: policy.approvalPolicy,
-    approvalsReviewer: policy.approvalsReviewer
+  await startTurn(prompt)
+
+  if (requireGoal) {
+    await waitForCompletion()
+    resetTurnCompletion()
+    await startTurn('/goal clear')
   }
-  turnStartResult = await request('turn/start', turnStartParams)
-  if (turnStartResult?.turn?.id) turnIds.add(turnStartResult.turn.id)
 
   await waitForCompletion()
   const fileText = safeReadProofFile()
-  const gitDiff = requireApproval || requirePlan ? '' : runGit(['diff', '--', proofFileName])
-  const assistantSawOk = assistantText.includes(expectedToken)
-  const editApplied = requirePlan || (fileText.includes(proofToken) && (requireApproval || gitDiff.includes(proofToken)))
-  const commandCompleted = requirePlan || commandExecutions.some((execution) =>
+  const gitDiff = requireApproval || requirePlan || requireGoal ? '' : runGit(['diff', '--', proofFileName])
+  const assistantSawOk = requireGoal || assistantText.includes(expectedToken)
+  const editApplied = requirePlan || requireGoal || (fileText.includes(proofToken) && (requireApproval || gitDiff.includes(proofToken)))
+  const commandCompleted = requirePlan || requireGoal || commandExecutions.some((execution) =>
     execution.method === 'item/completed' &&
     execution.status === 'completed' &&
     execution.command.includes(proofToken)
   )
   const planUpdated = !requirePlan || planUpdates.length > 0 || planDeltas.length > 0 || events.some((event) => event.type === 'plan.updated')
+  const goalRoundTrip = !requireGoal || (
+    goalUpdates.some((params) => params.goal?.objective === goalObjective) &&
+    goalClears.some((params) => params.threadId === threadId) &&
+    events.some((event) => event.type === 'goal.updated') &&
+    events.some((event) => event.type === 'goal.cleared')
+  )
   const approvalRoundTrip = !requireApproval || (
     permissionRequests.length > 0 &&
     permissionResponses.length > 0 &&
@@ -198,8 +214,10 @@ try {
   const userInputUnavailable = requireUserInput &&
     /request_user_input is unavailable/i.test(`${stderr}\n${assistantText}`)
 
-  if (editApplied && assistantSawOk && commandCompleted && threadPolicyMatches && approvalRoundTrip && userInputRoundTrip && planUpdated) {
-    finish(true, requirePlan
+  if (editApplied && assistantSawOk && commandCompleted && threadPolicyMatches && approvalRoundTrip && userInputRoundTrip && planUpdated && goalRoundTrip) {
+    finish(true, requireGoal
+      ? 'live Codex app-server updated and cleared a thread goal through native goal commands'
+      : requirePlan
       ? 'live Codex app-server emitted a native plan update during a real turn'
       : requireUserInput
       ? 'live Codex app-server requested user input, accepted the client answer, and completed the answer-dependent command'
@@ -216,6 +234,8 @@ try {
     finish(false, 'live Codex app-server did not complete a user-input request/response round trip')
   } else if (!planUpdated) {
     finish(false, 'live Codex app-server did not emit a native plan update')
+  } else if (!goalRoundTrip) {
+    finish(false, 'live Codex app-server did not update and clear a thread goal')
   } else if (!commandCompleted) {
     finish(false, 'live Codex app-server completed without a completed commandExecution item for the proof command')
   } else if (!editApplied) {
@@ -225,6 +245,29 @@ try {
   }
 } catch (error) {
   finish(false, error instanceof Error ? error.message : String(error))
+}
+
+async function startTurn(inputText) {
+  turnStatus = null
+  completed = false
+  turnStartParams = {
+    threadId,
+    input: [{ type: 'text', text: inputText, text_elements: [] }],
+    cwd: workspaceDir,
+    model,
+    effort,
+    approvalPolicy: policy.approvalPolicy,
+    approvalsReviewer: policy.approvalsReviewer
+  }
+  turnStartParamList.push(turnStartParams)
+  turnStartResult = await request('turn/start', turnStartParams)
+  turnStartResults.push(turnStartResult)
+  if (turnStartResult?.turn?.id) turnIds.add(turnStartResult.turn.id)
+}
+
+function resetTurnCompletion() {
+  completed = false
+  turnStatus = null
 }
 
 function request(method, params) {
@@ -282,6 +325,12 @@ function handleLine(line) {
   }
   if (message.method === 'item/plan/delta') {
     planDeltas.push(message.params ?? {})
+  }
+  if (message.method === 'thread/goal/updated') {
+    goalUpdates.push(message.params ?? {})
+  }
+  if (message.method === 'thread/goal/cleared') {
+    goalClears.push(message.params ?? {})
   }
 
   if (message.id != null && !message.method) {
@@ -424,6 +473,8 @@ function writeArtifacts(result) {
     requireApproval,
     requireUserInput,
     requirePlan,
+    requireGoal,
+    goalObjective,
     policy,
     prompt,
     threadId,
@@ -431,6 +482,8 @@ function writeArtifacts(result) {
     threadStartResult,
     turnStartParams,
     turnStartResult,
+    turnStartParamList,
+    turnStartResults,
     observedTurnIds: [...turnIds],
     methods: [...new Set(methods)],
     methodCounts: methods.reduce((counts, method) => ({ ...counts, [method]: (counts[method] ?? 0) + 1 }), {}),
@@ -442,6 +495,8 @@ function writeArtifacts(result) {
     commandExecutions,
     planUpdates,
     planDeltas,
+    goalUpdates,
+    goalClears,
     eventTypes: [...new Set(events.map((event) => event.type))],
     events,
     assistantText,
@@ -489,11 +544,15 @@ function finish(ok, reason) {
     requireApproval: result.requireApproval,
     requireUserInput: result.requireUserInput,
     requirePlan: result.requirePlan,
+    requireGoal: result.requireGoal,
+    goalObjective: result.goalObjective,
     permissionRequestCount: result.permissionRequests.length,
     userInputRequestCount: result.userInputRequests.length,
     commandExecutionCount: result.commandExecutions.length,
     planUpdateCount: result.planUpdates.length,
     planDeltaCount: result.planDeltas.length,
+    goalUpdateCount: result.goalUpdates.length,
+    goalClearCount: result.goalClears.length,
     methods: result.methods
   }
   console.log(JSON.stringify(summary, null, 2))

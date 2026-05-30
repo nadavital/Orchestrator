@@ -172,30 +172,18 @@ function planContextSummary(
 
 function GoalBlock({ goal, session }: { goal: GoalEvent; session: Session }): JSX.Element {
   const [expanded, setExpanded] = useState(false)
-  const [clearStatus, setClearStatus] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
   const budget = typeof goal.tokenBudget === 'number' && goal.tokenBudget > 0 ? goal.tokenBudget : null
   const used = typeof goal.tokensUsed === 'number' ? goal.tokensUsed : null
   const pct = budget && used !== null ? Math.min(100, Math.round((used / budget) * 100)) : null
   const compactObjective = compactGoalObjective(goal.objective)
   const canExpand = compactObjective !== goal.objective.trim()
-  const canClearGoal = goal.providerId === 'codex' || session.provider === 'codex'
+  const isCodexGoal = goal.providerId === 'codex' || session.provider === 'codex'
+  const clearUnavailableReason = 'Goal clear is unavailable in the current Codex app-server goal command path.'
   const stats = [
     used !== null ? `${used.toLocaleString()} tokens` : undefined,
     budget ? `${budget.toLocaleString()} budget` : undefined,
     typeof goal.timeUsedSeconds === 'number' ? formatDuration(goal.timeUsedSeconds) : undefined
   ].filter(Boolean)
-
-  const clearGoal = async (): Promise<void> => {
-    setClearStatus({ text: 'Clearing goal...', tone: 'info' })
-    try {
-      const started = await window.api.sessions.sendMessage(session.id, '/goal clear')
-      setClearStatus(started
-        ? { text: 'Clear requested', tone: 'info' }
-        : { text: 'Clear failed to start', tone: 'danger' })
-    } catch (error) {
-      setClearStatus({ text: `Clear failed: ${errorText(error)}`, tone: 'danger' })
-    }
-  }
 
   return (
     <PlanSection>
@@ -274,32 +262,31 @@ function GoalBlock({ goal, session }: { goal: GoalEvent; session: Session }): JS
               <MetricPill tone={pct >= 90 ? 'warning' : 'accent'}>{pct}%</MetricPill>
             </span>
           )}
-          {canClearGoal && (
+          {isCodexGoal && (
             <Button
               variant="ghost"
               className="h-7 px-2 text-[11px]"
               dataTestId="plan-goal-clear"
-              ariaLabel="Clear Codex goal"
-              onClick={clearGoal}
+              ariaLabel={clearUnavailableReason}
+              title={clearUnavailableReason}
+              disabled
             >
               Clear
             </Button>
           )}
         </div>
       </div>
-      {clearStatus && (
+      {isCodexGoal && (
         <div
           className="mt-2 text-[11px]"
-          role="status"
-          aria-live="polite"
-          aria-atomic="true"
+          role="note"
           data-testid="plan-goal-clear-status"
-          data-plan-goal-clear-status-tone={clearStatus.tone}
+          data-plan-goal-clear-status-tone="warning"
           style={{
-            color: clearStatus.tone === 'danger' ? 'var(--color-red)' : 'var(--text-secondary)'
+            color: 'var(--text-secondary)'
           }}
         >
-          {clearStatus.text}
+          Clear unavailable in current Codex app-server.
         </div>
       )}
       {pct !== null && (
@@ -395,10 +382,6 @@ function formatDuration(seconds: number): string {
   const minutes = Math.floor(seconds / 60)
   const remaining = Math.round(seconds % 60)
   return remaining > 0 ? `${minutes}m ${remaining}s` : `${minutes}m`
-}
-
-function errorText(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
 }
 
 function ReviewModeBlock({ mode, onOpenReview }: { mode: ReviewModeEvent; onOpenReview: () => void }): JSX.Element {
