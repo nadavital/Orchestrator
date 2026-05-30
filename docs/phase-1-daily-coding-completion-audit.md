@@ -111,6 +111,12 @@ Elevated `npm run smoke:ui:daily-coding -- --full --keep-going` passed all 17 da
 
 This run passed header, session switching, composer, transcript layout, permission/user-input cards, Workbench/Git, Agent Activity, right panel, Environment, Review, Files/source tabs, Browser, Terminal, Settings, provider Settings, and side chat. It does not close the remaining live Codex screenshot, provider-adapter/proof, browser-use runtime-signal, or Phase 2 renderer-fidelity gaps.
 
+## 2026-05-30 Live Codex Browser Runtime Boundary
+
+Elevated `npm run live:codex-browser-appserver` still proves the tested Codex stdio app-server path does not expose native browser-use events or tools to this client. The live turn completed and emitted normal session/assistant/tool/run lifecycle events, but produced 0 browser-use events, sent 0 browser/tool server requests, and replied `CODEX_BROWSER_LIVE_NO_BROWSER`. Artifact: `/Users/nadav/Desktop/Orchestrator/tmp/codex-browser-appserver-live-proof/result.json`.
+
+This keeps the Browser runtime-signal gap open. Orchestrator's dynamic Browser tool bridge remains live-proven separately, but native provider-emitted browser-use state, viewport/capture/cursor events, and provider-applied design-change behavior should not be claimed until a provider path actually emits those signals.
+
 ## 2026-05-30 Live Codex UI Capture Boundary
 
 Elevated `npm run compare:codex-side-panels -- --capture-live-codex --no-fail` refreshed `tmp/codex-side-panel-comparison/comparison-report.json` at `2026-05-30T02:26:03.862Z` with `mismatch=0`, `needsSmoke=0`, `needsProof=0`, `blocked=8`, and 19 remaining parity gaps. The live capture path found a visible Codex window through CoreGraphics (`id=65887`, bounds `0,30,1384,1320`), but `screencapture -l65887` failed with `could not create image from window`, region capture failed with `could not create image from rect`, and the full-screen fallback produced `/private/tmp/codex-current-screen.png` as a 5120x2880 all-black image (`nonBlank=false`, `nonBlackRatio=0`, `luminanceStdDev=0`, `colorBucketCount=1`).
