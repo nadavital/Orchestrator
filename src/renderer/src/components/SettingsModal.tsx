@@ -545,7 +545,7 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
         rootAttrs={{ 'data-app-shell-header-band': 'shared' }}
       >
         <div className="settings-topbar-leading">
-          <span className="settings-topbar-title">{settingsTitle(effectiveSection)}</span>
+          <span className="settings-topbar-title">Settings</span>
           <div
             className="settings-topbar-search-host"
             data-testid="settings-search-results-host"
