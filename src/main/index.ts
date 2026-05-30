@@ -3439,6 +3439,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             const bottomPanelTotalHeight = Number(bottomPanelRestored?.getAttribute('data-bottom-panel-total-height') ?? '0');
             const bottomPanelDefaultHeight = Number(bottomPanelRestored?.getAttribute('data-bottom-panel-default-height') ?? '0');
             const bottomPanelMinHeight = Number(bottomPanelRestored?.getAttribute('data-bottom-panel-min-height') ?? '0');
+            const bottomPanelConfiguredMaxHeight = Number(bottomPanelRestored?.getAttribute('data-bottom-panel-configured-max-height') ?? '0');
+            const bottomPanelMinPrimaryContentHeight = Number(bottomPanelRestored?.getAttribute('data-bottom-panel-min-primary-content-height') ?? '0');
             const terminalTabPanelForSizing = document.querySelector('[role="tabpanel"][data-app-shell-tab-panel-controller="bottom"]');
             const terminalTabPanelContentHeight = Number(terminalTabPanelForSizing?.getAttribute('data-bottom-panel-content-height') ?? '0');
             const terminalTabPanelChromeHeight = Number(terminalTabPanelForSizing?.getAttribute('data-bottom-panel-chrome-height') ?? '0');
@@ -3451,6 +3453,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               bottomPanelChromeHeight === 50 &&
               bottomPanelDefaultHeight === 190 &&
               bottomPanelMinHeight === 96 &&
+              bottomPanelConfiguredMaxHeight === 340 &&
+              bottomPanelMinPrimaryContentHeight === 440 &&
               bottomPanelTotalHeight === bottomPanelContentHeight + bottomPanelChromeHeight &&
               bottomPanelTotalHeight === 240 &&
               bottomPanelTargetSize === bottomPanelTotalHeight &&
@@ -3488,6 +3492,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             var terminalToolbarSharedWorks = false;
             var terminalHeaderSharedChromeWorks = false;
             var terminalPanelTabCodexMetricsWorks = false;
+            var terminalBottomPanelPreservesPrimaryContentWorks = false;
             var terminalContentSpacingWorks = false;
             var terminalResizeResetWorks = false;
             var terminalResizeHandleOverlayWorks = false;
@@ -3638,6 +3643,20 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               await sleep(220);
               const terminalBottomHeaderAfterResize = document.querySelector('[data-testid="session-bottom-panel"]');
               const heightAfterResize = Number(terminalBottomHeaderAfterResize?.getAttribute('data-bottom-panel-height') ?? '0');
+              const primaryContentHeightAfterResize = Number(terminalBottomHeaderAfterResize?.getAttribute('data-bottom-panel-primary-content-height') ?? '0');
+              const configuredMaxHeightAfterResize = Number(terminalBottomHeaderAfterResize?.getAttribute('data-bottom-panel-configured-max-height') ?? '0');
+              const minPrimaryContentHeightAfterResize = Number(terminalBottomHeaderAfterResize?.getAttribute('data-bottom-panel-min-primary-content-height') ?? '0');
+              const rightPanelAfterResize = document.querySelector('[data-testid="session-right-panel"]');
+              const rightPanelHeightAfterResize = rightPanelAfterResize instanceof HTMLElement
+                ? rightPanelAfterResize.getBoundingClientRect().height
+                : 0;
+              terminalBottomPanelPreservesPrimaryContentWorks =
+                terminalBottomHeaderAfterResize instanceof HTMLElement &&
+                configuredMaxHeightAfterResize === 340 &&
+                minPrimaryContentHeightAfterResize === 440 &&
+                heightAfterResize <= configuredMaxHeightAfterResize &&
+                primaryContentHeightAfterResize >= minPrimaryContentHeightAfterResize - 2 &&
+                rightPanelHeightAfterResize >= minPrimaryContentHeightAfterResize - 2;
               const terminalResizeHandleForReset = document.querySelector('[data-app-shell-resize-handle="true"][data-app-shell-resize-edge="top"]');
               if (terminalResizeHandleForReset instanceof HTMLElement) {
                 terminalResizeHandleForReset.dispatchEvent(new MouseEvent('dblclick', {
@@ -8772,6 +8791,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             terminalSharedAnimationControllerWorks: typeof terminalSharedAnimationControllerWorks === 'boolean' ? terminalSharedAnimationControllerWorks : null,
             terminalSharedLayoutControllerWorks: typeof terminalSharedLayoutControllerWorks === 'boolean' ? terminalSharedLayoutControllerWorks : null,
             terminalBottomPanelSizeDecompositionWorks: typeof terminalBottomPanelSizeDecompositionWorks === 'boolean' ? terminalBottomPanelSizeDecompositionWorks : null,
+            terminalBottomPanelPreservesPrimaryContentWorks: typeof terminalBottomPanelPreservesPrimaryContentWorks === 'boolean' ? terminalBottomPanelPreservesPrimaryContentWorks : null,
             terminalRestoreWorks: typeof terminalRestoreWorks === 'boolean' ? terminalRestoreWorks : null,
             terminalTabMenuWorks: typeof terminalTabMenuWorks === 'boolean' ? terminalTabMenuWorks : null,
             terminalTabKeyboardContextMenuWorks: typeof terminalTabKeyboardContextMenuWorks === 'boolean' ? terminalTabKeyboardContextMenuWorks : null,

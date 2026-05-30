@@ -18,9 +18,9 @@ import SideQuestionPanel from './SideQuestionPanel'
 import TerminalView from './TerminalView'
 
 const MIN_TERMINAL_HEIGHT = 96
-const MAX_TERMINAL_HEIGHT = 420
+const MAX_TERMINAL_HEIGHT = 340
 const DEFAULT_TERMINAL_HEIGHT = DEFAULT_TERMINAL_PANEL_CONTENT_HEIGHT
-const MIN_PRIMARY_CONTENT_HEIGHT = 360
+const MIN_PRIMARY_CONTENT_HEIGHT = 440
 const TERMINAL_PANEL_CHROME_HEIGHT = 50
 
 type TerminalActionStatus = {
@@ -89,6 +89,7 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
   const terminalHeight = terminalLayout.size
   const terminalChromeHeight = TERMINAL_PANEL_CHROME_HEIGHT
   const terminalPanelTotalHeight = terminalHeight + terminalChromeHeight
+  const primaryContentHeight = Math.max(0, Math.round(terminalLayout.containerSize - terminalPanelTotalHeight))
   const tabs = terminalPanel.tabs
   const activeTab = terminalPanel.activeTabId
 
@@ -395,6 +396,8 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
       data-bottom-panel-chrome-height={terminalChromeHeight}
       data-bottom-panel-total-height={terminalPanelTotalHeight}
       data-bottom-panel-default-height={DEFAULT_TERMINAL_HEIGHT}
+      data-bottom-panel-min-primary-content-height={MIN_PRIMARY_CONTENT_HEIGHT}
+      data-bottom-panel-primary-content-height={primaryContentHeight}
     >
       <PanelResizeHandle
         orientation="horizontal"
@@ -424,8 +427,11 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
             data-bottom-panel-default-height={DEFAULT_TERMINAL_HEIGHT}
             data-bottom-panel-min-height={MIN_TERMINAL_HEIGHT}
             data-bottom-panel-max-height={terminalLayout.maxSize}
+            data-bottom-panel-configured-max-height={MAX_TERMINAL_HEIGHT}
             data-bottom-panel-layout={terminalLayout.mode}
             data-bottom-panel-container-size={Math.round(terminalLayout.containerSize)}
+            data-bottom-panel-min-primary-content-height={MIN_PRIMARY_CONTENT_HEIGHT}
+            data-bottom-panel-primary-content-height={primaryContentHeight}
             data-bottom-panel-tabs={tabs.join(',')}
             data-bottom-panel-active-tab={activeTab}
             data-bottom-panel-tab-kinds={tabs.map((tab) => bottomPanelTabKind(tab)).join(',')}
