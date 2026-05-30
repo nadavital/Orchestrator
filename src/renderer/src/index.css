@@ -2630,12 +2630,63 @@
     color: var(--state-danger);
   }
 
+  .git-panel .environment-panel-scroll {
+    gap: 4px;
+    padding: 8px;
+  }
+
+  .git-panel .environment-card {
+    border-color: transparent;
+    background: transparent;
+  }
+
+  .git-panel .environment-card-header {
+    min-height: 28px;
+    border-bottom-color: transparent;
+    padding: 0 8px;
+  }
+
+  .git-panel .environment-row,
+  .git-panel .git-file-row,
+  .git-panel .git-commit-meta {
+    border-top-color: color-mix(in srgb, var(--border-subtle) 20%, transparent);
+  }
+
+  .git-panel [data-testid='git-summary-card'] {
+    order: 1;
+  }
+
+  .git-panel [data-testid='git-actions-card'] {
+    order: 2;
+  }
+
+  .git-panel [data-testid='git-commit-card'] {
+    order: 3;
+  }
+
+  .git-panel [data-testid='git-file-list-card'] {
+    order: 4;
+  }
+
+  .git-panel [data-testid='git-pr-card'] {
+    order: 5;
+  }
+
+  .git-panel [data-testid='git-branch-card'] {
+    order: 6;
+  }
+
+  .git-panel [data-git-focused-target='true'] {
+    border-color: color-mix(in srgb, var(--accent) 28%, transparent);
+    background: color-mix(in srgb, var(--accent) 5%, transparent);
+  }
+
   .git-actions-row {
     display: flex;
     min-width: 0;
     flex-wrap: wrap;
     gap: 4px;
-    padding: 7px 8px;
+    padding: 4px 8px 8px;
   }
 
   .git-commit-card {

@@ -2509,6 +2509,7 @@ child.on('exit', async (code) => {
           workbenchNewTabSingletonSwitch: result.workbenchNewTabSingletonSwitch === true,
           workbenchNewTabFinalCapture: result.workbenchNewTabFinalCapture === true,
           workbenchNewTabAgentsAction: result.workbenchNewTabAgentsActionWorks === true,
+          workbenchNewTabGitNotPrimary: result.workbenchNewTabActionCount === 8,
           workbenchNewTabGitAction: result.workbenchNewTabGitActionWorks === true,
           workbenchNewTabGitFileActions: result.workbenchNewTabGitFileActionsWorks === true,
           workbenchNewTabGitFileCopyPath: result.workbenchNewTabGitFileCopyPathWorks === true,

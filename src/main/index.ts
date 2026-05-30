@@ -9741,7 +9741,6 @@ function runAutomatedFocusedSurfaceSmoke(
                   newTabCardIds.includes('environment') &&
                   newTabCardIds.includes('side-chat') &&
                   newTabCardIds.includes('browser') &&
-                  newTabCardIds.includes('git') &&
                   newTabCardIds.includes('review') &&
                   newTabCardIds.includes('agents') &&
                   newTabCardIds.includes('extensions') &&
@@ -9771,8 +9770,22 @@ function runAutomatedFocusedSurfaceSmoke(
                 let workbenchNewTabSingletonSwitchWorks = false;
                 if (smokeView === 'workbench-new-tab') {
                 const gitAction = document.querySelector('[data-testid="workbench-new-tab-action-git"]');
+                let openedGitFromContext = false;
                 if (gitAction instanceof HTMLButtonElement) {
                   gitAction.click();
+                } else {
+                  const environmentAction = document.querySelector('[data-testid="workbench-new-tab-action-environment"]');
+                  if (environmentAction instanceof HTMLButtonElement) {
+                    environmentAction.click();
+                    await sleep(180);
+                    const environmentCommitRow = document.querySelector('[data-testid="codex-environment-commit"]');
+                    if (environmentCommitRow instanceof HTMLButtonElement && environmentCommitRow.disabled === false) {
+                      environmentCommitRow.click();
+                      openedGitFromContext = true;
+                    }
+                  }
+                }
+                if (gitAction instanceof HTMLButtonElement || openedGitFromContext) {
                   for (let attempt = 0; attempt < 16; attempt += 1) {
                     await sleep(100);
                     const gitPanel = document.querySelector('[data-testid="git-panel"]');
@@ -10594,6 +10607,9 @@ function runAutomatedFocusedSurfaceSmoke(
                         document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-active-tab') === 'git' &&
                         tabsBeforeGitReselect.split(',').filter((tab) => tab === 'git').length === 1 &&
                         tabsAfterGitReselect.split(',').filter((tab) => tab === 'git').length === 1;
+                    } else if (openedGitFromContext) {
+                      workbenchNewTabSingletonSwitchWorks =
+                        tabsBeforeGitReselect.split(',').filter((tab) => tab === 'git').length === 1;
                     }
                     const newTabAfterGitReselect = document.querySelector('[data-testid="workbench-panel-tabbar"] [role="tab"][data-tab-id="new-tab"]');
                     if (newTabAfterGitReselect instanceof HTMLElement) {
