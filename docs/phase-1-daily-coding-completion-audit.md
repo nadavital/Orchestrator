@@ -86,3 +86,9 @@ Verification: `npm run smoke:ui:changed:static`, `npm run smoke:ui:daily-coding 
 Non-Codex provider proof remains unavailable in the current local environment. The Claude live capability harness now runs no-quota probes before structured scenarios and skips quota-using scenarios when the probes show invalid credentials. Current elevated evidence: `claude --version` reports `2.1.51`, Claude resource probes can run, but `claude auto-mode defaults` returns API 401 invalid credentials. The harness therefore skipped `plain`, `file_ops`, `plan_mode`, and `streaming` structured scenarios instead of treating failed auth responses as product behavior.
 
 Artifact: `/Users/nadav/Desktop/Orchestrator/tmp/claude-live-capabilities/_summary/summary.json`.
+
+## 2026-05-29 Provider Settings Auth Diagnostics
+
+Provider Settings now surfaces auth failures found by no-quota provider probes, not only the provider's primary auth command. This keeps the UI honest when a provider can report a local account or version but still fail a safe runtime readiness probe before a real run. The current Claude registry includes `auto-mode defaults` as a no-quota probe, and a probe response such as API 401 invalid credentials promotes the Provider Settings Auth row to an error with the failing probe label.
+
+Verification: `npm run smoke:ui:changed:static` passed TypeScript plus all 77 provider tests, including the new auth-failure parser coverage. Elevated `npm run smoke:ui:changed:smoke` passed the focused Provider Settings smoke after the harness wait was hardened for slower diagnostics; evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-providers-1780103128372.json`.

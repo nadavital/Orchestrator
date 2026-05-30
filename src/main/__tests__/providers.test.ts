@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import type { RunEvent, RunRequest } from '../../types'
 import { PROVIDER_DEFS, deriveAgentNodes, derivePlanStatesFromMessages, getDefaultPermissionMode, getPrimaryPermissionModes, parseClaudeAgentsOutput, permissionRequestDetail } from '../../types'
-import { buildProviderCommandForRuntime, claudeMcpServerNames, codexRuntimePolicyConfig, getProviderDiagnostics, getProviderDiagnosticsAsync, getProviderRuntimeInfo, PROVIDERS, providerSpawnEnv, resolveProviderBinary, resolveProviderPermissionRuntimeContext, runProviderCommandSurface, runProviderCommandSurfaceAsync } from '../providers'
+import { buildProviderCommandForRuntime, claudeMcpServerNames, codexRuntimePolicyConfig, getProviderDiagnostics, getProviderDiagnosticsAsync, getProviderRuntimeInfo, providerAuthFailureMessage, PROVIDERS, providerSpawnEnv, resolveProviderBinary, resolveProviderPermissionRuntimeContext, runProviderCommandSurface, runProviderCommandSurfaceAsync } from '../providers'
 import { eventsToMessages } from '../runEvents'
 
 const ABSTRACT_CAPABILITY_KEYS = [
@@ -132,6 +132,7 @@ test('runtime info exposes provider-specific capability registry and no-quota pr
   assert.ok(runtimeInfo.claude.registry.commandSurfaces.some((surface) => surface.id === 'mcp-details' && surface.command.join(' ') === 'mcp get'))
   assert.ok(runtimeInfo.claude.registry.commandSurfaces.some((surface) => surface.id === 'plugin-list' && surface.command.join(' ') === 'plugin list --json'))
   assert.ok(runtimeInfo.claude.registry.commandSurfaces.some((surface) => surface.id === 'ultrareview-json' && surface.quota === 'may-use-quota'))
+  assert.ok(runtimeInfo.claude.registry.probes.some((probe) => probe.id === 'auto-mode-defaults' && probe.quota === 'none'))
   assert.ok(runtimeInfo.codex.registry.features.some((feature) => feature.id === 'multi-agent'))
   assert.ok(runtimeInfo.copilot.registry.features.some((feature) => feature.id === 'subagents'))
   assert.ok(runtimeInfo.cursor.registry.features.some((feature) => feature.id === 'worktrees'))
@@ -148,6 +149,14 @@ test('runtime info exposes provider-specific capability registry and no-quota pr
   assert.ok(runtimeInfo.cursor.registry.gaps.some((gap) => gap.id === 'cursor-keychain-models' && gap.status === 'blocked'))
   assert.ok(runtimeInfo.codex.registry.slashCommands.some((command) => command.name === '/review' && command.runtime === 'headless'))
   assert.ok(runtimeInfo.cursor.registry.slashCommands.some((command) => command.name === '/plan' && command.prompt))
+})
+
+test('provider auth diagnostics recognize API credential failures from no-quota probes', () => {
+  assert.equal(
+    providerAuthFailureMessage('Failed to authenticate. API Error: 401 {"type":"error","error":{"type":"authentication_error","message":"Invalid authentication credentials"}}'),
+    'Failed to authenticate. API Error: 401 {"type":"error","error":{"type":"authentication_error","message":"Invalid authentication credentials"}}'
+  )
+  assert.equal(providerAuthFailureMessage('2.1.51 (Claude Code)'), null)
 })
 
 test('provider CLI spec covers every configured provider with evidence levels', () => {

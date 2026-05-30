@@ -840,7 +840,8 @@ const providerRegistries: Record<string, ProviderCapabilityRegistry> = {
       probe('agents-help', 'Agents', ['agents', '--help'], 'help'),
       probe('mcp-help', 'MCP', ['mcp', '--help'], 'mcp'),
       probe('plugin-help', 'Plugins', ['plugin', '--help'], 'extensions'),
-      probe('ultrareview-help', 'Ultrareview', ['ultrareview', '--help'], 'features')
+      probe('ultrareview-help', 'Ultrareview', ['ultrareview', '--help'], 'features'),
+      probe('auto-mode-defaults', 'Auto mode defaults', ['auto-mode', 'defaults'], 'features')
     ],
     commandSurfaces: [
       commandSurface('auth-status', 'Auth status', 'runtime', ['auth', 'status'], 'headless', 'none', false, 'settings', { featureId: 'auth' }),
@@ -1189,9 +1190,21 @@ async function runProbeDefinitionsAsync(binary: string | null, definitions: Prov
   }))
 }
 
+export function providerAuthFailureMessage(output: string): string | null {
+  const firstLine = output.trim().split('\n')[0] ?? ''
+  if (/authentication required|not logged in|login|api key|unauthorized|authentication_error|invalid authentication credentials|failed to authenticate/i.test(output)) {
+    return firstLine || 'Provider authentication failed.'
+  }
+  if (/SecItemCopyMatching|keychain/i.test(output)) {
+    return 'Keychain access failed in this process.'
+  }
+  return null
+}
+
 function authStatusFromProbe(providerId: string, probe: { ok: boolean; output: string }): ProviderDiagnosticInfo['auth'] {
-  if (/authentication required|not logged in|login|api key|unauthorized/i.test(probe.output)) {
-    return { status: 'error', message: probe.output }
+  const authFailure = providerAuthFailureMessage(probe.output)
+  if (authFailure) {
+    return { status: 'error', message: authFailure }
   }
   if (/SecItemCopyMatching|keychain/i.test(probe.output)) {
     return { status: 'error', message: 'Keychain access failed in this process.' }
@@ -1203,6 +1216,16 @@ function authStatusFromProbe(providerId: string, probe: { ok: boolean; output: s
     return { status: 'unknown', message: 'CLI responds; auth is verified by live smoke.' }
   }
   return { status: 'unknown', message: 'Version probe failed before auth could be verified.' }
+}
+
+function authStatusFromProviderProbes(probes: ProviderProbeResult[]): ProviderDiagnosticInfo['auth'] | null {
+  const authProbe = probes.find((probe) => providerAuthFailureMessage(probe.output) !== null)
+  if (!authProbe) return null
+  const message = providerAuthFailureMessage(authProbe.output) ?? 'Provider authentication failed.'
+  return {
+    status: 'error',
+    message: `${authProbe.label}: ${message}`
+  }
 }
 
 function usageStatus(providerId: string): ProviderDiagnosticInfo['usage'] {
@@ -3855,6 +3878,8 @@ export function getProviderDiagnostics(): Record<string, ProviderDiagnosticInfo>
           : 'No local model catalog is configured.'
       }
       const specific = providerSpecificDiagnostics(id, binary, fallbackAuth, fallbackModels)
+      const probes = runProbeDefinitions(binary, registry.probes)
+      const probeAuth = authStatusFromProviderProbes(probes)
 
       return [
         id,
@@ -3868,7 +3893,7 @@ export function getProviderDiagnostics(): Record<string, ProviderDiagnosticInfo>
               ? { status: 'ok', value: versionProbe.output || 'ok' }
               : { status: 'error', message: versionProbe.output }
             : { status: 'unknown', message: 'Install the CLI before probing version.' },
-          auth: specific.auth,
+          auth: probeAuth ?? specific.auth,
           models: specific.models,
           usage: usageStatus(id),
           liveSmoke: {
@@ -3877,7 +3902,7 @@ export function getProviderDiagnostics(): Record<string, ProviderDiagnosticInfo>
           },
           runtimeConnections: listProviderRuntimeConnections({ providerId: id, limit: 8 }),
           runtimeEvents: listProviderRuntimeDebugEvents({ providerId: id, limit: 8 }),
-          probes: runProbeDefinitions(binary, registry.probes)
+          probes
         } satisfies ProviderDiagnosticInfo
       ]
     })
@@ -3909,6 +3934,7 @@ export async function getProviderDiagnosticsAsync(providerId?: string): Promise<
       providerSpecificDiagnosticsAsync(id, binary, fallbackAuth, fallbackModels),
       runProbeDefinitionsAsync(binary, registry.probes)
     ])
+    const probeAuth = authStatusFromProviderProbes(probes)
 
     return [
       id,
@@ -3922,7 +3948,7 @@ export async function getProviderDiagnosticsAsync(providerId?: string): Promise<
             ? { status: 'ok', value: versionProbe.output || 'ok' }
             : { status: 'error', message: versionProbe.output }
           : { status: 'unknown', message: 'Install the CLI before probing version.' },
-        auth: specific.auth,
+        auth: probeAuth ?? specific.auth,
         models: specific.models,
         usage: usageStatus(id),
         liveSmoke: {

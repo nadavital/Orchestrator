@@ -1008,7 +1008,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               var settingsProviderRuntimeCopyStatusA11yWorks = false;
               var settingsProviderRuntimeAddToChatWorks = false;
               var settingsProviderRuntimeAddToChatStatusA11yWorks = false;
-              for (let index = 0; index < 16; index += 1) {
+              for (let index = 0; index < 50; index += 1) {
                 if (document.querySelector('[data-testid="provider-runtime-events-card"]') instanceof HTMLElement) break;
                 await sleep(100);
               }

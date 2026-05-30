@@ -51,6 +51,8 @@ Use this when adding or deepening Claude, Codex, Cursor, Copilot, or a future co
 | `npm run live:codex-review-appserver` | Live Codex `turn/diff/updated` and `thread/rollback` behavior. | Emits provider session/turn diff events with no checkpoint id; `thread/rollback` rolls back thread history but not workspace git diff. |
 | `pnpm run live:codex-review-start` | Native Codex app-server `review/start` behavior. | Proves uncommitted inline, base-branch inline, commit inline, and custom-instruction inline review targets start real review turns and emit typed `review.mode.changed` events. Use only for Review slices, not routine UI smoke; normal UI checks should use the focused Review smoke. |
 
+Provider Settings should surface auth failures from any safe no-quota probe, not only a provider's explicit auth command. For Claude, `auto-mode defaults` is a no-quota readiness probe; API 401 invalid credentials there should make the Auth row show an error before the user starts a run.
+
 ## Claude Integration Notes
 
 Claude is currently a headless CLI provider in Orchestrator. Its special handling lives mostly in:
