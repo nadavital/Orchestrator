@@ -62,6 +62,7 @@
     "smoke:ui:changed:static": "node scripts/suggest-ui-smoke-targets.mjs --run --static-only",
     "smoke:ui:changed:smoke": "node scripts/suggest-ui-smoke-targets.mjs --run --smoke-only",
     "smoke:ui:daily-coding": "node scripts/run-daily-coding-smoke.mjs",
+    "smoke:ui:daily-coding:summary": "node scripts/run-daily-coding-smoke.mjs --summary",
     "smoke:visual": "node scripts/run-visual-regression.mjs",
     "smoke:visual:side-panels": "node scripts/run-side-panel-visual-inventory.mjs",
     "compare:codex-side-panels": "node scripts/run-codex-side-panel-comparison.mjs",

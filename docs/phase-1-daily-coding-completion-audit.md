@@ -70,6 +70,8 @@ Verification: `node -c scripts/run-daily-coding-smoke.mjs`, `npm run smoke:ui:da
 
 2026-05-30 follow-up: daily-coding manifests now include `targetCoverage` for both the core and full Phase 1 target maps, and the CLI summary prints whether the run completed core/full coverage plus the missing target list. This keeps focused `--only` runs useful for fast iteration without letting them be mistaken for a full Phase 1 readiness proof.
 
+2026-05-30 aggregate follow-up: `pnpm run smoke:ui:daily-coding:summary` now reads recent daily-coding manifests without launching Electron and reports aggregate core/full coverage from passing target results. Current verification considered 21 recent manifests and reported `full.complete=true` with all 17 targets covered. Use this before rerunning a slow full suite; if the aggregate says full coverage is complete from recent focused runs, the next useful work is dogfood/provider proof rather than another local smoke loop.
+
 Full milestone result: elevated `npm run smoke:ui:daily-coding -- --full --keep-going` passed all 17 daily-coding targets with no failed surfaces. Manifest: `/Users/nadav/Desktop/Orchestrator/tmp/daily-coding-smoke/daily-coding-smoke-1780100822131.json`. This is strong local fixture evidence for Phase 1 daily-coding readiness across header/session routing, composer/transcript, permission/user-input, Workbench/Git/Agent Activity, Environment, Review, Files, Browser, Terminal, Settings, provider Settings, and side chat. It does not close provider-backed live gaps or Phase 2 renderer fidelity.
 
 ## 2026-05-29 Packaged Daily-Coding Check

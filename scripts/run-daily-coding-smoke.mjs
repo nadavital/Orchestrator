@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawnSync } from 'child_process'
-import { mkdirSync, writeFileSync } from 'fs'
+import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'fs'
 import { join, resolve } from 'path'
 import { fileURLToPath } from 'url'
 
@@ -66,6 +66,17 @@ function main() {
 
   const outputDir = resolve(options.outDir ?? join(root, 'tmp', 'daily-coding-smoke'))
   mkdirSync(outputDir, { recursive: true })
+
+  if (options.summary) {
+    const manifests = readDailyCodingManifests(outputDir, options.sinceHours)
+    const summary = aggregateDailyCodingCoverage(manifests)
+    console.log(JSON.stringify({
+      outputDir,
+      sinceHours: options.sinceHours,
+      ...summary
+    }, null, 2))
+    process.exit(summary.full.complete ? 0 : 1)
+  }
 
   const startedAt = Date.now()
   const results = []
@@ -161,7 +172,9 @@ function parseArgs(args) {
     list: false,
     outDir: undefined,
     packaged: false,
+    sinceHours: 72,
     slowTargetThresholdMs: DEFAULT_SLOW_TARGET_THRESHOLD_MS,
+    summary: false,
     targets: [],
     verbose: false
   }
@@ -172,6 +185,9 @@ function parseArgs(args) {
     else if (arg === '--keep-going') parsed.keepGoing = true
     else if (arg === '--list') parsed.list = true
     else if (arg === '--packaged') parsed.packaged = true
+    else if (arg === '--summary') parsed.summary = true
+    else if (arg === '--since-hours') parsed.sinceHours = parsePositiveInteger(args[++index], '--since-hours')
+    else if (arg.startsWith('--since-hours=')) parsed.sinceHours = parsePositiveInteger(arg.slice('--since-hours='.length), '--since-hours')
     else if (arg === '--slow-threshold-ms') parsed.slowTargetThresholdMs = parsePositiveInteger(args[++index], '--slow-threshold-ms')
     else if (arg.startsWith('--slow-threshold-ms=')) parsed.slowTargetThresholdMs = parsePositiveInteger(arg.slice('--slow-threshold-ms='.length), '--slow-threshold-ms')
     else if (arg === '--verbose') parsed.verbose = true
@@ -225,6 +241,87 @@ export function targetCoverageForTargets(targets) {
     core: targetSetCoverage(targetSets.core, selected),
     full: targetSetCoverage(targetSets.full, selected)
   }
+}
+
+export function aggregateDailyCodingCoverage(manifests) {
+  const passedByTarget = new Map()
+  const considered = Array.isArray(manifests) ? manifests : []
+  for (const manifest of considered) {
+    const manifestPath = typeof manifest.manifestPath === 'string' ? manifest.manifestPath : null
+    const results = Array.isArray(manifest.results) ? manifest.results : []
+    const targetStatuses = results.length > 0
+      ? results.map((result) => ({ target: normalizeTargetFlag(result.target), status: result.status, durationMs: result.durationMs }))
+      : Array.isArray(manifest.targets)
+        ? manifest.targets.map((target) => ({ target: normalizeTargetFlag(target), status: manifest.passed === true ? 0 : 1, durationMs: undefined }))
+        : []
+    for (const result of targetStatuses) {
+      if (result.status !== 0 || !allowedTargets.has(result.target)) continue
+      const previous = passedByTarget.get(result.target)
+      const candidate = {
+        target: result.target,
+        manifestPath,
+        createdAt: typeof manifest.createdAt === 'string' ? manifest.createdAt : null,
+        mode: typeof manifest.mode === 'string' ? manifest.mode : null,
+        set: typeof manifest.set === 'string' ? manifest.set : null,
+        durationMs: Number.isFinite(result.durationMs) ? result.durationMs : null
+      }
+      if (!previous || compareCreatedAt(candidate.createdAt, previous.createdAt) >= 0) {
+        passedByTarget.set(result.target, candidate)
+      }
+    }
+  }
+  const coveredTargets = [...passedByTarget.keys()].sort((left, right) => targetSortIndex(left) - targetSortIndex(right))
+  const targetCoverage = targetCoverageForTargets(coveredTargets)
+  return {
+    generatedAt: new Date().toISOString(),
+    consideredManifestCount: considered.length,
+    passedTargetCount: coveredTargets.length,
+    core: {
+      ...targetCoverage.core,
+      latestPassed: latestPassedForTargets(targetSets.core, passedByTarget)
+    },
+    full: {
+      ...targetCoverage.full,
+      latestPassed: latestPassedForTargets(targetSets.full, passedByTarget)
+    }
+  }
+}
+
+function latestPassedForTargets(targets, passedByTarget) {
+  return targets
+    .map((target) => passedByTarget.get(target))
+    .filter(Boolean)
+}
+
+function targetSortIndex(target) {
+  const index = targetSets.full.indexOf(target)
+  return index === -1 ? Number.MAX_SAFE_INTEGER : index
+}
+
+function compareCreatedAt(left, right) {
+  const leftTime = Date.parse(left ?? '')
+  const rightTime = Date.parse(right ?? '')
+  if (Number.isNaN(leftTime) && Number.isNaN(rightTime)) return 0
+  if (Number.isNaN(leftTime)) return -1
+  if (Number.isNaN(rightTime)) return 1
+  return leftTime - rightTime
+}
+
+function readDailyCodingManifests(outputDir, sinceHours) {
+  const cutoffMs = Date.now() - (sinceHours * 60 * 60 * 1000)
+  return readdirSync(outputDir)
+    .filter((name) => /^daily-coding-smoke-\d+\.json$/.test(name))
+    .map((name) => {
+      const manifestPath = join(outputDir, name)
+      const stats = statSync(manifestPath)
+      return { manifestPath, mtimeMs: stats.mtimeMs }
+    })
+    .filter((entry) => entry.mtimeMs >= cutoffMs)
+    .sort((left, right) => left.mtimeMs - right.mtimeMs)
+    .map((entry) => {
+      const manifest = JSON.parse(readFileSync(entry.manifestPath, 'utf8'))
+      return { ...manifest, manifestPath: entry.manifestPath }
+    })
 }
 
 function targetSetCoverage(requiredTargets, selectedTargets) {
