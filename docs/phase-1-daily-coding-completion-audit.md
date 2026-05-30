@@ -153,6 +153,12 @@ Current local Phase 1 daily-coding evidence is now broad enough to stop treating
 
 Completion boundary: this proves local daily-coding readiness for Phase 1 fixture-backed workflows, not full Codex/provider parity. The latest comparison report still has 19 remaining gaps: 7 live Codex UI proof gaps, 8 provider-adapter gaps, 2 provider-proof gaps, 1 Browser runtime-signal gap, and 1 Phase 2 renderer-fidelity gap. There are still no current local `mismatch`, `needsSmoke`, or `needsProof` buckets. Next work should therefore come from fresh real dogfood failures, current provider/live proof opportunities, or explicit user-prioritized product gaps, not another local action/status micro-pass.
 
+## 2026-05-30 Comparison Actionability Triage
+
+`npm run compare:codex-side-panels -- --no-fail` now writes `actionableGapSummary` into `tmp/codex-side-panel-comparison/comparison-report.json` and the Markdown report. The current summary is `localActionable=0`, `liveProof=7`, `providerAdapter=8`, `providerProof=2`, `runtimeSignal=1`, and `phase2Renderer=1`, with the recommendation: local UI parity has no actionable gap in this report; next work should be fresh dogfood, authenticated live proof, provider contracts, or explicit Phase 2 renderer work.
+
+This is the current anti-loop gate. If the comparison keeps reporting `localActionable=0`, do not start another broad local side-panel polish pass unless fresh dogfood or user-visible runtime behavior contradicts the report.
+
 ## 2026-05-30 Live Codex UI Capture Boundary
 
 Elevated `npm run compare:codex-side-panels -- --capture-live-codex --no-fail` refreshed `tmp/codex-side-panel-comparison/comparison-report.json` at `2026-05-30T02:26:03.862Z` with `mismatch=0`, `needsSmoke=0`, `needsProof=0`, `blocked=8`, and 19 remaining parity gaps. The live capture path found a visible Codex window through CoreGraphics (`id=65887`, bounds `0,30,1384,1320`), but `screencapture -l65887` failed with `could not create image from window`, region capture failed with `could not create image from rect`, and the full-screen fallback produced `/private/tmp/codex-current-screen.png` as a 5120x2880 all-black image (`nonBlank=false`, `nonBlackRatio=0`, `luminanceStdDev=0`, `colorBucketCount=1`).

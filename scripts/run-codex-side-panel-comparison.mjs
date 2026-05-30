@@ -72,6 +72,7 @@ const report = {
   remainingParityGaps: summary.remainingParityGaps,
   remainingParityGapCount: summary.remainingParityGaps.length,
   remainingParityGapCounts: summary.remainingParityGapCounts,
+  actionableGapSummary: summary.actionableGapSummary,
   optionalFileEvidenceFailures: summary.optionalFileEvidenceFailures,
   rows,
   captures: (manifest?.captures ?? []).map((capture) => ({
@@ -111,6 +112,7 @@ console.log(JSON.stringify({
   optionalFileEvidenceFailures: summary.optionalFileEvidenceFailures,
   remainingParityGapCount: summary.remainingParityGaps.length,
   remainingParityGapCounts: summary.remainingParityGapCounts,
+  actionableGapSummary: summary.actionableGapSummary,
   mismatchCount: summary.statusCounts.mismatch ?? 0,
   blockedCount: summary.statusCounts.blocked ?? 0,
   needsSmokeCount: summary.statusCounts['needs-smoke'] ?? 0,
@@ -1045,28 +1047,101 @@ function summarizeRows(rows, manifest) {
   }
   const remainingParityGaps = []
   const remainingParityGapCounts = {}
+  const actionableGapSummary = {
+    localActionable: 0,
+    liveProof: 0,
+    providerAdapter: 0,
+    providerProof: 0,
+    runtimeSignal: 0,
+    phase2Renderer: 0,
+    unknown: 0,
+    recommendedNextWork: ''
+  }
   for (const row of rows) {
     for (const issue of row.openIssues ?? []) {
       const category = issue.category ?? 'uncategorized'
+      const disposition = classifyRemainingGap(category)
       remainingParityGapCounts[category] = (remainingParityGapCounts[category] ?? 0) + 1
+      actionableGapSummary[disposition.summaryKey] = (actionableGapSummary[disposition.summaryKey] ?? 0) + 1
       remainingParityGaps.push({
         rowId: row.id,
         area: row.area,
         category,
+        disposition: disposition.label,
+        nextAction: disposition.nextAction,
         issue: issue.issue,
         requiredEvidence: issue.requiredEvidence
       })
     }
   }
+  actionableGapSummary.recommendedNextWork = recommendedNextWork(actionableGapSummary)
   return {
     statusCounts,
     optionalFileEvidenceFailures,
     remainingParityGaps,
     remainingParityGapCounts,
+    actionableGapSummary,
     smokeCaptures: manifest?.captures?.length ?? 0,
     smokeFailures: manifest?.failed ?? [],
     smokeFailureKinds
   }
+}
+
+function classifyRemainingGap(category) {
+  switch (category) {
+    case 'live-codex-ui':
+      return {
+        summaryKey: 'liveProof',
+        label: 'live-proof',
+        nextAction: 'Wait for a nonblank live Codex capture route or manual side-by-side evidence; do not spend local UI polish time on this row.'
+      }
+    case 'provider-adapter':
+      return {
+        summaryKey: 'providerAdapter',
+        label: 'provider-contract',
+        nextAction: 'Implement only after a provider event, API, CLI, or file contract is available.'
+      }
+    case 'provider-proof':
+      return {
+        summaryKey: 'providerProof',
+        label: 'provider-proof',
+        nextAction: 'Run an authenticated live proof when credentials and a safe disposable target are available.'
+      }
+    case 'runtime-signal':
+      return {
+        summaryKey: 'runtimeSignal',
+        label: 'runtime-signal',
+        nextAction: 'Keep the UI boundary explicit until the provider emits native runtime events.'
+      }
+    case 'renderer-fidelity':
+      return {
+        summaryKey: 'phase2Renderer',
+        label: 'phase-2-renderer',
+        nextAction: 'Track as Phase 2 unless a coding workflow is blocked by this renderer.'
+      }
+    default:
+      return {
+        summaryKey: 'localActionable',
+        label: 'local-actionable',
+        nextAction: 'Investigate as a bounded local implementation or smoke-coverage gap.'
+      }
+  }
+}
+
+function recommendedNextWork(summary) {
+  if ((summary.localActionable ?? 0) > 0) {
+    return 'Start with the local-actionable gaps before rerunning broad parity inventories.'
+  }
+  if ((summary.providerProof ?? 0) > 0 || (summary.liveProof ?? 0) > 0 || (summary.runtimeSignal ?? 0) > 0) {
+    return 'Local UI parity has no actionable gap in this report; next work should be fresh dogfood, authenticated live proof, provider contracts, or explicit Phase 2 renderer work.'
+  }
+  if ((summary.providerAdapter ?? 0) > 0) {
+    return 'Remaining work depends on provider contracts; do not implement speculative adapters.'
+  }
+  if ((summary.phase2Renderer ?? 0) > 0) {
+    return 'Only Phase 2 renderer fidelity remains in this report.'
+  }
+  return 'No remaining parity gaps are recorded.'
 }
 
 function summarizeFileEvidenceFailure(file) {
@@ -1339,6 +1414,8 @@ function renderMarkdown(report) {
   }
   lines.push(`- Remaining parity gaps: ${report.summary.remainingParityGaps.length === 0 ? 'none' : report.summary.remainingParityGaps.length}`)
   lines.push(`- Remaining parity gap categories: ${formatStatusCounts(report.summary.remainingParityGapCounts)}`)
+  lines.push(`- Actionable gap triage: ${formatActionableGapSummary(report.summary.actionableGapSummary)}`)
+  lines.push(`- Recommended next work: ${report.summary.actionableGapSummary.recommendedNextWork}`)
   if (report.liveCaptureAttempt) {
     lines.push(`- Live Codex capture: ${summarizeLiveCaptureAttempt(report.liveCaptureAttempt)}`)
   }
@@ -1348,14 +1425,16 @@ function renderMarkdown(report) {
   if (report.summary.remainingParityGaps.length > 0) {
     lines.push('## Remaining Parity Gaps')
     lines.push('')
-    lines.push('| Area | Category | Gap | Required evidence |')
-    lines.push('| --- | --- | --- | --- |')
+    lines.push('| Area | Category | Disposition | Gap | Required evidence | Next action |')
+    lines.push('| --- | --- | --- | --- | --- | --- |')
     for (const gap of report.summary.remainingParityGaps) {
       lines.push([
         gap.area,
         gap.category,
+        gap.disposition,
         gap.issue,
-        gap.requiredEvidence
+        gap.requiredEvidence,
+        gap.nextAction
       ].map(markdownCell).join(' | ').replace(/^/, '| ').replace(/$/, ' |'))
     }
     lines.push('')
@@ -1475,6 +1554,20 @@ function summarizeSmoke(smoke) {
 
 function formatStatusCounts(counts) {
   const entries = Object.entries(counts ?? {})
+  if (entries.length === 0) return 'none'
+  return entries.map(([key, value]) => `${key}=${value}`).join(', ')
+}
+
+function formatActionableGapSummary(summary) {
+  if (!summary) return 'none'
+  const entries = [
+    ['local-actionable', summary.localActionable],
+    ['live-proof', summary.liveProof],
+    ['provider-adapter', summary.providerAdapter],
+    ['provider-proof', summary.providerProof],
+    ['runtime-signal', summary.runtimeSignal],
+    ['phase-2-renderer', summary.phase2Renderer]
+  ].filter(([, value]) => Number(value) > 0)
   if (entries.length === 0) return 'none'
   return entries.map(([key, value]) => `${key}=${value}`).join(', ')
 }
