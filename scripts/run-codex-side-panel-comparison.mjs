@@ -583,25 +583,27 @@ function buildContracts() {
       captureIds: ['chat-sidebar'],
       codexAssetNames: ['sidebar-project-group-signals-', 'sidebar-thread-keys-', 'sidebar-thread-list-signals-', 'pinned-threads-query-', 'set-pinned-thread-'],
       sourceEvidence: [
-        { path: 'scripts/codex-pinned-threads-live-proof.mjs', terms: ['set-thread-pinned', 'set-pinned-threads-order', 'list-pinned-threads', 'cleanupDisposableThreads'] },
+        { path: 'scripts/codex-pinned-threads-live-proof.mjs', terms: ['thread/list', 'set-thread-pinned', 'set-pinned-threads-order', 'pinMutationBoundaryProven'] },
         { path: 'package.json', terms: ['live:codex-pinned-threads'] }
       ],
       artifactEvidence: [
         {
           path: 'tmp/codex-pinned-threads-live-proof/result.json',
           checks: [
-            { path: 'ok', equals: false },
-            { path: 'failedMethod', equals: 'list-pinned-threads' },
-            { path: 'requestFailureMethods', includes: 'list-pinned-threads' },
+            { path: 'ok', equals: true },
+            { path: 'status', equals: 'unavailable' },
+            { path: 'threadListSupported', equals: true },
+            { path: 'pinMutationBoundaryProven', equals: true },
             { path: 'unsupportedMethods', includes: 'list-pinned-threads' },
-            { path: 'reason', includes: 'unknown variant' },
-            { path: 'methods', includes: 'list-pinned-threads' }
+            { path: 'unsupportedMethods', includes: 'set-thread-pinned' },
+            { path: 'unsupportedMethods', includes: 'set-pinned-threads-order' },
+            { path: 'methods', includes: 'thread/list' }
           ]
         }
       ],
       smokeChecks: ['providerPinnedMetadata', 'sidebarProviderPinBoundary', 'providerWorktreeMetadata', 'sidebarConnectionGrouping', 'sidebarPinnedDragReorder', 'sidebarProviderPinnedOrderPreserved', 'sidebarRowDensityCodexLike', 'sessionRowsTextFirst', 'sidebarPinnedRowsTextFirst', 'chatsHeaderTextFirst', 'sidebarFooterCollapseAffordance'],
       statusWhenCovered: 'fixture-covered',
-      caveat: 'Provider thread-list projection, local provider-pinned ordering preservation, local pin order, Codex-compact row density, text-first session rows, text-first top-level Chats section header, and the footer collapse affordance are covered. Codex bundle chunks expose list-pinned-threads, set-thread-pinned, and set-pinned-threads-order, but the current live stdio app-server proof records list-pinned-threads as the failed JSON-RPC method with an unknown-variant error, so Orchestrator keeps provider-projected pin actions read-only instead of exposing a broken mutation path.',
+      caveat: 'Provider thread-list projection, local provider-pinned ordering preservation, local pin order, Codex-compact row density, text-first session rows, text-first top-level Chats section header, and the footer collapse affordance are covered. Codex bundle chunks expose list-pinned-threads, set-thread-pinned, and set-pinned-threads-order, but the current live stdio app-server proof records thread/list as supported while all pinned-thread mutation methods return unknown-variant errors, so Orchestrator keeps provider-projected pin actions read-only instead of exposing a broken mutation path.',
       next: 'Re-enable Codex provider pin mutations only when the live app-server exposes a safe list/set/order boundary, then add non-Codex provider pin adapters when those providers expose comparable state.',
       openIssues: [
         {
