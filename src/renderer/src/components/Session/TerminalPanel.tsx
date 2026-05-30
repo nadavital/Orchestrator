@@ -472,16 +472,7 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
                       {terminalActionStatus.text}
                     </span>
                   )}
-                  <IconButton icon="plus" label="New terminal" size="sm" variant="toolbar" onClick={addTab} />
-                  <IconButton
-                    icon="panelRight"
-                    label="Open tab in bottom panel"
-                    size="sm"
-                    variant="toolbar"
-                    active={bottomTabMenuOpen}
-                    dataTestId="bottom-panel-open-tab-menu"
-                    onClick={() => setBottomTabMenuOpen((open) => !open)}
-                  />
+                  <IconButton icon="terminal" label="New terminal" size="sm" variant="toolbar" onClick={addTab} />
                   <IconButton
                     icon="plan"
                     label="Open Plan in bottom panel"
@@ -491,41 +482,89 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
                     dataTestId="bottom-panel-open-plan"
                     onClick={openPlanTab}
                   />
-                  <ToolbarButton
+                  <IconButton
+                    icon="browser"
+                    label="Open Browser in bottom panel"
+                    size="sm"
+                    variant="toolbar"
+                    active={activeTab === 'browser'}
+                    dataTestId="bottom-panel-open-browser-quick"
+                    onClick={() => openBottomWorkbenchTab('browser', 'browser', 'Browser')}
+                  />
+                  <IconButton
+                    icon="folder"
+                    label="Open Files in bottom panel"
+                    size="sm"
+                    variant="toolbar"
+                    active={activeTab === 'files'}
+                    dataTestId="bottom-panel-open-files-quick"
+                    onClick={() => openBottomWorkbenchTab('files', 'files', 'Files')}
+                  />
+                  <IconButton
+                    icon="diff"
+                    label="Open Review in bottom panel"
+                    size="sm"
+                    variant="toolbar"
+                    active={activeTab === 'diff'}
+                    dataTestId="bottom-panel-open-review-quick"
+                    onClick={() => openBottomWorkbenchTab('diff', 'diff', 'Review')}
+                  />
+                  <IconButton
                     icon="chat"
-                    label="Add terminal output to chat"
+                    label="Open Side chat in bottom panel"
                     size="sm"
                     variant="toolbar"
-                    disabled={activeTabKind !== 'terminal' || !activeTerminalOutput.trim()}
-                    dataTestId="terminal-add-output-to-chat"
-                    onClick={addActiveTerminalOutputToChat}
+                    active={activeTabKind === 'sidechat' || activeTab === 'side'}
+                    dataTestId="bottom-panel-open-side-chat-quick"
+                    onClick={openSideChatInBottomPanel}
                   />
-                  <ToolbarButton
-                    icon="copy"
-                    label="Add selected terminal output to chat"
+                  <IconButton
+                    icon="ellipsis"
+                    label="More bottom panel tabs"
                     size="sm"
                     variant="toolbar"
-                    disabled={activeTabKind !== 'terminal' || !activeTerminalSelection.trim()}
-                    dataTestId="terminal-add-selected-output-to-chat"
-                    onClick={addActiveTerminalSelectionToChat}
+                    active={bottomTabMenuOpen}
+                    dataTestId="bottom-panel-open-tab-menu"
+                    onClick={() => setBottomTabMenuOpen((open) => !open)}
                   />
-                  <ToolbarButton
-                    icon="terminal"
-                    label="Add latest command output to chat"
-                    size="sm"
-                    variant="toolbar"
-                    disabled={activeTabKind !== 'terminal' || !activeCommandState || !activeCommandOutput.trim()}
-                    dataTestId="terminal-add-command-output-to-chat"
-                    onClick={addActiveTerminalCommandOutputToChat}
-                  />
-                  <ToolbarButton
-                    icon="eraser"
-                    label="Clear terminal"
-                    size="sm"
-                    variant="toolbar"
-                    disabled={activeTabKind !== 'terminal'}
-                    onClick={clearActiveTerminal}
-                  />
+                  {activeTabKind === 'terminal' && (
+                    <>
+                      <ToolbarButton
+                        icon="chat"
+                        label="Add terminal output to chat"
+                        size="sm"
+                        variant="toolbar"
+                        disabled={!activeTerminalOutput.trim()}
+                        dataTestId="terminal-add-output-to-chat"
+                        onClick={addActiveTerminalOutputToChat}
+                      />
+                      <ToolbarButton
+                        icon="copy"
+                        label="Add selected terminal output to chat"
+                        size="sm"
+                        variant="toolbar"
+                        disabled={!activeTerminalSelection.trim()}
+                        dataTestId="terminal-add-selected-output-to-chat"
+                        onClick={addActiveTerminalSelectionToChat}
+                      />
+                      <ToolbarButton
+                        icon="terminal"
+                        label="Add latest command output to chat"
+                        size="sm"
+                        variant="toolbar"
+                        disabled={!activeCommandState || !activeCommandOutput.trim()}
+                        dataTestId="terminal-add-command-output-to-chat"
+                        onClick={addActiveTerminalCommandOutputToChat}
+                      />
+                      <ToolbarButton
+                        icon="eraser"
+                        label="Clear terminal"
+                        size="sm"
+                        variant="toolbar"
+                        onClick={clearActiveTerminal}
+                      />
+                    </>
+                  )}
                   <ToolbarButton
                     icon="close"
                     label="Hide bottom panel"
