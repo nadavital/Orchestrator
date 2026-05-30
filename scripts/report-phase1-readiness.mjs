@@ -34,6 +34,10 @@ export function buildPhase1ReadinessReport({ rootDir = root, sinceHours = 72, no
   const remainingParityGapCounts = comparison?.remainingParityGapCounts ?? {}
   const remainingParityGapCount = numberValue(comparison?.remainingParityGapCount) ?? 0
   const localActionable = numberValue(actionableGapSummary?.localActionable)
+  const localImplementationGapCount = numberValue(actionableGapSummary?.localImplementationGapCount) ?? localActionable ?? null
+  const externalOrDeferredGapCount = numberValue(actionableGapSummary?.externalOrDeferredGapCount) ??
+    externalOrDeferredCountFromSummary(actionableGapSummary) ??
+    externalOrDeferredCountFromCategories(remainingParityGapCounts)
   const localComparisonReady =
     localActionable === 0 &&
     statusCount(statusCounts, 'mismatch') === 0 &&
@@ -72,6 +76,8 @@ export function buildPhase1ReadinessReport({ rootDir = root, sinceHours = 72, no
           statusCounts,
           remainingParityGapCount,
           remainingParityGapCounts,
+          localImplementationGapCount,
+          externalOrDeferredGapCount,
           remainingParityGaps: Array.isArray(comparison.remainingParityGaps) ? comparison.remainingParityGaps : [],
           actionableGapSummary
         }
@@ -190,6 +196,8 @@ function printMarkdown(report, { details = false } = {}) {
   console.log(`- Daily-coding full coverage: ${report.dailyCoding.fullComplete ? 'yes' : 'no'} (${report.dailyCoding.consideredManifestCount} manifests)`)
   console.log(`- Slow daily-coding targets: ${formatSlowTargets(report.dailyCoding.slowFullTargets, report.dailyCoding.slowTargetThresholdMs)}`)
   console.log(`- Comparison local-ready: ${report.comparison.localComparisonReady ? 'yes' : 'no'}`)
+  console.log(`- Local implementation gaps: ${formatNullableCount(report.comparison.localImplementationGapCount)}`)
+  console.log(`- External/deferred gaps: ${formatNullableCount(report.comparison.externalOrDeferredGapCount)}`)
   console.log(`- Remaining parity gaps: ${formatGapCounts(report.comparison.remainingParityGapCounts ?? {}) || 'none'}`)
   console.log(`- Recommendation: ${report.overall.recommendation}`)
   if (!details) return
@@ -293,6 +301,33 @@ function formatDuration(durationMs) {
 function numberValue(value) {
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : undefined
+}
+
+function externalOrDeferredCountFromSummary(summary) {
+  if (!summary) return undefined
+  const values = [
+    summary.liveProof,
+    summary.providerAdapter,
+    summary.providerProof,
+    summary.runtimeSignal,
+    summary.phase2Renderer,
+    summary.unknown
+  ].map(numberValue)
+  if (values.every((value) => value === undefined)) return undefined
+  return values.reduce((total, value) => total + (value ?? 0), 0)
+}
+
+function externalOrDeferredCountFromCategories(counts) {
+  if (!counts || typeof counts !== 'object') return undefined
+  const values = Object.entries(counts)
+    .filter(([key]) => key !== 'local-actionable' && key !== 'localActionable')
+    .map(([, value]) => numberValue(value) ?? 0)
+  if (values.length === 0) return undefined
+  return values.reduce((total, value) => total + value, 0)
+}
+
+function formatNullableCount(value) {
+  return Number.isFinite(Number(value)) ? String(Number(value)) : 'unknown'
 }
 
 function statusCount(statusCounts, key) {

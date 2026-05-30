@@ -26,6 +26,7 @@ This checkpoint exists to prevent Phase 1 from drifting into low-value parity po
 - 2026-05-30 live Codex UI capture boundary: alternate local capture routes were checked after the black `screencapture` result. Computer Use refuses to operate on `com.openai.codex`, Chronicle is not fresh, the older CoreGraphics window image API is unavailable on the current macOS SDK, and a temporary ScreenCaptureKit prototype failed from this process (`SCStreamErrorDomain -3811` for window capture; no capturable displays for display capture). Keep the live UI proof rows open until manual side-by-side evidence or a working ScreenCaptureKit-permitted capture process is available; do not convert them into local style work.
 - 2026-05-30 smoke cost visibility: the daily-coding summary and Phase 1 status report now surface slow targets from latest passing manifests. Current high-cost surfaces should be treated as milestone/focused-only proof unless touched, not as a default loop after every small slice.
 - 2026-05-30 commented Review scan auditability: `pnpm run live:github-review-metadata:comments` now writes the scanned PR summaries, not only the candidate count, and `pnpm run smoke:ui:phase1:status -- --markdown --details` prints a compact scanned-PR count list. This makes the remaining commented-PR proof boundary reviewable without repeatedly rerunning the live scanner.
+- 2026-05-30 local-vs-external gap split: `pnpm run compare:codex-side-panels -- --no-fail` and `pnpm run smoke:ui:phase1:status -- --markdown --details` now print local implementation gaps separately from external/deferred gaps. Use this as the stop sign for local polish loops when the local implementation count is zero.
 
 ## Must Fix Before Calling Phase 1 Daily-Use Ready
 
@@ -69,6 +70,7 @@ The final local proof gates are clean. Next Phase 1 work should not be another l
 - Hosted/native Review data such as PR metadata/actions, comments, blame, hosted sources, and checkpoint Undo.
 - For commented Review proof specifically, use `pnpm run live:github-review-metadata:comments` first. If it reports zero candidates, do not manually retry PR numbers until a safe commented PR exists.
 - For status review, prefer `pnpm run smoke:ui:phase1:status -- --markdown --details`; it lists proof artifacts and gap rows without launching Electron.
+- If the status report says local implementation gaps are zero, do not start another local UI pass without fresh dogfood evidence or a newly available provider/live contract.
 - Use the slow-target line in `pnpm run smoke:ui:phase1:status -- --markdown --details` before rerunning UI smoke. If the touched files do not map to a slow surface, keep validation focused through `pnpm run smoke:ui:changed:*`.
 - Live Codex UI screenshot/proof boundaries only when manual side-by-side evidence, a ScreenCaptureKit route with working capture permission, or another nonblank comparable capture route is available.
 - A real day-to-day dogfood pass across app shell, chat/composer, Browser, Terminal, Git/Review, Settings, and side chat, filing only workflow breaks that block coding use.

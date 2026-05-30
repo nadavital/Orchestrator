@@ -1091,6 +1091,14 @@ function summarizeRows(rows, manifest) {
     }
   }
   actionableGapSummary.recommendedNextWork = recommendedNextWork(actionableGapSummary)
+  actionableGapSummary.localImplementationGapCount = actionableGapSummary.localActionable
+  actionableGapSummary.externalOrDeferredGapCount =
+    actionableGapSummary.liveProof +
+    actionableGapSummary.providerAdapter +
+    actionableGapSummary.providerProof +
+    actionableGapSummary.runtimeSignal +
+    actionableGapSummary.phase2Renderer +
+    actionableGapSummary.unknown
   return {
     statusCounts,
     optionalFileEvidenceFailures,
@@ -1429,6 +1437,8 @@ function renderMarkdown(report) {
     lines.push(`  - ${failure.area}: ${failure.label} (${failure.reason})`)
   }
   lines.push(`- Remaining parity gaps: ${report.summary.remainingParityGaps.length === 0 ? 'none' : report.summary.remainingParityGaps.length}`)
+  lines.push(`- Local implementation gaps: ${report.summary.actionableGapSummary.localImplementationGapCount ?? report.summary.actionableGapSummary.localActionable ?? 0}`)
+  lines.push(`- External/deferred gaps: ${report.summary.actionableGapSummary.externalOrDeferredGapCount ?? 0}`)
   lines.push(`- Remaining parity gap categories: ${formatStatusCounts(report.summary.remainingParityGapCounts)}`)
   lines.push(`- Actionable gap triage: ${formatActionableGapSummary(report.summary.actionableGapSummary)}`)
   lines.push(`- Recommended next work: ${report.summary.actionableGapSummary.recommendedNextWork}`)

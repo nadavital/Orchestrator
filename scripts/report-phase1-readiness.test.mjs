@@ -53,7 +53,9 @@ test('reports local daily-use ready while external parity gaps remain', () => {
       }
     ],
     actionableGapSummary: {
-      localActionable: 0
+      localActionable: 0,
+      localImplementationGapCount: 0,
+      externalOrDeferredGapCount: 2
     }
   })
   writeJson(root, 'tmp/github-review-metadata-live-proof/result.json', {
@@ -72,6 +74,8 @@ test('reports local daily-use ready while external parity gaps remain', () => {
   assert.equal(report.overall.localDailyUseReady, true)
   assert.equal(report.overall.fullParityComplete, false)
   assert.match(report.overall.recommendation, /remaining work is external/)
+  assert.equal(report.comparison.localImplementationGapCount, 0)
+  assert.equal(report.comparison.externalOrDeferredGapCount, 2)
   assert.equal(report.dailyCoding.slowTargetThresholdMs, 30000)
   assert.deepEqual(report.dailyCoding.slowFullTargets.map((target) => target.target), ['--files'])
   assert.equal(report.comparison.remainingParityGaps.length, 1)
@@ -261,6 +265,8 @@ test('ignores package-manager option separators in cli args', async () => {
   assert.equal(result.status === 0 || result.status === 1, true)
   assert.match(result.stdout, /Phase 1 Readiness/)
   assert.match(result.stdout, /Slow daily-coding targets/)
+  assert.match(result.stdout, /Local implementation gaps/)
+  assert.match(result.stdout, /External\/deferred gaps/)
   assert.match(result.stdout, /Proof Artifacts/)
   assert.match(result.stdout, /Remaining Gaps/)
 })
