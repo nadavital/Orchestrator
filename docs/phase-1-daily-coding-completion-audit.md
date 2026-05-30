@@ -119,6 +119,12 @@ Elevated `npm run live:codex-browser-appserver` still proves the tested Codex st
 
 This keeps the Browser runtime-signal gap open. Orchestrator's dynamic Browser tool bridge remains live-proven separately, but native provider-emitted browser-use state, viewport/capture/cursor events, and provider-applied design-change behavior should not be claimed until a provider path actually emits those signals.
 
+## 2026-05-30 Main Reconciliation And Panel/Header Focused Check
+
+Merged `origin/main` into `codex-side-panel-parity-stabilization` after the main branch contained prior PR merge commits from this same parity branch. The branch is now 0 commits behind `origin/main`, which removes stale branch topology from the Phase 1 readiness work without introducing new product conflicts.
+
+Verification stayed targeted to the user's panel/header concern instead of rerunning the full milestone suite. `pnpm run smoke:ui:changed:static` found no changed files after the merge topology update. The first unelevated focused smoke hit the known sandbox localhost bind boundary (`EPERM 127.0.0.1:5173`) before app code ran; the elevated rerun passed `header`, `right-panel`, and `terminal` in one daily-coding manifest. Evidence: `/Users/nadav/Desktop/Orchestrator/tmp/daily-coding-smoke/daily-coding-smoke-1780110441452.json`, with focused artifacts `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-header-1780110393852.json`, `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1780110402475.json`, and `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1780110422018.json`.
+
 ## 2026-05-30 Live Codex UI Capture Boundary
 
 Elevated `npm run compare:codex-side-panels -- --capture-live-codex --no-fail` refreshed `tmp/codex-side-panel-comparison/comparison-report.json` at `2026-05-30T02:26:03.862Z` with `mismatch=0`, `needsSmoke=0`, `needsProof=0`, `blocked=8`, and 19 remaining parity gaps. The live capture path found a visible Codex window through CoreGraphics (`id=65887`, bounds `0,30,1384,1320`), but `screencapture -l65887` failed with `could not create image from window`, region capture failed with `could not create image from rect`, and the full-screen fallback produced `/private/tmp/codex-current-screen.png` as a 5120x2880 all-black image (`nonBlank=false`, `nonBlackRatio=0`, `luminanceStdDev=0`, `colorBucketCount=1`).
