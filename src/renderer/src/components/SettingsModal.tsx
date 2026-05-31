@@ -20,7 +20,6 @@ import type { ShortcutOverrides } from '../../../types/appCommands'
 import { parsePortableTheme } from '../../../types/themeSharing'
 import Icon from './shared/Icon'
 import AppearanceSettingsPage, { defaultDarkChromeTheme, defaultLightChromeTheme, type AppearancePreset } from './Settings/AppearanceSettingsPage'
-import AutomationsSettingsPage from './Settings/AutomationsSettingsPage'
 import BrowserSettingsPage from './Settings/BrowserSettingsPage'
 import DataControlsSettingsPage from './Settings/DataControlsSettingsPage'
 import GeneralSettingsPage from './Settings/GeneralSettingsPage'
@@ -708,7 +707,6 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
                 />
               )}
               {effectiveSection === 'pets' && <PetsSettingsPage />}
-              {effectiveSection === 'automations' && <AutomationsSettingsPage sessions={sessions} />}
               {effectiveSection === 'worktrees' && <WorktreesSettingsPage onClose={onClose} />}
               {effectiveSection === 'shortcuts' && (
                 <ShortcutsSettingsPage
