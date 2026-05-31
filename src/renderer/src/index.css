@@ -37,7 +37,7 @@
     --app-shell-tab-content-max-width: 156px;
     --app-shell-tab-active-min-width: 0px;
     --app-shell-action-size: 24px;
-    --app-traffic-light-safe-area: 76px;
+    --app-traffic-light-safe-area: 88px;
     --app-shell-surface-bg: color-mix(in srgb, var(--canvas-bg) 97%, var(--surface-bg));
     --app-shell-header-bg: var(--app-shell-surface-bg);
 
