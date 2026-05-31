@@ -1009,7 +1009,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     <div
       className="shrink-0 px-6 pt-2 pb-3"
       style={{
-        background: 'color-mix(in srgb, var(--canvas-bg) 90%, transparent)'
+        background: 'color-mix(in srgb, var(--canvas-bg) 76%, transparent)'
       }}
     >
       <div
@@ -1027,13 +1027,13 @@ function InputBar({ session, isNew }: Props): JSX.Element {
         style={{
           maxWidth: isNew ? 700 : 860,
           background: isNew
-            ? 'color-mix(in srgb, var(--surface-bg) 68%, transparent)'
-            : 'color-mix(in srgb, var(--surface-bg) 46%, transparent)',
+            ? 'color-mix(in srgb, var(--surface-bg) 58%, transparent)'
+            : 'color-mix(in srgb, var(--surface-bg) 34%, transparent)',
           border: isNew
-            ? '1px solid color-mix(in srgb, var(--border-subtle) 34%, transparent)'
-            : '1px solid color-mix(in srgb, var(--border-subtle) 24%, transparent)',
+            ? '1px solid color-mix(in srgb, var(--border-subtle) 26%, transparent)'
+            : '1px solid color-mix(in srgb, var(--border-subtle) 14%, transparent)',
           borderRadius: 'var(--radius-xl)',
-          boxShadow: isNew ? '0 10px 26px rgba(0,0,0,0.06)' : 'none',
+          boxShadow: isNew ? '0 8px 20px rgba(0,0,0,0.045)' : 'none',
           position: 'relative',
           transition: 'box-shadow 140ms ease, border-color 140ms ease'
         }}
@@ -1085,7 +1085,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
           />
         </div>
         <div
-          className="composer-context-chips flex flex-wrap gap-1.5 px-4 pb-2"
+          className="composer-context-chips flex flex-wrap gap-1 px-4 pb-1"
           data-testid="composer-context-chips"
           data-composer-context-visible={showComposerContextChips ? 'true' : 'false'}
           data-composer-context-workdir={session.workDir}
@@ -1937,15 +1937,15 @@ function ComposerContextChip({
 }): JSX.Element {
   return (
     <span
-      className="inline-flex max-w-full items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] leading-4"
+      className="composer-context-chip inline-flex max-w-full items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] leading-4"
       data-testid={dataTestId}
       data-composer-context-detail={detail}
       role="listitem"
       aria-label={detail}
       style={{
-        background: 'var(--control-bg)',
-        borderColor: 'var(--border-subtle)',
-        color: 'var(--text-secondary)'
+        background: 'transparent',
+        borderColor: 'color-mix(in srgb, var(--border-subtle) 28%, transparent)',
+        color: 'var(--text-tertiary)'
       }}
     >
       <Icon name={icon} size={11} />
