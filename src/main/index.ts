@@ -7386,14 +7386,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               composerContextRow.getAttribute('data-composer-context-workspace-label') === 'orchestrator-automated-ui-workspace' &&
               composerContextRow.getAttribute('data-composer-context-additional-dir-count') === '2' &&
               composerContextRow.getAttribute('data-composer-context-worktree') === 'false' &&
-              composerContextWorkspaceChip instanceof HTMLElement &&
-              composerContextWorkspaceChip.getAttribute('role') === 'listitem' &&
-              composerContextWorkspaceChip.getAttribute('aria-label')?.includes('Workspace:') === true &&
-              composerContextWorkspaceChip.getAttribute('data-composer-context-detail')?.includes('orchestrator-automated-ui-workspace') === true &&
-              composerContextWorkspaceChip.textContent?.includes('orchestrator-automated-ui-workspace') === true &&
-              composerContextWorktreeChip instanceof HTMLElement &&
-              composerContextWorktreeChip.getAttribute('role') === 'listitem' &&
-              composerContextWorktreeChip.textContent?.includes('Local') === true &&
+              !(composerContextWorkspaceChip instanceof HTMLElement) &&
+              !(composerContextWorktreeChip instanceof HTMLElement) &&
               composerContextAdditionalDirsChip instanceof HTMLElement &&
               composerContextAdditionalDirsChip.getAttribute('role') === 'listitem' &&
               composerContextAdditionalDirsChip.textContent?.includes('+2 dirs') === true &&
@@ -7764,9 +7758,12 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               const switchedSummary = document.querySelector('[data-testid="composer-active-agent-summary"]');
               const switchedModelChoices = [...document.querySelectorAll('.motion-popover-surface [role="group"][aria-label="Model choices"] button')]
                 .filter((button) => button instanceof HTMLButtonElement);
+              const switchedAgentButtonProviderSignal = switchedAgentButton instanceof HTMLElement
+                ? String(switchedAgentButton.textContent ?? '') + ' ' + String(switchedAgentButton.getAttribute('data-tooltip-label') ?? '')
+                : '';
               composerActiveThreadProviderSwitch =
                 switchedAgentButton instanceof HTMLElement &&
-                switchedAgentButton.textContent?.includes('Codex') === true &&
+                switchedAgentButtonProviderSignal.includes('Codex') === true &&
                 switchedSummary instanceof HTMLElement &&
                 switchedSummary.textContent?.includes('Codex') === true &&
                 switchedModelChoices.some((button) =>

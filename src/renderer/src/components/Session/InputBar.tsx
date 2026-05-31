@@ -985,22 +985,31 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     ? pathBaseName(additionalContextDirs[0]) || additionalContextDirs[0]
     : `${additionalContextDirs.length} dirs`
 
-  // Compact agent pill label: "Provider · Model [· Effort]"
+  const defaultEffort = provider.effortLevels[0]?.id ?? ''
+  const showEffortInTrigger = provider.supportsEffort && effortLabel && effort !== defaultEffort
   const agentLabel = [
-    providerShortName(provider.id),
+    selectedAgentName,
+    modelLabel,
+    showEffortInTrigger ? effortLabel : null,
+    provider.id === 'cursor' && cursorEffortLevels.length > 0 && cursorEfLevel ? cursorEfLevel.label : null,
+    provider.id === 'cursor' && useThinking ? 'Think' : null,
+    provider.id === 'cursor' && useFast ? 'Fast' : null,
+  ].filter(Boolean).join(' · ')
+  const agentTriggerTitle = [
+    provider.name,
     selectedAgentName,
     modelLabel,
     provider.supportsEffort && effortLabel ? effortLabel : null,
     provider.id === 'cursor' && cursorEffortLevels.length > 0 && cursorEfLevel ? cursorEfLevel.label : null,
-    provider.id === 'cursor' && useThinking ? 'Think' : null,
-    provider.id === 'cursor' && useFast ? 'Fast' : null,
+    provider.id === 'cursor' && useThinking ? 'Thinking on' : null,
+    provider.id === 'cursor' && useFast ? 'Fast mode' : null,
   ].filter(Boolean).join(' · ')
 
   return (
     <div
       className="shrink-0 px-6 pt-2 pb-3"
       style={{
-        background: 'color-mix(in srgb, var(--canvas-bg) 96%, transparent)'
+        background: 'color-mix(in srgb, var(--canvas-bg) 90%, transparent)'
       }}
     >
       <div
@@ -1018,13 +1027,13 @@ function InputBar({ session, isNew }: Props): JSX.Element {
         style={{
           maxWidth: isNew ? 700 : 860,
           background: isNew
-            ? 'color-mix(in srgb, var(--surface-bg) 76%, transparent)'
-            : 'color-mix(in srgb, var(--surface-bg) 58%, transparent)',
+            ? 'color-mix(in srgb, var(--surface-bg) 68%, transparent)'
+            : 'color-mix(in srgb, var(--surface-bg) 46%, transparent)',
           border: isNew
-            ? '1px solid color-mix(in srgb, var(--border-subtle) 44%, transparent)'
-            : '1px solid color-mix(in srgb, var(--border-subtle) 36%, transparent)',
+            ? '1px solid color-mix(in srgb, var(--border-subtle) 34%, transparent)'
+            : '1px solid color-mix(in srgb, var(--border-subtle) 24%, transparent)',
           borderRadius: 'var(--radius-xl)',
-          boxShadow: isNew ? '0 14px 36px rgba(0,0,0,0.08)' : 'none',
+          boxShadow: isNew ? '0 10px 26px rgba(0,0,0,0.06)' : 'none',
           position: 'relative',
           transition: 'box-shadow 140ms ease, border-color 140ms ease'
         }}
@@ -1352,7 +1361,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
                 dataTestId="composer-agent-menu"
                 buttonRef={agentButtonRef}
                 className="composer-agent-trigger"
-                title="Thread model settings"
+                title={agentTriggerTitle ? `Thread model settings: ${agentTriggerTitle}` : 'Thread model settings'}
                 ariaLabel="Thread model settings"
                 ariaExpanded={showAgentMenu}
                 ariaHasPopup="menu"
@@ -1517,6 +1526,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
             onClick={attachFiles}
             title={isSavingPastedFiles ? 'Saving pasted files' : 'Attach files'}
             ariaLabel={isSavingPastedFiles ? 'Saving pasted files' : 'Attach files'}
+            iconOnly
           >
             <Icon name="paperclip" size={13} />
           </ToolbarBtn>
@@ -1680,7 +1690,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
               ariaHasPopup="menu"
               onKeyDown={(event) => handleDropdownTriggerKeyDown(event, () => setShowPermMenu(true))}
             >
-              <ProviderIcon providerId={provider.id} size={11} color={provider.color} />
+              <Icon name="settings" size={13} />
               <span className="composer-control-label composer-control-label-xs">{permLabel}</span>
               {permissionContext && (
                 <span
@@ -2053,7 +2063,7 @@ function getVisibleModelsWithCurrent(
 }
 
 function ToolbarBtn({
-  children, active, onClick, onKeyDown, muted, title, ariaLabel, ariaExpanded, ariaHasPopup, providerColor, dataTestId, buttonRef, className
+  children, active, onClick, onKeyDown, muted, title, ariaLabel, ariaExpanded, ariaHasPopup, providerColor, dataTestId, buttonRef, className, iconOnly
 }: {
   children: React.ReactNode
   active: boolean
@@ -2068,8 +2078,11 @@ function ToolbarBtn({
   dataTestId?: string
   buttonRef?: Ref<HTMLButtonElement>
   className?: string
+  iconOnly?: boolean
 }): JSX.Element {
-  const borderColor = active ? 'var(--border-strong)' : 'transparent'
+  const borderColor = active
+    ? 'color-mix(in srgb, var(--border-subtle) 70%, transparent)'
+    : 'transparent'
   const textColor = muted ? 'var(--text-tertiary)' : active ? 'var(--text-primary)' : 'var(--text-secondary)'
   void providerColor
   const button = (
@@ -2088,14 +2101,16 @@ function ToolbarBtn({
       data-testid={dataTestId}
       className={`flex items-center gap-1.5 text-xs transition-colors ${className ?? ''}`}
       style={{
-        background: active ? 'var(--control-bg-active)' : 'var(--control-bg)',
+        background: active ? 'color-mix(in srgb, var(--control-bg-active) 78%, transparent)' : 'transparent',
         color: textColor,
         border: '1px solid ' + borderColor,
         borderRadius: 'var(--radius-lg)',
-        padding: '5px 8px',
+        padding: iconOnly ? 0 : '4px 7px',
         cursor: onClick ? 'pointer' : 'default',
         fontWeight: 600,
-        minHeight: 28
+        minHeight: 28,
+        minWidth: iconOnly ? 28 : undefined,
+        justifyContent: iconOnly ? 'center' : undefined
       }}
     >
       {children}
