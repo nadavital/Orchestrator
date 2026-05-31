@@ -1635,8 +1635,28 @@
   }
 
   .workbench-panel-tabbar .motion-tab-button[data-tab-id='browser'],
-  .workbench-panel-tabbar .motion-tab-button[data-tab-id='new-tab'] {
+  .workbench-panel-tabbar .motion-tab-button[data-tab-id='new-tab'],
+  .workbench-panel-tabbar .motion-tab-button[data-tab-id='environment'],
+  .workbench-panel-tabbar .motion-tab-button[data-tab-id='diff'],
+  .workbench-panel-tabbar .motion-tab-button[data-tab-id='files'],
+  .workbench-panel-tabbar .motion-tab-button[data-tab-id='git'],
+  .workbench-panel-tabbar .motion-tab-button[data-tab-id='plan'],
+  .workbench-panel-tabbar .motion-tab-button[data-tab-id='agents'],
+  .workbench-panel-tabbar .motion-tab-button[data-tab-id='extensions'] {
     min-width: 0;
+    max-width: none;
+  }
+
+  .workbench-panel-tabbar .motion-tab-button[data-tab-id='browser'] .panel-tab-content,
+  .workbench-panel-tabbar .motion-tab-button[data-tab-id='new-tab'] .panel-tab-content,
+  .workbench-panel-tabbar .motion-tab-button[data-tab-id='environment'] .panel-tab-content,
+  .workbench-panel-tabbar .motion-tab-button[data-tab-id='diff'] .panel-tab-content,
+  .workbench-panel-tabbar .motion-tab-button[data-tab-id='files'] .panel-tab-content,
+  .workbench-panel-tabbar .motion-tab-button[data-tab-id='git'] .panel-tab-content,
+  .workbench-panel-tabbar .motion-tab-button[data-tab-id='plan'] .panel-tab-content,
+  .workbench-panel-tabbar .motion-tab-button[data-tab-id='agents'] .panel-tab-content,
+  .workbench-panel-tabbar .motion-tab-button[data-tab-id='extensions'] .panel-tab-content {
+    max-width: none;
   }
 
   [data-testid='terminal-panel-tabstrip'] .motion-tab-button[data-tab-kind='terminal'],
@@ -1648,6 +1668,11 @@
   .motion-tab-button[data-tab-id='plan'] .panel-tab-label,
   .motion-tab-button[data-tab-id='git'] .panel-tab-label,
   .motion-tab-button[data-tab-id='browser'] .panel-tab-label,
+  .motion-tab-button[data-tab-id='environment'] .panel-tab-label,
+  .motion-tab-button[data-tab-id='diff'] .panel-tab-label,
+  .motion-tab-button[data-tab-id='files'] .panel-tab-label,
+  .motion-tab-button[data-tab-id='agents'] .panel-tab-label,
+  .motion-tab-button[data-tab-id='extensions'] .panel-tab-label,
   .motion-tab-button[data-tab-kind='terminal'] .panel-tab-label {
     min-width: max-content;
   }

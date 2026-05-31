@@ -826,8 +826,8 @@ export function AppShellPanel({
 } & Omit<HTMLAttributes<HTMLDivElement>, 'children'>): JSX.Element {
   const previousOpenRef = useRef(open)
   const shellBorder: CSSProperties = side === 'right'
-    ? { borderLeft: '1px solid var(--border-subtle)' }
-    : { borderTop: '1px solid var(--border-subtle)' }
+    ? { borderLeft: '1px solid color-mix(in srgb, var(--border-subtle) 24%, transparent)' }
+    : { borderTop: '1px solid color-mix(in srgb, var(--border-subtle) 24%, transparent)' }
 
   useEffect(() => {
     const wasOpen = previousOpenRef.current
