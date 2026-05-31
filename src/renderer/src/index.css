@@ -1498,6 +1498,12 @@
     box-shadow: none;
   }
 
+  .motion-panel-right:has(.side-chat-panel) {
+    background: color-mix(in srgb, var(--surface-bg) 48%, transparent);
+    backdrop-filter: blur(22px) saturate(140%);
+    -webkit-backdrop-filter: blur(22px) saturate(140%);
+  }
+
   .app-shell-panel {
     isolation: isolate;
     background: var(--surface-bg);
@@ -4947,13 +4953,15 @@
     background:
       linear-gradient(
         180deg,
-        color-mix(in srgb, var(--surface-bg) 42%, transparent),
-        color-mix(in srgb, var(--canvas-bg) 28%, transparent)
+        color-mix(in srgb, var(--surface-bg) 28%, transparent),
+        color-mix(in srgb, var(--canvas-bg) 14%, transparent)
       );
     backdrop-filter: blur(22px) saturate(145%);
     -webkit-backdrop-filter: blur(22px) saturate(145%);
     color: var(--text-primary);
-    box-shadow: inset 1px 0 0 color-mix(in srgb, var(--border-subtle) 34%, transparent);
+    box-shadow:
+      inset 1px 0 0 color-mix(in srgb, var(--border-subtle) 28%, transparent),
+      inset 0 1px 0 color-mix(in srgb, var(--surface-bg) 22%, transparent);
   }
 
   .workbench-panel-surface[data-right-panel-bottom-panel-expanded='true'] .side-chat-panel {
@@ -4962,7 +4970,7 @@
 
   .workbench-panel-surface:has(.side-chat-panel),
   .app-shell-panel:has(.side-chat-panel) {
-    background: color-mix(in srgb, var(--surface-bg) 40%, transparent);
+    background: color-mix(in srgb, var(--surface-bg) 24%, transparent);
     backdrop-filter: blur(22px) saturate(145%);
     -webkit-backdrop-filter: blur(22px) saturate(145%);
   }
@@ -5061,7 +5069,7 @@
     min-height: 34px;
     border: 1px solid color-mix(in srgb, var(--border-subtle) 42%, transparent);
     border-radius: 8px;
-    background: color-mix(in srgb, var(--surface-bg) 68%, transparent);
+    background: color-mix(in srgb, var(--surface-bg) 44%, transparent);
     backdrop-filter: blur(12px) saturate(125%);
     -webkit-backdrop-filter: blur(12px) saturate(125%);
     padding: 4px 5px 4px 10px;
@@ -5075,7 +5083,7 @@
 
   .side-chat-composer:focus-within {
     border-color: color-mix(in srgb, var(--accent) 36%, transparent);
-    background: color-mix(in srgb, var(--surface-bg) 82%, transparent);
+    background: color-mix(in srgb, var(--surface-bg) 58%, transparent);
   }
 
   .side-chat-input {
