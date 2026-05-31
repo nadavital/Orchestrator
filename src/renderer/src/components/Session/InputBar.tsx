@@ -1000,7 +1000,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     <div
       className="shrink-0 px-6 pt-2 pb-3"
       style={{
-        background: 'var(--canvas-bg)'
+        background: 'color-mix(in srgb, var(--canvas-bg) 96%, transparent)'
       }}
     >
       <div
@@ -1017,10 +1017,14 @@ function InputBar({ session, isNew }: Props): JSX.Element {
         onDrop={handleDrop}
         style={{
           maxWidth: isNew ? 700 : 860,
-          background: 'var(--surface-bg)',
-          border: isNew ? '1px solid var(--border-subtle)' : '1px solid color-mix(in srgb, var(--border-subtle) 68%, transparent)',
+          background: isNew
+            ? 'color-mix(in srgb, var(--surface-bg) 76%, transparent)'
+            : 'color-mix(in srgb, var(--surface-bg) 58%, transparent)',
+          border: isNew
+            ? '1px solid color-mix(in srgb, var(--border-subtle) 44%, transparent)'
+            : '1px solid color-mix(in srgb, var(--border-subtle) 36%, transparent)',
           borderRadius: 'var(--radius-xl)',
-          boxShadow: isNew ? 'var(--shadow-composer)' : 'none',
+          boxShadow: isNew ? '0 14px 36px rgba(0,0,0,0.08)' : 'none',
           position: 'relative',
           transition: 'box-shadow 140ms ease, border-color 140ms ease'
         }}
@@ -1083,18 +1087,14 @@ function InputBar({ session, isNew }: Props): JSX.Element {
           aria-label="Current composer context"
           hidden={!showComposerContextChips}
         >
-          <ComposerContextChip
-            icon="folder"
-            label={workspaceLabel}
-            detail={`Workspace: ${session.workDir}`}
-            dataTestId="composer-context-workspace-chip"
-          />
-          <ComposerContextChip
-            icon={effectiveMode ? 'branch' : 'folder'}
-            label={effectiveMode ? 'Branch' : 'Local'}
-            detail={effectiveMode ? 'Runs in a new branch/worktree' : 'Runs in the current workspace'}
-            dataTestId="composer-context-worktree-chip"
-          />
+          {effectiveMode && (
+            <ComposerContextChip
+              icon="branch"
+              label="Branch"
+              detail={`Workspace: ${workspaceLabel}`}
+              dataTestId="composer-context-worktree-chip"
+            />
+          )}
           {additionalContextDirs.length > 0 && (
             <ComposerContextChip
               icon="folder"

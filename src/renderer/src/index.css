@@ -491,7 +491,7 @@
     min-inline-size: var(--orchestrator-sidebar-width);
     max-inline-size: var(--orchestrator-sidebar-width);
     overflow-x: hidden;
-    background: color-mix(in srgb, var(--canvas-bg) 84%, var(--surface-bg));
+    background: color-mix(in srgb, var(--canvas-bg) 96%, var(--surface-bg));
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
   }
@@ -788,7 +788,7 @@
   }
 
   .content-shell {
-    background: var(--color-token-main-surface-primary);
+    background: color-mix(in srgb, var(--canvas-bg) 97%, var(--surface-bg));
     border-left: 0;
     border-top-left-radius: 0;
     border-bottom-left-radius: 0;
@@ -830,19 +830,11 @@
   }
 
   .composer-permission-source-badge {
-    min-width: 0;
-    max-width: 58px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    border: 1px solid var(--border-subtle);
-    border-radius: 999px;
-    background: var(--surface-bg);
-    color: var(--text-tertiary);
-    font-size: 9.5px;
-    font-weight: 700;
-    line-height: 1;
-    padding: 3px 5px;
+    display: none;
+  }
+
+  .composer-permission-trigger .composer-control-label {
+    display: none;
   }
 
   @container composer-toolbar (width <= 560px) {
@@ -1497,8 +1489,8 @@
   }
 
   .motion-panel-right {
-    background: var(--surface-bg);
-    border-left: 1px solid color-mix(in srgb, var(--border-subtle) 58%, transparent);
+    background: color-mix(in srgb, var(--surface-bg) 86%, var(--canvas-bg));
+    border-left: 1px solid color-mix(in srgb, var(--border-subtle) 28%, transparent);
     box-shadow: none;
   }
 
@@ -1511,7 +1503,7 @@
   .app-shell-panel-right,
   .app-shell-panel-bottom,
   .workbench-panel-surface {
-    background: var(--surface-bg);
+    background: color-mix(in srgb, var(--surface-bg) 88%, var(--canvas-bg));
   }
 
   .motion-panel-right.workbench-panel-expanded {
@@ -1552,8 +1544,8 @@
     position: relative;
     z-index: 20;
     flex-shrink: 0;
-    border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 58%, transparent);
-    background: var(--surface-bg);
+    border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 30%, transparent);
+    background: color-mix(in srgb, var(--surface-bg) 88%, var(--canvas-bg));
   }
 
   .app-shell-panel-chrome {
@@ -1562,8 +1554,8 @@
     display: block;
     min-height: var(--app-shell-toolbar-height);
     flex-shrink: 0;
-    border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 58%, transparent);
-    background: var(--surface-bg);
+    border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 30%, transparent);
+    background: color-mix(in srgb, var(--surface-bg) 88%, var(--canvas-bg));
   }
 
   .workbench-panel-tabbar {
@@ -1616,7 +1608,7 @@
     min-width: 0;
     max-width: var(--app-shell-tab-max-width);
     border-color: transparent;
-    background: color-mix(in srgb, var(--control-bg) 62%, transparent);
+    background: color-mix(in srgb, var(--control-bg) 48%, transparent);
     box-shadow: none;
     color: var(--text-primary);
     font-weight: var(--app-shell-tab-active-font-weight);
@@ -1629,12 +1621,12 @@
 
   .workbench-panel-tabbar .motion-tab-button[data-tab-id='browser'],
   .workbench-panel-tabbar .motion-tab-button[data-tab-id='new-tab'] {
-    min-width: 112px;
+    min-width: 0;
   }
 
   [data-testid='terminal-panel-tabstrip'] .motion-tab-button[data-tab-kind='terminal'],
   [data-testid='terminal-panel-tabstrip'] .motion-tab-button[data-tab-id='browser'] {
-    min-width: 118px;
+    min-width: 0;
   }
 
   .motion-tab-button[data-tab-id='new-tab'] .panel-tab-label,
@@ -4852,20 +4844,20 @@
     background:
       linear-gradient(
         180deg,
-        color-mix(in srgb, var(--surface-bg) 56%, transparent),
-        color-mix(in srgb, var(--canvas-bg) 38%, transparent)
+        color-mix(in srgb, var(--surface-bg) 42%, transparent),
+        color-mix(in srgb, var(--canvas-bg) 28%, transparent)
       );
-    backdrop-filter: blur(18px) saturate(135%);
-    -webkit-backdrop-filter: blur(18px) saturate(135%);
+    backdrop-filter: blur(22px) saturate(145%);
+    -webkit-backdrop-filter: blur(22px) saturate(145%);
     color: var(--text-primary);
     box-shadow: inset 1px 0 0 color-mix(in srgb, var(--border-subtle) 34%, transparent);
   }
 
   .workbench-panel-surface:has(.side-chat-panel),
   .app-shell-panel:has(.side-chat-panel) {
-    background: color-mix(in srgb, var(--surface-bg) 58%, transparent);
-    backdrop-filter: blur(18px) saturate(135%);
-    -webkit-backdrop-filter: blur(18px) saturate(135%);
+    background: color-mix(in srgb, var(--surface-bg) 40%, transparent);
+    backdrop-filter: blur(22px) saturate(145%);
+    -webkit-backdrop-filter: blur(22px) saturate(145%);
   }
 
   .side-chat-header {
@@ -9766,8 +9758,8 @@
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 38%, transparent);
-    background: color-mix(in srgb, var(--surface-bg) 92%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 26%, transparent);
+    background: color-mix(in srgb, var(--surface-bg) 82%, var(--canvas-bg));
     padding: 0 12px 0 20px;
     user-select: none;
     -webkit-app-region: drag;
@@ -10039,7 +10031,7 @@
     min-height: 0;
     flex: 1;
     overflow: hidden;
-    background: var(--canvas-bg);
+    background: color-mix(in srgb, var(--canvas-bg) 97%, var(--surface-bg));
   }
 
   .settings-scroll {
@@ -10118,9 +10110,9 @@
   }
 
   .settings-page-section {
-    max-width: 780px;
+    max-width: 840px;
     margin: 0;
-    padding: 42px 44px 64px;
+    padding: 38px 44px 64px;
   }
 
   .settings-content-group {
@@ -10168,7 +10160,7 @@
     gap: 22px;
     align-items: start;
     padding: 14px 0 16px;
-    border-top: 1px solid color-mix(in srgb, var(--border-subtle) 78%, transparent);
+    border-top: 1px solid color-mix(in srgb, var(--border-subtle) 34%, transparent);
     background: transparent;
   }
 
@@ -10196,9 +10188,9 @@
     gap: 0;
     margin-top: 8px;
     overflow: hidden;
-    border: 1px solid color-mix(in srgb, var(--border-subtle) 78%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border-subtle) 34%, transparent);
     border-radius: 8px;
-    background: color-mix(in srgb, var(--surface-bg) 98%, var(--canvas-bg));
+    background: color-mix(in srgb, var(--surface-bg) 38%, transparent);
   }
 
   .settings-surface {
@@ -10221,7 +10213,7 @@
     gap: 16px;
     align-items: start;
     padding: 9px 12px;
-    border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 72%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 30%, transparent);
   }
 
   .settings-panel > .compact-setting:last-child {
@@ -10244,7 +10236,7 @@
   .settings-row + .settings-row,
   .settings-row + .compact-setting,
   .compact-setting + .settings-row {
-    border-top: 1px solid color-mix(in srgb, var(--border-subtle) 34%, transparent);
+    border-top: 1px solid color-mix(in srgb, var(--border-subtle) 24%, transparent);
   }
 
   .settings-surface > .settings-row:first-child,
@@ -11634,13 +11626,13 @@
   }
 
   .provider-settings-shell {
-    max-width: 860px;
+    max-width: 940px;
     margin: 0;
-    padding: 42px 44px 64px;
+    padding: 38px 44px 64px;
   }
 
   .provider-settings-stack {
-    max-width: 720px;
+    max-width: 780px;
     margin: 0;
   }
 
@@ -11652,7 +11644,7 @@
 
   .provider-selector-pad {
     min-width: 0;
-    padding: 10px;
+    padding: 6px 0 8px;
   }
 
   .provider-settings-row {
@@ -11665,7 +11657,7 @@
   }
 
   .provider-settings-row .settings-row-copy {
-    flex: 0 0 88px;
+    flex: 0 0 112px;
   }
 
   .provider-settings-row .settings-row-control {
@@ -11709,7 +11701,7 @@
     flex-shrink: 0;
     place-items: center;
     border-radius: 7px;
-    background: color-mix(in srgb, var(--provider-color, var(--accent)) 10%, transparent);
+    background: color-mix(in srgb, var(--provider-color, var(--accent)) 8%, transparent);
     color: var(--provider-color, var(--accent));
   }
 
@@ -11743,9 +11735,9 @@
     width: 100%;
     height: 30px;
     min-width: 0;
-    border: 1px solid var(--border-subtle);
+    border: 1px solid color-mix(in srgb, var(--border-subtle) 46%, transparent);
     border-radius: 7px;
-    background: var(--control-bg);
+    background: color-mix(in srgb, var(--control-bg) 70%, transparent);
     color: var(--text-primary);
     font-size: 12px;
     font-weight: 600;
@@ -11760,8 +11752,8 @@
 
   .provider-selector-default-action {
     min-height: 30px;
-    border-color: color-mix(in srgb, var(--provider-color, var(--accent)) 52%, var(--border-subtle));
-    background: color-mix(in srgb, var(--provider-color, var(--accent)) 8%, var(--control-bg));
+    border-color: color-mix(in srgb, var(--provider-color, var(--accent)) 34%, var(--border-subtle));
+    background: color-mix(in srgb, var(--provider-color, var(--accent)) 5%, var(--control-bg));
     color: var(--provider-color, var(--accent));
     font-weight: 600;
   }
@@ -11780,7 +11772,7 @@
   .provider-details-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
+    gap: 7px;
     margin-top: 8px;
   }
 
@@ -11834,13 +11826,13 @@
   .provider-model-chip {
     max-width: 160px;
     overflow: hidden;
-    border: 1px solid var(--border-subtle);
+    border: 1px solid color-mix(in srgb, var(--border-subtle) 42%, transparent);
     border-radius: 999px;
-    background: var(--surface-bg);
+    background: color-mix(in srgb, var(--surface-bg) 54%, transparent);
     color: var(--text-primary);
     font-size: 11px;
-    font-weight: 650;
-    padding: 5px 8px;
+    font-weight: 600;
+    padding: 4px 8px;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
