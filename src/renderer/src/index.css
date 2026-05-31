@@ -37,6 +37,9 @@
     --app-shell-tab-content-max-width: 156px;
     --app-shell-tab-active-min-width: 0px;
     --app-shell-action-size: 24px;
+    --app-traffic-light-safe-area: 76px;
+    --app-shell-surface-bg: color-mix(in srgb, var(--canvas-bg) 97%, var(--surface-bg));
+    --app-shell-header-bg: var(--app-shell-surface-bg);
 
     --app-bg: transparent;
     --panel-bg: color-mix(in srgb, var(--canvas-bg) 55%, transparent);
@@ -491,7 +494,8 @@
     min-inline-size: var(--orchestrator-sidebar-width);
     max-inline-size: var(--orchestrator-sidebar-width);
     overflow-x: hidden;
-    background: color-mix(in srgb, var(--canvas-bg) 96%, var(--surface-bg));
+    border-right: 0;
+    background: var(--app-shell-surface-bg);
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
   }
@@ -788,7 +792,7 @@
   }
 
   .content-shell {
-    background: color-mix(in srgb, var(--canvas-bg) 97%, var(--surface-bg));
+    background: var(--app-shell-surface-bg);
     border-left: 0;
     border-top-left-radius: 0;
     border-bottom-left-radius: 0;
@@ -9701,7 +9705,7 @@
     flex: 1;
     flex-direction: column;
     overflow: hidden;
-    background: var(--canvas-bg);
+    background: var(--app-shell-surface-bg);
   }
 
   .automations-standalone-shell {
@@ -9710,7 +9714,7 @@
     flex: 1;
     flex-direction: column;
     overflow: hidden;
-    background: var(--canvas-bg);
+    background: var(--app-shell-surface-bg);
   }
 
   .automations-standalone-topbar {
@@ -9720,8 +9724,8 @@
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 52%, transparent);
-    background: color-mix(in srgb, var(--surface-bg) 96%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 26%, transparent);
+    background: var(--app-shell-header-bg);
     padding: 0 12px 0 20px;
     user-select: none;
     -webkit-app-region: drag;
@@ -9755,7 +9759,7 @@
   .app-sidebar-collapsed + .content-shell [data-testid='session-titlebar'] > div:first-child,
   .app-sidebar-collapsed + .content-shell .settings-topbar,
   .app-sidebar-collapsed + .content-shell .automations-standalone-topbar {
-    padding-left: 76px !important;
+    padding-left: var(--app-traffic-light-safe-area) !important;
   }
 
   .settings-topbar {
@@ -9766,7 +9770,7 @@
     justify-content: space-between;
     gap: 12px;
     border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 26%, transparent);
-    background: color-mix(in srgb, var(--surface-bg) 82%, var(--canvas-bg));
+    background: var(--app-shell-header-bg);
     padding: 0 12px 0 20px;
     user-select: none;
     -webkit-app-region: drag;

@@ -143,8 +143,8 @@ function Titlebar(): JSX.Element {
       className="flex items-center shrink-0 w-full"
       style={{
         height: 'var(--app-shell-header-height)',
-        background: 'var(--surface-bg)',
-        borderBottom: '1px solid var(--border-subtle)',
+        background: 'var(--app-shell-header-bg)',
+        borderBottom: '1px solid color-mix(in srgb, var(--border-subtle) 26%, transparent)',
         userSelect: 'none',
         position: 'relative',
         WebkitAppRegion: 'drag'
