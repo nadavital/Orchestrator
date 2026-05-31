@@ -1520,8 +1520,10 @@ export function PanelTabStrip<T extends string | number>({
       ? row.querySelector<HTMLElement>(`[data-app-shell-tab-controller="${cssEscape(panelId)}"][data-tab-id="${cssEscape(String(activeTabId))}"]`)
       : row.querySelector<HTMLElement>('[data-active="true"]')
     if (!activeTab) return
-    const activeLeft = activeTab.offsetLeft
-    const activeRight = activeLeft + activeTab.offsetWidth
+    const rowRect = row.getBoundingClientRect()
+    const activeRect = activeTab.getBoundingClientRect()
+    const activeLeft = row.scrollLeft + (activeRect.left - rowRect.left)
+    const activeRight = row.scrollLeft + (activeRect.right - rowRect.left)
     const visibleLeft = row.scrollLeft
     const visibleRight = visibleLeft + row.clientWidth
     const inset = 12

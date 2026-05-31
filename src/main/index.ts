@@ -3657,6 +3657,18 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               const rightPanelNewTabDescriptionsAfterResize = rightPanelAfterResize instanceof HTMLElement
                 ? [...rightPanelAfterResize.querySelectorAll('.workbench-new-tab-action-description')]
                 : [];
+              const compactRightPanelToolbarAfterResize = rightPanelAfterResize instanceof HTMLElement
+                ? rightPanelAfterResize.querySelector('.files-panel-toolbar, .diff-panel-toolbar, .browser-toolbar, .browser-find-toolbar')
+                : null;
+              const compactEnvironmentRowsAfterResize = rightPanelAfterResize instanceof HTMLElement
+                ? [...rightPanelAfterResize.querySelectorAll('.environment-row')]
+                : [];
+              const compactPlanSectionsAfterResize = rightPanelAfterResize instanceof HTMLElement
+                ? [...rightPanelAfterResize.querySelectorAll('.plan-section')]
+                : [];
+              const compactWorkbenchTreeAfterResize = rightPanelAfterResize instanceof HTMLElement
+                ? rightPanelAfterResize.querySelector('.files-panel-list .workbench-tree, .diff-panel-list')
+                : null;
               terminalRightPanelBottomCompactionWorks =
                 rightPanelAfterResize instanceof HTMLElement &&
                 rightPanelAfterResize.getAttribute('data-right-panel-bottom-panel-open') === 'true' &&
@@ -3664,7 +3676,18 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 Number(rightPanelAfterResize.getAttribute('data-right-panel-bottom-panel-height') ?? '0') >= 260 &&
                 (rightPanelNewTabDescriptionsAfterResize.length === 0 || rightPanelNewTabDescriptionsAfterResize.every((element) =>
                   element instanceof HTMLElement && getComputedStyle(element).display === 'none'
-                ));
+                )) &&
+                (!(compactRightPanelToolbarAfterResize instanceof HTMLElement) ||
+                  compactRightPanelToolbarAfterResize.getBoundingClientRect().height <= 32) &&
+                (compactEnvironmentRowsAfterResize.length === 0 || compactEnvironmentRowsAfterResize.every((element) =>
+                  element instanceof HTMLElement && element.getBoundingClientRect().height <= 28
+                )) &&
+                (compactPlanSectionsAfterResize.length === 0 || compactPlanSectionsAfterResize.every((element) =>
+                  element instanceof HTMLElement && Number.parseFloat(getComputedStyle(element).paddingTop || '0') <= 10
+                )) &&
+                (!(compactWorkbenchTreeAfterResize instanceof HTMLElement) ||
+                  getComputedStyle(compactWorkbenchTreeAfterResize).getPropertyValue('--workbench-tree-item-height').trim() === '24px'
+                );
               terminalBottomPanelPreservesPrimaryContentWorks =
                 terminalBottomHeaderAfterResize instanceof HTMLElement &&
                 configuredMaxHeightAfterResize === 340 &&

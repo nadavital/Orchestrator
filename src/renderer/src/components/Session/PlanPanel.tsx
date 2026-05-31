@@ -32,7 +32,7 @@ export default function PlanPanel({ session, embedded = false }: Props): JSX.Ele
 
   return (
     <section
-      className="flex min-w-0 flex-col overflow-hidden"
+      className="plan-panel-root flex min-w-0 flex-col overflow-hidden"
       data-testid="plan-panel"
       style={{
         width: embedded ? '100%' : 420,
@@ -50,7 +50,7 @@ export default function PlanPanel({ session, embedded = false }: Props): JSX.Ele
             : 'Goals, plan mode updates, and task lists will appear here as the agent organizes the work.'}
         </EmptyText>
       ) : (
-        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
+        <div className="plan-panel-scroll flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
           <PlanContextActions status={contextStatus} onAdd={addPlanContextToChat} />
           {goal && <GoalBlock goal={goal} session={session} />}
           {reviewMode && <ReviewModeBlock mode={reviewMode} onOpenReview={() => setShowDiff(session.id, true)} />}
@@ -565,7 +565,7 @@ function StatusDot({ status }: { status: PlanItemStatus }): JSX.Element {
 function PlanSection({ children }: { children: React.ReactNode }): JSX.Element {
   return (
     <section
-      className="min-w-0 px-4 py-3"
+      className="plan-section min-w-0 px-4 py-3"
       style={{ borderBottom: '1px solid var(--border-subtle)' }}
     >
       {children}
