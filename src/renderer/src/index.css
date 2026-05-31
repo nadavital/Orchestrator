@@ -10526,9 +10526,9 @@
     min-height: 28px;
     align-items: center;
     justify-content: center;
-    border: 1px solid color-mix(in srgb, var(--border-subtle) 42%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border-subtle) 30%, transparent);
     border-radius: 7px;
-    background: color-mix(in srgb, var(--control-bg) 58%, transparent);
+    background: color-mix(in srgb, var(--control-bg) 42%, transparent);
     color: var(--text-primary);
     cursor: pointer;
     font-size: 12px;
@@ -10540,7 +10540,8 @@
 
   .settings-action-button:hover,
   .settings-action-button:focus-visible {
-    background: color-mix(in srgb, var(--control-bg-hover) 70%, transparent);
+    border-color: color-mix(in srgb, var(--border-subtle) 38%, transparent);
+    background: color-mix(in srgb, var(--control-bg-hover) 54%, transparent);
     outline: none;
   }
 
@@ -10825,9 +10826,9 @@
   .browser-settings-select,
   .browser-domain-input {
     min-height: 28px;
-    border: 1px solid color-mix(in srgb, var(--border-subtle) 40%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border-subtle) 28%, transparent);
     border-radius: 7px;
-    background: color-mix(in srgb, var(--control-bg) 58%, transparent);
+    background: color-mix(in srgb, var(--control-bg) 44%, transparent);
     color: var(--text-primary);
     font-size: 12px;
     outline: none;
@@ -10851,7 +10852,7 @@
   }
 
   .browser-domain-policy-row + .browser-domain-policy-row {
-    border-top: 1px solid color-mix(in srgb, var(--border-subtle) 24%, transparent);
+    border-top: 1px solid color-mix(in srgb, var(--border-subtle) 16%, transparent);
   }
 
   .browser-domain-policy-copy {
@@ -10876,9 +10877,9 @@
     max-width: 100%;
     align-items: center;
     gap: 6px;
-    border: 1px solid color-mix(in srgb, var(--border-subtle) 36%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border-subtle) 24%, transparent);
     border-radius: 7px;
-    background: color-mix(in srgb, var(--surface-bg-secondary) 52%, transparent);
+    background: color-mix(in srgb, var(--surface-bg-secondary) 34%, transparent);
     color: var(--text-secondary);
     font-size: 12px;
     line-height: 1.2;
@@ -11160,13 +11161,13 @@
     display: block;
     min-width: 0;
     overflow-wrap: anywhere;
-    border: 1px solid color-mix(in srgb, var(--border-subtle) 34%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border-subtle) 20%, transparent);
     border-radius: 7px;
-    background: color-mix(in srgb, var(--surface-bg) 46%, transparent);
+    background: color-mix(in srgb, var(--surface-bg) 24%, transparent);
     color: var(--text-secondary);
     font-size: 11px;
     line-height: 1.45;
-    padding: 7px 9px;
+    padding: 6px 8px;
   }
 
   .data-controls-actions {
@@ -11644,30 +11645,32 @@
   .settings-shortcuts-search {
     display: flex;
     min-width: 0;
-    min-height: 36px;
+    min-height: 32px;
     align-items: center;
-    gap: 12px;
-    border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 24%, transparent);
-    padding: 0 12px;
+    gap: 10px;
+    border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 14%, transparent);
+    padding: 0 10px;
   }
 
   .settings-shortcuts-search-field {
     flex: 1 1 auto;
-    height: 28px;
+    height: 26px;
     min-width: 0;
+    border-color: color-mix(in srgb, var(--border-subtle) 24%, transparent);
+    background: color-mix(in srgb, var(--control-bg) 36%, transparent);
   }
 
   .settings-shortcuts-head {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(82px, auto);
-    gap: 12px;
-    min-height: 24px;
+    gap: 10px;
+    min-height: 22px;
     align-items: center;
-    border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 24%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 14%, transparent);
     color: var(--text-tertiary);
     font-size: 11px;
     font-weight: 500 !important;
-    padding: 0 12px;
+    padding: 0 10px;
   }
 
   .settings-shortcuts-head > :nth-child(2) {
@@ -11677,13 +11680,13 @@
   .settings-shortcut-row {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(82px, auto);
-    gap: 12px;
-    min-height: 30px;
+    gap: 10px;
+    min-height: 28px;
     align-items: center;
-    border-top: 1px solid color-mix(in srgb, var(--border-subtle) 24%, transparent);
+    border-top: 1px solid color-mix(in srgb, var(--border-subtle) 14%, transparent);
     color: var(--text-primary);
-    font-size: 13px;
-    padding: 0 12px;
+    font-size: 12px;
+    padding: 0 10px;
   }
 
   .settings-shortcut-row[data-first-row='true'] {
@@ -11691,14 +11694,14 @@
   }
 
   .settings-shortcut-row:hover {
-    background: color-mix(in srgb, var(--control-bg-hover) 64%, transparent);
+    background: color-mix(in srgb, var(--control-bg-hover) 38%, transparent);
   }
 
   .settings-shortcut-command {
     min-width: 0;
     overflow: hidden;
     color: var(--text-primary);
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 400;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -11723,7 +11726,7 @@
   .settings-shortcut-key-list {
     display: inline-flex;
     min-width: 0;
-    max-width: 170px;
+    max-width: 154px;
     flex-wrap: wrap;
     justify-content: flex-end;
     gap: 3px;
@@ -11738,8 +11741,8 @@
 
   .settings-shortcut-key {
     justify-self: end;
-    background: color-mix(in srgb, var(--control-bg) 52%, transparent);
-    border: 1px solid color-mix(in srgb, var(--border-subtle) 42%, transparent);
+    background: color-mix(in srgb, var(--control-bg) 34%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border-subtle) 28%, transparent);
     color: var(--text-secondary);
     text-align: center;
   }
@@ -11784,13 +11787,13 @@
 
   .settings-shortcut-recorder {
     width: 144px;
-    height: 30px;
+    height: 28px;
     justify-self: end;
-    border: 1px solid color-mix(in srgb, var(--border-subtle) 42%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border-subtle) 28%, transparent);
     border-radius: var(--radius-lg);
-    background: color-mix(in srgb, var(--control-bg) 58%, transparent);
+    background: color-mix(in srgb, var(--control-bg) 38%, transparent);
     color: var(--text-primary);
-    font-size: 13px;
+    font-size: 12px;
     line-height: 18px;
     outline: none;
     padding: 0 12px;
