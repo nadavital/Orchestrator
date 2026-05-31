@@ -10562,11 +10562,11 @@
 
   .settings-textarea {
     width: 100%;
-    min-height: 92px;
+    min-height: 76px;
     resize: vertical;
-    border: 1px solid color-mix(in srgb, var(--border-subtle) 42%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border-subtle) 32%, transparent);
     border-radius: 8px;
-    background: color-mix(in srgb, var(--surface-bg) 78%, transparent);
+    background: color-mix(in srgb, var(--surface-bg) 42%, transparent);
     color: var(--text-primary);
     font-family: var(--font-sans);
     font-size: 12px;
@@ -10768,8 +10768,8 @@
   .personalization-field-row {
     display: grid;
     min-width: 0;
-    gap: 7px;
-    padding: 10px 12px 12px;
+    gap: 6px;
+    padding: 9px 12px 10px;
   }
 
   .settings-row + .personalization-field-row,
@@ -10957,9 +10957,9 @@
   .appearance-preset-grid {
     display: grid;
     min-width: 0;
-    grid-template-columns: repeat(auto-fit, minmax(164px, 1fr));
-    gap: 10px;
-    padding: 10px;
+    grid-template-columns: repeat(auto-fit, minmax(142px, 1fr));
+    gap: 8px;
+    padding: 8px;
   }
 
   .appearance-theme-editor-grid {
@@ -11344,6 +11344,11 @@
     padding: 10px 12px;
   }
 
+  .worktrees-create-form > .settings-action-button {
+    justify-self: end;
+    width: fit-content;
+  }
+
   .worktrees-create-fields {
     display: grid;
     min-width: 0;
@@ -11532,22 +11537,22 @@
   .pet-choice-grid {
     display: grid;
     min-width: 0;
-    grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
-    gap: 8px;
-    padding: 10px;
+    grid-template-columns: repeat(auto-fill, minmax(116px, 1fr));
+    gap: 7px;
+    padding: 8px;
   }
 
   .pet-choice-card {
     display: flex;
     min-width: 0;
-    min-height: 154px;
+    min-height: 124px;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 8px;
-    border: 1px solid var(--border-subtle);
+    gap: 6px;
+    border: 1px solid color-mix(in srgb, var(--border-subtle) 34%, transparent);
     border-radius: 8px;
-    background: color-mix(in srgb, var(--surface-bg) 96%, var(--canvas-bg));
+    background: color-mix(in srgb, var(--surface-bg) 48%, transparent);
     color: var(--text-primary);
     cursor: pointer;
     padding: 10px;
@@ -11559,20 +11564,20 @@
 
   .pet-choice-card:hover,
   .pet-choice-card:focus-visible {
-    border-color: var(--border-strong);
-    background: var(--control-bg-hover);
+    border-color: color-mix(in srgb, var(--border-strong) 52%, transparent);
+    background: color-mix(in srgb, var(--control-bg-hover) 66%, transparent);
     outline: none;
   }
 
   .pet-choice-card[data-active='true'] {
-    border-color: color-mix(in srgb, var(--accent) 62%, var(--border-subtle));
-    background: color-mix(in srgb, var(--accent) 10%, var(--surface-bg));
+    border-color: color-mix(in srgb, var(--accent) 48%, var(--border-subtle));
+    background: color-mix(in srgb, var(--accent) 7%, var(--surface-bg));
   }
 
   .pet-choice-sprite {
     display: block;
-    width: 96px;
-    height: 104px;
+    width: 76px;
+    height: 82px;
     flex-shrink: 0;
     background-position: 0% 0%;
     background-repeat: no-repeat;
@@ -11590,7 +11595,7 @@
 
   .pet-choice-name {
     overflow: hidden;
-    max-width: 126px;
+    max-width: 98px;
     color: var(--text-primary);
     font-size: 12px;
     font-weight: 500;
@@ -12970,12 +12975,12 @@
     display: grid;
     min-width: 0;
     grid-template-rows: auto 1fr;
-    gap: 9px;
-    border: 1px solid var(--border-subtle);
+    gap: 7px;
+    border: 1px solid color-mix(in srgb, var(--border-subtle) 34%, transparent);
     border-radius: var(--radius-md);
-    background: color-mix(in srgb, var(--surface-bg) 96%, var(--canvas-bg));
+    background: color-mix(in srgb, var(--surface-bg) 46%, transparent);
     color: var(--text-primary);
-    padding: 9px;
+    padding: 7px;
     text-align: left;
     transition:
       border-color var(--motion-duration-edge) var(--motion-ease-standard),
@@ -12984,27 +12989,27 @@
 
   .theme-preset-card:hover,
   .theme-preset-card:focus-visible {
-    border-color: var(--border-strong);
-    background: var(--control-bg-hover);
+    border-color: color-mix(in srgb, var(--border-strong) 54%, transparent);
+    background: color-mix(in srgb, var(--control-bg-hover) 64%, transparent);
     outline: none;
   }
 
   .theme-preset-card[data-active='true'] {
-    border-color: color-mix(in srgb, var(--accent) 62%, var(--border-subtle));
-    background: color-mix(in srgb, var(--accent) 9%, var(--surface-bg));
+    border-color: color-mix(in srgb, var(--accent) 48%, var(--border-subtle));
+    background: color-mix(in srgb, var(--accent) 7%, var(--surface-bg));
   }
 
   .theme-preset-preview {
     display: grid;
-    gap: 7px;
+    gap: 5px;
   }
 
   .theme-preset-window {
     display: grid;
-    height: 48px;
-    grid-template-columns: 30px minmax(0, 1fr);
+    height: 38px;
+    grid-template-columns: 24px minmax(0, 1fr);
     overflow: hidden;
-    border: 1px solid rgba(0, 0, 0, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.06);
     border-radius: var(--radius-sm);
   }
 
@@ -13016,13 +13021,13 @@
   .theme-preset-lines {
     display: grid;
     align-content: center;
-    gap: 7px;
-    padding: 0 11px;
+    gap: 5px;
+    padding: 0 9px;
   }
 
   .theme-preset-lines span {
     display: block;
-    height: 5px;
+    height: 4px;
     border-radius: var(--radius-pill);
     opacity: 0.82;
   }
@@ -13034,11 +13039,11 @@
 
   .theme-preset-swatches {
     display: flex;
-    gap: 5px;
+    gap: 4px;
   }
 
   .theme-preset-swatches span {
-    height: 8px;
+    height: 6px;
     flex: 1;
     border-radius: var(--radius-pill);
     box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
@@ -13051,37 +13056,37 @@
 
   .theme-preset-title {
     color: var(--text-primary);
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 600;
     line-height: 1.25;
   }
 
   .theme-preset-description {
     color: var(--text-secondary);
-    font-size: 12px;
+    font-size: 11px;
     line-height: 1.35;
   }
 
   .theme-preview-panel {
     display: grid;
-    min-height: 180px;
-    grid-template-columns: 116px minmax(0, 1fr);
+    min-height: 150px;
+    grid-template-columns: 92px minmax(0, 1fr);
     overflow: hidden;
-    border: 1px solid;
-    border-radius: 10px;
+    border: 1px solid color-mix(in srgb, currentColor 22%, transparent);
+    border-radius: 8px;
   }
 
   .theme-preview-sidebar {
     display: grid;
     align-content: start;
-    gap: 10px;
-    border-right: 1px solid;
-    padding: 16px 14px;
+    gap: 8px;
+    border-right: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+    padding: 12px 10px;
   }
 
   .theme-preview-sidebar span {
     display: block;
-    height: 8px;
+    height: 6px;
     border-radius: var(--radius-pill);
     background: currentColor;
     opacity: 0.28;
@@ -13094,8 +13099,8 @@
 
   .theme-preview-content {
     display: grid;
-    gap: 12px;
-    padding: 16px;
+    gap: 9px;
+    padding: 12px;
   }
 
   .theme-preview-header {
@@ -13117,10 +13122,10 @@
 
   .theme-preview-message {
     display: flex;
-    gap: 10px;
-    border: 1px solid;
-    border-radius: var(--radius-md);
-    padding: 10px;
+    gap: 8px;
+    border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+    border-radius: 8px;
+    padding: 8px;
   }
 
   .theme-preview-message > span {
@@ -13147,9 +13152,9 @@
   .theme-preview-code {
     margin: 0;
     overflow: hidden;
-    border: 1px solid;
-    border-radius: var(--radius-md);
-    padding: 10px;
+    border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+    border-radius: 8px;
+    padding: 8px;
     font-family: var(--font-mono);
     font-size: 12px;
   }
