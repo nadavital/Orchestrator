@@ -100,6 +100,9 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
   const terminalActionStatusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const ui = uiState[session.id]
   const rightPanel = ui?.rightPanel
+  const bottomPanelOpen = ui?.showTerminal === true
+  const bottomPanelContentHeight = ui?.terminalPanel?.height ?? 0
+  const bottomPanelExpanded = bottomPanelOpen && bottomPanelContentHeight >= 260
   const rawPanelWidthRatio = rightPanel?.widthRatio
   const panelLayout = useAppShellSidePanelLayout({
     containerTestId: 'session-main-row',
@@ -616,6 +619,9 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
         data-right-panel-width-ratio={panelWidthRatio?.toFixed(4) ?? ''}
         data-right-panel-layout={panelLayout.mode}
         data-right-panel-tabs={rightPanel?.tabs.map((tab) => tab.id).join(',') ?? ''}
+        data-right-panel-bottom-panel-open={bottomPanelOpen ? 'true' : 'false'}
+        data-right-panel-bottom-panel-expanded={bottomPanelExpanded ? 'true' : 'false'}
+        data-right-panel-bottom-panel-height={bottomPanelContentHeight}
         data-right-panel-active-terminal-id={effectiveTerminalId ?? ''}
         data-right-panel-terminal-last-command={effectiveTerminalCommandState?.command ?? ''}
         data-right-panel-terminal-latest-command-output-lines={effectiveTerminalCommandOutput ? effectiveTerminalCommandOutput.split('\n').length : 0}

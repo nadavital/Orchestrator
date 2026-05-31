@@ -3496,6 +3496,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             var terminalHeaderSharedChromeWorks = false;
             var terminalPanelTabCodexMetricsWorks = false;
             var terminalBottomPanelPreservesPrimaryContentWorks = false;
+            var terminalRightPanelBottomCompactionWorks = false;
             var terminalContentSpacingWorks = false;
             var terminalResizeResetWorks = false;
             var terminalResizeHandleOverlayWorks = false;
@@ -3653,6 +3654,17 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               const rightPanelHeightAfterResize = rightPanelAfterResize instanceof HTMLElement
                 ? rightPanelAfterResize.getBoundingClientRect().height
                 : 0;
+              const rightPanelNewTabDescriptionsAfterResize = rightPanelAfterResize instanceof HTMLElement
+                ? [...rightPanelAfterResize.querySelectorAll('.workbench-new-tab-action-description')]
+                : [];
+              terminalRightPanelBottomCompactionWorks =
+                rightPanelAfterResize instanceof HTMLElement &&
+                rightPanelAfterResize.getAttribute('data-right-panel-bottom-panel-open') === 'true' &&
+                rightPanelAfterResize.getAttribute('data-right-panel-bottom-panel-expanded') === 'true' &&
+                Number(rightPanelAfterResize.getAttribute('data-right-panel-bottom-panel-height') ?? '0') >= 260 &&
+                (rightPanelNewTabDescriptionsAfterResize.length === 0 || rightPanelNewTabDescriptionsAfterResize.every((element) =>
+                  element instanceof HTMLElement && getComputedStyle(element).display === 'none'
+                ));
               terminalBottomPanelPreservesPrimaryContentWorks =
                 terminalBottomHeaderAfterResize instanceof HTMLElement &&
                 configuredMaxHeightAfterResize === 340 &&
@@ -8798,6 +8810,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             terminalSharedLayoutControllerWorks: typeof terminalSharedLayoutControllerWorks === 'boolean' ? terminalSharedLayoutControllerWorks : null,
             terminalBottomPanelSizeDecompositionWorks: typeof terminalBottomPanelSizeDecompositionWorks === 'boolean' ? terminalBottomPanelSizeDecompositionWorks : null,
             terminalBottomPanelPreservesPrimaryContentWorks: typeof terminalBottomPanelPreservesPrimaryContentWorks === 'boolean' ? terminalBottomPanelPreservesPrimaryContentWorks : null,
+            terminalRightPanelBottomCompactionWorks: typeof terminalRightPanelBottomCompactionWorks === 'boolean' ? terminalRightPanelBottomCompactionWorks : null,
             terminalRestoreWorks: typeof terminalRestoreWorks === 'boolean' ? terminalRestoreWorks : null,
             terminalTabMenuWorks: typeof terminalTabMenuWorks === 'boolean' ? terminalTabMenuWorks : null,
             terminalTabKeyboardContextMenuWorks: typeof terminalTabKeyboardContextMenuWorks === 'boolean' ? terminalTabKeyboardContextMenuWorks : null,

@@ -2807,6 +2807,7 @@ child.on('exit', async (code) => {
           terminalSharedLayoutController: result.terminalSharedLayoutControllerWorks === true,
           terminalBottomPanelSizeDecomposition: result.terminalBottomPanelSizeDecompositionWorks === true,
           terminalBottomPanelPreservesPrimaryContent: result.terminalBottomPanelPreservesPrimaryContentWorks === true,
+          terminalRightPanelBottomCompaction: result.terminalRightPanelBottomCompactionWorks === true,
           terminalRestore: result.terminalRestoreWorks === true,
           terminalTabMenu: result.terminalTabMenuWorks === true,
           terminalTabKeyboardContextMenu: result.terminalTabKeyboardContextMenuWorks === true,
