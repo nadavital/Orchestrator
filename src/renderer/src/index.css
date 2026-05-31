@@ -11783,8 +11783,8 @@
   .provider-details-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 7px;
-    margin-top: 8px;
+    gap: 14px 24px;
+    margin-top: 2px;
   }
 
   .provider-models-row {
@@ -12234,9 +12234,10 @@
 
   .provider-detail-card {
     min-width: 0;
-    border: 1px solid var(--border-subtle);
-    border-radius: 8px;
-    background: var(--surface-bg);
+    border: 0;
+    border-top: 1px solid color-mix(in srgb, var(--border-subtle) 32%, transparent);
+    border-radius: 0;
+    background: transparent;
     overflow: hidden;
   }
 
@@ -12245,17 +12246,17 @@
   }
 
   .provider-detail-card-title {
-    min-height: 28px;
-    border-bottom: 1px solid var(--border-subtle);
-    padding: 6px 10px;
+    min-height: 26px;
+    border-bottom: 0;
+    padding: 9px 0 4px;
     color: var(--text-primary);
     font-size: 12px;
-    font-weight: 700;
+    font-weight: 600;
   }
 
   .provider-detail-card-body {
     min-width: 0;
-    padding: 8px 10px;
+    padding: 6px 0 10px;
   }
 
   .provider-status-card {
@@ -12279,7 +12280,7 @@
     gap: 8px;
     color: var(--text-secondary);
     font-size: 11px;
-    font-weight: 750;
+    font-weight: 650;
   }
 
   .provider-sidebar-refresh-status {

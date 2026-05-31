@@ -2171,7 +2171,7 @@ function ProviderDiagnosticsCard({
   ]
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(86px, 1fr))', gap: 6 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(112px, 1fr))', gap: 2 }}>
       {rows.map((row) => (
         <div
           key={row.label}
@@ -2180,10 +2180,9 @@ function ProviderDiagnosticsCard({
             alignItems: 'center',
             justifyContent: 'space-between',
             gap: 8,
-            padding: '8px 10px',
-            borderRadius: 8,
-            background: 'var(--color-surface)',
-            border: '1px solid var(--color-border)'
+            minHeight: 28,
+            padding: '3px 0',
+            borderTop: '1px solid color-mix(in srgb, var(--border-subtle) 24%, transparent)'
           }}
         >
           <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text)' }}>{row.label}</div>
@@ -2335,10 +2334,8 @@ function ProviderUsageDiagnosticsCard({
               gap: 8,
               minWidth: 0,
               minHeight: 22,
-              padding: '3px 6px',
-              borderRadius: 7,
-              background: 'var(--color-surface)',
-              border: '1px solid var(--color-border)'
+              padding: '3px 0',
+              borderTop: '1px solid color-mix(in srgb, var(--border-subtle) 24%, transparent)'
             }}
           >
             <div
@@ -2378,10 +2375,8 @@ function ProviderUsageDiagnosticsCard({
               gap: 5,
               minWidth: 0,
               minHeight: 22,
-              padding: '3px 6px',
-              borderRadius: 7,
-              background: 'var(--color-surface)',
-              border: '1px solid var(--color-border)'
+              padding: '3px 0',
+              borderTop: '1px solid color-mix(in srgb, var(--border-subtle) 24%, transparent)'
             }}
           >
             <div
