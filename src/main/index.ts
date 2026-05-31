@@ -898,7 +898,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 diagnosticsSection.innerText.includes('Setup') &&
                 diagnosticsSection.innerText.includes('Status') &&
                 providerDetailsGrid instanceof HTMLElement &&
-                providerDetailsGrid.getBoundingClientRect().height <= 360 &&
+                providerDetailsGrid.getBoundingClientRect().height <= 560 &&
                 providerSetupCard instanceof HTMLElement &&
                 providerSetupCard.scrollWidth <= providerSetupCard.clientWidth + 2 &&
                 providerCapabilitySummary instanceof HTMLElement &&
@@ -962,16 +962,19 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 providerControlSurfaceText.includes('Default') &&
                 providerControlSurfaceText.includes('Mode') &&
                 providerControlSurfaceText.includes('Models') &&
-                providerControlSurfaceText.includes('Capabilities') &&
-                providerControlSurfaceText.includes('Boundaries') &&
+                providerControlSurfaceText.includes('Details') &&
+                !providerControlSurfaceText.includes('Capabilities') &&
+                !providerControlSurfaceText.includes('Boundaries') &&
                 diagnosticsSection.querySelector('.settings-panel') === null &&
                 diagnosticsSection.querySelector('.compact-setting') === null &&
                 permissionExecutionContract instanceof HTMLElement &&
                 permissionExecutionContract.getBoundingClientRect().height <= 28 &&
                 permissionExecutionContract.textContent?.includes('Source') &&
                 providerControlSurfaceText.indexOf('Default') < providerControlSurfaceText.indexOf('Models') &&
-                providerControlSurfaceText.indexOf('Models') < providerControlSurfaceText.indexOf('Capabilities') &&
-                providerControlSurfaceText.indexOf('Capabilities') < providerControlSurfaceText.indexOf('Boundaries');
+                providerControlSurfaceText.indexOf('Models') < providerControlSurfaceText.indexOf('Details') &&
+                providerDetailsGrid instanceof HTMLElement &&
+                providerDetailsGrid.innerText.includes('Capabilities') &&
+                providerDetailsGrid.innerText.includes('Boundaries');
               const providerSegmentedControls = diagnosticsSection instanceof HTMLElement
                 ? [...diagnosticsSection.querySelectorAll('.segmented-control[role="tablist"]')]
                   .filter((control) => control instanceof HTMLElement)
@@ -2229,7 +2232,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 diagnosticsSection.innerText.includes('Setup') &&
                 diagnosticsSection.innerText.includes('Status') &&
                 providerDetailsGrid instanceof HTMLElement &&
-                providerDetailsGrid.getBoundingClientRect().height <= 360 &&
+                providerDetailsGrid.getBoundingClientRect().height <= 560 &&
                 providerSetupCard instanceof HTMLElement &&
                 providerSetupCard.scrollWidth <= providerSetupCard.clientWidth + 2 &&
                 providerCapabilitySummary instanceof HTMLElement &&

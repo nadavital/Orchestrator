@@ -304,28 +304,6 @@ export default function ProvidersSettingsPage({
                   )}
                 />
 
-                {settingsCommandSurfaces.length > 0 && (
-                  <SettingsRow
-                    label="Capabilities"
-                    className="provider-settings-row provider-settings-row-stacked"
-                    control={(
-                      <ProviderCommandSurfaces
-                        providerId={selectedId}
-                        color={providerDef.color}
-                        surfaces={settingsCommandSurfaces}
-                        sessions={sessions}
-                      />
-                    )}
-                  />
-                )}
-
-                {runtime?.registry.gaps.length ? (
-                  <SettingsRow
-                    label="Boundaries"
-                    className="provider-settings-row provider-settings-row-stacked"
-                    control={<ProviderBoundarySummary gaps={runtime.registry.gaps} color={providerDef.color} />}
-                  />
-                ) : null}
               </SettingsSurface>
             </SettingsGroupContent>
           </SettingsContentGroup>
@@ -355,6 +333,21 @@ export default function ProvidersSettingsPage({
                       <ProviderProbeGrid diagnostics={diagnostics} color={providerDef.color} />
                     </ProviderDetailCard>
                   )}
+                  {settingsCommandSurfaces.length > 0 && (
+                    <ProviderDetailCard title="Capabilities" wide>
+                      <ProviderCommandSurfaces
+                        providerId={selectedId}
+                        color={providerDef.color}
+                        surfaces={settingsCommandSurfaces}
+                        sessions={sessions}
+                      />
+                    </ProviderDetailCard>
+                  )}
+                  {runtime?.registry.gaps.length ? (
+                    <ProviderDetailCard title="Boundaries" wide>
+                      <ProviderBoundarySummary gaps={runtime.registry.gaps} color={providerDef.color} />
+                    </ProviderDetailCard>
+                  ) : null}
                   <ProviderDetailCard title="Setup" wide>
                     <ProviderSetupDetails providerDef={providerDef} />
                   </ProviderDetailCard>
