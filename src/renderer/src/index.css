@@ -10422,9 +10422,9 @@
     gap: 0;
     margin-top: 8px;
     overflow: hidden;
-    border: 1px solid color-mix(in srgb, var(--border-subtle) 34%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border-subtle) 24%, transparent);
     border-radius: 8px;
-    background: color-mix(in srgb, var(--surface-bg) 38%, transparent);
+    background: color-mix(in srgb, var(--surface-bg) 24%, transparent);
   }
 
   .settings-surface {
@@ -10517,9 +10517,9 @@
     min-height: 28px;
     align-items: center;
     justify-content: center;
-    border: 1px solid var(--border-subtle);
+    border: 1px solid color-mix(in srgb, var(--border-subtle) 42%, transparent);
     border-radius: 7px;
-    background: var(--control-bg);
+    background: color-mix(in srgb, var(--control-bg) 58%, transparent);
     color: var(--text-primary);
     cursor: pointer;
     font-size: 12px;
@@ -10531,7 +10531,7 @@
 
   .settings-action-button:hover,
   .settings-action-button:focus-visible {
-    background: var(--control-bg-hover);
+    background: color-mix(in srgb, var(--control-bg-hover) 70%, transparent);
     outline: none;
   }
 
@@ -10541,7 +10541,7 @@
   }
 
   .settings-action-button-danger {
-    border-color: color-mix(in srgb, var(--color-red) 36%, var(--border-subtle));
+    border-color: color-mix(in srgb, var(--color-red) 28%, var(--border-subtle));
     color: var(--color-red);
   }
 
@@ -10564,9 +10564,9 @@
     width: 100%;
     min-height: 92px;
     resize: vertical;
-    border: 1px solid var(--border-subtle);
+    border: 1px solid color-mix(in srgb, var(--border-subtle) 42%, transparent);
     border-radius: 8px;
-    background: color-mix(in srgb, var(--surface-bg) 98%, var(--canvas-bg));
+    background: color-mix(in srgb, var(--surface-bg) 78%, transparent);
     color: var(--text-primary);
     font-family: var(--font-sans);
     font-size: 12px;
@@ -10639,7 +10639,7 @@
     height: 30px;
     border: 1px solid color-mix(in srgb, var(--border-subtle) 54%, transparent);
     border-radius: 7px;
-    background: color-mix(in srgb, var(--control-bg) 84%, transparent);
+    background: color-mix(in srgb, var(--control-bg) 66%, transparent);
     color: var(--text-primary);
     font: inherit;
     font-size: 12px;
@@ -10658,7 +10658,7 @@
     height: 30px;
     border: 1px solid color-mix(in srgb, var(--border-subtle) 54%, transparent);
     border-radius: 7px;
-    background: color-mix(in srgb, var(--control-bg) 84%, transparent);
+    background: color-mix(in srgb, var(--control-bg) 66%, transparent);
     color: var(--text-primary);
     font: inherit;
     font-size: 12px;
@@ -10690,9 +10690,9 @@
     display: inline-flex;
     min-width: 0;
     gap: 2px;
-    border: 1px solid color-mix(in srgb, var(--border-subtle) 74%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border-subtle) 48%, transparent);
     border-radius: 8px;
-    background: color-mix(in srgb, var(--control-bg) 72%, transparent);
+    background: color-mix(in srgb, var(--control-bg) 54%, transparent);
     padding: 2px;
   }
 
@@ -10717,7 +10717,7 @@
   }
 
   .general-settings-segment[data-active='true'] {
-    background: var(--surface-bg);
+    background: color-mix(in srgb, var(--surface-bg) 76%, transparent);
     color: var(--text-primary);
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.16);
   }
@@ -10816,9 +10816,9 @@
   .browser-settings-select,
   .browser-domain-input {
     min-height: 28px;
-    border: 1px solid color-mix(in srgb, var(--border-subtle) 54%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border-subtle) 40%, transparent);
     border-radius: 7px;
-    background: var(--control-bg);
+    background: color-mix(in srgb, var(--control-bg) 58%, transparent);
     color: var(--text-primary);
     font-size: 12px;
     outline: none;
@@ -10867,9 +10867,9 @@
     max-width: 100%;
     align-items: center;
     gap: 6px;
-    border: 1px solid var(--border-subtle);
+    border: 1px solid color-mix(in srgb, var(--border-subtle) 36%, transparent);
     border-radius: 7px;
-    background: var(--surface-bg-secondary);
+    background: color-mix(in srgb, var(--surface-bg-secondary) 52%, transparent);
     color: var(--text-secondary);
     font-size: 12px;
     line-height: 1.2;
@@ -10974,9 +10974,9 @@
     display: grid;
     min-width: 0;
     gap: 12px;
-    border: 1px solid var(--border-subtle);
+    border: 1px solid color-mix(in srgb, var(--border-subtle) 28%, transparent);
     border-radius: var(--radius-lg);
-    background: var(--surface-bg);
+    background: color-mix(in srgb, var(--surface-bg) 54%, transparent);
     padding: 14px;
   }
 
@@ -11003,9 +11003,9 @@
     width: 100%;
     box-sizing: border-box;
     resize: vertical;
-    border: 1px solid var(--border-subtle);
+    border: 1px solid color-mix(in srgb, var(--border-subtle) 38%, transparent);
     border-radius: 8px;
-    background: color-mix(in srgb, var(--surface-bg) 98%, var(--canvas-bg));
+    background: color-mix(in srgb, var(--surface-bg) 76%, transparent);
     color: var(--text-primary);
     font-family: var(--font-mono);
     font-size: 12px;
@@ -11151,9 +11151,9 @@
     display: block;
     min-width: 0;
     overflow-wrap: anywhere;
-    border: 1px solid color-mix(in srgb, var(--border-subtle) 78%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border-subtle) 34%, transparent);
     border-radius: 7px;
-    background: var(--surface-bg);
+    background: color-mix(in srgb, var(--surface-bg) 46%, transparent);
     color: var(--text-secondary);
     font-size: 11px;
     line-height: 1.45;
@@ -11281,9 +11281,9 @@
     min-height: 20px;
     flex: 0 0 auto;
     align-items: center;
-    border: 1px solid color-mix(in srgb, var(--border-subtle) 82%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border-subtle) 38%, transparent);
     border-radius: 999px;
-    background: color-mix(in srgb, var(--control-bg) 78%, transparent);
+    background: color-mix(in srgb, var(--control-bg) 46%, transparent);
     color: var(--text-secondary);
     font-size: 11px;
     font-weight: 500;
@@ -11313,7 +11313,7 @@
     grid-template-columns: auto minmax(120px, 1fr) auto;
     gap: 10px;
     align-items: center;
-    border-top: 1px solid color-mix(in srgb, var(--border-subtle) 72%, transparent);
+    border-top: 1px solid color-mix(in srgb, var(--border-subtle) 24%, transparent);
     padding: 9px 12px;
   }
 
@@ -11395,9 +11395,9 @@
     min-height: 20px;
     flex: 0 0 auto;
     align-items: center;
-    border: 1px solid color-mix(in srgb, var(--border-subtle) 82%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border-subtle) 38%, transparent);
     border-radius: 999px;
-    background: color-mix(in srgb, var(--control-bg) 78%, transparent);
+    background: color-mix(in srgb, var(--control-bg) 46%, transparent);
     color: var(--text-secondary);
     font-size: 11px;
     font-weight: 500;
@@ -11666,7 +11666,7 @@
     gap: 12px;
     min-height: 30px;
     align-items: center;
-    border-top: 1px solid color-mix(in srgb, var(--border-subtle) 60%, transparent);
+    border-top: 1px solid color-mix(in srgb, var(--border-subtle) 24%, transparent);
     color: var(--text-primary);
     font-size: 13px;
     padding: 0 12px;
@@ -11724,8 +11724,8 @@
 
   .settings-shortcut-key {
     justify-self: end;
-    background: var(--control-bg);
-    border: 1px solid var(--border-subtle);
+    background: color-mix(in srgb, var(--control-bg) 52%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border-subtle) 42%, transparent);
     color: var(--text-secondary);
     text-align: center;
   }
@@ -11772,16 +11772,16 @@
     width: 144px;
     height: 30px;
     justify-self: end;
-    border: 1px solid var(--border-subtle);
+    border: 1px solid color-mix(in srgb, var(--border-subtle) 42%, transparent);
     border-radius: var(--radius-lg);
-    background: var(--control-bg);
+    background: color-mix(in srgb, var(--control-bg) 58%, transparent);
     color: var(--text-primary);
     font-size: 13px;
     line-height: 18px;
     outline: none;
     padding: 0 12px;
     text-align: left;
-    box-shadow: var(--shadow-soft);
+    box-shadow: none;
   }
 
   .settings-shortcut-recorder:focus-visible {
