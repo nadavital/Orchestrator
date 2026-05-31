@@ -66,7 +66,7 @@ function sessionRouteUrl(sessionId: string): string {
 
 function currentUrlMatches(targetUrl: string): boolean {
   if (targetUrl.startsWith('#')) return window.location.hash === targetUrl
-  return `${window.location.pathname}${window.location.search}` === targetUrl
+  return `${window.location.pathname}${window.location.search}` === targetUrl && window.location.hash === ''
 }
 
 function replaceRouteUrl(url: string): void {
@@ -186,6 +186,26 @@ export default function App(): JSX.Element {
   const threadFindReturnFocusRef = useRef<HTMLElement | null>(null)
   const deferredActiveSessionId = useDeferredValue(activeSessionId)
 
+  const recoverMissingSessionRoute = useCallback((missingSessionId: string): boolean => {
+    const state = useSessionStore.getState()
+    const fallbackId = state.activeSessionId && state.sessions.some((session) => session.id === state.activeSessionId)
+      ? state.activeSessionId
+      : [...state.sessions].sort((a, b) => (b.latestMessageAt ?? b.createdAt) - (a.latestMessageAt ?? a.createdAt))[0]?.id
+    if (!fallbackId) return false
+    sessionRouteNoticeRequestRef.current += 1
+    setSessionRouteNotice(null)
+    setShowAutomations(false)
+    state.setShowSettings(false)
+    state.setShowCapabilities(false)
+    state.setActiveSession(fallbackId)
+    replaceRouteUrl(sessionRouteUrl(fallbackId))
+    if (process.env.NODE_ENV !== 'production') {
+      const globals = window as typeof window & { __orchestratorRecoveredMissingSessionRouteForSmoke?: string }
+      globals.__orchestratorRecoveredMissingSessionRouteForSmoke = missingSessionId
+    }
+    return true
+  }, [])
+
   useEffect(() => {
     window.localStorage.setItem(LEFT_SIDEBAR_COLLAPSED_KEY, leftSidebarCollapsed ? 'true' : 'false')
   }, [leftSidebarCollapsed])
@@ -265,6 +285,7 @@ export default function App(): JSX.Element {
             setSessionRouteNotice(null)
             return
           }
+          if (notice.kind === 'missing' && recoverMissingSessionRoute(sessionId)) return
           setSessionRouteNotice(notice)
         })
         .catch(() => {
@@ -302,7 +323,7 @@ export default function App(): JSX.Element {
       window.removeEventListener('hashchange', applyRoute)
       window.removeEventListener('popstate', applyRoute)
     }
-  }, [sessionCount, setActiveSession, setHasUnread, setShowCapabilities, setShowSettings])
+  }, [recoverMissingSessionRoute, sessionCount, setActiveSession, setHasUnread, setShowCapabilities, setShowSettings])
 
   useEffect(() => {
     const globals = window as typeof window & {
@@ -1355,12 +1376,13 @@ export default function App(): JSX.Element {
             name: null
           })
           const notice = await inspectSessionRoute(effectiveNavigation.sessionId)
-          setSessionRouteNotice(notice)
           setShowSettings(false)
           setShowCapabilities(false)
           setShowAutomations(false)
+          let recoveredSessionId: string | null = null
           if (reuseCandidate) {
             setActiveSession(reuseCandidate.id)
+            recoveredSessionId = reuseCandidate.id
           } else {
             const session = await window.api.sessions.create({
               projectId: targetProject.id,
@@ -1372,6 +1394,14 @@ export default function App(): JSX.Element {
             addSession(session)
             addSessionToProject(targetProject.id, session.id)
             setActiveSession(session.id)
+            recoveredSessionId = session.id
+          }
+          if (notice.kind === 'missing' && recoveredSessionId) {
+            sessionRouteNoticeRequestRef.current += 1
+            setSessionRouteNotice(null)
+            replaceRouteUrl(sessionRouteUrl(recoveredSessionId))
+          } else {
+            setSessionRouteNotice(notice)
           }
         } else if (reuseCandidate) {
           setActiveSession(reuseCandidate.id)
