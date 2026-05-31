@@ -1653,7 +1653,7 @@ export default function DiffPanel({ sessionId, workDir, embedded = false, focusP
         }}
       >
         <Icon name="branch" size={12} />
-        <span>Open Git</span>
+        <span>Commit options</span>
       </Button>
       {reviewActionStatus}
     </div>
@@ -1864,7 +1864,7 @@ export default function DiffPanel({ sessionId, workDir, embedded = false, focusP
                     />
                     <MenuItem
                       icon="branch"
-                      label="Open in Git"
+                      label="Commit options"
                       disabled={!reviewRowMenuChange}
                       dataTestId="review-row-open-git"
                       onClick={() => {

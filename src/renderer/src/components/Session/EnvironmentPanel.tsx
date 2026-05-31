@@ -250,8 +250,8 @@ export default function EnvironmentPanel({ session, embedded = false, onOpenRevi
             label={currentBranch}
             dataTestId="codex-environment-branch"
             action="open-git-branch"
-            title="Open Git branch controls"
-            trailing={<span className="environment-row-muted">Git</span>}
+            title="Manage branches"
+            trailing={<span className="environment-row-muted">Branch</span>}
             onClick={openGitForBranch}
           />
           <EnvironmentRow
@@ -261,7 +261,7 @@ export default function EnvironmentPanel({ session, embedded = false, onOpenRevi
             disabled={changes.length === 0}
             disabledReason="No changes to commit"
             action="open-git-commit"
-            title={changes.length > 0 ? 'Open Git to commit changes' : 'No changes to commit'}
+            title={changes.length > 0 ? 'Stage and commit changes' : 'No changes to commit'}
             trailing={<span className="environment-row-muted">{commitTrailing}</span>}
             onClick={changes.length > 0 ? openGitForCommit : undefined}
           />
@@ -270,7 +270,7 @@ export default function EnvironmentPanel({ session, embedded = false, onOpenRevi
             label={pullRequestLabel}
             dataTestId="codex-environment-create-pr"
             action={pullRequestUrl ? 'open-pull-request' : 'open-git-pr'}
-            title={pullRequestUrl ? pullRequestUrl : 'Open Git to create a pull request'}
+            title={pullRequestUrl ? pullRequestUrl : 'Create a pull request'}
             trailing={<span className="environment-row-muted">{pullRequestTrailing}</span>}
             onClick={openPullRequest}
           />

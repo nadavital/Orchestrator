@@ -11518,10 +11518,10 @@ function runAutomatedFocusedSurfaceSmoke(
                   Number(environmentPanel.getAttribute('data-environment-unstaged-count') ?? '0') >= 1 &&
                   environmentBranchRow instanceof HTMLButtonElement &&
                   environmentBranchRow.getAttribute('data-environment-row-action') === 'open-git-branch' &&
-                  environmentBranchRow.getAttribute('aria-label')?.endsWith('. Open Git branch controls') === true &&
+                  environmentBranchRow.getAttribute('aria-label')?.endsWith('. Manage branches') === true &&
                   environmentCommitRow instanceof HTMLButtonElement &&
                   environmentCommitRow.getAttribute('data-environment-row-action') === 'open-git-commit' &&
-                  environmentCommitRow.getAttribute('aria-label') === 'Commit. Open Git to commit changes' &&
+                  environmentCommitRow.getAttribute('aria-label') === 'Commit. Stage and commit changes' &&
                   environmentCreatePrRow instanceof HTMLButtonElement &&
                   environmentCreatePrRow.getAttribute('data-environment-row-action') === 'open-pull-request' &&
                   environmentCreatePrRow.textContent?.includes('View pull request') === true &&
@@ -11611,7 +11611,7 @@ function runAutomatedFocusedSurfaceSmoke(
                       noPrRow instanceof HTMLButtonElement &&
                       noPrRow.getAttribute('data-environment-row-action') === 'open-git-pr' &&
                       noPrRow.textContent?.includes('Create pull request') === true &&
-                      noPrRow.textContent?.includes('Git') === true
+                      noPrRow.getAttribute('aria-label') === 'Create pull request. Create a pull request'
                     ) {
                       break;
                     }
@@ -11640,7 +11640,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   environmentCreatePrOpensGitWorks =
                     noPrRow instanceof HTMLButtonElement &&
                     noPrRow.getAttribute('data-environment-row-action') === 'open-git-pr' &&
-                    noPrRow.getAttribute('aria-label') === 'Create pull request. Open Git to create a pull request' &&
+                    noPrRow.getAttribute('aria-label') === 'Create pull request. Create a pull request' &&
                     rightPanelAfterPrOpen instanceof HTMLElement &&
                     rightPanelAfterPrOpen.getAttribute('data-right-panel-active-tab') === 'git' &&
                     gitPanelAfterPrOpen instanceof HTMLElement &&
@@ -13799,7 +13799,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   Number(reviewFloatingActionPill.getAttribute('data-review-git-handoff-count') ?? '0') > 0 &&
                   retiredReviewGitBridgeButtonsAbsent &&
                   reviewFloatingOpenGitButton instanceof HTMLButtonElement &&
-                  reviewFloatingOpenGitButton.textContent?.includes('Open Git') === true &&
+                  reviewFloatingOpenGitButton.textContent?.includes('Commit options') === true &&
                   floatingActionPillRect !== null &&
                   reviewRootRect !== null &&
                   floatingActionPillRect.width <= reviewRootRect.width - 24 &&
@@ -14628,7 +14628,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     keyboardReviewRowMenu.textContent?.includes('Copy path') === true &&
                     keyboardReviewRowMenu.textContent?.includes('Add to chat') === true &&
                     keyboardReviewRowMenu.textContent?.includes('Insert in terminal') === true &&
-                    keyboardReviewRowMenu.textContent?.includes('Open in Git') === true &&
+                    keyboardReviewRowMenu.textContent?.includes('Commit options') === true &&
                     keyboardReviewRowMenu.textContent?.includes('Reveal file') === true &&
                     copiedReviewRowPath === 'data-preview-smoke.json' &&
                     reviewRowStatusText.includes('Path copied') &&
