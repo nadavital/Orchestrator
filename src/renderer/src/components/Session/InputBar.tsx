@@ -1386,7 +1386,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
                   <div
                     className="px-3 py-2"
                     data-testid="composer-active-agent-summary"
-                    style={{ borderBottom: '1px solid var(--color-border)' }}
+                    style={{ borderBottom: '1px solid color-mix(in srgb, var(--border-subtle) 28%, transparent)' }}
                   >
                     <div className="flex items-center gap-2">
                       <ProviderIcon providerId={provider.id} size={12} color={provider.color} />
@@ -2140,11 +2140,12 @@ function DropdownPanel({
       className="absolute z-50 composer-dropdown-surface"
       onClose={onClose}
       style={{
-        border: '0.5px solid var(--border-subtle)',
+        border: '1px solid color-mix(in srgb, var(--border-subtle) 30%, transparent)',
         borderRadius: 12,
-        background: 'color-mix(in srgb, var(--surface-bg) 90%, transparent)',
-        boxShadow: 'var(--shadow-menu)',
-        backdropFilter: 'blur(12px)',
+        background: 'color-mix(in srgb, var(--surface-bg) 78%, transparent)',
+        boxShadow: '0 16px 42px rgba(0, 0, 0, 0.26)',
+        backdropFilter: 'blur(18px) saturate(130%)',
+        WebkitBackdropFilter: 'blur(18px) saturate(130%)',
         overflow: 'hidden',
         maxWidth: 'min(420px, calc(100vw - 16px))',
         maxHeight: 'min(360px, calc(100vh - 16px))',
@@ -2458,7 +2459,7 @@ function TieredRow({ label, children }: { label: string; children: React.ReactNo
       className="flex items-start gap-3 px-3 py-2"
       role="group"
       aria-label={`${label} choices`}
-      style={{ borderBottom: '1px solid var(--color-border)' }}
+      style={{ borderBottom: '1px solid color-mix(in srgb, var(--border-subtle) 24%, transparent)' }}
     >
       <span
         className="shrink-0 pt-0.5 text-[11px] font-semibold tracking-normal"
@@ -2667,11 +2668,11 @@ function Chip({
       data-composer-choice-active={active ? 'true' : 'false'}
       className="flex items-center gap-1.5 text-xs transition-colors"
       style={{
-        background: active ? 'var(--control-bg-active)' : 'var(--control-bg)',
+        background: active ? 'color-mix(in srgb, var(--control-bg-active) 58%, transparent)' : 'color-mix(in srgb, var(--control-bg) 34%, transparent)',
         color: active ? activeColor : disabled ? 'var(--text-tertiary)' : 'var(--text-primary)',
-        border: '1px solid ' + (active ? activeColor : 'var(--border-subtle)'),
+        border: '1px solid ' + (active ? `color-mix(in srgb, ${activeColor} 72%, var(--border-subtle))` : 'color-mix(in srgb, var(--border-subtle) 42%, transparent)'),
         borderRadius: 'var(--radius-pill)',
-        padding: '5px 9px',
+        padding: '4px 8px',
         cursor: disabled ? 'default' : 'pointer',
         opacity: disabled ? 0.5 : 1,
         fontWeight: active ? 650 : 500
