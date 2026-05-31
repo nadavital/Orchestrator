@@ -2370,9 +2370,9 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 browserSettingsSection.innerText.includes('Delete site data') &&
                 browserSettingsSection.innerText.includes('Cached images and files') &&
                 browserSettingsSection.innerText.includes('Permissions') &&
-                browserSettingsSection.innerText.includes('Domains') &&
+                browserSettingsSection.innerText.includes('Domain rules') &&
                 browserSettingsSection.innerText.includes('Always allow') &&
-                browserSettingsSection.innerText.includes('example.com') &&
+                browserSettingsSection.textContent?.includes('example.com') === true &&
                 browserSettingsStatus instanceof HTMLElement &&
                 browserSettingsStatus.textContent?.includes('Browser cache cleared') === true;
               var settingsBrowserStatusA11yWorks =
