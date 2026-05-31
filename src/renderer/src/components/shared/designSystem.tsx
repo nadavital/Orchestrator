@@ -1520,14 +1520,15 @@ export function PanelTabStrip<T extends string | number>({
       ? row.querySelector<HTMLElement>(`[data-app-shell-tab-controller="${cssEscape(panelId)}"][data-tab-id="${cssEscape(String(activeTabId))}"]`)
       : row.querySelector<HTMLElement>('[data-active="true"]')
     if (!activeTab) return
-    const rowRect = row.getBoundingClientRect()
-    const activeRect = activeTab.getBoundingClientRect()
-    const visibleLeft = rowRect.left
-    const visibleRight = rowRect.right
-    if (activeRect.left < visibleLeft) {
-      row.scrollLeft -= visibleLeft - activeRect.left
-    } else if (activeRect.right > visibleRight) {
-      row.scrollLeft += activeRect.right - visibleRight
+    const activeLeft = activeTab.offsetLeft
+    const activeRight = activeLeft + activeTab.offsetWidth
+    const visibleLeft = row.scrollLeft
+    const visibleRight = visibleLeft + row.clientWidth
+    const inset = 12
+    if (activeLeft < visibleLeft + inset) {
+      row.scrollLeft = Math.max(0, activeLeft - inset)
+    } else if (activeRight > visibleRight - inset) {
+      row.scrollLeft = Math.max(0, activeRight - row.clientWidth + inset)
     }
   }, [activeTabId, panelId])
 
@@ -1555,9 +1556,17 @@ export function PanelTabStrip<T extends string | number>({
     const updateActiveTabVisibility = (): void => {
       scrollActiveTabIntoView()
       updateEdges()
+      window.requestAnimationFrame(() => {
+        scrollActiveTabIntoView()
+        updateEdges()
+      })
     }
     const resizeObserver = new ResizeObserver(() => window.requestAnimationFrame(updateActiveTabVisibility))
     resizeObserver.observe(row)
+    const frame = row.parentElement
+    if (frame) resizeObserver.observe(frame)
+    const strip = row.closest('.panel-tab-strip')
+    if (strip) resizeObserver.observe(strip)
     row.addEventListener('scroll', updateEdges, { passive: true })
     window.addEventListener('resize', updateEdges)
     return () => {

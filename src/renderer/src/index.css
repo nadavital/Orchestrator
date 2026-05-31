@@ -7935,8 +7935,10 @@
     color: var(--text-tertiary);
     opacity: 0;
     pointer-events: none;
-    position: static;
-    transform: scale(0.94);
+    position: absolute;
+    top: 50%;
+    right: 4px;
+    transform: translateY(-50%) scale(0.94);
     transition:
       opacity var(--motion-duration-control) var(--motion-ease-control),
       transform var(--motion-duration-control) var(--motion-ease-control),
@@ -7949,7 +7951,7 @@
   .motion-tab-close:focus-visible {
     opacity: 1;
     pointer-events: auto;
-    transform: scale(1);
+    transform: translateY(-50%) scale(1);
   }
 
   .motion-tab-close:hover,
@@ -8052,6 +8054,11 @@
     align-items: center;
     gap: 6px;
     overflow: hidden;
+  }
+
+  .motion-tab-button[data-closable='true']:hover .panel-tab-content,
+  .motion-tab-button[data-closable='true']:focus-within .panel-tab-content {
+    max-width: min(var(--app-shell-tab-content-max-width), calc(100% - 20px));
   }
 
   .motion-tab-label-host {

@@ -71,3 +71,9 @@ Each chunk should include:
 - `npm run build`.
 - Focused git commit and push before the next chunk.
 - Reinstall `/Applications/Orchestrator.app` after a visual chunk intended for dogfood.
+
+## Progress Log
+
+- `d6e9f00` created this audit and baseline evidence list.
+- `a10b8f8` reduced shell/sidebar/panel chrome, restored softer side-chat material, quieted composer shell controls, and lowered settings/provider border contrast. Verified with `tmp/design-language-audit-after-shell-final`; `npm run build` passed. Remaining failures: right-panel tab visibility/close-edge assertions, composer smoke still expects the older verbose context-chip contract.
+- Current tab chunk removes always-reserved hidden close-button width from shared panel tabs and strengthens active-tab scroll handling. Verified with `tmp/design-language-audit-after-tabs` and `tmp/design-language-audit-after-tab-scroll`; `npm run build` passed. Remaining failures: active tab still does not scroll into view after a synthetic right-panel resize, close-edge expectation remains false, and terminal visual decomposition remains false.
