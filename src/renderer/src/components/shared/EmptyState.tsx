@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useProjectStore } from '../../store/projects'
 import { useSessionStore } from '../../store/sessions'
-import { pickAndAddProject } from '../Sidebar/Sidebar'
+import { pickAndAddProjectWithStatus, projectOpenStatusText, withProjectOpenTimeout, type ProjectOpenStatus } from '../Sidebar/Sidebar'
 import { Button } from './designSystem'
 import Icon from './Icon'
 
@@ -9,23 +9,41 @@ export default function EmptyState(): JSX.Element {
   const { projects, addProject } = useProjectStore()
   const { addSession, setActiveSession, setShowCapabilities, setShowSettings } = useSessionStore()
   const [isImporting, setIsImporting] = useState(false)
+  const [isAdding, setIsAdding] = useState(false)
+  const [addStatus, setAddStatus] = useState<ProjectOpenStatus | null>(null)
+  const [addMessage, setAddMessage] = useState<string | null>(null)
   const [importMessage, setImportMessage] = useState<string | null>(null)
   const hasProjects = projects.length > 0
 
   const handleAddProject = async (): Promise<void> => {
-    const project = await pickAndAddProject(addProject)
-    if (!project) return
-    await openProjectSession(project)
+    if (isAdding) return
+    setIsAdding(true)
+    setAddStatus('selecting')
+    setAddMessage(null)
+    try {
+      const project = await pickAndAddProjectWithStatus(addProject, setAddStatus)
+      if (!project) return
+      setAddStatus('opening')
+      await openProjectSession(project)
+    } catch (error) {
+      setAddMessage(error instanceof Error ? error.message : 'Could not add project.')
+    } finally {
+      setIsAdding(false)
+      setAddStatus(null)
+    }
   }
 
   const openProjectSession = async (project: { id: string; rootPath: string }): Promise<void> => {
-    const session = await window.api.sessions.create({
-      projectId: project.id,
-      workDir: project.rootPath,
-      useWorktree: false,
-      repoRoot: project.rootPath
-    })
-    await window.api.projects.addSession(project.id, session.id)
+    const session = await withProjectOpenTimeout(
+      window.api.sessions.create({
+        projectId: project.id,
+        workDir: project.rootPath,
+        useWorktree: false,
+        repoRoot: project.rootPath
+      }),
+      'Opening the project chat'
+    )
+    await withProjectOpenTimeout(window.api.projects.addSession(project.id, session.id), 'Linking the project chat')
     addSession(session)
     setActiveSession(session.id)
     setShowCapabilities(false)
@@ -78,10 +96,11 @@ export default function EmptyState(): JSX.Element {
             <Button
               dataTestId="project-empty-state-add"
               onClick={() => { void handleAddProject() }}
+              disabled={isAdding}
               className="h-8 px-3 text-xs"
             >
               <Icon name="plus" size={14} />
-              Open folder
+              {isAdding ? 'Opening' : 'Open folder'}
             </Button>
             <Button
               dataTestId="project-empty-state-import-codex"
@@ -94,6 +113,16 @@ export default function EmptyState(): JSX.Element {
               {isImporting ? 'Importing' : 'Import Codex'}
             </Button>
           </div>
+          {addStatus && (
+            <div className="mt-3 text-[12px] leading-4" data-testid="project-empty-state-add-status" role="status" style={{ color: 'var(--text-tertiary)' }}>
+              {projectOpenStatusText(addStatus)}
+            </div>
+          )}
+          {addMessage && (
+            <div className="mt-3 text-[12px] leading-4" data-testid="project-empty-state-add-error" role="status" style={{ color: 'var(--state-danger)' }}>
+              {addMessage}
+            </div>
+          )}
           {importMessage && (
             <div className="mt-3 text-[12px] leading-4" style={{ color: 'var(--text-tertiary)' }}>
               {importMessage}

@@ -41,8 +41,46 @@ const SETTINGS_SECTION_ICONS: Record<SettingsSection, IconName> = {
 export async function pickAndAddProject(addProject: (p: Project) => void): Promise<Project | null> {
   const dir = await window.api.dialog.openDirectory()
   if (!dir) return null
+  const project = await addProjectForDirectory(dir, addProject)
+  return project
+}
+
+const PROJECT_OPEN_TIMEOUT_MS = 12_000
+
+export type ProjectOpenStatus = 'selecting' | 'adding' | 'opening'
+
+export function projectOpenStatusText(status: ProjectOpenStatus): string {
+  if (status === 'selecting') return 'Waiting for folder selection...'
+  if (status === 'adding') return 'Adding project...'
+  return 'Opening project chat...'
+}
+
+export function withProjectOpenTimeout<T>(promise: Promise<T>, label: string): Promise<T> {
+  let timeout: ReturnType<typeof window.setTimeout> | null = null
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeout = window.setTimeout(() => {
+      reject(new Error(`${label} is taking longer than expected. Try again or choose a smaller local folder.`))
+    }, PROJECT_OPEN_TIMEOUT_MS)
+  })
+  return Promise.race([promise, timeoutPromise]).finally(() => {
+    if (timeout) window.clearTimeout(timeout)
+  })
+}
+
+export async function pickAndAddProjectWithStatus(
+  addProject: (p: Project) => void,
+  setStatus: (status: ProjectOpenStatus) => void
+): Promise<Project | null> {
+  setStatus('selecting')
+  const dir = await window.api.dialog.openDirectory()
+  if (!dir) return null
+  setStatus('adding')
+  return addProjectForDirectory(dir, addProject)
+}
+
+async function addProjectForDirectory(dir: string, addProject: (p: Project) => void): Promise<Project> {
   const name = dir.split('/').pop() ?? dir
-  const project = await window.api.projects.add(name, dir)
+  const project = await withProjectOpenTimeout(window.api.projects.add(name, dir), 'Adding the project')
   addProject(project)
   return project
 }
@@ -119,6 +157,7 @@ export default function Sidebar({
   const [draggedSectionKey, setDraggedSectionKey] = useState<`custom:${string}` | null>(null)
   const [activeSectionDropTarget, setActiveSectionDropTarget] = useState<string | null>(null)
   const [isAddingProject, setIsAddingProject] = useState(false)
+  const [addProjectStatus, setAddProjectStatus] = useState<ProjectOpenStatus | null>(null)
   const [addProjectError, setAddProjectError] = useState<string | null>(null)
   const settingsHostOptions = useMemo(() => settingsHostOptionsFromSessions(sessions), [sessions])
   const normalizedSettingsHostId = normalizeSettingsHostId(settingsHostId, settingsHostOptions)
@@ -258,9 +297,10 @@ export default function Sidebar({
   const handleAddProject = async (): Promise<void> => {
     if (isAddingProject) return
     setIsAddingProject(true)
+    setAddProjectStatus('selecting')
     setAddProjectError(null)
     try {
-      const project = await pickAndAddProject(addProject)
+      const project = await pickAndAddProjectWithStatus(addProject, setAddProjectStatus)
       if (!project) return
 
       const { sessions: currentSessions, activeSessionId: currentActiveSessionId, uiState } = useSessionStore.getState()
@@ -272,13 +312,17 @@ export default function Sidebar({
         removeSessionFromProject(active.projectId, active.id)
       }
 
-      const session = await window.api.sessions.create({
-        projectId: project.id,
-        workDir: project.rootPath,
-        useWorktree: false,
-        repoRoot: project.rootPath
-      })
-      await window.api.projects.addSession(project.id, session.id)
+      setAddProjectStatus('opening')
+      const session = await withProjectOpenTimeout(
+        window.api.sessions.create({
+          projectId: project.id,
+          workDir: project.rootPath,
+          useWorktree: false,
+          repoRoot: project.rootPath
+        }),
+        'Opening the project chat'
+      )
+      await withProjectOpenTimeout(window.api.projects.addSession(project.id, session.id), 'Linking the project chat')
       addSession(session)
       addSessionToProject(project.id, session.id)
       setActiveSession(session.id)
@@ -288,6 +332,7 @@ export default function Sidebar({
       setAddProjectError(error instanceof Error ? error.message : 'Could not add project')
     } finally {
       setIsAddingProject(false)
+      setAddProjectStatus(null)
     }
   }
 
@@ -646,6 +691,11 @@ export default function Sidebar({
         {addProjectError && (
           <div className="sidebar-inline-status" role="status" data-testid="sidebar-add-project-error">
             {addProjectError}
+          </div>
+        )}
+        {addProjectStatus && (
+          <div className="sidebar-inline-status" role="status" data-testid="sidebar-add-project-status">
+            {projectOpenStatusText(addProjectStatus)}
           </div>
         )}
         {viewMode === 'chronological' ? (
