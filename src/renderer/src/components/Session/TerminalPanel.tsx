@@ -145,6 +145,7 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
       tabKind: 'plan',
       tabId: 'plan'
     })
+    if (moved) setActiveTerminalTab(session.id, 'plan')
     setPanelActionStatus(moved
       ? { text: 'Plan opened in bottom panel', tone: 'info' }
       : { text: 'Plan tab unavailable', tone: 'danger' })
@@ -171,6 +172,7 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
       tabKind,
       tabId
     })
+    if (moved) setActiveTerminalTab(session.id, tabId)
     setPanelActionStatus(moved
       ? { text: `${label} opened in bottom panel`, tone: 'info' }
       : { text: `${label} tab unavailable`, tone: 'danger' })
@@ -187,6 +189,7 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
       tabKind: 'sidechat',
       tabId
     })
+    if (moved) setActiveTerminalTab(session.id, tabId)
     setPanelActionStatus(moved
       ? { text: 'Side chat opened in bottom panel', tone: 'info' }
       : { text: 'Side chat tab unavailable', tone: 'danger' })

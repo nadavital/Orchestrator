@@ -363,7 +363,8 @@ function compactShortcutLabel(label: string): string {
     case 'Toggle Inspector':
       return 'Inspector'
     case 'Toggle Terminal':
-      return 'Terminal'
+    case 'Toggle Bottom Panel':
+      return 'Bottom Panel'
     case 'Go to Chat 1-9':
       return 'Chat 1-9'
     default:

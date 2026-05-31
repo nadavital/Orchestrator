@@ -46,7 +46,7 @@ export const APP_SLASH_COMMANDS: ProviderSlashCommand[] = [
   {
     id: 'terminal',
     name: '/terminal',
-    description: 'Toggle terminal',
+    description: 'Toggle bottom panel',
     providerId: 'app',
     source: 'app',
     runtime: 'headless',

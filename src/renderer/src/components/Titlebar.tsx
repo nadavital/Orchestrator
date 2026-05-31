@@ -272,7 +272,7 @@ function Titlebar(): JSX.Element {
               onClick={toggleInspector}
             />
             <ToolbarButton
-              icon="terminal"
+              icon="panelBottom"
               label="Toggle bottom panel"
               active={showTerminal}
               ariaExpanded={showTerminal}

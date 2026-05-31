@@ -3025,6 +3025,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 !shortcutText.includes('Panels') &&
                 !shortcutText.includes('Toggle Inspector') &&
                 !shortcutText.includes('Toggle Terminal') &&
+                !shortcutText.includes('Toggle Bottom Panel') &&
                 !shortcutText.includes('Pin or Unpin Chat') &&
                 !shortcutText.includes('Search Transcript') &&
                 settingsShortcutsSurfaceWorks &&
