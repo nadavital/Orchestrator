@@ -162,37 +162,42 @@ export default function WorktreesSettingsPage({ onClose }: WorktreesSettingsPage
             </div>
             <SettingsGroupContent>
               <SettingsSurface className="worktrees-settings-surface" dataTestId="worktrees-create-surface">
-                <div className="worktrees-create-grid">
-                  <label className="worktrees-field">
-                    <span>Project</span>
-                    <select
-                      value={selectedProjectId}
-                      onChange={(event) => setSelectedProjectId(event.target.value)}
-                      data-testid="worktrees-create-project"
-                    >
-                      {projects.map((project) => (
-                        <option key={project.id} value={project.id}>{project.name}</option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="worktrees-field">
-                    <span>Base</span>
-                    <input
-                      value={baseRef}
-                      onChange={(event) => setBaseRef(event.target.value)}
-                      placeholder="HEAD"
-                      data-testid="worktrees-create-base"
-                    />
-                  </label>
-                  <label className="worktrees-field">
-                    <span>Branch</span>
-                    <input
-                      value={branchName}
-                      onChange={(event) => setBranchName(event.target.value)}
-                      placeholder="orchestrator/my-work"
-                      data-testid="worktrees-create-branch"
-                    />
-                  </label>
+                <div className="worktrees-create-form">
+                  <div className="worktrees-create-fields">
+                    <label className="settings-field-stack">
+                      <span>Project</span>
+                      <select
+                        className="settings-select settings-control-fill"
+                        value={selectedProjectId}
+                        onChange={(event) => setSelectedProjectId(event.target.value)}
+                        data-testid="worktrees-create-project"
+                      >
+                        {projects.map((project) => (
+                          <option key={project.id} value={project.id}>{project.name}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="settings-field-stack">
+                      <span>Base</span>
+                      <input
+                        className="settings-input"
+                        value={baseRef}
+                        onChange={(event) => setBaseRef(event.target.value)}
+                        placeholder="HEAD"
+                        data-testid="worktrees-create-base"
+                      />
+                    </label>
+                    <label className="settings-field-stack">
+                      <span>Branch</span>
+                      <input
+                        className="settings-input"
+                        value={branchName}
+                        onChange={(event) => setBranchName(event.target.value)}
+                        placeholder="orchestrator/my-work"
+                        data-testid="worktrees-create-branch"
+                      />
+                    </label>
+                  </div>
                   <button
                     type="button"
                     className="settings-action-button"

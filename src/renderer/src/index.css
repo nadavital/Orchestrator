@@ -10612,7 +10612,7 @@
   .settings-select {
     min-width: 178px;
     height: 30px;
-    border: 1px solid color-mix(in srgb, var(--border-subtle) 76%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border-subtle) 54%, transparent);
     border-radius: 7px;
     background: color-mix(in srgb, var(--control-bg) 84%, transparent);
     color: var(--text-primary);
@@ -10626,6 +10626,39 @@
   .settings-select:focus-visible {
     border-color: color-mix(in srgb, var(--accent) 46%, var(--border-strong));
     box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 13%, transparent);
+  }
+
+  .settings-input {
+    min-width: 0;
+    height: 30px;
+    border: 1px solid color-mix(in srgb, var(--border-subtle) 54%, transparent);
+    border-radius: 7px;
+    background: color-mix(in srgb, var(--control-bg) 84%, transparent);
+    color: var(--text-primary);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 500;
+    outline: none;
+    padding: 0 9px;
+  }
+
+  .settings-input:focus-visible {
+    border-color: color-mix(in srgb, var(--accent) 46%, var(--border-strong));
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 13%, transparent);
+  }
+
+  .settings-control-fill {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .settings-field-stack {
+    display: grid;
+    min-width: 0;
+    gap: 5px;
+    color: var(--text-secondary);
+    font-size: 12px;
+    line-height: 1.3;
   }
 
   .general-settings-segmented-control {
@@ -10716,11 +10749,11 @@
 
   .settings-row + .personalization-field-row,
   .personalization-field-row + .personalization-field-row {
-    border-top: 1px solid color-mix(in srgb, var(--border-subtle) 72%, transparent);
+    border-top: 1px solid color-mix(in srgb, var(--border-subtle) 24%, transparent);
   }
 
   .personalization-action-status {
-    border-top: 1px solid color-mix(in srgb, var(--border-subtle) 72%, transparent);
+    border-top: 1px solid color-mix(in srgb, var(--border-subtle) 24%, transparent);
     color: var(--text-secondary);
     font-size: 12px;
     line-height: 1.35;
@@ -10732,7 +10765,7 @@
   }
 
   .general-settings-action-status {
-    border-top: 1px solid color-mix(in srgb, var(--border-subtle) 72%, transparent);
+    border-top: 1px solid color-mix(in srgb, var(--border-subtle) 24%, transparent);
     color: var(--text-secondary);
     font-size: 12px;
     line-height: 1.35;
@@ -10758,7 +10791,7 @@
   .browser-settings-select,
   .browser-domain-input {
     min-height: 28px;
-    border: 1px solid var(--border-subtle);
+    border: 1px solid color-mix(in srgb, var(--border-subtle) 54%, transparent);
     border-radius: 7px;
     background: var(--control-bg);
     color: var(--text-primary);
@@ -10784,7 +10817,7 @@
   }
 
   .browser-domain-policy-row + .browser-domain-policy-row {
-    border-top: 1px solid color-mix(in srgb, var(--border-subtle) 72%, transparent);
+    border-top: 1px solid color-mix(in srgb, var(--border-subtle) 24%, transparent);
   }
 
   .browser-domain-policy-copy {
@@ -11122,7 +11155,7 @@
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 12px;
     align-items: center;
-    border-top: 1px solid color-mix(in srgb, var(--border-subtle) 72%, transparent);
+    border-top: 1px solid color-mix(in srgb, var(--border-subtle) 24%, transparent);
     padding: 10px 12px;
   }
 
@@ -11152,7 +11185,7 @@
   }
 
   .data-controls-status {
-    border-top: 1px solid color-mix(in srgb, var(--border-subtle) 72%, transparent);
+    border-top: 1px solid color-mix(in srgb, var(--border-subtle) 24%, transparent);
     padding: 9px 12px;
   }
 
@@ -11169,7 +11202,7 @@
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 12px;
     align-items: center;
-    border-top: 1px solid color-mix(in srgb, var(--border-subtle) 72%, transparent);
+    border-top: 1px solid color-mix(in srgb, var(--border-subtle) 24%, transparent);
     padding: 10px 12px;
   }
 
@@ -11270,7 +11303,7 @@
   }
 
   .automations-status {
-    border-top: 1px solid color-mix(in srgb, var(--border-subtle) 72%, transparent);
+    border-top: 1px solid color-mix(in srgb, var(--border-subtle) 24%, transparent);
   }
 
   .worktrees-list {
@@ -11279,48 +11312,25 @@
     flex-direction: column;
   }
 
-  .worktrees-create-grid {
+  .worktrees-create-form {
     display: grid;
     min-width: 0;
-    grid-template-columns: minmax(180px, 1.2fr) minmax(120px, 0.8fr) minmax(160px, 1fr) auto;
-    gap: 10px;
-    align-items: end;
+    gap: 9px;
     padding: 10px 12px;
   }
 
-  .worktrees-field {
+  .worktrees-create-fields {
     display: grid;
     min-width: 0;
-    gap: 5px;
-    color: var(--text-secondary);
-    font-size: 12px;
-    line-height: 1.3;
-  }
-
-  .worktrees-field select,
-  .worktrees-field input {
-    min-width: 0;
-    height: 30px;
-    border: 1px solid var(--border-subtle);
-    border-radius: 7px;
-    background: var(--control-bg);
-    color: var(--text-primary);
-    font-size: 12px;
-    outline: none;
-    padding: 0 9px;
-  }
-
-  .worktrees-field select:focus-visible,
-  .worktrees-field input:focus-visible {
-    border-color: color-mix(in srgb, var(--accent) 56%, var(--border-subtle));
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 14%, transparent);
+    grid-template-columns: minmax(180px, 1.15fr) minmax(120px, 0.75fr) minmax(180px, 1.1fr);
+    gap: 9px;
   }
 
   .worktrees-row {
     display: grid;
     min-width: 0;
     gap: 10px;
-    border-top: 1px solid color-mix(in srgb, var(--border-subtle) 72%, transparent);
+    border-top: 1px solid color-mix(in srgb, var(--border-subtle) 24%, transparent);
     padding: 10px 12px;
   }
 
@@ -11464,13 +11474,12 @@
   }
 
   .worktrees-status {
-    border-top: 1px solid color-mix(in srgb, var(--border-subtle) 72%, transparent);
+    border-top: 1px solid color-mix(in srgb, var(--border-subtle) 24%, transparent);
   }
 
   @media (max-width: 760px) {
-    .worktrees-create-grid {
+    .worktrees-create-fields {
       grid-template-columns: 1fr;
-      align-items: stretch;
     }
 
     .worktrees-row-header {
@@ -11599,7 +11608,7 @@
     min-height: 36px;
     align-items: center;
     gap: 12px;
-    border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 72%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 24%, transparent);
     padding: 0 12px;
   }
 
@@ -11615,7 +11624,7 @@
     gap: 12px;
     min-height: 24px;
     align-items: center;
-    border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 72%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 24%, transparent);
     color: var(--text-tertiary);
     font-size: 11px;
     font-weight: 500 !important;
