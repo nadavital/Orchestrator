@@ -517,54 +517,30 @@ function ProviderPermissionContract({
     <div>
       {chips.length > 0 && (
         <div
+          className="provider-permission-contract"
           data-testid="settings-permission-execution-contract"
-          style={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            gap: 5,
-            marginTop: 6
-          }}
         >
           {chips.map((chip) => (
             <span
               key={`${chip.label}:${chip.value}`}
+              className="provider-permission-chip"
+              data-strong={chip.strong ? 'true' : 'false'}
               title={`${chip.label}: ${chip.value}`}
-              style={{
-                maxWidth: 180,
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-                padding: '3px 6px',
-                borderRadius: 7,
-                border: `1px solid ${chip.strong ? color : 'var(--color-border)'}`,
-                color: chip.strong ? color : 'var(--color-text-muted)',
-                background: 'var(--color-surface)',
-                fontSize: 10,
-                fontWeight: chip.strong ? 650 : 500
-              }}
+              style={{ '--provider-color': color } as CSSProperties}
             >
               {chip.label} {chip.value}
             </span>
           ))}
         </div>
       )}
-      {context && context.source !== 'static' && (
+      {context && (
         <>
           <div
+            className="provider-permission-runtime-context"
             data-testid="settings-permission-runtime-context"
             data-permission-context-refreshing={refreshing ? 'true' : 'false'}
             data-permission-context-source={context.source}
             data-permission-context-status={context.status}
-            style={{
-              display: 'flex',
-              flexWrap: 'wrap',
-              alignItems: 'center',
-              gap: 6,
-              marginTop: 6,
-              color: context.status === 'ok' ? 'var(--color-green)' : 'var(--color-text-muted)',
-              fontSize: 10.5,
-              lineHeight: 1.35
-            }}
             title={context.cwd ? `${context.summary ?? ''} ${context.cwd}` : context.summary}
           >
             <span>{context.status === 'ok' ? 'Live config' : 'Config fallback'} · {context.summary ?? 'Permission config checked.'}</span>
@@ -582,16 +558,13 @@ function ProviderPermissionContract({
           </div>
           {refreshStatus && (
             <div
+              className="provider-permission-refresh-status"
               data-testid="settings-permission-runtime-refresh-status"
+              data-tone={refreshStatus.tone}
               role={refreshStatus.tone === 'danger' ? 'alert' : 'status'}
               aria-live={refreshStatus.tone === 'danger' ? 'assertive' : 'polite'}
               aria-atomic="true"
-              style={{
-                marginTop: 5,
-                color: refreshStatus.tone === 'danger' ? 'var(--color-red)' : color,
-                fontSize: 10.5,
-                fontWeight: 600
-              }}
+              style={{ '--provider-color': color } as CSSProperties}
             >
               {refreshStatus.text}
             </div>
@@ -2048,27 +2021,17 @@ function DefaultModelPicker({
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+    <div className="provider-default-model-picker">
+      <div className="provider-default-model-options">
         {models.map((m) => {
           const active = currentModel === m.id
           return (
             <button
               key={m.id}
+              className="provider-default-model-option"
+              data-active={active ? 'true' : 'false'}
               onClick={() => { onSetModel(m.id); setCustomInput(''); setCustomOpen(false) }}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '5px 10px',
-                borderRadius: 8,
-                background: active ? 'var(--color-surface2)' : 'var(--color-surface)',
-                border: `1px solid ${active ? providerDef.color : 'var(--color-border)'}`,
-                color: active ? providerDef.color : 'var(--color-text)',
-                cursor: 'pointer',
-                fontSize: 12,
-                fontWeight: active ? 600 : 500
-              }}
+              style={{ '--provider-color': providerDef.color } as CSSProperties}
             >
               {m.label}
             </button>
@@ -2077,20 +2040,8 @@ function DefaultModelPicker({
         {isPreset && !customOpen && (
           <button
             data-testid="provider-custom-model-toggle"
+            className="provider-default-model-option"
             onClick={() => setCustomOpen(true)}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '5px 10px',
-              borderRadius: 8,
-              background: 'var(--color-surface)',
-              border: '1px solid var(--color-border)',
-              color: 'var(--color-text-muted)',
-              cursor: 'pointer',
-              fontSize: 12,
-              fontWeight: 600
-            }}
           >
             Custom
           </button>
@@ -2099,12 +2050,9 @@ function DefaultModelPicker({
 
       {customOpen && (
         <div
-          style={{
-            display: 'flex', alignItems: 'center', gap: 8,
-            padding: '8px 12px', borderRadius: 8,
-            background: !isPreset && currentModel ? 'var(--color-surface2)' : 'var(--color-surface)',
-            border: `1px solid ${!isPreset && currentModel ? providerDef.color : 'var(--color-border)'}`
-          }}
+          className="provider-default-model-custom"
+          data-active={!isPreset && currentModel ? 'true' : 'false'}
+          style={{ '--provider-color': providerDef.color } as CSSProperties}
         >
           <input
             data-testid="provider-custom-model-input"
@@ -2113,16 +2061,10 @@ function DefaultModelPicker({
             onBlur={applyCustom}
             onKeyDown={(e) => { if (e.key === 'Enter') applyCustom() }}
             placeholder="Custom model ID..."
-            style={{
-              flex: 1, background: 'transparent', border: 'none', outline: 'none',
-              fontSize: 11, fontFamily: 'monospace',
-              color: customInput ? 'var(--color-text)' : 'var(--color-text-muted)'
-            }}
+            className="provider-default-model-custom-input"
           />
           {!isPreset && currentModel && (
-            <svg width="12" height="12" viewBox="0 0 16 16" fill={providerDef.color}>
-              <path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z" />
-            </svg>
+            <Icon name="check" size={12} />
           )}
         </div>
       )}
