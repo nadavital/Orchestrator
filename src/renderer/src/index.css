@@ -13691,8 +13691,8 @@
     justify-content: space-between;
     gap: 18px;
     padding: 20px 28px 16px;
-    border-bottom: 1px solid var(--border-subtle);
-    background: var(--surface-bg);
+    border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 24%, transparent);
+    background: color-mix(in srgb, var(--surface-bg) 34%, transparent);
     user-select: none;
     -webkit-app-region: drag;
   }
@@ -13747,9 +13747,9 @@
   .cap-field input,
   .cap-field textarea {
     min-height: 36px;
-    border: 1px solid var(--border-subtle);
+    border: 1px solid color-mix(in srgb, var(--border-subtle) 48%, transparent);
     border-radius: var(--radius-md);
-    background: var(--surface-bg);
+    background: color-mix(in srgb, var(--surface-bg) 60%, transparent);
     color: var(--text-primary);
     font: inherit;
     outline: none;
@@ -13850,8 +13850,8 @@
 
   .capability-tabs button.active,
   .cap-segmented button.active {
-    border-color: var(--border-subtle);
-    background: var(--control-bg-active);
+    border-color: color-mix(in srgb, var(--border-subtle) 48%, transparent);
+    background: color-mix(in srgb, var(--control-bg-active) 72%, transparent);
     color: var(--text-primary);
   }
 
@@ -13919,9 +13919,9 @@
 
   .capability-table {
     overflow: hidden;
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-lg);
-    background: var(--surface-bg);
+    border: 0;
+    border-radius: var(--radius-md);
+    background: transparent;
   }
 
   .capability-row {
@@ -13931,7 +13931,7 @@
     gap: 14px;
     min-width: 0;
     min-height: 58px;
-    border-bottom: 1px solid var(--border-subtle);
+    border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 24%, transparent);
     padding: 10px 12px;
   }
 
@@ -14006,9 +14006,9 @@
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    border: 1px solid var(--border-subtle);
+    border: 1px solid color-mix(in srgb, var(--border-subtle) 30%, transparent);
     border-radius: var(--radius-pill);
-    background: var(--control-bg);
+    background: transparent;
     color: var(--text-secondary);
     padding: 3px 7px;
     font-size: 10px;
