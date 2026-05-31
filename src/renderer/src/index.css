@@ -1953,6 +1953,15 @@
     color: var(--state-danger);
   }
 
+  [data-testid='session-bottom-panel'] [data-testid='terminal-add-output-to-chat']:disabled,
+  [data-testid='session-bottom-panel'] [data-testid='terminal-add-selected-output-to-chat']:disabled,
+  [data-testid='session-bottom-panel'] [data-testid='terminal-add-command-output-to-chat']:disabled,
+  [data-testid='right-terminal-add-output-to-chat']:disabled,
+  [data-testid='right-terminal-add-selected-output-to-chat']:disabled,
+  [data-testid='right-terminal-add-command-output-to-chat']:disabled {
+    display: none;
+  }
+
   .diff-panel-toolbar {
     container: diff-panel-toolbar / inline-size;
     display: grid;
