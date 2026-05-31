@@ -72,11 +72,11 @@
     --shadow-soft: 0 1px 2px rgba(15, 23, 42, 0.06);
     --shadow-menu: 0 18px 48px rgba(15, 23, 42, 0.16);
     --shadow-dialog: 0 28px 90px rgba(15, 23, 42, 0.22);
-    --motion-duration-edge: 140ms;
-    --motion-duration-row: 180ms;
-    --motion-duration-control: 160ms;
-    --motion-duration-overlay: 180ms;
-    --motion-duration-panel: 220ms;
+    --motion-duration-edge: 110ms;
+    --motion-duration-row: 120ms;
+    --motion-duration-control: 120ms;
+    --motion-duration-overlay: 140ms;
+    --motion-duration-panel: 160ms;
     --motion-ease-standard: ease-out;
     --motion-ease-control: cubic-bezier(0.16, 1, 0.3, 1);
     --motion-ease-emphasized: cubic-bezier(0.19, 1, 0.22, 1);
@@ -84,7 +84,7 @@
     --motion-scale-edge-hover: 1.03;
     --motion-scale-tap-strong: 0.94;
     --motion-scale-tap-soft: 0.96;
-    --motion-row-enter-y: 4px;
+    --motion-row-enter-y: 2px;
     --motion-control-offset: 6px;
 
     --color-bg: var(--app-bg);
