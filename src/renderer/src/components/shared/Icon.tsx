@@ -23,9 +23,11 @@ import {
   Expand,
   File,
   Folder,
+  FolderOpen,
   GitBranch,
   GitCompare,
   Globe,
+  Hand,
   Keyboard,
   ListChecks,
   LocateFixed,
@@ -48,6 +50,8 @@ import {
   ExternalLink,
   Send,
   Settings,
+  ShieldAlert,
+  ShieldCheck,
   Sparkles,
   Smartphone,
   Square,
@@ -93,6 +97,8 @@ export type IconName =
   | 'external'
   | 'file'
   | 'folder'
+  | 'folderOpen'
+  | 'hand'
   | 'keyboard'
   | 'locate'
   | 'maximize'
@@ -113,6 +119,8 @@ export type IconName =
   | 'search'
   | 'send'
   | 'settings'
+  | 'shield'
+  | 'shieldAlert'
   | 'smartphone'
   | 'sparkles'
   | 'stop'
@@ -156,6 +164,8 @@ const icons: Record<IconName, LucideIcon> = {
   external: ExternalLink,
   file: File,
   folder: Folder,
+  folderOpen: FolderOpen,
+  hand: Hand,
   keyboard: Keyboard,
   locate: LocateFixed,
   maximize: Maximize2,
@@ -176,6 +186,8 @@ const icons: Record<IconName, LucideIcon> = {
   search: Search,
   send: Send,
   settings: Settings,
+  shield: ShieldCheck,
+  shieldAlert: ShieldAlert,
   smartphone: Smartphone,
   sparkles: Sparkles,
   stop: Square,

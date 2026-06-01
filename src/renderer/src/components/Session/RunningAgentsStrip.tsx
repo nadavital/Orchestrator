@@ -1,7 +1,6 @@
 import { useMemo } from 'react'
 import { useSessionStore } from '../../store/sessions'
 import type { AgentNode, Session } from '../../types'
-import { Badge, SurfaceRow } from '../shared/designSystem'
 import { deriveSessionAgentNodes } from './agentNodes'
 
 interface Props {
@@ -29,55 +28,57 @@ function RunningAgentsStripContent({ session }: { session: Session }): JSX.Eleme
 
   return (
     <div
-      className="shrink-0 flex items-center gap-2 px-4 py-2 overflow-x-auto"
+      className="composer-live-agents-shell shrink-0 px-6 pt-2"
       style={{
-        background: 'var(--panel-bg)',
-        borderTop: '1px solid var(--border-subtle)'
+        paddingRight: 'calc(1.5rem + var(--transcript-scrollbar-width, 0px))'
       }}
     >
-      <span className="text-xs shrink-0" style={{ color: 'var(--color-text-muted)', fontSize: 10 }}>
-        Agents
-      </span>
-      {agents.map((agent) => (
-        <AgentPill
-          key={agent.id}
-          agent={agent}
-          active={agent.id === activeAgentId}
-          onClick={() => setActiveAgent(session.id, agent.id)}
-        />
-      ))}
+      <div
+        className="composer-live-agents-bar mx-auto"
+        data-testid="running-agents-strip"
+        style={{
+          maxWidth: 'var(--composer-effective-column-max-width, var(--composer-column-max-width, 860px))'
+        }}
+      >
+        <span className="composer-live-agents-label">Live</span>
+        <div className="composer-live-agents-list" aria-label="Live agents">
+          {agents.map((agent) => (
+            <AgentPill
+              key={agent.id}
+              agent={agent}
+              active={agent.id === activeAgentId}
+              onClick={() => setActiveAgent(session.id, agent.id)}
+            />
+          ))}
+        </div>
+      </div>
     </div>
   )
 }
 
 function AgentPill({ agent, active, onClick }: { agent: AgentNode; active: boolean; onClick: () => void }): JSX.Element {
   return (
-    <SurfaceRow
-      as="button"
+    <button
+      type="button"
       onClick={onClick}
       title={agent.summary ?? agent.role ?? agent.name ?? agent.id}
-      active={active}
-      className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs shrink-0"
-      style={{
-        color: active ? 'var(--accent)' : 'var(--color-text)',
-        border: active ? '1px solid var(--accent)' : '1px solid var(--border-subtle)',
-        maxWidth: 220
-      }}
+      className="composer-live-agent-pill"
+      data-active={active ? 'true' : 'false'}
+      data-agent-status={agent.status}
+      aria-pressed={active}
     >
       <span
-        className="rounded-full shrink-0"
+        className="composer-live-agent-status"
         style={{
-          width: 7,
-          height: 7,
           background: statusColor(agent.status),
           animation: agent.status === 'running' ? 'statusPulse 1.5s ease-in-out infinite' : 'none'
         }}
       />
-      <span className="truncate">
+      <span className="composer-live-agent-name">
         {agent.name ?? agent.role ?? agent.id}
       </span>
-      <Badge tone={statusTone(agent.status)}>{agent.status}</Badge>
-    </SurfaceRow>
+      <span className="composer-live-agent-state">{statusLabel(agent.status)}</span>
+    </button>
   )
 }
 
@@ -88,9 +89,10 @@ function statusColor(status: AgentNode['status']): string {
   return 'var(--color-text-muted)'
 }
 
-function statusTone(status: AgentNode['status']): 'neutral' | 'success' | 'warning' | 'danger' {
-  if (status === 'running') return 'success'
-  if (status === 'waiting' || status === 'blocked') return 'warning'
-  if (status === 'failed' || status === 'cancelled') return 'danger'
-  return 'neutral'
+function statusLabel(status: AgentNode['status']): string {
+  if (status === 'running') return 'Running'
+  if (status === 'waiting') return 'Waiting'
+  if (status === 'blocked') return 'Blocked'
+  if (status === 'queued') return 'Queued'
+  return status
 }

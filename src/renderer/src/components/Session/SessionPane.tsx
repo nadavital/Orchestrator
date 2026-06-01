@@ -111,7 +111,7 @@ function SessionPane({ sessionId }: SessionPaneProps): JSX.Element | null {
       <div className="relative flex-1 flex min-w-0 overflow-hidden" data-testid="session-main-row">
         <div
           ref={primaryContentRef}
-          className="flex-1 min-w-0 flex flex-col overflow-hidden"
+          className="relative flex-1 min-w-0 flex flex-col overflow-hidden"
           data-testid="session-primary-content"
           data-bottom-panel-open={bottomPanelState.open ? 'true' : 'false'}
           data-bottom-panel-expanded={bottomPanelState.expanded ? 'true' : 'false'}
@@ -119,7 +119,11 @@ function SessionPane({ sessionId }: SessionPaneProps): JSX.Element | null {
           data-composer-reserve-height={composerReserveHeight}
           data-composer-reserve-ready={composerReserveHeight > 0 ? 'true' : 'false'}
           style={{
-            '--composer-reserve-height': `${composerReserveHeight}px`
+            '--composer-reserve-height': `${composerReserveHeight}px`,
+            '--transcript-scrollbar-width': '0px',
+            '--composer-effective-column-max-width': isNew
+              ? 'min(700px, var(--composer-column-max-width, 860px))'
+              : 'var(--composer-column-max-width, 860px)'
           } as CSSProperties}
         >
           <Titlebar />
@@ -127,14 +131,14 @@ function SessionPane({ sessionId }: SessionPaneProps): JSX.Element | null {
           <div className="flex-1 min-w-0 overflow-hidden flex flex-col">
             <ChatView sessionId={session.id} />
           </div>
-          <RunningAgentsStrip sessionId={session.id} />
           <div
             ref={composerReserveRef}
             data-testid="composer-reserve"
             data-bottom-panel-expanded={bottomPanelState.expanded ? 'true' : 'false'}
             data-composer-reserve-height={composerReserveHeight}
-            className="shrink-0"
+            className="composer-reserve-frame shrink-0"
           >
+            <RunningAgentsStrip sessionId={session.id} />
             <InputBar session={session} isNew={isNew} />
           </div>
         </div>

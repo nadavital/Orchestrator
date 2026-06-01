@@ -22,6 +22,7 @@ import { recordPerformanceMetric } from './performanceTelemetry'
 import { applyCodexThreadListMetadata, applyProviderPinnedThreadState, ensurePinnedSessionOrders, nextPinOrder, reorderPinnedSessions } from '../types'
 import { shouldRefreshCodexSidebarMetadataAfterRun, shouldRefreshCodexSidebarMetadataOnIdle, syncCodexSidebarThreadMetadata } from './providerSidebarSync'
 import { runClaudeSdkOneShot } from './claudeSdkRuntime'
+import { promptWithCursorSdkUnansweredContext } from './cursorPromptContext'
 
 interface SessionStore {
   sessions: Session[]
@@ -864,10 +865,21 @@ export const sessionManager = {
       worktreeState = source.worktreeState
     }
 
-    const sourceMessages = options.throughMessageId
-      ? source.messages.slice(0, source.messages.findIndex((message) => message.id === options.throughMessageId) + 1)
-      : source.messages
-    if (options.throughMessageId && sourceMessages.length === 0) {
+    const beforeMessageIndex = options.beforeMessageId
+      ? source.messages.findIndex((message) => message.id === options.beforeMessageId)
+      : -1
+    const throughMessageIndex = options.throughMessageId
+      ? source.messages.findIndex((message) => message.id === options.throughMessageId)
+      : -1
+    const sourceMessages = options.beforeMessageId
+      ? source.messages.slice(0, beforeMessageIndex)
+      : options.throughMessageId
+        ? source.messages.slice(0, throughMessageIndex + 1)
+        : source.messages
+    if (options.beforeMessageId && beforeMessageIndex < 0) {
+      throw new Error(`Message ${options.beforeMessageId} not found`)
+    }
+    if (options.throughMessageId && throughMessageIndex < 0) {
       throw new Error(`Message ${options.throughMessageId} not found`)
     }
 
@@ -877,9 +889,11 @@ export const sessionManager = {
         id: `forked-from-${source.id}-${now}`,
         role: 'system',
         type: 'text',
-        content: options.throughMessageId
-          ? `Forked from "${source.name}" at a selected message.`
-          : `Forked from "${source.name}".`,
+        content: options.beforeMessageId
+          ? `Forked from "${source.name}" before a selected message.`
+          : options.throughMessageId
+            ? `Forked from "${source.name}" at a selected message.`
+            : `Forked from "${source.name}".`,
         timestamp: now
       }
     ]
@@ -919,7 +933,7 @@ export const sessionManager = {
       latestMessageAt: now,
       forkedFromSessionId: source.id,
       forkedFromSessionName: source.name,
-      forkedFromMessageId: options.throughMessageId,
+      forkedFromMessageId: options.beforeMessageId ?? options.throughMessageId,
       forkedAt: now,
       forkMode: mode,
       archivedAt: undefined,
@@ -1357,8 +1371,9 @@ export const sessionManager = {
 
     const currentSession = this.get(sessionId)!
     const provider = getProvider(currentSession.provider ?? 'claude')
+    const runPrompt = promptWithCursorSdkUnansweredContext(currentSession, effectivePrompt)
     let runRequest: RunRequest = applyAutomationPermissionSnapshot({
-      ...requestFromSession(currentSession, effectivePrompt),
+      ...requestFromSession(currentSession, runPrompt),
       attachments: provider.id === 'codex' ? attachments : claudeResourceAttachmentSpecs(attachments)
     }, options.permissionSnapshot)
     try {
@@ -1482,8 +1497,9 @@ export const sessionManager = {
 
     const currentSession = this.get(sessionId)!
     const mode = currentSession.providerSessionId ? 'resume' : 'start'
+    const runPrompt = promptWithCursorSdkUnansweredContext(currentSession, effectivePrompt)
     const runRequest: RunRequest = {
-      ...requestFromSession(currentSession, effectivePrompt),
+      ...requestFromSession(currentSession, runPrompt),
       runtime: currentSession.runtime,
       attachments: runtimeAttachments
     }
@@ -1759,8 +1775,9 @@ export const sessionManager = {
 
     const provider = getProvider(session.provider ?? 'claude')
     const mode = session.providerSessionId ? 'resume' : 'start'
+    const runPrompt = promptWithCursorSdkUnansweredContext(session, followUp.prompt)
     let runRequest: RunRequest = {
-      ...requestFromSession(session, followUp.prompt),
+      ...requestFromSession(session, runPrompt),
       runtime: session.runtime,
       attachments: followUp.attachments ?? []
     }

@@ -30,6 +30,7 @@ interface AppSettings {
   codeFontSize: number
   useFontSmoothing: boolean
   usePointerCursors: boolean
+  useTransparentSidebar: boolean
   reduceMotion: boolean
   shortcutOverrides: ShortcutOverrides
   browserUsePolicy: BrowserUsePolicy

@@ -27944,6 +27944,16 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
                 const rect = element.getBoundingClientRect();
                 return rect.left >= scrollerRect.left - 2 && rect.right <= scrollerRect.right + 2;
               };
+              const composerShell = document.querySelector('[data-testid="composer-shell"]');
+              const transcriptColumn = scroller.firstElementChild;
+              const composerRect = composerShell instanceof HTMLElement ? composerShell.getBoundingClientRect() : null;
+              const transcriptColumnRect = transcriptColumn instanceof HTMLElement ? transcriptColumn.getBoundingClientRect() : null;
+              const transcriptColumnMatchesComposer =
+                composerRect !== null &&
+                transcriptColumnRect !== null &&
+                Math.abs(transcriptColumnRect.left - composerRect.left) <= 2 &&
+                Math.abs(transcriptColumnRect.right - composerRect.right) <= 2 &&
+                Math.abs(transcriptColumnRect.width - composerRect.width) <= 2;
               const pre = document.querySelector('[data-testid="chat-code-block"] pre') ?? document.querySelector('pre');
               const table = document.querySelector('table');
               const tableCells = [...document.querySelectorAll('td, th')].filter((cell) => cell instanceof HTMLElement);
@@ -27953,6 +27963,15 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
                 docScrollWidth,
                 documentNoHorizontalOverflow: docScrollWidth <= viewportWidth + 2,
                 transcriptNoHorizontalOverflow: scroller.scrollWidth <= scroller.clientWidth + 2,
+                transcriptColumnMatchesComposer,
+                transcriptColumnComposerDebug: {
+                  composerLeft: composerRect?.left ?? null,
+                  composerRight: composerRect?.right ?? null,
+                  composerWidth: composerRect?.width ?? null,
+                  transcriptLeft: transcriptColumnRect?.left ?? null,
+                  transcriptRight: transcriptColumnRect?.right ?? null,
+                  transcriptWidth: transcriptColumnRect?.width ?? null
+                },
                 codeBlockBounded: pre instanceof HTMLElement && isInsideScroller(pre),
                 codeBlockInternallyScrollable: pre instanceof HTMLElement && pre.scrollWidth > pre.clientWidth + 24,
                 tableBounded: table instanceof HTMLElement && isInsideScroller(table),
@@ -28063,6 +28082,8 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
             const docScrollWidth = wideLayout.docScrollWidth;
             const documentNoHorizontalOverflow = wideLayout.documentNoHorizontalOverflow;
             const transcriptNoHorizontalOverflow = wideLayout.transcriptNoHorizontalOverflow;
+            const transcriptColumnMatchesComposer = wideLayout.transcriptColumnMatchesComposer;
+            const transcriptColumnComposerDebug = wideLayout.transcriptColumnComposerDebug;
             const scrollerRect = scroller.getBoundingClientRect();
             const isInsideScroller = (element) => {
               const rect = element.getBoundingClientRect();
@@ -28531,6 +28552,8 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
               hiddenMessageCopyQuiet: !document.body.innerText.includes('hidden for faster chat switching'),
               documentNoHorizontalOverflow,
               transcriptNoHorizontalOverflow,
+              transcriptColumnMatchesComposer,
+              transcriptColumnComposerDebug,
               messageRowsBounded,
               codeBlockBounded,
               codeBlockInternallyScrollable,

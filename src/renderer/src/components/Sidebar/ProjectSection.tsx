@@ -138,14 +138,9 @@ export default function ProjectSection({ project, sessions, renderSession }: Pro
           setMenuPoint({ x: e.clientX || rect.right - 214, y: e.clientY || rect.bottom + 6 })
         }}
         leading={(
-          <>
-            <span className="motion-chevron shrink-0" style={{ color: 'var(--text-tertiary)', transform: collapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}>
-              <Icon name="chevronDown" size={12} />
-            </span>
-            <span className="shrink-0">
-              <Icon name="folder" size={13} />
-            </span>
-          </>
+          <span className="project-folder-icon shrink-0" data-project-folder-open={collapsed ? 'false' : 'true'}>
+            <Icon name={collapsed ? 'folder' : 'folderOpen'} size={15} />
+          </span>
         )}
         label={project.name}
         trailing={(
@@ -185,7 +180,7 @@ export default function ProjectSection({ project, sessions, renderSession }: Pro
 
       {/* Sessions */}
       {!collapsed && (
-        <div className="space-y-1">
+        <div className="project-session-list space-y-1">
           {sessions.length === 0 && (
             <div className="pl-5 pr-1 py-px">
               <SidebarListRow

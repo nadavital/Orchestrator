@@ -53,7 +53,7 @@ const SETTINGS_SEARCH_ITEMS: Array<{
   { section: 'general', label: 'General', description: 'App-level defaults', keywords: 'defaults general app' },
   { section: 'general', label: 'File handoff', description: 'Preferred editor for file opens', keywords: 'files editor handoff open path target cursor vscode zed', anchor: 'general-files' },
   { section: 'general', label: 'Composer', description: 'Enter behavior and send shortcut', keywords: 'composer enter send newline message input command control', anchor: 'general-composer' },
-  { section: 'appearance', label: 'Appearance', description: 'Theme, density, color, and fonts', keywords: 'theme accent density font motion chrome code' },
+  { section: 'appearance', label: 'Appearance', description: 'Theme, density, color, and fonts', keywords: 'theme accent density font motion chrome code sidebar transparency tint' },
   { section: 'providers', label: 'Provider picker', description: 'Default provider and runtime readiness', keywords: 'provider picker default provider runtime ready install claude codex openai cursor copilot', anchor: 'provider-picker' },
   { section: 'providers', label: 'Provider defaults', description: 'Default model, reasoning, permissions, and model list', keywords: 'models model reasoning thinking permission permissions mode default visible list provider agent', anchor: 'provider-defaults' },
   { section: 'providers', label: 'Providers', description: 'Default provider, models, permissions, and diagnostics', keywords: 'model agent permission diagnostics runtime codex claude openai' },
@@ -111,6 +111,7 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
   const [codeFontSize, setCodeFontSize] = useState(13)
   const [useFontSmoothing, setUseFontSmoothing] = useState(true)
   const [usePointerCursors, setUsePointerCursors] = useState(true)
+  const [useTransparentSidebar, setUseTransparentSidebar] = useState(true)
   const [reduceMotion, setReduceMotion] = useState(false)
   const [shortcutOverrides, setShortcutOverrides] = useState<ShortcutOverrides>({})
   const [personalizationEnabled, setPersonalizationEnabled] = useState(false)
@@ -171,6 +172,7 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
       setCodeFontSize((rec.codeFontSize as number) ?? 13)
       setUseFontSmoothing((rec.useFontSmoothing as boolean | undefined) ?? true)
       setUsePointerCursors((rec.usePointerCursors as boolean | undefined) ?? true)
+      setUseTransparentSidebar((rec.useTransparentSidebar as boolean | undefined) ?? true)
       setReduceMotion((rec.reduceMotion as boolean | undefined) ?? false)
       setShortcutOverrides((rec.shortcutOverrides as ShortcutOverrides | undefined) ?? {})
       setPersonalizationEnabled((rec.personalizationEnabled as boolean | undefined) ?? false)
@@ -298,6 +300,7 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
     codeFontSize: number
     useFontSmoothing: boolean
     usePointerCursors: boolean
+    useTransparentSidebar: boolean
     reduceMotion: boolean
   }> = {}) => ({
     appearanceTheme: overrides.appearanceTheme ?? appearanceTheme,
@@ -309,6 +312,7 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
     codeFontSize: overrides.codeFontSize ?? codeFontSize,
     useFontSmoothing: overrides.useFontSmoothing ?? useFontSmoothing,
     usePointerCursors: overrides.usePointerCursors ?? usePointerCursors,
+    useTransparentSidebar: overrides.useTransparentSidebar ?? useTransparentSidebar,
     reduceMotion: overrides.reduceMotion ?? reduceMotion
   })
 
@@ -357,9 +361,10 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
     }
   }
 
-  const saveThemeToggle = (key: 'useFontSmoothing' | 'usePointerCursors' | 'reduceMotion', value: boolean): void => {
+  const saveThemeToggle = (key: 'useFontSmoothing' | 'usePointerCursors' | 'useTransparentSidebar' | 'reduceMotion', value: boolean): void => {
     if (key === 'useFontSmoothing') setUseFontSmoothing(value)
     if (key === 'usePointerCursors') setUsePointerCursors(value)
+    if (key === 'useTransparentSidebar') setUseTransparentSidebar(value)
     if (key === 'reduceMotion') setReduceMotion(value)
     applyAppearanceModel({ [key]: value })
     window.api.settings.set(key, value)
@@ -433,6 +438,7 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
       codeFontSize,
       useFontSmoothing,
       usePointerCursors,
+      useTransparentSidebar,
       reduceMotion
     })
     window.api.settings.set('appearance', value)
@@ -689,6 +695,7 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
                   codeFontSize={codeFontSize}
                   useFontSmoothing={useFontSmoothing}
                   usePointerCursors={usePointerCursors}
+                  useTransparentSidebar={useTransparentSidebar}
                   reduceMotion={reduceMotion}
                   onSetAppearance={saveAppearance}
                   onSetAccent={saveAccent}

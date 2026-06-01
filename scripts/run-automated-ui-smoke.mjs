@@ -2174,6 +2174,7 @@ child.on('exit', async (code) => {
         transcriptSearchField: result.transcriptSearchFieldWorks === true,
         sessionHeaderInPrimaryColumn: result.sessionHeaderInPrimaryColumn === true,
         composerReserveContract: result.composerReserveContractWorks === true,
+        transcriptColumnMatchesComposer: result.transcriptColumnMatchesComposer === true,
         keyboardShortcutsShortcutOpens: result.keyboardShortcutsShortcutOpens === true,
         hiddenMessageCopyQuiet: result.hiddenMessageCopyQuiet === true,
         documentNoHorizontalOverflow: result.documentNoHorizontalOverflow === true,
