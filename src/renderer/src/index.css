@@ -299,7 +299,7 @@
   }
 
   .app-shell {
-    background: transparent;
+    background: var(--app-shell-surface-bg);
     min-width: 0;
     overflow: visible;
   }
@@ -495,10 +495,10 @@
     max-inline-size: var(--orchestrator-sidebar-width);
     overflow-x: hidden;
     border-right: 0;
-    background: color-mix(in srgb, var(--app-shell-surface-bg) 58%, transparent);
+    background: color-mix(in srgb, var(--surface-bg) 18%, transparent);
     backdrop-filter: blur(18px) saturate(1.15);
     -webkit-backdrop-filter: blur(18px) saturate(1.15);
-    box-shadow: inset -1px 0 0 color-mix(in srgb, var(--border-subtle) 4%, transparent);
+    box-shadow: 8px 0 22px color-mix(in srgb, var(--text-primary) 2%, transparent);
   }
 
   .app-sidebar::after {
