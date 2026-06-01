@@ -2241,8 +2241,10 @@ function focusComposerDropdownButton(trigger: HTMLElement, position: 'first' | '
 
 function composerDropdownSurfaceForTrigger(trigger: HTMLElement): HTMLElement | null {
   const owner = trigger.closest('.relative') ?? trigger.parentElement
-  const surface = owner?.querySelector('[data-composer-dropdown-surface="true"]') ??
-    Array.from(document.querySelectorAll('[data-composer-dropdown-surface="true"]')).at(-1)
+  const ownedSurface = owner?.querySelector('[data-composer-dropdown-surface="true"]')
+  if (ownedSurface instanceof HTMLElement) return ownedSurface
+  if (owner) return null
+  const surface = Array.from(document.querySelectorAll('[data-composer-dropdown-surface="true"]')).at(-1)
   return surface instanceof HTMLElement ? surface : null
 }
 
