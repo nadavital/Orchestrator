@@ -25865,6 +25865,9 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
                 .find((button) => buttonLabel(button) === label);
             const rowFor = (name) => [...document.querySelectorAll('[data-testid="session-row"]')]
               .find((row) => row.textContent?.includes(name));
+            const sessionRowForId = (id) => id
+              ? document.querySelector('[data-testid="session-row"][data-session-id="' + CSS.escape(id) + '"]')
+              : null;
             const waitForRow = async (name) => {
               for (let index = 0; index < 80; index += 1) {
                 const row = rowFor(name);
@@ -27670,7 +27673,8 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
                 (projectsIndex === -1 || unreadIndex < projectsIndex) &&
                 !projectsText.includes('Sidebar unread idle');
             }
-            const forkSourceRow = rowFor('Sidebar renamed by smoke') ?? rowFor('Sidebar normal idle');
+            const originalForkSourceRow = sessionRowForId(${JSON.stringify(normalSession?.id ?? '')});
+            const forkSourceRow = originalForkSourceRow ?? rowFor('Sidebar renamed by smoke') ?? rowFor('Sidebar normal idle');
             if (forkSourceRow instanceof HTMLElement) {
               const forkActionsButton = forkSourceRow.querySelector('[aria-label="Chat actions"], [title="Chat actions"]');
               if (forkActionsButton instanceof HTMLElement) {
@@ -27690,7 +27694,7 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
                 }
               }
             }
-            const worktreeForkSourceRow = rowFor('Sidebar renamed by smoke') ?? rowFor('Sidebar normal idle');
+            const worktreeForkSourceRow = sessionRowForId(${JSON.stringify(normalSession?.id ?? '')}) ?? rowFor('Sidebar renamed by smoke') ?? rowFor('Sidebar normal idle');
             if (worktreeForkSourceRow instanceof HTMLElement) {
               const worktreeForkActionsButton = worktreeForkSourceRow.querySelector('[aria-label="Chat actions"], [title="Chat actions"]');
               if (worktreeForkActionsButton instanceof HTMLElement) {
@@ -28416,7 +28420,7 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
             const fileCards = [...document.querySelectorAll('[data-testid="file-reference-card"]')];
             const existingFileReferenceCard = fileCards.find((card) =>
               card instanceof HTMLElement &&
-              card.textContent?.includes('transcript-layout-fixture.ts')
+              card.textContent?.includes('transcript-layout-fixture.ts:1')
             );
             const existingFileReferenceOpenButton = existingFileReferenceCard instanceof HTMLElement
               ? [...existingFileReferenceCard.querySelectorAll('button')]
@@ -28525,7 +28529,7 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
               partialResponseStatus instanceof HTMLElement &&
               partialResponseStatus.textContent?.includes('Partial response stopped') === true &&
               isInsideScroller(partialResponseStatus);
-            const chatCopyButton = document.querySelector('[data-testid="chat-message-copy"]');
+            const chatCopyButton = document.querySelector('[data-message-id="transcript-layout-assistant"] [data-testid="chat-message-copy"]');
             if (chatCopyButton instanceof HTMLButtonElement) {
               chatCopyButton.click();
               await sleep(180);
