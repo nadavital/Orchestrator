@@ -495,7 +495,7 @@
     max-inline-size: var(--orchestrator-sidebar-width);
     overflow-x: hidden;
     border-right: 0;
-    background: color-mix(in srgb, var(--panel-bg) 68%, transparent);
+    background: color-mix(in srgb, var(--app-shell-surface-bg) 76%, transparent);
     backdrop-filter: blur(18px) saturate(1.15);
     -webkit-backdrop-filter: blur(18px) saturate(1.15);
   }
