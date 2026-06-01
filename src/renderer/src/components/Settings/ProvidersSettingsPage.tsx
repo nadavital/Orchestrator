@@ -95,6 +95,11 @@ export default function ProvidersSettingsPage({
   const [advancedOpen, setAdvancedOpen] = useState(defaultAdvancedOpen)
   const settingsCommandSurfaces = visibleSettingsCommandSurfaces(selectedId, runtime?.registry.commandSurfaces ?? [])
   const usageSnapshot = summarizeProviderUsage(sessions, selectedId)
+  const diagnosticSummary = [
+    installed ? 'Ready' : 'Unavailable',
+    `${usageSnapshot.sessionCount} chat${usageSnapshot.sessionCount === 1 ? '' : 's'}`,
+    diagnostics ? `${diagnostics.probes.filter((probe) => probe.status === 'ok').length}/${diagnostics.probes.length} checks` : 'Checks pending'
+  ]
   const modelForPicker = visibleIds.includes(currentModel)
     ? currentModel
     : visibleModels[0]?.id ?? currentModel
@@ -309,48 +314,57 @@ export default function ProvidersSettingsPage({
           </SettingsContentGroup>
 
           {advancedOpen && (
-            <SettingsContentGroup className="provider-settings-content-group">
-              <SettingsSectionHeading
-                title="Details"
-                description="Local runtime status, setup, usage, and provider capability checks."
-              />
+            <SettingsContentGroup className="provider-settings-content-group provider-diagnostics-group">
               <SettingsGroupContent>
-                <div className="provider-details-grid" data-testid="provider-details-grid">
-                  <ProviderDetailCard wide>
-                    <ProviderStatusDetails
-                      providerId={selectedId}
-                      diagnostics={diagnostics}
-                      loadingDiagnostics={loadingDiagnostics}
-                      usage={usageSnapshot}
-                      color={providerDef.color}
-                      sidebarSyncResult={sidebarSyncResult}
-                      sidebarSyncLoading={sidebarSyncLoading}
-                      onRefreshSidebarMetadata={selectedId === 'codex' ? refreshSidebarMetadata : undefined}
-                    />
-                  </ProviderDetailCard>
-                  {diagnostics && diagnostics.probes.length > 0 && (
-                    <ProviderDetailCard title="Checks" wide>
-                      <ProviderProbeGrid diagnostics={diagnostics} color={providerDef.color} />
-                    </ProviderDetailCard>
-                  )}
-                  {settingsCommandSurfaces.length > 0 && (
-                    <ProviderDetailCard title="Capabilities" wide>
-                      <ProviderCommandSurfaces
+                <div className="provider-details-panel">
+                  <div className="provider-details-panel-header">
+                    <div className="provider-details-panel-copy">
+                      <div className="provider-details-panel-title">Diagnostics</div>
+                      <div className="provider-details-panel-description">Runtime status, setup, usage, and provider capability checks.</div>
+                    </div>
+                    <div className="provider-details-panel-summary" aria-label={`${providerDef.name} diagnostics summary`}>
+                      {diagnosticSummary.map((item) => (
+                        <span key={item}>{item}</span>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="provider-details-grid" data-testid="provider-details-grid">
+                    <ProviderDetailCard wide>
+                      <ProviderStatusDetails
                         providerId={selectedId}
+                        diagnostics={diagnostics}
+                        loadingDiagnostics={loadingDiagnostics}
+                        usage={usageSnapshot}
                         color={providerDef.color}
-                        surfaces={settingsCommandSurfaces}
-                        sessions={sessions}
+                        sidebarSyncResult={sidebarSyncResult}
+                        sidebarSyncLoading={sidebarSyncLoading}
+                        onRefreshSidebarMetadata={selectedId === 'codex' ? refreshSidebarMetadata : undefined}
                       />
                     </ProviderDetailCard>
-                  )}
-                  {runtime?.registry.gaps.length ? (
-                    <ProviderDetailCard title="Boundaries" wide>
-                      <ProviderBoundarySummary gaps={runtime.registry.gaps} color={providerDef.color} />
+                    {diagnostics && diagnostics.probes.length > 0 && (
+                      <ProviderDetailCard title="Checks" wide>
+                        <ProviderProbeGrid diagnostics={diagnostics} color={providerDef.color} />
+                      </ProviderDetailCard>
+                    )}
+                    {settingsCommandSurfaces.length > 0 && (
+                      <ProviderDetailCard title="Capabilities" wide>
+                        <ProviderCommandSurfaces
+                          providerId={selectedId}
+                          color={providerDef.color}
+                          surfaces={settingsCommandSurfaces}
+                          sessions={sessions}
+                        />
+                      </ProviderDetailCard>
+                    )}
+                    {runtime?.registry.gaps.length ? (
+                      <ProviderDetailCard title="Boundaries" wide>
+                        <ProviderBoundarySummary gaps={runtime.registry.gaps} color={providerDef.color} />
+                      </ProviderDetailCard>
+                    ) : null}
+                    <ProviderDetailCard title="Setup" wide>
+                      <ProviderSetupDetails providerDef={providerDef} />
                     </ProviderDetailCard>
-                  ) : null}
-                  <ProviderDetailCard title="Setup" wide>
-                    <ProviderSetupDetails providerDef={providerDef} />
-                  </ProviderDetailCard>
+                  </div>
                 </div>
               </SettingsGroupContent>
             </SettingsContentGroup>
