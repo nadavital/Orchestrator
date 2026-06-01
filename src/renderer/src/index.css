@@ -495,10 +495,10 @@
     max-inline-size: var(--orchestrator-sidebar-width);
     overflow-x: hidden;
     border-right: 0;
-    background: color-mix(in srgb, var(--app-shell-surface-bg) 62%, transparent);
+    background: color-mix(in srgb, var(--app-shell-surface-bg) 58%, transparent);
     backdrop-filter: blur(18px) saturate(1.15);
     -webkit-backdrop-filter: blur(18px) saturate(1.15);
-    box-shadow: inset -1px 0 0 color-mix(in srgb, var(--border-subtle) 10%, transparent);
+    box-shadow: inset -1px 0 0 color-mix(in srgb, var(--border-subtle) 4%, transparent);
   }
 
   .app-sidebar::after {
@@ -509,8 +509,8 @@
     bottom: 0;
     width: 1px;
     pointer-events: none;
-    background: color-mix(in srgb, var(--canvas-bg) 4%, transparent);
-    opacity: 0.28;
+    background: transparent;
+    opacity: 0;
   }
 
   .app-sidebar * {
@@ -1649,8 +1649,10 @@
 
   .motion-panel-right {
     background: color-mix(in srgb, var(--surface-bg) 82%, var(--canvas-bg));
-    border-left: 1px solid color-mix(in srgb, var(--border-subtle) 18%, transparent);
-    box-shadow: none;
+    border-left: 0;
+    box-shadow:
+      inset 1px 0 0 color-mix(in srgb, var(--border-subtle) 9%, transparent),
+      -14px 0 30px -32px rgba(0, 0, 0, 0.5);
   }
 
   .motion-panel-right:has(.side-chat-panel) {
