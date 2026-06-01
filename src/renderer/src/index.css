@@ -12366,13 +12366,13 @@
   }
 
   .provider-settings-shell {
-    max-width: 880px;
+    max-width: 1080px;
     margin: 0;
     padding: 32px 42px 64px;
   }
 
   .provider-settings-stack {
-    max-width: 740px;
+    max-width: 920px;
     margin: 0;
   }
 
@@ -12398,7 +12398,7 @@
   }
 
   .provider-settings-row .settings-row-copy {
-    flex: 0 0 92px;
+    flex: 0 0 108px;
   }
 
   .provider-settings-row .settings-row-control {
@@ -12533,7 +12533,7 @@
   .provider-details-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 4px 12px;
+    gap: 10px 24px;
     margin-top: 2px;
   }
 
@@ -12544,7 +12544,7 @@
   .provider-details-panel {
     min-width: 0;
     border-top: 1px solid color-mix(in srgb, var(--border-subtle) 8%, transparent);
-    padding-top: 8px;
+    padding-top: 12px;
   }
 
   .provider-details-panel-header {
@@ -13208,8 +13208,8 @@
   .provider-status-card {
     display: grid;
     min-width: 0;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 6px 12px;
+    grid-template-columns: minmax(180px, 0.95fr) minmax(180px, 0.9fr) minmax(240px, 1.15fr);
+    gap: 8px 24px;
   }
 
   .provider-status-section {
