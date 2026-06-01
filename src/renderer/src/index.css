@@ -495,9 +495,10 @@
     max-inline-size: var(--orchestrator-sidebar-width);
     overflow-x: hidden;
     border-right: 0;
-    background: color-mix(in srgb, var(--app-shell-surface-bg) 76%, transparent);
+    background: color-mix(in srgb, var(--app-shell-surface-bg) 62%, transparent);
     backdrop-filter: blur(18px) saturate(1.15);
     -webkit-backdrop-filter: blur(18px) saturate(1.15);
+    box-shadow: inset -1px 0 0 color-mix(in srgb, var(--border-subtle) 10%, transparent);
   }
 
   .app-sidebar::after {
@@ -506,10 +507,10 @@
     top: 0;
     right: 0;
     bottom: 0;
-    width: 12px;
+    width: 1px;
     pointer-events: none;
-    background: linear-gradient(to right, transparent, color-mix(in srgb, var(--canvas-bg) 10%, transparent));
-    opacity: 0.62;
+    background: color-mix(in srgb, var(--canvas-bg) 4%, transparent);
+    opacity: 0.28;
   }
 
   .app-sidebar * {
