@@ -322,12 +322,16 @@ export default function Sidebar({
         }),
         'Opening the project chat'
       )
-      await withProjectOpenTimeout(window.api.projects.addSession(project.id, session.id), 'Linking the project chat')
+      setAddProjectStatus(null)
       addSession(session)
       addSessionToProject(project.id, session.id)
       setActiveSession(session.id)
       setShowCapabilities(false)
       setShowSettings(false)
+      void withProjectOpenTimeout(window.api.projects.addSession(project.id, session.id), 'Linking the project chat')
+        .catch((error) => {
+          setAddProjectError(error instanceof Error ? error.message : 'Could not link project chat')
+        })
     } catch (error) {
       setAddProjectError(error instanceof Error ? error.message : 'Could not add project')
     } finally {

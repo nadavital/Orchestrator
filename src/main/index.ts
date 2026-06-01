@@ -649,6 +649,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
     runAutomatedEmptyStateSmoke(win, outputPath, screenshotPath)
     return
   }
+  if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'add-project') {
+    runAutomatedAddProjectSmoke(win, outputPath, screenshotPath)
+    return
+  }
   if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'browser') {
     runAutomatedBrowserSmoke(win, outputPath, screenshotPath)
     return
@@ -3418,7 +3422,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 document.activeElement?.getAttribute('data-testid') === 'titlebar-toggle-terminal';
             }
             terminalButton?.click();
-            await sleep(260);
+            await sleep(1600);
             const bottomPanelRestored = document.querySelector('[data-testid="session-bottom-panel"]');
             const bottomPanelShell = document.querySelector('[data-motion-panel="bottom"][data-app-shell-panel="bottom"][data-app-shell-panel-surface="bottom-panel"]');
             var terminalShellOwnershipWorks =
@@ -22169,6 +22173,19 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                 }
               }
             }
+            let clearedStatusSamples = 0;
+            for (let attempt = 0; attempt < 60; attempt += 1) {
+              const statusElement =
+                document.querySelector('[data-testid="project-empty-state-add-status"]') ??
+                document.querySelector('[data-testid="sidebar-add-project-status"]');
+              if (statusElement instanceof HTMLElement) {
+                clearedStatusSamples = 0;
+              } else {
+                clearedStatusSamples += 1;
+                if (clearedStatusSamples >= 5) break;
+              }
+              await sleep(80);
+            }
             await sleep(260);
             const browserEmptyState = document.querySelector('[data-testid="browser-empty-state"]');
             var browserEmptyStateWorks =
@@ -24732,6 +24749,109 @@ function runAutomatedEmptyStateSmoke(win: BrowserWindow, outputPath: string, scr
                 getComputedStyle(sidebar).overflowX === 'hidden' &&
                 sidebar.scrollWidth <= sidebar.clientWidth + 2,
               noStaticSuggestionCards: !bodyText.includes('Try asking')
+            };
+          })()
+        `)
+        if (screenshotPath) {
+          const image = await win.webContents.capturePage()
+          writeFileSync(screenshotPath, image.toPNG())
+        }
+        writeFileSync(outputPath, JSON.stringify({ ok: true, result, screenshotPath }, null, 2))
+        app.quit()
+      } catch (error) {
+        writeFileSync(outputPath, JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2))
+        app.quit()
+      }
+    }, 700)
+  })
+}
+
+function runAutomatedAddProjectSmoke(win: BrowserWindow, outputPath: string, screenshotPath?: string): void {
+  win.webContents.once('did-finish-load', () => {
+    setTimeout(async () => {
+      try {
+        const result = await win.webContents.executeJavaScript(`
+          (async () => {
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            await sleep(500);
+            const profile = await window.api.app.getProfile();
+            const root = ${JSON.stringify(process.env.ORCHESTRATOR_SMOKE_WORKSPACE_DIR ?? process.cwd())};
+            const expectedName = root.split('/').filter(Boolean).at(-1) ?? root;
+            const statusSamples = [];
+            const existingProjects = await window.api.projects.list();
+            if (existingProjects.length === 0) {
+              const seedRoot = root + '-seed';
+              await window.api.projects.add('Existing Project', seedRoot);
+              await sleep(400);
+            }
+            const addProjectButton =
+              document.querySelector('[data-testid="sidebar-add-project"]') ??
+              document.querySelector('[data-testid="project-empty-state-add"]') ??
+              [...document.querySelectorAll('button')].find((button) => button.textContent?.includes('Add project') || button.textContent?.includes('Open folder'));
+            if (addProjectButton instanceof HTMLElement) {
+              addProjectButton.click();
+            }
+            const startedAt = Date.now();
+            let projectSessionSeenAt = 0;
+            for (let attempt = 0; attempt < 120; attempt += 1) {
+              const statusElement =
+                document.querySelector('[data-testid="project-empty-state-add-status"]') ??
+                document.querySelector('[data-testid="sidebar-add-project-status"]');
+              const errorElement =
+                document.querySelector('[data-testid="project-empty-state-add-error"]') ??
+                document.querySelector('[data-testid="sidebar-add-project-error"]');
+              const projects = await window.api.projects.list();
+              const sessions = await window.api.sessions.list();
+              const project = projects.find((candidate) => candidate.rootPath === root);
+              const projectSession = sessions.find((session) => session.workDir === root || session.projectId === project?.id);
+              const statusText = statusElement instanceof HTMLElement ? statusElement.textContent?.trim() ?? '' : '';
+              if (statusText) statusSamples.push(statusText);
+              if (errorElement instanceof HTMLElement) {
+                statusSamples.push('ERROR:' + (errorElement.textContent?.trim() ?? ''));
+              }
+              if (project && projectSession && projectSessionSeenAt === 0) {
+                projectSessionSeenAt = Date.now();
+              }
+              if (project && projectSession && statusText.includes('Opening project chat')) break;
+              if (project && projectSession && projectSessionSeenAt > 0 && Date.now() - projectSessionSeenAt > 1000) break;
+              await sleep(80);
+            }
+            await sleep(260);
+            const elapsedMs = Date.now() - startedAt;
+            const projects = await window.api.projects.list();
+            const sessions = await window.api.sessions.list();
+            const project = projects.find((candidate) => candidate.rootPath === root);
+            const projectSession = sessions.find((session) => session.workDir === root || session.projectId === project?.id);
+            const bodyText = document.body.innerText;
+            const statusText = statusSamples.join(' | ');
+            const errorElement =
+              document.querySelector('[data-testid="project-empty-state-add-error"]') ??
+              document.querySelector('[data-testid="sidebar-add-project-error"]');
+            return {
+              profile,
+              elapsedMs,
+              addProjectPickerMocked: statusText.includes('Waiting for folder selection'),
+              addProjectStatusSamples: statusSamples,
+              addProjectStatusLifecycleWorks:
+                statusText.includes('Waiting for folder selection') &&
+                statusText.includes('Adding project') &&
+                statusText.includes('Opening project chat'),
+              addProjectCreatedWorks:
+                Boolean(project) &&
+                project?.rootPath === root &&
+                (project?.name === expectedName || project?.name === 'Automated UI Smoke'),
+              addProjectSessionOpenedWorks:
+                Boolean(projectSession) &&
+                projectSession?.workDir === root,
+              addProjectNoFreezeWorks:
+                elapsedMs < 12_000 &&
+                Boolean(projectSession) &&
+                !(document.querySelector('[data-testid="sidebar-add-project-status"]') instanceof HTMLElement) &&
+                !(document.querySelector('[data-testid="project-empty-state-add-status"]') instanceof HTMLElement),
+              addProjectSidebarVisibleWorks:
+                bodyText.includes(expectedName) ||
+                bodyText.includes('Automated UI Smoke'),
+              addProjectNoErrorWorks: !(errorElement instanceof HTMLElement) && !statusSamples.some((sample) => sample.startsWith('ERROR:'))
             };
           })()
         `)
@@ -32627,6 +32747,7 @@ app.on('before-quit', () => {
 async function bootstrapAutomatedUiSmokeState(): Promise<void> {
   if (!process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT) return
   if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'empty-state') return
+  if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'add-project') return
   const workspace = process.env.ORCHESTRATOR_SMOKE_WORKSPACE_DIR ?? process.cwd()
   const existing = projectStore.list()
   const project = existing[0] ?? projectStore.add('Automated UI Smoke', workspace)

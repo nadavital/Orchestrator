@@ -43,6 +43,7 @@ const captureViewOptions = [
   { flag: '--side-chat', view: 'side-chat', surface: 'Side chat', scope: 'Side-chat tabs, drafts, context metadata, retry' },
   { flag: '--motion-reduced', view: 'motion-reduced', surface: 'Shell', scope: 'Reduced-motion shell behavior' },
   { flag: '--empty-state', view: 'empty-state', surface: 'Shell', scope: 'No-project/no-session empty state' },
+  { flag: '--add-project', view: 'add-project', surface: 'Sidebar', scope: 'Add a real local project through the renderer flow' },
   { flag: '--pet-overlay', view: 'pet-overlay', surface: 'Shell', scope: 'Pet overlay rendering' },
   { flag: '--sidebar', view: 'sidebar', surface: 'Sidebar', scope: 'Sidebar actions, pins, projects, deep links' },
   { flag: '--transcript-live-lifecycle', view: 'transcript-live-lifecycle', surface: 'Transcript', scope: 'Live Codex renderer lifecycle proof' },
@@ -87,7 +88,7 @@ const userDataDir = join(tmpdir(), 'orchestrator-profiles', `${profile}-${captur
 const workspaceDir = join(tmpdir(), 'orchestrator-automated-ui-workspace')
 const isDiffCaptureView = captureView === 'diff' || captureView.startsWith('diff-')
 const fixtureWorkspaceViews = new Set(['inspector', 'right-panel', 'workbench-launcher', 'workbench-new-tab', 'git-panel', 'agent-inspector', 'environment', 'workbench-perf', 'cross-panel-keyboard', 'diff', 'diff-entry', 'diff-empty', 'diff-loading', 'diff-conflict', 'diff-narrow', 'diff-metadata', 'diff-core', 'diff-last-turn', 'diff-source', 'diff-preview', 'files', 'side-chat', 'browser'])
-const resetWorkspaceViews = new Set([...fixtureWorkspaceViews, 'sidebar', 'multi-window-focus', 'worktree-lifecycle'])
+const resetWorkspaceViews = new Set([...fixtureWorkspaceViews, 'add-project', 'sidebar', 'multi-window-focus', 'worktree-lifecycle'])
 const outputPath = join(tmpdir(), `orchestrator-automated-ui-smoke-${captureView}-${Date.now()}.json`)
 const screenshotPath = join(tmpdir(), `orchestrator-automated-ui-smoke-${captureView}-${Date.now()}.png`)
 let browserSmokeServer = null
@@ -1705,7 +1706,7 @@ if (fixtureWorkspaceViews.has(captureView)) {
   if (address && typeof address === 'object') browserSmokeUrl = `http://127.0.0.1:${address.port}`
 }
 
-if (captureView === 'sidebar' || captureView === 'worktree-lifecycle') {
+if (captureView === 'add-project' || captureView === 'sidebar' || captureView === 'worktree-lifecycle') {
   writeFileSync(join(workspaceDir, 'README.md'), '# Sidebar worktree smoke\n')
   spawnSync('git', ['init'], { cwd: workspaceDir, stdio: 'ignore' })
   spawnSync('git', ['config', 'user.email', 'orchestrator-smoke@example.test'], { cwd: workspaceDir, stdio: 'ignore' })
@@ -1804,6 +1805,17 @@ child.on('exit', async (code) => {
         activeWindowAfterRefocus: result.activeWindowAfterRefocus === true,
         focusSwitchRestoresFirstWindowMenu: result.focusSwitchRestoresFirstWindowMenu === true,
         menuCommandRoutedToFocusedWindow: result.menuCommandRoutedToFocusedWindow === true
+      }
+    : captureView === 'add-project'
+    ? {
+        isolatedProfile: result.profile?.isIsolated === true,
+        addProjectPickerMocked: result.addProjectPickerMocked === true,
+        addProjectStatusLifecycle: result.addProjectStatusLifecycleWorks === true,
+        addProjectCreated: result.addProjectCreatedWorks === true,
+        addProjectSessionOpened: result.addProjectSessionOpenedWorks === true,
+        addProjectNoFreeze: result.addProjectNoFreezeWorks === true,
+        addProjectSidebarVisible: result.addProjectSidebarVisibleWorks === true,
+        addProjectNoError: result.addProjectNoErrorWorks === true
       }
     : captureView === 'worktree-lifecycle'
     ? {

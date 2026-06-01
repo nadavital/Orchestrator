@@ -43,11 +43,15 @@ export default function EmptyState(): JSX.Element {
       }),
       'Opening the project chat'
     )
-    await withProjectOpenTimeout(window.api.projects.addSession(project.id, session.id), 'Linking the project chat')
+    setAddStatus(null)
     addSession(session)
     setActiveSession(session.id)
     setShowCapabilities(false)
     setShowSettings(false)
+    void withProjectOpenTimeout(window.api.projects.addSession(project.id, session.id), 'Linking the project chat')
+      .catch((error) => {
+        setAddMessage(error instanceof Error ? error.message : 'Could not link project chat.')
+      })
   }
 
   const handleImportCodexProjects = async (): Promise<void> => {

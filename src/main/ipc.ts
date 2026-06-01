@@ -2767,16 +2767,28 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
 
   // Projects
   ipcMain.handle('projects:list', () => projectStore.list())
-  ipcMain.handle('projects:add', (_, name: string, rootPath: string) =>
-    projectStore.add(name, rootPath)
-  )
+  ipcMain.handle('projects:add', async (_, name: string, rootPath: string) => {
+    if (
+      process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT &&
+      process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'add-project'
+    ) {
+      await new Promise((resolve) => setTimeout(resolve, 220))
+    }
+    return projectStore.add(name, rootPath)
+  })
   ipcMain.handle('projects:importCodex', () => projectStore.importCodexProjects())
   ipcMain.handle('projects:remove', (_, id: string) => projectStore.remove(id))
   ipcMain.handle('projects:updateName', (_, id: string, name: string) => projectStore.updateName(id, name))
   ipcMain.handle('projects:updatePinned', (_, id: string, pinned: boolean) => projectStore.updatePinned(id, pinned))
-  ipcMain.handle('projects:addSession', (_, projectId: string, sessionId: string) =>
-    projectStore.addSession(projectId, sessionId)
-  )
+  ipcMain.handle('projects:addSession', async (_, projectId: string, sessionId: string) => {
+    if (
+      process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT &&
+      process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'add-project'
+    ) {
+      await new Promise((resolve) => setTimeout(resolve, 500))
+    }
+    return projectStore.addSession(projectId, sessionId)
+  })
   ipcMain.handle('projects:removeSession', (_, projectId: string, sessionId: string) =>
     projectStore.removeSession(projectId, sessionId)
   )
@@ -2803,7 +2815,15 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
     clipboard.writeText(deeplink)
     return deeplink
   })
-  ipcMain.handle('sessions:create', (_, opts) => sessionManager.create(opts))
+  ipcMain.handle('sessions:create', async (_, opts) => {
+    if (
+      process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT &&
+      process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'add-project'
+    ) {
+      await new Promise((resolve) => setTimeout(resolve, 500))
+    }
+    return sessionManager.create(opts)
+  })
   ipcMain.handle('sessions:fork', (_, id: string, mode: SessionForkMode, options?: SessionForkOptions) => {
     if (!['local', 'same-worktree', 'new-worktree'].includes(mode)) {
       throw new Error(`Unsupported fork mode: ${mode}`)
@@ -3239,6 +3259,13 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
 
   // File dialog
   ipcMain.handle('dialog:openDirectory', async () => {
+    if (
+      process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT &&
+      process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'add-project'
+    ) {
+      await new Promise((resolve) => setTimeout(resolve, 220))
+      return process.env.ORCHESTRATOR_SMOKE_WORKSPACE_DIR ?? process.cwd()
+    }
     const parentWindow = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0] ?? null
     const result = parentWindow
       ? await dialog.showOpenDialog(parentWindow, { properties: ['openDirectory', 'createDirectory'] })
