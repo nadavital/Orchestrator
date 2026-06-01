@@ -2085,6 +2085,7 @@ function ToolbarBtn({
     : 'transparent'
   const textColor = muted ? 'var(--text-tertiary)' : active ? 'var(--text-primary)' : 'var(--text-secondary)'
   void providerColor
+  const tooltipLabel = ariaExpanded ? undefined : title
   const button = (
     <button
       ref={buttonRef}
@@ -2096,7 +2097,7 @@ function ToolbarBtn({
       aria-expanded={ariaExpanded}
       aria-haspopup={ariaHasPopup}
       onKeyDown={onKeyDown}
-      data-tooltip-label={title}
+      data-tooltip-label={tooltipLabel}
       data-native-title-free="true"
       data-testid={dataTestId}
       className={`flex items-center gap-1.5 text-xs transition-colors ${className ?? ''}`}
@@ -2116,7 +2117,7 @@ function ToolbarBtn({
       {children}
     </button>
   )
-  return title ? <Tooltip label={title}>{button}</Tooltip> : button
+  return tooltipLabel ? <Tooltip label={tooltipLabel}>{button}</Tooltip> : button
 }
 
 function Chevron(): JSX.Element {
