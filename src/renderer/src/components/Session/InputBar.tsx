@@ -285,6 +285,13 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   const provider = PROVIDER_DEFS[session.provider ?? 'claude'] ?? PROVIDER_DEFS.claude
   const model = session.model || provider.models[0]?.id || ''
   const visibleModelChoices = getVisibleModelsWithCurrent(provider, providerModels, model)
+  const visibleProviderChoices = Object.values(PROVIDER_DEFS)
+    .filter((opt) => providerAvailability[opt.id] !== false || opt.id === provider.id)
+    .sort((a, b) => {
+      const aOk = providerAvailability[a.id] !== false
+      const bOk = providerAvailability[b.id] !== false
+      return aOk === bOk ? 0 : aOk ? -1 : 1
+    })
   const effort = session.effort ?? provider.effortLevels[0]?.id ?? ''
   const contextDefaultPermissionMode = permissionContext?.providerId === provider.id ? permissionContext.defaultPolicy : undefined
   const defaultPermissionMode = contextDefaultPermissionMode ?? getDefaultPermissionMode(provider)
@@ -1383,7 +1390,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
                 </span>
               )}
               {showAgentMenu && (
-                <DropdownPanel onClose={() => setShowAgentMenu(false)} style={{ bottom: '100%', marginBottom: 8, left: 0, minWidth: 292 }}>
+                <DropdownPanel onClose={() => setShowAgentMenu(false)} style={{ bottom: '100%', marginBottom: 8, left: 0, minWidth: 268 }}>
                   <div
                     className="sr-only"
                     data-testid="composer-active-agent-summary"
@@ -1392,11 +1399,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
                   </div>
 
                   <TieredRow label="Provider">
-                    {Object.values(PROVIDER_DEFS).sort((a, b) => {
-                      const aOk = providerAvailability[a.id] !== false
-                      const bOk = providerAvailability[b.id] !== false
-                      return aOk === bOk ? 0 : aOk ? -1 : 1
-                    }).map((opt) => {
+                    {visibleProviderChoices.map((opt) => {
                       const available = providerAvailability[opt.id] !== false
                       const isActive = provider.id === opt.id
                       return (
@@ -1543,14 +1546,10 @@ function InputBar({ session, isNew }: Props): JSX.Element {
               </ToolbarBtn>
 
               {showAgentMenu && (
-                <DropdownPanel onClose={() => setShowAgentMenu(false)} style={{ bottom: '100%', marginBottom: 8, right: 0, minWidth: 300 }}>
+                <DropdownPanel onClose={() => setShowAgentMenu(false)} style={{ bottom: '100%', marginBottom: 8, right: 0, minWidth: 268 }}>
                   {/* Provider row */}
                   <TieredRow label="Provider">
-                    {Object.values(PROVIDER_DEFS).sort((a, b) => {
-                      const aOk = providerAvailability[a.id] !== false
-                      const bOk = providerAvailability[b.id] !== false
-                      return aOk === bOk ? 0 : aOk ? -1 : 1
-                    }).map((opt) => {
+                    {visibleProviderChoices.map((opt) => {
                       const available = providerAvailability[opt.id] !== false
                       const isActive = provider.id === opt.id
                       return (
@@ -2450,18 +2449,18 @@ function PolicyBadge({
 function TieredRow({ label, children }: { label: string; children: React.ReactNode }): JSX.Element {
   return (
     <div
-      className="flex items-start gap-2.5 px-2.5 py-1.5"
+      className="flex items-start gap-2 px-2.5 py-1"
       role="group"
       aria-label={`${label} choices`}
     >
       <span
-        className="shrink-0 pt-1 text-[10.5px] font-medium tracking-normal"
+        className="shrink-0 pt-1 text-[10px] font-medium tracking-normal"
         data-testid="composer-agent-row-label"
-        style={{ color: 'color-mix(in srgb, var(--color-text-muted) 82%, transparent)', width: 54 }}
+        style={{ color: 'color-mix(in srgb, var(--color-text-muted) 76%, transparent)', width: 46 }}
       >
         {label}
       </span>
-      <div className="flex flex-wrap gap-0.5">
+      <div className="flex flex-wrap gap-1">
         {children}
       </div>
     </div>
@@ -2665,7 +2664,7 @@ function Chip({
         color: active ? activeColor : disabled ? 'var(--text-tertiary)' : 'var(--text-primary)',
         border: '1px solid ' + (active ? `color-mix(in srgb, ${activeColor} 20%, var(--border-subtle))` : 'color-mix(in srgb, var(--border-subtle) 8%, transparent)'),
         borderRadius: 'var(--radius-pill)',
-        padding: '3px 6.5px',
+        padding: '2.5px 6px',
         cursor: disabled ? 'default' : 'pointer',
         opacity: disabled ? 0.5 : 1,
         fontWeight: active ? 650 : 500
