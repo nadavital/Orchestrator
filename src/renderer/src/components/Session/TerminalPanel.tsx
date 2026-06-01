@@ -13,6 +13,7 @@ import ExtensionsPanel from './ExtensionsPanel'
 import FileTabPanel from './FileTabPanel'
 import FilesPanel from './FilesPanel'
 import GitActionDialog from './GitActionDialog'
+import Icon from '../shared/Icon'
 import PlanPanel from './PlanPanel'
 import SideQuestionPanel from './SideQuestionPanel'
 import TerminalView from './TerminalView'
@@ -526,15 +527,20 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
                     dataTestId="bottom-panel-open-side-chat-quick"
                     onClick={openSideChatInBottomPanel}
                   />
-                  <IconButton
-                    icon="plus"
-                    label="Open bottom panel tab"
-                    size="sm"
-                    variant="toolbar"
-                    active={bottomTabMenuOpen}
-                    dataTestId="bottom-panel-open-tab-menu"
+                  <button
+                    type="button"
+                    className="bottom-panel-new-tab-button"
+                    aria-label="Open bottom panel tab"
+                    aria-expanded={bottomTabMenuOpen}
+                    aria-haspopup="menu"
+                    data-testid="bottom-panel-open-tab-menu"
+                    data-active={bottomTabMenuOpen ? 'true' : 'false'}
+                    data-native-title-free="true"
                     onClick={() => setBottomTabMenuOpen((open) => !open)}
-                  />
+                  >
+                    <Icon name="plus" size={13} />
+                    <span>New tab</span>
+                  </button>
                   {activeTabKind === 'terminal' && (
                     <>
                       <ToolbarButton

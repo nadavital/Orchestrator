@@ -2161,6 +2161,31 @@
     display: none !important;
   }
 
+  .bottom-panel-new-tab-button {
+    display: inline-flex;
+    height: 24px;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 5px;
+    border: 1px solid color-mix(in srgb, var(--border-subtle) 30%, transparent);
+    border-radius: 7px;
+    background: color-mix(in srgb, var(--control-bg) 38%, transparent);
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 650;
+    line-height: 1;
+    padding: 0 9px 0 7px;
+  }
+
+  .bottom-panel-new-tab-button:hover,
+  .bottom-panel-new-tab-button:focus-visible,
+  .bottom-panel-new-tab-button[data-active='true'] {
+    background: color-mix(in srgb, var(--control-bg-hover) 52%, transparent);
+    color: var(--text-primary);
+    outline: none;
+  }
+
   [data-testid='session-bottom-panel'] [data-testid='terminal-add-output-to-chat']:disabled,
   [data-testid='session-bottom-panel'] [data-testid='terminal-add-selected-output-to-chat']:disabled,
   [data-testid='session-bottom-panel'] [data-testid='terminal-add-command-output-to-chat']:disabled,
