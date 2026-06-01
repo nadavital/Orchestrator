@@ -28133,12 +28133,13 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
             if (pluginsPrimaryActionForBehavior instanceof HTMLElement) {
               pluginsPrimaryActionForBehavior.click();
               for (let index = 0; index < 60; index += 1) {
-                if (document.body.innerText.includes('Capabilities')) break;
+                if (document.querySelector('.capabilities-page') instanceof HTMLElement) break;
                 await sleep(25);
               }
               sidebarPluginsPrimaryActionWorks =
                 document.querySelector('[data-testid="app-sidebar"]')?.getAttribute('data-sidebar-selected-key') === 'capabilities' &&
-                document.body.innerText.includes('Capabilities');
+                document.querySelector('.capabilities-page') instanceof HTMLElement &&
+                (document.body.innerText.includes('Plugins') || document.body.innerText.includes('Capabilities'));
               await restoreSmokeSession();
             }
             const automationsPrimaryActionForBehavior = document.querySelector('[data-testid="sidebar-primary-action-automations"]');
