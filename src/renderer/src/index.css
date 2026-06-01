@@ -923,20 +923,28 @@
     max-width: 100%;
   }
 
+  .composer-shell .attachment-pill {
+    min-height: 22px;
+    background: color-mix(in srgb, var(--surface-bg) 36%, transparent) !important;
+    border-color: color-mix(in srgb, var(--border-subtle) 16%, transparent) !important;
+    color: var(--text-secondary) !important;
+    font-weight: 500;
+  }
+
   .composer-attachment-status {
     width: fit-content;
     max-width: calc(100% - 32px);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border-subtle));
+    border: 1px solid color-mix(in srgb, var(--accent) 14%, var(--border-subtle));
     border-radius: 999px;
-    background: color-mix(in srgb, var(--accent) 8%, var(--surface-bg));
-    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 4%, transparent);
+    color: var(--text-secondary);
     font-size: 11px;
-    font-weight: 600;
+    font-weight: 500;
     line-height: 14px;
-    padding: 4px 9px;
+    padding: 3px 8px;
   }
 
   .composer-attachment-status[data-composer-attachment-status-tone="danger"] {

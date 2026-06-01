@@ -1027,15 +1027,15 @@ function InputBar({ session, isNew }: Props): JSX.Element {
         style={{
           maxWidth: isNew ? 700 : 860,
           background: isNew
-            ? 'color-mix(in srgb, var(--surface-bg) 58%, transparent)'
-            : 'color-mix(in srgb, var(--surface-bg) 34%, transparent)',
+            ? 'color-mix(in srgb, var(--surface-bg) 32%, transparent)'
+            : 'color-mix(in srgb, var(--surface-bg) 22%, transparent)',
           border: isNew
-            ? '1px solid color-mix(in srgb, var(--border-subtle) 26%, transparent)'
-            : '1px solid color-mix(in srgb, var(--border-subtle) 14%, transparent)',
-          borderRadius: 'var(--radius-xl)',
-          boxShadow: isNew ? '0 8px 20px rgba(0,0,0,0.045)' : 'none',
+            ? '1px solid color-mix(in srgb, var(--border-subtle) 16%, transparent)'
+            : '1px solid color-mix(in srgb, var(--border-subtle) 9%, transparent)',
+          borderRadius: '14px',
+          boxShadow: 'none',
           position: 'relative',
-          transition: 'box-shadow 140ms ease, border-color 140ms ease'
+          transition: 'background 110ms ease, border-color 110ms ease'
         }}
       >
         {dragActive && (
@@ -1064,7 +1064,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
         )}
 
         {/* Text input */}
-        <div className="flex items-end px-4 pt-3 pb-1 gap-2">
+        <div className="flex items-end px-4 pt-2.5 pb-1 gap-2">
           <textarea
             id="orchestrator-chat-composer"
             data-testid="composer-textarea"
@@ -1114,7 +1114,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
           )}
         </div>
         {(attachments.length > 0 || pendingAttachments.length > 0) && (
-          <div className="flex flex-wrap gap-1.5 px-4 pb-2" aria-label="Attachments">
+          <div className="flex flex-wrap gap-1.5 px-4 pb-1.5" aria-label="Attachments">
             {attachments.map((attachment) => (
               <AttachmentChip
                 key={attachment.id}
@@ -1133,7 +1133,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
         )}
         {draftSource && (
           <div
-            className="mx-3 mb-2 flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs"
+            className="mx-3 mb-1.5 flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs"
             data-testid="composer-draft-source-status"
             data-composer-draft-source={draftSource.kind}
             data-composer-draft-source-message-id={draftSource.messageId}
@@ -1144,8 +1144,8 @@ function InputBar({ session, isNew }: Props): JSX.Element {
             aria-live="polite"
             aria-atomic="true"
             style={{
-              borderColor: 'var(--border-subtle)',
-              background: 'var(--control-bg)',
+              borderColor: 'color-mix(in srgb, var(--border-subtle) 16%, transparent)',
+              background: 'color-mix(in srgb, var(--control-bg) 46%, transparent)',
               color: 'var(--text-secondary)'
             }}
           >
@@ -2141,10 +2141,10 @@ function DropdownPanel({
       className="absolute z-50 composer-dropdown-surface"
       onClose={onClose}
       style={{
-        border: '1px solid color-mix(in srgb, var(--border-subtle) 22%, transparent)',
+        border: '1px solid color-mix(in srgb, var(--border-subtle) 13%, transparent)',
         borderRadius: 12,
-        background: 'color-mix(in srgb, var(--surface-bg) 70%, transparent)',
-        boxShadow: '0 14px 36px rgba(0, 0, 0, 0.20)',
+        background: 'color-mix(in srgb, var(--surface-bg) 50%, transparent)',
+        boxShadow: '0 10px 28px rgba(0, 0, 0, 0.14)',
         backdropFilter: 'blur(18px) saturate(130%)',
         WebkitBackdropFilter: 'blur(18px) saturate(130%)',
         overflow: 'hidden',
@@ -2460,7 +2460,7 @@ function TieredRow({ label, children }: { label: string; children: React.ReactNo
       className="flex items-start gap-3 px-3 py-2"
       role="group"
       aria-label={`${label} choices`}
-      style={{ borderBottom: '1px solid color-mix(in srgb, var(--border-subtle) 24%, transparent)' }}
+      style={{ borderBottom: '1px solid color-mix(in srgb, var(--border-subtle) 12%, transparent)' }}
     >
       <span
         className="shrink-0 pt-0.5 text-[11px] font-semibold tracking-normal"
@@ -2669,9 +2669,9 @@ function Chip({
       data-composer-choice-active={active ? 'true' : 'false'}
       className="flex items-center gap-1.5 text-xs transition-colors"
       style={{
-        background: active ? 'color-mix(in srgb, var(--control-bg-active) 42%, transparent)' : 'color-mix(in srgb, var(--control-bg) 18%, transparent)',
+        background: active ? 'color-mix(in srgb, var(--control-bg-active) 24%, transparent)' : 'color-mix(in srgb, var(--control-bg) 10%, transparent)',
         color: active ? activeColor : disabled ? 'var(--text-tertiary)' : 'var(--text-primary)',
-        border: '1px solid ' + (active ? `color-mix(in srgb, ${activeColor} 48%, var(--border-subtle))` : 'color-mix(in srgb, var(--border-subtle) 24%, transparent)'),
+        border: '1px solid ' + (active ? `color-mix(in srgb, ${activeColor} 30%, var(--border-subtle))` : 'color-mix(in srgb, var(--border-subtle) 14%, transparent)'),
         borderRadius: 'var(--radius-pill)',
         padding: '3.5px 7px',
         cursor: disabled ? 'default' : 'pointer',
