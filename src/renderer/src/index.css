@@ -10925,10 +10925,11 @@
 
   .settings-row {
     display: grid;
-    grid-template-columns: minmax(180px, 1fr) minmax(176px, 300px);
+    grid-template-columns: minmax(220px, 340px) minmax(176px, 300px);
+    justify-content: start;
     min-width: 0;
     align-items: center;
-    gap: 16px;
+    gap: 20px;
     min-height: 44px;
     border: 0;
     border-radius: 0;
@@ -11107,7 +11108,7 @@
   }
 
   .general-settings-page .settings-content-layout-body {
-    gap: 10px;
+    gap: 4px;
   }
 
   .general-settings-control-surface {
