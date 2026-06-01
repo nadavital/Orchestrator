@@ -3311,6 +3311,7 @@ child.on('exit', async (code) => {
           result.capabilityAddToChatActionClicked === true &&
           result.capabilityAddToChatDraft === true
         ),
+        capabilityFinalPageCapture: captureView !== 'capabilities' || result.capabilityFinalPageCaptureWorks === true,
         composerPermissionMenu: captureView !== 'composer' || result.composerPermissionMenuOpened === true,
         appSkipLinksKeyboard: captureView !== 'composer' || result.appSkipLinksKeyboard === true,
         composerPermissionContextSignal: captureView !== 'composer' || result.composerPermissionContextSignal === true,

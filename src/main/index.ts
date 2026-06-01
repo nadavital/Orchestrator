@@ -6812,6 +6812,65 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               capabilityComposerTextarea instanceof HTMLTextAreaElement &&
               capabilityComposerTextarea.value.includes('$orchestrator-smoke-skill') &&
               document.activeElement === capabilityComposerTextarea;
+            const capabilitiesButtonAfterAdd = document.querySelector('[data-testid="sidebar-primary-action-plugins"]');
+            if (capabilitiesButtonAfterAdd instanceof HTMLElement) {
+              capabilitiesButtonAfterAdd.click();
+              await sleep(350);
+            }
+            for (let index = 0; index < 36; index += 1) {
+              const capabilitiesPage = document.querySelector('.capabilities-page');
+              const text = document.body.innerText;
+              const skillsLoaded = [...document.querySelectorAll('.segmented-control-button')]
+                .some((button) => button.textContent?.includes('Skills'));
+              if (
+                capabilitiesPage instanceof HTMLElement &&
+                skillsLoaded &&
+                text.includes('Orchestrator Smoke Skill') &&
+                !text.includes('Refreshing') &&
+                !text.includes('Loading capabilities')
+              ) {
+                break;
+              }
+              await sleep(250);
+            }
+            const finalSearch = document.querySelector('.capabilities-search');
+            if (finalSearch instanceof HTMLInputElement) {
+              setNativeValue(finalSearch, 'Orchestrator Smoke Skill');
+              finalSearch.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+            for (let index = 0; index < 20; index += 1) {
+              const finalSkillsTab = [...document.querySelectorAll('.segmented-control-button')]
+                .find((button) => button.textContent?.includes('Skills'));
+              if (finalSkillsTab instanceof HTMLElement) {
+                finalSkillsTab.click();
+                await sleep(180);
+                const text = document.body.innerText;
+                if (
+                  text.includes('Orchestrator Smoke Skill') &&
+                  !text.includes('Refreshing') &&
+                  !text.includes('Loading capabilities')
+                ) {
+                  break;
+                }
+              }
+              await sleep(180);
+            }
+            const finalCapabilitiesPage = document.querySelector('.capabilities-page');
+            const finalCapabilitiesRect = finalCapabilitiesPage instanceof HTMLElement
+              ? finalCapabilitiesPage.getBoundingClientRect()
+              : null;
+            var capabilityFinalPageCaptureWorks =
+              finalCapabilitiesPage instanceof HTMLElement &&
+              finalCapabilitiesRect !== null &&
+              finalCapabilitiesRect.width >= 640 &&
+              finalCapabilitiesRect.height >= 420 &&
+              document.body.innerText.includes('Orchestrator Smoke Skill') &&
+              !document.body.innerText.includes('Refreshing') &&
+              !document.body.innerText.includes('Loading capabilities') &&
+              !document.querySelector('.motion-sheet') &&
+              !document.querySelector('.motion-overlay-backdrop [role="dialog"]') &&
+              !document.querySelector('.capability-row-menu [role="menu"]') &&
+              document.activeElement !== capabilityComposerTextarea;
           }
           if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'composer') {
             const setNativeValue = (element, value) => {
@@ -9138,6 +9197,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             capabilityDialogClosedWithEscape: typeof capabilityDialogClosedWithEscape === 'boolean' ? capabilityDialogClosedWithEscape : null,
             capabilityAddToChatActionClicked: typeof capabilityAddToChatActionClicked === 'boolean' ? capabilityAddToChatActionClicked : null,
             capabilityAddToChatDraft: typeof capabilityAddToChatDraft === 'boolean' ? capabilityAddToChatDraft : null,
+            capabilityFinalPageCaptureWorks: typeof capabilityFinalPageCaptureWorks === 'boolean' ? capabilityFinalPageCaptureWorks : null,
             composerPermissionMenuOpened: typeof composerPermissionMenuOpened === 'boolean' ? composerPermissionMenuOpened : null,
             appSkipLinksKeyboard: typeof appSkipLinksKeyboard === 'boolean' ? appSkipLinksKeyboard : null,
             composerPermissionContextSignal: typeof composerPermissionContextSignal === 'boolean' ? composerPermissionContextSignal : null,
