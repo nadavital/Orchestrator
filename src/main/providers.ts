@@ -5,6 +5,7 @@ import { delimiter, join } from 'path'
 import { homedir, tmpdir } from 'os'
 import { promisify } from 'util'
 import type {
+  AgentNode,
   AgentStatus,
   PermissionDenial,
   PermissionExecutionContract,
@@ -445,6 +446,11 @@ export function stringifyContent(value: unknown): string {
   return JSON.stringify(value, null, 2)
 }
 
+function claudeAgentIdFromContent(value: unknown): string | undefined {
+  const match = stringifyContent(value).match(/\bagentId:\s*([a-f0-9-]+)/iu)
+  return match?.[1]
+}
+
 function normalizePlanItemStatus(value: unknown): PlanItemStatus {
   if (value === 'in_progress' || value === 'completed' || value === 'cancelled' || value === 'blocked') return value
   if (value === 'doing' || value === 'active' || value === 'running') return 'in_progress'
@@ -523,6 +529,12 @@ function claudeAgentEventFromTaskSystemEvent(
       role: stringValue(event.description, event.prompt),
       status,
       summary: claudeTaskSummary(event),
+      providerAgentId: id,
+      providerItemId: id,
+      providerThreadId: stringValue(event.task_id, event.session_id),
+      parentThreadId: sessionId,
+      providerTurnId: stringValue(event.turn_id),
+      source: stringValue(event.task_id, event.session_id) ? 'provider-thread' : 'provider-event',
       completedAt: status === 'completed' || status === 'failed' || status === 'cancelled'
         ? Date.now()
         : undefined
@@ -616,6 +628,8 @@ function agentEventFromProviderPayload(
   const summary = stringValue(agentRecord.summary, agentRecord.result, agentRecord.error, payload?.summary, payload?.error)
   const startedAt = numberValue(agentRecord.startedAt, agentRecord.started_at, payload?.startedAt)
   const completedAt = numberValue(agentRecord.completedAt, agentRecord.completed_at, payload?.completedAt)
+  const providerThreadId = stringValue(agentRecord.providerThreadId, agentRecord.threadId, agentRecord.thread_id, agentRecord.sessionId, agentRecord.session_id)
+  const childThreadIds = stringArrayValue(agentRecord.childThreadIds, agentRecord.receiverThreadIds, payload?.childThreadIds, payload?.receiverThreadIds)
   const status: AgentStatus = type === 'subagent.started' || type === 'agent.started'
     ? 'running'
     : type === 'subagent.completed' || type === 'agent.completed'
@@ -638,6 +652,14 @@ function agentEventFromProviderPayload(
       providerId,
       sessionId: sessionId ?? '',
       parentAgentId,
+      providerAgentId: stringValue(agentRecord.providerAgentId, agentRecord.agentId, agentRecord.agent_id),
+      providerItemId: stringValue(agentRecord.providerItemId, agentRecord.itemId, agentRecord.toolUseId, agentRecord.tool_use_id),
+      providerThreadId,
+      parentThreadId: stringValue(agentRecord.parentThreadId, agentRecord.parent_thread_id, payload?.parentThreadId, payload?.parent_thread_id),
+      childThreadIds,
+      receiverThreadIds: stringArrayValue(agentRecord.receiverThreadIds, payload?.receiverThreadIds),
+      providerTurnId: stringValue(agentRecord.turnId, agentRecord.turn_id, payload?.turnId, payload?.turn_id),
+      source: providerThreadId || childThreadIds.length > 0 ? 'provider-thread' : 'provider-event',
       name,
       role,
       status,
@@ -1868,6 +1890,9 @@ export function normalizeClaudeMessageObject(event: Record<string, unknown>, pro
               name: agent.name,
               role: agent.role,
               model: agent.model,
+              providerItemId: rec.id,
+              parentThreadId: sessionId,
+              source: 'provider-event',
               status: 'running'
             }
           })
@@ -1926,6 +1951,7 @@ export function normalizeClaudeMessageObject(event: Record<string, unknown>, pro
         const taskAgent = toolUseId ? anthropicTaskAgents.get(toolUseId) : undefined
         if (taskAgent) {
           anthropicTaskAgents.delete(toolUseId)
+          const providerAgentId = claudeAgentIdFromContent(rec.content)
           events.push({
             type: rec.is_error === true ? 'agent.failed' : 'agent.completed',
             agent: {
@@ -1935,6 +1961,10 @@ export function normalizeClaudeMessageObject(event: Record<string, unknown>, pro
               name: taskAgent.name,
               role: taskAgent.role,
               model: taskAgent.model,
+              providerAgentId,
+              providerItemId: toolUseId,
+              parentThreadId: taskAgent.sessionId,
+              source: 'provider-event',
               status: rec.is_error === true ? 'failed' : 'completed',
               summary: stringifyContent(rec.content)
             }
@@ -2625,6 +2655,24 @@ function parseCodexAppServerItem(
   if (itemType === 'collabAgentToolCall') {
     const id = stringValue(item.id) ?? uuidv4()
     const status = normalizeAgentStatus(stringValue(item.status))
+    const receiverThreadIds = stringArrayValue(item.receiverThreadIds)
+    const receiverThreads = Array.isArray(item.receiverThreads)
+      ? item.receiverThreads.flatMap((thread): NonNullable<AgentNode['receiverThreads']> => {
+        const rec = asRecord(thread)
+        const threadId = stringValue(rec?.id, rec?.threadId, rec?.thread_id)
+        if (!threadId) return []
+        return [{
+          id: threadId,
+          title: stringValue(rec?.title, rec?.name),
+          status: stringValue(rec?.status),
+          providerId: 'codex',
+          sessionId: threadId,
+          raw: rec
+        }]
+      })
+      : []
+    const providerThreadId = stringValue(item.providerThreadId, item.threadId) ?? receiverThreadIds[0] ?? receiverThreads[0]?.id
+    const parentThreadId = stringValue(item.senderThreadId, params.threadId)
     const eventType = status === 'completed'
       ? 'agent.completed'
       : status === 'failed'
@@ -2637,7 +2685,17 @@ function parseCodexAppServerItem(
       agent: {
         id,
         providerId: 'codex',
-        sessionId: stringValue(item.senderThreadId) ?? '',
+        sessionId: parentThreadId ?? '',
+        providerAgentId: providerThreadId,
+        providerItemId: id,
+        providerThreadId,
+        parentThreadId,
+        childThreadIds: receiverThreadIds,
+        receiverThreadIds,
+        receiverThreads,
+        providerTurnId: stringValue(params.turnId, item.turnId),
+        reasoningEffort: stringValue(item.reasoningEffort),
+        source: providerThreadId ? 'provider-thread' : 'provider-event',
         name: stringValue(asRecord(item.tool)?.type, item.tool),
         role: stringValue(item.prompt),
         status,

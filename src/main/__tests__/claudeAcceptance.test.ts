@@ -6,6 +6,7 @@ import type { FileChange, RunEvent, SessionRunEventRecord } from '../../types'
 import {
   availableSlashCommands,
   deriveAgentNodes,
+  deriveAgentThreadGraph,
   deriveAgentNodesFromMessages,
   derivePlanStates,
   pairToolActivities,
@@ -104,7 +105,7 @@ test('Claude repo actions collapse into the expected transcript vocabulary', () 
 })
 
 test('Claude agent and plan derivation covers subagents and plan mode from fixtures', () => {
-  const session = { id: 'session-under-test', provider: 'claude' }
+  const session = { id: 'session-under-test', provider: 'claude', providerSessionId: 'claude-parent-session' }
   const agentEvents = parseClaudeFixture('task-progress.jsonl')
   const agents = deriveAgentNodes(session, records(agentEvents))
 
@@ -131,7 +132,7 @@ test('Claude agent derivation falls back to saved transcript tool messages', () 
 })
 
 test('Claude saved subagent transcripts hide native agent metadata trailers', () => {
-  const session = { id: 'session-under-test', provider: 'claude' }
+  const session = { id: 'session-under-test', provider: 'claude', providerSessionId: 'claude-parent-session' }
   const messages = [
     {
       id: 'tool-agent-2',
@@ -152,10 +153,16 @@ test('Claude saved subagent transcripts hide native agent metadata trailers', ()
     }
   ]
   const agents = deriveAgentNodesFromMessages(session, messages)
+  const graph = deriveAgentThreadGraph({ ...session, messages }, [])
 
   assert.equal(agents.length, 1)
   assert.equal(agents[0].transcript, 'The first sentence is useful.')
   assert.equal(agents[0].summary, 'The first sentence is useful.')
+  assert.equal(agents[0].providerAgentId, 'abc123')
+  assert.equal(agents[0].providerItemId, 'tool-agent-2')
+  assert.equal(agents[0].parentThreadId, 'claude-parent-session')
+  assert.equal(graph.threads[0]?.capabilities.openProviderThread.status, 'available')
+  assert.equal(graph.threads[0]?.capabilities.resume.status, 'available')
 })
 
 test('Claude saved transcript failure finalizes active subagents', () => {

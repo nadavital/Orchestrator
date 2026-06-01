@@ -4,7 +4,7 @@ import { useSessionStore } from '../../store/sessions'
 import { parseFileChangesFromUnifiedDiff, summarizeFileChanges } from '../../types'
 import type { AgentNode, TextMessage, SessionRunEventRecord } from '../../types'
 import Icon from '../shared/Icon'
-import { deriveSessionAgentNodes } from './agentNodes'
+import { deriveSessionAgentThreads } from './agentNodes'
 
 interface Props {
   sessionId: string
@@ -47,7 +47,11 @@ export default function ComposerContextShelf({ sessionId }: Props): JSX.Element 
   }, [session])
 
   const agents = useMemo(
-    () => session ? deriveSessionAgentNodes(session, events).filter((agent) => LIVE_STATUSES.has(agent.status)) : [],
+    () => session
+      ? deriveSessionAgentThreads(session, events)
+        .filter((thread) => LIVE_STATUSES.has(thread.progress.status))
+        .map((thread) => thread.agent)
+      : [],
     [events, session]
   )
 
@@ -118,12 +122,16 @@ export default function ComposerContextShelf({ sessionId }: Props): JSX.Element 
           />
         )}
         {agents.length > 0 && (
-          <div className="composer-context-row composer-context-row-agents" data-testid="running-agents-strip">
+          <div
+            className="composer-context-row composer-context-row-agents"
+            data-testid="running-agents-strip"
+            data-agent-thread-count={agents.length}
+          >
             <div className="composer-context-row-leading">
               <Icon name="agents" size={15} />
             </div>
             <span className="composer-context-agent-label">Live</span>
-            <div className="composer-context-agent-list" aria-label="Live agents">
+            <div className="composer-context-agent-list" aria-label="Live agent threads">
               {agents.map((agent) => (
                 <AgentPill
                   key={agent.id}

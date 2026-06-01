@@ -579,6 +579,16 @@ export interface AgentNode {
   providerId: string
   sessionId: string
   parentAgentId?: string
+  providerAgentId?: string
+  providerItemId?: string
+  providerThreadId?: string
+  parentThreadId?: string
+  childThreadIds?: string[]
+  receiverThreadIds?: string[]
+  receiverThreads?: AgentProviderThreadRef[]
+  providerTurnId?: string
+  reasoningEffort?: string
+  source?: AgentThreadSource
   name?: string
   role?: string
   status: AgentStatus
@@ -587,6 +597,23 @@ export interface AgentNode {
   completedAt?: number
   summary?: string
   transcript?: string
+}
+
+export type AgentThreadSource =
+  | 'provider-thread'
+  | 'provider-event'
+  | 'tool-heuristic'
+  | 'message-history'
+  | 'sdk-run'
+  | 'cli-session'
+
+export interface AgentProviderThreadRef {
+  id: string
+  title?: string
+  status?: string
+  providerId?: string
+  sessionId?: string
+  raw?: Record<string, unknown>
 }
 
 export type PlanItemStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled' | 'blocked'
@@ -2438,3 +2465,27 @@ export type {
 export type {
   SidebarCustomSectionLike
 } from './sidebarCustomSections'
+export {
+  AGENT_THREAD_ADAPTER_CONTRACTS,
+  agentThreadFromAgent,
+  agentThreadAdapterContractForProvider,
+  deriveAgentThreadGraph,
+  deriveAgentThreadGraphFromMessages
+} from './agentThreads'
+export type {
+  AgentThread,
+  AgentThreadAction,
+  AgentThreadActionCapability,
+  AgentThreadAdapterContract,
+  AgentThreadCapabilityStatus,
+  AgentThreadDeriveOptions,
+  AgentThreadGraph,
+  AgentThreadIdentity,
+  AgentThreadMembership,
+  AgentThreadOpenRequest,
+  AgentThreadOpenResult,
+  AgentThreadProgress,
+  AgentThreadProviderEvidence,
+  AgentThreadTranscriptHandle,
+  AgentThreadTranscriptKind
+} from './agentThreads'

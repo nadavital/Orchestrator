@@ -10202,7 +10202,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   agentSessionContext.textContent?.includes('Messages') === true &&
                   agentSessionContext.textContent?.includes('Events') === true &&
                   agentEmptyState instanceof HTMLElement &&
-                  agentEmptyState.textContent?.includes('No agents yet') === true;
+                  agentEmptyState.textContent?.includes('No agent threads yet') === true;
                 const activeSmokeSession = (await window.api.sessions.list())[0];
                 const appendEventsForSmoke = window.__orchestratorAppendSessionEventsForSmoke;
                 const appendRawForSmoke = window.__orchestratorAppendSessionRawForSmoke;
@@ -10320,7 +10320,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   agentSessionContextCopyStatus.getAttribute('aria-live') === 'polite' &&
                   agentSessionContextCopyStatus.getAttribute('aria-atomic') === 'true' &&
                   agentSessionContextCopyStatus.textContent?.includes('Session context copied') === true &&
-                  copiedSessionContext.includes('Use this agent activity session context:') &&
+                  copiedSessionContext.includes('Use this agent thread session context:') &&
                   copiedSessionContext.includes('Runtime: ' + [activeSmokeSession?.provider, activeSmokeSession?.model].filter(Boolean).join(' / ')) &&
                   copiedSessionContext.includes('Workspace: ' + activeSmokeSession?.workDir) &&
                   copiedSessionContext.includes('Recent visible events:') &&
@@ -10346,7 +10346,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   agentSessionContextActionStatus.getAttribute('aria-atomic') === 'true' &&
                   agentSessionContextActionStatus.textContent?.includes('Session context added to chat') === true &&
                   composerAfterSessionContextAdd instanceof HTMLTextAreaElement &&
-                  composerAfterSessionContextAdd.value.includes('Use this agent activity session context:') &&
+                  composerAfterSessionContextAdd.value.includes('Use this agent thread session context:') &&
                   composerAfterSessionContextAdd.value.includes('Runtime: ' + [activeSmokeSession?.provider, activeSmokeSession?.model].filter(Boolean).join(' / ')) &&
                   composerAfterSessionContextAdd.value.includes('Workspace: ' + activeSmokeSession?.workDir) &&
                   composerAfterSessionContextAdd.value.includes('Recent visible events:') &&

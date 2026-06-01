@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react'
 import { useSessionStore } from '../../store/sessions'
-import type { AgentNode, AgentStatus, Session, SessionRunEventRecord } from '../../types'
-import { Badge, InspectorCard, InspectorRow, InspectorSection, MetricPill, PanelHeader, TabButton, ToolbarButton, WorkbenchSearchField } from '../shared/designSystem'
-import { deriveSessionAgentNodes } from './agentNodes'
+import type { AgentNode, AgentStatus, AgentThread, Session, SessionRunEventRecord } from '../../types'
+import { Badge, InspectorCard, InspectorRow, InspectorSection, MetricPill, PanelHeader, ToolbarButton, WorkbenchSearchField } from '../shared/designSystem'
+import { deriveSessionAgentThreads } from './agentNodes'
 
 const AGENT_DIVIDER = '1px solid color-mix(in srgb, var(--border-subtle) 34%, transparent)'
 const AGENT_CONTROL_BORDER = '1px solid color-mix(in srgb, var(--border-subtle) 22%, transparent)'
@@ -40,16 +40,19 @@ export default function EventInspectorPanel({ session, embedded = false, activeA
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null)
   const events = eventBuffers[session.id] ?? []
   const rawLog = rawBuffers[session.id] ?? ''
-  const agents = useMemo(() => deriveSessionAgentNodes(session, events), [events, session])
+  const agentThreads = useMemo(() => deriveSessionAgentThreads(session, events), [events, session])
+  const agents = useMemo(() => agentThreads.map((thread) => thread.agent), [agentThreads])
   const openAgentIds = uiState[session.id]?.agentTabIds ?? (activeAgentId ? [activeAgentId] : [])
-  const pinnedAgents = openAgentIds
-    .map((id) => agents.find((agent) => agent.id === id))
-    .filter((agent): agent is AgentNode => Boolean(agent))
-  const visibleAgents = pinnedAgents.length > 0 ? pinnedAgents : agents
-  const selectedAgent = useMemo(
-    () => visibleAgents.find((agent) => agent.id === activeAgentId) ?? visibleAgents.at(-1) ?? null,
-    [activeAgentId, visibleAgents]
+  const pinnedThreads = openAgentIds
+    .map((id) => agentThreads.find((thread) => thread.agent.id === id))
+    .filter((thread): thread is AgentThread => Boolean(thread))
+  const visibleThreads = pinnedThreads.length > 0 ? pinnedThreads : agentThreads
+  const selectedThread = useMemo(
+    () => visibleThreads.find((thread) => thread.agent.id === activeAgentId) ?? visibleThreads.at(-1) ?? null,
+    [activeAgentId, visibleThreads]
   )
+  const visibleAgents = useMemo(() => visibleThreads.map((thread) => thread.agent), [visibleThreads])
+  const selectedAgent = selectedThread?.agent ?? null
   const stats = useMemo(() => agentStats(agents), [agents])
   const recentEvents = useMemo(() => events.slice(-4).reverse(), [events])
   const selectedEvent = useMemo(
@@ -69,98 +72,214 @@ export default function EventInspectorPanel({ session, embedded = false, activeA
     >
       {!embedded && (
         <PanelHeader
-          title="Agent Activity"
-          subtitle="Subagents, side tasks, and transcript handoffs."
+          title="Agent Threads"
+          subtitle="Provider-grounded subagents, SDK runs, and transcript handoffs."
           actions={<MetricPill tone={stats.active > 0 ? 'success' : 'neutral'}>{stats.total} total</MetricPill>}
         />
       )}
 
-      {(!embedded || stats.total > 0) && <AgentOverview stats={stats} embedded={embedded} />}
-      <SessionContextSummary
-        session={session}
-        stats={stats}
-        events={events}
-        recentEvents={recentEvents}
-        rawLog={rawLog}
-        selectedEventId={selectedEvent?.id ?? null}
-        selectedEvent={selectedEvent}
-        embedded={embedded}
-        onSelectEvent={setSelectedEventId}
-      />
-
       {visibleAgents.length === 0 ? (
-        <EmptyState providerId={session.provider ?? 'provider'} embedded={embedded} hasEvents={events.length > 0} />
+        <>
+          <AgentThreadsHero session={session} stats={stats} />
+          <EmptyState providerId={session.provider ?? 'provider'} embedded={embedded} hasEvents={events.length > 0} />
+          <AgentDiagnosticsDetails
+            session={session}
+            stats={stats}
+            events={events}
+            recentEvents={recentEvents}
+            rawLog={rawLog}
+            selectedEventId={selectedEvent?.id ?? null}
+            selectedEvent={selectedEvent}
+            embedded={embedded}
+            onSelectEvent={setSelectedEventId}
+          />
+        </>
       ) : (
         <div className="flex flex-col min-h-0 min-w-0 flex-1 overflow-hidden">
-          <div
-            className="shrink-0 overflow-x-auto overflow-y-hidden px-2 py-2"
-            style={{ borderBottom: AGENT_DIVIDER }}
-          >
-            <div className="flex min-w-0 gap-1.5">
-              {visibleAgents.map((agent) => (
-                <AgentTab
-                  key={agent.id}
-                  agent={agent}
-                  active={agent.id === selectedAgent?.id}
-                  onClick={() => setActiveAgent(session.id, agent.id)}
-                  onClose={openAgentIds.includes(agent.id) ? () => closeAgentTab(session.id, agent.id) : undefined}
-                />
-              ))}
-            </div>
-          </div>
+          <AgentThreadsHero session={session} stats={stats} />
+          <AgentThreadList
+            threads={visibleThreads}
+            activeAgentId={selectedAgent?.id ?? null}
+            openAgentIds={openAgentIds}
+            onSelect={(agentId) => setActiveAgent(session.id, agentId)}
+            onClose={(agentId) => closeAgentTab(session.id, agentId)}
+          />
 
           {selectedAgent && (
             <AgentConversation
               session={session}
               agent={selectedAgent}
+              thread={selectedThread}
               events={events}
               selectedEventId={selectedEvent?.id ?? null}
               onSelectEvent={setSelectedEventId}
             />
           )}
+          <AgentDiagnosticsDetails
+            session={session}
+            stats={stats}
+            events={events}
+            recentEvents={recentEvents}
+            rawLog={rawLog}
+            selectedEventId={selectedEvent?.id ?? null}
+            selectedEvent={selectedEvent}
+            embedded={embedded}
+            onSelectEvent={setSelectedEventId}
+          />
         </div>
       )}
     </section>
   )
 }
 
-function AgentOverview({
-  stats,
-  embedded = false
+function AgentThreadsHero({
+  session,
+  stats
 }: {
+  session: Session
   stats: ReturnType<typeof agentStats>
-  embedded?: boolean
 }): JSX.Element {
+  const activeCopy = stats.active > 0
+    ? `${stats.active} active`
+    : stats.waiting > 0
+      ? `${stats.waiting} waiting`
+      : stats.completed > 0
+        ? `${stats.completed} done`
+        : 'No active threads'
   return (
     <div
-      className={`shrink-0 grid grid-cols-4 gap-1.5 ${embedded ? 'px-2 py-2' : 'px-4 py-3'}`}
+      className="shrink-0 px-3 py-2.5"
+      data-testid="agent-threads-hero"
+      data-agent-thread-total={stats.total}
       style={{ borderBottom: AGENT_DIVIDER }}
     >
-      <AgentStat label="Active" value={stats.active} tone="var(--color-green)" />
-      <AgentStat label="Waiting" value={stats.waiting} tone="var(--color-yellow)" />
-      <AgentStat label="Done" value={stats.completed} tone="var(--color-accent)" />
-      <AgentStat label="Issues" value={stats.issues} tone="#EF4444" />
+      <div className="flex min-w-0 items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="truncate text-sm font-semibold" style={{ color: 'var(--color-text)' }}>
+            Agent threads
+          </div>
+          <div className="mt-0.5 truncate text-xs" style={{ color: 'var(--color-text-muted)' }}>
+            {[session.provider, session.model, activeCopy].filter(Boolean).join(' · ')}
+          </div>
+        </div>
+        <Badge tone={stats.issues > 0 ? 'danger' : stats.active > 0 ? 'success' : 'neutral'}>
+          {stats.total}
+        </Badge>
+      </div>
     </div>
   )
 }
 
-function AgentStat({ label, value, tone }: { label: string; value: number; tone: string }): JSX.Element {
+function AgentThreadList({
+  threads,
+  activeAgentId,
+  openAgentIds,
+  onSelect,
+  onClose
+}: {
+  threads: AgentThread[]
+  activeAgentId: string | null
+  openAgentIds: string[]
+  onSelect: (agentId: string) => void
+  onClose: (agentId: string) => void
+}): JSX.Element {
   return (
     <div
-      className="min-w-0 rounded-md px-2 py-1.5"
-      style={{ background: AGENT_MUTED_BG, border: AGENT_CONTROL_BORDER }}
+      className="shrink-0 grid gap-1 p-2"
+      data-testid="agent-thread-list"
+      data-agent-thread-count={threads.length}
+      style={{ borderBottom: AGENT_DIVIDER }}
     >
-      <div
-        className="truncate text-[11px] font-semibold tracking-normal"
-        data-testid="agent-stat-label"
+      {threads.map((thread) => {
+        const agent = thread.agent
+        const active = agent.id === activeAgentId
+        const label = agent.name ?? agent.role ?? agent.id
+        const summary = thread.transcript.content ?? agent.summary ?? agent.role ?? ''
+        const isOpen = openAgentIds.includes(agent.id)
+        return (
+          <div
+            key={thread.id}
+            className="group flex min-w-0 items-stretch gap-1 rounded-md transition-colors"
+            style={{
+              border: active
+                ? '1px solid color-mix(in srgb, var(--accent) 18%, var(--border-subtle))'
+                : AGENT_CONTROL_BORDER,
+              boxShadow: active ? 'inset 2px 0 0 color-mix(in srgb, var(--accent) 70%, transparent)' : 'none',
+              background: active
+                ? 'color-mix(in srgb, var(--accent) 5%, var(--surface-bg))'
+                : 'color-mix(in srgb, var(--surface-bg) 62%, transparent)'
+            }}
+          >
+            <button
+              type="button"
+              className="min-w-0 flex-1 px-2.5 py-1.5 text-left"
+              data-testid="agent-thread-row"
+              data-agent-thread-row-active={active ? 'true' : 'false'}
+              data-agent-thread-provider={thread.identity.providerId}
+              data-agent-thread-source={thread.evidence.source}
+              aria-pressed={active}
+              onClick={() => onSelect(agent.id)}
+            >
+              <div className="flex min-w-0 items-start gap-2">
+              <StatusDot status={agent.status} />
+              <div className="min-w-0 flex-1">
+                <div className="flex min-w-0 items-center gap-1.5">
+                  <span className="min-w-0 truncate text-xs font-semibold" style={{ color: 'var(--color-text)' }}>
+                    {label}
+                  </span>
+                  <Badge tone={agentStatusTone(agent.status)}>{agent.status}</Badge>
+                </div>
+                <div className="mt-1 truncate text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
+                  {[thread.identity.providerId, thread.transcript.kind, thread.identity.providerThreadId ? 'thread' : thread.identity.providerAgentId ? 'agent' : null].filter(Boolean).join(' · ')}
+                </div>
+                {summary && (
+                  <div className="mt-0.5 line-clamp-1 text-[11px] leading-[14px]" style={{ color: 'var(--color-text-muted)' }}>
+                    {summary}
+                  </div>
+                )}
+              </div>
+              </div>
+            </button>
+            {isOpen && (
+              <button
+                type="button"
+                className="w-6 shrink-0 rounded-r-md text-[12px] opacity-70 transition-opacity group-hover:opacity-100"
+                aria-label="Close transcript"
+                onClick={() => onClose(agent.id)}
+                style={{
+                  color: 'var(--color-text-muted)',
+                  borderLeft: AGENT_CONTROL_BORDER
+                }}
+              >
+                x
+              </button>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function AgentDiagnosticsDetails({
+  defaultOpen = false,
+  ...props
+}: Parameters<typeof SessionContextSummary>[0] & { defaultOpen?: boolean }): JSX.Element {
+  return (
+    <details
+      className="shrink-0 border-t"
+      data-testid="agent-diagnostics-details"
+      open={defaultOpen}
+      style={{ borderColor: 'color-mix(in srgb, var(--border-subtle) 34%, transparent)' }}
+    >
+      <summary
+        className="cursor-pointer select-none px-3 py-2 text-xs font-semibold"
         style={{ color: 'var(--color-text-muted)' }}
       >
-        {label}
-      </div>
-      <div className="text-xs font-semibold" style={{ color: value > 0 ? tone : 'var(--color-text-muted)' }}>
-        {value}
-      </div>
-    </div>
+        Runtime details
+      </summary>
+      <SessionContextSummary {...props} />
+    </details>
   )
 }
 
@@ -352,7 +471,7 @@ function SessionContextSummary({
         <div className="grid grid-cols-3 gap-1.5">
           <CompactMetric label="Messages" value={messageCount} />
           <CompactMetric label="Events" value={events.length} />
-          <CompactMetric label="Agents" value={stats.total} />
+          <CompactMetric label="Threads" value={stats.total} />
         </div>
         {sessionActionStatus && (
           <div
@@ -589,7 +708,7 @@ function SessionContextSummary({
               onChange={setEventSourceFilter}
               options={[
                 { value: 'all', label: 'All sources' },
-                { value: 'agents', label: 'Agents' },
+                { value: 'agents', label: 'Agent events' },
                 { value: 'tools', label: 'Tools' },
                 { value: 'approvals', label: 'Approvals' },
                 { value: 'connection', label: 'Connection' }
@@ -890,11 +1009,11 @@ function EmptyState({
   embedded?: boolean
   hasEvents?: boolean
 }): JSX.Element {
-  const title = embedded ? 'No agents yet' : 'No agent activity yet'
+  const title = embedded ? 'No agent threads yet' : 'No agent threads yet'
   const body = embedded
     ? hasEvents
-      ? 'This session has runtime activity, but no subagent transcript has been opened yet.'
-      : 'Session diagnostics are available above. Agent transcripts will appear here when a side task starts.'
+      ? 'This session has runtime activity, but no provider subagent thread has been detected yet.'
+      : 'Agent threads will appear here when the provider starts a side task.'
     : `When ${providerId} starts a subagent or side task, its status and transcript will appear here.`
 
   return (
@@ -935,14 +1054,14 @@ function sessionContextSummaryText({
   const runtime = [session.provider, session.model].filter(Boolean).join(' / ') || 'Unknown runtime'
   const messageCount = session.messageCount ?? session.messages.length
   return [
-    'Use this agent activity session context:',
+    'Use this agent thread session context:',
     `Thread: ${session.title || session.id}`,
     `Runtime: ${runtime}`,
     `Status: ${session.status}`,
     `Workspace: ${session.workDir || 'Unknown workspace'}`,
     `Messages: ${messageCount}`,
     `Events: ${events.length}`,
-    `Agents: ${stats.total} total, ${stats.active} active, ${stats.waiting} waiting, ${stats.issues} issues`,
+    `Agent threads: ${stats.total} total, ${stats.active} active, ${stats.waiting} waiting, ${stats.issues} issues`,
     '',
     'Recent visible events:',
     ...(visibleEvents.length > 0
@@ -1104,55 +1223,37 @@ function agentStats(agents: AgentNode[]): {
   }, { total: 0, active: 0, waiting: 0, completed: 0, issues: 0 })
 }
 
-function AgentTab({
-  agent,
-  active,
-  onClick,
-  onClose
-}: {
-  agent: AgentNode
-  active: boolean
-  onClick: () => void
-  onClose?: () => void
-}): JSX.Element {
-  return (
-    <TabButton
-      active={active}
-      onClick={onClick}
-      onClose={onClose}
-      closeLabel="Close transcript"
-    >
-      <span className="inline-flex min-w-0 items-center gap-1.5">
-        <StatusDot status={agent.status} />
-        <span className="min-w-0 truncate">{agent.name ?? agent.role ?? agent.id}</span>
-      </span>
-    </TabButton>
-  )
-}
-
 function AgentConversation({
   session,
   agent,
+  thread,
   events,
   selectedEventId,
   onSelectEvent
 }: {
   session: Session
   agent: AgentNode
+  thread: AgentThread | null
   events: SessionRunEventRecord[]
   selectedEventId: string | null
   onSelectEvent: (id: string) => void
 }): JSX.Element {
   const [actionStatus, setActionStatus] = useState<string | null>(null)
+  const { addSession, setActiveSession, setComposerDraft } = useSessionStore()
   const transcript = agent.transcript?.trim()
   const summary = agent.summary?.trim()
   const displaySummary = summary && summary !== agent.role && summary !== agent.name ? summary : undefined
   const timelineEvents = useMemo(() => selectedAgentTimeline(agent, events), [agent, events])
   const handoffText = transcript || displaySummary || ''
+  const copyTranscriptAvailable = thread?.capabilities.copyTranscript.status === 'available'
+  const addTranscriptAvailable = thread?.capabilities.addTranscriptToChat.status === 'available'
+  const openProviderThreadAvailable = thread?.capabilities.openProviderThread.status === 'available'
   const buildAgentTranscriptText = (): string => [
     'Use this agent transcript context:',
     `Thread: ${session.title || session.id}`,
     `Agent: ${agentDisplayName(agent)}`,
+    `Agent thread source: ${thread?.evidence.source ?? agent.source ?? 'unknown'}`,
+    `Provider thread id: ${thread?.identity.providerThreadId ?? agent.providerThreadId ?? 'unavailable'}`,
     `Status: ${agent.status}`,
     `Runtime: ${[agent.providerId, agent.model].filter(Boolean).join(' / ') || [session.provider, session.model].filter(Boolean).join(' / ') || 'Unknown runtime'}`,
     `Workspace: ${session.workDir || 'Unknown workspace'}`,
@@ -1183,6 +1284,34 @@ function AgentConversation({
     }))
     setActionStatus('Agent transcript added to chat')
   }
+  const openProviderThread = async (): Promise<void> => {
+    if (!thread?.identity.providerThreadId && !thread?.membership.parentThreadId) {
+      setActionStatus('No resumable agent thread id available')
+      return
+    }
+    try {
+      const result = await window.api.sessions.openAgentThread({
+        sourceSessionId: session.id,
+        providerId: thread.identity.providerId,
+        title: thread.title,
+        providerThreadId: thread.identity.providerThreadId,
+        parentThreadId: thread.membership.parentThreadId,
+        providerAgentId: thread.identity.providerAgentId,
+        providerItemId: thread.identity.providerItemId,
+        transcript: handoffText
+      })
+      if (!result.ok || !result.session) {
+        setActionStatus(result.error ?? 'Unable to open agent thread')
+        return
+      }
+      addSession(result.session)
+      if (result.resumePrompt) setComposerDraft(result.session.id, result.resumePrompt)
+      setActiveSession(result.session.id)
+      setActionStatus(result.reused ? 'Opened existing agent thread' : 'Opened agent thread')
+    } catch (error) {
+      setActionStatus(error instanceof Error ? error.message : 'Unable to open agent thread')
+    }
+  }
 
   return (
     <div
@@ -1207,12 +1336,22 @@ function AgentConversation({
           )}
         </div>
         <div className="flex shrink-0 items-center gap-1">
+          {openProviderThreadAvailable && (
+            <ToolbarButton
+              icon="external"
+              label="Open thread"
+              dataTestId="agent-selected-open-provider-thread"
+              onClick={() => { void openProviderThread() }}
+              size="sm"
+              variant="toolbar"
+            />
+          )}
           <ToolbarButton
             icon="copy"
             label="Copy agent transcript"
             dataTestId="agent-selected-copy"
             onClick={() => { void copyAgentTranscript() }}
-            disabled={!handoffText}
+            disabled={!handoffText || !copyTranscriptAvailable}
             size="sm"
             variant="toolbar"
           />
@@ -1221,7 +1360,7 @@ function AgentConversation({
             label="Add agent transcript to chat"
             dataTestId="agent-selected-add-to-chat"
             onClick={addAgentTranscriptToChat}
-            disabled={!handoffText}
+            disabled={!handoffText || !addTranscriptAvailable}
             size="sm"
             variant="toolbar"
           />
@@ -1246,15 +1385,6 @@ function AgentConversation({
         </div>
       )}
 
-      {timelineEvents.length > 0 && (
-        <AgentTimeline
-          agent={agent}
-          events={timelineEvents}
-          selectedEventId={selectedEventId}
-          onSelectEvent={onSelectEvent}
-        />
-      )}
-
       {transcript ? (
         <TranscriptBlock content={transcript} />
       ) : displaySummary ? (
@@ -1262,7 +1392,56 @@ function AgentConversation({
       ) : (
         <EmptyText>Waiting for transcript text from this agent.</EmptyText>
       )}
+
+      {thread && (
+        <AgentThreadMetadataDetails thread={thread} />
+      )}
+
+      {timelineEvents.length > 0 && (
+        <AgentTimelineDetails
+          agent={agent}
+          events={timelineEvents}
+          selectedEventId={selectedEventId}
+          onSelectEvent={onSelectEvent}
+        />
+      )}
     </div>
+  )
+}
+
+function AgentThreadMetadataDetails({ thread }: { thread: AgentThread }): JSX.Element {
+  return (
+    <details
+      className="mt-3 rounded-md"
+      data-testid="agent-thread-metadata"
+      data-agent-thread-source={thread.evidence.source}
+      data-agent-thread-transcript-kind={thread.transcript.kind}
+      data-agent-provider-thread-id={thread.identity.providerThreadId ?? ''}
+      style={{ border: AGENT_CONTROL_BORDER }}
+    >
+      <summary
+        className="cursor-pointer select-none px-2.5 py-2 text-[11px] font-semibold"
+        style={{ color: 'var(--color-text-muted)' }}
+      >
+        Thread details
+      </summary>
+      <div
+        className="flex flex-wrap items-center gap-1.5 px-2.5 pb-2 text-[11px]"
+        style={{ color: 'var(--color-text-muted)' }}
+      >
+        <Badge tone="neutral">{thread.evidence.source}</Badge>
+        <Badge tone={thread.transcript.kind === 'provider-thread' ? 'success' : 'neutral'}>{thread.transcript.kind}</Badge>
+        {thread.identity.providerThreadId && (
+          <span className="min-w-0 truncate">child {thread.identity.providerThreadId}</span>
+        )}
+        {thread.identity.providerAgentId && (
+          <span className="min-w-0 truncate">agent {thread.identity.providerAgentId}</span>
+        )}
+        {thread.membership.parentThreadId && (
+          <span className="min-w-0 truncate">parent {thread.membership.parentThreadId}</span>
+        )}
+      </div>
+    </details>
   )
 }
 
@@ -1330,10 +1509,45 @@ function AgentTimeline({
   )
 }
 
+function AgentTimelineDetails({
+  agent,
+  events,
+  selectedEventId,
+  onSelectEvent
+}: {
+  agent: AgentNode
+  events: SessionRunEventRecord[]
+  selectedEventId: string | null
+  onSelectEvent: (id: string) => void
+}): JSX.Element {
+  return (
+    <details
+      className="mt-3 rounded-md"
+      data-testid="agent-selected-timeline-details"
+      style={{ border: AGENT_CONTROL_BORDER }}
+    >
+      <summary
+        className="cursor-pointer select-none px-2.5 py-2 text-[11px] font-semibold"
+        style={{ color: 'var(--color-text-muted)' }}
+      >
+        Timeline
+      </summary>
+      <div className="px-2 pb-2">
+        <AgentTimeline
+          agent={agent}
+          events={events}
+          selectedEventId={selectedEventId}
+          onSelectEvent={onSelectEvent}
+        />
+      </div>
+    </details>
+  )
+}
+
 function TranscriptBlock({ content, muted = false }: { content: string; muted?: boolean }): JSX.Element {
   return (
-    <InspectorCard
-      className="mt-3 rounded-md p-3 text-sm"
+    <article
+      className="mt-3 min-w-0 text-sm"
       style={{
         maxWidth: '100%',
         minWidth: 0,
@@ -1345,8 +1559,22 @@ function TranscriptBlock({ content, muted = false }: { content: string; muted?: 
         wordBreak: 'break-word'
       }}
     >
-      {content}
-    </InspectorCard>
+      <div
+        className="mb-2 text-[11px] font-semibold"
+        style={{ color: 'var(--color-text-muted)' }}
+      >
+        Transcript
+      </div>
+      <div
+        className="rounded-md px-3 py-2.5"
+        style={{
+          background: 'color-mix(in srgb, var(--surface-bg) 84%, var(--canvas-bg))',
+          border: AGENT_CONTROL_BORDER
+        }}
+      >
+        {content}
+      </div>
+    </article>
   )
 }
 

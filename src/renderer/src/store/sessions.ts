@@ -1614,7 +1614,7 @@ const RIGHT_PANEL_TAB_TITLES: Record<RightPanelTabKind, string> = {
   environment: 'Environment',
   plan: 'Plan',
   diff: 'Review',
-  agents: 'Agents',
+  agents: 'Agent threads',
   extensions: 'Extensions',
   side: 'Side',
   files: 'Files',

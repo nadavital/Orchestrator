@@ -15,7 +15,7 @@ import PlanPanel from './PlanPanel'
 import SideQuestionPanel from './SideQuestionPanel'
 import TerminalView from './TerminalView'
 import { AppShellPanel, IconButton, MenuItem, MenuMessage, MenuSection, MenuSectionLabel, MenuSurface, PanelResizeHandle, PanelTabStrip, ToolbarButton, exitFullscreenForPanelTab, panelTabContextMenuPoint, panelTabDomId, panelTabPanelDomId, useAppShellResizeController, useAppShellSidePanelLayout } from '../shared/designSystem'
-import { deriveSessionAgentNodes } from './agentNodes'
+import { deriveSessionAgentThreads } from './agentNodes'
 import Icon, { type IconName } from '../shared/Icon'
 
 export type ContextTab = RightPanelTabId
@@ -131,7 +131,7 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
     ...derivePlanStatesFromMessages(session, session.messages),
     ...derivePlanStates(session, events)
   ]
-  const agents = deriveSessionAgentNodes(session, events)
+  const agents = deriveSessionAgentThreads(session, events).map((thread) => thread.agent)
   const hasPlan = plans.length > 0 || hasActiveGoal(events) || hasActiveReviewMode(events, session)
   const hasOpenAgent = (ui?.agentTabIds?.length ?? 0) > 0
   const hasLiveAgent = agents.some(isLiveAgent)
@@ -185,7 +185,7 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
     ...(hasPlan && !hasBottomPanelPlanTab && (ui?.showPlan || hasPlanTab)
       ? [{ id: 'plan' as const, label: 'Plan', icon: 'plan' as const, count: plans.length }]
       : []),
-    ...((ui?.showEvents || hasOpenAgent || hasLiveAgent) ? [{ id: 'agents' as const, label: 'Agents', icon: 'agents' as const, count: agents.length, shimmering: hasLiveAgent }] : []),
+    ...((ui?.showEvents || hasOpenAgent || hasLiveAgent) ? [{ id: 'agents' as const, label: 'Agent threads', icon: 'agents' as const, count: agents.length, shimmering: hasLiveAgent }] : []),
     ...(ui?.showExtensions ? [{ id: 'extensions' as const, label: 'Extensions', icon: 'extensions' as const }] : []),
     ...(hasSideQuestions ? [{ id: 'side' as const, label: 'Side', icon: 'chat' as const, count: ui?.sideQuestions?.length ?? 0 }] : [])
   ]
@@ -551,8 +551,8 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
     },
     {
       id: 'agents',
-      title: 'Agents',
-      description: ui?.showEvents ? 'Switch to open Agents tab' : 'Inspect runtime activity',
+      title: 'Agent threads',
+      description: ui?.showEvents ? 'Switch to open Agent threads tab' : 'View provider agent threads',
       icon: 'agents',
       state: ui?.showEvents ? 'open' : 'new',
       onSelect: () => setShowEvents(session.id, true)

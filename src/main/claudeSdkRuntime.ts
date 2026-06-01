@@ -267,6 +267,15 @@ async function importClaudeAgentSdk(): Promise<ClaudeAgentSdk> {
   return await importEsm('@anthropic-ai/claude-agent-sdk') as ClaudeAgentSdk
 }
 
+export function claudeSdkAgentTeamsEnabled(
+  session: Pick<Session, 'providerProjectlessThreadId'>,
+  request: Pick<RunRequest, 'providerSessionId'>
+): boolean {
+  const providerSessionId = request.providerSessionId?.trim()
+  const agentId = session.providerProjectlessThreadId?.trim()
+  return Boolean(providerSessionId && agentId && providerSessionId !== agentId)
+}
+
 function buildSdkOptions(
   sdk: ClaudeAgentSdk,
   options: ClaudeSdkRunContext,
@@ -274,12 +283,14 @@ function buildSdkOptions(
 ): SdkOptions {
   const request = options.request
   const permissionMode = claudeSdkPermissionMode(request.executionPolicy)
+  const agentTeamsEnabled = claudeSdkAgentTeamsEnabled(options.session, request)
   const sdkOptions: SdkOptions = {
     abortController,
     cwd: options.session.workDir || request.cwd,
     env: {
       ...providerSpawnEnv('claude'),
-      CLAUDE_AGENT_SDK_CLIENT_APP: 'orchestrator/claude-sdk-runtime'
+      CLAUDE_AGENT_SDK_CLIENT_APP: 'orchestrator/claude-sdk-runtime',
+      ...(agentTeamsEnabled ? { CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: '1' } : {})
     },
     includePartialMessages: true,
     includeHookEvents: true,

@@ -325,7 +325,7 @@ export function normalizeCursorSdkMessage(message: SdkMessage): RunEvent[] {
       if (block.type === 'tool_use') {
         const toolInput = asRecord(block.input) ?? { input: block.input }
         events.push({ type: 'tool.started', id: block.id, toolName: block.name, toolInput })
-        const agent = cursorSdkAgentFromToolUse(block.id, block.name, toolInput, message.agent_id)
+        const agent = cursorSdkAgentFromToolUse(block.id, block.name, toolInput, message.agent_id, message.run_id)
         if (agent) events.push({ type: 'agent.started', agent })
       }
     }
@@ -335,7 +335,7 @@ export function normalizeCursorSdkMessage(message: SdkMessage): RunEvent[] {
     const toolInput = asRecord(message.args) ?? (message.args == null ? {} : { input: message.args })
     if (message.status === 'running') {
       events.push({ type: 'tool.started', id: message.call_id, toolName: message.name, toolInput })
-      const agent = cursorSdkAgentFromToolUse(message.call_id, message.name, toolInput, message.agent_id)
+      const agent = cursorSdkAgentFromToolUse(message.call_id, message.name, toolInput, message.agent_id, message.run_id)
       if (agent) events.push({ type: 'agent.started', agent })
     } else {
       const isError = message.status === 'error'
@@ -346,7 +346,7 @@ export function normalizeCursorSdkMessage(message: SdkMessage): RunEvent[] {
         content: stringifyContent(message.result ?? ''),
         isError
       })
-      const agent = cursorSdkAgentFromToolResult(message.call_id, message.name, toolInput, message.result, message.agent_id, isError)
+      const agent = cursorSdkAgentFromToolResult(message.call_id, message.name, toolInput, message.result, message.agent_id, message.run_id, isError)
       if (agent) events.push({ type: isError ? 'agent.failed' : 'agent.completed', agent })
     }
   }
@@ -371,6 +371,11 @@ export function normalizeCursorSdkMessage(message: SdkMessage): RunEvent[] {
       id: `task-${message.agent_id}-${message.run_id}`,
       providerId: 'cursor',
       sessionId: message.agent_id,
+      providerAgentId: message.agent_id,
+      providerThreadId: message.run_id,
+      parentThreadId: message.agent_id,
+      providerTurnId: message.run_id,
+      source: 'sdk-run',
       name: 'Cursor task',
       role: 'task',
       status,
@@ -412,12 +417,18 @@ function cursorSdkMode(request: Pick<RunRequest, 'executionPolicy'>): AgentModeO
   return request.executionPolicy === 'plan' ? 'plan' : 'agent'
 }
 
-function cursorSdkAgentFromToolUse(id: string, name: string, input: Record<string, unknown>, sessionId: string): AgentNode | null {
+function cursorSdkAgentFromToolUse(id: string, name: string, input: Record<string, unknown>, sessionId: string, runId?: string): AgentNode | null {
   if (!/^(task|subagent)$/i.test(name)) return null
   return {
     id,
     providerId: 'cursor',
     sessionId,
+    providerAgentId: sessionId,
+    providerItemId: id,
+    providerThreadId: stringValue(input.thread_id, input.threadId, input.run_id, runId),
+    parentThreadId: sessionId,
+    providerTurnId: stringValue(input.turn_id, input.turnId, runId),
+    source: 'sdk-run',
     name: stringValue(input.subagent_type, input.type, input.name) ?? 'Cursor subagent',
     role: stringValue(input.mode, input.role) ?? 'subagent',
     status: 'running',
@@ -431,9 +442,10 @@ function cursorSdkAgentFromToolResult(
   input: Record<string, unknown>,
   result: unknown,
   sessionId: string,
+  runId: string | undefined,
   isError: boolean
 ): AgentNode | null {
-  const started = cursorSdkAgentFromToolUse(id, name, input, sessionId)
+  const started = cursorSdkAgentFromToolUse(id, name, input, sessionId, runId)
   if (!started) return null
   return {
     ...started,

@@ -15,7 +15,7 @@ const targetRules = [
   { flag: '--right-panel', label: 'Right Workbench shell', patterns: [/^src\/renderer\/src\/components\/Session\/(WorkbenchPanel|RightPanel|ContextSidebar)/, /^src\/renderer\/src\/components\/Session\/.*Workbench/, /^src\/renderer\/src\/components\/ui\/ToolbarButton/] },
   { flag: '--workbench-launcher', label: 'Workbench launcher', patterns: [/^src\/renderer\/src\/components\/Session\/ContextSidebar/, /^src\/renderer\/src\/components\/Session\/WorkbenchNewTab/] },
   { flag: '--workbench-new-tab', label: 'Workbench New Tab full workflow', patterns: [/^src\/renderer\/src\/components\/Session\/(WorkbenchNewTab|GitActionDialog|EnvironmentPanel)/, /^src\/main\/git/] },
-  { flag: '--agent-inspector', label: 'Agent Activity inspector', patterns: [/^src\/renderer\/src\/components\/Session\/EventInspectorPanel\.tsx$/] },
+  { flag: '--agent-inspector', label: 'Agent Threads', patterns: [/^src\/renderer\/src\/components\/Session\/EventInspectorPanel\.tsx$/] },
   { flag: '--environment', label: 'Environment panel', patterns: [/^src\/renderer\/src\/components\/Session\/Environment/] },
   { flag: '--browser', label: 'Browser panel', patterns: [/^src\/renderer\/src\/components\/Session\/Browser/, /^src\/main\/browser/, /^src\/renderer\/src\/.*browser/i] },
   { flag: '--terminal', label: 'Terminal', patterns: [/^src\/renderer\/src\/components\/Session\/Terminal/, /^src\/main\/terminal/, /^src\/preload\/.*terminal/i] },
@@ -230,7 +230,7 @@ const diffRules = [
   },
   {
     flag: '--agent-inspector',
-    label: 'Agent Activity inspector',
+    label: 'Agent Threads',
     filePatterns: [/^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
     diffPatterns: [/agent-inspector/, /agentRuntimeEvent/, /agentRuntimeFailureGroup/, /agentTransportLog/, /agentSessionContext/, /agentSelectedTimeline/, /agentSelectedTranscript/, /agent-session-context-add-to-chat/, /agent-runtime-failure-group/, /agent-transport-log/, /agent-selected-timeline/, /agent-selected-add-to-chat/, /agent-selected-copy/, /agent-event-detail/, /focus-waiting-card/, /Open approval in chat/, /Failure group copied/, /Transport log copied/, /Agent transcript copied/]
   },
@@ -1146,7 +1146,7 @@ function suppressComposerForAgentInspectorHandoffDiff(matched, paths) {
     paths.includes('scripts/run-automated-ui-smoke.mjs') ? diffForFile('scripts/run-automated-ui-smoke.mjs') : '',
     paths.includes('src/main/index.ts') ? diffForFile('src/main/index.ts') : ''
   ].join('\n')
-  if (!/agentSessionContextAddToChat|agent-session-context-add-to-chat|Use this agent activity session context|Session context added to chat|agentSelectedTranscript|agent-selected-add-to-chat|Use this agent transcript context|Agent transcript added to chat/.test(diff)) return
+  if (!/agentSessionContextAddToChat|agent-session-context-add-to-chat|Use this agent (?:activity|thread) session context|Session context added to chat|agentSelectedTranscript|agent-selected-add-to-chat|Use this agent transcript context|Agent transcript added to chat/.test(diff)) return
   matched.delete('--composer')
 }
 

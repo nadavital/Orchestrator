@@ -19,7 +19,7 @@ if (process.argv.includes('--help') || process.argv.includes('-h')) {
     'Usage: npm run live:claude-sdk-probe',
     '',
     'Environment:',
-    '  CLAUDE_SDK_PROBE_SCENARIOS=plain,partial,message_input,host_tool,permission_deny,plan,resume,subagent',
+    '  CLAUDE_SDK_PROBE_SCENARIOS=plain,partial,message_input,host_tool,permission_deny,plan,resume,subagent,subagent_resume',
     '  CLAUDE_SDK_PROBE_TIMEOUT_MS=120000',
     '  CLAUDE_SDK_PROBE_ARTIFACT_DIR=tmp/claude-sdk-live-probe',
     '  LIVE_MODEL_CLAUDE=claude-sonnet-4-6',
@@ -116,6 +116,11 @@ function toolResultTexts(messages) {
     }
   }
   return values
+}
+
+function firstClaudeAgentId(messages) {
+  const serialized = JSON.stringify(messages)
+  return serialized.match(/\bagentId:\s*([a-f0-9-]+)/iu)?.[1] ?? null
 }
 
 function summarizeMessages(messages) {
@@ -472,6 +477,118 @@ const scenarios = {
         ok('main assistant emitted parent marker', result.summary.assistantText.includes('ORCHESTRATOR_SDK_SUBAGENT_PARENT_OK'))
       ]
     }
+  },
+
+  async subagent_resume() {
+    const cwd = makeWorkspace('subagent-resume')
+    const agentTeamEnv = {
+      ...sdkEnv(),
+      CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: '1'
+    }
+    const first = await collectQuery(
+      'subagent-resume-first',
+      [
+        'Use the Agent tool with the orchestrator-resume-probe-agent subagent to answer this.',
+        'The subagent should reply with ORCHESTRATOR_SDK_SUBAGENT_RESUME_CHILD_READY.',
+        'Then the main assistant should reply with ORCHESTRATOR_SDK_SUBAGENT_RESUME_PARENT_READY.'
+      ].join(' '),
+      {
+        cwd,
+        env: agentTeamEnv,
+        tools: { type: 'preset', preset: 'claude_code' },
+        allowedTools: ['Agent'],
+        agents: {
+          'orchestrator-resume-probe-agent': {
+            description: 'Returns fixed markers for Orchestrator SDK subagent resume probing.',
+            prompt: 'Follow the latest instruction you receive. Do not use tools.',
+            tools: []
+          }
+        },
+        permissionMode: 'default',
+        maxTurns: 4,
+        canUseTool: async (toolName, _input, details) => {
+          if (toolName === 'Agent') return { behavior: 'allow', toolUseID: details.toolUseID }
+          return {
+            behavior: 'deny',
+            message: `Only Agent is allowed in this first subagent resume probe; denied ${toolName}.`,
+            toolUseID: details.toolUseID
+          }
+        }
+      }
+    )
+    const sessionId = first.summary.sessionIds[0]
+    const agentId = firstClaudeAgentId(first.messages)
+    if (!sessionId || !agentId) {
+      return {
+        cwd,
+        messages: first.messages,
+        permissionRequests: first.permissionRequests,
+        hostToolCalls: [],
+        summary: first.summary,
+        firstSummary: first.summary,
+        resumedSessionId: sessionId,
+        agentId,
+        assertions: [
+          ok('first subagent resume turn returned a session id', sessionId),
+          ok('first subagent resume turn emitted an agent id', agentId)
+        ]
+      }
+    }
+
+    const resumed = await collectQuery(
+      'subagent-resume-second',
+      [
+        `Continue the existing Claude subagent with agent id ${agentId}.`,
+        `Use the SendMessage tool with the "to" field set to "${agentId}". Do not start a new Agent or Task invocation for this request.`,
+        'Forward the following user instruction to that subagent and return the subagent response:',
+        '',
+        'Reply with exactly ORCHESTRATOR_SDK_SUBAGENT_RESUME_CONTINUED_OK.'
+      ].join('\n'),
+      {
+        cwd,
+        env: agentTeamEnv,
+        tools: { type: 'preset', preset: 'claude_code' },
+        allowedTools: ['SendMessage'],
+        resume: sessionId,
+        permissionMode: 'default',
+        maxTurns: 4,
+        canUseTool: async (toolName, input, details) => {
+          if (toolName === 'SendMessage') {
+            const target = input && typeof input === 'object' ? input.to : undefined
+            if (target === agentId) return { behavior: 'allow', toolUseID: details.toolUseID }
+            return {
+              behavior: 'deny',
+              message: `SendMessage target mismatch: expected ${agentId}, got ${String(target)}`,
+              toolUseID: details.toolUseID
+            }
+          }
+          return {
+            behavior: 'deny',
+            message: `Only SendMessage is allowed in this resumed subagent probe; denied ${toolName}.`,
+            toolUseID: details.toolUseID
+          }
+        }
+      }
+    )
+
+    const serialized = JSON.stringify([...first.messages, ...resumed.messages])
+    return {
+      cwd,
+      messages: [...first.messages, ...resumed.messages],
+      permissionRequests: [...first.permissionRequests, ...resumed.permissionRequests],
+      hostToolCalls: [],
+      summary: resumed.summary,
+      firstSummary: first.summary,
+      resumedSessionId: sessionId,
+      agentId,
+      assertions: [
+        ok('first subagent resume turn returned a session id', sessionId),
+        ok('first subagent resume turn emitted an agent id', agentId),
+        ok('first turn completed child marker', serialized.includes('ORCHESTRATOR_SDK_SUBAGENT_RESUME_CHILD_READY')),
+        ok('resumed turn used SendMessage', resumed.summary.toolUses.includes('SendMessage')),
+        ok('resumed turn returned continued subagent marker', serialized.includes('ORCHESTRATOR_SDK_SUBAGENT_RESUME_CONTINUED_OK'))
+      ]
+    }
   }
 }
 
@@ -504,6 +621,7 @@ for (const id of selectedScenarioIds) {
       errorStack: result.errorStack,
       firstSummary: result.firstSummary,
       resumedSessionId: result.resumedSessionId,
+      agentId: result.agentId,
       rawMessages: result.messages
     }
     writeArtifact(`${id}.json`, publicResult)

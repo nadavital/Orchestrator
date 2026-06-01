@@ -4,7 +4,7 @@ import { chmodSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import type { RunEvent, RunRequest } from '../../types'
-import { PROVIDER_DEFS, deriveAgentNodes, derivePlanStatesFromMessages, getDefaultPermissionMode, getPrimaryPermissionModes, getProviderPermissionPresets, parseClaudeAgentsOutput, permissionRequestDetail } from '../../types'
+import { AGENT_THREAD_ADAPTER_CONTRACTS, PROVIDER_DEFS, deriveAgentNodes, deriveAgentThreadGraph, derivePlanStatesFromMessages, getDefaultPermissionMode, getPrimaryPermissionModes, getProviderPermissionPresets, parseClaudeAgentsOutput, permissionRequestDetail } from '../../types'
 import { buildProviderCommandForRuntime, claudeMcpServerNames, codexRuntimePolicyConfig, getProviderDiagnostics, getProviderDiagnosticsAsync, getProviderRuntimeInfo, providerAuthFailureMessage, PROVIDERS, providerSpawnEnv, resolveProviderBinary, resolveProviderPermissionRuntimeContext, runProviderCommandSurface, runProviderCommandSurfaceAsync } from '../providers'
 import { eventsToMessages } from '../runEvents'
 
@@ -621,6 +621,8 @@ test('claude Task tool normalizes subagent activity alongside tool events', () =
   assert.equal(started.agent.id, 'tool-task-1')
   assert.equal(started.agent.providerId, 'claude')
   assert.equal(started.agent.sessionId, 'claude-task-session')
+  assert.equal(started.agent.source, 'provider-event')
+  assert.equal(started.agent.providerItemId, 'tool-task-1')
   assert.equal(started.agent.name, 'explorer')
   assert.equal(started.agent.status, 'running')
   assert.equal(completed.agent.status, 'completed')
@@ -628,6 +630,16 @@ test('claude Task tool normalizes subagent activity alongside tool events', () =
   assert.equal(tool.toolName, 'Task')
   assert.equal(toolResult.toolUseId, 'tool-task-1')
   assert.ok(events.some((event) => event.type === 'run.completed'))
+
+  const graph = deriveAgentThreadGraph({
+    id: 'session-under-test',
+    provider: 'claude',
+    providerSessionId: 'claude-task-session',
+    messages: []
+  }, records(events))
+  assert.equal(graph.threads[0]?.evidence.source, 'provider-event')
+  assert.equal(graph.threads[0]?.transcript.kind, 'derived-summary')
+  assert.equal(graph.threads[0]?.capabilities.openProviderThread.status, 'unavailable')
 })
 
 test('claude Agent tool normalizes subagent activity alongside tool events', () => {
@@ -1267,8 +1279,30 @@ test('codex app-server protocol messages normalize plan, goal, and subagent sema
   assert.equal(goal.goal.tokensUsed, 1234)
   assert.equal(started.agent.id, 'agent-call-1')
   assert.equal(started.agent.status, 'running')
+  assert.equal(started.agent.providerItemId, 'agent-call-1')
+  assert.equal(started.agent.providerThreadId, 'child-thread-1')
+  assert.deepEqual(started.agent.receiverThreadIds, ['child-thread-1'])
+  assert.equal(started.agent.parentThreadId, 'codex-thread-rich')
+  assert.equal(started.agent.providerTurnId, 'turn-1')
+  assert.equal(started.agent.reasoningEffort, 'high')
+  assert.equal(started.agent.source, 'provider-thread')
   assert.equal(completed.agent.id, 'agent-call-1')
   assert.equal(completed.agent.status, 'completed')
+
+  const graph = deriveAgentThreadGraph({
+    id: 'session-under-test',
+    provider: 'codex',
+    providerSessionId: 'codex-thread-rich',
+    messages: []
+  }, records(events))
+  assert.equal(graph.rootProviderThreadId, 'codex-thread-rich')
+  assert.equal(graph.threads[0]?.id, 'agent-call-1')
+  assert.equal(graph.threads[0]?.identity.providerItemId, 'agent-call-1')
+  assert.equal(graph.threads[0]?.identity.providerThreadId, 'child-thread-1')
+  assert.equal(graph.threads[0]?.membership.parentThreadId, 'codex-thread-rich')
+  assert.equal(graph.threads[0]?.progress.reasoningEffort, 'high')
+  assert.equal(graph.threads[0]?.transcript.kind, 'provider-thread')
+  assert.equal(graph.threads[0]?.capabilities.openProviderThread.status, 'available')
 })
 
 test('codex app-server protocol messages normalize lifecycle, review, diff, and rich item semantics', () => {
@@ -1517,12 +1551,26 @@ test('copilot subagent events normalize into agent activity nodes', () => {
     PROVIDERS.copilot.parseOutputLine(JSON.stringify({
       type: 'subagent.started',
       sessionId: 'copilot-session-123',
-      data: { id: 'agent-1', name: 'Research', role: 'explore repo', model: 'gpt-5.5' }
+      data: {
+        id: 'agent-1',
+        name: 'Research',
+        role: 'explore repo',
+        model: 'gpt-5.5',
+        threadId: 'copilot-cloud-thread-1',
+        parentThreadId: 'copilot-session-123',
+        turnId: 'copilot-turn-1'
+      }
     })),
     PROVIDERS.copilot.parseOutputLine(JSON.stringify({
       type: 'subagent.completed',
       sessionId: 'copilot-session-123',
-      data: { id: 'agent-1', name: 'Research', summary: 'Found the parser path.' }
+      data: {
+        id: 'agent-1',
+        name: 'Research',
+        threadId: 'copilot-cloud-thread-1',
+        parentThreadId: 'copilot-session-123',
+        summary: 'Found the parser path.'
+      }
     }))
   ].flat()
   const started = firstEvent(events, 'agent.started')
@@ -1531,9 +1579,25 @@ test('copilot subagent events normalize into agent activity nodes', () => {
   assert.equal(started.agent.id, 'agent-1')
   assert.equal(started.agent.providerId, 'copilot')
   assert.equal(started.agent.sessionId, 'copilot-session-123')
+  assert.equal(started.agent.providerThreadId, 'copilot-cloud-thread-1')
+  assert.equal(started.agent.parentThreadId, 'copilot-session-123')
+  assert.equal(started.agent.providerTurnId, 'copilot-turn-1')
+  assert.equal(started.agent.source, 'provider-thread')
   assert.equal(started.agent.status, 'running')
   assert.equal(completed.agent.status, 'completed')
   assert.equal(completed.agent.summary, 'Found the parser path.')
+
+  const graph = deriveAgentThreadGraph({
+    id: 'session-under-test',
+    provider: 'copilot',
+    providerSessionId: 'copilot-session-123',
+    messages: []
+  }, records(events))
+  assert.equal(graph.threads[0]?.identity.providerThreadId, 'copilot-cloud-thread-1')
+  assert.equal(graph.threads[0]?.transcript.kind, 'provider-thread')
+  assert.equal(graph.threads[0]?.evidence.source, 'provider-thread')
+  assert.equal(AGENT_THREAD_ADAPTER_CONTRACTS.copilot?.supportedActions.openProviderThread, 'planned')
+  assert.equal(AGENT_THREAD_ADAPTER_CONTRACTS.antigravity?.runtimeKinds.includes('sdk'), true)
 })
 
 test('codex approval modes map to native approval policy config', () => {

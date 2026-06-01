@@ -26,7 +26,7 @@ const captureViewOptions = [
   { flag: '--workbench-launcher', view: 'workbench-launcher', surface: 'Workbench', scope: 'New-tab launcher discovery and tab activation' },
   { flag: '--workbench-new-tab', view: 'workbench-new-tab', surface: 'Workbench', scope: 'New-tab launcher, keyboard navigation, contextual Git, and agent workflows' },
   { flag: '--git-real-repo', view: 'git-real-repo', surface: 'Git actions', scope: 'Contextual Git dialog against the current repo without mutating it' },
-  { flag: '--agent-inspector', view: 'agent-inspector', surface: 'Workbench', scope: 'Agent Activity inspector diagnostics and composer handoffs' },
+  { flag: '--agent-inspector', view: 'agent-inspector', surface: 'Workbench', scope: 'Agent Threads surface and composer handoffs' },
   { flag: '--environment', view: 'environment', surface: 'Workbench', scope: 'Environment panel and add-to-chat context handoff' },
   { flag: '--right-panel', view: 'right-panel', surface: 'Workbench', scope: 'Right-panel tab shell, transfer boundaries, keyboard routing' },
   { flag: '--workbench-perf', view: 'workbench-perf', surface: 'Workbench', scope: 'Workbench rendering performance gates' },

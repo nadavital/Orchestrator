@@ -2844,6 +2844,11 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
     })
   })
   ipcMain.handle('sessions:retryPendingWorktree', (_, id: string) => sessionManager.retryPendingWorktree(id))
+  ipcMain.handle('sessions:openAgentThread', (_, request) => {
+    const result = sessionManager.openAgentThread(request)
+    if (result.ok && result.session) projectStore.addSession(result.session.projectId, result.session.id)
+    return result
+  })
   ipcMain.handle('sessions:sendMessage', (_, sessionId: string, prompt: string, useWorktree?: boolean, attachments?: Attachment[]) => {
     if (
       process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT &&
