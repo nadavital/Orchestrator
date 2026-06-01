@@ -12520,18 +12520,37 @@
   .provider-details-grid {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
-    gap: 10px;
+    gap: 12px;
     margin-top: 2px;
   }
 
-  .provider-diagnostics-group {
-    margin-top: -2px;
+  .provider-details-dialog-backdrop {
+    position: fixed;
+    z-index: 120;
+    inset: 0;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    background: color-mix(in srgb, var(--app-bg) 52%, transparent);
+    backdrop-filter: blur(10px) saturate(125%);
+    padding: 72px 24px 24px;
+  }
+
+  .provider-details-dialog {
+    width: min(820px, calc(100vw - 48px));
+    max-height: min(760px, calc(100vh - 104px));
+    min-width: 0;
+    overflow: auto;
+    border: 1px solid color-mix(in srgb, var(--border-subtle) 28%, transparent);
+    border-radius: 13px;
+    background: color-mix(in srgb, var(--surface-bg) 90%, transparent);
+    box-shadow: 0 18px 42px color-mix(in srgb, var(--shadow-color, #000) 18%, transparent);
+    padding: 18px 20px 20px;
+    scrollbar-width: thin;
   }
 
   .provider-details-panel {
     min-width: 0;
-    border-top: 1px solid color-mix(in srgb, var(--border-subtle) 8%, transparent);
-    padding-top: 12px;
   }
 
   .provider-details-panel-header {
@@ -12546,17 +12565,25 @@
     min-width: 0;
   }
 
+  .provider-details-panel-actions {
+    display: flex;
+    min-width: 0;
+    align-items: flex-start;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+
   .provider-details-panel-title {
     color: var(--text-primary);
-    font-size: 12.5px;
-    font-weight: 620;
+    font-size: 14px;
+    font-weight: 650;
     line-height: 1.25;
   }
 
   .provider-details-panel-description {
-    margin-top: 2px;
+    margin-top: 3px;
     color: var(--text-tertiary);
-    font-size: 11px;
+    font-size: 11.5px;
     line-height: 1.3;
   }
 
@@ -12581,6 +12608,26 @@
     font-weight: 560;
     line-height: 1;
     padding: 0 6px;
+  }
+
+  .provider-details-dialog-close {
+    display: grid;
+    width: 26px;
+    height: 26px;
+    flex: 0 0 26px;
+    place-items: center;
+    border: 1px solid transparent;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+  }
+
+  .provider-details-dialog-close:hover,
+  .provider-details-dialog-close:focus-visible {
+    background: color-mix(in srgb, var(--control-bg-hover) 52%, transparent);
+    color: var(--text-primary);
+    outline: none;
   }
 
   .provider-models-row {

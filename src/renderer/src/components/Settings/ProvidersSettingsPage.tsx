@@ -108,6 +108,8 @@ export default function ProvidersSettingsPage({
   const [permissionContextLoading, setPermissionContextLoading] = useState(false)
   const [permissionContextRefreshStatus, setPermissionContextRefreshStatus] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
   const permissionContextCwd = sessions.find((session) => session.provider === selectedId)?.workDir ?? sessions[0]?.workDir
+  const detailsDialogTitleId = useId()
+  const detailsDialogDescriptionId = useId()
 
   const loadPermissionContext = useCallback(async (options: { announce?: boolean } = {}): Promise<void> => {
     setPermissionContextLoading(true)
@@ -141,6 +143,15 @@ export default function ProvidersSettingsPage({
     setSidebarSyncResult(null)
     setPermissionContextRefreshStatus(null)
   }, [selectedId])
+
+  useEffect(() => {
+    if (!advancedOpen) return undefined
+    const handleKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') setAdvancedOpen(false)
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [advancedOpen])
 
   useEffect(() => {
     let alive = true
@@ -301,18 +312,41 @@ export default function ProvidersSettingsPage({
           </SettingsContentGroup>
 
           {advancedOpen && (
-            <SettingsContentGroup className="provider-settings-content-group provider-diagnostics-group">
-              <SettingsGroupContent>
+            <div
+              className="provider-details-dialog-backdrop"
+              role="presentation"
+              onMouseDown={(event) => {
+                if (event.target === event.currentTarget) setAdvancedOpen(false)
+              }}
+            >
+              <div
+                className="provider-details-dialog provider-diagnostics-group"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby={detailsDialogTitleId}
+                aria-describedby={detailsDialogDescriptionId}
+                data-testid="provider-details-dialog"
+              >
                 <div className="provider-details-panel">
                   <div className="provider-details-panel-header">
                     <div className="provider-details-panel-copy">
-                      <div className="provider-details-panel-title">Diagnostics</div>
-                      <div className="provider-details-panel-description">Runtime and capability checks.</div>
+                      <div id={detailsDialogTitleId} className="provider-details-panel-title">Provider details</div>
+                      <div id={detailsDialogDescriptionId} className="provider-details-panel-description">Runtime diagnostics, capability checks, and setup commands for {providerDef.name}.</div>
                     </div>
-                    <div className="provider-details-panel-summary" aria-label={`${providerDef.name} diagnostics summary`}>
-                      {diagnosticSummary.map((item) => (
-                        <span key={item}>{item}</span>
-                      ))}
+                    <div className="provider-details-panel-actions">
+                      <div className="provider-details-panel-summary" aria-label={`${providerDef.name} diagnostics summary`}>
+                        {diagnosticSummary.map((item) => (
+                          <span key={item}>{item}</span>
+                        ))}
+                      </div>
+                      <button
+                        type="button"
+                        className="provider-details-dialog-close"
+                        aria-label="Close provider details"
+                        onClick={() => setAdvancedOpen(false)}
+                      >
+                        <Icon name="close" size={14} />
+                      </button>
                     </div>
                   </div>
                   <div className="provider-details-grid" data-testid="provider-details-grid">
@@ -353,8 +387,8 @@ export default function ProvidersSettingsPage({
                     </ProviderDetailCard>
                   </div>
                 </div>
-              </SettingsGroupContent>
-            </SettingsContentGroup>
+              </div>
+            </div>
           )}
         </div>
           </div>
