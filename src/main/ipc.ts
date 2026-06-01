@@ -1,4 +1,4 @@
-import type { IpcMain } from 'electron'
+import type { IpcMain, OpenDialogOptions } from 'electron'
 import { BrowserWindow, dialog, app, clipboard, shell, session } from 'electron'
 import { execFile } from 'child_process'
 import { request as httpRequest } from 'http'
@@ -2754,6 +2754,15 @@ function fencedBlock(content: string): string {
   return `${fence}\n${content.trim() || '(empty)'}\n${fence}`
 }
 
+function openProjectDirectoryDialogOptions(): OpenDialogOptions {
+  return {
+    title: 'Open Project Folder',
+    message: 'Choose a local folder to add to Orchestrator.',
+    buttonLabel: 'Open Project',
+    properties: ['openDirectory', 'createDirectory']
+  }
+}
+
 export function registerIpcHandlers(ipcMain: IpcMain): void {
   registerBrowserClientToolIpc(ipcMain)
 
@@ -3267,9 +3276,15 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
       return process.env.ORCHESTRATOR_SMOKE_WORKSPACE_DIR ?? process.cwd()
     }
     const parentWindow = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0] ?? null
+    if (parentWindow) {
+      if (parentWindow.isMinimized()) parentWindow.restore()
+      if (!parentWindow.isVisible()) parentWindow.show()
+      parentWindow.focus()
+    }
+    const options = openProjectDirectoryDialogOptions()
     const result = parentWindow
-      ? await dialog.showOpenDialog(parentWindow, { properties: ['openDirectory', 'createDirectory'] })
-      : await dialog.showOpenDialog({ properties: ['openDirectory', 'createDirectory'] })
+      ? await dialog.showOpenDialog(parentWindow, options)
+      : await dialog.showOpenDialog(options)
     return result.canceled ? null : result.filePaths[0]
   })
   ipcMain.handle('dialog:openFiles', async (): Promise<Array<{ path: string; name: string; size?: number }> | null> => {
