@@ -1493,8 +1493,8 @@
   }
 
   .motion-panel-right {
-    background: color-mix(in srgb, var(--surface-bg) 86%, var(--canvas-bg));
-    border-left: 1px solid color-mix(in srgb, var(--border-subtle) 28%, transparent);
+    background: color-mix(in srgb, var(--surface-bg) 82%, var(--canvas-bg));
+    border-left: 1px solid color-mix(in srgb, var(--border-subtle) 18%, transparent);
     box-shadow: none;
   }
 
@@ -1513,7 +1513,7 @@
   .app-shell-panel-right,
   .app-shell-panel-bottom,
   .workbench-panel-surface {
-    background: color-mix(in srgb, var(--surface-bg) 88%, var(--canvas-bg));
+    background: color-mix(in srgb, var(--surface-bg) 82%, var(--canvas-bg));
   }
 
   .motion-panel-right.workbench-panel-expanded {
@@ -1554,8 +1554,8 @@
     position: relative;
     z-index: 20;
     flex-shrink: 0;
-    border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 30%, transparent);
-    background: color-mix(in srgb, var(--surface-bg) 88%, var(--canvas-bg));
+    border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 18%, transparent);
+    background: color-mix(in srgb, var(--surface-bg) 82%, var(--canvas-bg));
   }
 
   .app-shell-panel-chrome {
@@ -1564,8 +1564,8 @@
     display: block;
     min-height: var(--app-shell-toolbar-height);
     flex-shrink: 0;
-    border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 30%, transparent);
-    background: color-mix(in srgb, var(--surface-bg) 88%, var(--canvas-bg));
+    border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 18%, transparent);
+    background: color-mix(in srgb, var(--surface-bg) 82%, var(--canvas-bg));
   }
 
   .workbench-panel-tabbar {
@@ -1971,7 +1971,7 @@
     flex-shrink: 0;
     align-items: center;
     gap: 6px;
-    border-bottom: 1px solid var(--border-subtle);
+    border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 20%, transparent);
     padding: 4px 8px;
     overflow: hidden;
   }
@@ -1993,8 +1993,8 @@
     height: auto;
     min-height: 34px;
     max-width: none;
-    border-bottom: 1px solid var(--border-subtle);
-    background: var(--surface-bg);
+    border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 20%, transparent);
+    background: color-mix(in srgb, var(--surface-bg) 82%, var(--canvas-bg));
     padding: 4px 8px;
     pointer-events: auto;
     overflow: hidden;
@@ -2076,7 +2076,7 @@
     flex-shrink: 0;
     align-items: center;
     gap: 6px;
-    border-bottom: 1px solid var(--border-subtle);
+    border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 20%, transparent);
     padding: 4px 8px;
   }
 
@@ -2095,16 +2095,16 @@
     min-width: 0;
     align-items: center;
     gap: 6px;
-    border: 1px solid var(--border-subtle);
+    border: 1px solid color-mix(in srgb, var(--border-subtle) 28%, transparent);
     border-radius: 8px;
-    background: color-mix(in srgb, var(--control-bg) 72%, var(--surface-bg));
+    background: color-mix(in srgb, var(--control-bg) 44%, transparent);
     color: var(--text-tertiary);
     padding: 0 7px;
   }
 
   .workbench-search-field:focus-within {
-    border-color: var(--border-strong);
-    background: color-mix(in srgb, var(--surface-bg) 94%, var(--control-bg));
+    border-color: color-mix(in srgb, var(--border-strong) 54%, transparent);
+    background: color-mix(in srgb, var(--surface-bg) 70%, var(--control-bg));
     color: var(--text-secondary);
   }
 
@@ -2677,9 +2677,9 @@
     display: grid;
     min-width: 0;
     overflow: hidden;
-    border: 1px solid color-mix(in srgb, var(--border-subtle) 34%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border-subtle) 22%, transparent);
     border-radius: 7px;
-    background: color-mix(in srgb, var(--surface-bg) 72%, transparent);
+    background: color-mix(in srgb, var(--surface-bg) 56%, transparent);
     box-shadow: none;
   }
 
@@ -2689,7 +2689,7 @@
     align-items: center;
     justify-content: space-between;
     gap: 10px;
-    border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 34%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 20%, transparent);
     color: var(--text-tertiary);
     font-size: 13px;
     font-weight: 500;
@@ -2705,7 +2705,7 @@
     align-items: center;
     gap: 8px;
     border: 0;
-    border-top: 1px solid color-mix(in srgb, var(--border-subtle) 28%, transparent);
+    border-top: 1px solid color-mix(in srgb, var(--border-subtle) 18%, transparent);
     background: transparent;
     color: var(--text-primary);
     font: inherit;
@@ -2798,7 +2798,7 @@
   .git-panel .environment-row,
   .git-panel .git-file-row,
   .git-panel .git-commit-meta {
-    border-top-color: color-mix(in srgb, var(--border-subtle) 20%, transparent);
+    border-top-color: color-mix(in srgb, var(--border-subtle) 14%, transparent);
   }
 
   .git-panel [data-testid='git-summary-card'] {
@@ -2860,7 +2860,7 @@
     height: 30px;
     border: 1px solid transparent;
     border-radius: 7px;
-    background: color-mix(in srgb, var(--control-bg) 72%, transparent);
+    background: color-mix(in srgb, var(--control-bg) 46%, transparent);
     color: var(--text-primary);
     font: inherit;
     font-size: 12px;
@@ -2879,7 +2879,7 @@
   }
 
   .git-commit-meta {
-    border-top: 1px solid color-mix(in srgb, var(--border-subtle) 34%, transparent);
+    border-top: 1px solid color-mix(in srgb, var(--border-subtle) 18%, transparent);
     color: var(--text-tertiary);
     font-size: 11px;
     line-height: 16px;
@@ -2894,7 +2894,7 @@
     grid-template-columns: 30px minmax(0, 1fr) auto;
     align-items: center;
     gap: 7px;
-    border-top: 1px solid color-mix(in srgb, var(--border-subtle) 24%, transparent);
+    border-top: 1px solid color-mix(in srgb, var(--border-subtle) 16%, transparent);
     color: var(--text-secondary);
     font-size: 12px;
     line-height: 16px;
