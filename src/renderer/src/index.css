@@ -66,12 +66,12 @@
     --state-success: #13a355;
     --state-warning: #d69000;
     --state-danger: #dc2f2f;
-    --shadow-popover: 0 18px 48px rgba(15, 23, 42, 0.16);
+    --shadow-popover: 0 12px 32px rgba(15, 23, 42, 0.11);
     --shadow-composer: 0 14px 36px rgba(15, 23, 42, 0.09);
     --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.06);
     --shadow-soft: 0 1px 2px rgba(15, 23, 42, 0.06);
-    --shadow-menu: 0 18px 48px rgba(15, 23, 42, 0.16);
-    --shadow-dialog: 0 28px 90px rgba(15, 23, 42, 0.22);
+    --shadow-menu: 0 12px 32px rgba(15, 23, 42, 0.11);
+    --shadow-dialog: 0 22px 64px rgba(15, 23, 42, 0.16);
     --motion-duration-edge: 110ms;
     --motion-duration-row: 120ms;
     --motion-duration-control: 120ms;
@@ -141,12 +141,12 @@
     --state-success: #36c172;
     --state-warning: #f0b740;
     --state-danger: #ff5f5f;
-    --shadow-popover: 0 20px 50px rgba(0, 0, 0, 0.38);
+    --shadow-popover: 0 14px 36px rgba(0, 0, 0, 0.28);
     --shadow-composer: 0 18px 48px rgba(0, 0, 0, 0.32);
     --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.22);
     --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.22);
-    --shadow-menu: 0 20px 50px rgba(0, 0, 0, 0.38);
-    --shadow-dialog: 0 28px 90px rgba(0, 0, 0, 0.5);
+    --shadow-menu: 0 14px 36px rgba(0, 0, 0, 0.28);
+    --shadow-dialog: 0 24px 72px rgba(0, 0, 0, 0.38);
     color-scheme: dark;
   }
 
@@ -173,12 +173,12 @@
     --state-success: #42c985;
     --state-warning: #e5b648;
     --state-danger: #ff6464;
-    --shadow-popover: 0 20px 50px rgba(0, 8, 20, 0.46);
+    --shadow-popover: 0 14px 36px rgba(0, 8, 20, 0.34);
     --shadow-composer: 0 18px 48px rgba(0, 8, 20, 0.36);
     --shadow-card: 0 1px 2px rgba(0, 8, 20, 0.26);
     --shadow-soft: 0 1px 2px rgba(0, 8, 20, 0.26);
-    --shadow-menu: 0 20px 50px rgba(0, 8, 20, 0.46);
-    --shadow-dialog: 0 28px 90px rgba(0, 8, 20, 0.58);
+    --shadow-menu: 0 14px 36px rgba(0, 8, 20, 0.34);
+    --shadow-dialog: 0 24px 72px rgba(0, 8, 20, 0.44);
     color-scheme: dark;
   }
 
@@ -205,12 +205,12 @@
     --state-success: #58c994;
     --state-warning: #e9ba55;
     --state-danger: #ff6b77;
-    --shadow-popover: 0 20px 50px rgba(4, 4, 12, 0.44);
+    --shadow-popover: 0 14px 36px rgba(4, 4, 12, 0.32);
     --shadow-composer: 0 18px 48px rgba(4, 4, 12, 0.35);
     --shadow-card: 0 1px 2px rgba(4, 4, 12, 0.26);
     --shadow-soft: 0 1px 2px rgba(4, 4, 12, 0.26);
-    --shadow-menu: 0 20px 50px rgba(4, 4, 12, 0.44);
-    --shadow-dialog: 0 28px 90px rgba(4, 4, 12, 0.56);
+    --shadow-menu: 0 14px 36px rgba(4, 4, 12, 0.32);
+    --shadow-dialog: 0 24px 72px rgba(4, 4, 12, 0.42);
     color-scheme: dark;
   }
 
@@ -1020,9 +1020,9 @@
   }
 
   .motion-overlay-surface {
-    border: 1px solid var(--border-subtle);
-    background: color-mix(in srgb, var(--surface-bg) 94%, var(--panel-bg-solid));
-    box-shadow: var(--shadow-menu), 0 0 0 1px rgba(255, 255, 255, 0.03) inset;
+    border: 1px solid color-mix(in srgb, var(--border-subtle) 18%, transparent);
+    background: color-mix(in srgb, var(--surface-bg) 86%, var(--panel-bg-solid));
+    box-shadow: var(--shadow-menu);
     color: var(--text-primary);
   }
 
@@ -1035,9 +1035,9 @@
 
   .motion-menu-item:hover,
   .motion-menu-item:focus-visible {
-    background: var(--control-bg-hover) !important;
+    background: color-mix(in srgb, var(--control-bg-hover) 72%, transparent) !important;
     outline: none;
-    transform: translateX(1px);
+    transform: none;
   }
 
   .orchestrator-menu-surface {
@@ -13199,14 +13199,14 @@
   }
 
   .motion-sheet-backdrop {
-    background: rgba(16, 24, 40, 0.22);
-    backdrop-filter: blur(14px);
+    background: rgba(16, 24, 40, 0.14);
+    backdrop-filter: blur(8px);
     animation: motionFadeIn var(--motion-duration-overlay) var(--motion-ease-standard) both;
   }
 
   .motion-sheet {
-    border-left: 1px solid var(--border-subtle);
-    background: var(--surface-bg);
+    border-left: 1px solid color-mix(in srgb, var(--border-subtle) 20%, transparent);
+    background: color-mix(in srgb, var(--surface-bg) 92%, var(--panel-bg-solid));
     box-shadow: var(--shadow-dialog);
     animation: motionSheetIn var(--motion-duration-panel) var(--motion-ease-emphasized) both;
   }
@@ -13232,12 +13232,12 @@
     align-items: center;
     gap: 10px;
     padding: 14px;
-    border-bottom: 1px solid var(--border-subtle);
+    border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 18%, transparent);
   }
 
   .motion-sheet-footer {
     justify-content: flex-end;
-    border-top: 1px solid var(--border-subtle);
+    border-top: 1px solid color-mix(in srgb, var(--border-subtle) 18%, transparent);
     border-bottom: 0;
   }
 

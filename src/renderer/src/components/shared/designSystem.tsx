@@ -2625,7 +2625,7 @@ export function MotionOverlay({
       className={`motion-overlay-backdrop fixed inset-0 z-50 flex items-center justify-center ${className}`}
       data-motion-exit={exiting ? 'true' : 'false'}
       aria-hidden={exiting ? 'true' : undefined}
-      style={{ background: 'rgba(16, 24, 40, 0.18)', backdropFilter: 'blur(4px)', ...backdropStyle }}
+      style={{ background: 'rgba(16, 24, 40, 0.12)', backdropFilter: 'blur(3px)', ...backdropStyle }}
       onClick={(event) => event.target === event.currentTarget && close()}
     >
       <div
@@ -2702,9 +2702,11 @@ export const PopoverSurface = forwardRef<HTMLDivElement, {
       className={`motion-popover-surface ${className}`}
       style={{
         borderRadius: 'var(--radius-lg)',
-        border: '1px solid var(--border-subtle)',
-        background: 'var(--surface-bg)',
+        border: '1px solid color-mix(in srgb, var(--border-subtle) 16%, transparent)',
+        background: 'color-mix(in srgb, var(--surface-bg) 74%, transparent)',
         boxShadow: 'var(--shadow-menu)',
+        backdropFilter: 'blur(14px) saturate(120%)',
+        WebkitBackdropFilter: 'blur(14px) saturate(120%)',
         color: 'var(--text-primary)',
         ...style,
       }}
@@ -2866,10 +2868,11 @@ export function MenuSurface({
       className={`orchestrator-menu-surface ${className}`.trim()}
       style={{
         borderRadius: 12,
-        border: '0.5px solid var(--border-subtle)',
-        background: 'color-mix(in srgb, var(--surface-bg) 90%, transparent)',
+        border: '0.5px solid color-mix(in srgb, var(--border-subtle) 18%, transparent)',
+        background: 'color-mix(in srgb, var(--surface-bg) 68%, transparent)',
         boxShadow: 'var(--shadow-menu)',
-        backdropFilter: 'blur(12px)',
+        backdropFilter: 'blur(14px) saturate(120%)',
+        WebkitBackdropFilter: 'blur(14px) saturate(120%)',
         minWidth: 178,
         maxWidth: 'min(420px, calc(100vw - 16px))',
         maxHeight: 'min(320px, calc(100vh - 16px))',
