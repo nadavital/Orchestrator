@@ -4,6 +4,12 @@ import type { AgentNode, AgentStatus, Session, SessionRunEventRecord } from '../
 import { Badge, InspectorCard, InspectorRow, InspectorSection, MetricPill, PanelHeader, TabButton, ToolbarButton, WorkbenchSearchField } from '../shared/designSystem'
 import { deriveSessionAgentNodes } from './agentNodes'
 
+const AGENT_DIVIDER = '1px solid color-mix(in srgb, var(--border-subtle) 34%, transparent)'
+const AGENT_CONTROL_BORDER = '1px solid color-mix(in srgb, var(--border-subtle) 22%, transparent)'
+const AGENT_SURFACE_BG = 'color-mix(in srgb, var(--surface-bg) 86%, transparent)'
+const AGENT_CONTROL_BG = 'color-mix(in srgb, var(--control-bg) 42%, transparent)'
+const AGENT_MUTED_BG = 'color-mix(in srgb, var(--control-bg) 20%, transparent)'
+
 interface Props {
   session: Session
   embedded?: boolean
@@ -58,7 +64,7 @@ export default function EventInspectorPanel({ session, embedded = false, activeA
         width: embedded ? '100%' : 420,
         maxWidth: '100%',
         height: embedded ? '100%' : undefined,
-        background: 'var(--surface-bg)'
+        background: AGENT_SURFACE_BG
       }}
     >
       {!embedded && (
@@ -88,7 +94,7 @@ export default function EventInspectorPanel({ session, embedded = false, activeA
         <div className="flex flex-col min-h-0 min-w-0 flex-1 overflow-hidden">
           <div
             className="shrink-0 overflow-x-auto overflow-y-hidden px-2 py-2"
-            style={{ borderBottom: '1px solid var(--border-subtle)' }}
+            style={{ borderBottom: AGENT_DIVIDER }}
           >
             <div className="flex min-w-0 gap-1.5">
               {visibleAgents.map((agent) => (
@@ -128,7 +134,7 @@ function AgentOverview({
   return (
     <div
       className={`shrink-0 grid grid-cols-4 gap-1.5 ${embedded ? 'px-2 py-2' : 'px-4 py-3'}`}
-      style={{ borderBottom: '1px solid var(--border-subtle)' }}
+      style={{ borderBottom: AGENT_DIVIDER }}
     >
       <AgentStat label="Active" value={stats.active} tone="var(--color-green)" />
       <AgentStat label="Waiting" value={stats.waiting} tone="var(--color-yellow)" />
@@ -140,8 +146,9 @@ function AgentOverview({
 
 function AgentStat({ label, value, tone }: { label: string; value: number; tone: string }): JSX.Element {
   return (
-    <InspectorCard
-      className="rounded-md px-2 py-1.5 min-w-0"
+    <div
+      className="min-w-0 rounded-md px-2 py-1.5"
+      style={{ background: AGENT_MUTED_BG, border: AGENT_CONTROL_BORDER }}
     >
       <div
         className="truncate text-[11px] font-semibold tracking-normal"
@@ -153,7 +160,7 @@ function AgentStat({ label, value, tone }: { label: string; value: number; tone:
       <div className="text-xs font-semibold" style={{ color: value > 0 ? tone : 'var(--color-text-muted)' }}>
         {value}
       </div>
-    </InspectorCard>
+    </div>
   )
 }
 
@@ -303,7 +310,7 @@ function SessionContextSummary({
     <div
       className={`grid shrink-0 gap-2 ${embedded ? 'px-2 py-2' : 'px-4 py-3'}`}
       data-testid="agent-session-context"
-      style={{ borderBottom: '1px solid var(--border-subtle)' }}
+      style={{ borderBottom: AGENT_DIVIDER }}
     >
       <InspectorSection
         title={(
@@ -329,7 +336,7 @@ function SessionContextSummary({
             </div>
           </div>
         )}
-        variant="raised"
+        variant="default"
       >
         <InspectorRow dataTestId="agent-session-runtime">
           <div className="min-w-0 flex-1">
@@ -357,7 +364,7 @@ function SessionContextSummary({
             style={{
               color: 'var(--accent)',
               background: 'color-mix(in srgb, var(--accent) 8%, var(--surface-bg))',
-              border: '1px solid var(--border-subtle)'
+              border: AGENT_CONTROL_BORDER
             }}
           >
             {sessionActionStatus}
@@ -434,7 +441,7 @@ function SessionContextSummary({
               style={{
                 color: 'var(--accent)',
                 background: 'color-mix(in srgb, var(--accent) 8%, var(--surface-bg))',
-                border: '1px solid var(--border-subtle)'
+                border: AGENT_CONTROL_BORDER
               }}
             >
               {issueActionStatus}
@@ -531,7 +538,7 @@ function SessionContextSummary({
               style={{
                 color: 'var(--accent)',
                 background: 'color-mix(in srgb, var(--accent) 8%, var(--surface-bg))',
-                border: '1px solid var(--border-subtle)'
+                border: AGENT_CONTROL_BORDER
               }}
             >
               {transportActionStatus}
@@ -627,7 +634,7 @@ function SessionContextSummary({
                 style={{
                   background: 'var(--surface-muted)',
                   color: 'var(--color-text-muted)',
-                  border: '1px solid var(--border-subtle)'
+                  border: AGENT_CONTROL_BORDER
                 }}
               >
                 No matching runtime events.
@@ -738,7 +745,7 @@ function EventDetailCard({ session, record }: { session: Session; record: Sessio
               background: copyStatus.startsWith('Unable')
                 ? 'color-mix(in srgb, var(--state-danger) 8%, var(--surface-bg))'
                 : 'color-mix(in srgb, var(--accent) 8%, var(--surface-bg))',
-              border: '1px solid var(--border-subtle)'
+              border: AGENT_CONTROL_BORDER
             }}
           >
             {copyStatus}
@@ -750,7 +757,7 @@ function EventDetailCard({ session, record }: { session: Session; record: Sessio
         data-testid="agent-event-detail-payload"
         style={{
           background: 'color-mix(in srgb, var(--surface-bg) 86%, var(--canvas-bg))',
-          border: '1px solid var(--border-subtle)',
+          border: AGENT_CONTROL_BORDER,
           color: 'var(--color-text-muted)',
           lineHeight: 1.45,
           whiteSpace: 'pre-wrap',
@@ -824,14 +831,14 @@ function redactTransportLogLine(line: string): string {
 
 function CompactMetric({ label, value }: { label: string; value: number }): JSX.Element {
   return (
-    <InspectorCard className="rounded-md px-2 py-1.5 min-w-0">
+    <div className="min-w-0 rounded-md px-2 py-1.5" style={{ background: AGENT_MUTED_BG, border: AGENT_CONTROL_BORDER }}>
       <div className="truncate text-[10.5px] font-semibold" style={{ color: 'var(--color-text-muted)' }}>
         {label}
       </div>
       <div className="truncate text-xs font-semibold" style={{ color: 'var(--color-text)' }}>
         {value}
       </div>
-    </InspectorCard>
+    </div>
   )
 }
 
@@ -859,8 +866,8 @@ function EventFilterSelect<T extends string>({
         onChange={(event) => onChange(event.target.value as T)}
         className="h-7 min-w-0 rounded-md px-2 text-[11px] font-medium outline-none"
         style={{
-          background: 'var(--surface-bg)',
-          border: '1px solid var(--border-subtle)',
+          background: AGENT_CONTROL_BG,
+          border: AGENT_CONTROL_BORDER,
           color: 'var(--color-text)'
         }}
       >
@@ -1232,7 +1239,7 @@ function AgentConversation({
             background: actionStatus.startsWith('No ')
               ? 'color-mix(in srgb, var(--state-danger) 8%, var(--surface-bg))'
               : 'color-mix(in srgb, var(--accent) 8%, var(--surface-bg))',
-            border: '1px solid var(--border-subtle)'
+            border: AGENT_CONTROL_BORDER
           }}
         >
           {actionStatus}

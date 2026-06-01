@@ -6,6 +6,11 @@ import { derivePlanStates, derivePlanStatesFromMessages } from '../../types'
 import type { PlanItemStatus, PlanState, RunEvent, Session, SessionRunEventRecord } from '../../types'
 import { Badge, Button, IconButton, MetricPill, PanelHeader } from '../shared/designSystem'
 
+const PLAN_DIVIDER = '1px solid color-mix(in srgb, var(--border-subtle) 34%, transparent)'
+const PLAN_SURFACE_BG = 'color-mix(in srgb, var(--surface-bg) 86%, transparent)'
+const PLAN_CONTROL_BG = 'color-mix(in srgb, var(--control-bg) 56%, transparent)'
+const PLAN_CONTROL_BORDER = '1px solid color-mix(in srgb, var(--border-subtle) 38%, transparent)'
+
 interface Props {
   session: Session
   embedded?: boolean
@@ -38,7 +43,7 @@ export default function PlanPanel({ session, embedded = false }: Props): JSX.Ele
         width: embedded ? '100%' : 420,
         maxWidth: '100%',
         height: embedded ? '100%' : undefined,
-        background: 'var(--surface-bg)'
+        background: PLAN_SURFACE_BG
       }}
     >
       {!embedded && <PanelHeader title="Plan" subtitle="Goal, task state, and plan mode updates." />}
@@ -290,7 +295,7 @@ function GoalBlock({ goal, session }: { goal: GoalEvent; session: Session }): JS
         </div>
       )}
       {pct !== null && (
-        <div className="mt-3 h-1.5 overflow-hidden rounded-full" style={{ background: 'var(--control-bg)' }}>
+        <div className="mt-3 h-1.5 overflow-hidden rounded-full" style={{ background: PLAN_CONTROL_BG }}>
           <div
             className="h-full rounded-full"
             data-testid="plan-goal-progress-bar"
@@ -475,8 +480,8 @@ function PlanBlock({ plan }: { plan: PlanState }): JSX.Element {
                 <code
                   className="rounded px-1"
                   style={{
-                    background: 'var(--control-bg)',
-                    border: '1px solid var(--border-subtle)',
+                    background: PLAN_CONTROL_BG,
+                    border: PLAN_CONTROL_BORDER,
                     fontSize: '0.86em',
                     overflowWrap: 'anywhere'
                   }}
@@ -566,7 +571,7 @@ function PlanSection({ children }: { children: React.ReactNode }): JSX.Element {
   return (
     <section
       className="plan-section min-w-0 px-4 py-3"
-      style={{ borderBottom: '1px solid var(--border-subtle)' }}
+      style={{ borderBottom: PLAN_DIVIDER }}
     >
       {children}
     </section>
