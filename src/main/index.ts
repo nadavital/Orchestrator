@@ -653,6 +653,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
     runAutomatedAutomationsSmoke(win, outputPath, screenshotPath)
     return
   }
+  if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'git-real-repo') {
+    runAutomatedGitRealRepoSmoke(win, outputPath, screenshotPath)
+    return
+  }
   if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'add-project') {
     runAutomatedAddProjectSmoke(win, outputPath, screenshotPath)
     return
@@ -25171,6 +25175,219 @@ function runAutomatedAutomationsSmoke(win: BrowserWindow, outputPath: string, sc
   })
 }
 
+function runAutomatedGitRealRepoSmoke(win: BrowserWindow, outputPath: string, screenshotPath?: string): void {
+  win.webContents.once('did-finish-load', () => {
+    setTimeout(async () => {
+      try {
+        const result = await win.webContents.executeJavaScript(`
+          (async () => {
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            const waitFor = async (predicate, attempts = 50, delay = 100) => {
+              for (let index = 0; index < attempts; index += 1) {
+                const value = predicate();
+                if (value) return value;
+                await sleep(delay);
+              }
+              return null;
+            };
+            const buttonLabel = (button) =>
+              button.getAttribute('aria-label') ??
+              button.getAttribute('data-tooltip-label') ??
+              button.getAttribute('title') ??
+              button.textContent?.replace(/\\s+/g, ' ').trim() ??
+              '';
+            const findButton = (label) =>
+              [...document.querySelectorAll('button')]
+                .find((button) => buttonLabel(button) === label);
+            const findButtonText = (label) =>
+              [...document.querySelectorAll('button')]
+                .find((button) => button.textContent?.replace(/\\s+/g, ' ').trim() === label);
+            const branchSnapshot = (branches) => ({
+              current: branches.find((branch) => branch.current)?.label ?? '',
+              labels: branches.map((branch) => branch.label).sort()
+            });
+            const changesSnapshot = (changes) =>
+              changes.map((change) => [
+                change.path,
+                change.status,
+                change.staged === true,
+                change.unstaged === true
+              ].join(':')).sort();
+
+            const profile = await window.api.app.getProfile();
+            const root = ${JSON.stringify(process.env.ORCHESTRATOR_REAL_REPO_SMOKE_DIR ?? process.cwd())};
+            let projects = await window.api.projects.list();
+            let project = projects.find((candidate) => candidate.rootPath === root);
+            if (!project) {
+              project = await window.api.projects.add('Orchestrator real repo smoke', root);
+              projects = await window.api.projects.list();
+            }
+            let sessions = await window.api.sessions.list();
+            let session = sessions.find((candidate) => candidate.projectId === project.id && candidate.workDir === root);
+            if (!session) {
+              session = await window.api.sessions.create({
+                projectId: project.id,
+                workDir: root,
+                useWorktree: false,
+                repoRoot: root
+              });
+              await window.api.projects.addSession(project.id, session.id);
+            }
+
+            window.location.hash = '#/threads/' + encodeURIComponent(session.id);
+            await waitFor(() => document.querySelector('[data-testid="session-shell"]'));
+            await sleep(500);
+
+            const branchesBefore = await window.api.git.listBranches(root).catch(() => []);
+            const changesBefore = await window.api.sessions.getChangedFiles(session.id, 'all').catch(() => []);
+            const beforeBranchSnapshot = branchSnapshot(branchesBefore);
+            const beforeChangeSnapshot = changesSnapshot(changesBefore);
+
+            const bottomToggle = findButton('Toggle bottom panel') ?? findButton('Toggle terminal');
+            if (!(document.querySelector('[data-testid="session-bottom-panel"]') instanceof HTMLElement)) {
+              if (bottomToggle instanceof HTMLElement) bottomToggle.click();
+              await waitFor(() => document.querySelector('[data-testid="session-bottom-panel"]'));
+            }
+            const bottomPanel = await waitFor(() => document.querySelector('[data-testid="session-bottom-panel"]'));
+            const openTabMenuButton = document.querySelector('[data-testid="bottom-panel-open-tab-menu"]');
+            if (openTabMenuButton instanceof HTMLButtonElement) {
+              openTabMenuButton.click();
+              await waitFor(() => document.querySelector('[data-testid="bottom-panel-open-tab-menu-surface"]'));
+              const environmentMenuItem = document.querySelector('[data-testid="bottom-panel-open-environment"]');
+              if (environmentMenuItem instanceof HTMLButtonElement) {
+                environmentMenuItem.click();
+              }
+            }
+            const environmentPanel = await waitFor(() => {
+              const panel = document.querySelector('[data-testid="codex-environment-panel"]');
+              const active = document.querySelector('[data-testid="session-bottom-panel"]')?.getAttribute('data-bottom-panel-active-tab') ?? '';
+              return panel instanceof HTMLElement && active === 'environment' ? panel : null;
+            });
+            await sleep(350);
+
+            const branchRow = document.querySelector('[data-testid="codex-environment-branch"]');
+            if (branchRow instanceof HTMLButtonElement) branchRow.click();
+            const branchDialog = await waitFor(() => document.querySelector('[data-testid="git-action-dialog"]'));
+            await sleep(250);
+            const branchContextText = document.querySelector('.git-action-dialog-context')?.textContent?.replace(/\\s+/g, ' ').trim() ?? '';
+            const branchSelect = document.querySelector('.git-action-dialog select.git-action-dialog-input');
+            const branchOptions = branchSelect instanceof HTMLSelectElement
+              ? [...branchSelect.options].map((option) => option.textContent?.trim() ?? '').filter(Boolean)
+              : [];
+            const branchTarget = branchDialog instanceof HTMLElement
+              ? branchDialog.getAttribute('data-git-action-dialog-target') ?? ''
+              : '';
+            const branchDialogRect = branchDialog instanceof HTMLElement ? branchDialog.getBoundingClientRect() : null;
+
+            const commitTab = findButtonText('Commit');
+            if (commitTab instanceof HTMLButtonElement) commitTab.click();
+            await waitFor(() => document.querySelector('[data-testid="git-action-dialog"]')?.getAttribute('data-git-action-dialog-target') === 'commit');
+            await sleep(160);
+            const commitDialog = document.querySelector('[data-testid="git-action-dialog"]');
+            const commitFiles = [...document.querySelectorAll('.git-action-dialog-file')];
+            const commitMessage = document.querySelector('.git-action-dialog-textarea');
+            const commitFooterButton = [...document.querySelectorAll('.orchestrator-dialog-surface button')]
+              .find((button) => button.textContent?.trim() === 'Commit');
+            const commitTarget = commitDialog instanceof HTMLElement
+              ? commitDialog.getAttribute('data-git-action-dialog-target') ?? ''
+              : '';
+
+            const prTab = findButtonText('PR');
+            if (prTab instanceof HTMLButtonElement) prTab.click();
+            await waitFor(() => document.querySelector('[data-testid="git-action-dialog"]')?.getAttribute('data-git-action-dialog-target') === 'pull-request');
+            await sleep(250);
+            const prDialog = document.querySelector('[data-testid="git-action-dialog"]');
+            const prSummaryText = prDialog instanceof HTMLElement
+              ? prDialog.textContent?.replace(/\\s+/g, ' ').trim() ?? ''
+              : '';
+            const prButtons = [...document.querySelectorAll('[data-testid="git-action-dialog"] button')]
+              .map((button) => button.textContent?.replace(/\\s+/g, ' ').trim() ?? '')
+              .filter(Boolean);
+
+            const branchesAfter = await window.api.git.listBranches(root).catch(() => []);
+            const changesAfter = await window.api.sessions.getChangedFiles(session.id, 'all').catch(() => []);
+            const afterBranchSnapshot = branchSnapshot(branchesAfter);
+            const afterChangeSnapshot = changesSnapshot(changesAfter);
+
+            const dialogSurface = document.querySelector('.orchestrator-dialog-surface');
+            const dialogSurfaceRect = dialogSurface instanceof HTMLElement ? dialogSurface.getBoundingClientRect() : null;
+            const dialogFitsViewport =
+              dialogSurfaceRect !== null &&
+              dialogSurfaceRect.left >= -1 &&
+              dialogSurfaceRect.right <= window.innerWidth + 1 &&
+              dialogSurfaceRect.top >= -1 &&
+              dialogSurfaceRect.bottom <= window.innerHeight + 1;
+
+            return {
+              profile,
+              root,
+              currentBranch: beforeBranchSnapshot.current,
+              changeCount: changesBefore.length,
+              branchCount: branchesBefore.length,
+              branchTarget,
+              branchContextText,
+              branchOptions,
+              branchDialogHeight: branchDialogRect?.height ?? 0,
+              gitRealRepoProjectWorks:
+                project?.rootPath === root &&
+                session?.workDir === root &&
+                document.querySelector('[data-testid="session-shell"]') instanceof HTMLElement,
+              gitRealRepoBottomEnvironmentWorks:
+                bottomPanel instanceof HTMLElement &&
+                environmentPanel instanceof HTMLElement &&
+                document.querySelector('[data-testid="session-bottom-panel"]')?.getAttribute('data-bottom-panel-active-tab') === 'environment' &&
+                document.querySelector('[data-app-shell-tab-controller="bottom"][data-tab-id="environment"]') instanceof HTMLElement,
+              gitRealRepoGitTabRetiredWorks:
+                !(document.querySelector('[data-testid="git-panel"]') instanceof HTMLElement) &&
+                !(document.querySelector('[data-testid="bottom-panel-open-git"]') instanceof HTMLElement) &&
+                !(document.querySelector('[data-testid="workbench-new-tab-action-git"]') instanceof HTMLElement),
+              gitRealRepoBranchTargetWorks:
+                branchDialog instanceof HTMLElement &&
+                branchTarget === 'branch' &&
+                branchContextText.includes(beforeBranchSnapshot.current) &&
+                branchContextText.includes('Orchestrator') &&
+                branchOptions.length >= 1 &&
+                branchDialogRect !== null &&
+                branchDialogRect.height > 100,
+              gitRealRepoCommitTargetWorks:
+                commitDialog instanceof HTMLElement &&
+                commitTarget === 'commit' &&
+                commitMessage instanceof HTMLTextAreaElement &&
+                commitFooterButton instanceof HTMLButtonElement &&
+                commitFiles.length <= Math.max(changesBefore.length, 6),
+              gitRealRepoPullRequestTargetWorks:
+                prDialog instanceof HTMLElement &&
+                prDialog.getAttribute('data-git-action-dialog-target') === 'pull-request' &&
+                prSummaryText.includes('Base') &&
+                prSummaryText.includes('Head') &&
+                prButtons.includes('Copy command') &&
+                prButtons.includes('Copy push') &&
+                prButtons.includes('Create PR'),
+              gitRealRepoNoMutationWorks:
+                JSON.stringify(beforeBranchSnapshot) === JSON.stringify(afterBranchSnapshot) &&
+                JSON.stringify(beforeChangeSnapshot) === JSON.stringify(afterChangeSnapshot),
+              gitRealRepoDialogVisualHealthWorks:
+                dialogSurface instanceof HTMLElement &&
+                dialogFitsViewport &&
+                document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1 &&
+                document.querySelectorAll('[data-testid="git-action-dialog"] .git-action-dialog-tab').length === 3
+            };
+          })()
+        `)
+        if (screenshotPath) {
+          const image = await win.webContents.capturePage()
+          writeFileSync(screenshotPath, image.toPNG())
+        }
+        writeFileSync(outputPath, JSON.stringify({ ok: true, result, screenshotPath }, null, 2))
+        app.quit()
+      } catch (error) {
+        writeFileSync(outputPath, JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2))
+        app.quit()
+      }
+    }, 700)
+  })
+}
+
 function runAutomatedAddProjectSmoke(win: BrowserWindow, outputPath: string, screenshotPath?: string): void {
   win.webContents.once('did-finish-load', () => {
     setTimeout(async () => {
@@ -33158,7 +33375,9 @@ async function bootstrapAutomatedUiSmokeState(): Promise<void> {
   if (!process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT) return
   if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'empty-state') return
   if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'add-project') return
-  const workspace = process.env.ORCHESTRATOR_SMOKE_WORKSPACE_DIR ?? process.cwd()
+  const workspace = process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'git-real-repo'
+    ? process.env.ORCHESTRATOR_REAL_REPO_SMOKE_DIR ?? process.cwd()
+    : process.env.ORCHESTRATOR_SMOKE_WORKSPACE_DIR ?? process.cwd()
   const existing = projectStore.list()
   const project = existing[0] ?? projectStore.add('Automated UI Smoke', workspace)
   const existingSessions = sessionManager.list()

@@ -25,6 +25,7 @@ const captureViewOptions = [
   { flag: '--workbench-launcher', view: 'workbench-launcher', surface: 'Workbench', scope: 'New-tab launcher discovery and tab activation' },
   { flag: '--workbench-new-tab', view: 'workbench-new-tab', surface: 'Workbench', scope: 'New-tab launcher, keyboard navigation, singleton switching, Git/agent workflows' },
   { flag: '--git-panel', view: 'git-panel', surface: 'Git', scope: 'Explicit Git destination visual state under bottom-panel pressure' },
+  { flag: '--git-real-repo', view: 'git-real-repo', surface: 'Git', scope: 'Contextual Git dialog against the current repo without mutating it' },
   { flag: '--agent-inspector', view: 'agent-inspector', surface: 'Workbench', scope: 'Agent Activity inspector diagnostics and composer handoffs' },
   { flag: '--environment', view: 'environment', surface: 'Workbench', scope: 'Environment panel and add-to-chat context handoff' },
   { flag: '--right-panel', view: 'right-panel', surface: 'Workbench', scope: 'Right-panel tab shell, transfer boundaries, keyboard routing' },
@@ -1735,6 +1736,7 @@ const child = spawn(launch.bin, launch.args, {
     ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT: outputPath,
     ORCHESTRATOR_AUTOMATED_UI_SMOKE_SCREENSHOT: screenshotPath,
     ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW: captureView,
+    ORCHESTRATOR_REAL_REPO_SMOKE_DIR: root,
     ORCHESTRATOR_BROWSER_SMOKE_URL: browserSmokeUrl
   },
   stdio: ['ignore', 'pipe', 'pipe']
@@ -2590,6 +2592,18 @@ child.on('exit', async (code) => {
           gitPanelCompactRows: result.gitPanelCompactRowsWorks === true,
           gitPanelDisabledActionsQuiet: result.gitPanelDisabledActionsQuietWorks === true,
           gitPanelNoHorizontalOverflow: result.gitPanelNoHorizontalOverflow === true
+        }
+    : captureView === 'git-real-repo'
+      ? {
+          isolatedProfile: result.profile?.isIsolated === true,
+          realRepoProject: result.gitRealRepoProjectWorks === true,
+          bottomEnvironment: result.gitRealRepoBottomEnvironmentWorks === true,
+          gitTabRetired: result.gitRealRepoGitTabRetiredWorks === true,
+          branchTarget: result.gitRealRepoBranchTargetWorks === true,
+          commitTarget: result.gitRealRepoCommitTargetWorks === true,
+          pullRequestTarget: result.gitRealRepoPullRequestTargetWorks === true,
+          noMutation: result.gitRealRepoNoMutationWorks === true,
+          dialogVisualHealth: result.gitRealRepoDialogVisualHealthWorks === true
         }
     : captureView === 'agent-inspector'
       ? {
