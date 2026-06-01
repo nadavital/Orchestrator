@@ -90,7 +90,7 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
   const terminalChromeHeight = TERMINAL_PANEL_CHROME_HEIGHT
   const terminalPanelTotalHeight = terminalHeight + terminalChromeHeight
   const primaryContentHeight = Math.max(0, Math.round(terminalLayout.containerSize - terminalPanelTotalHeight))
-  const tabs = terminalPanel.tabs.filter((tabId) => tabId !== 'git')
+  const tabs = terminalPanel.tabs.filter((tabId) => String(tabId) !== 'git')
   const effectiveTabs = tabs.length > 0 ? tabs : [0]
   const activeTab = effectiveTabs.includes(terminalPanel.activeTabId) ? terminalPanel.activeTabId : effectiveTabs[0]
 

@@ -142,7 +142,6 @@ test('panel tab transfer availability exposes the shared shell boundary', () => 
     'terminal',
     'plan',
     'environment',
-    'git',
     'diff',
     'agents',
     'extensions',
@@ -185,7 +184,7 @@ test('panel tab transfer availability exposes the shared shell boundary', () => 
     reason: 'available'
   })
 
-  for (const tabKind of ['browser', 'diff', 'files', 'git', 'sidechat']) {
+  for (const tabKind of ['browser', 'diff', 'files', 'sidechat']) {
     assert.deepEqual(resolvePanelTabTransferAvailability('right', 'bottom', tabKind), {
       model: 'shared',
       sourcePanel: 'right',

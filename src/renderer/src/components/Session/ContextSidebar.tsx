@@ -101,8 +101,8 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
   const rightPanel = ui?.rightPanel
     ? {
         ...ui.rightPanel,
-        activeTabId: ui.rightPanel.activeTabId === 'git' ? null : ui.rightPanel.activeTabId,
-        tabs: ui.rightPanel.tabs.filter((tab) => tab.id !== 'git')
+        activeTabId: String(ui.rightPanel.activeTabId) === 'git' ? null : ui.rightPanel.activeTabId,
+        tabs: ui.rightPanel.tabs.filter((tab) => String(tab.id) !== 'git')
       }
     : undefined
   const bottomPanelOpen = ui?.showTerminal === true

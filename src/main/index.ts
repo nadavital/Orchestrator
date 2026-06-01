@@ -550,7 +550,7 @@ function createWindow(): BrowserWindow {
 function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
   const outputPath = process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT
   if (!outputPath) return
-  const screenshotPath = process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_SCREENSHOT
+  const screenshotPath = process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_SCREENSHOT ?? ''
   if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'scroll') {
     runAutomatedScrollSmoke(win, outputPath, screenshotPath)
     return
@@ -674,11 +674,11 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
     return
   }
   const smokeView = process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW ?? ''
-  if (['header', 'right-panel', 'workbench-launcher', 'workbench-new-tab', 'git-panel', 'agent-inspector', 'environment', 'diff', 'files', 'side-chat'].includes(smokeView) || smokeView.startsWith('diff-')) {
+  if (['header', 'right-panel', 'workbench-launcher', 'workbench-new-tab', 'agent-inspector', 'environment', 'diff', 'files', 'side-chat'].includes(smokeView) || smokeView.startsWith('diff-')) {
     runAutomatedFocusedSurfaceSmoke(
       win,
       outputPath,
-      (smokeView === 'workbench-launcher' || smokeView === 'workbench-new-tab' || smokeView === 'git-panel' || smokeView === 'agent-inspector' || smokeView === 'environment' ? 'right-panel' : smokeView.startsWith('diff-') ? 'diff' : smokeView) as 'header' | 'right-panel' | 'diff' | 'files' | 'side-chat',
+      (smokeView === 'workbench-launcher' || smokeView === 'workbench-new-tab' || smokeView === 'agent-inspector' || smokeView === 'environment' ? 'right-panel' : smokeView.startsWith('diff-') ? 'diff' : smokeView) as 'header' | 'right-panel' | 'diff' | 'files' | 'side-chat',
       screenshotPath
     )
     return
@@ -10044,9 +10044,9 @@ function runAutomatedFocusedSurfaceSmoke(
                 };
               }
               if (smokeView === 'workbench-new-tab' || smokeView === 'agent-inspector') {
-                const addButton = document.querySelector('[data-testid="right-panel-add-tab"]');
-                if (addButton instanceof HTMLElement) {
-                  addButton.click();
+                const workbenchNewTabAddButton = document.querySelector('[data-testid="right-panel-add-tab"]');
+                if (workbenchNewTabAddButton instanceof HTMLElement) {
+                  workbenchNewTabAddButton.click();
                   await sleep(180);
                 }
                 const newTabPanel = document.querySelector('[data-testid="workbench-new-tab-panel"]');
@@ -10099,7 +10099,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     lastEnabledCard.getAttribute('data-workbench-new-tab-keyboard-selected') === 'true' &&
                     document.activeElement === lastEnabledCard;
                 }
-                const workbenchPanelNewTabPageWorks =
+                const workbenchNewTabPageWorks =
                   rightPanel instanceof HTMLElement &&
                   rightPanel.getAttribute('data-right-panel-active-tab') === 'new-tab' &&
                   newTabPanel instanceof HTMLElement &&
@@ -10142,7 +10142,6 @@ function runAutomatedFocusedSurfaceSmoke(
                   !(gitAction instanceof HTMLButtonElement) &&
                   newTabCardIds.length === 8 &&
                   !newTabCardIds.includes('git');
-                let openedGitFromContext = false;
                 if (workbenchNewTabGitRetiredWorks) {
                   const environmentAction = document.querySelector('[data-testid="workbench-new-tab-action-environment"]');
                   if (environmentAction instanceof HTMLButtonElement) {
@@ -10167,8 +10166,7 @@ function runAutomatedFocusedSurfaceSmoke(
                       document.querySelector('[data-testid="git-panel"]') === null &&
                       tabsBeforeEnvironmentReselect.split(',').filter((tab) => tab === 'environment').length === 1 &&
                       tabsAfterEnvironmentReselect.split(',').filter((tab) => tab === 'environment').length === 1;
-                    workbenchNewTabSingletonSwitchWorks =
-                      workbenchNewTabGitRetiredWorks;
+                    workbenchNewTabSingletonSwitchWorks = workbenchNewTabGitRetiredWorks;
                     [...document.querySelectorAll('[data-testid="git-action-dialog"] button')]
                       .find((button) => button.textContent?.trim() === 'Close')
                       ?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
@@ -10197,857 +10195,11 @@ function runAutomatedFocusedSurfaceSmoke(
                   workbenchNewTabGitRefreshStatusWorks = workbenchNewTabGitRetiredWorks;
                   workbenchNewTabGitStatusHandoffWorks = workbenchNewTabGitRetiredWorks;
                   workbenchNewTabGitCommitDraftHandoffWorks = workbenchNewTabGitRetiredWorks;
-                  workbenchNewTabGitCommitWorks = workbenchNewTabGitRetiredWorks;
-                  workbenchNewTabGitDiscardWorks = workbenchNewTabGitRetiredWorks;
-                } else if (gitAction instanceof HTMLButtonElement) {
-                  gitAction.click();
-                } else {
-                  const environmentAction = document.querySelector('[data-testid="workbench-new-tab-action-environment"]');
-                  if (environmentAction instanceof HTMLButtonElement) {
-                    environmentAction.click();
-                    await sleep(180);
-                    const environmentCommitRow = document.querySelector('[data-testid="codex-environment-commit"]');
-                    if (environmentCommitRow instanceof HTMLButtonElement && environmentCommitRow.disabled === false) {
-                      environmentCommitRow.click();
-                      openedGitFromContext = true;
-                    }
-                  }
-                }
-                if ((gitAction instanceof HTMLButtonElement || openedGitFromContext) && !workbenchNewTabGitRetiredWorks) {
-                  for (let attempt = 0; attempt < 16; attempt += 1) {
-                    await sleep(100);
-                    const gitPanel = document.querySelector('[data-testid="git-panel"]');
-                    if (
-                      gitPanel instanceof HTMLElement &&
-                      document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-active-tab') === 'git' &&
-                      Number(gitPanel.getAttribute('data-git-change-count') ?? '0') >= 3 &&
-                      gitPanel.getAttribute('data-git-action-state') === 'idle'
-                    ) {
-                      break;
-                    }
-                  }
-                  const gitPanelBefore = document.querySelector('[data-testid="git-panel"]');
-                  const gitRefreshButton = document.querySelector('[data-testid="git-refresh"]');
-                  if (gitRefreshButton instanceof HTMLButtonElement && !gitRefreshButton.disabled) {
-                    gitRefreshButton.click();
-                    for (let attempt = 0; attempt < 16; attempt += 1) {
-                      await sleep(100);
-                      const gitPanelAfterRefresh = document.querySelector('[data-testid="git-panel"]');
-                      const gitStatusAfterRefresh = document.querySelector('[data-testid="git-action-status"]');
-                      if (
-                        gitPanelAfterRefresh instanceof HTMLElement &&
-                        gitPanelAfterRefresh.getAttribute('data-git-action-state') === 'idle' &&
-                        gitStatusAfterRefresh instanceof HTMLElement &&
-                        gitStatusAfterRefresh.textContent?.includes('Git status refreshed') === true
-                      ) {
-                        break;
-                      }
-                    }
-                  }
-                  const gitStatusAfterRefresh = document.querySelector('[data-testid="git-action-status"]');
-                  workbenchNewTabGitRefreshStatusWorks =
-                    gitRefreshButton instanceof HTMLButtonElement &&
-                    gitStatusAfterRefresh instanceof HTMLElement &&
-                    gitStatusAfterRefresh.getAttribute('role') === 'status' &&
-                    gitStatusAfterRefresh.getAttribute('aria-live') === 'polite' &&
-                    gitStatusAfterRefresh.getAttribute('aria-atomic') === 'true' &&
-                    gitStatusAfterRefresh.textContent?.includes('Git status refreshed') === true;
-                  const gitAddStatusToChat = document.querySelector('[data-testid="git-add-status-to-chat"]');
-                  if (gitAddStatusToChat instanceof HTMLButtonElement && !gitAddStatusToChat.disabled) {
-                    gitAddStatusToChat.click();
-                    await sleep(160);
-                    const gitStatusAfterStatusHandoff = document.querySelector('[data-testid="git-action-status"]');
-                    const composerAfterGitStatus = document.querySelector('[data-testid="composer-shell"]');
-                    workbenchNewTabGitStatusHandoffWorks =
-                      gitStatusAfterStatusHandoff instanceof HTMLElement &&
-                      gitStatusAfterStatusHandoff.getAttribute('role') === 'status' &&
-                      gitStatusAfterStatusHandoff.getAttribute('aria-live') === 'polite' &&
-                      gitStatusAfterStatusHandoff.textContent?.includes('Git status added to chat') === true &&
-                      composerAfterGitStatus instanceof HTMLElement &&
-                      composerAfterGitStatus.textContent?.includes('Use this Git status:') === true &&
-                      composerAfterGitStatus.textContent?.includes('Branch:') === true &&
-                      composerAfterGitStatus.textContent?.includes('Changes:') === true &&
-                      composerAfterGitStatus.textContent?.includes('Files:') === true;
-                  }
-                  const gitStageAll = document.querySelector('[data-testid="git-stage-all"]');
-                  const gitUnstageAll = document.querySelector('[data-testid="git-unstage-all"]');
-                  const gitBranch = document.querySelector('[data-testid="git-current-branch"]');
-                  const initialGitBranchName = gitBranch instanceof HTMLElement
-                    ? gitBranch.getAttribute('data-git-current-branch') ?? ''
-                    : '';
-                  const gitChangeCountBefore = gitPanelBefore instanceof HTMLElement
-                    ? Number(gitPanelBefore.getAttribute('data-git-change-count') ?? '0')
-                    : 0;
-                  const firstStageableFileRow = [...document.querySelectorAll('[data-testid="git-file-row"]')]
-                    .find((row) => row instanceof HTMLElement && row.getAttribute('data-git-file-unstaged') === 'true');
-                  const firstStageableFilePath = firstStageableFileRow instanceof HTMLElement
-                    ? firstStageableFileRow.getAttribute('data-git-file-path') ?? ''
-                    : '';
-                  const firstStageFileButton = firstStageableFileRow instanceof HTMLElement
-                    ? firstStageableFileRow.querySelector('[data-testid="git-file-stage"]')
-                    : null;
-                  if (firstStageableFilePath.length > 0 && firstStageFileButton instanceof HTMLButtonElement && !firstStageFileButton.disabled) {
-                    firstStageFileButton.click();
-                    for (let attempt = 0; attempt < 20; attempt += 1) {
-                      await sleep(100);
-                      const gitPanelAfterFileStage = document.querySelector('[data-testid="git-panel"]');
-                      const rowAfterFileStage = [...document.querySelectorAll('[data-testid="git-file-row"]')]
-                        .find((row) => row instanceof HTMLElement && row.getAttribute('data-git-file-path') === firstStageableFilePath);
-                      if (
-                        gitPanelAfterFileStage instanceof HTMLElement &&
-                        gitPanelAfterFileStage.getAttribute('data-git-action-state') === 'idle' &&
-                        rowAfterFileStage instanceof HTMLElement &&
-                        rowAfterFileStage.getAttribute('data-git-file-staged') === 'true'
-                      ) {
-                        break;
-                      }
-                    }
-                    const rowAfterFileStage = [...document.querySelectorAll('[data-testid="git-file-row"]')]
-                      .find((row) => row instanceof HTMLElement && row.getAttribute('data-git-file-path') === firstStageableFilePath);
-                    const firstUnstageFileButton = rowAfterFileStage instanceof HTMLElement
-                      ? rowAfterFileStage.querySelector('[data-testid="git-file-unstage"]')
-                      : null;
-                    if (firstUnstageFileButton instanceof HTMLButtonElement && !firstUnstageFileButton.disabled) {
-                      firstUnstageFileButton.click();
-                      for (let attempt = 0; attempt < 20; attempt += 1) {
-                        await sleep(100);
-                        const gitPanelAfterFileUnstage = document.querySelector('[data-testid="git-panel"]');
-                        const rowAfterFileUnstage = [...document.querySelectorAll('[data-testid="git-file-row"]')]
-                          .find((row) => row instanceof HTMLElement && row.getAttribute('data-git-file-path') === firstStageableFilePath);
-                        if (
-                          gitPanelAfterFileUnstage instanceof HTMLElement &&
-                          gitPanelAfterFileUnstage.getAttribute('data-git-action-state') === 'idle' &&
-                          rowAfterFileUnstage instanceof HTMLElement &&
-                          rowAfterFileUnstage.getAttribute('data-git-file-staged') === 'false' &&
-                          rowAfterFileUnstage.getAttribute('data-git-file-unstaged') === 'true'
-                        ) {
-                          break;
-                        }
-                      }
-                    }
-                  }
-                  const rowAfterFileActions = [...document.querySelectorAll('[data-testid="git-file-row"]')]
-                    .find((row) => row instanceof HTMLElement && row.getAttribute('data-git-file-path') === firstStageableFilePath);
-                  const gitStatusAfterFileActions = document.querySelector('[data-testid="git-action-status"]');
-                  workbenchNewTabGitFileActionsWorks =
-                    firstStageableFilePath.length > 0 &&
-                    rowAfterFileActions instanceof HTMLElement &&
-                    rowAfterFileActions.getAttribute('data-git-file-staged') === 'false' &&
-                    rowAfterFileActions.getAttribute('data-git-file-unstaged') === 'true' &&
-                    rowAfterFileActions.querySelector('[data-testid="git-file-stage"]') instanceof HTMLButtonElement &&
-                    rowAfterFileActions.querySelector('[data-testid="git-file-unstage"]') instanceof HTMLButtonElement &&
-                    gitStatusAfterFileActions instanceof HTMLElement &&
-                    gitStatusAfterFileActions.getAttribute('role') === 'status' &&
-                    gitStatusAfterFileActions.textContent?.includes('Unstaged 1 file') === true;
-                  const firstCopyFilePathButton = rowAfterFileActions instanceof HTMLElement
-                    ? rowAfterFileActions.querySelector('[data-testid="git-file-copy-path"]')
-                    : null;
-                  if (firstStageableFilePath.length > 0 && firstCopyFilePathButton instanceof HTMLButtonElement && !firstCopyFilePathButton.disabled) {
-                    firstCopyFilePathButton.click();
-                    await sleep(120);
-                    const gitStatusAfterFileCopyPath = document.querySelector('[data-testid="git-action-status"]');
-                    const copiedGitFilePath =
-                      await window.api?.clipboard?.readText?.().catch(() => '') ??
-                      await navigator.clipboard?.readText?.().catch(() => '') ??
-                      '';
-                    workbenchNewTabGitFileCopyPathWorks =
-                      gitStatusAfterFileCopyPath instanceof HTMLElement &&
-                      gitStatusAfterFileCopyPath.getAttribute('role') === 'status' &&
-                      gitStatusAfterFileCopyPath.getAttribute('aria-live') === 'polite' &&
-                      gitStatusAfterFileCopyPath.getAttribute('aria-atomic') === 'true' &&
-                      gitStatusAfterFileCopyPath.textContent?.includes('File path copied') === true &&
-                      copiedGitFilePath === firstStageableFilePath;
-                  }
-                  const firstAddFileToChatButton = rowAfterFileActions instanceof HTMLElement
-                    ? rowAfterFileActions.querySelector('[data-testid="git-file-add-chat"]')
-                    : null;
-                  if (firstStageableFilePath.length > 0 && firstAddFileToChatButton instanceof HTMLButtonElement && !firstAddFileToChatButton.disabled) {
-                    firstAddFileToChatButton.click();
-                    await sleep(180);
-                    const gitStatusAfterFileAddChat = document.querySelector('[data-testid="git-action-status"]');
-                    const composerAfterGitFileAdd = document.querySelector('[data-testid="composer-shell"]');
-                    const firstStageableFileName = firstStageableFilePath.split(/[\\/]/).at(-1) ?? firstStageableFilePath;
-                    workbenchNewTabGitFileAddToChatWorks =
-                      gitStatusAfterFileAddChat instanceof HTMLElement &&
-                      gitStatusAfterFileAddChat.getAttribute('role') === 'status' &&
-                      gitStatusAfterFileAddChat.getAttribute('aria-live') === 'polite' &&
-                      gitStatusAfterFileAddChat.getAttribute('aria-atomic') === 'true' &&
-                      gitStatusAfterFileAddChat.textContent?.includes('Added ' + firstStageableFileName + ' to chat') === true &&
-                      composerAfterGitFileAdd instanceof HTMLElement &&
-                      composerAfterGitFileAdd.getAttribute('data-composer-attachment-status') === 'Attached ' + firstStageableFileName &&
-                      [...document.querySelectorAll('.attachment-pill')]
-                        .some((attachment) => attachment.textContent?.includes(firstStageableFileName));
-                  }
-                  const firstInsertFilePathTerminalButton = rowAfterFileActions instanceof HTMLElement
-                    ? rowAfterFileActions.querySelector('[data-testid="git-file-insert-terminal"]')
-                    : null;
-                  if (firstStageableFilePath.length > 0 && firstInsertFilePathTerminalButton instanceof HTMLButtonElement && !firstInsertFilePathTerminalButton.disabled) {
-                    firstInsertFilePathTerminalButton.click();
-                    for (let attempt = 0; attempt < 24; attempt += 1) {
-                      await sleep(100);
-                      const gitStatusAfterFileTerminal = document.querySelector('[data-testid="git-action-status"]');
-                      const terminalId = window.__orchestratorLastGitFileTerminalIdForSmoke ?? '';
-                      const terminalPath = window.__orchestratorLastGitFileTerminalPathForSmoke ?? '';
-                      const terminalBuffer = terminalId
-                        ? await window.api?.terminal?.getBuffer?.(terminalId).catch(() => '') ?? ''
-                        : '';
-                      if (
-                        gitStatusAfterFileTerminal instanceof HTMLElement &&
-                        gitStatusAfterFileTerminal.textContent?.includes('File path inserted in terminal') === true &&
-                        terminalPath === firstStageableFilePath &&
-                        terminalBuffer.includes(firstStageableFilePath)
-                      ) {
-                        break;
-                      }
-                    }
-                    const gitStatusAfterFileTerminal = document.querySelector('[data-testid="git-action-status"]');
-                    const terminalId = window.__orchestratorLastGitFileTerminalIdForSmoke ?? '';
-                    const terminalPath = window.__orchestratorLastGitFileTerminalPathForSmoke ?? '';
-                    const terminalBuffer = terminalId
-                      ? await window.api?.terminal?.getBuffer?.(terminalId).catch(() => '') ?? ''
-                      : '';
-                    const bottomPanelAfterFileTerminal = document.querySelector('[data-testid="session-bottom-panel"]');
-                    workbenchNewTabGitFileInsertTerminalWorks =
-                      gitStatusAfterFileTerminal instanceof HTMLElement &&
-                      gitStatusAfterFileTerminal.getAttribute('role') === 'status' &&
-                      gitStatusAfterFileTerminal.getAttribute('aria-live') === 'polite' &&
-                      gitStatusAfterFileTerminal.textContent?.includes('File path inserted in terminal') === true &&
-                      terminalPath === firstStageableFilePath &&
-                      terminalBuffer.includes(firstStageableFilePath) &&
-                      bottomPanelAfterFileTerminal instanceof HTMLElement &&
-                      bottomPanelAfterFileTerminal.getAttribute('data-bottom-panel-active-terminal-id') === terminalId;
-                    document.querySelector('[aria-label="Hide bottom panel"]')?.click();
-                    await sleep(120);
-                  }
-                  const firstOpenWorkbenchButton = rowAfterFileActions instanceof HTMLElement
-                    ? rowAfterFileActions.querySelector('[data-testid="git-file-open-workbench"]')
-                    : null;
-                  if (firstStageableFilePath.length > 0 && firstOpenWorkbenchButton instanceof HTMLButtonElement && !firstOpenWorkbenchButton.disabled) {
-                    firstOpenWorkbenchButton.click();
-                    for (let attempt = 0; attempt < 16; attempt += 1) {
-                      await sleep(100);
-                      const gitOpenedFileTab = document.querySelector('[data-testid="workbench-file-tab"]');
-                      if (
-                        gitOpenedFileTab instanceof HTMLElement &&
-                        gitOpenedFileTab.getAttribute('data-file-tab-path') === firstStageableFilePath
-                      ) {
-                        break;
-                      }
-                    }
-                    const gitOpenedFileTab = document.querySelector('[data-testid="workbench-file-tab"]');
-                    workbenchNewTabGitFileOpenWorkbenchWorks =
-                      gitOpenedFileTab instanceof HTMLElement &&
-                      gitOpenedFileTab.getAttribute('data-file-tab-path') === firstStageableFilePath;
-                    const gitTabAfterFileOpen = document.querySelector('[data-testid="workbench-panel-tabbar"] [role="tab"][data-tab-id="git"]');
-                    if (gitTabAfterFileOpen instanceof HTMLElement) {
-                      gitTabAfterFileOpen.click();
-                      for (let attempt = 0; attempt < 16; attempt += 1) {
-                        await sleep(100);
-                        const gitPanelAfterFileOpenReturn = document.querySelector('[data-testid="git-panel"]');
-                        if (
-                          gitPanelAfterFileOpenReturn instanceof HTMLElement &&
-                          document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-active-tab') === 'git' &&
-                          gitPanelAfterFileOpenReturn.getAttribute('data-git-action-state') === 'idle'
-                        ) {
-                          break;
-                        }
-                      }
-                    }
-                  }
-                  const rowAfterFileWorkbenchOpen = [...document.querySelectorAll('[data-testid="git-file-row"]')]
-                    .find((row) => row instanceof HTMLElement && row.getAttribute('data-git-file-path') === firstStageableFilePath);
-                  const rowForFileDiscard = rowAfterFileWorkbenchOpen instanceof HTMLElement ? rowAfterFileWorkbenchOpen : rowAfterFileActions;
-                  const firstDiscardFileButton = rowForFileDiscard instanceof HTMLElement
-                    ? rowForFileDiscard.querySelector('[data-testid="git-file-discard"]')
-                    : null;
-                  if (firstStageableFilePath.length > 0 && firstDiscardFileButton instanceof HTMLButtonElement && !firstDiscardFileButton.disabled) {
-                    firstDiscardFileButton.click();
-                    await sleep(120);
-                    const fileDiscardDialog = document.querySelector('[data-testid="git-discard-confirm-dialog"]');
-                    const fileDiscardCancel = document.querySelector('[data-testid="git-discard-confirm-cancel"]');
-                    const fileDiscardConfirm = document.querySelector('[data-testid="git-discard-confirm-submit"]');
-                    const gitFileDiscardDialogWorks =
-                      fileDiscardDialog instanceof HTMLElement &&
-                      fileDiscardDialog.textContent?.includes('Discard changes?') === true &&
-                      fileDiscardDialog.textContent?.includes(firstStageableFilePath) === true &&
-                      fileDiscardCancel instanceof HTMLButtonElement &&
-                      fileDiscardConfirm instanceof HTMLButtonElement &&
-                      fileDiscardConfirm.textContent?.includes('Discard') === true;
-                    if (fileDiscardCancel instanceof HTMLButtonElement) {
-                      fileDiscardCancel.click();
-                      await sleep(120);
-                      const gitPanelAfterFileDiscardCancel = document.querySelector('[data-testid="git-panel"]');
-                      const rowAfterFileDiscardCancel = [...document.querySelectorAll('[data-testid="git-file-row"]')]
-                        .find((row) => row instanceof HTMLElement && row.getAttribute('data-git-file-path') === firstStageableFilePath);
-                      workbenchNewTabGitFileDiscardWorks =
-                        gitFileDiscardDialogWorks &&
-                        document.querySelector('[data-testid="git-discard-confirm-dialog"]') === null &&
-                        gitPanelAfterFileDiscardCancel instanceof HTMLElement &&
-                        Number(gitPanelAfterFileDiscardCancel.getAttribute('data-git-change-count') ?? '-1') === gitChangeCountBefore &&
-                        rowAfterFileDiscardCancel instanceof HTMLElement &&
-                        rowAfterFileDiscardCancel.getAttribute('data-git-file-staged') === 'false' &&
-                        rowAfterFileDiscardCancel.getAttribute('data-git-file-unstaged') === 'true';
-                    }
-                  }
-                  const smokeBranchName = 'orchestrator/git-smoke-' + Date.now();
-                  const gitBranchInput = document.querySelector('[data-testid="git-branch-name"]');
-                  const gitCreateBranch = document.querySelector('[data-testid="git-create-branch"]');
-                  if (gitBranchInput instanceof HTMLInputElement && gitCreateBranch instanceof HTMLButtonElement) {
-                    const branchSetter = Object.getOwnPropertyDescriptor(gitBranchInput.constructor.prototype, 'value')?.set;
-                    branchSetter?.call(gitBranchInput, smokeBranchName);
-                    gitBranchInput.dispatchEvent(new Event('input', { bubbles: true }));
-                    await sleep(120);
-                    if (!gitCreateBranch.disabled) {
-                      gitCreateBranch.click();
-                      for (let attempt = 0; attempt < 24; attempt += 1) {
-                        await sleep(120);
-                        const gitPanelAfterBranch = document.querySelector('[data-testid="git-panel"]');
-                        const gitBranchAfterCreate = document.querySelector('[data-testid="git-current-branch"]');
-                        const gitStatusAfterBranch = document.querySelector('[data-testid="git-action-status"]');
-                        if (
-                          gitPanelAfterBranch instanceof HTMLElement &&
-                          gitPanelAfterBranch.getAttribute('data-git-action-state') === 'idle' &&
-                          gitPanelAfterBranch.getAttribute('data-git-last-created-branch') === smokeBranchName &&
-                          gitBranchAfterCreate instanceof HTMLElement &&
-                          gitBranchAfterCreate.getAttribute('data-git-current-branch') === smokeBranchName &&
-                          gitStatusAfterBranch instanceof HTMLElement &&
-                          gitStatusAfterBranch.textContent?.includes('Created branch') === true
-                        ) {
-                          break;
-                        }
-                      }
-                    }
-                  }
-                  const gitPanelAfterBranch = document.querySelector('[data-testid="git-panel"]');
-                  const gitBranchAfterCreate = document.querySelector('[data-testid="git-current-branch"]');
-                  const gitStatusAfterBranch = document.querySelector('[data-testid="git-action-status"]');
-                  workbenchNewTabGitBranchWorks =
-                    gitPanelAfterBranch instanceof HTMLElement &&
-                    gitPanelAfterBranch.getAttribute('data-git-last-created-branch') === smokeBranchName &&
-                    gitBranchAfterCreate instanceof HTMLElement &&
-                    gitBranchAfterCreate.getAttribute('data-git-current-branch') === smokeBranchName &&
-                    gitStatusAfterBranch instanceof HTMLElement &&
-                    gitStatusAfterBranch.getAttribute('role') === 'status' &&
-                    gitStatusAfterBranch.textContent?.includes('Created branch') === true;
-                  const gitPrCard = document.querySelector('[data-testid="git-pr-card"]');
-                  const gitPrCommandInput = document.querySelector('[data-testid="git-pr-command"]');
-                  const gitOpenCreatePr = document.querySelector('[data-testid="git-open-create-pr"]');
-                  const gitCreatePr = document.querySelector('[data-testid="git-create-pr"]');
-                  const gitCopyPrCommand = document.querySelector('[data-testid="git-copy-pr-command"]');
-                  const gitAddPrCommandToChat = document.querySelector('[data-testid="git-add-pr-command-to-chat"]');
-                  if (
-                    workbenchNewTabGitBranchWorks &&
-                    gitPrCard instanceof HTMLElement &&
-                    gitPrCommandInput instanceof HTMLInputElement &&
-                    gitCopyPrCommand instanceof HTMLButtonElement &&
-                    !gitCopyPrCommand.disabled
-                  ) {
-                    gitCopyPrCommand.click();
-                    for (let attempt = 0; attempt < 16; attempt += 1) {
-                      await sleep(100);
-                      const gitStatusAfterPrCommand = document.querySelector('[data-testid="git-action-status"]');
-                      const clipboardText = await window.api.clipboard.readText().catch(() => '');
-                      if (
-                        gitStatusAfterPrCommand instanceof HTMLElement &&
-                        gitStatusAfterPrCommand.textContent?.includes('PR command copied') === true &&
-                        clipboardText.includes('gh pr create') &&
-                        clipboardText.includes(smokeBranchName)
-                      ) {
-                        break;
-                      }
-                    }
-                  }
-                  const gitStatusAfterPrCommand = document.querySelector('[data-testid="git-action-status"]');
-                  const gitPrClipboardText = await window.api.clipboard.readText().catch(() => '');
-                  workbenchNewTabGitPrCommandWorks =
-                    gitPrCard instanceof HTMLElement &&
-                    gitPrCard.getAttribute('data-git-pr-command')?.includes(smokeBranchName) === true &&
-                    gitPrCommandInput instanceof HTMLInputElement &&
-                    gitPrCommandInput.value.includes(smokeBranchName) &&
-                    gitStatusAfterPrCommand instanceof HTMLElement &&
-                    gitStatusAfterPrCommand.getAttribute('role') === 'status' &&
-                    gitStatusAfterPrCommand.textContent?.includes('PR command copied') === true &&
-                    gitPrClipboardText.includes('gh pr create') &&
-                    gitPrClipboardText.includes(smokeBranchName);
-                  for (let attempt = 0; attempt < 24; attempt += 1) {
-                    await sleep(100);
-                    const pendingGitPrCard = document.querySelector('[data-testid="git-pr-card"]');
-                    const pendingPushCommand = pendingGitPrCard instanceof HTMLElement
-                      ? pendingGitPrCard.getAttribute('data-git-pr-push-command') ?? ''
-                      : '';
-                    if (
-                      pendingGitPrCard instanceof HTMLElement &&
-                      pendingGitPrCard.getAttribute('data-git-pr-branch-published') === 'false' &&
-                      pendingPushCommand.includes(smokeBranchName)
-                    ) {
-                      break;
-                    }
-                  }
-                  const gitPrCreateUrl = gitPrCard instanceof HTMLElement
-                    ? gitPrCard.getAttribute('data-git-pr-create-url') ?? ''
-                    : '';
-                  const gitPrPushCommandInput = document.querySelector('[data-testid="git-pr-push-command"]');
-                  const gitCopyPrPushCommand = document.querySelector('[data-testid="git-copy-pr-push-command"]');
-                  const gitPrPushCommand = gitPrCard instanceof HTMLElement
-                    ? gitPrCard.getAttribute('data-git-pr-push-command') ?? ''
-                    : '';
-                  const gitPrPublishStatus = document.querySelector('[data-testid="git-pr-publish-status"]');
-                  workbenchNewTabGitPrCreateUrlWorks =
-                    workbenchNewTabGitPrCommandWorks &&
-                    gitOpenCreatePr instanceof HTMLButtonElement &&
-                    gitOpenCreatePr.disabled &&
-                    gitOpenCreatePr.getAttribute('title') === 'Push branch before opening create PR' &&
-                    gitPrCreateUrl.startsWith('https://github.com/') &&
-                    gitPrCreateUrl.includes('/compare/') &&
-                    gitPrCreateUrl.includes(encodeURIComponent(smokeBranchName)) &&
-                    gitPrCreateUrl.includes('quick_pull=1') &&
-                    gitPrCard instanceof HTMLElement &&
-                    gitPrCard.getAttribute('data-git-pr-branch-published') === 'false' &&
-                    gitPrPublishStatus instanceof HTMLElement &&
-                    gitPrPublishStatus.textContent?.includes('Branch not pushed') === true;
-                  workbenchNewTabGitPrCreateActionWorks =
-                    workbenchNewTabGitPrCreateUrlWorks &&
-                    gitCreatePr instanceof HTMLButtonElement &&
-                    gitCreatePr.disabled &&
-                    gitCreatePr.getAttribute('title') === 'Push branch before creating PR' &&
-                    gitPrCard.getAttribute('data-git-pr-create-state') === 'idle' &&
-                    gitPrCard.getAttribute('data-git-pr-create-result-error') === '';
-                  if (
-                    workbenchNewTabGitPrCommandWorks &&
-                    gitPrPushCommandInput instanceof HTMLInputElement &&
-                    gitCopyPrPushCommand instanceof HTMLButtonElement &&
-                    !gitCopyPrPushCommand.disabled
-                  ) {
-                    gitCopyPrPushCommand.click();
-                    for (let attempt = 0; attempt < 16; attempt += 1) {
-                      await sleep(100);
-                      const gitStatusAfterPushCommand = document.querySelector('[data-testid="git-action-status"]');
-                      const clipboardText = await window.api.clipboard.readText().catch(() => '');
-                      if (
-                        gitStatusAfterPushCommand instanceof HTMLElement &&
-                        gitStatusAfterPushCommand.textContent?.includes('Push command copied') === true &&
-                        clipboardText.includes('git push -u origin') &&
-                        clipboardText.includes(smokeBranchName)
-                      ) {
-                        break;
-                      }
-                    }
-                    const gitStatusAfterPushCommand = document.querySelector('[data-testid="git-action-status"]');
-                    const pushClipboardText = await window.api.clipboard.readText().catch(() => '');
-                    workbenchNewTabGitPrPushCommandWorks =
-                      gitPrPushCommandInput.value === gitPrPushCommand &&
-                      gitPrPushCommand.includes('git push -u origin') &&
-                      gitPrPushCommand.includes(smokeBranchName) &&
-                      gitStatusAfterPushCommand instanceof HTMLElement &&
-                      gitStatusAfterPushCommand.getAttribute('role') === 'status' &&
-                      gitStatusAfterPushCommand.textContent?.includes('Push command copied') === true &&
-                      pushClipboardText.includes('git push -u origin') &&
-                      pushClipboardText.includes(smokeBranchName);
-                  }
-                  if (
-                    workbenchNewTabGitPrCommandWorks &&
-                    gitAddPrCommandToChat instanceof HTMLButtonElement &&
-                    !gitAddPrCommandToChat.disabled
-                  ) {
-                    gitAddPrCommandToChat.click();
-                    await sleep(160);
-                    const gitStatusAfterPrCommandHandoff = document.querySelector('[data-testid="git-action-status"]');
-                    const composerAfterPrCommand = document.querySelector('[data-testid="composer-shell"]');
-                    workbenchNewTabGitPrCommandHandoffWorks =
-                      gitStatusAfterPrCommandHandoff instanceof HTMLElement &&
-                      gitStatusAfterPrCommandHandoff.getAttribute('role') === 'status' &&
-                      gitStatusAfterPrCommandHandoff.getAttribute('aria-live') === 'polite' &&
-                      gitStatusAfterPrCommandHandoff.textContent?.includes('PR command added to chat') === true &&
-                      composerAfterPrCommand instanceof HTMLElement &&
-                      composerAfterPrCommand.textContent?.includes('Use this pull request command:') === true &&
-                      composerAfterPrCommand.textContent?.includes('gh pr create') === true &&
-                      composerAfterPrCommand.textContent?.includes(smokeBranchName) === true;
-                  }
-                  const gitInsertPrCommandTerminalFresh = document.querySelector('[data-testid="git-insert-pr-command-terminal"]');
-                  if (
-                    workbenchNewTabGitPrCommandWorks &&
-                    gitInsertPrCommandTerminalFresh instanceof HTMLButtonElement &&
-                    !gitInsertPrCommandTerminalFresh.disabled
-                  ) {
-                    gitInsertPrCommandTerminalFresh.click();
-                    for (let attempt = 0; attempt < 24; attempt += 1) {
-                      await sleep(100);
-                      const gitStatusAfterPrTerminal = document.querySelector('[data-testid="git-action-status"]');
-                      const terminalId = window.__orchestratorLastGitPrTerminalIdForSmoke ?? '';
-                      const terminalCommand = window.__orchestratorLastGitPrTerminalCommandForSmoke ?? '';
-                      const terminalBuffer = terminalId
-                        ? await window.api?.terminal?.getBuffer?.(terminalId).catch(() => '') ?? ''
-                        : '';
-                      const terminalBufferHasPrCommand =
-                        terminalBuffer.includes('gh pr create') &&
-                        terminalBuffer.includes('--head') &&
-                        terminalBuffer.includes(smokeBranchName.slice(0, 15)) &&
-                        terminalBuffer.includes(smokeBranchName.slice(-16));
-                      if (
-                        gitStatusAfterPrTerminal instanceof HTMLElement &&
-                        gitStatusAfterPrTerminal.textContent?.includes('PR command inserted in terminal') === true &&
-                        terminalCommand.includes('gh pr create') &&
-                        terminalCommand.includes(smokeBranchName) &&
-                        terminalBufferHasPrCommand
-                      ) {
-                        break;
-                      }
-                    }
-                    const gitStatusAfterPrTerminal = document.querySelector('[data-testid="git-action-status"]');
-                    const terminalId = window.__orchestratorLastGitPrTerminalIdForSmoke ?? '';
-                    const terminalCommand = window.__orchestratorLastGitPrTerminalCommandForSmoke ?? '';
-                    const terminalBuffer = terminalId
-                      ? await window.api?.terminal?.getBuffer?.(terminalId).catch(() => '') ?? ''
-                      : '';
-                    const bottomPanelAfterPrTerminal = document.querySelector('[data-testid="session-bottom-panel"]');
-                    const terminalBufferHasPrCommand =
-                      terminalBuffer.includes('gh pr create') &&
-                      terminalBuffer.includes('--head') &&
-                      terminalBuffer.includes(smokeBranchName.slice(0, 15)) &&
-                      terminalBuffer.includes(smokeBranchName.slice(-16));
-                    workbenchNewTabGitPrCommandTerminalDebug = {
-                      statusText: gitStatusAfterPrTerminal instanceof HTMLElement ? gitStatusAfterPrTerminal.textContent : null,
-                      statusRole: gitStatusAfterPrTerminal instanceof HTMLElement ? gitStatusAfterPrTerminal.getAttribute('role') : null,
-                      statusLive: gitStatusAfterPrTerminal instanceof HTMLElement ? gitStatusAfterPrTerminal.getAttribute('aria-live') : null,
-                      terminalId,
-                      terminalCommandPreview: terminalCommand.slice(0, 240),
-                      terminalCommandHasGhPrCreate: terminalCommand.includes('gh pr create'),
-                      terminalCommandHasBranch: terminalCommand.includes(smokeBranchName),
-                      terminalBufferLength: terminalBuffer.length,
-                      terminalBufferPreview: terminalBuffer.slice(-320),
-                      terminalBufferHasGhPrCreate: terminalBuffer.includes('gh pr create'),
-                      terminalBufferHasBranch: terminalBuffer.includes(smokeBranchName),
-                      terminalBufferHasPrCommand,
-                      terminalBufferHasGithubUrl: terminalBuffer.includes('https://github.com/'),
-                      activeTerminalId: bottomPanelAfterPrTerminal instanceof HTMLElement
-                        ? bottomPanelAfterPrTerminal.getAttribute('data-bottom-panel-active-terminal-id')
-                        : null
-                    };
-                    workbenchNewTabGitPrCommandTerminalHandoffWorks =
-                      gitStatusAfterPrTerminal instanceof HTMLElement &&
-                      gitStatusAfterPrTerminal.getAttribute('role') === 'status' &&
-                      gitStatusAfterPrTerminal.getAttribute('aria-live') === 'polite' &&
-                      gitStatusAfterPrTerminal.textContent?.includes('PR command inserted in terminal') === true &&
-                      terminalCommand.includes('gh pr create') &&
-                      terminalCommand.includes(smokeBranchName) &&
-                      terminalBufferHasPrCommand &&
-                      !terminalBuffer.includes('https://github.com/') &&
-                      bottomPanelAfterPrTerminal instanceof HTMLElement &&
-                      bottomPanelAfterPrTerminal.getAttribute('data-bottom-panel-active-terminal-id') === terminalId;
-                    document.querySelector('[aria-label="Hide bottom panel"]')?.click();
-                    await sleep(120);
-                  }
-                  const hostedReviewMetadataForGitSmoke = {
-                    pullRequest: {
-                      number: 77,
-                      title: 'Hosted PR metadata smoke',
-                      url: 'https://github.com/openai/orchestrator/pull/77',
-                      state: 'open',
-                      branch: smokeBranchName,
-                      baseBranch: 'main'
-                    },
-                    checks: {
-                      status: 'passing',
-                      total: 2,
-                      passed: 2
-                    },
-                    reviewers: {
-                      approved: 1,
-                      names: ['Ada']
-                    },
-                    comments: {
-                      total: 1,
-                      unresolved: 0,
-                      threads: 1,
-                      authors: ['Ada'],
-                      url: 'https://github.com/openai/orchestrator/pull/77#discussion_r2'
-                    },
-                    providerWarnings: ['Inline review comments unavailable: GitHub GraphQL smoke warning']
-                  };
-                  const setSessionReviewMetadataForGitSmoke = window.__orchestratorSetSessionReviewMetadataForSmoke;
-                  if (typeof setSessionReviewMetadataForGitSmoke === 'function') {
-                    setSessionReviewMetadataForGitSmoke('active', hostedReviewMetadataForGitSmoke);
-                    for (let attempt = 0; attempt < 20; attempt += 1) {
-                      await sleep(100);
-                      const hostedPrCard = document.querySelector('[data-testid="git-pr-card"]');
-                      const hostedPrView = document.querySelector('[data-testid="git-view-pr"]');
-                      if (
-                        hostedPrCard instanceof HTMLElement &&
-                        hostedPrCard.getAttribute('data-git-pr-metadata-state') === 'loaded' &&
-                        hostedPrCard.getAttribute('data-git-pr-number') === '77' &&
-                        hostedPrView instanceof HTMLButtonElement
-                      ) {
-                        break;
-                      }
-                    }
-                  }
-                  const hostedPrCard = document.querySelector('[data-testid="git-pr-card"]');
-                  const hostedPrView = document.querySelector('[data-testid="git-view-pr"]');
-                  const hostedPrRefresh = document.querySelector('[data-testid="git-refresh-pr-metadata"]');
-                  const hostedPrWarning = document.querySelector('[data-testid="git-pr-metadata-warning"]');
-                  workbenchNewTabGitPrMetadataWorks =
-                    hostedPrCard instanceof HTMLElement &&
-                    hostedPrCard.getAttribute('data-git-pr-metadata-state') === 'loaded' &&
-                    hostedPrCard.getAttribute('data-git-pr-metadata-warnings') === '1' &&
-                    hostedPrCard.getAttribute('data-git-pr-number') === '77' &&
-                    hostedPrCard.textContent?.includes('PR 77') === true &&
-                    hostedPrWarning instanceof HTMLElement &&
-                    hostedPrWarning.getAttribute('role') === 'status' &&
-                    hostedPrWarning.textContent?.includes('Inline review comments unavailable') === true &&
-                    hostedPrView instanceof HTMLButtonElement &&
-                    hostedPrView.getAttribute('title') === 'https://github.com/openai/orchestrator/pull/77' &&
-                    hostedPrRefresh instanceof HTMLButtonElement &&
-                    hostedPrRefresh.getAttribute('aria-label') === 'Refresh pull request metadata';
-                  const gitCheckoutSelect = document.querySelector('[data-testid="git-checkout-branch"]');
-                  const gitCheckoutButton = document.querySelector('[data-testid="git-checkout-branch-action"]');
-                  if (
-                    workbenchNewTabGitBranchWorks &&
-                    initialGitBranchName.length > 0 &&
-                    gitCheckoutSelect instanceof HTMLSelectElement &&
-                    gitCheckoutButton instanceof HTMLButtonElement
-                  ) {
-                    const checkoutSetter = Object.getOwnPropertyDescriptor(gitCheckoutSelect.constructor.prototype, 'value')?.set;
-                    checkoutSetter?.call(gitCheckoutSelect, initialGitBranchName);
-                    gitCheckoutSelect.dispatchEvent(new Event('change', { bubbles: true }));
-                    await sleep(120);
-                    if (!gitCheckoutButton.disabled) {
-                      gitCheckoutButton.click();
-                      for (let attempt = 0; attempt < 24; attempt += 1) {
-                        await sleep(120);
-                        const gitPanelAfterCheckout = document.querySelector('[data-testid="git-panel"]');
-                        const gitBranchAfterCheckout = document.querySelector('[data-testid="git-current-branch"]');
-                        const gitStatusAfterCheckout = document.querySelector('[data-testid="git-action-status"]');
-                        if (
-                          gitPanelAfterCheckout instanceof HTMLElement &&
-                          gitPanelAfterCheckout.getAttribute('data-git-action-state') === 'idle' &&
-                          gitPanelAfterCheckout.getAttribute('data-git-last-checked-out-branch') === initialGitBranchName &&
-                          gitBranchAfterCheckout instanceof HTMLElement &&
-                          gitBranchAfterCheckout.getAttribute('data-git-current-branch') === initialGitBranchName &&
-                          gitStatusAfterCheckout instanceof HTMLElement &&
-                          gitStatusAfterCheckout.textContent?.includes('Checked out') === true
-                        ) {
-                          break;
-                        }
-                      }
-                    }
-                  }
-                  const gitPanelAfterCheckout = document.querySelector('[data-testid="git-panel"]');
-                  const gitBranchAfterCheckout = document.querySelector('[data-testid="git-current-branch"]');
-                  const gitStatusAfterCheckout = document.querySelector('[data-testid="git-action-status"]');
-                  workbenchNewTabGitCheckoutWorks =
-                    gitPanelAfterCheckout instanceof HTMLElement &&
-                    gitPanelAfterCheckout.getAttribute('data-git-last-checked-out-branch') === initialGitBranchName &&
-                    gitBranchAfterCheckout instanceof HTMLElement &&
-                    gitBranchAfterCheckout.getAttribute('data-git-current-branch') === initialGitBranchName &&
-                    gitStatusAfterCheckout instanceof HTMLElement &&
-                    gitStatusAfterCheckout.getAttribute('role') === 'status' &&
-                    gitStatusAfterCheckout.textContent?.includes('Checked out') === true;
-                  const gitDiscardBeforeStage = document.querySelector('[data-testid="git-discard-all"]');
-                  if (gitDiscardBeforeStage instanceof HTMLButtonElement && !gitDiscardBeforeStage.disabled) {
-                    gitDiscardBeforeStage.click();
-                    await sleep(120);
-                    const discardDialog = document.querySelector('[data-testid="git-discard-confirm-dialog"]');
-                    const discardCancel = document.querySelector('[data-testid="git-discard-confirm-cancel"]');
-                    const discardConfirm = document.querySelector('[data-testid="git-discard-confirm-submit"]');
-                    const gitDiscardDialogWorks =
-                      discardDialog instanceof HTMLElement &&
-                      discardDialog.textContent?.includes('Discard changes?') === true &&
-                      discardDialog.textContent?.includes('This removes local changes') === true &&
-                      discardCancel instanceof HTMLButtonElement &&
-                      discardConfirm instanceof HTMLButtonElement &&
-                      discardConfirm.textContent?.includes('Discard') === true;
-                    if (discardCancel instanceof HTMLButtonElement) {
-                      discardCancel.click();
-                      await sleep(120);
-                      const gitPanelAfterDiscardCancel = document.querySelector('[data-testid="git-panel"]');
-                      workbenchNewTabGitDiscardWorks =
-                        gitDiscardDialogWorks &&
-                        document.querySelector('[data-testid="git-discard-confirm-dialog"]') === null &&
-                        gitPanelAfterDiscardCancel instanceof HTMLElement &&
-                        Number(gitPanelAfterDiscardCancel.getAttribute('data-git-change-count') ?? '0') >= gitChangeCountBefore;
-                    }
-                  }
-                  if (gitStageAll instanceof HTMLButtonElement && !gitStageAll.disabled) {
-                    gitStageAll.click();
-                    for (let attempt = 0; attempt < 20; attempt += 1) {
-                      await sleep(100);
-                      const gitPanelAfterStage = document.querySelector('[data-testid="git-panel"]');
-                      if (
-                        gitPanelAfterStage instanceof HTMLElement &&
-                        gitPanelAfterStage.getAttribute('data-git-action-state') === 'idle' &&
-                        Number(gitPanelAfterStage.getAttribute('data-git-unstaged-count') ?? '-1') === 0 &&
-                        Number(gitPanelAfterStage.getAttribute('data-git-staged-count') ?? '0') >= gitChangeCountBefore
-                      ) {
-                        break;
-                      }
-                    }
-                  }
-                  const gitPanelAfterStage = document.querySelector('[data-testid="git-panel"]');
-                  const gitAfterStageStagedCount = gitPanelAfterStage instanceof HTMLElement
-                    ? Number(gitPanelAfterStage.getAttribute('data-git-staged-count') ?? '0')
-                    : -1;
-                  const gitAfterStageUnstagedCount = gitPanelAfterStage instanceof HTMLElement
-                    ? Number(gitPanelAfterStage.getAttribute('data-git-unstaged-count') ?? '0')
-                    : -1;
-                  const gitUnstageAllAfterStage = document.querySelector('[data-testid="git-unstage-all"]');
-                  if (gitUnstageAllAfterStage instanceof HTMLButtonElement && !gitUnstageAllAfterStage.disabled) {
-                    gitUnstageAllAfterStage.click();
-                    for (let attempt = 0; attempt < 20; attempt += 1) {
-                      await sleep(100);
-                      const gitPanelAfterUnstage = document.querySelector('[data-testid="git-panel"]');
-                      if (
-                        gitPanelAfterUnstage instanceof HTMLElement &&
-                        gitPanelAfterUnstage.getAttribute('data-git-action-state') === 'idle' &&
-                        Number(gitPanelAfterUnstage.getAttribute('data-git-staged-count') ?? '-1') === 0 &&
-                        Number(gitPanelAfterUnstage.getAttribute('data-git-unstaged-count') ?? '0') >= gitChangeCountBefore
-                      ) {
-                        break;
-                      }
-                    }
-                  }
-                  const gitPanelAfterUnstage = document.querySelector('[data-testid="git-panel"]');
-                  const gitAfterUnstageStagedCount = gitPanelAfterUnstage instanceof HTMLElement
-                    ? Number(gitPanelAfterUnstage.getAttribute('data-git-staged-count') ?? '0')
-                    : -1;
-                  const gitAfterUnstageUnstagedCount = gitPanelAfterUnstage instanceof HTMLElement
-                    ? Number(gitPanelAfterUnstage.getAttribute('data-git-unstaged-count') ?? '0')
-                    : -1;
-                  const gitStageAllAfterUnstage = document.querySelector('[data-testid="git-stage-all"]');
-                  if (gitStageAllAfterUnstage instanceof HTMLButtonElement && !gitStageAllAfterUnstage.disabled) {
-                    gitStageAllAfterUnstage.click();
-                    for (let attempt = 0; attempt < 20; attempt += 1) {
-                      await sleep(100);
-                      const gitPanelBeforeCommit = document.querySelector('[data-testid="git-panel"]');
-                      if (
-                        gitPanelBeforeCommit instanceof HTMLElement &&
-                        gitPanelBeforeCommit.getAttribute('data-git-action-state') === 'idle' &&
-                        Number(gitPanelBeforeCommit.getAttribute('data-git-unstaged-count') ?? '-1') === 0 &&
-                        Number(gitPanelBeforeCommit.getAttribute('data-git-staged-count') ?? '0') >= gitChangeCountBefore
-                      ) {
-                        break;
-                      }
-                    }
-                  }
-                  const gitPanelBeforeCommit = document.querySelector('[data-testid="git-panel"]');
-                  const gitBeforeCommitStagedCount = gitPanelBeforeCommit instanceof HTMLElement
-                    ? Number(gitPanelBeforeCommit.getAttribute('data-git-staged-count') ?? '0')
-                    : -1;
-                  const gitAddCommitDraftToChat = document.querySelector('[data-testid="git-add-commit-draft-to-chat"]');
-                  if (
-                    gitPanelBeforeCommit instanceof HTMLElement &&
-                    gitAddCommitDraftToChat instanceof HTMLButtonElement &&
-                    !gitAddCommitDraftToChat.disabled &&
-                    gitBeforeCommitStagedCount >= gitChangeCountBefore
-                  ) {
-                    gitAddCommitDraftToChat.click();
-                    await sleep(160);
-                    const gitStatusAfterCommitDraft = document.querySelector('[data-testid="git-action-status"]');
-                    const composerAfterCommitDraft = document.querySelector('[data-testid="composer-shell"]');
-                    const commitDraftText = window.__orchestratorLastGitCommitDraftForSmoke ?? '';
-                    workbenchNewTabGitCommitDraftHandoffWorks =
-                      gitStatusAfterCommitDraft instanceof HTMLElement &&
-                      gitStatusAfterCommitDraft.getAttribute('role') === 'status' &&
-                      gitStatusAfterCommitDraft.getAttribute('aria-live') === 'polite' &&
-                      gitStatusAfterCommitDraft.textContent?.includes('Commit draft request added to chat') === true &&
-                      composerAfterCommitDraft instanceof HTMLElement &&
-                      composerAfterCommitDraft.textContent?.includes('Draft a concise commit message for these staged changes:') === true &&
-                      composerAfterCommitDraft.textContent?.includes(initialGitBranchName) === true &&
-                      commitDraftText.includes('Draft a concise commit message for these staged changes:') &&
-                      commitDraftText.includes('Branch: ' + initialGitBranchName) &&
-                      commitDraftText.includes('Staged files:') &&
-                      commitDraftText.includes('data-preview-smoke.json');
-                  }
-                  const gitCommitMessage = document.querySelector('[data-testid="git-commit-message"]');
-                  const gitCommitButton = document.querySelector('[data-testid="git-commit-staged"]');
-                  if (
-                    gitPanelBeforeCommit instanceof HTMLElement &&
-                    gitCommitMessage instanceof HTMLInputElement &&
-                    gitCommitButton instanceof HTMLButtonElement &&
-                    gitBeforeCommitStagedCount >= gitChangeCountBefore
-                  ) {
-                    const setter = Object.getOwnPropertyDescriptor(gitCommitMessage.constructor.prototype, 'value')?.set;
-                    setter?.call(gitCommitMessage, 'Git tab smoke commit ' + Date.now());
-                    gitCommitMessage.dispatchEvent(new Event('input', { bubbles: true }));
-                    await sleep(120);
-                    if (!gitCommitButton.disabled) {
-                      gitCommitButton.click();
-                      for (let attempt = 0; attempt < 30; attempt += 1) {
-                        await sleep(120);
-                        const gitPanelAfterCommit = document.querySelector('[data-testid="git-panel"]');
-                        const gitStatusAfterCommit = document.querySelector('[data-testid="git-action-status"]');
-                        if (
-                          gitPanelAfterCommit instanceof HTMLElement &&
-                          gitPanelAfterCommit.getAttribute('data-git-action-state') === 'idle' &&
-                          Number(gitPanelAfterCommit.getAttribute('data-git-change-count') ?? '-1') === 0 &&
-                          gitPanelAfterCommit.getAttribute('data-git-last-commit') &&
-                          gitStatusAfterCommit instanceof HTMLElement &&
-                          gitStatusAfterCommit.textContent?.includes('Committed') === true
-                        ) {
-                          break;
-                        }
-                      }
-                    }
-                  }
-                  const gitPanelAfterCommit = document.querySelector('[data-testid="git-panel"]');
-                  const gitStatusAfterCommit = document.querySelector('[data-testid="git-action-status"]');
-                  workbenchNewTabGitCommitWorks =
-                    gitPanelAfterCommit instanceof HTMLElement &&
-                    Number(gitPanelAfterCommit.getAttribute('data-git-change-count') ?? '-1') === 0 &&
-                    (gitPanelAfterCommit.getAttribute('data-git-last-commit') ?? '').length > 0 &&
-                    gitStatusAfterCommit instanceof HTMLElement &&
-                    gitStatusAfterCommit.getAttribute('role') === 'status' &&
-                    gitStatusAfterCommit.textContent?.includes('Committed') === true;
-                  workbenchNewTabGitActionWorks =
-                    workbenchNewTabGitFileActionsWorks &&
-                    workbenchNewTabGitFileCopyPathWorks &&
-                    workbenchNewTabGitFileAddToChatWorks &&
-                    workbenchNewTabGitFileInsertTerminalWorks &&
-                    workbenchNewTabGitFileOpenWorkbenchWorks &&
-                    workbenchNewTabGitFileDiscardWorks &&
-                    workbenchNewTabGitBranchWorks &&
-                    workbenchNewTabGitCheckoutWorks &&
-                    workbenchNewTabGitPrCommandWorks &&
-                    workbenchNewTabGitPrCreateUrlWorks &&
-                    workbenchNewTabGitPrPushCommandWorks &&
-                    workbenchNewTabGitPrCreateActionWorks &&
-                    workbenchNewTabGitPrMetadataWorks &&
-                    workbenchNewTabGitPrCommandHandoffWorks &&
-                    workbenchNewTabGitPrCommandTerminalHandoffWorks &&
-                    workbenchNewTabGitRefreshStatusWorks &&
-                    workbenchNewTabGitStatusHandoffWorks &&
-                    workbenchNewTabGitCommitDraftHandoffWorks &&
-                    workbenchNewTabGitCommitWorks &&
-                    workbenchNewTabGitDiscardWorks;
-                  const newTabAfterGit = document.querySelector('[data-testid="workbench-panel-tabbar"] [role="tab"][data-tab-id="new-tab"]');
-                  if (newTabAfterGit instanceof HTMLElement) {
-                    newTabAfterGit.click();
-                    await sleep(140);
-                    const reopenedGitAction = document.querySelector('[data-testid="workbench-new-tab-action-git"]');
-                    const tabsBeforeGitReselect = document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-tabs') ?? '';
-                    if (reopenedGitAction instanceof HTMLButtonElement) {
-                      reopenedGitAction.click();
-                      await sleep(160);
-                      const tabsAfterGitReselect = document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-tabs') ?? '';
-                      workbenchNewTabSingletonSwitchWorks =
-                        reopenedGitAction.disabled === false &&
-                        reopenedGitAction.getAttribute('data-workbench-new-tab-action-state') === 'open' &&
-                        reopenedGitAction.textContent?.includes('Open') === true &&
-                        document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-active-tab') === 'git' &&
-                        tabsBeforeGitReselect.split(',').filter((tab) => tab === 'git').length === 1 &&
-                        tabsAfterGitReselect.split(',').filter((tab) => tab === 'git').length === 1;
-                    } else if (openedGitFromContext) {
-                      workbenchNewTabSingletonSwitchWorks =
-                        tabsBeforeGitReselect.split(',').filter((tab) => tab === 'git').length === 1;
-                    }
-                    const newTabAfterGitReselect = document.querySelector('[data-testid="workbench-panel-tabbar"] [role="tab"][data-tab-id="new-tab"]');
-                    if (newTabAfterGitReselect instanceof HTMLElement) {
-                      newTabAfterGitReselect.click();
-                      await sleep(120);
-                    }
-                  }
-                }
-                }
-                const agentsAction = document.querySelector('[data-testid="workbench-new-tab-action-agents"]');
+	                  workbenchNewTabGitCommitWorks = workbenchNewTabGitRetiredWorks;
+	                  workbenchNewTabGitDiscardWorks = workbenchNewTabGitRetiredWorks;
+	                }
+	                }
+	                const agentsAction = document.querySelector('[data-testid="workbench-new-tab-action-agents"]');
                 if (agentsAction instanceof HTMLButtonElement) {
                   agentsAction.click();
                   await sleep(180);
@@ -11704,9 +10856,9 @@ function runAutomatedFocusedSurfaceSmoke(
                     rightPanel.dataset.rightPanelTabs?.includes('new-tab') === true &&
                     Number(rightPanel.dataset.rightPanelWidth ?? '0') >= 360,
                   rightPanelShellOwnershipWorks,
-                  workbenchPanelNewTabPageWorks,
+                  workbenchPanelNewTabPageWorks: workbenchNewTabPageWorks,
                   workbenchNewTabVisualWorks:
-                    workbenchPanelNewTabPageWorks &&
+                    workbenchNewTabPageWorks &&
                     panelRect !== null &&
                     gridRect !== null &&
                     panelRect.width >= 280 &&
@@ -11782,148 +10934,6 @@ function runAutomatedFocusedSurfaceSmoke(
                     rightPanelRect !== null &&
                     newTabPanel instanceof HTMLElement &&
                     newTabPanel.scrollWidth <= Math.ceil(rightPanelRect.width) + 2
-                };
-              }
-              if (smokeView === 'git-panel') {
-                await openPanelTab('git', 'Git');
-                for (let attempt = 0; attempt < 16; attempt += 1) {
-                  const gitPanel = document.querySelector('[data-testid="git-panel"]');
-                  const activeRightTab = document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-active-tab') ?? '';
-                  if (
-                    gitPanel instanceof HTMLElement &&
-                    activeRightTab === 'git' &&
-                    Number(gitPanel.getAttribute('data-git-change-count') ?? '0') >= 3 &&
-                    gitPanel.getAttribute('data-git-action-state') === 'idle'
-                  ) {
-                    break;
-                  }
-                  await sleep(100);
-                }
-                let gitPanel = document.querySelector('[data-testid="git-panel"]');
-                if (!(gitPanel instanceof HTMLElement)) {
-                  await openPanelTab('environment', 'Environment');
-                  for (let attempt = 0; attempt < 12; attempt += 1) {
-                    const environmentPanel = document.querySelector('[data-testid="codex-environment-panel"]');
-                    if (environmentPanel instanceof HTMLElement) break;
-                    await sleep(100);
-                  }
-                  const environmentBranchRow = document.querySelector('[data-testid="codex-environment-branch"]');
-                  if (environmentBranchRow instanceof HTMLButtonElement) {
-                    environmentBranchRow.click();
-                    await sleep(180);
-                  }
-                  for (let attempt = 0; attempt < 16; attempt += 1) {
-                    gitPanel = document.querySelector('[data-testid="git-panel"]');
-                    if (gitPanel instanceof HTMLElement) break;
-                    await sleep(100);
-                  }
-                }
-                const bottomPanelToggle = document.querySelector('[data-testid="titlebar-toggle-terminal"]') ?? findButton('Toggle bottom panel') ?? findButton('Toggle terminal');
-                const existingBottomPanel = document.querySelector('[data-testid="session-bottom-panel"]');
-                if (!(existingBottomPanel instanceof HTMLElement) && bottomPanelToggle instanceof HTMLElement) {
-                  bottomPanelToggle.click();
-                  for (let attempt = 0; attempt < 16; attempt += 1) {
-                    if (document.querySelector('[data-testid="session-bottom-panel"]') instanceof HTMLElement) break;
-                    await sleep(100);
-                  }
-                }
-                const bottomPanelForGitCapture = document.querySelector('[data-testid="session-bottom-panel"]');
-                const resizeHandleForGitCapture = document.querySelector('[data-app-shell-resize-handle="true"][data-app-shell-resize-edge="top"]');
-                if (bottomPanelForGitCapture instanceof HTMLElement && resizeHandleForGitCapture instanceof HTMLElement) {
-                  const captureResizeRect = resizeHandleForGitCapture.getBoundingClientRect();
-                  const captureStartX = captureResizeRect.left + captureResizeRect.width / 2;
-                  const captureStartY = captureResizeRect.top + captureResizeRect.height / 2;
-                  resizeHandleForGitCapture.dispatchEvent(new PointerEvent('pointerdown', {
-                    bubbles: true,
-                    cancelable: true,
-                    pointerId: 89,
-                    pointerType: 'mouse',
-                    clientX: captureStartX,
-                    clientY: captureStartY
-                  }));
-                  window.dispatchEvent(new PointerEvent('pointermove', {
-                    bubbles: true,
-                    cancelable: true,
-                    pointerId: 89,
-                    pointerType: 'mouse',
-                    clientX: captureStartX,
-                    clientY: captureStartY - 140
-                  }));
-                  window.dispatchEvent(new PointerEvent('pointerup', {
-                    bubbles: true,
-                    cancelable: true,
-                    pointerId: 89,
-                    pointerType: 'mouse',
-                    clientX: captureStartX,
-                    clientY: captureStartY - 140
-                  }));
-                  await sleep(240);
-                }
-                const rightPanelForGitCapture = document.querySelector('[data-testid="session-right-panel"]');
-                const activeGitTab = document.querySelector('[data-app-shell-tab-controller="right"][role="tab"][data-tab-id="git"][data-active="true"]');
-                const gitPanelForCapture = document.querySelector('[data-testid="git-panel"]');
-                const gitSummaryCard = document.querySelector('[data-testid="git-summary-card"]');
-                const gitCommitCard = document.querySelector('[data-testid="git-commit-card"]');
-                const gitFileListCard = document.querySelector('[data-testid="git-file-list-card"]');
-                const gitFileRows = gitPanelForCapture instanceof HTMLElement
-                  ? [...gitPanelForCapture.querySelectorAll('[data-testid="git-file-row"]')]
-                  : [];
-                const gitEnvironmentRows = gitPanelForCapture instanceof HTMLElement
-                  ? [...gitPanelForCapture.querySelectorAll('.environment-row')]
-                  : [];
-                const gitStageAllButton = document.querySelector('[data-testid="git-stage-all"]');
-                const disabledGitButtons = gitPanelForCapture instanceof HTMLElement
-                  ? [...gitPanelForCapture.querySelectorAll('.motion-button:disabled')]
-                  : [];
-                const activeGitPrimaryBackground = gitStageAllButton instanceof HTMLElement
-                  ? getComputedStyle(gitStageAllButton).backgroundColor
-                  : '';
-                const gitPanelRect = gitPanelForCapture instanceof HTMLElement ? gitPanelForCapture.getBoundingClientRect() : null;
-                const rightPanelRect = rightPanelForGitCapture instanceof HTMLElement ? rightPanelForGitCapture.getBoundingClientRect() : null;
-                const bottomPanelForFinalGitCapture = document.querySelector('[data-testid="session-bottom-panel"]');
-                return {
-                  profile,
-                  hasRightPanelState: rightPanelForGitCapture instanceof HTMLElement &&
-                    rightPanelForGitCapture.dataset.rightPanelTabs?.includes('git') === true &&
-                    Number(rightPanelForGitCapture.dataset.rightPanelWidth ?? '0') >= 360,
-                  rightPanelShellOwnershipWorks,
-                  gitPanelVisualWorks:
-                    gitPanelForCapture instanceof HTMLElement &&
-                    gitSummaryCard instanceof HTMLElement &&
-                    gitCommitCard instanceof HTMLElement &&
-                    gitFileListCard instanceof HTMLElement &&
-                    gitPanelRect !== null &&
-                    gitPanelRect.width >= 280 &&
-                    gitPanelRect.height >= 240,
-                  gitPanelExplicitDestinationWorks:
-                    rightPanelForGitCapture instanceof HTMLElement &&
-                    rightPanelForGitCapture.getAttribute('data-right-panel-active-tab') === 'git' &&
-                    activeGitTab instanceof HTMLElement,
-                  gitPanelBottomPressureWorks:
-                    rightPanelForGitCapture instanceof HTMLElement &&
-                    rightPanelForGitCapture.getAttribute('data-right-panel-bottom-panel-open') === 'true' &&
-                    rightPanelForGitCapture.getAttribute('data-right-panel-bottom-panel-expanded') === 'true' &&
-                    Number(rightPanelForGitCapture.getAttribute('data-right-panel-bottom-panel-height') ?? '0') >= 260 &&
-                    bottomPanelForFinalGitCapture instanceof HTMLElement &&
-                    Number(bottomPanelForFinalGitCapture.getAttribute('data-bottom-panel-height') ?? '0') >= 260,
-                  gitPanelCompactRowsWorks:
-                    gitFileRows.length >= 3 &&
-                    gitFileRows.every((row) => row instanceof HTMLElement && row.getBoundingClientRect().height <= 34) &&
-                    gitEnvironmentRows.length >= 3 &&
-                    gitEnvironmentRows.every((row) => row instanceof HTMLElement && row.getBoundingClientRect().height <= 30),
-                  gitPanelDisabledActionsQuietWorks:
-                    disabledGitButtons.length >= 2 &&
-                    disabledGitButtons.every((button) => {
-                      if (!(button instanceof HTMLElement)) return false;
-                      const style = getComputedStyle(button);
-                      return style.opacity === '1' &&
-                        style.boxShadow === 'none' &&
-                        style.backgroundColor !== activeGitPrimaryBackground;
-                    }),
-                  gitPanelNoHorizontalOverflow:
-                    rightPanelRect !== null &&
-                    gitPanelForCapture instanceof HTMLElement &&
-                    gitPanelForCapture.scrollWidth <= Math.ceil(rightPanelRect.width) + 2
                 };
               }
               if (smokeView === 'environment') {
@@ -12244,7 +11254,7 @@ function runAutomatedFocusedSurfaceSmoke(
               const tabbar = document.querySelector('[data-testid="workbench-panel-tabbar"]');
               const tabRow = document.querySelector('[data-testid="workbench-panel-tab-row"]');
               const tabActions = document.querySelector('[data-testid="workbench-panel-tab-actions"]');
-              const addButton = document.querySelector('[data-testid="right-panel-add-tab"]');
+              const rightPanelAddButton = document.querySelector('[data-testid="right-panel-add-tab"]');
               const expandButton = findButton('Expand Workbench');
               const widthBefore = Number(rightPanel?.getAttribute('data-right-panel-width') ?? '0');
               let rightPanelContextMenuWorks = false;
@@ -12430,8 +11440,8 @@ function runAutomatedFocusedSurfaceSmoke(
                     button.getBoundingClientRect().height === 24
                   );
               }
-              if (addButton instanceof HTMLButtonElement) {
-                addButton.click();
+              if (rightPanelAddButton instanceof HTMLButtonElement) {
+                rightPanelAddButton.click();
                 await sleep(120);
                 const newTabPanel = document.querySelector('[data-testid="workbench-new-tab-panel"]');
                 const newTabGrid = document.querySelector('[data-testid="workbench-new-tab-action-grid"]');
@@ -13539,9 +12549,9 @@ function runAutomatedFocusedSurfaceSmoke(
                 workbenchPanelTabCloseStartEdgeWorks,
                 workbenchPanelTabCloseStartEdgeDebug,
                 workbenchPanelAddControlStableWorks:
-                  addButton instanceof HTMLButtonElement &&
-                  addButton.dataset.icon === 'plus' &&
-                  addButton.getAttribute('aria-label') === 'Add Workbench tab',
+                  rightPanelAddButton instanceof HTMLButtonElement &&
+                  rightPanelAddButton.dataset.icon === 'plus' &&
+                  rightPanelAddButton.getAttribute('aria-label') === 'Add Workbench tab',
                 workbenchPanelNewTabPageWorks,
                 rightPanelExpandWorks,
                 rightPanelResizeResetWorks,
@@ -22363,8 +21373,21 @@ function runAutomatedFocusedSurfaceSmoke(
             }
 
             return { profile, unsupportedSurface: surface };
-          })()
+          })().catch((error) => ({
+            __smokeError: true,
+            error: error instanceof Error ? error.message : String(error),
+            stack: error instanceof Error ? error.stack : undefined
+          }))
         `)
+        if (result?.__smokeError) {
+          writeFileSync(outputPath, JSON.stringify({
+            ok: false,
+            error: result.error,
+            stack: result.stack
+          }, null, 2))
+          app.quit()
+          return
+        }
         if (screenshotPath) {
           const image = await win.webContents.capturePage()
           writeFileSync(screenshotPath, image.toPNG())

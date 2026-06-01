@@ -4,12 +4,12 @@ import { closePanelTab, DEFAULT_BROWSER_USE_POLICY, filePanelTabId, movePanelTab
 import type { SettingsSectionId } from '../../../types'
 
 export type SettingsSection = SettingsSectionId
-export type RightPanelTabKind = 'new-tab' | 'environment' | 'git' | 'plan' | 'diff' | 'agents' | 'extensions' | 'side' | 'files' | 'browser' | 'file' | 'sidechat' | 'terminal'
+export type RightPanelTabKind = 'new-tab' | 'environment' | 'plan' | 'diff' | 'agents' | 'extensions' | 'side' | 'files' | 'browser' | 'file' | 'sidechat' | 'terminal'
 export type RightPanelTabId = Exclude<RightPanelTabKind, 'file' | 'sidechat' | 'terminal'> | `file:${string}` | `sidechat:${string}` | `terminal:${number}`
 export type BottomPanelTabKind = Exclude<RightPanelTabKind, 'new-tab' | 'terminal'> | 'terminal'
 export type BottomPanelTabId = number | Exclude<RightPanelTabId, 'new-tab' | `terminal:${number}`>
 export type GitFocusTarget = 'branch' | 'commit' | 'pull-request'
-const RETIRED_RIGHT_PANEL_TAB_IDS = new Set<RightPanelTabId>(['git'])
+const RETIRED_RIGHT_PANEL_TAB_IDS = new Set<string>(['git'])
 
 export interface SourceAnnotationState {
   id: string
@@ -1612,7 +1612,6 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 const RIGHT_PANEL_TAB_TITLES: Record<RightPanelTabKind, string> = {
   'new-tab': 'New tab',
   environment: 'Environment',
-  git: 'Git',
   plan: 'Plan',
   diff: 'Review',
   agents: 'Agents',
