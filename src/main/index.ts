@@ -559,7 +559,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
     runAutomatedSidebarSmoke(win, outputPath, screenshotPath)
     return
   }
-  if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-layout') {
+  if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-layout' || process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-edit') {
     runAutomatedTranscriptLayoutSmoke(win, outputPath, screenshotPath)
     return
   }
@@ -28274,6 +28274,7 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
             const userEditActionRowAfterFocus = userEditActionRow instanceof HTMLElement
               ? userEditActionRow.getBoundingClientRect()
               : null;
+            const lastMessageForkBeforeEdit = window.__orchestratorLastMessageForkedSession ?? null;
             const chatUserMessageActionsReserve =
               userEditActionRow instanceof HTMLElement &&
               (userEditActionRowBeforeFocus?.height ?? 0) >= 24 &&
@@ -28299,6 +28300,11 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
               composerTextarea.value.includes('input-fragment-') &&
               editDraftStatus instanceof HTMLElement &&
               editDraftStatus.textContent?.includes('Copied message and attachments into composer draft') === true;
+            const chatUserMessageEditDoesNotFork =
+              userEditButton instanceof HTMLButtonElement &&
+              (window.__orchestratorLastMessageForkedSession ?? null) === lastMessageForkBeforeEdit &&
+              !document.body.innerText.includes('Opening editable fork') &&
+              !document.body.innerText.includes('Forked: Transcript layout smoke');
             const chatUserMessageEditAttachments =
               chatUserMessageEditToDraft &&
               document.querySelector('[data-testid="composer-shell"]')?.textContent?.includes('AGENTS.md') === true;
@@ -28585,6 +28591,7 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
               permissionCardWorks,
               permissionActionsWrap,
               chatUserMessageEditToDraft,
+              chatUserMessageEditDoesNotFork,
               chatUserMessageEditAttachments,
               chatUserMessageEditDraftSourceStatus,
               chatUserMessageEditDraftRestore,
@@ -29651,7 +29658,7 @@ function runAutomatedTranscriptForkSmoke(win: BrowserWindow, outputPath: string,
                       !row.hasAttribute('data-sidebar-provider-pinned') &&
                       !row.hasAttribute('data-sidebar-provider-host-id') &&
                       !row.hasAttribute('data-sidebar-worktree-host-id') &&
-                      row.querySelector('[data-testid="session-pin-toggle"]')?.getAttribute('data-pinned') === 'true' &&
+                      row.querySelector('[data-testid="session-pin-toggle"]')?.getAttribute('data-pinned') === 'false' &&
                       row.querySelector('[data-testid="session-pin-toggle"]')?.getAttribute('data-sidebar-pin-boundary') === 'local',
                     chatMessageForkHoverLineage:
                       hoverCard instanceof HTMLElement &&
@@ -29684,11 +29691,10 @@ function runAutomatedTranscriptForkSmoke(win: BrowserWindow, outputPath: string,
             forkedFromMessage?.providerPinnedThreadKey == null &&
             forkedFromMessage?.providerProjectless !== true &&
             forkedFromMessage?.providerProjectlessThreadId == null,
-          chatMessageForkPreservesLocalPinPlacement:
-            forkedFromMessage?.pinned === true &&
-            typeof forkedFromMessage?.pinOrder === 'number' &&
-            typeof forkSource?.pinOrder === 'number' &&
-            forkedFromMessage.pinOrder > forkSource.pinOrder &&
+          chatMessageForkStartsUnpinnedFromPinnedSource:
+            forkSource?.pinned === true &&
+            forkedFromMessage?.pinned === false &&
+            forkedFromMessage?.pinOrder === undefined &&
             forkedFromMessage.providerPinned !== true,
           chatMessageForkPersistsLineage:
             forkedFromMessage?.forkedFromSessionId === forkSource?.id &&
@@ -32723,6 +32729,7 @@ async function bootstrapAutomatedUiSmokeState(): Promise<void> {
     await seedAutomatedSidebarSmokeSessions(project.id, project.rootPath)
   } else if (
     process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-layout' ||
+    process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-edit' ||
     process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-reserve' ||
     process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-file-reference' ||
     process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-fork'

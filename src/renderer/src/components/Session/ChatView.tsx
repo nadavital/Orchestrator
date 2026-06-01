@@ -238,31 +238,24 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
   const editUserMessageFromHere = useCallback(async (messageId: string, content: string, attachments: Attachment[] = []): Promise<void> => {
     const text = content.trim()
     if (!text && attachments.length === 0) return
-    setTranscriptActionStatus({ text: 'Opening editable fork', tone: 'info' })
-    try {
-      const forked = await window.api.sessions.fork(session.id, 'local', { beforeMessageId: messageId })
-      activateForkedSession(forked, messageId, 'local')
-      window.setTimeout(() => {
-        window.dispatchEvent(new CustomEvent('orchestrator:set-composer-text', {
-          detail: {
-            sessionId: forked.id,
-            text,
-            attachments,
-            source: {
-              kind: 'message-edit-from-here',
-              messageId,
-              attachmentCount: attachments.length
-            }
-          }
-        }))
-        const composer = document.querySelector<HTMLTextAreaElement>('[data-testid="composer-textarea"]')
-        composer?.focus()
-      }, 0)
-    } catch (error) {
-      setTranscriptActionStatus({ text: `Edit failed: ${errorText(error)}`, tone: 'danger' })
-      throw error
-    }
-  }, [activateForkedSession, session.id])
+    setTranscriptActionStatus({ text: 'Copied message and attachments into composer draft', tone: 'info' })
+    window.dispatchEvent(new CustomEvent('orchestrator:set-composer-text', {
+      detail: {
+        sessionId: session.id,
+        text,
+        attachments,
+        source: {
+          kind: 'message-edit-draft',
+          messageId,
+          attachmentCount: attachments.length
+        }
+      }
+    }))
+    window.setTimeout(() => {
+      const composer = document.querySelector<HTMLTextAreaElement>('[data-testid="composer-textarea"]')
+      composer?.focus()
+    }, 0)
+  }, [session.id])
 
   const updateScrollMetrics = useCallback(() => {
     const scroller = scrollContainerRef.current

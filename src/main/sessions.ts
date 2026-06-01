@@ -137,17 +137,6 @@ function cloneMessageForFork(message: ChatMessage): ChatMessage {
   return { ...message }
 }
 
-function pinOrderAfterSource(source: Session, sessions: Session[]): number | undefined {
-  if (source.pinned !== true) return undefined
-  const sourceOrder = typeof source.pinOrder === 'number' ? source.pinOrder : nextPinOrder(sessions)
-  const nextPinnedOrder = sessions
-    .filter((session) => session.id !== source.id && session.pinned === true && typeof session.pinOrder === 'number' && session.pinOrder > sourceOrder)
-    .map((session) => session.pinOrder!)
-    .sort((a, b) => a - b)[0]
-  if (typeof nextPinnedOrder === 'number') return sourceOrder + ((nextPinnedOrder - sourceOrder) / 2)
-  return sourceOrder + 1
-}
-
 function automatedReviewSmokeMetadata(): ReviewMetadata | undefined {
   const view = process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW
   if (!process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT || !(view === 'diff' || view?.startsWith('diff-') || view === 'environment' || view === 'inspector')) return undefined
@@ -968,15 +957,12 @@ export const sessionManager = {
         timestamp: now
       }
     ]
-    const sessions = ensurePinnedOrders(store.get('sessions', []))
-    const forkPinOrder = pinOrderAfterSource(source, sessions)
-
     const forked: Session = {
       ...source,
       id,
       name: `Forked: ${source.name}`,
-      pinned: source.pinned === true,
-      pinOrder: forkPinOrder,
+      pinned: false,
+      pinOrder: undefined,
       projectId: source.projectId,
       workDir,
       useWorktree,

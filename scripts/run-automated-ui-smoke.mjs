@@ -55,6 +55,7 @@ const captureViewOptions = [
   { flag: '--transcript-reserve', view: 'transcript-reserve', surface: 'Transcript', scope: 'Composer reserve and scroll-follow contract' },
   { flag: '--transcript-file-reference', view: 'transcript-file-reference', surface: 'Transcript', scope: 'File-reference cards, Workbench handoff, additional roots' },
   { flag: '--transcript-tool-jump', view: 'transcript-tool-jump', surface: 'Transcript', scope: 'Virtualized tool-group search jump' },
+  { flag: '--transcript-edit', view: 'transcript-edit', surface: 'Transcript', scope: 'User-message edit draft behavior' },
   { flag: '--transcript-layout', view: 'transcript-layout', surface: 'Transcript', scope: 'Main chat layout, message actions, transcript ergonomics' },
   { flag: '--transcript-fork', view: 'transcript-fork', surface: 'Transcript', scope: 'Transcript fork controls' },
   { flag: '--transcript-user-input', view: 'transcript-user-input', surface: 'Transcript', scope: 'User-input request cards' },
@@ -2191,6 +2192,7 @@ child.on('exit', async (code) => {
         permissionCard: result.permissionCardWorks === true,
         permissionActionsWrap: result.permissionActionsWrap === true,
         chatUserMessageEditToDraft: result.chatUserMessageEditToDraft === true,
+        chatUserMessageEditDoesNotFork: result.chatUserMessageEditDoesNotFork === true,
         chatUserMessageEditAttachments: result.chatUserMessageEditAttachments === true,
         chatUserMessageEditDraftSourceStatus: result.chatUserMessageEditDraftSourceStatus === true,
         chatUserMessageEditDraftRestore: result.chatUserMessageEditDraftRestore === true,
@@ -2263,6 +2265,19 @@ child.on('exit', async (code) => {
         transcriptToolGroupStableKey: result.transcriptToolGroupStableKeyWorks === true,
         transcriptToolSearchJump: result.transcriptToolSearchJumpWorks === true
       }
+    : captureView === 'transcript-edit'
+    ? {
+        isolatedProfile: result.profile?.isIsolated === true,
+        transcriptFound: result.transcriptFound === true,
+        chatUserMessageEditToDraft: result.chatUserMessageEditToDraft === true,
+        chatUserMessageEditDoesNotFork: result.chatUserMessageEditDoesNotFork === true,
+        chatUserMessageEditAttachments: result.chatUserMessageEditAttachments === true,
+        chatUserMessageEditDraftSourceStatus: result.chatUserMessageEditDraftSourceStatus === true,
+        chatUserMessageEditDraftRestore: result.chatUserMessageEditDraftRestore === true,
+        chatUserMessageEditDraftClear: result.chatUserMessageEditDraftClear === true,
+        chatUserMessageActionsReserve: result.chatUserMessageActionsReserve === true,
+        chatUserMessageEditIconOnly: result.chatUserMessageEditIconOnly === true
+      }
     : captureView === 'transcript-fork'
     ? {
         isolatedProfile: result.profile?.isIsolated === true,
@@ -2278,7 +2293,7 @@ child.on('exit', async (code) => {
         chatMessageForkTruncatesLaterTurns: result.chatMessageForkTruncatesLaterTurns === true,
         chatMessageForkClearsProviderSession: result.chatMessageForkClearsProviderSession === true,
         chatMessageForkClearsProviderSidebarMetadata: result.chatMessageForkClearsProviderSidebarMetadata === true,
-        chatMessageForkPreservesLocalPinPlacement: result.chatMessageForkPreservesLocalPinPlacement === true,
+        chatMessageForkStartsUnpinnedFromPinnedSource: result.chatMessageForkStartsUnpinnedFromPinnedSource === true,
         chatMessageForkPersistsLineage: result.chatMessageForkPersistsLineage === true,
         chatMessageForkSameWorktreeFromHere: result.chatMessageForkSameWorktreeFromHere === true,
         chatMessageForkNewWorktreeFromHere: result.chatMessageForkNewWorktreeFromHere === true,
