@@ -24,6 +24,16 @@ The app already has good structure, but the visual language is still mostly impl
 - Sidebar, composer, settings, panels, transcript cards, and diff surfaces each solve similar UI problems slightly differently.
 - There is no clear customization model beyond light/dark/system.
 
+## Active Polish Ledger
+
+These are the current product-facing cuts from the Codex-aligned design pass. Keep this list short and evidence-backed; broader design ideas belong in the phase plan below.
+
+| Surface | Issue | Current direction | Evidence |
+| --- | --- | --- | --- |
+| Review toolbar | Diff display controls made the resting toolbar read like a Git tool palette. | Keep source, options, jump, refresh, navigation, and file stage controls visible; move display toggles through Review options while preserving command hooks. | `npm run smoke:ui:auto -- --diff-core`; installed `--diff-entry`; `tmp/side-panel-visual-inventory/review-entry.png` |
+| Bottom panel | Workbench parity was implemented as a permanent row of Plan/Browser/Files/Review/Side chat shortcuts, making the bottom panel feel terminal-heavy and busy at the same time. | Keep parity through one plus menu and contextual terminal actions; tabs remain shared between right and bottom workbench surfaces. | `npm run smoke:ui:auto -- --terminal-visual`; installed `--terminal-visual`; `tmp/side-panel-visual-inventory/terminal-bottom-panel.png` |
+| Git workflow | A full Git tab made source control feel like a separate destination. | Keep Review and Environment as the primary source-control contexts; commit/push stays as a contextual action rather than a persistent tab. | Review and bottom-panel smoke coverage asserts no Git menu item in the bottom opener. |
+
 ## Design Direction: Calm Studio
 
 Calm Studio is the proposed Orchestrator language.

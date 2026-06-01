@@ -2028,6 +2028,10 @@
     color: var(--state-danger);
   }
 
+  .bottom-panel-quick-tab-action {
+    display: none !important;
+  }
+
   [data-testid='session-bottom-panel'] [data-testid='terminal-add-output-to-chat']:disabled,
   [data-testid='session-bottom-panel'] [data-testid='terminal-add-selected-output-to-chat']:disabled,
   [data-testid='session-bottom-panel'] [data-testid='terminal-add-command-output-to-chat']:disabled,
@@ -3778,7 +3782,8 @@
     padding: 0;
   }
 
-  .review-secondary-toolbar-action {
+  .review-secondary-toolbar-action,
+  .review-toolbar-menu-action {
     display: none !important;
   }
 

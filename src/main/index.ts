@@ -8291,9 +8291,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             reviewToolbarActionStrip instanceof HTMLElement &&
             reviewToolbarActionStrip.getAttribute('data-review-toolbar-cluster') === 'primary' &&
             reviewToolbarExpectedLabels.every((label, index) => reviewToolbarPrimaryLabels[index] === label) &&
-            reviewToolbarVisibleLabels.some((label) => label.includes('word wrap')) &&
-            reviewToolbarVisibleLabels.some((label) => label.includes('diffs')) &&
-            reviewToolbarVisibleLabels.some((label) => label.includes('diff')) &&
+            !reviewToolbarVisibleLabels.some((label) => label.includes('word wrap')) &&
+            !reviewToolbarVisibleLabels.includes('Collapse all diffs') &&
+            !reviewToolbarVisibleLabels.includes('Expand all diffs') &&
+            !reviewToolbarVisibleLabels.some((label) => label.includes('Switch to')) &&
             !reviewToolbarVisibleLabels.includes('Change actions');
           const diffToolbarDivider = document.querySelector('[data-testid="diff-panel-toolbar"] .review-toolbar-divider');
           const diffToolbarLegacyChangeActions = document.querySelector('[data-testid="diff-panel-toolbar"] button[aria-label="Change actions"]');
@@ -15296,9 +15297,10 @@ function runAutomatedFocusedSurfaceSmoke(
                   coreReviewToolbarActionStrip instanceof HTMLElement &&
                   coreReviewToolbarActionStrip.getAttribute('data-review-toolbar-cluster') === 'primary' &&
                   ['Review options', 'Jump to file', 'Refresh'].every((label, index) => coreReviewToolbarVisibleLabels.filter((candidate) => !candidate.startsWith('Start Codex'))[index] === label) &&
-                  coreReviewToolbarVisibleLabels.some((label) => label.includes('word wrap')) &&
-                  coreReviewToolbarVisibleLabels.some((label) => label.includes('diffs')) &&
-                  coreReviewToolbarVisibleLabels.some((label) => label.includes('diff')) &&
+                  !coreReviewToolbarVisibleLabels.some((label) => label.includes('word wrap')) &&
+                  !coreReviewToolbarVisibleLabels.includes('Collapse all diffs') &&
+                  !coreReviewToolbarVisibleLabels.includes('Expand all diffs') &&
+                  !coreReviewToolbarVisibleLabels.some((label) => label.includes('Switch to')) &&
                   !coreReviewToolbarVisibleLabels.includes('Change actions');
                 const reviewToolbarHeaderRowWorks =
                   coreDiffToolbarRect !== null &&
@@ -18306,9 +18308,10 @@ function runAutomatedFocusedSurfaceSmoke(
                 finalReviewToolbarActionStrip instanceof HTMLElement &&
                 finalReviewToolbarActionStrip.getAttribute('data-review-toolbar-cluster') === 'primary' &&
                 ['Review options', 'Jump to file', 'Refresh'].every((label, index) => finalReviewToolbarVisibleLabels.filter((candidate) => !candidate.startsWith('Start Codex'))[index] === label) &&
-                finalReviewToolbarVisibleLabels.some((label) => label.includes('word wrap')) &&
-                finalReviewToolbarVisibleLabels.some((label) => label.includes('diffs')) &&
-                finalReviewToolbarVisibleLabels.some((label) => label.includes('diff')) &&
+                !finalReviewToolbarVisibleLabels.some((label) => label.includes('word wrap')) &&
+                !finalReviewToolbarVisibleLabels.includes('Collapse all diffs') &&
+                !finalReviewToolbarVisibleLabels.includes('Expand all diffs') &&
+                !finalReviewToolbarVisibleLabels.some((label) => label.includes('Switch to')) &&
                 !finalReviewToolbarVisibleLabels.includes('Change actions');
               const reviewToolbarHeaderRowWorks =
                 finalDiffToolbarRect !== null &&

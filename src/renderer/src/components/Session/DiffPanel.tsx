@@ -1556,6 +1556,7 @@ export default function DiffPanel({ sessionId, workDir, embedded = false, focusP
           label={wrapLines ? 'Disable word wrap' : 'Enable word wrap'}
           size="sm"
           variant="toolbar"
+          className="review-toolbar-menu-action"
           active={!wrapLines}
           dataTestId="review-wrap-toggle"
           onClick={() => setWrapLines((value) => !value)}
@@ -1607,6 +1608,7 @@ export default function DiffPanel({ sessionId, workDir, embedded = false, focusP
           label={diffExpanded ? 'Collapse all diffs' : 'Expand all diffs'}
           size="sm"
           variant="toolbar"
+          className="review-toolbar-menu-action"
           active={!diffExpanded}
           dataTestId="review-diff-expand-toggle"
           onClick={toggleDiffExpanded}
@@ -1616,6 +1618,7 @@ export default function DiffPanel({ sessionId, workDir, embedded = false, focusP
           label={diffMode === 'unified' ? 'Switch to split diff' : 'Switch to unified diff'}
           size="sm"
           variant="toolbar"
+          className="review-toolbar-menu-action"
           active={diffMode === 'split'}
           dataTestId="review-diff-mode-toggle"
           onClick={toggleDiffMode}

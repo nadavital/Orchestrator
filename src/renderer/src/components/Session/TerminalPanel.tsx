@@ -475,12 +475,13 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
                       {terminalActionStatus.text}
                     </span>
                   )}
-                  <IconButton icon="terminal" label="New terminal" size="sm" variant="toolbar" onClick={addTab} />
+                  <IconButton icon="terminal" label="New terminal" size="sm" variant="toolbar" className="bottom-panel-quick-tab-action" onClick={addTab} />
                   <IconButton
                     icon="plan"
                     label="Open Plan in bottom panel"
                     size="sm"
                     variant="toolbar"
+                    className="bottom-panel-quick-tab-action"
                     active={activeTab === 'plan'}
                     dataTestId="bottom-panel-open-plan"
                     onClick={openPlanTab}
@@ -490,6 +491,7 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
                     label="Open Browser in bottom panel"
                     size="sm"
                     variant="toolbar"
+                    className="bottom-panel-quick-tab-action"
                     active={activeTab === 'browser'}
                     dataTestId="bottom-panel-open-browser-quick"
                     onClick={() => openBottomWorkbenchTab('browser', 'browser', 'Browser')}
@@ -499,6 +501,7 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
                     label="Open Files in bottom panel"
                     size="sm"
                     variant="toolbar"
+                    className="bottom-panel-quick-tab-action"
                     active={activeTab === 'files'}
                     dataTestId="bottom-panel-open-files-quick"
                     onClick={() => openBottomWorkbenchTab('files', 'files', 'Files')}
@@ -508,6 +511,7 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
                     label="Open Review in bottom panel"
                     size="sm"
                     variant="toolbar"
+                    className="bottom-panel-quick-tab-action"
                     active={activeTab === 'diff'}
                     dataTestId="bottom-panel-open-review-quick"
                     onClick={() => openBottomWorkbenchTab('diff', 'diff', 'Review')}
@@ -517,13 +521,14 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
                     label="Open Side chat in bottom panel"
                     size="sm"
                     variant="toolbar"
+                    className="bottom-panel-quick-tab-action"
                     active={activeTabKind === 'sidechat' || activeTab === 'side'}
                     dataTestId="bottom-panel-open-side-chat-quick"
                     onClick={openSideChatInBottomPanel}
                   />
                   <IconButton
-                    icon="ellipsis"
-                    label="More bottom panel tabs"
+                    icon="plus"
+                    label="Open bottom panel tab"
                     size="sm"
                     variant="toolbar"
                     active={bottomTabMenuOpen}
