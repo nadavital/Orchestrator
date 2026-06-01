@@ -10685,7 +10685,7 @@
   }
 
   .settings-content-layout-subtitle {
-    max-width: 680px;
+    max-width: 560px;
     overflow: visible;
     color: var(--text-secondary);
     font-size: 13px;
@@ -10708,9 +10708,9 @@
   }
 
   .settings-page-section {
-    max-width: 840px;
+    max-width: 740px;
     margin: 0;
-    padding: 34px 42px 64px;
+    padding: 34px 38px 64px;
   }
 
   .settings-content-group {
@@ -10807,7 +10807,7 @@
   }
 
   .settings-content-description {
-    max-width: 660px;
+    max-width: 540px;
     color: var(--text-secondary);
     font-size: 12px;
     line-height: 1.4;
@@ -10887,11 +10887,11 @@
   }
 
   .settings-row {
-    display: flex;
+    display: grid;
+    grid-template-columns: minmax(180px, 1fr) minmax(176px, 300px);
     min-width: 0;
     align-items: center;
-    justify-content: space-between;
-    gap: 18px;
+    gap: 16px;
     min-height: 44px;
     border: 0;
     border-radius: 0;
@@ -10911,6 +10911,7 @@
   }
 
   .settings-row[data-variant='nested'] {
+    grid-template-columns: minmax(0, 1fr) auto;
     border: 0;
     border-radius: 0;
     background: transparent;
@@ -10918,8 +10919,13 @@
     padding: 4px 0;
   }
 
+  .settings-row[data-variant='nested'] .settings-row-control {
+    width: auto;
+  }
+
   .settings-row-copy {
     min-width: 0;
+    max-width: 360px;
   }
 
   .settings-row-label {
@@ -10939,9 +10945,27 @@
   .settings-row-control {
     display: flex;
     min-width: 0;
-    flex-shrink: 0;
+    width: 100%;
     align-items: center;
     justify-content: flex-end;
+  }
+
+  @media (max-width: 760px) {
+    .settings-page-section {
+      max-width: none;
+      padding-right: 18px;
+      padding-left: 18px;
+    }
+
+    .settings-row {
+      grid-template-columns: minmax(0, 1fr);
+      align-items: flex-start;
+      gap: 8px;
+    }
+
+    .settings-row-control {
+      justify-content: flex-start;
+    }
   }
 
   .settings-action-button {
@@ -11042,7 +11066,7 @@
   }
 
   .general-settings-page {
-    max-width: 780px;
+    max-width: 700px;
   }
 
   .general-settings-page .settings-content-layout-body {
@@ -11059,12 +11083,11 @@
   }
 
   .general-settings-row .settings-row-copy {
-    flex: 1 1 auto;
     padding-right: 18px;
   }
 
   .general-settings-row .settings-row-control {
-    flex: 0 0 auto;
+    justify-content: flex-end;
   }
 
   .settings-select {
@@ -12316,19 +12339,29 @@
   }
 
   .provider-settings-shell {
-    max-width: 1080px;
+    max-width: 880px;
     margin: 0;
-    padding: 32px 42px 64px;
+    padding: 32px 38px 64px;
   }
 
   .provider-settings-stack {
-    max-width: 920px;
+    width: min(760px, 100%);
+    max-width: 760px;
+    align-self: flex-start;
     margin: 0;
   }
 
   .provider-settings-content-group,
   .provider-selector-surface,
   .provider-settings-control-surface {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .provider-settings-stack > div {
+    width: 100%;
+    max-width: 100%;
     min-width: 0;
   }
 
@@ -12338,6 +12371,10 @@
   }
 
   .provider-settings-row {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    grid-template-columns: 112px minmax(0, 1fr);
     align-items: center;
     min-height: 36px;
     padding: 6px 0;
@@ -12348,11 +12385,11 @@
   }
 
   .provider-settings-row .settings-row-copy {
-    flex: 0 0 108px;
+    max-width: none;
   }
 
   .provider-settings-row .settings-row-control {
-    flex: 1 1 auto;
+    width: 100%;
     justify-content: flex-start;
   }
 
@@ -12482,8 +12519,8 @@
 
   .provider-details-grid {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px 24px;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
     margin-top: 2px;
   }
 
@@ -12710,12 +12747,13 @@
     }
 
     .provider-settings-row {
+      grid-template-columns: minmax(0, 1fr);
       align-items: flex-start;
       gap: 8px;
     }
 
     .provider-settings-row .settings-row-copy {
-      flex-basis: 76px;
+      max-width: none;
     }
 
     .provider-model-list-collapsed,
@@ -13158,8 +13196,8 @@
   .provider-status-card {
     display: grid;
     min-width: 0;
-    grid-template-columns: minmax(180px, 0.95fr) minmax(180px, 0.9fr) minmax(240px, 1.15fr);
-    gap: 8px 24px;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
   }
 
   .provider-status-section {
