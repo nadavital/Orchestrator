@@ -1953,7 +1953,7 @@ function SpreadsheetArtifactPreview({
                   variant="secondary"
                   dataTestId="workspace-spreadsheet-formula-apply"
                   disabled={formulaDraft === (activeCellFormula || activeCellValue)}
-                  onClick={commitFormulaDraft}
+                  onClick={() => commitFormulaDraft()}
                 >
                   Apply
                 </Button>

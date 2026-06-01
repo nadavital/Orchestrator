@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { MouseEvent, ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import type { Project, Session } from '../../types'
 import { useProjectStore } from '../../store/projects'
 import { useSidebarStore } from '../../store/sidebar'
@@ -113,13 +113,6 @@ export default function ProjectSection({ project, sessions, renderSession }: Pro
     useSessionStore.getState().sessions.filter((session) => session.projectId === project.id)
   )
 
-  const openProjectMenu = (event: MouseEvent<HTMLElement>): void => {
-    event.preventDefault()
-    event.stopPropagation()
-    const rect = event.currentTarget.getBoundingClientRect()
-    setMenuPoint({ x: rect.right - 214, y: rect.bottom + 6 })
-  }
-
   const visibleSessions = expanded ? sessions : sessions.slice(0, 6)
   const hiddenSessionCount = Math.max(0, sessions.length - visibleSessions.length)
 
@@ -138,14 +131,9 @@ export default function ProjectSection({ project, sessions, renderSession }: Pro
           setMenuPoint({ x: e.clientX || rect.right - 214, y: e.clientY || rect.bottom + 6 })
         }}
         leading={(
-          <>
-            <span className="motion-chevron shrink-0" style={{ color: 'var(--text-tertiary)', transform: collapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}>
-              <Icon name="chevronDown" size={12} />
-            </span>
-            <span className="shrink-0">
-              <Icon name="folder" size={13} />
-            </span>
-          </>
+          <span className="project-folder-icon shrink-0" data-project-folder-open={collapsed ? 'false' : 'true'}>
+            <Icon name={collapsed ? 'folder' : 'folderOpen'} size={15} />
+          </span>
         )}
         label={project.name}
         trailing={(
@@ -163,15 +151,6 @@ export default function ProjectSection({ project, sessions, renderSession }: Pro
             )}
             <span className="surface-row-secondary">
               <IconButton
-                icon="ellipsis"
-                label="Project actions"
-                size="sm"
-                ariaExpanded={menuPoint !== null}
-                ariaControls={projectMenuId}
-                ariaHasPopup="menu"
-                onClick={openProjectMenu}
-              />
-              <IconButton
                 icon={creating ? 'refresh' : 'plus'}
                 label={creating ? 'Creating chat' : 'New chat'}
                 disabled={creating}
@@ -185,7 +164,7 @@ export default function ProjectSection({ project, sessions, renderSession }: Pro
 
       {/* Sessions */}
       {!collapsed && (
-        <div className="space-y-1">
+        <div className="project-session-list space-y-1">
           {sessions.length === 0 && (
             <div className="pl-5 pr-1 py-px">
               <SidebarListRow

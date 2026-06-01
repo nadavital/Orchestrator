@@ -1,0 +1,7 @@
+{"type":"system","subtype":"init","session_id":"sdk-session-1"}
+{"type":"assistant","session_id":"sdk-session-1","message":{"role":"assistant","content":[{"type":"tool_use","id":"toolu-question","name":"AskUserQuestion","input":{"question":"Which marker should I use?","header":"Marker","options":[{"label":"ALPHA","description":"Use alpha."},{"label":"BETA","description":"Use beta."}]}}]}}
+{"type":"assistant","session_id":"sdk-session-1","message":{"role":"assistant","content":[{"type":"tool_use","id":"toolu-browser","name":"mcp__orchestrator__browser_read","input":{"includeDom":true}}]}}
+{"type":"user","session_id":"sdk-session-1","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu-browser","content":[{"type":"text","text":"Browser title: Fixture"}]}]}}
+{"type":"assistant","session_id":"sdk-session-1","message":{"role":"assistant","content":[{"type":"tool_use","id":"toolu-agent","name":"Agent","input":{"description":"Inspect fixture","prompt":"Read the fixture","subagent_type":"Explore","model":"haiku"}}]}}
+{"type":"user","session_id":"sdk-session-1","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu-agent","content":[{"type":"text","text":"Agent fixture summary"}]}]}}
+{"type":"result","subtype":"success","is_error":false,"session_id":"sdk-session-1","result":"SDK_OBJECT_FIXTURE_DONE","usage":{"input_tokens":11,"output_tokens":7,"cache_creation_input_tokens":3,"cache_read_input_tokens":2},"total_cost_usd":0.0123,"duration_ms":1234,"duration_api_ms":1000,"num_turns":1}

@@ -1,14 +1,15 @@
-import { memo, useCallback, useState, useRef, useEffect } from 'react'
-import type { Ref } from 'react'
-import type { Attachment, PermissionExecutionContract, ProviderAgentDef, ProviderModelDef, ProviderPermissionMode, ProviderPermissionRuntimeContext, ProviderRuntimeInfo, ProviderSlashCommand, ResolvedExecutionPolicy, Session } from '../../types'
+import { memo, useState, useRef, useEffect } from 'react'
+import type { Ref, RefObject } from 'react'
+import type { Attachment, GitRefOption, Project, ProviderModelDef, ProviderPermissionPreset, ProviderPermissionRuntimeContext, ProviderRuntimeInfo, ProviderSlashCommand, ResolvedExecutionPolicy, Session, WorktreeInventoryItem } from '../../types'
 import type { SlashPaletteCommand } from '../../types'
-import { PROVIDER_DEFS, canStopSession, expandSlashCommandPrompt, getAdvancedPermissionModes, getComposerSendState, getDangerPermissionModes, getDefaultPermissionMode, getPrimaryPermissionModes, getVisibleModels, parseClaudeAgentsOutput } from '../../types'
-import { defaultUI, sideChatContextSnapshot, useSessionStore } from '../../store/sessions'
+import { PROVIDER_DEFS, canStopSession, expandSlashCommandPrompt, getComposerSendState, getDefaultPermissionMode, getProviderPermissionPresetForMode, getProviderPermissionPresets, getVisibleModels, sessionRouteUrlForLocation } from '../../types'
+import { defaultUI, hasComposerDraft, sideChatContextSnapshot, useSessionStore } from '../../store/sessions'
+import { useProjectStore } from '../../store/projects'
 import SlashCommandPalette, { getSlashQuery } from './SlashCommandPalette'
 import ProviderIcon from '../shared/ProviderIcon'
 import Icon from '../shared/Icon'
+import type { IconName } from '../shared/Icon'
 import { AttachmentPill, DismissablePopoverSurface, Tooltip } from '../shared/designSystem'
-import { useShallow } from 'zustand/react/shallow'
 
 interface Props {
   session: Session
@@ -25,6 +26,7 @@ interface PendingAttachment {
 
 const cancelledComposerAttachmentSaves = new Set<string>()
 type ComposerEnterBehavior = 'send' | 'newline'
+type AgentMenuPane = 'main' | 'provider' | 'model' | 'reasoning' | 'cursorReasoning' | 'cursorThinking' | 'cursorSpeed'
 type ComposerDraftSource = {
   kind: 'message-edit-draft'
   messageId: string
@@ -52,15 +54,6 @@ function normalizeComposerEnterBehavior(value: unknown): ComposerEnterBehavior {
 function InputBar({ session, isNew }: Props): JSX.Element {
   const providerAvailability = useSessionStore((state) => state.providerAvailability)
   const providerModels = useSessionStore((state) => state.providerModels)
-  const queuedFollowUpSummary = useSessionStore(useShallow((state) => {
-    const current = state.sessions.find((candidate) => candidate.id === session.id)
-    const queuedMessages = (current?.messages ?? []).filter((message) =>
-      message.type === 'text' && message.role === 'user' && message.queueState
-    )
-    const queued = queuedMessages.filter((message) => message.queueState === 'queued').length
-    const steering = queuedMessages.filter((message) => message.queueState === 'steer_next').length
-    return { queued, steering }
-  }))
   const currentUi = useSessionStore((state) => state.uiState[session.id] ?? defaultUI)
   const setComposerDraft = useSessionStore((state) => state.setComposerDraft)
   const setComposerAttachments = useSessionStore((state) => state.setComposerAttachments)
@@ -75,30 +68,36 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   const openSideChat = useSessionStore((state) => state.openSideChat)
   const appendSideChatMessage = useSessionStore((state) => state.appendSideChatMessage)
   const updateSideChatMessage = useSessionStore((state) => state.updateSideChatMessage)
+  const addSession = useSessionStore((state) => state.addSession)
+  const removeSession = useSessionStore((state) => state.removeSession)
+  const setActiveSession = useSessionStore((state) => state.setActiveSession)
+  const projects = useProjectStore((state) => state.projects)
+  const addProject = useProjectStore((state) => state.addProject)
+  const addSessionToProject = useProjectStore((state) => state.addSessionToProject)
+  const removeSessionFromProject = useProjectStore((state) => state.removeSessionFromProject)
   const [text, setText] = useState(() => currentUi.composerDraft ?? '')
   const attachments = currentUi.composerAttachments ?? []
   const composerPromptHistory = currentUi.composerPromptHistory ?? []
   const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([])
   const [useWorktree, setUseWorktree] = useState(false)
   const [isGitRepo, setIsGitRepo] = useState(false)
+  const [currentBranch, setCurrentBranch] = useState<string | null>(null)
+  const [branchOptions, setBranchOptions] = useState<GitRefOption[]>([])
+  const [worktreeInventory, setWorktreeInventory] = useState<WorktreeInventoryItem[]>([])
   const [showModeMenu, setShowModeMenu] = useState(false)
+  const [showProjectMenu, setShowProjectMenu] = useState(false)
   const [showAgentMenu, setShowAgentMenu] = useState(false)
+  const [agentMenuPane, setAgentMenuPane] = useState<AgentMenuPane>('main')
   const [showPermMenu, setShowPermMenu] = useState(false)
-  const [showAdvancedPerms, setShowAdvancedPerms] = useState(false)
   const [slashIndex, setSlashIndex] = useState(0)
   const [dismissedSlashQuery, setDismissedSlashQuery] = useState<string | null>(null)
   const [runtimeInfo, setRuntimeInfo] = useState<Record<string, ProviderRuntimeInfo>>({})
   const [permissionContext, setPermissionContext] = useState<ProviderPermissionRuntimeContext | null>(null)
-  const [permissionContextLoading, setPermissionContextLoading] = useState(false)
-  const [permissionContextRefreshStatus, setPermissionContextRefreshStatus] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
   const [extensionCommands, setExtensionCommands] = useState<ProviderSlashCommand[]>([])
-  const [claudeAgents, setClaudeAgents] = useState<ProviderAgentDef[]>([])
-  const [claudeAgentsStatus, setClaudeAgentsStatus] = useState<'idle' | 'loading' | 'loaded' | 'error'>('idle')
   const [isSavingPastedFiles, setIsSavingPastedFiles] = useState(false)
   const [dragActive, setDragActive] = useState(false)
   const [attachmentStatus, setAttachmentStatus] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
   const [runActionStatus, setRunActionStatus] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
-  const [permissionRulesStatus, setPermissionRulesStatus] = useState<string | null>(null)
   const [historyCursor, setHistoryCursor] = useState<number | null>(null)
   const [composerEnterBehavior, setComposerEnterBehavior] = useState<ComposerEnterBehavior>('send')
   const [draftSource, setDraftSource] = useState<ComposerDraftSource>(null)
@@ -106,6 +105,8 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const agentButtonRef = useRef<HTMLButtonElement>(null)
   const permissionButtonRef = useRef<HTMLButtonElement>(null)
+  const projectButtonRef = useRef<HTMLButtonElement>(null)
+  const modeButtonRef = useRef<HTMLButtonElement>(null)
   const cancelledPendingAttachments = useRef<Set<string>>(new Set())
   const activeAttachmentSaves = useRef<Set<string>>(new Set())
   const pendingSettingsUpdateRef = useRef<Promise<void>>(Promise.resolve())
@@ -135,8 +136,32 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   }
 
   useEffect(() => {
-    window.api.git.isGitRepo(session.workDir).then(setIsGitRepo)
+    let alive = true
+    void Promise.all([
+      window.api.git.isGitRepo(session.workDir).catch(() => false),
+      window.api.git.getCurrentBranch(session.workDir).catch(() => null),
+      window.api.git.listBranches(session.workDir).catch(() => [])
+    ]).then(([nextIsGitRepo, nextCurrentBranch, nextBranches]) => {
+      if (!alive) return
+      setIsGitRepo(nextIsGitRepo)
+      setCurrentBranch(nextCurrentBranch)
+      setBranchOptions(nextBranches)
+    })
+    return () => { alive = false }
   }, [session.workDir])
+
+  useEffect(() => {
+    if (!showModeMenu) return
+    let alive = true
+    window.api.worktrees.list()
+      .then((items) => {
+        if (alive) setWorktreeInventory(items)
+      })
+      .catch(() => {
+        if (alive) setWorktreeInventory([])
+      })
+    return () => { alive = false }
+  }, [showModeMenu])
 
   useEffect(() => {
     let alive = true
@@ -164,42 +189,15 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     window.api.providers.getRuntimeInfo().then(setRuntimeInfo)
   }, [])
 
-  const loadPermissionContext = useCallback(async (options: { announce?: boolean; clearFirst?: boolean } = {}): Promise<void> => {
-    const announce = options.announce === true
-    if (options.clearFirst) setPermissionContext(null)
-    setPermissionContextLoading(true)
-    if (announce) setPermissionContextRefreshStatus({ text: 'Refreshing permission config', tone: 'info' })
-    try {
-      const context = await window.api.providers.getPermissionContext(session.provider ?? 'claude', session.workDir)
-      setPermissionContext(context)
-      if (announce) {
-        setPermissionContextRefreshStatus({
-          text: context.status === 'ok' ? 'Permission config refreshed' : 'Permission config fallback refreshed',
-          tone: 'info'
-        })
-      }
-    } catch (error) {
-      setPermissionContext(null)
-      if (announce) setPermissionContextRefreshStatus({ text: `Permission config refresh failed: ${errorText(error)}`, tone: 'danger' })
-    } finally {
-      setPermissionContextLoading(false)
-    }
-  }, [session.provider, session.workDir])
-
   useEffect(() => {
     let alive = true
     setPermissionContext(null)
-    setPermissionContextRefreshStatus(null)
-    setPermissionContextLoading(true)
     window.api.providers.getPermissionContext(session.provider ?? 'claude', session.workDir)
       .then((context) => {
         if (alive) setPermissionContext(context)
       })
       .catch(() => {
         if (alive) setPermissionContext(null)
-      })
-      .finally(() => {
-        if (alive) setPermissionContextLoading(false)
       })
     return () => { alive = false }
   }, [session.provider, session.workDir])
@@ -215,25 +213,6 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   }, [session.provider, session.workDir])
 
   useEffect(() => {
-    if ((session.provider ?? 'claude') !== 'claude') {
-      setClaudeAgents([])
-      setClaudeAgentsStatus('idle')
-      return
-    }
-    if (!showAgentMenu || claudeAgentsStatus !== 'idle') return
-    setClaudeAgentsStatus('loading')
-    window.api.providers.runCommandSurface('claude', 'agents-list')
-      .then((result) => {
-        setClaudeAgents(result.status === 'ok' ? parseClaudeAgentsOutput(result.output) : [])
-        setClaudeAgentsStatus(result.status === 'ok' ? 'loaded' : 'error')
-      })
-      .catch(() => {
-        setClaudeAgents([])
-        setClaudeAgentsStatus('error')
-      })
-  }, [session.provider, showAgentMenu, claudeAgentsStatus])
-
-  useEffect(() => {
     const nextDraft = useSessionStore.getState().uiState[session.id]?.composerDraft ?? ''
     setText(nextDraft)
     setPendingAttachments([])
@@ -241,7 +220,6 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     setDragActive(false)
     setAttachmentStatus(null)
     setRunActionStatus(null)
-    setPermissionRulesStatus(null)
     setDraftSource(null)
     setDraftSourceActionStatus(null)
     setHistoryCursor(null)
@@ -278,10 +256,6 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     return () => window.removeEventListener('orchestrator:add-composer-attachment', onAddComposerAttachment)
   }, [session.id, setComposerAttachments])
 
-  useEffect(() => {
-    if (!showPermMenu) setShowAdvancedPerms(false)
-  }, [showPermMenu])
-
   const provider = PROVIDER_DEFS[session.provider ?? 'claude'] ?? PROVIDER_DEFS.claude
   const model = session.model || provider.models[0]?.id || ''
   const visibleModelChoices = getVisibleModelsWithCurrent(provider, providerModels, model)
@@ -310,10 +284,9 @@ function InputBar({ session, isNew }: Props): JSX.Element {
 
   const modelLabel = provider.models.find((m) => m.id === model)?.label ?? model
   const effortLabel = provider.effortLevels.find((e) => e.id === effort)?.label ?? ''
-  const selectedAgentName = provider.id === 'claude' ? session.agentName ?? null : null
-  const selectedPermissionMode = provider.permissionModes.find((p) => p.id === permissionMode)
-  const permLabel = selectedPermissionMode?.label ?? 'Mode'
-  const permissionSourceLabel = permissionContext ? permissionSourceBadgeLabel(permissionContext) : null
+  const selectedPermissionPreset = getProviderPermissionPresetForMode(provider, permissionMode)
+  const permLabel = selectedPermissionPreset?.label ?? 'Custom'
+  const permissionControlLabel = compactPermissionLabel(permLabel)
   const contextDisabledPermissionReason = permissionContext?.status === 'ok'
     ? permissionContext.disabledPolicies?.[permissionMode]
     : undefined
@@ -324,26 +297,14 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     return undefined
   }
   const permissionTriggerLabel = [
-    `Permission mode: ${permLabel}`,
-    permissionSourceLabel ? `${permissionSourceLabel} permission config` : null,
+    `Permissions: ${permLabel}`,
     resolvedPermission?.support === 'unsupported' ? 'unsupported by this runtime' : null,
     contextDisabledPermissionReason ? `disabled by live config: ${contextDisabledPermissionReason}` : null
   ].filter(Boolean).join('. ')
-  const permissionTriggerTitle = [
-    permissionTriggerLabel,
-    permissionContext?.summary
-  ].filter(Boolean).join('. ')
-  const primaryPermissionModes = filterPermissionModes(getPrimaryPermissionModes(provider), permissionContext, permissionMode)
-  const advancedPermissionModes = filterPermissionModes(getAdvancedPermissionModes(provider), permissionContext, permissionMode)
-  const dangerPermissionModes = filterPermissionModes(getDangerPermissionModes(provider), permissionContext, permissionMode)
+  const permissionTriggerTitle = permissionTriggerLabel
+  const permissionPresets = filterPermissionPresets(getProviderPermissionPresets(provider), permissionContext, permissionMode)
   const canUsePermission = resolvedPermission?.support !== 'unsupported' && !contextDisabledPermissionReason
-  const queuedFollowUpCount = queuedFollowUpSummary.queued
-  const steeringFollowUpCount = queuedFollowUpSummary.steering
-  const queuedFollowUpTotal = queuedFollowUpCount + steeringFollowUpCount
-  const queuedFollowUpLabel = [
-    queuedFollowUpCount > 0 ? `${queuedFollowUpCount} queued` : null,
-    steeringFollowUpCount > 0 ? `${steeringFollowUpCount} steering` : null
-  ].filter(Boolean).join(' · ')
+  const composerDropdownOpen = showAgentMenu || showPermMenu || showModeMenu || showProjectMenu
 
   // Cursor per-model effort/thinking/fast config
   const cursorCfg = provider.id === 'cursor'
@@ -423,28 +384,164 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     update({ model: modelId })
   }
 
+  const openAgentMenu = (): void => {
+    setAgentMenuPane('main')
+    setShowPermMenu(false)
+    setShowModeMenu(false)
+    setShowProjectMenu(false)
+    setShowAgentMenu(true)
+  }
+
+  const closeAgentMenu = (): void => {
+    setShowAgentMenu(false)
+    setAgentMenuPane('main')
+  }
+
+  useEffect(() => {
+    const onOpenModelMenu = (): void => {
+      openAgentMenu()
+      if (agentButtonRef.current) queueFocusComposerDropdownButton(agentButtonRef.current, 'first')
+    }
+    window.addEventListener('orchestrator:open-composer-model-menu', onOpenModelMenu)
+    return () => window.removeEventListener('orchestrator:open-composer-model-menu', onOpenModelMenu)
+  })
+
   const selectPermissionMode = (modeId: string): void => {
     update({ permissionMode: modeId })
-    setPermissionRulesStatus(null)
     setShowPermMenu(false)
   }
 
+  const togglePermissionMenu = (): void => {
+    setShowAgentMenu(false)
+    setAgentMenuPane('main')
+    setShowModeMenu(false)
+    setShowProjectMenu(false)
+    setShowPermMenu((value) => !value)
+  }
+
+  const toggleModeMenu = (): void => {
+    setShowAgentMenu(false)
+    setAgentMenuPane('main')
+    setShowPermMenu(false)
+    setShowProjectMenu(false)
+    setShowModeMenu((value) => !value)
+  }
+
+  const toggleProjectMenu = (): void => {
+    setShowAgentMenu(false)
+    setAgentMenuPane('main')
+    setShowPermMenu(false)
+    setShowModeMenu(false)
+    setShowProjectMenu((value) => !value)
+  }
+
   const openPermissionMenuAndFocus = (): void => {
+    setShowAgentMenu(false)
+    setAgentMenuPane('main')
+    setShowModeMenu(false)
+    setShowProjectMenu(false)
     setShowPermMenu(true)
     if (permissionButtonRef.current) queueFocusComposerDropdownButton(permissionButtonRef.current, 'first')
   }
 
-  const updatePermissionRules = (
-    label: string,
-    patch: {
-      allowedTools?: string[]
-      disallowedTools?: string[]
-      availableTools?: string[]
-      additionalDirs?: string[]
+  const cleanupCurrentEmptySession = async (): Promise<void> => {
+    const state = useSessionStore.getState()
+    const active = state.sessions.find((candidate) => candidate.id === state.activeSessionId)
+    if (!active || active.status === 'running') return
+    if ((active.messageCount ?? active.messages.length) > 0) return
+    if (hasComposerDraft(state.uiState[active.id])) return
+    await window.api.sessions.remove(active.id)
+    await window.api.projects.removeSession(active.projectId, active.id)
+    removeSession(active.id)
+    removeSessionFromProject(active.projectId, active.id)
+  }
+
+  const activateCreatedSession = (nextSession: Session): void => {
+    addSession(nextSession)
+    addSessionToProject(nextSession.projectId, nextSession.id)
+    setActiveSession(nextSession.id)
+    setShowCapabilities(false)
+    setShowSettings(false)
+    window.history.replaceState(null, '', sessionRouteUrlForLocation(nextSession.id, window.location))
+  }
+
+  const createProjectSession = async (
+    project: Project,
+    options: { useWorktree?: boolean; worktreeBaseRef?: string } = {}
+  ): Promise<void> => {
+    setRunActionStatus(null)
+    try {
+      await cleanupCurrentEmptySession()
+      const nextSession = await window.api.sessions.create({
+        projectId: project.id,
+        workDir: project.rootPath,
+        useWorktree: options.useWorktree === true,
+        repoRoot: project.rootPath,
+        worktreeBaseRef: options.worktreeBaseRef
+      })
+      await window.api.projects.addSession(project.id, nextSession.id)
+      activateCreatedSession(nextSession)
+    } catch (error) {
+      setRunActionStatus({ text: `Workspace switch failed: ${errorText(error)}`, tone: 'danger' })
     }
-  ): void => {
-    update(patch)
-    setPermissionRulesStatus(`${label} saved`)
+  }
+
+  const switchProject = (project: Project): void => {
+    setShowProjectMenu(false)
+    if (project.id === session.projectId) return
+    void createProjectSession(project)
+  }
+
+  const addProjectFromPicker = async (): Promise<void> => {
+    setShowProjectMenu(false)
+    setRunActionStatus(null)
+    try {
+      const dir = await window.api.dialog.openDirectory()
+      if (!dir) return
+      const name = pathBaseName(dir) || dir
+      const project = await window.api.projects.add(name, dir)
+      addProject(project)
+      await createProjectSession(project)
+    } catch (error) {
+      setRunActionStatus({ text: `Project open failed: ${errorText(error)}`, tone: 'danger' })
+    }
+  }
+
+  const checkoutBranch = async (branchName: string): Promise<void> => {
+    setShowModeMenu(false)
+    setRunActionStatus(null)
+    try {
+      const result = await window.api.git.checkoutBranch(session.workDir, branchName)
+      if (!result.ok) throw new Error(result.error ?? 'Could not switch branch')
+      setCurrentBranch(result.currentBranch ?? branchName)
+      setBranchOptions(result.branches)
+    } catch (error) {
+      setRunActionStatus({ text: `Branch switch failed: ${errorText(error)}`, tone: 'danger' })
+    }
+  }
+
+  const createWorktreeFromBranch = (branchName: string): void => {
+    const project = projects.find((candidate) => candidate.id === session.projectId)
+    if (!project) {
+      setRunActionStatus({ text: 'Project is not available for worktree creation.', tone: 'danger' })
+      return
+    }
+    setShowModeMenu(false)
+    void createProjectSession(project, { useWorktree: true, worktreeBaseRef: branchName })
+  }
+
+  const openWorktreeConversation = async (conversationId: string): Promise<void> => {
+    setShowModeMenu(false)
+    setRunActionStatus(null)
+    try {
+      await cleanupCurrentEmptySession()
+      const existing = useSessionStore.getState().sessions.find((candidate) => candidate.id === conversationId)
+      const targetSession = existing ?? await window.api.sessions.get(conversationId)
+      if (!targetSession || targetSession.archivedAt) throw new Error('Linked worktree chat is not available locally')
+      activateCreatedSession(targetSession)
+    } catch (error) {
+      setRunActionStatus({ text: `Worktree open failed: ${errorText(error)}`, tone: 'danger' })
+    }
   }
 
   const sendState = getComposerSendState({
@@ -557,11 +654,13 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     setDraftSource(null)
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
     try {
-      const started = await window.api.sessions.sendMessage(session.id, prompt, isNew ? useWorktree : undefined, attachments)
+      const started = await window.api.sessions.sendMessage(session.id, prompt, isNew ? useWorktree : undefined, attachmentsBeforeSend)
       if (!started) {
         restoreDraftAfterFailedSend()
         setRunActionStatus({ text: 'Run failed to start', tone: 'danger' })
       } else {
+        setComposerAttachments(session.id, [])
+        setPendingAttachments([])
         addComposerPromptHistory(session.id, rawPrompt)
       }
     } catch (error) {
@@ -571,10 +670,9 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   }
 
   const stopCurrentRun = async (): Promise<void> => {
-    setRunActionStatus({ text: 'Stop requested', tone: 'info' })
+    setRunActionStatus(null)
     try {
       await window.api.sessions.stop(session.id)
-      setRunActionStatus({ text: 'Run stopped', tone: 'info' })
     } catch (error) {
       setRunActionStatus({ text: `Stop failed: ${errorText(error)}`, tone: 'danger' })
     }
@@ -957,10 +1055,15 @@ function InputBar({ session, isNew }: Props): JSX.Element {
           .catch(() => window.api.pet.setOpen(true))
       }
       if (command.id === 'model') {
-        openDropdownFromSlash(agentButtonRef.current, () => setShowAgentMenu(true))
+        openDropdownFromSlash(agentButtonRef.current, openAgentMenu)
       }
       if (command.id === 'permissions') {
-        openDropdownFromSlash(permissionButtonRef.current, () => setShowPermMenu(true))
+        openDropdownFromSlash(permissionButtonRef.current, () => {
+          setShowAgentMenu(false)
+          setAgentMenuPane('main')
+          setShowModeMenu(false)
+          setShowPermMenu(true)
+        })
       }
       return
     }
@@ -986,8 +1089,19 @@ function InputBar({ session, isNew }: Props): JSX.Element {
       ? `Queue message (${sendShortcutTitle})`
       : `Send (${sendShortcutTitle})`
   const additionalContextDirs = session.additionalDirs ?? []
-  const showComposerContextChips = Boolean(effectiveMode || additionalContextDirs.length > 0)
+  const showComposerContextChips = Boolean(additionalContextDirs.length > 0)
   const workspaceLabel = pathBaseName(session.workDir) || session.workDir
+  const activeProject = projects.find((candidate) => candidate.id === session.projectId)
+  const projectWorktrees = worktreeInventory.filter((worktree) => {
+    const repoRoot = worktree.repoRoot ?? ''
+    return repoRoot === session.repoRoot || (activeProject ? repoRoot === activeProject.rootPath : false)
+  })
+  const projectWorktreeConversations = projectWorktrees.flatMap((worktree) =>
+    worktree.conversations.map((conversation) => ({
+      worktree,
+      conversation
+    }))
+  )
   const additionalDirsLabel = additionalContextDirs.length === 1
     ? pathBaseName(additionalContextDirs[0]) || additionalContextDirs[0]
     : `${additionalContextDirs.length} dirs`
@@ -995,7 +1109,6 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   const defaultEffort = provider.effortLevels[0]?.id ?? ''
   const showEffortInTrigger = provider.supportsEffort && effortLabel && effort !== defaultEffort
   const agentLabel = [
-    selectedAgentName,
     modelLabel,
     showEffortInTrigger ? effortLabel : null,
     provider.id === 'cursor' && cursorEffortLevels.length > 0 && cursorEfLevel ? cursorEfLevel.label : null,
@@ -1004,7 +1117,6 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   ].filter(Boolean).join(' · ')
   const agentTriggerTitle = [
     provider.name,
-    selectedAgentName,
     modelLabel,
     provider.supportsEffort && effortLabel ? effortLabel : null,
     provider.id === 'cursor' && cursorEffortLevels.length > 0 && cursorEfLevel ? cursorEfLevel.label : null,
@@ -1012,17 +1124,196 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     provider.id === 'cursor' && useFast ? 'Fast mode' : null,
   ].filter(Boolean).join(' · ')
   const agentTriggerLabel = agentLabel || provider.name
+  const submenuChevron = <Icon name="chevronRight" size={16} />
+  const renderAgentMenuContent = (): JSX.Element => {
+    if (agentMenuPane === 'provider') {
+      return (
+        <>
+          <ComposerMenuBack title="Provider" onBack={() => setAgentMenuPane('main')} />
+          <ComposerMenuSection>
+            {visibleProviderChoices.map((opt) => {
+              const available = providerAvailability[opt.id] !== false
+              return (
+                <ComposerMenuRow
+                  key={opt.id}
+                  active={provider.id === opt.id}
+                  disabled={!available}
+                  leading={<ProviderIcon providerId={opt.id} size={15} color={available ? opt.color : 'var(--color-text-muted)'} />}
+                  detail={!available ? 'Not installed' : undefined}
+                  onClick={() => {
+                    if (!available) return
+                    switchProvider(opt.id)
+                    closeAgentMenu()
+                  }}
+                >
+                  {opt.name}
+                </ComposerMenuRow>
+              )
+            })}
+          </ComposerMenuSection>
+        </>
+      )
+    }
+
+    if (agentMenuPane === 'model') {
+      return (
+        <>
+          <ComposerMenuBack title="Model" onBack={() => setAgentMenuPane('main')} />
+          <ComposerMenuSection>
+            {visibleModelChoices.map((opt) => (
+              <ComposerMenuRow
+                key={opt.id}
+                active={model === opt.id}
+                detail={opt.custom ? opt.id : undefined}
+                onClick={() => { selectModel(opt.id); closeAgentMenu() }}
+              >
+                {opt.custom ? 'Custom model' : opt.label}
+              </ComposerMenuRow>
+            ))}
+          </ComposerMenuSection>
+        </>
+      )
+    }
+
+    if (agentMenuPane === 'reasoning') {
+      return (
+        <>
+          <ComposerMenuBack title="Reasoning" onBack={() => setAgentMenuPane('main')} />
+          <ComposerMenuSection>
+            {provider.effortLevels.map((opt) => (
+              <ComposerMenuRow
+                key={opt.id}
+                active={effort === opt.id}
+                onClick={() => { update({ effort: opt.id }); closeAgentMenu() }}
+              >
+                {opt.label}
+              </ComposerMenuRow>
+            ))}
+          </ComposerMenuSection>
+        </>
+      )
+    }
+
+    if (agentMenuPane === 'cursorReasoning') {
+      return (
+        <>
+          <ComposerMenuBack title="Reasoning" onBack={() => setAgentMenuPane('main')} />
+          <ComposerMenuSection>
+            {cursorEffortLevels.map((level) => (
+              <ComposerMenuRow
+                key={level.id}
+                active={cursorEffort === level.id}
+                onClick={() => { update({ effort: level.id, useFast: false }); closeAgentMenu() }}
+              >
+                {level.label}
+              </ComposerMenuRow>
+            ))}
+          </ComposerMenuSection>
+        </>
+      )
+    }
+
+    if (agentMenuPane === 'cursorThinking') {
+      return (
+        <>
+          <ComposerMenuBack title="Thinking" onBack={() => setAgentMenuPane('main')} />
+          <ComposerMenuSection>
+            <ComposerMenuRow active={!useThinking} onClick={() => { update({ useThinking: false }); closeAgentMenu() }}>Off</ComposerMenuRow>
+            <ComposerMenuRow active={useThinking} onClick={() => { update({ useThinking: true }); closeAgentMenu() }}>On</ComposerMenuRow>
+          </ComposerMenuSection>
+        </>
+      )
+    }
+
+    if (agentMenuPane === 'cursorSpeed') {
+      return (
+        <>
+          <ComposerMenuBack title="Speed" onBack={() => setAgentMenuPane('main')} />
+          <ComposerMenuSection>
+            <ComposerMenuRow active={!useFast} onClick={() => { update({ useFast: false }); closeAgentMenu() }}>Standard</ComposerMenuRow>
+            <ComposerMenuRow active={useFast} onClick={() => { update({ useFast: true }); closeAgentMenu() }}>Fast</ComposerMenuRow>
+          </ComposerMenuSection>
+        </>
+      )
+    }
+
+    return (
+      <>
+        <ComposerMenuSection label="Selection">
+          <ComposerMenuRow
+            active={false}
+            leading={<ProviderIcon providerId={provider.id} size={15} color={provider.color} />}
+            detail={provider.name}
+            trailing={submenuChevron}
+            onClick={() => setAgentMenuPane('provider')}
+          >
+            Provider
+          </ComposerMenuRow>
+          <ComposerMenuRow
+            active={false}
+            detail={modelLabel}
+            trailing={submenuChevron}
+            onClick={() => setAgentMenuPane('model')}
+          >
+            Model
+          </ComposerMenuRow>
+          {provider.supportsEffort && provider.effortLevels.length > 0 && (
+            <ComposerMenuRow
+              active={false}
+              detail={effortLabel}
+              trailing={submenuChevron}
+              onClick={() => setAgentMenuPane('reasoning')}
+            >
+              Reasoning
+            </ComposerMenuRow>
+          )}
+          {provider.id === 'cursor' && cursorEffortLevels.length > 0 && (
+            <ComposerMenuRow
+              active={false}
+              detail={cursorEfLevel?.label ?? cursorEffort}
+              trailing={submenuChevron}
+              onClick={() => setAgentMenuPane('cursorReasoning')}
+            >
+              Reasoning
+            </ComposerMenuRow>
+          )}
+          {provider.id === 'cursor' && hasThinking && (
+            <ComposerMenuRow
+              active={false}
+              detail={useThinking ? 'On' : 'Off'}
+              trailing={submenuChevron}
+              onClick={() => setAgentMenuPane('cursorThinking')}
+            >
+              Thinking
+            </ComposerMenuRow>
+          )}
+          {provider.id === 'cursor' && hasFast && (
+            <ComposerMenuRow
+              active={false}
+              detail={useFast ? 'Fast' : 'Standard'}
+              trailing={submenuChevron}
+              onClick={() => setAgentMenuPane('cursorSpeed')}
+            >
+              Speed
+            </ComposerMenuRow>
+          )}
+        </ComposerMenuSection>
+      </>
+    )
+  }
 
   return (
     <div
-      className="composer-reserve-shell shrink-0 px-6 pt-2 pb-3"
+      className="composer-reserve-shell shrink-0 px-4 pt-2 pb-3"
       style={{
-        background: 'color-mix(in srgb, var(--canvas-bg) 76%, transparent)'
+        background: 'linear-gradient(180deg, transparent, color-mix(in srgb, var(--canvas-bg) 62%, transparent))',
+        paddingRight: 'calc(1rem + var(--transcript-scrollbar-width, 0px))'
       }}
     >
       <div
         className="composer-shell overflow-visible mx-auto"
         data-testid="composer-shell"
+        data-composer-new={isNew ? 'true' : 'false'}
         data-drag-active={dragActive ? 'true' : 'false'}
         data-composer-attachment-status={attachmentStatus?.text ?? ''}
         data-composer-attachment-status-tone={attachmentStatus?.tone ?? ''}
@@ -1033,17 +1324,17 @@ function InputBar({ session, isNew }: Props): JSX.Element {
         onDragLeave={handleDragEvent}
         onDrop={handleDrop}
         style={{
-          maxWidth: isNew ? 700 : 860,
+          maxWidth: 'var(--composer-effective-column-max-width, var(--composer-column-max-width, 860px))',
           background: isNew
-            ? 'color-mix(in srgb, var(--surface-bg) 32%, transparent)'
-            : 'color-mix(in srgb, var(--surface-bg) 22%, transparent)',
+            ? 'color-mix(in srgb, var(--surface-bg) 98%, transparent)'
+            : 'color-mix(in srgb, var(--surface-bg) 96%, transparent)',
           border: isNew
-            ? '1px solid color-mix(in srgb, var(--border-subtle) 16%, transparent)'
-            : '1px solid color-mix(in srgb, var(--border-subtle) 9%, transparent)',
-          borderRadius: '14px',
-          boxShadow: 'none',
+            ? '1px solid color-mix(in srgb, var(--border-subtle) 72%, transparent)'
+            : '1px solid color-mix(in srgb, var(--border-subtle) 62%, transparent)',
+          borderRadius: '24px',
+          boxShadow: '0 12px 34px rgba(15, 23, 42, 0.1), 0 1px 2px rgba(15, 23, 42, 0.08)',
           position: 'relative',
-          transition: 'background 110ms ease, border-color 110ms ease'
+          transition: 'background 110ms ease, border-color 110ms ease, box-shadow 110ms ease'
         }}
       >
         {dragActive && (
@@ -1072,7 +1363,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
         )}
 
         {/* Text input */}
-        <div className="composer-text-row flex items-end px-4 pt-2.5 pb-1 gap-2">
+        <div className="composer-text-row flex px-4 pt-2.5 pb-1 gap-2">
           <textarea
             id="orchestrator-chat-composer"
             data-testid="composer-textarea"
@@ -1082,7 +1373,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
             onPaste={handlePaste}
             onKeyDown={handleKeyDown}
             aria-label="Message composer"
-            placeholder={isNew ? 'What do you want to build?' : 'Message…'}
+            placeholder={isNew ? 'What do you want to build?' : 'Ask for follow-up changes'}
             data-composer-prompt-history-count={composerPromptHistory.length}
             data-composer-prompt-history-active={historyCursor !== null ? 'true' : 'false'}
             data-composer-enter-behavior={composerEnterBehavior}
@@ -1315,364 +1606,22 @@ function InputBar({ session, isNew }: Props): JSX.Element {
 
         {/* Bottom toolbar */}
         <div className="composer-toolbar flex items-center px-3 pb-2 gap-1.5" data-testid="composer-toolbar">
-
-          {/* Left side */}
-          {isNew ? (
-            /* New session: worktree mode toggle */
-            <div className="relative">
-              <ToolbarBtn
-                active={effectiveMode}
-                onClick={isGitRepo ? () => setShowModeMenu((v) => !v) : undefined}
-                muted={!isGitRepo}
-                title={!isGitRepo ? 'Not a git repository' : undefined}
-                dataTestId="composer-worktree-menu"
-                className="composer-worktree-trigger"
-                ariaExpanded={isGitRepo ? showModeMenu : undefined}
-                ariaHasPopup={isGitRepo ? 'menu' : undefined}
-                onKeyDown={(event) => {
-                  if (isGitRepo) handleDropdownTriggerKeyDown(event, () => setShowModeMenu(true))
-                }}
-              >
-                <Icon name={effectiveMode ? 'branch' : 'folder'} size={13} />
-                <span className="composer-control-label composer-control-label-sm">
-                  {effectiveMode ? 'Branch' : 'Local'}
-                </span>
-                {isGitRepo && <Chevron />}
-              </ToolbarBtn>
-
-              {showModeMenu && (
-                <DropdownPanel onClose={() => setShowModeMenu(false)} style={{ bottom: '100%', marginBottom: 8, left: 0, minWidth: 160 }}>
-                  {(['local', 'worktree'] as const).map((mode) => {
-                    const active = mode === 'worktree' ? useWorktree : !useWorktree
-                    return (
-                      <DropdownRow
-                        key={mode}
-                        active={active}
-                        onClick={() => { setUseWorktree(mode === 'worktree'); setShowModeMenu(false) }}
-                      >
-                        <div className="text-xs font-medium" style={{ color: active ? 'var(--color-accent)' : 'var(--color-text)' }}>
-                          {mode === 'local' ? 'Local' : 'New branch'}
-                        </div>
-                      </DropdownRow>
-                    )
-                  })}
-                </DropdownPanel>
-              )}
-            </div>
-          ) : (
-            /* Active session: compact thread settings */
-            <div className="relative flex items-center gap-1.5 composer-agent-picker" style={{ minWidth: 0 }}>
-              <ToolbarBtn
-                active={showAgentMenu}
-                onClick={() => setShowAgentMenu((v) => !v)}
-                providerColor={provider.color}
-                dataTestId="composer-agent-menu"
-                buttonRef={agentButtonRef}
-                className="composer-agent-trigger"
-                title={agentTriggerTitle ? `Model: ${agentTriggerTitle}` : 'Model'}
-                ariaLabel="Model"
-                ariaExpanded={showAgentMenu}
-                ariaHasPopup="menu"
-                onKeyDown={(event) => handleDropdownTriggerKeyDown(event, () => setShowAgentMenu(true))}
-              >
-                <ProviderIcon providerId={provider.id} size={11} color={provider.color} />
-                <span className="composer-control-label">{agentTriggerLabel}</span>
-                <Chevron />
-              </ToolbarBtn>
-              {queuedFollowUpTotal > 0 && (
-                <span
-                  className="composer-queued-summary"
-                  data-testid="composer-queued-summary"
-                  data-queued-follow-up-count={queuedFollowUpCount}
-                  data-steering-follow-up-count={steeringFollowUpCount}
-                >
-                  {queuedFollowUpLabel}
-                </span>
-              )}
-              {showAgentMenu && (
-                <DropdownPanel onClose={() => setShowAgentMenu(false)} style={{ bottom: '100%', marginBottom: 8, right: 0, width: 320 }}>
-                  <div
-                    className="sr-only"
-                    data-testid="composer-active-agent-summary"
-                  >
-                    {provider.name} Thread settings
-                  </div>
-
-                  <TieredRow label="Provider">
-                    {visibleProviderChoices.map((opt) => {
-                      const available = providerAvailability[opt.id] !== false
-                      const isActive = provider.id === opt.id
-                      return (
-                        <Chip
-                          key={opt.id}
-                          active={isActive}
-                          disabled={!available}
-                          onClick={() => { if (available) switchProvider(opt.id) }}
-                          title={!available ? 'not installed' : undefined}
-                          activeColor={opt.color}
-                        >
-                          <ProviderIcon providerId={opt.id} size={10} color={available ? opt.color : 'var(--color-text-muted)'} />
-                          {opt.name}
-                        </Chip>
-                      )
-                    })}
-                  </TieredRow>
-
-                  <TieredRow label="Model">
-                    {visibleModelChoices.map((opt) => (
-                      <Chip
-                        key={opt.id}
-                        active={model === opt.id}
-                        onClick={() => selectModel(opt.id)}
-                        activeColor={provider.color}
-                        title={opt.custom ? `Current custom model: ${opt.id}` : opt.id}
-                      >
-                        {opt.custom ? (
-                          <>
-                            Custom
-                            <span style={{ opacity: 0.72 }}>{opt.id}</span>
-                          </>
-                        ) : opt.label}
-                      </Chip>
-                    ))}
-                  </TieredRow>
-
-                  {provider.id === 'claude' && (
-                    <TieredRow label="Agent">
-                      <Chip
-                        active={!selectedAgentName}
-                        onClick={() => update({ agentName: null })}
-                        activeColor={provider.color}
-                      >
-                        Default
-                      </Chip>
-                      {claudeAgentsStatus === 'loading' && <InlineHint>Loading</InlineHint>}
-                      {claudeAgentsStatus === 'error' && <InlineHint>Unavailable</InlineHint>}
-                      {claudeAgentsStatus === 'loaded' && claudeAgents.length === 0 && <InlineHint>None</InlineHint>}
-                      {claudeAgents.map((agent) => (
-                        <Chip
-                          key={agent.id}
-                          active={selectedAgentName === agent.name}
-                          onClick={() => update({ agentName: agent.name })}
-                          activeColor={provider.color}
-                          title={agent.model ? `${agent.name} · ${agent.model}` : agent.name}
-                        >
-                          {agent.name}
-                          {agent.model && <span style={{ opacity: 0.72 }}>{agent.model}</span>}
-                        </Chip>
-                      ))}
-                    </TieredRow>
-                  )}
-
-                  {provider.id === 'cursor' && cursorEffortLevels.length > 0 && (
-                    <TieredRow label="Effort">
-                      {cursorEffortLevels.map((level) => (
-                        <Chip
-                          key={level.id}
-                          active={cursorEffort === level.id}
-                          onClick={() => update({ effort: level.id, useFast: false })}
-                          activeColor={provider.color}
-                        >
-                          {level.label}
-                        </Chip>
-                      ))}
-                    </TieredRow>
-                  )}
-
-                  {provider.id === 'cursor' && hasThinking && (
-                    <TieredRow label="Thinking">
-                      <Chip active={!useThinking} onClick={() => update({ useThinking: false })} activeColor={provider.color}>Off</Chip>
-                      <Chip active={useThinking} onClick={() => update({ useThinking: true })} activeColor={provider.color}>On</Chip>
-                    </TieredRow>
-                  )}
-
-                  {provider.id === 'cursor' && hasFast && (
-                    <TieredRow label="Speed">
-                      <Chip active={!useFast} onClick={() => update({ useFast: false })} activeColor={provider.color}>Standard</Chip>
-                      <Chip active={useFast} onClick={() => update({ useFast: true })} activeColor={provider.color}>Fast</Chip>
-                    </TieredRow>
-                  )}
-
-                  {provider.supportsEffort && provider.effortLevels.length > 0 && (
-                    <TieredRow label="Thinking">
-                      {provider.effortLevels.map((opt) => (
-                        <Chip
-                          key={opt.id}
-                          active={effort === opt.id}
-                          onClick={() => update({ effort: opt.id })}
-                          activeColor={provider.color}
-                        >
-                          {opt.label}
-                        </Chip>
-                      ))}
-                    </TieredRow>
-                  )}
-                </DropdownPanel>
-              )}
-            </div>
-          )}
-
-          <div className="flex-1" />
-
-          <ToolbarBtn
-            active={attachments.length > 0 || isSavingPastedFiles}
-            onClick={attachFiles}
-            title={isSavingPastedFiles ? 'Saving pasted files' : 'Attach files'}
-            ariaLabel={isSavingPastedFiles ? 'Saving pasted files' : 'Attach files'}
-            iconOnly
-            className="composer-attach-trigger"
-          >
+            <ToolbarBtn
+              active={attachments.length > 0 || isSavingPastedFiles}
+              onClick={attachFiles}
+              title={isSavingPastedFiles ? 'Saving pasted files' : 'Attach files'}
+              ariaLabel={isSavingPastedFiles ? 'Saving pasted files' : 'Attach files'}
+              iconOnly
+              className="composer-attach-trigger"
+              suppressTooltip={composerDropdownOpen}
+            >
             <Icon name="plus" size={14} />
           </ToolbarBtn>
 
-          {/* New session: combined agent picker */}
-          {isNew && (
-            <div className="relative composer-agent-picker">
-              <ToolbarBtn
-                active={false}
-                onClick={() => setShowAgentMenu((v) => !v)}
-                providerColor={provider.color}
-                dataTestId="composer-agent-menu"
-                buttonRef={agentButtonRef}
-                className="composer-agent-trigger"
-                title={agentTriggerTitle ? `Model: ${agentTriggerTitle}` : 'Model'}
-                ariaLabel="Model"
-                ariaExpanded={showAgentMenu}
-                ariaHasPopup="menu"
-                onKeyDown={(event) => handleDropdownTriggerKeyDown(event, () => setShowAgentMenu(true))}
-              >
-                <ProviderIcon providerId={provider.id} size={11} color={provider.color} />
-                <span className="composer-control-label">{agentTriggerLabel}</span>
-                <Chevron />
-              </ToolbarBtn>
-
-              {showAgentMenu && (
-                <DropdownPanel onClose={() => setShowAgentMenu(false)} style={{ bottom: '100%', marginBottom: 8, right: 0, width: 320 }}>
-                  {/* Provider row */}
-                  <TieredRow label="Provider">
-                    {visibleProviderChoices.map((opt) => {
-                      const available = providerAvailability[opt.id] !== false
-                      const isActive = provider.id === opt.id
-                      return (
-                        <Chip
-                          key={opt.id}
-                          active={isActive}
-                          disabled={!available}
-                          onClick={() => { if (available) switchProvider(opt.id) }}
-                          title={!available ? 'not installed' : undefined}
-                          activeColor={opt.color}
-                        >
-                          <ProviderIcon providerId={opt.id} size={10} color={available ? opt.color : 'var(--color-text-muted)'} />
-                          {opt.name}
-                        </Chip>
-                      )
-                    })}
-                  </TieredRow>
-
-                  {/* Model row */}
-                  <TieredRow label="Model">
-                    {visibleModelChoices.map((opt) => (
-                      <Chip
-                        key={opt.id}
-                        active={model === opt.id}
-                        onClick={() => selectModel(opt.id)}
-                        activeColor={provider.color}
-                        title={opt.custom ? `Current custom model: ${opt.id}` : opt.id}
-                      >
-                        {opt.custom ? (
-                          <>
-                            Custom
-                            <span style={{ opacity: 0.72 }}>{opt.id}</span>
-                          </>
-                        ) : opt.label}
-                      </Chip>
-                    ))}
-                  </TieredRow>
-
-                  {provider.id === 'claude' && (
-                    <TieredRow label="Agent">
-                      <Chip
-                        active={!selectedAgentName}
-                        onClick={() => update({ agentName: null })}
-                        activeColor={provider.color}
-                      >
-                        Default
-                      </Chip>
-                      {claudeAgentsStatus === 'loading' && <InlineHint>Loading</InlineHint>}
-                      {claudeAgentsStatus === 'error' && <InlineHint>Unavailable</InlineHint>}
-                      {claudeAgentsStatus === 'loaded' && claudeAgents.length === 0 && <InlineHint>None</InlineHint>}
-                      {claudeAgents.map((agent) => (
-                        <Chip
-                          key={agent.id}
-                          active={selectedAgentName === agent.name}
-                          onClick={() => update({ agentName: agent.name })}
-                          activeColor={provider.color}
-                          title={agent.model ? `${agent.name} · ${agent.model}` : agent.name}
-                        >
-                          {agent.name}
-                          {agent.model && <span style={{ opacity: 0.72 }}>{agent.model}</span>}
-                        </Chip>
-                      ))}
-                    </TieredRow>
-                  )}
-
-                  {/* Cursor: per-model effort row */}
-                  {provider.id === 'cursor' && cursorEffortLevels.length > 0 && (
-                    <TieredRow label="Effort">
-                      {cursorEffortLevels.map((level) => (
-                        <Chip
-                          key={level.id}
-                          active={cursorEffort === level.id}
-                          onClick={() => update({ effort: level.id, useFast: false })}
-                          activeColor={provider.color}
-                        >
-                          {level.label}
-                        </Chip>
-                      ))}
-                    </TieredRow>
-                  )}
-
-                  {/* Cursor: thinking toggle */}
-                  {provider.id === 'cursor' && hasThinking && (
-                    <TieredRow label="Thinking">
-                      <Chip active={!useThinking} onClick={() => update({ useThinking: false })} activeColor={provider.color}>Off</Chip>
-                      <Chip active={useThinking}  onClick={() => update({ useThinking: true  })} activeColor={provider.color}>On</Chip>
-                    </TieredRow>
-                  )}
-
-                  {/* Cursor: speed toggle */}
-                  {provider.id === 'cursor' && hasFast && (
-                    <TieredRow label="Speed">
-                      <Chip active={!useFast} onClick={() => update({ useFast: false })} activeColor={provider.color}>Standard</Chip>
-                      <Chip active={useFast}  onClick={() => update({ useFast: true  })} activeColor={provider.color}>Fast</Chip>
-                    </TieredRow>
-                  )}
-
-                  {/* Thinking row — only if provider supports it (Claude/Codex) */}
-                  {provider.supportsEffort && provider.effortLevels.length > 0 && (
-                    <TieredRow label="Thinking">
-                      {provider.effortLevels.map((opt) => (
-                        <Chip
-                          key={opt.id}
-                          active={effort === opt.id}
-                          onClick={() => update({ effort: opt.id })}
-                          activeColor={provider.color}
-                        >
-                          {opt.label}
-                        </Chip>
-                      ))}
-                    </TieredRow>
-                  )}
-                </DropdownPanel>
-              )}
-            </div>
-          )}
-
-          {/* Permission mode picker — always shown */}
           <div className="relative composer-permission-picker">
             <ToolbarBtn
               active={permissionMode !== defaultPermissionMode}
-              onClick={() => setShowPermMenu((v) => !v)}
+              onClick={togglePermissionMenu}
               dataTestId="composer-permission-menu"
               buttonRef={permissionButtonRef}
               className="composer-permission-trigger"
@@ -1680,136 +1629,69 @@ function InputBar({ session, isNew }: Props): JSX.Element {
               ariaLabel={permissionTriggerLabel}
               ariaExpanded={showPermMenu}
               ariaHasPopup="menu"
-              onKeyDown={(event) => handleDropdownTriggerKeyDown(event, () => setShowPermMenu(true))}
+              suppressTooltip={composerDropdownOpen}
+              onKeyDown={(event) => handleDropdownTriggerKeyDown(event, openPermissionMenuAndFocus)}
             >
               <Icon name="checkCircle" size={13} />
-              <span className="composer-control-label composer-control-label-xs">{permLabel}</span>
-              {permissionContext && (
-                <span
-                  className="composer-permission-source-badge"
-                  data-testid="composer-permission-context-badge"
-                  data-permission-context-status={permissionContext.status}
-                  data-permission-context-source={permissionContext.source}
-                >
-                  {permissionSourceBadgeLabel(permissionContext)}
-                </span>
-              )}
+              <span className="composer-control-label composer-control-label-xs">{permissionControlLabel}</span>
               {resolvedPermission?.support === 'unsupported' && <PolicyBadge policy={resolvedPermission} compact />}
               <Chevron />
             </ToolbarBtn>
             {showPermMenu && (
-              <DropdownPanel onClose={() => setShowPermMenu(false)} style={{ bottom: '100%', marginBottom: 8, right: 0, minWidth: provider.id === 'claude' ? 260 : 190 }}>
-                <div className="px-3 py-2" style={{ borderBottom: '1px solid var(--color-border)' }}>
-                  <div className="flex items-center gap-2">
-                    <ProviderIcon providerId={provider.id} size={12} color={provider.color} />
-                    <div className="text-xs font-semibold" style={{ color: 'var(--color-text)' }}>
-                      {providerShortName(provider.id)}
+              <DropdownPanel onClose={() => setShowPermMenu(false)} style={{ bottom: '100%', marginBottom: 8, left: 0, width: 236 }}>
+                <ComposerMenuSection>
+                  {permissionPresets.map((opt) => (
+                    <ComposerMenuRow
+                      key={opt.id}
+                      active={permissionMode === opt.modeId}
+                      disabled={Boolean(permissionUnavailableReason(opt.modeId))}
+                      icon={permissionPresetIcon(opt.id)}
+                      detail={permissionUnavailableReason(opt.modeId)}
+                      onClick={() => selectPermissionMode(opt.modeId)}
+                    >
+                      {opt.label}
+                    </ComposerMenuRow>
+                  ))}
+                  {!selectedPermissionPreset && (
+                    <div style={{ marginTop: 6, padding: '4px 10px', color: 'var(--color-text-muted)', fontSize: 12, lineHeight: 1.35 }}>
+                      A provider-specific permission setting is active. Choose one of these options to return to the standard controls.
                     </div>
-                  </div>
-                </div>
+                  )}
+                </ComposerMenuSection>
+              </DropdownPanel>
+            )}
+          </div>
 
-                <div className="px-3 py-2" style={{ borderBottom: provider.id === 'claude' ? '1px solid var(--color-border)' : undefined }}>
-                  <div className="flex flex-wrap gap-1.5">
-                    {primaryPermissionModes.map((opt) => (
-                      <PermissionModeChip
-                        key={opt.id}
-                        opt={opt}
-                        active={permissionMode === opt.id}
-                        providerColor={provider.color}
-                        unsupportedReason={permissionUnavailableReason(opt.id)}
-                        onSelect={() => selectPermissionMode(opt.id)}
-                      />
-                    ))}
-                  </div>
-                  {(advancedPermissionModes.length > 0 || dangerPermissionModes.length > 0) && (
-                    <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--color-border)' }}>
-                      <button
-                        onClick={() => setShowAdvancedPerms((open) => !open)}
-                        className="w-full text-xs font-semibold"
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          color: 'var(--color-text-muted)',
-                          background: 'transparent',
-                          border: 'none',
-                          padding: 0,
-                          cursor: 'pointer'
-                        }}
-                      >
-                        Advanced permissions
-                        <span>{showAdvancedPerms ? 'Hide' : 'Show'}</span>
-                      </button>
-                      {showAdvancedPerms && (
-                        <div style={{ marginTop: 8 }}>
-                          {advancedPermissionModes.length > 0 && (
-                            <div className="flex flex-wrap gap-1.5">
-                              {advancedPermissionModes.map((opt) => (
-                                <PermissionModeChip
-                                  key={opt.id}
-                                  opt={opt}
-                                  active={permissionMode === opt.id}
-                                  providerColor={provider.color}
-                                  unsupportedReason={permissionUnavailableReason(opt.id)}
-                                  onSelect={() => selectPermissionMode(opt.id)}
-                                />
-                              ))}
-                            </div>
-                          )}
-                          {dangerPermissionModes.length > 0 && (
-                            <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--color-border)' }}>
-                              <div
-                                className="mb-1.5 text-[11px] font-semibold tracking-normal"
-                                data-testid="composer-permission-danger-label"
-                                style={{ color: 'var(--color-red)' }}
-                              >
-                                Isolated only
-                              </div>
-                              <div className="flex flex-wrap gap-1.5">
-                                {dangerPermissionModes.map((opt) => (
-                                  <PermissionModeChip
-                                    key={opt.id}
-                                    opt={opt}
-                                    active={permissionMode === opt.id}
-                                    providerColor="var(--color-red)"
-                                    unsupportedReason={permissionUnavailableReason(opt.id)}
-                                    onSelect={() => selectPermissionMode(opt.id)}
-                                  />
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  {selectedPermissionMode?.desc && (
-                    <div style={{ marginTop: 8, color: 'var(--color-text-muted)', fontSize: 11, lineHeight: 1.35 }}>
-                      {selectedPermissionMode.desc}
-                    </div>
-                  )}
-                  {resolvedPermission?.execution && (
-                    <PermissionExecutionChips execution={resolvedPermission.execution} />
-                  )}
-                  {permissionContext && (
-                    <PermissionContextNote
-                      context={permissionContext}
-                      refreshing={permissionContextLoading}
-                      refreshStatus={permissionContextRefreshStatus}
-                      onRefresh={() => { void loadPermissionContext({ announce: true }) }}
-                    />
-                  )}
+          <div className="flex-1" />
+
+          <div className="relative flex items-center gap-1.5 composer-agent-picker" style={{ minWidth: 0 }}>
+            <ToolbarBtn
+              active={showAgentMenu}
+              onClick={() => { if (showAgentMenu) closeAgentMenu(); else openAgentMenu() }}
+              providerColor={provider.color}
+              dataTestId="composer-agent-menu"
+              buttonRef={agentButtonRef}
+              className="composer-agent-trigger"
+              title={agentTriggerTitle ? `Model: ${agentTriggerTitle}` : 'Model'}
+              ariaLabel="Model"
+              ariaExpanded={showAgentMenu}
+              ariaHasPopup="menu"
+              suppressTooltip={composerDropdownOpen}
+              onKeyDown={(event) => handleDropdownTriggerKeyDown(event, openAgentMenu)}
+            >
+              <ProviderIcon providerId={provider.id} size={11} color={provider.color} />
+              <span className="composer-control-label">{agentTriggerLabel}</span>
+              <Chevron />
+            </ToolbarBtn>
+            {showAgentMenu && (
+              <DropdownPanel onClose={closeAgentMenu} style={{ bottom: '100%', marginBottom: 8, right: 0, width: 276 }}>
+                <div
+                  className="sr-only"
+                  data-testid="composer-active-agent-summary"
+                >
+                  {provider.name} Thread settings
                 </div>
-                {provider.id === 'claude' && showAdvancedPerms && (
-                  <ClaudePermissionRules
-                    allowedTools={session.allowedTools ?? []}
-                    disallowedTools={session.disallowedTools ?? []}
-                    availableTools={session.availableTools ?? []}
-                    additionalDirs={session.additionalDirs ?? []}
-                    status={permissionRulesStatus}
-                    onChange={updatePermissionRules}
-                  />
-                )}
+                {renderAgentMenuContent()}
               </DropdownPanel>
             )}
           </div>
@@ -1824,18 +1706,24 @@ function InputBar({ session, isNew }: Props): JSX.Element {
                 data-native-title-free="true"
                 aria-label="Stop current run"
                 onClick={() => { void stopCurrentRun() }}
-                className="composer-stop-trigger flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium"
-                style={{ background: 'var(--color-red)', color: '#fff' }}
+                className="composer-stop-trigger flex items-center justify-center transition-colors"
+                style={{
+                  width: 30,
+                  height: 30,
+                  borderRadius: 999,
+                  background: 'var(--text-primary)',
+                  color: 'var(--canvas-bg)',
+                  cursor: 'pointer'
+                }}
               >
-                <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-                  <rect x="3" y="3" width="10" height="10" rx="1" />
+                <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                  <rect x="3" y="3" width="10" height="10" rx="2" />
                 </svg>
-                Stop
               </button>
             </Tooltip>
           )}
           {(session.status !== 'running' || canSend) && (
-            <Tooltip label={sendTitle}>
+            <Tooltip label={sendTitle} disabled={composerDropdownOpen}>
               <button
                 onClick={send}
                 disabled={!canSend}
@@ -1845,6 +1733,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
                 className="composer-send-trigger flex items-center justify-center rounded-lg transition-colors"
                 style={{
                   width: 30, height: 30,
+                  borderRadius: 999,
                   background: canSend ? 'var(--text-primary)' : 'var(--control-bg)',
                   color: canSend ? 'var(--canvas-bg)' : 'var(--color-text-muted)',
                   cursor: canSend ? 'pointer' : 'default'
@@ -1855,6 +1744,163 @@ function InputBar({ session, isNew }: Props): JSX.Element {
             </Tooltip>
           )}
         </div>
+        {isNew && (
+          <div className="composer-workspace-row" data-testid="composer-workspace-row">
+            <div className="relative min-w-0">
+              <ToolbarBtn
+                active={showProjectMenu}
+                onClick={toggleProjectMenu}
+                dataTestId="composer-project-menu"
+                buttonRef={projectButtonRef}
+                className="composer-project-trigger composer-workspace-trigger"
+                title={`Project: ${workspaceLabel}`}
+                ariaLabel="Project"
+                ariaExpanded={showProjectMenu}
+                ariaHasPopup="menu"
+                suppressTooltip={composerDropdownOpen}
+              >
+                <Icon name="folder" size={14} />
+                <span className="composer-control-label composer-control-label-sm">{workspaceLabel}</span>
+                <Chevron />
+              </ToolbarBtn>
+              {showProjectMenu && (
+                <DropdownPanel
+                  onClose={() => setShowProjectMenu(false)}
+                  anchorRef={projectButtonRef}
+                  align="left"
+                  style={{ width: 260 }}
+                  testId="composer-project-dropdown"
+                >
+                  <ComposerMenuSection label="Projects">
+                    {projects.map((project) => (
+                      <ComposerMenuRow
+                        key={project.id}
+                        active={project.id === session.projectId}
+                        icon="folder"
+                        detail={project.rootPath}
+                        onClick={() => switchProject(project)}
+                      >
+                        {project.name}
+                      </ComposerMenuRow>
+                    ))}
+                    <ComposerMenuRow
+                      active={false}
+                      icon="plus"
+                      onClick={() => { void addProjectFromPicker() }}
+                    >
+                      Add project...
+                    </ComposerMenuRow>
+                  </ComposerMenuSection>
+                </DropdownPanel>
+              )}
+            </div>
+            <div className="relative">
+              <ToolbarBtn
+                active={effectiveMode}
+                onClick={isGitRepo ? toggleModeMenu : undefined}
+                muted={!isGitRepo}
+                title={!isGitRepo ? 'Not a git repository' : undefined}
+                dataTestId="composer-worktree-menu"
+                buttonRef={modeButtonRef}
+                className="composer-worktree-trigger composer-workspace-trigger"
+                ariaExpanded={isGitRepo ? showModeMenu : undefined}
+                ariaHasPopup={isGitRepo ? 'menu' : undefined}
+                suppressTooltip={composerDropdownOpen}
+                onKeyDown={(event) => {
+                  if (isGitRepo) handleDropdownTriggerKeyDown(event, () => {
+                    setShowAgentMenu(false)
+                    setAgentMenuPane('main')
+                    setShowPermMenu(false)
+                    setShowProjectMenu(false)
+                    setShowModeMenu(true)
+                  })
+                }}
+              >
+                <Icon name={effectiveMode ? 'branch' : 'folder'} size={14} />
+                <span className="composer-control-label composer-control-label-sm">
+                  {effectiveMode ? 'New branch' : 'Work locally'}
+                </span>
+                {isGitRepo && <Chevron />}
+              </ToolbarBtn>
+
+              {showModeMenu && (
+                <DropdownPanel
+                    onClose={() => setShowModeMenu(false)}
+                    anchorRef={modeButtonRef}
+                    align="left"
+                    style={{ width: 284 }}
+                    testId="composer-worktree-dropdown"
+                  >
+                    <ComposerMenuSection label="Work mode">
+                      {(['local', 'worktree'] as const).map((mode) => {
+                        const active = mode === 'worktree' ? useWorktree : !useWorktree
+                        return (
+                          <ComposerMenuRow
+                            key={mode}
+                            active={active}
+                            icon={mode === 'local' ? 'folder' : 'branch'}
+                            detail={mode === 'local' ? 'Use the current checkout' : 'Create an isolated worktree on first send'}
+                            onClick={() => { setUseWorktree(mode === 'worktree') }}
+                          >
+                            {mode === 'local' ? 'Work locally' : 'New branch'}
+                          </ComposerMenuRow>
+                        )
+                      })}
+                    </ComposerMenuSection>
+                    <ComposerMenuSection label={useWorktree ? 'Start new branch from' : 'Switch branch'}>
+                      {branchOptions.length > 0
+                        ? branchOptions.map((branch) => (
+                          <ComposerMenuRow
+                            key={branch.name}
+                            active={!useWorktree && (branch.current === true || branch.name === currentBranch)}
+                            icon="branch"
+                            detail={branch.description}
+                            onClick={() => {
+                              if (useWorktree) createWorktreeFromBranch(branch.name)
+                              else void checkoutBranch(branch.name)
+                            }}
+                          >
+                            {branch.label}
+                          </ComposerMenuRow>
+                        ))
+                        : (
+                          <div className="composer-menu-empty">No branches found.</div>
+                        )}
+                    </ComposerMenuSection>
+                    {projectWorktreeConversations.length > 0 && (
+                      <ComposerMenuSection label="Worktrees">
+                        {projectWorktreeConversations.map(({ worktree, conversation }) => (
+                          <ComposerMenuRow
+                            key={`${worktree.id}:${conversation.id}`}
+                            active={conversation.id === session.id}
+                            icon="branch"
+                            detail={pathBaseName(worktree.workDir) || worktree.workDir}
+                            onClick={() => { void openWorktreeConversation(conversation.id) }}
+                          >
+                            {conversation.name}
+                          </ComposerMenuRow>
+                        ))}
+                      </ComposerMenuSection>
+                    )}
+                </DropdownPanel>
+              )}
+            </div>
+            {isGitRepo && (
+              <button
+                type="button"
+                className="composer-workspace-pill composer-workspace-branch-trigger"
+                title={currentBranch ?? 'Current branch'}
+                onClick={toggleModeMenu}
+                aria-label="Branch"
+                aria-expanded={showModeMenu}
+              >
+                <Icon name="branch" size={15} />
+                <span>{currentBranch ?? 'Branch'}</span>
+                <Chevron />
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -1882,33 +1928,90 @@ export default memo(InputBar, (prev, next) => {
 
 // ─── Sub-components ────────────────────────────────────────────────────────────
 
-function PermissionModeChip({
-  opt,
-  active,
-  providerColor,
-  unsupportedReason,
-  onSelect
+function ComposerMenuSection({
+  label,
+  children
 }: {
-  opt: { id: string; label: string; desc: string }
-  active: boolean
-  providerColor: string
-  unsupportedReason?: string
-  onSelect: () => void
+  label?: string
+  children: React.ReactNode
 }): JSX.Element {
-  const disabled = Boolean(unsupportedReason)
   return (
-    <Chip
-      active={active}
+    <div className="composer-menu-section">
+      {label && <div className="composer-menu-label">{label}</div>}
+      {children}
+    </div>
+  )
+}
+
+function ComposerMenuBack({
+  title,
+  onBack
+}: {
+  title: string
+  onBack: () => void
+}): JSX.Element {
+  return (
+    <div className="composer-menu-back">
+      <button type="button" className="composer-menu-back-button" onClick={onBack}>
+        <Icon name="arrowLeft" size={15} />
+      </button>
+      <span>{title}</span>
+    </div>
+  )
+}
+
+function ComposerMenuRow({
+  children,
+  active,
+  disabled,
+  icon,
+  leading,
+  detail,
+  trailing,
+  onClick
+}: {
+  children: React.ReactNode
+  active: boolean
+  disabled?: boolean
+  icon?: IconName
+  leading?: React.ReactNode
+  detail?: string
+  trailing?: React.ReactNode
+  onClick: () => void
+}): JSX.Element {
+  return (
+    <button
+      type="button"
+      className="composer-menu-row"
+      data-active={active ? 'true' : 'false'}
       disabled={disabled}
       onClick={() => {
-        if (!disabled) onSelect()
+        if (!disabled) onClick()
       }}
-      title={unsupportedReason ?? opt.desc}
-      activeColor={providerColor}
     >
-      {opt.label}
-    </Chip>
+      <span className="composer-menu-row-icon">
+        {leading ?? (icon ? <Icon name={icon} size={18} /> : null)}
+      </span>
+      <span className="composer-menu-row-copy">
+        <span className="composer-menu-row-title">{children}</span>
+        {detail && <span className="composer-menu-row-detail">{detail}</span>}
+      </span>
+      <span className="composer-menu-row-check">
+        {trailing ?? (active && <Icon name="check" size={20} />)}
+      </span>
+    </button>
   )
+}
+
+function permissionPresetIcon(id: string): IconName {
+  if (id === 'autoReview') return 'shield'
+  if (id === 'fullAccess') return 'shieldAlert'
+  return 'hand'
+}
+
+function compactPermissionLabel(label: string): string {
+  if (/^default permissions$/i.test(label)) return 'Default'
+  return label
 }
 
 function sideChatTitle(question: string): string {
@@ -2055,7 +2158,7 @@ function getVisibleModelsWithCurrent(
 }
 
 function ToolbarBtn({
-  children, active, onClick, onKeyDown, muted, title, ariaLabel, ariaExpanded, ariaHasPopup, providerColor, dataTestId, buttonRef, className, iconOnly
+  children, active, onClick, onKeyDown, muted, title, ariaLabel, ariaExpanded, ariaHasPopup, providerColor, dataTestId, buttonRef, className, iconOnly, suppressTooltip
 }: {
   children: React.ReactNode
   active: boolean
@@ -2071,6 +2174,7 @@ function ToolbarBtn({
   buttonRef?: Ref<HTMLButtonElement>
   className?: string
   iconOnly?: boolean
+  suppressTooltip?: boolean
 }): JSX.Element {
   const borderColor = active
     ? 'color-mix(in srgb, var(--border-subtle) 70%, transparent)'
@@ -2089,7 +2193,7 @@ function ToolbarBtn({
       aria-expanded={ariaExpanded}
       aria-haspopup={ariaHasPopup}
       onKeyDown={onKeyDown}
-      data-tooltip-label={ariaExpanded ? undefined : tooltipLabel}
+      data-tooltip-label={ariaExpanded || suppressTooltip ? undefined : tooltipLabel}
       data-native-title-free="true"
       data-testid={dataTestId}
       className={`flex items-center gap-1.5 text-xs transition-colors ${className ?? ''}`}
@@ -2109,7 +2213,7 @@ function ToolbarBtn({
       {children}
     </button>
   )
-  return <Tooltip label={tooltipLabel} disabled={ariaExpanded || !tooltipLabel}>{button}</Tooltip>
+  return <Tooltip label={tooltipLabel} disabled={Boolean(suppressTooltip) || ariaExpanded || !tooltipLabel}>{button}</Tooltip>
 }
 
 function Chevron(): JSX.Element {
@@ -2121,35 +2225,83 @@ function Chevron(): JSX.Element {
 }
 
 function DropdownPanel({
-  children, onClose, style, testId = 'composer-dropdown-surface'
+  children, onClose, style, testId = 'composer-dropdown-surface', anchorRef, align = 'left'
 }: {
   children: React.ReactNode
   onClose: () => void
   style: React.CSSProperties
   testId?: string
+  anchorRef?: RefObject<HTMLElement | null>
+  align?: 'left' | 'right'
 }): JSX.Element {
+  const [fixedStyle, setFixedStyle] = useState<React.CSSProperties>({})
+
+  useEffect(() => {
+    if (!anchorRef?.current) {
+      setFixedStyle({})
+      return
+    }
+
+    const updatePosition = (): void => {
+      const rect = anchorRef.current?.getBoundingClientRect()
+      if (!rect) return
+      const numericWidth = typeof style.width === 'number'
+        ? style.width
+        : typeof style.minWidth === 'number'
+          ? style.minWidth
+          : 276
+      const rawLeft = align === 'right' ? rect.right - numericWidth : rect.left
+      const left = Math.max(8, Math.min(rawLeft, window.innerWidth - numericWidth - 8))
+      const availableAbove = Math.max(160, rect.top - 16)
+      setFixedStyle({
+        position: 'fixed',
+        left,
+        right: 'auto',
+        top: 'auto',
+        bottom: Math.max(8, window.innerHeight - rect.top + 8),
+        width: numericWidth,
+        maxHeight: Math.min(360, availableAbove),
+        zIndex: 1000
+      })
+    }
+
+    updatePosition()
+    window.addEventListener('resize', updatePosition)
+    window.addEventListener('scroll', updatePosition, true)
+    return () => {
+      window.removeEventListener('resize', updatePosition)
+      window.removeEventListener('scroll', updatePosition, true)
+    }
+  }, [align, anchorRef, style.minWidth, style.width])
+
   return (
     <DismissablePopoverSurface
       className="absolute z-50 composer-dropdown-surface"
       onClose={onClose}
       style={{
-        border: '1px solid color-mix(in srgb, var(--border-subtle) 13%, transparent)',
-        borderRadius: 12,
-        background: 'color-mix(in srgb, var(--surface-bg) 38%, transparent)',
-        boxShadow: '0 8px 22px rgba(0, 0, 0, 0.1)',
+        border: '1px solid color-mix(in srgb, var(--border-subtle) 72%, transparent)',
+        borderRadius: 18,
+        background: 'color-mix(in srgb, var(--surface-bg) 96%, transparent)',
+        boxShadow: '0 18px 48px rgba(15, 23, 42, 0.16)',
         backdropFilter: 'blur(20px) saturate(135%)',
         WebkitBackdropFilter: 'blur(20px) saturate(135%)',
         overflow: 'hidden',
-        padding: '5px 0',
+        padding: '6px 0',
         maxWidth: 'min(420px, calc(100vw - 16px))',
-        maxHeight: 'min(360px, calc(100vh - 16px))',
-        ...style
+        maxHeight: 'min(360px, calc(100vh - 120px))',
+        ...style,
+        ...fixedStyle
       }}
     >
       <div
         data-testid={testId}
         data-composer-dropdown-surface="true"
         onKeyDown={handleDropdownSurfaceKeyDown}
+        style={{
+          maxHeight: 'inherit',
+          overflowY: 'auto',
+          overscrollBehavior: 'contain'
+        }}
       >
         {children}
       </div>
@@ -2267,149 +2419,6 @@ function composerDropdownButtons(root: ParentNode): HTMLButtonElement[] {
     )
 }
 
-function DropdownRow({
-  children, active, onClick, disabled
-}: {
-  children: React.ReactNode
-  active: boolean
-  onClick: () => void
-  disabled?: boolean
-}): JSX.Element {
-  return (
-    <button
-      disabled={disabled}
-      className="w-full flex items-start gap-2 px-3 py-2 text-left"
-      style={{
-        background: active ? 'var(--control-bg-active)' : 'transparent',
-        opacity: disabled ? 0.5 : 1,
-        cursor: disabled ? 'default' : 'pointer'
-      }}
-      onClick={() => { if (!disabled) onClick() }}
-      onMouseEnter={(e) => { if (!active && !disabled) e.currentTarget.style.background = 'var(--control-bg-hover)' }}
-      onMouseLeave={(e) => { if (!active && !disabled) e.currentTarget.style.background = 'transparent' }}
-    >
-      <div className="flex-1">
-        {children}
-      </div>
-      {active && (
-        <span className="shrink-0 mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
-          <Icon name="check" size={13} />
-        </span>
-      )}
-    </button>
-  )
-}
-
-function parseListInput(value: string): string[] {
-  return value
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean)
-}
-
-function ClaudePermissionRules({
-  allowedTools,
-  disallowedTools,
-  availableTools,
-  additionalDirs,
-  status,
-  onChange
-}: {
-  allowedTools: string[]
-  disallowedTools: string[]
-  availableTools: string[]
-  additionalDirs: string[]
-  status: string | null
-  onChange: (label: string, patch: {
-    allowedTools?: string[]
-    disallowedTools?: string[]
-    availableTools?: string[]
-    additionalDirs?: string[]
-  }) => void
-}): JSX.Element {
-  const inputStyle: React.CSSProperties = {
-    width: '100%',
-    background: 'var(--color-surface2)',
-    border: '1px solid var(--color-border)',
-    color: 'var(--color-text)',
-    borderRadius: 7,
-    padding: '5px 7px',
-    fontSize: 11,
-    outline: 'none'
-  }
-  const rowStyle: React.CSSProperties = { display: 'grid', gridTemplateColumns: '48px 1fr', gap: 8, alignItems: 'center' }
-  const labelStyle: React.CSSProperties = { color: 'var(--color-text-muted)', fontSize: 11 }
-
-  return (
-    <div
-      className="px-3 py-2 space-y-1.5"
-      data-testid="composer-permission-rules"
-      style={{ borderTop: '1px solid var(--color-border)' }}
-    >
-      <div style={rowStyle}>
-        <label htmlFor="composer-permission-allow-tools" style={labelStyle}>Allow</label>
-        <input
-          id="composer-permission-allow-tools"
-          data-testid="composer-permission-allow-tools"
-          defaultValue={allowedTools.join(', ')}
-          placeholder="Read, Edit"
-          onBlur={(event) => onChange('Allowed tools', { allowedTools: parseListInput(event.currentTarget.value) })}
-          style={inputStyle}
-        />
-      </div>
-      <div style={rowStyle}>
-        <label htmlFor="composer-permission-deny-tools" style={labelStyle}>Deny</label>
-        <input
-          id="composer-permission-deny-tools"
-          data-testid="composer-permission-deny-tools"
-          defaultValue={disallowedTools.join(', ')}
-          placeholder="Bash(git push)"
-          onBlur={(event) => onChange('Denied tools', { disallowedTools: parseListInput(event.currentTarget.value) })}
-          style={inputStyle}
-        />
-      </div>
-      <div style={rowStyle}>
-        <label htmlFor="composer-permission-available-tools" style={labelStyle}>Tools</label>
-        <input
-          id="composer-permission-available-tools"
-          data-testid="composer-permission-available-tools"
-          defaultValue={availableTools.join(', ')}
-          placeholder="default"
-          onBlur={(event) => onChange('Available tools', { availableTools: parseListInput(event.currentTarget.value) })}
-          style={inputStyle}
-        />
-      </div>
-      <div style={rowStyle}>
-        <label htmlFor="composer-permission-additional-dirs" style={labelStyle}>Dirs</label>
-        <input
-          id="composer-permission-additional-dirs"
-          data-testid="composer-permission-additional-dirs"
-          defaultValue={additionalDirs.join(', ')}
-          placeholder="/tmp/shared"
-          onBlur={(event) => onChange('Additional dirs', { additionalDirs: parseListInput(event.currentTarget.value) })}
-          style={inputStyle}
-        />
-      </div>
-      {status && (
-        <div
-          className="rounded-md px-1.5 py-1 text-[10.5px]"
-          data-testid="composer-permission-rules-status"
-          role="status"
-          aria-live="polite"
-          aria-atomic="true"
-          style={{
-            color: 'var(--accent)',
-            background: 'color-mix(in srgb, var(--accent) 8%, var(--surface-bg))',
-            border: '1px solid color-mix(in srgb, var(--accent) 20%, var(--border-subtle))'
-          }}
-        >
-          {status}
-        </div>
-      )}
-    </div>
-  )
-}
-
 function PolicyBadge({
   policy,
   compact
@@ -2449,186 +2458,14 @@ function PolicyBadge({
   )
 }
 
-function TieredRow({ label, children }: { label: string; children: React.ReactNode }): JSX.Element {
-  return (
-    <div
-      className="composer-tiered-row flex items-start gap-2 px-2.5 py-1"
-      role="group"
-      aria-label={`${label} choices`}
-    >
-      <span
-        className="composer-agent-row-label shrink-0 pt-1 text-[10px] font-medium tracking-normal"
-        data-testid="composer-agent-row-label"
-        style={{ color: 'color-mix(in srgb, var(--color-text-muted) 76%, transparent)', width: 46 }}
-      >
-        {label}
-      </span>
-      <div className="composer-tiered-row-choices flex flex-wrap gap-1">
-        {children}
-      </div>
-    </div>
-  )
-}
-
-function InlineHint({ children }: { children: React.ReactNode }): JSX.Element {
-  return (
-    <span className="text-xs" style={{ color: 'var(--color-text-muted)', padding: '2px 4px' }}>
-      {children}
-    </span>
-  )
-}
-
-function PermissionExecutionChips({ execution }: { execution: PermissionExecutionContract }): JSX.Element {
-  const chips = permissionExecutionLabels(execution)
-  if (chips.length === 0) return <></>
-  return (
-    <div
-      data-testid="composer-permission-execution-contract"
-      style={{
-        display: 'flex',
-        flexWrap: 'wrap',
-        gap: 5,
-        marginTop: 8
-      }}
-    >
-      {chips.map((chip) => (
-        <span
-          key={`${chip.label}:${chip.value}`}
-          style={{
-            minWidth: 0,
-            maxWidth: 170,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-            border: '1px solid var(--color-border)',
-            borderRadius: 7,
-            padding: '3px 6px',
-            fontSize: 10,
-            color: 'var(--color-text-muted)',
-            background: 'var(--color-surface)'
-          }}
-          title={`${chip.label}: ${chip.value}`}
-        >
-          {chip.label} {chip.value}
-        </span>
-      ))}
-    </div>
-  )
-}
-
-function PermissionContextNote({
-  context,
-  refreshing,
-  refreshStatus,
-  onRefresh
-}: {
-  context: ProviderPermissionRuntimeContext
-  refreshing: boolean
-  refreshStatus: { text: string; tone: 'info' | 'danger' } | null
-  onRefresh: () => void
-}): JSX.Element {
-  const tone = context.status === 'ok'
-    ? 'var(--color-green)'
-    : context.status === 'error'
-      ? 'var(--color-red)'
-      : 'var(--color-text-muted)'
-  const label = context.source === 'static'
-    ? 'Static config'
-    : context.status === 'ok'
-      ? 'Live config'
-      : 'Config fallback'
-  return (
-    <div
-      data-testid="composer-permission-runtime-context"
-      data-permission-context-refreshing={refreshing ? 'true' : 'false'}
-      data-permission-context-source={context.source}
-      data-permission-context-status={context.status}
-      style={{
-        marginTop: 7,
-        fontSize: 10.5,
-        lineHeight: 1.35,
-        maxWidth: 280
-      }}
-      title={context.cwd ? `${context.summary ?? ''} ${context.cwd}` : context.summary}
-    >
-      <div className="flex min-w-0 items-start gap-2">
-        <div className="min-w-0 flex-1" style={{ color: tone }}>
-          {label} · {context.summary ?? 'Permission config checked.'}
-        </div>
-        <button
-          type="button"
-          className="shrink-0 rounded-md px-1.5 py-0.5 font-semibold"
-          data-testid="composer-permission-runtime-refresh"
-          aria-label="Refresh permission config"
-          disabled={refreshing}
-          onClick={onRefresh}
-          style={{
-            background: 'var(--surface-bg)',
-            border: '1px solid var(--border-subtle)',
-            color: refreshing ? 'var(--text-tertiary)' : 'var(--text-primary)',
-            cursor: refreshing ? 'default' : 'pointer'
-          }}
-        >
-          {refreshing ? 'Refreshing' : 'Refresh'}
-        </button>
-      </div>
-      {refreshStatus && (
-        <div
-          className="mt-1 rounded-md px-1.5 py-1"
-          data-testid="composer-permission-runtime-refresh-status"
-          role={refreshStatus.tone === 'danger' ? 'alert' : 'status'}
-          aria-live={refreshStatus.tone === 'danger' ? 'assertive' : 'polite'}
-          aria-atomic="true"
-          style={{
-            color: refreshStatus.tone === 'danger' ? 'var(--color-red)' : 'var(--accent)',
-            background: refreshStatus.tone === 'danger'
-              ? 'color-mix(in srgb, var(--color-red) 8%, var(--surface-bg))'
-              : 'color-mix(in srgb, var(--accent) 8%, var(--surface-bg))',
-            border: '1px solid var(--border-subtle)'
-          }}
-        >
-          {refreshStatus.text}
-        </div>
-      )}
-    </div>
-  )
-}
-
-function permissionSourceBadgeLabel(context: ProviderPermissionRuntimeContext): string {
-  if (context.status === 'ok') return 'Live'
-  if (context.source === 'app-server') return 'Fallback'
-  return 'Static'
-}
-
-function permissionExecutionLabels(execution: PermissionExecutionContract): Array<{ label: string; value: string }> {
-  return [
-    execution.nativeMode ? { label: 'Mode', value: execution.nativeMode } : null,
-    execution.approvalPolicy ? { label: 'Approval', value: execution.approvalPolicy } : null,
-    execution.approvalsReviewer && execution.approvalsReviewer !== 'user' ? { label: 'Reviewer', value: execution.approvalsReviewer } : null,
-    execution.sandboxMode ? { label: 'Sandbox', value: execution.sandboxMode } : null,
-    execution.toolPolicy ? { label: 'Tools', value: execution.toolPolicy } : null,
-    execution.configSource ? { label: 'Source', value: execution.configSource } : null
-  ].filter((chip): chip is { label: string; value: string } => Boolean(chip))
-}
-
-function filterPermissionModes(
-  modes: ProviderPermissionMode[],
+function filterPermissionPresets(
+  presets: ProviderPermissionPreset[],
   context: ProviderPermissionRuntimeContext | null,
   selectedPolicy: string
-): ProviderPermissionMode[] {
-  if (!context || context.status !== 'ok' || !context.visiblePolicies || context.visiblePolicies.length === 0) return modes
+): ProviderPermissionPreset[] {
+  if (!context || context.status !== 'ok' || !context.visiblePolicies || context.visiblePolicies.length === 0) return presets
   const visible = new Set(context.visiblePolicies)
-  return modes.filter((mode) => visible.has(mode.id) || mode.id === selectedPolicy)
-}
-
-function providerShortName(providerId: string): string {
-  const names: Record<string, string> = {
-    claude: 'Claude',
-    codex: 'Codex',
-    copilot: 'Copilot',
-    cursor: 'Cursor'
-  }
-  return names[providerId] ?? providerId
+  return presets.filter((preset) => visible.has(preset.modeId) || preset.modeId === selectedPolicy)
 }
 
 function shallowEqualArray<T>(a?: T[], b?: T[]): boolean {
@@ -2640,41 +2477,4 @@ function shallowEqualArray<T>(a?: T[], b?: T[]): boolean {
 function errorText(error: unknown): string {
   if (error instanceof Error) return error.message
   return String(error)
-}
-
-function Chip({
-  children, active, disabled, onClick, title, activeColor = 'var(--color-accent)'
-}: {
-  children: React.ReactNode
-  active: boolean
-  disabled?: boolean
-  onClick: () => void
-  title?: string
-  activeColor?: string
-}): JSX.Element {
-  const button = (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      aria-pressed={active}
-      data-tooltip-label={title}
-      data-native-title-free="true"
-      data-composer-choice-active={active ? 'true' : 'false'}
-      className="composer-choice-chip flex items-center gap-1.5 text-xs transition-colors"
-      style={{
-        background: active ? 'color-mix(in srgb, var(--control-bg-active) 15%, transparent)' : 'transparent',
-        color: active ? activeColor : disabled ? 'var(--text-tertiary)' : 'var(--text-primary)',
-        border: '1px solid ' + (active ? `color-mix(in srgb, ${activeColor} 20%, var(--border-subtle))` : 'color-mix(in srgb, var(--border-subtle) 8%, transparent)'),
-        borderRadius: 'var(--radius-pill)',
-        padding: '2.5px 6px',
-        cursor: disabled ? 'default' : 'pointer',
-        opacity: disabled ? 0.5 : 1,
-        fontWeight: active ? 650 : 500
-      }}
-    >
-      {children}
-    </button>
-  )
-  return title ? <Tooltip label={title}>{button}</Tooltip> : button
 }

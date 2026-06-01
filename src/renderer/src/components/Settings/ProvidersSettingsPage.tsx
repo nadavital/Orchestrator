@@ -11,11 +11,13 @@ import { CSS } from '@dnd-kit/utilities'
 import {
   PROVIDER_DEFS,
   getDefaultPermissionMode,
-  getPrimaryPermissionModes,
+  getProviderPermissionPresetForMode,
+  getProviderPermissionPresets,
   getVisibleModels,
   type PermissionExecutionContract,
   type ProviderCapabilityGap,
-  type ProviderPermissionMode,
+  type ProviderAuthSecretStatus,
+  type ProviderPermissionPreset,
   type ProviderPermissionRuntimeContext,
   type ProviderCommandSurface,
   type ProviderCommandSurfaceResult,
@@ -87,7 +89,9 @@ export default function ProvidersSettingsPage({
   const contextDefaultPermissionMode = permissionContext?.providerId === selectedId ? permissionContext.defaultPolicy : undefined
   const currentPermissionMode = getDefaultPermissionMode(providerDef, defaultPermissionModes[selectedId] ?? contextDefaultPermissionMode)
   const visibleModels = getVisibleModels(providerDef, providerModels)
-  const primaryPermissionModes = filterPermissionModes(getPrimaryPermissionModes(providerDef), permissionContext, currentPermissionMode)
+  const permissionPresets = filterPermissionPresets(getProviderPermissionPresets(providerDef), permissionContext, currentPermissionMode)
+  const selectedPermissionPreset = getProviderPermissionPresetForMode(providerDef, currentPermissionMode)
+  const permissionPickerMode = selectedPermissionPreset?.modeId ?? permissionPresets[0]?.modeId ?? currentPermissionMode
   const visibleIds = visibleModels.map((m) => m.id)
   const runtime = providerRuntime[selectedId]
   const diagnostics = providerDiagnostics[selectedId]
@@ -256,27 +260,32 @@ export default function ProvidersSettingsPage({
                   />
                 )}
 
-                {primaryPermissionModes.length > 0 && (
+                {permissionPresets.length > 0 && (
                   <SettingsRow
-                    label="Mode"
+                    label="Permissions"
                     className="provider-settings-row provider-settings-row-stacked"
                     control={(
                       <div className="provider-settings-row-stack">
                         <SegmentedControl
-                          items={primaryPermissionModes}
-                          value={currentPermissionMode}
+                          items={permissionPresets.map((preset) => ({ id: preset.modeId, label: preset.label }))}
+                          value={permissionPickerMode}
                           color={providerDef.color}
                           ariaLabel={`${providerDef.name} permission mode`}
                           onChange={(id) => onSetDefaultPermissionMode(selectedId, id)}
                         />
                         <ProviderPermissionContract
-                          policy={runtime?.policies[currentPermissionMode]}
+                          policy={runtime?.policies[permissionPickerMode]}
                           context={permissionContext}
                           color={providerDef.color}
                           refreshing={permissionContextLoading}
                           refreshStatus={permissionContextRefreshStatus}
                           onRefresh={() => { void loadPermissionContext({ announce: true }) }}
                         />
+                        {!selectedPermissionPreset && (
+                          <InlineMutedText>
+                            A provider-specific default is active. Choose one of these options to use the standard permission controls.
+                          </InlineMutedText>
+                        )}
                       </div>
                     )}
                   />
@@ -621,14 +630,14 @@ function permissionExecutionLabels(execution: PermissionExecutionContract): Arra
   ].filter((chip): chip is { label: string; value: string; strong?: boolean } => Boolean(chip))
 }
 
-function filterPermissionModes(
-  modes: ProviderPermissionMode[],
+function filterPermissionPresets(
+  presets: ProviderPermissionPreset[],
   context: ProviderPermissionRuntimeContext | undefined,
   selectedPolicy: string
-): ProviderPermissionMode[] {
-  if (!context || context.status !== 'ok' || !context.visiblePolicies || context.visiblePolicies.length === 0) return modes
+): ProviderPermissionPreset[] {
+  if (!context || context.status !== 'ok' || !context.visiblePolicies || context.visiblePolicies.length === 0) return presets
   const visible = new Set(context.visiblePolicies)
-  return modes.filter((mode) => visible.has(mode.id) || mode.id === selectedPolicy)
+  return presets.filter((preset) => visible.has(preset.modeId) || preset.modeId === selectedPolicy)
 }
 
 function ProviderRuntimeEventsCard({
@@ -641,7 +650,7 @@ function ProviderRuntimeEventsCard({
   color: string
 }): JSX.Element {
   const [actionStatus, setActionStatus] = useState<{ text: string; tone: 'info' | 'danger'; action: 'copy' | 'chat' } | null>(null)
-  const statusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const statusTimeoutRef = useRef<number | null>(null)
   const activeSessionId = useSessionStore((state) => state.activeSessionId)
   const setComposerDraft = useSessionStore((state) => state.setComposerDraft)
   const visibleEvents = events.slice(-4).reverse()
@@ -883,9 +892,156 @@ function ProviderSetupDetails({ providerDef }: { providerDef: typeof PROVIDER_DE
           <ClaudeEndpointField color={providerDef.color} />
         </div>
       )}
+      {providerDef.id === 'cursor' && (
+        <div className="provider-setup-row" data-testid="provider-setup-cursor-auth">
+          <div className="provider-setup-label">Auth</div>
+          <CursorAuthField color={providerDef.color} />
+        </div>
+      )}
       <div className="provider-setup-row" data-testid="provider-setup-config">
         <div className="provider-setup-label">Config</div>
         <ProviderConfigEditor providerId={providerDef.id} color={providerDef.color} />
+      </div>
+    </div>
+  )
+}
+
+function CursorAuthField({ color }: { color: string }): JSX.Element {
+  const [status, setStatus] = useState<ProviderAuthSecretStatus | null>(null)
+  const [keyValue, setKeyValue] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState('')
+  const [tone, setTone] = useState<'muted' | 'success' | 'error'>('muted')
+
+  const refresh = async (): Promise<void> => {
+    const next = await window.api.providers.getAuthSecretStatus('cursor')
+    setStatus(next)
+    setTone(next.configured ? 'success' : 'muted')
+    setMessage(next.message ?? (next.configured ? 'API key saved in Keychain.' : 'No API key saved.'))
+  }
+
+  useEffect(() => {
+    void refresh()
+  }, [])
+
+  const save = async (): Promise<void> => {
+    const trimmed = keyValue.trim()
+    if (!trimmed || busy) return
+    setBusy(true)
+    const result = await window.api.providers.setAuthSecret('cursor', trimmed)
+    setStatus(result.status)
+    setKeyValue('')
+    setTone(result.ok ? 'success' : 'error')
+    setMessage(result.message ?? result.status.message ?? (result.ok ? 'Saved' : 'Save failed'))
+    setBusy(false)
+  }
+
+  const validate = async (): Promise<void> => {
+    if (busy) return
+    setBusy(true)
+    setTone('muted')
+    setMessage('Testing Cursor auth...')
+    const result = await window.api.providers.validateAuthSecret('cursor')
+    setTone(result.ok ? 'success' : 'error')
+    setMessage(result.message)
+    setBusy(false)
+  }
+
+  const remove = async (): Promise<void> => {
+    if (busy) return
+    setBusy(true)
+    const result = await window.api.providers.deleteAuthSecret('cursor')
+    setStatus(result.status)
+    setTone(result.ok ? 'muted' : 'error')
+    setMessage(result.message ?? result.status.message ?? (result.ok ? 'Removed' : 'Remove failed'))
+    setBusy(false)
+  }
+
+  const statusColor = tone === 'success'
+    ? 'var(--color-green)'
+    : tone === 'error'
+      ? 'var(--color-red)'
+      : 'var(--color-text-muted)'
+
+  return (
+    <div data-testid="cursor-auth-keychain-field" style={{ display: 'grid', gap: 8, minWidth: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+        <div style={{ color: 'var(--color-text)', fontSize: 12, fontWeight: 650 }}>
+          User API Key
+        </div>
+        <span
+          data-testid="cursor-auth-keychain-status"
+          data-cursor-auth-configured={status?.configured ? 'true' : 'false'}
+          style={{
+            fontSize: 10,
+            color: statusColor,
+            border: '1px solid var(--color-border)',
+            borderRadius: 999,
+            padding: '1px 6px',
+            background: 'var(--color-surface2)'
+          }}
+        >
+          {status?.configured ? 'Keychain' : 'Not set'}
+        </span>
+      </div>
+      <div style={{ display: 'flex', gap: 8, minWidth: 0, flexWrap: 'wrap' }}>
+        <input
+          type="password"
+          value={keyValue}
+          onChange={(event) => {
+            setKeyValue(event.target.value)
+            setTone('muted')
+            setMessage(status?.configured ? 'Replace saved key' : 'Ready to save')
+          }}
+          placeholder={status?.configured ? 'Key saved in Keychain' : 'Cursor User API key'}
+          data-testid="cursor-auth-key-input"
+          style={{
+            flex: '1 1 220px',
+            minWidth: 0,
+            padding: '7px 10px',
+            borderRadius: 6,
+            fontSize: 11,
+            fontFamily: 'monospace',
+            background: 'var(--color-surface2)',
+            border: `1px solid ${keyValue.trim() ? color : 'var(--color-border)'}`,
+            color: 'var(--color-text)',
+            outline: 'none'
+          }}
+        />
+        <button
+          type="button"
+          onClick={save}
+          disabled={!keyValue.trim() || busy}
+          className="settings-action-button"
+          data-testid="cursor-auth-save"
+        >
+          {busy && keyValue.trim() ? 'Saving...' : 'Save'}
+        </button>
+        <button
+          type="button"
+          onClick={validate}
+          disabled={!status?.configured || busy}
+          className="settings-action-button"
+          data-testid="cursor-auth-test"
+        >
+          {busy && !keyValue.trim() ? 'Testing...' : 'Test'}
+        </button>
+        <button
+          type="button"
+          onClick={remove}
+          disabled={!status?.configured || busy}
+          className="settings-action-button"
+          data-testid="cursor-auth-remove"
+        >
+          Remove
+        </button>
+      </div>
+      <div
+        data-testid="cursor-auth-message"
+        data-cursor-auth-tone={tone}
+        style={{ color: statusColor, fontSize: 11, lineHeight: 1.35 }}
+      >
+        {message || 'Cursor Dashboard / Integrations / User API Keys'}
       </div>
     </div>
   )
@@ -1019,7 +1175,7 @@ function ProviderCommandSurfaces({
   const [loading, setLoading] = useState<Record<string, boolean>>({})
   const [openId, setOpenId] = useState<string | null>(null)
   const [terminalStatus, setTerminalStatus] = useState<{ surfaceId: string; text: string; tone: 'info' | 'danger' } | null>(null)
-  const statusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const statusTimeoutRef = useRef<number | null>(null)
   const activeSessionId = useSessionStore((state) => state.activeSessionId)
   const setActiveSession = useSessionStore((state) => state.setActiveSession)
   const setShowTerminal = useSessionStore((state) => state.setShowTerminal)
@@ -2757,7 +2913,7 @@ function ClaudeEndpointField({ color }: { color: string }): JSX.Element {
 
 function InstallCommand({ cmd }: { cmd: string }): JSX.Element {
   const [status, setStatus] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
-  const statusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const statusTimeoutRef = useRef<number | null>(null)
   useEffect(() => () => {
     if (statusTimeoutRef.current) window.clearTimeout(statusTimeoutRef.current)
   }, [])

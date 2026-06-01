@@ -8,7 +8,7 @@ import { promisify } from 'util'
 import type { Attachment, AutomationPermissionSnapshot, CodexReviewStartRequest, Session, SessionForkMode, SessionForkOptions, SessionListItem, ChatMessage, TextMessage, ProviderRuntimeKind, ProviderSidebarSyncResult, ReviewMetadata, RunEvent, RunRequest, SessionStatus, SideQuestionMessage, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary, UserInputAnswerPayload, WorktreeInventoryItem } from '../types'
 import { PROVIDER_DEFS, applyAutomationPermissionSnapshot, finalizeInterruptedMessages, getDefaultPermissionMode } from '../types'
 import { gitManager } from './git'
-import { getProvider, PROVIDERS, providerSpawnEnv, resolveProviderBinary, resolveProviderCommand, runCodexAppServerCommandSurfaceRaw } from './providers'
+import { buildProviderCommandForRuntime, getProvider, PROVIDERS, providerSpawnEnv, resolveProviderBinary, resolveProviderCommand, runCodexAppServerCommandSurfaceRaw } from './providers'
 import type { ProviderAdapter } from './providers'
 import { providerRuntime } from './providerRuntime'
 import { eventsToMessages } from './runEvents'
@@ -21,6 +21,8 @@ import { searchTranscriptMessages, transcriptPageForMessages } from './transcrip
 import { recordPerformanceMetric } from './performanceTelemetry'
 import { applyCodexThreadListMetadata, applyProviderPinnedThreadState, ensurePinnedSessionOrders, nextPinOrder, reorderPinnedSessions } from '../types'
 import { shouldRefreshCodexSidebarMetadataAfterRun, shouldRefreshCodexSidebarMetadataOnIdle, syncCodexSidebarThreadMetadata } from './providerSidebarSync'
+import { runClaudeSdkOneShot } from './claudeSdkRuntime'
+import { promptWithCursorSdkUnansweredContext } from './cursorPromptContext'
 
 interface SessionStore {
   sessions: Session[]
@@ -96,11 +98,12 @@ function activeStoredSessions(): Session[] {
 
 function defaultRuntimeForProvider(providerId: string): ProviderRuntimeKind {
   if (providerId === 'codex') return 'app-server'
+  if (providerId === 'claude') return 'sdk'
   return 'headless'
 }
 
 function sessionRuntimeForProvider(providerId: string, runtime?: ProviderRuntimeKind): ProviderRuntimeKind {
-  if (providerId === 'claude' && runtime === 'interactive') return defaultRuntimeForProvider(providerId)
+  if (providerId === 'claude' && runtime !== 'sdk') return defaultRuntimeForProvider(providerId)
   return runtime ?? defaultRuntimeForProvider(providerId)
 }
 
@@ -862,10 +865,21 @@ export const sessionManager = {
       worktreeState = source.worktreeState
     }
 
-    const sourceMessages = options.throughMessageId
-      ? source.messages.slice(0, source.messages.findIndex((message) => message.id === options.throughMessageId) + 1)
-      : source.messages
-    if (options.throughMessageId && sourceMessages.length === 0) {
+    const beforeMessageIndex = options.beforeMessageId
+      ? source.messages.findIndex((message) => message.id === options.beforeMessageId)
+      : -1
+    const throughMessageIndex = options.throughMessageId
+      ? source.messages.findIndex((message) => message.id === options.throughMessageId)
+      : -1
+    const sourceMessages = options.beforeMessageId
+      ? source.messages.slice(0, beforeMessageIndex)
+      : options.throughMessageId
+        ? source.messages.slice(0, throughMessageIndex + 1)
+        : source.messages
+    if (options.beforeMessageId && beforeMessageIndex < 0) {
+      throw new Error(`Message ${options.beforeMessageId} not found`)
+    }
+    if (options.throughMessageId && throughMessageIndex < 0) {
       throw new Error(`Message ${options.throughMessageId} not found`)
     }
 
@@ -875,9 +889,11 @@ export const sessionManager = {
         id: `forked-from-${source.id}-${now}`,
         role: 'system',
         type: 'text',
-        content: options.throughMessageId
-          ? `Forked from "${source.name}" at a selected message.`
-          : `Forked from "${source.name}".`,
+        content: options.beforeMessageId
+          ? `Forked from "${source.name}" before a selected message.`
+          : options.throughMessageId
+            ? `Forked from "${source.name}" at a selected message.`
+            : `Forked from "${source.name}".`,
         timestamp: now
       }
     ]
@@ -917,7 +933,7 @@ export const sessionManager = {
       latestMessageAt: now,
       forkedFromSessionId: source.id,
       forkedFromSessionName: source.name,
-      forkedFromMessageId: options.throughMessageId,
+      forkedFromMessageId: options.beforeMessageId ?? options.throughMessageId,
       forkedAt: now,
       forkMode: mode,
       archivedAt: undefined,
@@ -1355,8 +1371,9 @@ export const sessionManager = {
 
     const currentSession = this.get(sessionId)!
     const provider = getProvider(currentSession.provider ?? 'claude')
+    const runPrompt = promptWithCursorSdkUnansweredContext(currentSession, effectivePrompt)
     let runRequest: RunRequest = applyAutomationPermissionSnapshot({
-      ...requestFromSession(currentSession, effectivePrompt),
+      ...requestFromSession(currentSession, runPrompt),
       attachments: provider.id === 'codex' ? attachments : claudeResourceAttachmentSpecs(attachments)
     }, options.permissionSnapshot)
     try {
@@ -1480,8 +1497,9 @@ export const sessionManager = {
 
     const currentSession = this.get(sessionId)!
     const mode = currentSession.providerSessionId ? 'resume' : 'start'
+    const runPrompt = promptWithCursorSdkUnansweredContext(currentSession, effectivePrompt)
     const runRequest: RunRequest = {
-      ...requestFromSession(currentSession, effectivePrompt),
+      ...requestFromSession(currentSession, runPrompt),
       runtime: currentSession.runtime,
       attachments: runtimeAttachments
     }
@@ -1757,8 +1775,9 @@ export const sessionManager = {
 
     const provider = getProvider(session.provider ?? 'claude')
     const mode = session.providerSessionId ? 'resume' : 'start'
+    const runPrompt = promptWithCursorSdkUnansweredContext(session, followUp.prompt)
     let runRequest: RunRequest = {
-      ...requestFromSession(session, followUp.prompt),
+      ...requestFromSession(session, runPrompt),
       runtime: session.runtime,
       attachments: followUp.attachments ?? []
     }
@@ -2128,12 +2147,37 @@ export const sessionManager = {
       executionPolicy: provider.id === 'claude' ? 'dontAsk' : session.permissionMode,
       allowedTools: [],
       disallowedTools: [],
-      availableTools: provider.id === 'claude' ? [''] : [],
+      availableTools: [],
       attachments: []
     }
-    const command = resolveProviderCommand(provider, provider.buildStartCommand(request))
+
+    if (provider.id === 'claude') {
+      const { events } = await runClaudeSdkOneShot({
+        sessionId: `${sessionId}-side-question-${Date.now()}`,
+        session,
+        provider,
+        request: { ...request, runtime: 'sdk' },
+        maxBudgetUsd: 0.05,
+        timeoutMs: 90_000
+      })
+      const text = events
+        .flatMap((event) => event.type === 'assistant.text' ? [event.content] : [])
+        .join('\n')
+        .trim()
+      const terminal = [...events].reverse().find((event) => event.type === 'run.completed' || event.type === 'run.failed')
+      const usage = terminal?.type === 'run.completed' || terminal?.type === 'run.failed' ? terminal.usage : undefined
+      const fallback = terminal && (terminal.type === 'run.completed' || terminal.type === 'run.failed') ? terminal.content : undefined
+      return {
+        ok: terminal?.type !== 'run.failed',
+        answer: text || fallback || '',
+        error: terminal?.type === 'run.failed' ? (fallback || 'Side question failed.') : undefined,
+        usage
+      }
+    }
+
+    const commandSpec = buildProviderCommandForRuntime(provider, request)
+    const command = commandSpec ? resolveProviderCommand(provider, commandSpec) : null
     if (!command) return { ok: false, answer: '', error: `${provider.id} CLI is not available.` }
-    if (provider.id === 'claude') command.args.push('--max-budget-usd', '0.05')
 
     try {
       const { stdout } = await execFileAsync(command.binary, command.args, {

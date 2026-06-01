@@ -156,6 +156,7 @@ export default function AppearanceSettingsPage({
   codeFontSize,
   useFontSmoothing,
   usePointerCursors,
+  useTransparentSidebar,
   reduceMotion,
   onSetAppearance,
   onSetAccent,
@@ -190,6 +191,7 @@ export default function AppearanceSettingsPage({
   codeFontSize: number
   useFontSmoothing: boolean
   usePointerCursors: boolean
+  useTransparentSidebar: boolean
   reduceMotion: boolean
   onSetAppearance: (value: Appearance, preset?: AppearancePreset) => void
   onSetAccent: (value: Accent) => void
@@ -203,7 +205,7 @@ export default function AppearanceSettingsPage({
   onSetAppearanceTheme: (value: AppearanceTheme) => void
   onSetChromeTheme: (variant: 'light' | 'dark', value: ChromeTheme) => void
   onSetThemeFontSize: (kind: 'ui' | 'code', value: number) => void
-  onSetThemeToggle: (key: 'useFontSmoothing' | 'usePointerCursors' | 'reduceMotion', value: boolean) => void
+  onSetThemeToggle: (key: 'useFontSmoothing' | 'usePointerCursors' | 'useTransparentSidebar' | 'reduceMotion', value: boolean) => void
   onImportPortableTheme: (raw: string) => { ok: boolean; error?: string }
 }): JSX.Element {
   const [themeImportText, setThemeImportText] = useState('')
@@ -314,18 +316,26 @@ export default function AppearanceSettingsPage({
 
           <SettingsContentGroup className="appearance-settings-content-group">
           <SettingsSectionHeading
-            title="Preview"
-            description="Check the active colors against a compact chat and code surface."
+            title="Layout and reading"
+            description="Control density, transcript rhythm, and sidebar material."
           />
           <SettingsGroupContent>
             <SettingsSurface className="appearance-settings-surface">
               <div className="appearance-settings-control-pad">
-                <ThemePreview
-                  variant={appearanceTheme === 'light' ? 'light' : appearanceTheme === 'dark' ? 'dark' : 'system'}
-                  lightTheme={lightChromeTheme}
-                  darkTheme={darkChromeTheme}
-                />
+                <SegmentedChoice items={densityOptions} value={density} onChange={onSetDensity} />
+                <SegmentedChoice items={transcriptOptions} value={transcriptStyle} onChange={onSetTranscriptStyle} />
               </div>
+              <SettingsRow
+                label="Tint sidebar"
+                description="Use the soft tinted rail material."
+                control={<Switch checked={sidebarTint} onChange={onSetSidebarTint} />}
+              />
+              <PreferenceToggle
+                title="Transparent sidebar"
+                description="Let the left rail use window material instead of a solid surface."
+                checked={useTransparentSidebar}
+                onChange={(value) => onSetThemeToggle('useTransparentSidebar', value)}
+              />
             </SettingsSurface>
           </SettingsGroupContent>
           </SettingsContentGroup>
@@ -334,11 +344,162 @@ export default function AppearanceSettingsPage({
             <summary className="settings-advanced-summary" data-testid="appearance-advanced-toggle">
               <span className="settings-advanced-summary-copy">
                 <span className="settings-advanced-summary-title">Advanced appearance</span>
-                <span className="settings-advanced-summary-description">Theme editing and portable theme import.</span>
+                <span className="settings-advanced-summary-description">Preview, accent, typography, theme editing, and import.</span>
               </span>
             </summary>
 
             <div className="settings-advanced-body">
+              <SettingsContentGroup className="appearance-settings-content-group">
+                <SettingsSectionHeading
+                  title="Preview"
+                  description="Check the active colors against a compact chat and code surface."
+                />
+                <SettingsGroupContent>
+                  <SettingsSurface className="appearance-settings-surface">
+                    <div className="appearance-settings-control-pad">
+                      <ThemePreview
+                        variant={appearanceTheme === 'light' ? 'light' : appearanceTheme === 'dark' ? 'dark' : 'system'}
+                        lightTheme={lightChromeTheme}
+                        darkTheme={darkChromeTheme}
+                      />
+                    </div>
+                  </SettingsSurface>
+                </SettingsGroupContent>
+              </SettingsContentGroup>
+
+              <SettingsContentGroup className="appearance-settings-content-group">
+                <SettingsSectionHeading
+                  title="Quick accent"
+                  description="A lightweight accent preset for primary actions, focus rings, and active states."
+                />
+                <SettingsGroupContent>
+                  <SettingsSurface className="appearance-settings-surface">
+                    <div className="appearance-accent-controls">
+                      <div className="appearance-accent-options">
+                        {accentOptions.map((option) => (
+                          <button
+                            key={option.id}
+                            type="button"
+                            className="appearance-accent-button"
+                            data-active={accent === option.id ? 'true' : 'false'}
+                            style={{ '--appearance-accent-color': option.color } as CSSProperties}
+                            onClick={() => onSetAccent(option.id)}
+                          >
+                            <span className="appearance-accent-swatch" aria-hidden="true" />
+                            {option.label}
+                          </button>
+                        ))}
+                      </div>
+                      <SettingsRow
+                        label="Custom accent"
+                        description="Used when the custom accent swatch is selected."
+                        control={(
+                          <input
+                            data-testid="appearance-custom-accent-input"
+                            data-color-input-surface="shared"
+                            type="color"
+                            value={customAccent}
+                            onChange={(event) => onSetCustomAccent(event.currentTarget.value)}
+                            className="appearance-color-input"
+                          />
+                        )}
+                      />
+                    </div>
+                  </SettingsSurface>
+                </SettingsGroupContent>
+              </SettingsContentGroup>
+
+              <SettingsContentGroup className="appearance-settings-content-group">
+                <SettingsSectionHeading
+                  title="Typography"
+                  description="Choose app and terminal type independently."
+                />
+                <SettingsGroupContent>
+                  <SettingsSurface className="appearance-settings-surface">
+                    <div className="appearance-settings-control-pad">
+                      <SegmentedChoice items={fontOptions} value={uiFont} onChange={onSetUiFont} />
+                      <SegmentedChoice items={monoOptions} value={monoFont} onChange={onSetMonoFont} />
+                    </div>
+                    <SettingsRow
+                      label="Interface scale"
+                      description={`${Math.round(interfaceScale * 100)}% app chrome scale.`}
+                      control={(
+                        <input
+                          type="range"
+                          min="0.9"
+                          max="1.12"
+                          step="0.01"
+                          value={interfaceScale}
+                          onChange={(event) => onSetInterfaceScale(Number(event.currentTarget.value))}
+                          className="appearance-range-input"
+                        />
+                      )}
+                    />
+                    <SettingsRow
+                      label="UI font size"
+                      description={`${sansFontSize}px interface text.`}
+                      control={(
+                        <input
+                          data-testid="appearance-ui-font-size"
+                          type="range"
+                          min="11"
+                          max="18"
+                          step="1"
+                          value={sansFontSize}
+                          onChange={(event) => onSetThemeFontSize('ui', Number(event.currentTarget.value))}
+                          className="appearance-range-input"
+                        />
+                      )}
+                    />
+                    <SettingsRow
+                      label="Code font size"
+                      description={`${codeFontSize}px monospaced text.`}
+                      control={(
+                        <input
+                          data-testid="appearance-code-font-size"
+                          type="range"
+                          min="11"
+                          max="18"
+                          step="1"
+                          value={codeFontSize}
+                          onChange={(event) => onSetThemeFontSize('code', Number(event.currentTarget.value))}
+                          className="appearance-range-input"
+                        />
+                      )}
+                    />
+                  </SettingsSurface>
+                </SettingsGroupContent>
+              </SettingsContentGroup>
+
+              <SettingsContentGroup className="appearance-settings-content-group">
+                <SettingsSectionHeading
+                  title="Interface details"
+                  description="Fine-tune secondary interaction and rendering preferences."
+                />
+                <SettingsGroupContent>
+                  <SettingsSurface className="appearance-settings-surface">
+                    <PreferenceToggle
+                      title="Font smoothing"
+                      description="Use antialiased interface and code text."
+                      checked={useFontSmoothing}
+                      onChange={(value) => onSetThemeToggle('useFontSmoothing', value)}
+                    />
+                    <PreferenceToggle
+                      title="Pointer cursors"
+                      description="Use hand cursors for interactive controls."
+                      checked={usePointerCursors}
+                      onChange={(value) => onSetThemeToggle('usePointerCursors', value)}
+                    />
+                    <PreferenceToggle
+                      title="Reduce motion"
+                      description="Prefer shorter transitions in app chrome."
+                      checked={reduceMotion}
+                      onChange={(value) => onSetThemeToggle('reduceMotion', value)}
+                    />
+                  </SettingsSurface>
+                </SettingsGroupContent>
+              </SettingsContentGroup>
+
               <SettingsContentGroup className="appearance-settings-content-group">
                 <SettingsSectionHeading
                   title="Theme editor"
@@ -416,148 +577,6 @@ export default function AppearanceSettingsPage({
               </SettingsContentGroup>
             </div>
           </details>
-
-          <SettingsContentGroup className="appearance-settings-content-group">
-          <SettingsSectionHeading
-            title="Quick accent"
-            description="A lightweight accent preset for primary actions, focus rings, and active states."
-          />
-          <SettingsGroupContent>
-            <SettingsSurface className="appearance-settings-surface">
-              <div className="appearance-accent-controls">
-                <div className="appearance-accent-options">
-                  {accentOptions.map((option) => (
-                    <button
-                      key={option.id}
-                      type="button"
-                      className="appearance-accent-button"
-                      data-active={accent === option.id ? 'true' : 'false'}
-                      style={{ '--appearance-accent-color': option.color } as CSSProperties}
-                      onClick={() => onSetAccent(option.id)}
-                    >
-                      <span className="appearance-accent-swatch" aria-hidden="true" />
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-                <SettingsRow
-                  label="Custom accent"
-                  description="Used when the custom accent swatch is selected."
-                  control={(
-                    <input
-                      data-testid="appearance-custom-accent-input"
-                      data-color-input-surface="shared"
-                      type="color"
-                      value={customAccent}
-                      onChange={(event) => onSetCustomAccent(event.currentTarget.value)}
-                      className="appearance-color-input"
-                    />
-                  )}
-                />
-              </div>
-            </SettingsSurface>
-          </SettingsGroupContent>
-          </SettingsContentGroup>
-
-          <SettingsContentGroup className="appearance-settings-content-group">
-          <SettingsSectionHeading
-            title="Typography"
-            description="Choose app and terminal type independently."
-          />
-          <SettingsGroupContent>
-            <SettingsSurface className="appearance-settings-surface">
-              <div className="appearance-settings-control-pad">
-                <SegmentedChoice items={fontOptions} value={uiFont} onChange={onSetUiFont} />
-                <SegmentedChoice items={monoOptions} value={monoFont} onChange={onSetMonoFont} />
-              </div>
-              <SettingsRow
-                label="Interface scale"
-                description={`${Math.round(interfaceScale * 100)}% app chrome scale.`}
-                control={(
-                  <input
-                    type="range"
-                    min="0.9"
-                    max="1.12"
-                    step="0.01"
-                    value={interfaceScale}
-                    onChange={(event) => onSetInterfaceScale(Number(event.currentTarget.value))}
-                    className="appearance-range-input"
-                  />
-                )}
-              />
-              <SettingsRow
-                label="UI font size"
-                description={`${sansFontSize}px interface text.`}
-                control={(
-                  <input
-                    data-testid="appearance-ui-font-size"
-                    type="range"
-                    min="11"
-                    max="18"
-                    step="1"
-                    value={sansFontSize}
-                    onChange={(event) => onSetThemeFontSize('ui', Number(event.currentTarget.value))}
-                    className="appearance-range-input"
-                  />
-                )}
-              />
-              <SettingsRow
-                label="Code font size"
-                description={`${codeFontSize}px monospaced text.`}
-                control={(
-                  <input
-                    data-testid="appearance-code-font-size"
-                    type="range"
-                    min="11"
-                    max="18"
-                    step="1"
-                    value={codeFontSize}
-                    onChange={(event) => onSetThemeFontSize('code', Number(event.currentTarget.value))}
-                    className="appearance-range-input"
-                  />
-                )}
-              />
-            </SettingsSurface>
-          </SettingsGroupContent>
-          </SettingsContentGroup>
-
-          <SettingsContentGroup className="appearance-settings-content-group">
-          <SettingsSectionHeading
-            title="Layout and reading"
-            description="Control density, transcript rhythm, and sidebar material."
-          />
-          <SettingsGroupContent>
-            <SettingsSurface className="appearance-settings-surface">
-              <div className="appearance-settings-control-pad">
-                <SegmentedChoice items={densityOptions} value={density} onChange={onSetDensity} />
-                <SegmentedChoice items={transcriptOptions} value={transcriptStyle} onChange={onSetTranscriptStyle} />
-              </div>
-              <SettingsRow
-                label="Tint sidebar"
-                description="Use the soft tinted rail material."
-                control={<Switch checked={sidebarTint} onChange={onSetSidebarTint} />}
-              />
-              <PreferenceToggle
-                title="Font smoothing"
-                description="Use antialiased interface and code text."
-                checked={useFontSmoothing}
-                onChange={(value) => onSetThemeToggle('useFontSmoothing', value)}
-              />
-              <PreferenceToggle
-                title="Pointer cursors"
-                description="Use hand cursors for interactive controls."
-                checked={usePointerCursors}
-                onChange={(value) => onSetThemeToggle('usePointerCursors', value)}
-              />
-              <PreferenceToggle
-                title="Reduce motion"
-                description="Prefer shorter transitions in app chrome."
-                checked={reduceMotion}
-                onChange={(value) => onSetThemeToggle('reduceMotion', value)}
-              />
-            </SettingsSurface>
-          </SettingsGroupContent>
-          </SettingsContentGroup>
         </SettingsContentLayout>
       </SettingsPageSection>
     </div>

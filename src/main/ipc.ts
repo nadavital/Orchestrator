@@ -17,7 +17,7 @@ import { settingsStore } from './settings'
 import { terminalManager } from './terminal'
 import { petOverlayManager } from './petOverlay'
 import { getAppProfile } from './appProfile'
-import { getProviderDiagnosticsAsync, getProviderPermissionRuntimeContextAsync, getProviderRuntimeInfo, runProviderCommandSurfaceAsync } from './providers'
+import { getProviderDiagnosticsAsync, getProviderPermissionRuntimeContextAsync, getProviderRuntimeInfo, runProviderCommandSurfaceAsync, validateProviderAuthSecret } from './providers'
 import { resolveWorkspaceFileReference } from './workspaceResolver'
 import { searchWorkspace } from './workspaceSearch'
 import { discoverClaudeExtensions } from './claudeExtensions'
@@ -28,6 +28,7 @@ import { deleteCapability, updateCapability } from './capabilityManager'
 import { applyCapabilitySync, previewCapabilitySync } from './capabilitySync'
 import { performanceSnapshot, recordPerformanceMetric, resetPerformanceMetrics } from './performanceTelemetry'
 import { providerManifests } from './providerManifest'
+import { deleteProviderAuthSecret, getProviderAuthSecretStatus, setProviderAuthSecret } from './providerSecrets'
 import { setBrowserSecurityPolicy } from './browserSecurityPolicy'
 import { registerBrowserClientToolIpc } from './browserClientTools'
 import { EDITOR_OPEN_TARGETS, editorCliTargets, editorFileUrl, editorOpenTarget, findExecutableCommand, normalizePreferredOpenTarget, type EditorOpenTarget } from './editorOpen'
@@ -483,7 +484,7 @@ function previewDocxFile(filePath: string, size: number): FilePreviewResult {
         ? block.rows.map((row) => row.join('\t'))
         : block.type === 'image'
           ? [`[Image${block.alt ? `: ${block.alt}` : ''}]`]
-          : [block.text])
+          : [`[Shape: ${block.text}]`])
     .filter(Boolean)
     .join('\n\n')
   if (!text.trim()) return { kind: 'document', size, text: '', truncated: false }
@@ -3027,6 +3028,18 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   )
   ipcMain.handle('providers:listRuntimeConnections', (_, providerId?: string) =>
     listProviderRuntimeConnections({ providerId, limit: 200 })
+  )
+  ipcMain.handle('providers:getAuthSecretStatus', (_, providerId: string) =>
+    getProviderAuthSecretStatus(providerId)
+  )
+  ipcMain.handle('providers:setAuthSecret', (_, providerId: string, secret: string) =>
+    setProviderAuthSecret(providerId, secret)
+  )
+  ipcMain.handle('providers:deleteAuthSecret', (_, providerId: string) =>
+    deleteProviderAuthSecret(providerId)
+  )
+  ipcMain.handle('providers:validateAuthSecret', (_, providerId: string) =>
+    validateProviderAuthSecret(providerId)
   )
   ipcMain.handle('providers:runCommandSurface', (_, providerId: string, surfaceId: string) =>
     runProviderCommandSurfaceAsync(providerId, surfaceId)

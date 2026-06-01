@@ -287,7 +287,7 @@ export default function SideQuestionPanel({ session, chatId, embedded }: Props):
 }
 
 function sideChatVisibleActionStatus(
-  messages: Array<{ role: string; status: string }>,
+  messages: Array<{ role: string; status?: string }>,
   fallback: SideChatActionStatus | null
 ): SideChatActionStatus | null {
   if (messages.some((message) => message.status === 'pending')) return { text: 'Answering', tone: 'info' }

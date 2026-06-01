@@ -30,6 +30,7 @@ interface AppSettings {
   codeFontSize: number
   useFontSmoothing: boolean
   usePointerCursors: boolean
+  useTransparentSidebar: boolean
   reduceMotion: boolean
   shortcutOverrides: ShortcutOverrides
   browserUsePolicy: BrowserUsePolicy
@@ -107,6 +108,7 @@ export const settingsStore = new Store<AppSettings>({
     codeFontSize: 13,
     useFontSmoothing: true,
     usePointerCursors: true,
+    useTransparentSidebar: true,
     reduceMotion: false,
     shortcutOverrides: {},
     browserUsePolicy: DEFAULT_BROWSER_USE_POLICY,

@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { Attachment, Automation, AutomationRun, AutomationUpsertRequest, CapabilityCreateRequest, CapabilityCreateResult, CapabilityDeleteRequest, CapabilityMutationResult, CapabilitySyncPlan, CapabilitySyncRequest, CapabilityUpdateRequest, CodexProjectImportResult, CodexReviewStartRequest, Project, Session, SessionForkMode, SessionForkOptions, SessionListItem, ChatMessage, FileChange, GitBranchActionResult, GitCommitResult, GitLineBlameResult, GitPathActionResult, GitPullRequestCreateResult, GitPullRequestCreateUrlResult, GitRefOption, OpenPathOptions, OpenPathResult, OpenTargetAvailability, OrchestratorDeepLinkNavigation, PerformanceMetric, PerformanceSnapshot, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderManifest, ProviderPermissionRuntimeContext, ProviderResourceSnapshot, ProviderRuntimeConnectionState, ProviderRuntimeDebugEvent, ProviderRuntimeInfo, ProviderSidebarSyncResult, ProviderSlashCommand, ReviewDiffSource, ReviewMetadata, SessionRunEventRecord, SideQuestionMessage, TerminalServiceSnapshot, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary, UserInputAnswerPayload, WorktreeInventoryItem, WorkspaceSearchRequest, WorkspaceSearchResult } from '../types'
+import type { Attachment, Automation, AutomationRun, AutomationUpsertRequest, CapabilityCreateRequest, CapabilityCreateResult, CapabilityDeleteRequest, CapabilityMutationResult, CapabilitySyncPlan, CapabilitySyncRequest, CapabilityUpdateRequest, CodexProjectImportResult, CodexReviewStartRequest, Project, Session, SessionForkMode, SessionForkOptions, SessionListItem, ChatMessage, FileChange, GitBranchActionResult, GitCommitResult, GitLineBlameResult, GitPathActionResult, GitPullRequestCreateResult, GitPullRequestCreateUrlResult, GitRefOption, OpenPathOptions, OpenPathResult, OpenTargetAvailability, OrchestratorDeepLinkNavigation, PerformanceMetric, PerformanceSnapshot, ProviderAuthSecretMutationResult, ProviderAuthSecretStatus, ProviderAuthValidationResult, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderManifest, ProviderPermissionRuntimeContext, ProviderResourceSnapshot, ProviderRuntimeConnectionState, ProviderRuntimeDebugEvent, ProviderRuntimeInfo, ProviderSidebarSyncResult, ProviderSlashCommand, ReviewDiffSource, ReviewMetadata, SessionRunEventRecord, SideQuestionMessage, TerminalServiceSnapshot, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary, UserInputAnswerPayload, WorktreeInventoryItem, WorkspaceSearchRequest, WorkspaceSearchResult } from '../types'
 import type { BrowserUsePolicy } from '../types/browserUsePolicy'
 import type { AppCommandAvailability, AppMenuCommand, AppMenuCommandState, StableAppCommand } from '../types/appCommands'
 import type { ShortcutOverrides } from '../types/appCommands'
@@ -30,6 +30,7 @@ interface AppSettings {
   codeFontSize: number
   useFontSmoothing: boolean
   usePointerCursors: boolean
+  useTransparentSidebar: boolean
   reduceMotion: boolean
   shortcutOverrides: ShortcutOverrides
   browserUsePolicy: BrowserUsePolicy
@@ -371,6 +372,14 @@ const api = {
       ipcRenderer.invoke('providers:listRuntimeDebugEvents', providerId, includeNoisy),
     listRuntimeConnections: (providerId?: string): Promise<ProviderRuntimeConnectionState[]> =>
       ipcRenderer.invoke('providers:listRuntimeConnections', providerId),
+    getAuthSecretStatus: (providerId: string): Promise<ProviderAuthSecretStatus> =>
+      ipcRenderer.invoke('providers:getAuthSecretStatus', providerId),
+    setAuthSecret: (providerId: string, secret: string): Promise<ProviderAuthSecretMutationResult> =>
+      ipcRenderer.invoke('providers:setAuthSecret', providerId, secret),
+    deleteAuthSecret: (providerId: string): Promise<ProviderAuthSecretMutationResult> =>
+      ipcRenderer.invoke('providers:deleteAuthSecret', providerId),
+    validateAuthSecret: (providerId: string): Promise<ProviderAuthValidationResult> =>
+      ipcRenderer.invoke('providers:validateAuthSecret', providerId),
     runCommandSurface: (providerId: string, surfaceId: string): Promise<ProviderCommandSurfaceResult> =>
       ipcRenderer.invoke('providers:runCommandSurface', providerId, surfaceId),
     refreshSidebarMetadata: (providerId: string, cwd?: string): Promise<ProviderSidebarSyncResult> =>

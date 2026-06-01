@@ -16,7 +16,6 @@ import {
   MenuSection,
   MenuSectionLabel,
   MenuSurface,
-  ScrollEdgeButton,
   StatusBadge,
   SurfaceRow,
   ThinkingDots,
@@ -31,6 +30,7 @@ import {
   pairToolActivities,
   parseFileChangesFromUnifiedDiff,
   permissionRequestDetail,
+  PROVIDER_DEFS,
   summarizeToolActivities
 } from '../../types'
 import type { Session, ChatMessage, FileChange, FileReference, OpenPathResult, PermissionRequestDetail, ResultMessage, SessionForkMode, SessionRunEventRecord, ToolResultMessage, ToolUseMessage, UserInputQuestion } from '../../types'
@@ -147,13 +147,23 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
   const showThinkingIndicator = isActiveSessionStatus(session.status) || hasStreamingAssistantMessage
   const lastMessage = session.messages[session.messages.length - 1]
   const lastTextLength = lastMessage?.type === 'text' ? lastMessage.content.length : 0
-  const lastAssistantTextId = useMemo(() => {
+  const lastAssistantText = useMemo(() => {
     for (let index = session.messages.length - 1; index >= 0; index -= 1) {
       const message = session.messages[index]
-      if (message.type === 'text' && message.role === 'assistant' && message.content.trim()) return message.id
+      if (message.type === 'text' && message.role === 'assistant' && message.content.trim()) return message
     }
     return null
   }, [session.messages])
+  const lastAssistantTextId = lastAssistantText?.id ?? null
+  const lastUnansweredUserTextId = useMemo(() => {
+    if (isActiveSessionStatus(session.status)) return null
+    for (let index = session.messages.length - 1; index >= 0; index -= 1) {
+      const message = session.messages[index]
+      if (message.type === 'text' && message.role === 'assistant' && message.content.trim()) return null
+      if (message.type === 'text' && message.role === 'user' && message.content.trim() && !message.queueState) return message.id
+    }
+    return null
+  }, [session.messages, session.status])
   const canRegenerateLastAssistant = !isActiveSessionStatus(session.status) && hasRetryableUserMessage(session)
   const loadedHiddenCount = Math.max(0, session.messages.length - visibleMessages.length)
   const unloadedBeforeCount = Math.max(0, totalMessageCount - session.messages.length)
@@ -195,62 +205,73 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
     }
   }, [removeMessage, session.id])
 
-  const editUserMessageAsDraft = useCallback((messageId: string, content: string, attachments: Attachment[] = []): void => {
-    const text = content.trim()
-    if (!text && attachments.length === 0) return
-    window.dispatchEvent(new CustomEvent('orchestrator:set-composer-text', {
-      detail: {
-        sessionId: session.id,
-        text,
-        attachments,
-        source: {
-          kind: 'message-edit-draft',
-          messageId,
-          attachmentCount: attachments.length
-        }
-      }
-    }))
-    setTranscriptActionStatus({
-      text: attachments.length > 0
-        ? 'Copied message and attachments into composer draft'
-        : 'Copied message into composer draft',
-      tone: 'info'
-    })
-    window.setTimeout(() => {
-      const composer = document.querySelector<HTMLTextAreaElement>('[data-testid="composer-textarea"]')
-      composer?.focus()
-    }, 0)
-  }, [session.id])
+  const activateForkedSession = useCallback((forked: Session, sourceMessageId: string, mode: SessionForkMode): void => {
+    const testWindow = window as typeof window & { __orchestratorLastMessageForkedSession?: { id: string; mode: SessionForkMode; sourceSessionId: string; sourceMessageId: string; messageCount: number; useWorktree: boolean; worktreeState?: Session['worktreeState'] } }
+    testWindow.__orchestratorLastMessageForkedSession = {
+      id: forked.id,
+      mode,
+      sourceSessionId: session.id,
+      sourceMessageId,
+      messageCount: forked.messages.length,
+      useWorktree: forked.useWorktree,
+      worktreeState: forked.worktreeState
+    }
+    addSession(forked)
+    transferBrowserWorkbench(session.id, forked.id)
+    addSessionToProject(forked.projectId, forked.id)
+    setActiveSession(forked.id)
+    setShowSettings(false)
+    setShowCapabilities(false)
+  }, [addSession, addSessionToProject, session.id, setActiveSession, setShowCapabilities, setShowSettings, transferBrowserWorkbench])
 
   const forkFromMessage = useCallback(async (messageId: string, mode: SessionForkMode = 'local'): Promise<void> => {
     setTranscriptActionStatus({ text: 'Forking chat from selected message', tone: 'info' })
     try {
       const forked = await window.api.sessions.fork(session.id, mode, { throughMessageId: messageId })
-      const testWindow = window as typeof window & { __orchestratorLastMessageForkedSession?: { id: string; mode: SessionForkMode; sourceSessionId: string; sourceMessageId: string; messageCount: number; useWorktree: boolean; worktreeState?: Session['worktreeState'] } }
-      testWindow.__orchestratorLastMessageForkedSession = {
-        id: forked.id,
-        mode,
-        sourceSessionId: session.id,
-        sourceMessageId: messageId,
-        messageCount: forked.messages.length,
-        useWorktree: forked.useWorktree,
-        worktreeState: forked.worktreeState
-      }
-      addSession(forked)
-      transferBrowserWorkbench(session.id, forked.id)
-      addSessionToProject(forked.projectId, forked.id)
-      setActiveSession(forked.id)
-      setShowSettings(false)
-      setShowCapabilities(false)
+      activateForkedSession(forked, messageId, mode)
     } catch (error) {
       setTranscriptActionStatus({ text: `Fork failed: ${errorText(error)}`, tone: 'danger' })
       throw error
     }
-  }, [addSession, addSessionToProject, session.id, setActiveSession, setShowCapabilities, setShowSettings, transferBrowserWorkbench])
+  }, [activateForkedSession, session.id])
+
+  const editUserMessageFromHere = useCallback(async (messageId: string, content: string, attachments: Attachment[] = []): Promise<void> => {
+    const text = content.trim()
+    if (!text && attachments.length === 0) return
+    setTranscriptActionStatus({ text: 'Opening editable fork', tone: 'info' })
+    try {
+      const forked = await window.api.sessions.fork(session.id, 'local', { beforeMessageId: messageId })
+      activateForkedSession(forked, messageId, 'local')
+      window.setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('orchestrator:set-composer-text', {
+          detail: {
+            sessionId: forked.id,
+            text,
+            attachments,
+            source: {
+              kind: 'message-edit-from-here',
+              messageId,
+              attachmentCount: attachments.length
+            }
+          }
+        }))
+        const composer = document.querySelector<HTMLTextAreaElement>('[data-testid="composer-textarea"]')
+        composer?.focus()
+      }, 0)
+    } catch (error) {
+      setTranscriptActionStatus({ text: `Edit failed: ${errorText(error)}`, tone: 'danger' })
+      throw error
+    }
+  }, [activateForkedSession, session.id])
 
   const updateScrollMetrics = useCallback(() => {
     const scroller = scrollContainerRef.current
     if (!scroller) return
+    const primaryContent = scroller.closest<HTMLElement>('[data-testid="session-primary-content"]')
+    primaryContent?.style.setProperty(
+      '--transcript-scrollbar-width',
+      `${Math.max(0, scroller.offsetWidth - scroller.clientWidth)}px`
+    )
     const nextMetrics = {
       top: scroller.scrollTop,
       height: scroller.clientHeight,
@@ -878,18 +899,19 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
         onScroll={handleScroll}
         onWheel={handleWheel}
         onTouchStart={handleTouchStart}
-        className="h-full min-w-0 overflow-y-auto overflow-x-hidden px-6 py-5"
+        className="h-full min-w-0 overflow-y-auto overflow-x-hidden px-6 pt-5"
         data-composer-reserve-aware="true"
         data-active-transcript-read-synced={readSyncedSessionId === session.id ? 'true' : 'false'}
         style={{
           userSelect: 'text',
+          paddingBottom: 'calc(var(--composer-reserve-height, 0px) + 24px)',
           scrollPaddingBlockEnd: 'var(--composer-reserve-height, 0px)'
         }}
       >
         <div
           className="mx-auto flex min-w-0 flex-col"
           style={{
-            maxWidth: 'min(920px, 100%)',
+            maxWidth: 'min(var(--composer-effective-column-max-width, var(--composer-column-max-width, 860px)), 100%)',
             gap: 'var(--transcript-gap, 14px)'
           }}
         >
@@ -962,11 +984,12 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
                         fileReferenceRoots={fileReferenceRoots}
                         preferredEditor={preferredEditor}
                         canCopy={item.message.id === lastAssistantTextId}
-                        canContinue={item.message.id === lastAssistantTextId && !isActiveSessionStatus(session.status)}
+                        canContinue={item.message.id === lastAssistantTextId && !isActiveSessionStatus(session.status) && lastAssistantText?.interrupted === true}
                         canRegenerate={item.message.id === lastAssistantTextId && canRegenerateLastAssistant}
+                        canRetryUnansweredUserMessage={item.message.id === lastUnansweredUserTextId}
                         onSteerQueuedMessage={steerQueuedMessage}
                         onCancelQueuedMessage={cancelQueuedMessage}
-                        onEditUserMessageAsDraft={editUserMessageAsDraft}
+                        onEditUserMessageFromHere={editUserMessageFromHere}
                         onForkFromMessage={forkFromMessage}
                       />
                     )}
@@ -979,14 +1002,10 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
         </div>
       </div>
       {showJumpToLatest && (
-        <ScrollEdgeButton
+        <LatestActivityButton
           onClick={() => scrollToBottom(true)}
-          ariaLabel="Jump to latest"
-          dataTestId="jump-to-latest"
-          className="absolute bottom-4 right-6"
-        >
-          Jump to latest
-        </ScrollEdgeButton>
+          working={showThinkingIndicator}
+        />
       )}
     </div>
   )
@@ -1398,7 +1417,7 @@ function groupTranscriptMessages(messages: ChatMessage[]): TranscriptItem[] {
 function CopyButton({ getText }: { getText: () => string }): JSX.Element {
   const [copied, setCopied] = useState(false)
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'error'>('idle')
-  const copyStatusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const copyStatusTimeoutRef = useRef<number | null>(null)
 
   useEffect(() => () => {
     if (copyStatusTimeoutRef.current) window.clearTimeout(copyStatusTimeoutRef.current)
@@ -1434,17 +1453,15 @@ function CopyButton({ getText }: { getText: () => string }): JSX.Element {
 
   return (
     <>
-      <IconButton
-        icon={copied ? 'check' : 'copy'}
+	      <IconButton
+	        icon={copied ? 'check' : 'copy'}
         label={copyStatus === 'error' ? 'Copy failed' : copied ? 'Copied message' : 'Copy message'}
         size="sm"
-        tone={copied ? 'success' : copyStatus === 'error' ? 'danger' : 'neutral'}
-        dataTestId="chat-message-copy"
-        onClick={handleCopy}
-        style={{
-          opacity: copied ? 1 : 0.55
-        }}
-      />
+	        tone={copied ? 'success' : copyStatus === 'error' ? 'danger' : 'neutral'}
+	        dataTestId="chat-message-copy"
+	        onClick={handleCopy}
+	        className="transcript-message-action transcript-message-icon-action"
+	      />
       {copyStatus !== 'idle' && (
         <span
           className="sr-only"
@@ -1479,9 +1496,9 @@ function ContinueButton({ sessionId }: { sessionId: string }): JSX.Element {
   }, [sessionId, state])
 
   return (
-    <Button
-      variant="ghost"
-      className="h-7 px-2 text-[11px]"
+	    <Button
+	      variant="ghost"
+	      className="transcript-message-action h-7 px-2 text-[11px]"
       dataTestId="chat-continue-last-turn"
       disabled={state === 'sending'}
       title={label}
@@ -1502,14 +1519,30 @@ function ContinueButton({ sessionId }: { sessionId: string }): JSX.Element {
   )
 }
 
-function RegenerateButton({ sessionId }: { sessionId: string }): JSX.Element {
+function RetryMenuButton({
+  sessionId,
+  providerLabel,
+  kind
+}: {
+  sessionId: string
+  providerLabel: string
+  kind: 'retry' | 'regenerate'
+}): JSX.Element {
   const [state, setState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
-  const label = state === 'sending' ? 'Regenerating' : state === 'sent' ? 'Regenerate sent' : state === 'error' ? 'Regenerate failed' : 'Regenerate'
+  const [menuPosition, setMenuPosition] = useState<{ left: number; top: number } | null>(null)
+  const menuId = useId()
+  const verb = kind === 'regenerate' ? 'Regenerate' : 'Retry'
+  const label = state === 'sending'
+    ? `${verb}ing`
+    : state === 'sent'
+      ? `${verb} sent`
+      : state === 'error'
+        ? `${verb} failed`
+        : `${verb} message`
 
-  const handleRegenerate = useCallback(async (e: React.MouseEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
+  const runRetry = useCallback(async () => {
     if (state === 'sending') return
+    setMenuPosition(null)
     setState('sending')
     try {
       const ok = await window.api.sessions.retryLastUserMessage(sessionId)
@@ -1519,27 +1552,79 @@ function RegenerateButton({ sessionId }: { sessionId: string }): JSX.Element {
     }
   }, [sessionId, state])
 
+  const openMenu = useCallback((event: React.MouseEvent) => {
+    event.preventDefault()
+    event.stopPropagation()
+    if (state === 'sending') return
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
+    setMenuPosition({
+      left: Math.min(Math.max(rect.right - 256, 8), window.innerWidth - 264),
+      top: Math.min(rect.bottom + 6, window.innerHeight - 132)
+    })
+  }, [state])
+
+  const chooseModelProvider = useCallback(() => {
+    setMenuPosition(null)
+    openComposerModelPicker()
+  }, [])
+
   return (
-    <Button
-      variant="ghost"
-      className="h-7 px-2 text-[11px]"
-      dataTestId="chat-regenerate-last-response"
-      disabled={state === 'sending'}
-      title={label}
-      ariaLabel={label}
-      onClick={handleRegenerate}
-    >
-      {state === 'sending' ? <ThinkingDots /> : <Icon name="refresh" size={13} />}
-      <span
-        data-testid="chat-regenerate-last-response-label"
-        data-regenerate-state={state}
-        role="status"
-        aria-live="polite"
-        aria-atomic="true"
+    <>
+      <Button
+        variant="ghost"
+        className="transcript-message-action transcript-message-icon-action h-7 w-7 px-0 text-[11px]"
+        dataTestId={kind === 'regenerate' ? 'chat-regenerate-last-response' : 'chat-retry-unanswered-user-message'}
+        disabled={state === 'sending'}
+        title={label}
+        ariaLabel={label}
+        ariaExpanded={menuPosition !== null}
+        ariaControls={menuId}
+        ariaHasPopup="menu"
+        onClick={openMenu}
       >
-        {label}
-      </span>
-    </Button>
+        {state === 'sending' ? <ThinkingDots /> : <Icon name="refresh" size={13} />}
+        <span
+          className="sr-only"
+          data-testid={kind === 'regenerate' ? 'chat-regenerate-last-response-label' : 'chat-retry-unanswered-user-message-label'}
+          data-retry-state={state}
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          {label}
+        </span>
+      </Button>
+      {menuPosition && createPortal(
+        <MenuSurface
+          id={menuId}
+          onClose={() => setMenuPosition(null)}
+          data-testid={kind === 'regenerate' ? 'chat-regenerate-menu' : 'chat-retry-menu'}
+          style={{
+            position: 'fixed',
+            left: menuPosition.left,
+            top: menuPosition.top,
+            zIndex: 120,
+            minWidth: 256
+          }}
+        >
+          <MenuSection>
+            <MenuItem
+              icon="refresh"
+              label={`${verb} with ${providerLabel}`}
+              dataTestId={kind === 'regenerate' ? 'chat-regenerate-current-provider' : 'chat-retry-current-provider'}
+              onClick={() => { void runRetry() }}
+            />
+            <MenuItem
+              icon="settings"
+              label="Choose model or provider..."
+              dataTestId={kind === 'regenerate' ? 'chat-regenerate-change-provider' : 'chat-retry-change-provider'}
+              onClick={chooseModelProvider}
+            />
+          </MenuSection>
+        </MenuSurface>,
+        document.body
+      )}
+    </>
   )
 }
 
@@ -1591,13 +1676,13 @@ function ForkFromMessageButton({
         label={label}
         size="sm"
         tone={state === 'error' ? 'danger' : 'neutral'}
-        dataTestId="chat-message-fork"
+	        dataTestId="chat-message-fork"
         ariaExpanded={menuPosition !== null}
         ariaControls={hasForkChoices ? menuId : undefined}
-        ariaHasPopup={hasForkChoices ? 'menu' : undefined}
-        onClick={openMenu}
-        style={{ opacity: state === 'forking' ? 1 : 0.62 }}
-      />
+	        ariaHasPopup={hasForkChoices ? 'menu' : undefined}
+	        onClick={openMenu}
+	        className="transcript-message-action transcript-message-icon-action"
+	      />
       {menuPosition && createPortal(
         <MenuSurface
           id={menuId}
@@ -1918,27 +2003,29 @@ function MessageRow({
   isFocused,
   fileReferenceRoots,
   preferredEditor,
-  canCopy,
-  canContinue,
-  canRegenerate,
-  onSteerQueuedMessage,
-  onCancelQueuedMessage,
-  onEditUserMessageAsDraft,
-  onForkFromMessage
-}: {
+	  canCopy,
+	  canContinue,
+	  canRegenerate,
+	  canRetryUnansweredUserMessage,
+	  onSteerQueuedMessage,
+	  onCancelQueuedMessage,
+	  onEditUserMessageFromHere,
+	  onForkFromMessage
+	}: {
   msg: ChatMessage
   session: Session
   isFocused: boolean
   fileReferenceRoots: string[]
   preferredEditor: PreferredEditor
-  canCopy: boolean
-  canContinue: boolean
-  canRegenerate: boolean
-  onSteerQueuedMessage: (messageId: string) => Promise<void>
-  onCancelQueuedMessage: (messageId: string, queueState: 'queued' | 'steer_next') => Promise<void>
-  onEditUserMessageAsDraft: (messageId: string, content: string, attachments?: Attachment[]) => void
-  onForkFromMessage: (messageId: string, mode?: SessionForkMode) => Promise<void>
-}): JSX.Element | null {
+	  canCopy: boolean
+	  canContinue: boolean
+	  canRegenerate: boolean
+	  canRetryUnansweredUserMessage: boolean
+	  onSteerQueuedMessage: (messageId: string) => Promise<void>
+	  onCancelQueuedMessage: (messageId: string, queueState: 'queued' | 'steer_next') => Promise<void>
+	  onEditUserMessageFromHere: (messageId: string, content: string, attachments?: Attachment[]) => Promise<void>
+	  onForkFromMessage: (messageId: string, mode?: SessionForkMode) => Promise<void>
+	}): JSX.Element | null {
   const [isUserMessageExpanded, setIsUserMessageExpanded] = useState(false)
   const openRightPanelFileTab = useSessionStore((state) => state.openRightPanelFileTab)
   const wrapResultCard = (card: JSX.Element): JSX.Element => (
@@ -1972,40 +2059,43 @@ function MessageRow({
     const displayContent = shouldCollapseUserMessage && !isUserMessageExpanded
       ? collapsedUserMessageContent(content)
       : content
-    const queueState = isUser ? msg.queueState : undefined
+	    const queueState = isUser ? msg.queueState : undefined
     const canEditAsDraft = isUser && !queueState && (content.trim().length > 0 || (msg.attachments?.length ?? 0) > 0)
-    const canForkFromMessage = !queueState && !msg.isStreaming && content.trim().length > 0 && (isUser || canCopy || canContinue)
-    const fileReferences = !isUser && !isSystem
-      ? extractFileReferences(content, session.workDir).slice(0, 8)
+	    const canForkFromMessage = !queueState && !msg.isStreaming && content.trim().length > 0 && (isUser || canCopy || canContinue)
+	    const hasUserMessageActions = isUser && (canEditAsDraft || canRetryUnansweredUserMessage || canForkFromMessage)
+	    const hasAssistantMessageActions = !isUser && (canCopy || canContinue || canRegenerate || canForkFromMessage)
+    const retryProviderLabel = providerRetryLabel(session)
+	    const fileReferences = !isUser && !isSystem
+	      ? extractFileReferences(content, session.workDir).slice(0, 8)
       : []
     return (
       <div
         data-message-id={msg.id}
         data-transcript-focused-message={isFocused ? 'true' : 'false'}
         tabIndex={isFocused ? -1 : undefined}
-        className={`flex min-w-0 w-full ${isUser ? 'justify-end' : 'justify-start'}`}
+	        className={`transcript-message-row flex min-w-0 w-full ${isUser ? 'justify-end' : 'justify-start'}`}
         style={transcriptFocusStyle(isFocused)}
       >
-        <div
-          className="min-w-0"
-          style={{
-            maxWidth: isUser ? '78%' : '100%',
-            width: isUser ? 'auto' : '100%',
-            position: 'relative',
-            overflow: 'hidden'
-          }}
-        >
-          <div
-            className={`min-w-0 break-words ${isUser ? (canForkFromMessage ? 'px-4 py-3 pr-16' : 'px-4 py-3 pr-9') : (canContinue || canRegenerate || canForkFromMessage) ? 'pr-64 py-1' : 'pr-8 py-1'}`}
-            style={{
-              background: isUser ? 'var(--control-bg-active)' : 'transparent',
-              color: 'var(--text-primary)',
-              overflowWrap: 'anywhere',
-              borderRadius: isUser ? 'var(--radius-xl)' : undefined,
-              border: isUser ? '1px solid var(--border-subtle)' : 'none',
-              fontSize: 'var(--transcript-font-size, 14px)',
-              lineHeight: 1.65
-            }}
+	        <div
+	          className="min-w-0"
+	          style={{
+	            maxWidth: isUser ? '78%' : '100%',
+	            width: isUser ? 'auto' : '100%',
+	            position: 'relative',
+	            overflow: 'visible'
+	          }}
+	        >
+	          <div
+	            className={`min-w-0 break-words ${isUser ? 'px-4 py-3' : 'py-1'}`}
+	            style={{
+	              background: isUser ? 'var(--control-bg-active)' : 'transparent',
+	              color: 'var(--text-primary)',
+	              overflowWrap: 'anywhere',
+	              borderRadius: isUser ? 'var(--radius-xl)' : undefined,
+	              border: 'none',
+	              fontSize: 'var(--transcript-font-size, 14px)',
+	              lineHeight: 1.65
+	            }}
           >
             <MarkdownSurface user={isUser}>
               {shouldCollapseUserMessage && !isUserMessageExpanded ? (
@@ -2109,19 +2199,17 @@ function MessageRow({
                   Cancel
                 </Button>
               </div>
-            )}
-          </div>
-          {(canCopy || canContinue || canRegenerate || canForkFromMessage) && !isUser && (
-            <div
-              className="flex items-center gap-1"
-              style={{
-                position: 'absolute',
-                top: 2,
-                right: 0
-              }}
-            >
+	            )}
+	          </div>
+	          {hasAssistantMessageActions && (
+	            <div
+	              className="transcript-message-actions transcript-message-actions-assistant mt-1 flex items-center gap-1"
+	              style={{
+	                color: 'var(--text-secondary)'
+	              }}
+	            >
               {canContinue && <ContinueButton sessionId={session.id} />}
-              {canRegenerate && <RegenerateButton sessionId={session.id} />}
+              {canRegenerate && <RetryMenuButton sessionId={session.id} providerLabel={retryProviderLabel} kind="regenerate" />}
               {canForkFromMessage && (
                 <ForkFromMessageButton
                   canForkSameWorktree={session.useWorktree}
@@ -2129,34 +2217,32 @@ function MessageRow({
                   onFork={(mode) => onForkFromMessage(msg.id, mode)}
                 />
               )}
-              {canCopy && <CopyButton getText={() => content} />}
-            </div>
-          )}
-          {(canEditAsDraft || canForkFromMessage) && isUser && (
-            <div
-              className="flex items-center gap-1"
-              style={{
-                position: 'absolute',
-                top: 4,
-                right: 6
-              }}
-            >
+	              {canCopy && <CopyButton getText={() => content} />}
+	            </div>
+	          )}
+	          {hasUserMessageActions && (
+	            <div
+	              className="transcript-message-actions transcript-message-actions-user mt-1 flex items-center justify-end gap-1"
+	              style={{
+	                color: 'var(--text-secondary)'
+	              }}
+	            >
               {canEditAsDraft && (
                 <IconButton
                   icon="pencil"
-                  label="Edit message as draft"
+                  label="Edit from here"
                   size="sm"
-                  tone="neutral"
                   dataTestId="chat-user-message-edit"
                   onClick={(event) => {
                     event.stopPropagation()
-                    onEditUserMessageAsDraft(msg.id, content, msg.attachments ?? [])
+                    void onEditUserMessageFromHere(msg.id, content, msg.attachments ?? [])
                   }}
-                  style={{ opacity: 0.62 }}
+                  className="transcript-message-action transcript-message-icon-action"
                 />
               )}
-              {canForkFromMessage && (
-                <ForkFromMessageButton
+	              {canRetryUnansweredUserMessage && <RetryMenuButton sessionId={session.id} providerLabel={retryProviderLabel} kind="retry" />}
+	              {canForkFromMessage && (
+	                <ForkFromMessageButton
                   canForkSameWorktree={session.useWorktree}
                   canForkNewWorktree={Boolean(session.repoRoot)}
                   onFork={(mode) => onForkFromMessage(msg.id, mode)}
@@ -2272,6 +2358,16 @@ function hasRetryableUserMessage(session: Session): boolean {
   return session.messages.some((message) =>
     message.type === 'text' && message.role === 'user' && message.content.trim().length > 0
   )
+}
+
+function providerRetryLabel(session: Session): string {
+  const provider = PROVIDER_DEFS[session.provider ?? 'claude'] ?? PROVIDER_DEFS.claude
+  const model = provider.models.find((candidate) => candidate.id === session.model)?.label ?? session.model
+  return [provider.name, model].filter(Boolean).join(' · ')
+}
+
+function openComposerModelPicker(): void {
+  window.dispatchEvent(new CustomEvent('orchestrator:open-composer-model-menu'))
 }
 
 function isActiveSessionStatus(status: Session['status']): boolean {
@@ -4277,18 +4373,51 @@ function permissionRiskColor(risk: 'low' | 'medium' | 'high'): string {
 function ThinkingIndicator({ streaming }: { streaming: boolean }): JSX.Element {
   const statusText = streaming ? 'Assistant response streaming' : 'Assistant is thinking'
   return (
-    <div className="flex justify-center">
+    <div className="transcript-thinking-row" data-testid="thinking-indicator">
       <div
         className="transcript-thinking-indicator"
-        data-testid="thinking-indicator"
         data-thinking-indicator-streaming={streaming ? 'true' : 'false'}
         role="status"
         aria-live="polite"
         aria-atomic="true"
       >
-        <ThinkingDots label={statusText} />
+        <span className="transcript-thinking-shimmer" aria-hidden="true">
+          Thinking
+        </span>
         <span className="sr-only">{statusText}</span>
       </div>
     </div>
+  )
+}
+
+function LatestActivityButton({
+  onClick,
+  working
+}: {
+  onClick: () => void
+  working: boolean
+}): JSX.Element {
+  const label = working ? 'Jump to latest activity' : 'Jump to latest'
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      data-testid="jump-to-latest"
+      data-jump-to-latest-working={working ? 'true' : 'false'}
+      onClick={onClick}
+      className="transcript-latest-button"
+    >
+      {working ? (
+        <span className="transcript-working-dots" aria-hidden="true">
+          <span />
+          <span />
+          <span />
+        </span>
+      ) : (
+        <span className="transcript-latest-arrow">
+          <Icon name="arrowDown" size={17} />
+        </span>
+      )}
+    </button>
   )
 }

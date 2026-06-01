@@ -31,6 +31,7 @@ export interface AppearanceModelV2 {
   codeFontSize?: number
   useFontSmoothing?: boolean
   usePointerCursors?: boolean
+  useTransparentSidebar?: boolean
   reduceMotion?: boolean
 }
 
@@ -66,6 +67,7 @@ export function applyAppearance(
   root.dataset.accent = accent === 'system' ? 'blue' : accent
   root.dataset.density = density
   root.dataset.sidebarTint = sidebarTint ? 'on' : 'off'
+  root.dataset.sidebarTransparency = appearanceModel?.useTransparentSidebar === false ? 'off' : 'on'
   root.dataset.transcript = transcriptStyle
   root.dataset.pointerCursors = appearanceModel?.usePointerCursors === false ? 'off' : 'on'
   root.dataset.fontSmoothing = appearanceModel?.useFontSmoothing === false ? 'off' : 'on'

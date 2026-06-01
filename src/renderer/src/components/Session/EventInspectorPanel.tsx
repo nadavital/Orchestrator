@@ -667,7 +667,7 @@ function EventDetailCard({ session, record }: { session: Session; record: Sessio
       detail: {
         text: [
           'Investigate this runtime event:',
-          `Thread: ${session.title || session.id}`,
+          `Thread: ${session.name || session.id}`,
           `Runtime: ${[session.provider, session.model].filter(Boolean).join(' / ') || 'Unknown runtime'}`,
           `Status: ${session.status}`,
           `Workspace: ${session.workDir || 'Unknown workspace'}`,

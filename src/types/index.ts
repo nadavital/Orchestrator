@@ -153,6 +153,16 @@ export interface ProviderPermissionMode {
   intent?: PermissionIntent
 }
 
+export type ProviderPermissionPresetId = 'default' | 'autoReview' | 'fullAccess'
+
+export interface ProviderPermissionPreset {
+  id: ProviderPermissionPresetId
+  modeId: string
+  label: string
+  desc: string
+  intent: PermissionIntent
+}
+
 export const PROVIDER_DEFS: Record<string, ProviderDef> = {
   claude: {
     id: 'claude',
@@ -226,6 +236,7 @@ export const PROVIDER_DEFS: Record<string, ProviderDef> = {
       { id: 'xhigh', label: 'X-High' }
     ],
     supportsResume: true,
+    defaultPermissionMode: 'allowEdits',
     permissionModes: [
       { id: 'default', label: 'Prompt', desc: 'Prompt mode', intent: 'ask' },
       { id: 'allowEdits', label: 'Tools', desc: 'Allow tools', intent: 'autoEdit' },
@@ -273,6 +284,9 @@ export const PROVIDER_DEFS: Record<string, ProviderDef> = {
     models: [
       // ── Default 5 ─────────────────────────────────────────────────────
       { id: 'auto', label: 'Auto' },
+      { id: 'composer-2.5', label: 'Composer 2.5',
+        cursorConfig: { fastModelId: 'composer-2.5-fast' } },
+      { id: 'composer-2.5-fast', label: 'Composer 2.5 Fast' },
       { id: 'composer-2', label: 'Composer 2',
         cursorConfig: { fastModelId: 'composer-2-fast' } },
       { id: 'claude-opus-4-7', label: 'Claude Opus 4.7',
@@ -427,8 +441,8 @@ export const PROVIDER_DEFS: Record<string, ProviderDef> = {
     effortLevels: [],
     supportsResume: true,
     permissionModes: [
-      { id: 'default', label: 'Ask', desc: 'Ask mode', intent: 'ask' },
-      { id: 'sandbox', label: 'Sandbox', desc: 'Sandbox mode', intent: 'workspaceSandbox' },
+      { id: 'default', label: 'Sandbox', desc: 'Edit in Cursor sandbox mode.', intent: 'workspaceSandbox' },
+      { id: 'ask', label: 'Read-only', desc: 'Cursor ask mode does not apply edits.', intent: 'ask' },
       { id: 'yolo', label: 'Auto', desc: 'Skip prompts', intent: 'bypass' }
     ]
   }
@@ -447,6 +461,75 @@ export function getDefaultPermissionMode(providerDef: ProviderDef, configuredMod
     return providerDef.defaultPermissionMode
   }
   return providerDef.permissionModes[0]?.id ?? 'default'
+}
+
+const PROVIDER_PERMISSION_PRESET_MODE_IDS: Record<string, Partial<Record<ProviderPermissionPresetId, string>>> = {
+  claude: {
+    default: 'auto',
+    fullAccess: 'bypassPermissions'
+  },
+  codex: {
+    default: 'default',
+    autoReview: 'autoReview',
+    fullAccess: 'fullAccess'
+  },
+  cursor: {
+    default: 'default',
+    fullAccess: 'yolo'
+  },
+  copilot: {
+    default: 'allowEdits',
+    fullAccess: 'yolo'
+  }
+}
+
+const PROVIDER_PERMISSION_PRESET_COPY: Record<ProviderPermissionPresetId, Omit<ProviderPermissionPreset, 'modeId' | 'intent'>> = {
+  default: {
+    id: 'default',
+    label: 'Default permissions',
+    desc: 'Use the recommended agent permissions for this provider.'
+  },
+  autoReview: {
+    id: 'autoReview',
+    label: 'Auto review',
+    desc: 'Let the provider review approval requests before asking you.'
+  },
+  fullAccess: {
+    id: 'fullAccess',
+    label: 'Full access',
+    desc: 'Let the agent run without normal workspace limits.'
+  }
+}
+
+export function getProviderPermissionPresets(providerDef: ProviderDef): ProviderPermissionPreset[] {
+  const providerModes = new Map(providerDef.permissionModes.map((mode) => [mode.id, mode]))
+  const mapping = PROVIDER_PERMISSION_PRESET_MODE_IDS[providerDef.id] ?? {}
+  const presetIds: ProviderPermissionPresetId[] = ['default', 'autoReview', 'fullAccess']
+  const seenModeIds = new Set<string>()
+
+  return presetIds
+    .map((id): ProviderPermissionPreset | null => {
+      const modeId = id === 'default'
+        ? mapping.default ?? getDefaultPermissionMode(providerDef)
+        : mapping[id]
+      if (!modeId || seenModeIds.has(modeId)) return null
+      const nativeMode = providerModes.get(modeId)
+      if (!nativeMode) return null
+      seenModeIds.add(modeId)
+      return {
+        ...PROVIDER_PERMISSION_PRESET_COPY[id],
+        modeId,
+        intent: nativeMode.intent ?? 'custom'
+      }
+    })
+    .filter((preset): preset is ProviderPermissionPreset => Boolean(preset))
+}
+
+export function getProviderPermissionPresetForMode(
+  providerDef: ProviderDef,
+  modeId: string
+): ProviderPermissionPreset | null {
+  return getProviderPermissionPresets(providerDef).find((preset) => preset.modeId === modeId) ?? null
 }
 
 export function getPrimaryPermissionModes(providerDef: ProviderDef): ProviderPermissionMode[] {
@@ -684,6 +767,27 @@ export interface ProviderPermissionRuntimeContext {
   effective?: PermissionExecutionContract
   summary?: string
   updatedAt: number
+}
+
+export interface ProviderAuthSecretStatus {
+  providerId: string
+  configured: boolean
+  source: 'keychain' | 'none'
+  message?: string
+  updatedAt: number
+}
+
+export interface ProviderAuthSecretMutationResult {
+  ok: boolean
+  status: ProviderAuthSecretStatus
+  message?: string
+}
+
+export interface ProviderAuthValidationResult {
+  ok: boolean
+  providerId: string
+  message: string
+  eventTypes?: string[]
 }
 
 export type PermissionIntent =
@@ -1865,6 +1969,7 @@ export type SessionForkMode = 'local' | 'same-worktree' | 'new-worktree'
 
 export interface SessionForkOptions {
   throughMessageId?: string
+  beforeMessageId?: string
 }
 
 export interface SessionListItem extends Session {

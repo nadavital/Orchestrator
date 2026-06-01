@@ -6,7 +6,7 @@ import { sidebarSessionSelectedKey, useSidebarStore } from '../../store/sidebar'
 import Icon from '../shared/Icon'
 import SessionActionsMenu from '../shared/SessionActionsMenu'
 import RenameChatDialog from '../shared/RenameChatDialog'
-import { announceHoverSurfaceOpen, IconButton, SidebarListRow, Tooltip, useExclusiveHoverSurface } from '../shared/designSystem'
+import { announceHoverSurfaceOpen, SidebarListRow, Tooltip, useExclusiveHoverSurface } from '../shared/designSystem'
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
@@ -429,16 +429,6 @@ function SessionItem({ session }: Props): JSX.Element {
                   <Icon name="pin" size={12} />
                 </button>
               </Tooltip>
-              <IconButton
-                icon="ellipsis"
-                label="Chat actions"
-                size="sm"
-                ariaExpanded={menuPoint !== null}
-                ariaControls={actionsMenuId}
-                ariaHasPopup="menu"
-                onClick={openMenu}
-                style={{ color: 'var(--text-tertiary)' }}
-              />
             </span>
             </span>
           )}

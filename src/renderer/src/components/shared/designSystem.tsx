@@ -230,6 +230,9 @@ export function Button({
   style,
   title,
   ariaLabel,
+  ariaExpanded,
+  ariaControls,
+  ariaHasPopup,
   dataTestId,
 }: ButtonProps): JSX.Element {
   const variantStyle = buttonVariantStyle(variant)
@@ -240,6 +243,9 @@ export function Button({
       disabled={disabled}
       title={title}
       aria-label={ariaLabel}
+      aria-expanded={ariaExpanded}
+      aria-controls={ariaControls}
+      aria-haspopup={ariaHasPopup}
       data-testid={dataTestId}
       className={`motion-button inline-flex min-w-0 items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold disabled:cursor-default disabled:opacity-50 ${className}`}
       style={{ ...variantStyle, ...style }}
@@ -2432,6 +2438,10 @@ interface SurfaceRowProps {
   style?: CSSProperties
   title?: string
   ariaLabel?: string
+  ariaPressed?: boolean
+  ariaExpanded?: boolean
+  ariaControls?: string
+  ariaHasPopup?: 'menu' | 'listbox' | 'tree' | 'grid' | 'dialog'
   dataTestId?: string
   dataReviewPath?: string
   dataSidebarKey?: string
@@ -3052,6 +3062,7 @@ export function MenuMessage({
 }
 
 type PanelMessageTone = 'muted' | 'danger' | 'warning'
+type DataAttributes = Record<`data-${string}`, string | number | boolean | undefined>
 
 export function PanelMessage({
   children,
@@ -3112,7 +3123,7 @@ export function PanelNotice({
   tone?: PanelMessageTone
   className?: string
   dataTestId?: string
-  rootAttrs?: Omit<HTMLAttributes<HTMLDivElement>, 'children' | 'className'>
+  rootAttrs?: Omit<HTMLAttributes<HTMLDivElement>, 'children' | 'className'> & DataAttributes
   state?: string
 }): JSX.Element {
   return (

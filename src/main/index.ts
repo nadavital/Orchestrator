@@ -987,7 +987,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 diagnosticsSection.classList.contains('settings-page-section') &&
                 providerControlSurfaces.length === 1 &&
                 providerControlSurfaceText.includes('Default') &&
-                providerControlSurfaceText.includes('Mode') &&
+                providerControlSurfaceText.includes('Permissions') &&
                 providerControlSurfaceText.includes('Models') &&
                 providerControlSurfaceText.includes('Details') &&
                 !providerControlSurfaceText.includes('Capabilities') &&
@@ -7551,26 +7551,26 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             var composerSendStatusActionOpensPermissions =
               sendStatusAction instanceof HTMLButtonElement &&
               sendStatusPermissionMenu instanceof HTMLElement &&
-              sendStatusPermissionMenu.textContent?.includes('Codex') === true &&
+              sendStatusPermissionMenu.textContent?.includes('Permissions') === true &&
               [...sendStatusPermissionMenu.querySelectorAll('button')]
-                .some((button) => button.textContent?.includes('Ask'));
+                .some((button) => button.textContent?.includes('Default permissions'));
             const sendStatusPermissionActiveElement = document.activeElement;
             var composerSendStatusActionFocusesPermissions =
               composerSendStatusActionOpensPermissions &&
               sendStatusPermissionActiveElement instanceof HTMLButtonElement &&
               sendStatusPermissionMenu instanceof HTMLElement &&
               sendStatusPermissionMenu.contains(sendStatusPermissionActiveElement);
-            const askPermissionButton = sendStatusPermissionMenu instanceof HTMLElement
+            const defaultPermissionButton = sendStatusPermissionMenu instanceof HTMLElement
               ? [...sendStatusPermissionMenu.querySelectorAll('button')]
-                  .find((button) => button.textContent?.includes('Ask'))
+                  .find((button) => button.textContent?.includes('Default permissions'))
               : null;
-            if (askPermissionButton instanceof HTMLButtonElement) {
-              askPermissionButton.click();
+            if (defaultPermissionButton instanceof HTMLButtonElement) {
+              defaultPermissionButton.click();
               await sleep(260);
             }
             var composerSendStatusRecoveryClearsBlock =
               composerSendStatusActionOpensPermissions &&
-              askPermissionButton instanceof HTMLButtonElement &&
+              defaultPermissionButton instanceof HTMLButtonElement &&
               !document.querySelector('.motion-popover-surface') &&
               !(document.querySelector('[data-testid="composer-send-status"]') instanceof HTMLElement);
             if (document.querySelector('.motion-popover-surface')) {
@@ -7727,7 +7727,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             const slashPermissionsActiveElement = document.activeElement;
             var composerSlashPermissionsOpensMenu =
               slashPermissionsMenu instanceof HTMLElement &&
-              slashPermissionsMenu.textContent?.includes('Claude') === true &&
+              slashPermissionsMenu.textContent?.includes('Permissions') === true &&
               textareaValue() === '';
             var composerSlashPermissionsFocusesMenu =
               slashPermissionsMenu instanceof HTMLElement &&
@@ -7737,19 +7737,14 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             await sleep(260);
 
             const permissionButton = document.querySelector('[data-testid="composer-permission-menu"]');
-            let permissionContextBadge = document.querySelector('[data-testid="composer-permission-context-badge"]');
-            for (let index = 0; index < 10 && !(permissionContextBadge instanceof HTMLElement); index += 1) {
-              await sleep(80);
-              permissionContextBadge = document.querySelector('[data-testid="composer-permission-context-badge"]');
-            }
+            const permissionContextBadge = document.querySelector('[data-testid="composer-permission-context-badge"]');
             var composerPermissionContextSignal =
               permissionButton instanceof HTMLElement &&
-              permissionButton.getAttribute('aria-label')?.includes('Permission mode:') === true &&
-              permissionButton.getAttribute('aria-label')?.includes('permission config') === true &&
-              permissionContextBadge instanceof HTMLElement &&
-              ['static', 'ok', 'unavailable', 'error'].includes(permissionContextBadge.getAttribute('data-permission-context-status') ?? '') &&
-              ['static', 'app-server'].includes(permissionContextBadge.getAttribute('data-permission-context-source') ?? '') &&
-              ['Static', 'Live', 'Fallback'].includes(permissionContextBadge.textContent?.trim() ?? '');
+              permissionButton.getAttribute('aria-label')?.includes('Permissions:') === true &&
+              !(permissionContextBadge instanceof HTMLElement) &&
+              permissionButton.textContent?.includes('Static') !== true &&
+              permissionButton.textContent?.includes('Live') !== true &&
+              permissionButton.textContent?.includes('Fallback') !== true;
             permissionButton?.click();
             await sleep(140);
             const permissionMenu = document.querySelector('.motion-popover-surface');
@@ -7822,14 +7817,6 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               document.activeElement instanceof HTMLButtonElement &&
               document.activeElement !== permissionKeyboardFirstFocus &&
               permissionKeyboardMenu.contains(document.activeElement);
-            const advancedPermissionsButton = permissionKeyboardMenu instanceof HTMLElement
-              ? [...permissionKeyboardMenu.querySelectorAll('button')]
-                  .find((button) => button.textContent?.includes('Advanced permissions'))
-              : null;
-            if (advancedPermissionsButton instanceof HTMLButtonElement) {
-              advancedPermissionsButton.click();
-              await sleep(100);
-            }
             const permissionRulesPanel = document.querySelector('[data-testid="composer-permission-rules"]');
             const allowToolsInput = document.querySelector('[data-testid="composer-permission-allow-tools"]');
             const denyToolsInput = document.querySelector('[data-testid="composer-permission-deny-tools"]');
@@ -7845,28 +7832,19 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             }
             const permissionRulesStatus = document.querySelector('[data-testid="composer-permission-rules-status"]');
             var composerPermissionRuleStatus =
-              permissionRulesPanel instanceof HTMLElement &&
-              allowToolsInput instanceof HTMLInputElement &&
-              denyToolsInput instanceof HTMLInputElement &&
-              availableToolsInput instanceof HTMLInputElement &&
-              additionalDirsInput instanceof HTMLInputElement &&
-              document.querySelector('label[for="composer-permission-allow-tools"]') instanceof HTMLLabelElement &&
-              document.querySelector('label[for="composer-permission-deny-tools"]') instanceof HTMLLabelElement &&
-              document.querySelector('label[for="composer-permission-available-tools"]') instanceof HTMLLabelElement &&
-              document.querySelector('label[for="composer-permission-additional-dirs"]') instanceof HTMLLabelElement &&
-              permissionRulesStatus instanceof HTMLElement &&
-              permissionRulesStatus.getAttribute('role') === 'status' &&
-              permissionRulesStatus.getAttribute('aria-live') === 'polite' &&
-              permissionRulesStatus.getAttribute('aria-atomic') === 'true' &&
-              permissionRulesStatus.textContent?.includes('Allowed tools saved') === true &&
-              allowToolsInput.value.includes('Bash(git status)');
+              permissionKeyboardMenu instanceof HTMLElement &&
+              !(permissionRulesPanel instanceof HTMLElement) &&
+              !(allowToolsInput instanceof HTMLInputElement) &&
+              !(denyToolsInput instanceof HTMLInputElement) &&
+              !(availableToolsInput instanceof HTMLInputElement) &&
+              !(additionalDirsInput instanceof HTMLInputElement) &&
+              !(permissionRulesStatus instanceof HTMLElement) &&
+              !permissionKeyboardMenu.textContent?.includes('Advanced permissions');
             const permissionDangerLabel = document.querySelector('[data-testid="composer-permission-danger-label"]');
             var composerPermissionLabelsCalm =
-              !(permissionDangerLabel instanceof HTMLElement) ||
-              (
-                permissionDangerLabel.textContent?.trim() === 'Isolated only' &&
-                getComputedStyle(permissionDangerLabel).textTransform !== 'uppercase'
-            );
+              !(permissionDangerLabel instanceof HTMLElement) &&
+              permissionKeyboardMenu instanceof HTMLElement &&
+              !permissionKeyboardMenu.textContent?.includes('Isolated only');
             window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
             await sleep(300);
             var composerPermissionMenuClosedWithEscape = !document.querySelector('.motion-popover-surface');
@@ -27966,6 +27944,16 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
                 const rect = element.getBoundingClientRect();
                 return rect.left >= scrollerRect.left - 2 && rect.right <= scrollerRect.right + 2;
               };
+              const composerShell = document.querySelector('[data-testid="composer-shell"]');
+              const transcriptColumn = scroller.firstElementChild;
+              const composerRect = composerShell instanceof HTMLElement ? composerShell.getBoundingClientRect() : null;
+              const transcriptColumnRect = transcriptColumn instanceof HTMLElement ? transcriptColumn.getBoundingClientRect() : null;
+              const transcriptColumnMatchesComposer =
+                composerRect !== null &&
+                transcriptColumnRect !== null &&
+                Math.abs(transcriptColumnRect.left - composerRect.left) <= 2 &&
+                Math.abs(transcriptColumnRect.right - composerRect.right) <= 2 &&
+                Math.abs(transcriptColumnRect.width - composerRect.width) <= 2;
               const pre = document.querySelector('[data-testid="chat-code-block"] pre') ?? document.querySelector('pre');
               const table = document.querySelector('table');
               const tableCells = [...document.querySelectorAll('td, th')].filter((cell) => cell instanceof HTMLElement);
@@ -27975,6 +27963,15 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
                 docScrollWidth,
                 documentNoHorizontalOverflow: docScrollWidth <= viewportWidth + 2,
                 transcriptNoHorizontalOverflow: scroller.scrollWidth <= scroller.clientWidth + 2,
+                transcriptColumnMatchesComposer,
+                transcriptColumnComposerDebug: {
+                  composerLeft: composerRect?.left ?? null,
+                  composerRight: composerRect?.right ?? null,
+                  composerWidth: composerRect?.width ?? null,
+                  transcriptLeft: transcriptColumnRect?.left ?? null,
+                  transcriptRight: transcriptColumnRect?.right ?? null,
+                  transcriptWidth: transcriptColumnRect?.width ?? null
+                },
                 codeBlockBounded: pre instanceof HTMLElement && isInsideScroller(pre),
                 codeBlockInternallyScrollable: pre instanceof HTMLElement && pre.scrollWidth > pre.clientWidth + 24,
                 tableBounded: table instanceof HTMLElement && isInsideScroller(table),
@@ -28085,6 +28082,8 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
             const docScrollWidth = wideLayout.docScrollWidth;
             const documentNoHorizontalOverflow = wideLayout.documentNoHorizontalOverflow;
             const transcriptNoHorizontalOverflow = wideLayout.transcriptNoHorizontalOverflow;
+            const transcriptColumnMatchesComposer = wideLayout.transcriptColumnMatchesComposer;
+            const transcriptColumnComposerDebug = wideLayout.transcriptColumnComposerDebug;
             const scrollerRect = scroller.getBoundingClientRect();
             const isInsideScroller = (element) => {
               const rect = element.getBoundingClientRect();
@@ -28264,6 +28263,25 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
               await sleep(120);
             }
             const userEditButton = document.querySelector('[data-testid="chat-user-message-edit"]');
+            const userEditActionRow = userEditButton?.closest('.transcript-message-actions-user');
+            const userEditActionRowBeforeFocus = userEditActionRow instanceof HTMLElement
+              ? userEditActionRow.getBoundingClientRect()
+              : null;
+            if (userEditButton instanceof HTMLButtonElement) {
+              userEditButton.focus();
+              await sleep(120);
+            }
+            const userEditActionRowAfterFocus = userEditActionRow instanceof HTMLElement
+              ? userEditActionRow.getBoundingClientRect()
+              : null;
+            const chatUserMessageActionsReserve =
+              userEditActionRow instanceof HTMLElement &&
+              (userEditActionRowBeforeFocus?.height ?? 0) >= 24 &&
+              Math.abs((userEditActionRowAfterFocus?.height ?? 0) - (userEditActionRowBeforeFocus?.height ?? 0)) < 1;
+            const chatUserMessageEditIconOnly =
+              userEditButton instanceof HTMLButtonElement &&
+              userEditButton.getAttribute('aria-label') === 'Edit from here' &&
+              userEditButton.textContent?.trim() === '';
             if (userEditButton instanceof HTMLButtonElement) {
               userEditButton.click();
               await sleep(180);
@@ -28553,6 +28571,8 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
               hiddenMessageCopyQuiet: !document.body.innerText.includes('hidden for faster chat switching'),
               documentNoHorizontalOverflow,
               transcriptNoHorizontalOverflow,
+              transcriptColumnMatchesComposer,
+              transcriptColumnComposerDebug,
               messageRowsBounded,
               codeBlockBounded,
               codeBlockInternallyScrollable,
@@ -28569,6 +28589,8 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
               chatUserMessageEditDraftSourceStatus,
               chatUserMessageEditDraftRestore,
               chatUserMessageEditDraftClear,
+              chatUserMessageActionsReserve,
+              chatUserMessageEditIconOnly,
               relativeProseCardSuppressed,
               absoluteMissingFileCardDisabled,
               fileReferenceOpenOutcomeWorks,
@@ -32417,13 +32439,37 @@ function runAutomatedStreamingTypingSmoke(win: BrowserWindow, outputPath: string
               steeringCancelStatus.getAttribute('role') === 'status' &&
               steeringCancelStatus.getAttribute('aria-live') === 'polite' &&
               steeringCancelStatus.getAttribute('aria-atomic') === 'true';
+            const transcriptScroller = document.querySelector('[data-testid="transcript-scroll"]');
+            if (transcriptScroller instanceof HTMLElement) {
+              transcriptScroller.scrollTop = 0;
+              transcriptScroller.dispatchEvent(new Event('scroll', { bubbles: true }));
+              await sleep(120);
+            }
+            const jumpToLatestButton = document.querySelector('[data-testid="jump-to-latest"]');
+            const thinkingIndicator = document.querySelector('[data-testid="thinking-indicator"]');
+            const thinkingStatus = thinkingIndicator?.querySelector('.transcript-thinking-indicator');
+            const latestActivityButtonWorking =
+              jumpToLatestButton instanceof HTMLButtonElement &&
+              jumpToLatestButton.getAttribute('data-jump-to-latest-working') === 'true' &&
+              jumpToLatestButton.querySelector('.transcript-working-dots') instanceof HTMLElement;
+            const thinkingIndicatorWorks =
+              thinkingIndicator instanceof HTMLElement &&
+              thinkingIndicator.textContent?.includes('Thinking') === true &&
+              thinkingStatus instanceof HTMLElement &&
+              thinkingStatus.getAttribute('role') === 'status' &&
+              thinkingStatus.getAttribute('aria-live') === 'polite' &&
+              thinkingIndicator.querySelector('.transcript-thinking-shimmer') instanceof HTMLElement;
             const stopRunButton = document.querySelector('[data-testid="composer-stop-run"]');
+            const stopRunButtonRect = stopRunButton instanceof HTMLElement
+              ? stopRunButton.getBoundingClientRect()
+              : null;
             const composerStopRunControlWorks =
               stopRunButton instanceof HTMLButtonElement &&
               stopRunButton.getAttribute('aria-label') === 'Stop current run' &&
               stopRunButton.getAttribute('data-tooltip-label') === 'Stop current run' &&
               stopRunButton.getAttribute('data-native-title-free') === 'true' &&
-              stopRunButton.textContent?.includes('Stop') === true;
+              Math.round(stopRunButtonRect?.width ?? 0) === 30 &&
+              Math.round(stopRunButtonRect?.height ?? 0) === 30;
             if (stopRunButton instanceof HTMLButtonElement) {
               stopRunButton.click();
               await sleep(180);
@@ -32431,12 +32477,7 @@ function runAutomatedStreamingTypingSmoke(win: BrowserWindow, outputPath: string
             const runActionStatus = document.querySelector('[data-testid="composer-run-action-status"]');
             const composerStopRunStatusWorks =
               composerStopRunControlWorks &&
-              runActionStatus instanceof HTMLElement &&
-              runActionStatus.textContent?.includes('Run stopped') === true &&
-              runActionStatus.getAttribute('data-composer-run-action-status-tone') === 'info' &&
-              runActionStatus.getAttribute('role') === 'status' &&
-              runActionStatus.getAttribute('aria-live') === 'polite' &&
-              runActionStatus.getAttribute('aria-atomic') === 'true';
+              !(runActionStatus instanceof HTMLElement);
             return {
               profile: window.__orchestratorSmokeProfile ?? null,
               inputBarCommitCount: window.__orchestratorInputBarCommitCount ?? null,
@@ -32453,6 +32494,8 @@ function runAutomatedStreamingTypingSmoke(win: BrowserWindow, outputPath: string
                 !document.body.innerText.includes('STREAMING_TYPING_STEERING_FOLLOW_UP') &&
                 !(document.querySelector('[data-message-id="streaming-typing-steering-follow-up"] [data-testid="queued-message-actions"]') instanceof HTMLElement),
               composerSteeringCancelStatusWorks,
+              latestActivityButtonWorking,
+              thinkingIndicatorWorks,
               composerStopRunControlWorks,
               composerStopRunStatusWorks
             };

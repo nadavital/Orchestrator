@@ -142,16 +142,17 @@ test('provider runtime owns process stdout parsing and cleanup', () => {
   const spawnedProcess = fakeProcess as FakeProcess
 
   spawnedProcess.emitData('{"type":"session.started","providerSessionId":"abc"}\n{"type":"assistant.text","content":"')
-  spawnedProcess.emitData('hi"}\n')
+  spawnedProcess.emitData('hi"}\n{"type":"run.completed"}\n')
   spawnedProcess.emitExit()
 
   assert.deepEqual(raw, [
     '{"type":"session.started","providerSessionId":"abc"}\n{"type":"assistant.text","content":"',
-    'hi"}\n'
+    'hi"}\n{"type":"run.completed"}\n'
   ])
   assert.deepEqual(events, [
     { type: 'session.started', providerSessionId: 'abc' },
-    { type: 'assistant.text', content: 'hi' }
+    { type: 'assistant.text', content: 'hi' },
+    { type: 'run.completed' }
   ])
   assert.equal(exited, true)
   assert.equal(manager.hasActiveRun(session.id), false)
@@ -160,6 +161,74 @@ test('provider runtime owns process stdout parsing and cleanup', () => {
     true
   )
   assert.equal(listProviderRuntimeConnections({ providerId: 'fake' }).at(-1)?.status, 'disconnected')
+})
+
+test('provider runtime flushes a trailing structured line on process exit', () => {
+  let fakeProcess: FakeProcess | null = null
+  const manager = new ProviderRuntimeManager(() => {
+    fakeProcess = new FakeProcess()
+    return fakeProcess
+  })
+
+  const events: RunEvent[] = []
+  let exited = false
+
+  const result = manager.startRun({
+    sessionId: session.id,
+    session,
+    provider,
+    request,
+    onRawData: () => undefined,
+    onParsedEvents: (parsed) => events.push(...parsed),
+    onData: () => undefined,
+    onExit: () => { exited = true }
+  })
+
+  assert.equal(result.ok, true)
+  assert.ok(fakeProcess)
+  const spawnedProcess = fakeProcess as FakeProcess
+
+  spawnedProcess.emitData('{"type":"run.completed"}')
+  spawnedProcess.emitExit()
+
+  assert.deepEqual(events, [
+    { type: 'run.completed' }
+  ])
+  assert.equal(exited, true)
+  assert.equal(manager.hasActiveRun(session.id), false)
+})
+
+test('provider runtime surfaces unstructured exits as visible failures', () => {
+  let fakeProcess: FakeProcess | null = null
+  const manager = new ProviderRuntimeManager(() => {
+    fakeProcess = new FakeProcess()
+    return fakeProcess
+  })
+
+  const events: RunEvent[] = []
+
+  const result = manager.startRun({
+    sessionId: session.id,
+    session,
+    provider,
+    request,
+    onRawData: () => undefined,
+    onParsedEvents: (parsed) => events.push(...parsed),
+    onData: () => undefined,
+    onExit: () => undefined
+  })
+
+  assert.equal(result.ok, true)
+  assert.ok(fakeProcess)
+  const spawnedProcess = fakeProcess as FakeProcess
+
+  spawnedProcess.emitData('Error: Authentication required')
+  spawnedProcess.emitExit()
+
+  assert.equal(events.length, 1)
+  assert.equal(events[0]?.type, 'run.failed')
+  assert.match(events[0]?.type === 'run.failed' ? events[0].content ?? '' : '', /fake exited before emitting/)
+  assert.match(events[0]?.type === 'run.failed' ? events[0].content ?? '' : '', /Authentication required/)
 })
 
 test('provider runtime interrupt keeps exit callback wired for queued steering', () => {

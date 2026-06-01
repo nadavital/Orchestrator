@@ -1,8 +1,8 @@
 import { v4 as uuidv4 } from 'uuid'
-import { accessSync, constants, readFileSync } from 'fs'
+import { accessSync, constants, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
 import { execFile, execFileSync, spawn } from 'child_process'
 import { delimiter, join } from 'path'
-import { homedir } from 'os'
+import { homedir, tmpdir } from 'os'
 import { promisify } from 'util'
 import type {
   AgentStatus,
@@ -23,6 +23,7 @@ import type {
   ProviderPermissionRuntimeContext,
   ProviderProbeDefinition,
   ProviderProbeResult,
+  ProviderAuthValidationResult,
   ProviderRuntimeInfo,
   ProviderSlashCommand,
   PlanItem,
@@ -34,7 +35,9 @@ import type {
   UserInputQuestion
 } from '../types'
 import { PROVIDER_DEFS } from '../types'
+import { loadDotEnvFile } from './localEnv'
 import { listProviderRuntimeConnections, listProviderRuntimeDebugEvents } from './providerRuntimeDiagnostics'
+import { providerKeychainEnv } from './providerSecrets'
 
 function isExecutablePath(path: string): boolean {
   try {
@@ -70,7 +73,7 @@ function providerConfigPath(providerId?: string): string | null {
   const home = homedir()
   const paths: Record<string, string> = {
     claude: join(home, '.claude/settings.json'),
-    cursor: join(home, '.cursor/agent-config.json'),
+    cursor: join(home, '.cursor/cli-config.json'),
     copilot: join(home, '.config/github-copilot/config.json')
   }
   return providerId ? paths[providerId] ?? null : null
@@ -92,12 +95,109 @@ function providerConfigEnv(providerId?: string): NodeJS.ProcessEnv {
   }
 }
 
+function orchestratorProviderEnvPath(): string {
+  if (process.env.ORCHESTRATOR_PROVIDER_ENV_PATH) return process.env.ORCHESTRATOR_PROVIDER_ENV_PATH
+  return process.platform === 'darwin'
+    ? join(homedir(), 'Library/Application Support/orchestrator/provider-env.json')
+    : join(homedir(), '.orchestrator/provider-env.json')
+}
+
+function orchestratorProviderEnv(providerId?: string): NodeJS.ProcessEnv {
+  if (!providerId) return {}
+  try {
+    const raw = readFileSync(orchestratorProviderEnvPath(), 'utf8')
+    const parsed = JSON.parse(raw) as Record<string, unknown>
+    const providers = asRecord(parsed.providers)
+    const entry = asRecord(providers?.[providerId]) ?? asRecord(parsed[providerId])
+    const env = asRecord(entry?.env) ?? entry
+    return Object.fromEntries(
+      Object.entries(env ?? {})
+        .filter((entry): entry is [string, string] => typeof entry[1] === 'string')
+    )
+  } catch {
+    return {}
+  }
+}
+
 export function providerSpawnEnv(providerId?: string): NodeJS.ProcessEnv {
   return {
     ...process.env,
+    ...loadDotEnvFile(),
     ...providerConfigEnv(providerId),
+    ...orchestratorProviderEnv(providerId),
+    ...providerKeychainEnv(providerId),
     PATH: providerSearchPath(),
     TERM: 'xterm-256color'
+  }
+}
+
+export async function validateProviderAuthSecret(providerId: string): Promise<ProviderAuthValidationResult> {
+  if (providerId !== 'cursor') {
+    return {
+      ok: false,
+      providerId,
+      message: 'Auth validation is only implemented for Cursor API keys right now.'
+    }
+  }
+
+  const provider = PROVIDERS[providerId]
+  if (!provider) {
+    return { ok: false, providerId, message: 'Provider is not registered.' }
+  }
+
+  const cwd = mkdtempSync(join(tmpdir(), 'orchestrator-provider-auth-'))
+  const marker = 'ORCHESTRATOR_CURSOR_AUTH_OK'
+  try {
+    writeFileSync(join(cwd, 'SMOKE.md'), 'Disposable Orchestrator Cursor auth validation workspace.\n')
+    const request: RunRequest = {
+      prompt: [
+        'You are validating Cursor auth for Orchestrator.',
+        'Do not edit files.',
+        `Reply with exactly: ${marker}`
+      ].join(' '),
+      cwd,
+      model: 'composer-2.5-fast',
+      effort: 'low',
+      providerSessionId: null,
+      executionPolicy: 'default',
+      allowedTools: [],
+      runtime: 'headless'
+    }
+    const commandSpec = buildProviderCommandForRuntime(provider, request)
+    const command = commandSpec ? resolveProviderCommand(provider, commandSpec) : null
+    if (!command) return { ok: false, providerId, message: 'Cursor CLI is not available.' }
+
+    const { stdout } = await execFileAsync(command.binary, command.args, {
+      cwd,
+      env: providerSpawnEnv(providerId),
+      timeout: 90_000,
+      maxBuffer: 2 * 1024 * 1024
+    })
+    const events = String(stdout)
+      .split(/\r?\n/)
+      .filter(Boolean)
+      .flatMap((line) => provider.parseOutputLine(line))
+    const text = events
+      .filter((event) => event.type === 'assistant.text' || event.type === 'assistant.text.delta')
+      .map((event) => event.content)
+      .join('')
+    const eventTypes = [...new Set(events.map((event) => event.type))]
+    const failed = events.find((event) => event.type === 'run.failed')
+    if (failed?.type === 'run.failed') {
+      return { ok: false, providerId, message: failed.content ?? 'Cursor auth validation failed.', eventTypes }
+    }
+    if (!eventTypes.includes('run.completed') || !text.includes(marker)) {
+      return { ok: false, providerId, message: 'Cursor ran, but did not return the validation response.', eventTypes }
+    }
+    return { ok: true, providerId, message: 'Cursor auth validated.', eventTypes }
+  } catch (error) {
+    const err = error as { stderr?: Buffer | string; stdout?: Buffer | string; message?: string }
+    const stderr = Buffer.isBuffer(err.stderr) ? err.stderr.toString('utf8') : err.stderr
+    const stdout = Buffer.isBuffer(err.stdout) ? err.stdout.toString('utf8') : err.stdout
+    const output = [stderr, stdout, err.message].filter(Boolean).join('\n').trim()
+    return { ok: false, providerId, message: output.split(/\r?\n/).filter(Boolean).slice(-3).join('\n') || 'Cursor auth validation failed.' }
+  } finally {
+    rmSync(cwd, { recursive: true, force: true })
   }
 }
 
@@ -146,8 +246,8 @@ export interface ProviderAdapter {
   binaryCandidates?: string[]
   capabilities: ProviderCapabilities
   resolveExecutionPolicy(policy: string): ResolvedExecutionPolicy
-  buildStartCommand(request: RunRequest): ProviderCommand
-  buildResumeCommand(request: RunRequest): ProviderCommand
+  buildStartCommand?(request: RunRequest): ProviderCommand
+  buildResumeCommand?(request: RunRequest): ProviderCommand
   buildInteractiveCommand?(request: RunRequest): ProviderCommand
   parseOutputLine(line: string): RunEvent[]
 }
@@ -156,13 +256,12 @@ export function buildProviderCommandForRuntime(
   provider: ProviderAdapter,
   request: RunRequest,
   mode: 'start' | 'resume' = 'start'
-): ProviderCommand {
+): ProviderCommand | null {
   if (request.runtime === 'interactive' && provider.capabilities.interactiveCli && provider.buildInteractiveCommand) {
     return provider.buildInteractiveCommand(request)
   }
-  return mode === 'resume'
-    ? provider.buildResumeCommand(request)
-    : provider.buildStartCommand(request)
+  if (mode === 'resume') return provider.buildResumeCommand?.(request) ?? null
+  return provider.buildStartCommand?.(request) ?? null
 }
 
 function command(binary: string, args: string[]): ProviderCommand {
@@ -332,15 +431,6 @@ function usageSummaryFromAnthropicResult(event: Record<string, unknown>): UsageS
   }
 }
 
-function claudeFileSpecs(attachments: RunRequest['attachments']): string[] {
-  return (attachments ?? []).flatMap((attachment) => {
-    if (attachment.kind !== 'claude_file') return []
-    const fileId = attachment.fileId.trim()
-    const relativePath = attachment.relativePath.trim()
-    return fileId && relativePath ? [`${fileId}:${relativePath}`] : []
-  })
-}
-
 function textFromContentBlocks(content: unknown): string[] {
   if (!Array.isArray(content)) return []
   return content.flatMap((block) => {
@@ -349,7 +439,7 @@ function textFromContentBlocks(content: unknown): string[] {
   })
 }
 
-function stringifyContent(value: unknown): string {
+export function stringifyContent(value: unknown): string {
   if (typeof value === 'string') return value
   if (value == null) return ''
   return JSON.stringify(value, null, 2)
@@ -785,16 +875,16 @@ const providerRegistries: Record<string, ProviderCapabilityRegistry> = {
   claude: {
     providerId: 'claude',
     features: [
-      feature('stream-json', 'Stream JSON', 'runtime', 'supported', 'adapter', ['headless']),
-      feature('ask-user-question', 'Ask user', 'permissions', 'supported', 'adapter', ['headless'], 'AskUserQuestion is normalized as user input.'),
-      feature('tool-permissions', 'Tool grants', 'permissions', 'supported', 'local-cli', ['headless', 'interactive']),
-      feature('slash-commands', 'Slash commands', 'commands', 'partial', 'local-cli', ['interactive'], 'Provider commands exist, but command listing is not normalized yet.'),
-      feature('agents', 'Agents', 'agents', 'supported', 'local-cli', ['headless', 'interactive']),
-      feature('ultrareview', 'Ultrareview', 'review', 'supported', 'local-cli', ['headless']),
-      feature('mcp', 'MCP', 'mcp', 'supported', 'local-cli', ['headless', 'interactive']),
-      feature('plugins', 'Plugins', 'extensions', 'supported', 'local-cli', ['headless', 'interactive']),
-      feature('worktrees', 'Worktrees', 'workspace', 'supported', 'local-cli', ['headless', 'interactive']),
-      feature('attachments', 'Files', 'attachments', 'partial', 'local-cli', ['headless', 'interactive'])
+      feature('sdk-runtime', 'SDK runtime', 'runtime', 'supported', 'adapter', ['sdk']),
+      feature('ask-user-question', 'Ask user', 'permissions', 'supported', 'adapter', ['sdk'], 'AskUserQuestion is normalized as user input.'),
+      feature('tool-permissions', 'Tool grants', 'permissions', 'supported', 'adapter', ['sdk']),
+      feature('slash-commands', 'Slash commands', 'commands', 'partial', 'local-cli', ['sdk'], 'Provider command inventory still comes from local no-quota Claude commands.'),
+      feature('agents', 'Agents', 'agents', 'supported', 'adapter', ['sdk']),
+      feature('ultrareview', 'Ultrareview', 'review', 'supported', 'local-cli', ['sdk']),
+      feature('mcp', 'MCP', 'mcp', 'supported', 'adapter', ['sdk']),
+      feature('plugins', 'Plugins', 'extensions', 'supported', 'local-cli', ['sdk']),
+      feature('worktrees', 'Worktrees', 'workspace', 'supported', 'adapter', ['sdk']),
+      feature('attachments', 'Files', 'attachments', 'partial', 'adapter', ['sdk'])
     ],
     gaps: [
       gap(
@@ -803,8 +893,8 @@ const providerRegistries: Record<string, ProviderCapabilityRegistry> = {
         'runtime',
         'medium',
         'partial',
-        'Claude partial text streams are normalized for headless runs; hook lifecycle events are not surfaced yet.',
-        'Add parser fixtures for --include-hook-events before enabling hook event UI.'
+        'Claude SDK partial text streams are normalized; hook lifecycle events are not surfaced yet.',
+        'Add parser fixtures for SDK hook events before enabling hook event UI.'
       ),
       gap(
         'claude-rich-permission-controls',
@@ -812,7 +902,7 @@ const providerRegistries: Record<string, ProviderCapabilityRegistry> = {
         'permissions',
         'medium',
         'partial',
-        'Allowed tools, denied tools, available tool sets, additional directories, allow-once grants, allow-session grants, and denial are represented in run/session state and passed to Claude; native Claude rule-file import/export is not surfaced yet.',
+        'Allowed tools, denied tools, available tool sets, additional directories, allow-once grants, allow-session grants, and denial are represented in run/session state and passed to the Claude SDK; native Claude rule-file import/export is not surfaced yet.',
         'Add native rule-file import/export only after the CLI exposes a stable no-quota contract for those settings.'
       ),
       gap(
@@ -830,7 +920,7 @@ const providerRegistries: Record<string, ProviderCapabilityRegistry> = {
         'workspace',
         'medium',
         'partial',
-        'Orchestrator can create app-managed git worktrees before launch; native Claude --worktree, --tmux, --from-pr, --fork-session, and named session flows are not exposed as separate launch commands.',
+        'Orchestrator can create app-managed git worktrees before launch; native Claude --worktree, --tmux, --from-pr, --fork-session, and named session flows are not exposed as separate SDK launch options.',
         'Keep app-managed worktrees as the cross-provider default and add provider-native launch extras only behind an advanced sheet.'
       )
     ],
@@ -844,24 +934,23 @@ const providerRegistries: Record<string, ProviderCapabilityRegistry> = {
       probe('auto-mode-defaults', 'Auto mode defaults', ['auto-mode', 'defaults'], 'features')
     ],
     commandSurfaces: [
-      commandSurface('auth-status', 'Auth status', 'runtime', ['auth', 'status'], 'headless', 'none', false, 'settings', { featureId: 'auth' }),
-      commandSurface('agents-list', 'Configured agents', 'agents', ['agents'], 'headless', 'none', false, 'settings', { featureId: 'agents' }),
-      commandSurface('mcp-list', 'MCP servers', 'mcp', ['mcp', 'list'], 'headless', 'none', false, 'settings', { featureId: 'mcp' }),
-      commandSurface('mcp-details', 'MCP details', 'mcp', ['mcp', 'get'], 'headless', 'none', false, 'settings', { featureId: 'mcp', note: 'Runs mcp list, then mcp get for each discovered server.' }),
-      commandSurface('plugin-list', 'Plugins', 'extensions', ['plugin', 'list', '--json'], 'headless', 'none', false, 'settings', { featureId: 'plugins' }),
-      commandSurface('auto-mode-defaults', 'Auto mode defaults', 'permissions', ['auto-mode', 'defaults'], 'headless', 'none', false, 'settings', { featureId: 'auto-mode' }),
-      commandSurface('project-purge', 'Purge project state', 'workspace', ['project', 'purge'], 'headless', 'none', true, 'settings', { featureId: 'project-state' }),
-      commandSurface('ultrareview-json', 'Ultrareview JSON', 'review', ['ultrareview', '--json'], 'headless', 'may-use-quota', false, 'composer', { featureId: 'ultrareview' }),
-      commandSurface('interactive-session', 'Interactive session', 'runtime', [], 'interactive', 'may-use-quota', false, 'composer', { featureId: 'interactive-cli' })
+      commandSurface('auth-status', 'Auth status', 'runtime', ['auth', 'status'], 'sdk', 'none', false, 'settings', { featureId: 'auth' }),
+      commandSurface('agents-list', 'Configured agents', 'agents', ['agents'], 'sdk', 'none', false, 'settings', { featureId: 'agents' }),
+      commandSurface('mcp-list', 'MCP servers', 'mcp', ['mcp', 'list'], 'sdk', 'none', false, 'settings', { featureId: 'mcp' }),
+      commandSurface('mcp-details', 'MCP details', 'mcp', ['mcp', 'get'], 'sdk', 'none', false, 'settings', { featureId: 'mcp', note: 'Runs mcp list, then mcp get for each discovered server.' }),
+      commandSurface('plugin-list', 'Plugins', 'extensions', ['plugin', 'list', '--json'], 'sdk', 'none', false, 'settings', { featureId: 'plugins' }),
+      commandSurface('auto-mode-defaults', 'Auto mode defaults', 'permissions', ['auto-mode', 'defaults'], 'sdk', 'none', false, 'settings', { featureId: 'auto-mode' }),
+      commandSurface('project-purge', 'Purge project state', 'workspace', ['project', 'purge'], 'sdk', 'none', true, 'settings', { featureId: 'project-state' }),
+      commandSurface('ultrareview-json', 'Ultrareview JSON', 'review', ['ultrareview', '--json'], 'sdk', 'may-use-quota', false, 'composer', { featureId: 'ultrareview' })
     ],
     slashCommands: [
-      slashCommand('/review', 'Run Claude ultrareview against the current changes', 'provider', 'headless', 'insert-prompt', {
+      slashCommand('/review', 'Run Claude ultrareview against the current changes', 'provider', 'sdk', 'insert-prompt', {
         featureId: 'ultrareview',
         prompt: 'Review the current changes with Claude ultrareview-style depth. Focus on correctness, regressions, and missing tests.'
       }),
-      slashCommand('/agents', 'Work with Claude agents', 'provider', 'interactive', 'send-to-provider', { featureId: 'agents' }),
-      slashCommand('/mcp', 'Open Claude MCP command flow', 'provider', 'interactive', 'send-to-provider', { featureId: 'mcp' }),
-      slashCommand('/plugins', 'Open Claude plugin command flow', 'provider', 'interactive', 'send-to-provider', { featureId: 'plugins' })
+      slashCommand('/agents', 'Work with Claude agents', 'provider', 'sdk', 'send-to-provider', { featureId: 'agents' }),
+      slashCommand('/mcp', 'Open Claude MCP command flow', 'provider', 'sdk', 'send-to-provider', { featureId: 'mcp' }),
+      slashCommand('/plugins', 'Open Claude plugin command flow', 'provider', 'sdk', 'send-to-provider', { featureId: 'plugins' })
     ]
   },
   copilot: {
@@ -992,18 +1081,42 @@ const providerRegistries: Record<string, ProviderCapabilityRegistry> = {
   cursor: {
     providerId: 'cursor',
     features: [
+      feature('sdk-runtime', 'SDK runtime', 'runtime', 'partial', 'sdk', ['sdk'], 'Cloud auth works with the API key, but the local SDK stream still exits with an unmessaged ERROR before assistant text.'),
       feature('stream-json', 'Stream JSON', 'runtime', 'supported', 'adapter', ['headless']),
+      feature('run-streaming', 'Run streaming', 'runtime', 'supported', 'sdk', ['sdk']),
       feature('ask-mode', 'Ask mode', 'permissions', 'supported', 'local-cli', ['headless', 'interactive']),
       feature('plan-mode', 'Plan mode', 'permissions', 'supported', 'local-cli', ['headless', 'interactive']),
+      feature('sdk-plan-mode', 'Plan mode', 'permissions', 'supported', 'sdk', ['sdk']),
       feature('sandbox', 'Sandbox', 'permissions', 'supported', 'adapter', ['headless']),
+      feature('sdk-local-sandbox', 'Local sandbox', 'permissions', 'partial', 'sdk', ['sdk'], 'SDK exposes local sandbox options but not Cursor CLI ask mode.'),
       feature('mcp', 'MCP', 'mcp', 'supported', 'local-cli', ['headless', 'interactive']),
+      feature('sdk-mcp', 'SDK MCP servers', 'mcp', 'partial', 'sdk', ['sdk'], 'SDK accepts stdio/http/sse MCP server configs; Orchestrator host tools still need a bridge process.'),
       feature('worktrees', 'Worktrees', 'workspace', 'supported', 'local-cli', ['headless', 'interactive']),
       feature('sessions', 'Chats', 'runtime', 'supported', 'local-cli', ['headless', 'interactive']),
+      feature('sdk-sessions', 'Agents and runs', 'runtime', 'supported', 'sdk', ['sdk']),
       feature('rules', 'Rules', 'extensions', 'supported', 'local-cli', ['headless']),
       feature('bedrock', 'Bedrock', 'runtime', 'supported', 'local-cli', ['headless', 'interactive']),
       feature('model-list', 'Models', 'usage', 'partial', 'local-cli', ['headless'], 'Local command can fail when keychain is unavailable.')
     ],
     gaps: [
+      gap(
+        'cursor-sdk-host-tools',
+        'Orchestrator host tools for SDK',
+        'mcp',
+        'high',
+        'partial',
+        'Cursor SDK supports MCP server configs, but does not expose the in-process dynamic tool callback shape used by Codex app-server and Claude SDK.',
+        'Add an Orchestrator stdio/http MCP bridge or adopt a native Cursor SDK tool callback if one becomes available.'
+      ),
+      gap(
+        'cursor-sdk-local-stream',
+        'SDK local stream exits before content',
+        'runtime',
+        'high',
+        'blocked',
+        'Live Cursor SDK runtime smoke starts an agent, then the local stream returns ERROR before assistant text or run completion. API-key auth itself succeeds.',
+        'Keep Cursor SDK behind an experimental/runtime choice until Cursor exposes an HTTP/1.1 fallback or the local SDK transport succeeds on this machine.'
+      ),
       gap(
         'cursor-keychain-models',
         'Model/status keychain failure',
@@ -1660,16 +1773,7 @@ function claudePolicy(policyId: string): ResolvedExecutionPolicy {
   })
 }
 
-function parseAnthropicStyleLine(line: string, providerId = 'claude'): RunEvent[] {
-  const cleanLine = stripAnsi(line).trim()
-  const event = parseJsonLine(cleanLine)
-  if (!event) {
-    if (/apiKeyHelper failed|authentication_failed/i.test(cleanLine)) {
-      return [{ type: 'run.failed', content: cleanLine }]
-    }
-    return []
-  }
-
+export function normalizeClaudeMessageObject(event: Record<string, unknown>, providerId = 'claude'): RunEvent[] {
   const events: RunEvent[] = []
   const type = event.type as string | undefined
   const sessionId = stringValue(event.sessionId, event.session_id)
@@ -1896,6 +2000,19 @@ function parseAnthropicStyleLine(line: string, providerId = 'claude'): RunEvent[
   return events
 }
 
+function parseAnthropicStyleLine(line: string, providerId = 'claude'): RunEvent[] {
+  const cleanLine = stripAnsi(line).trim()
+  const event = parseJsonLine(cleanLine)
+  if (!event) {
+    if (/apiKeyHelper failed|authentication_failed/i.test(cleanLine)) {
+      return [{ type: 'run.failed', content: cleanLine }]
+    }
+    return []
+  }
+
+  return normalizeClaudeMessageObject(event, providerId)
+}
+
 // Claude Code
 
 const claudeProvider: ProviderAdapter = {
@@ -1917,28 +2034,6 @@ const claudeProvider: ProviderAdapter = {
   },
 
   resolveExecutionPolicy: claudePolicy,
-
-  buildStartCommand(request) {
-    const args = ['-p', request.prompt, '--output-format', 'stream-json', '--verbose', '--include-partial-messages']
-    if (request.providerContext?.includeHookEvents) args.push('--include-hook-events')
-    if (request.providerSessionId) args.push('--resume', request.providerSessionId)
-    if (request.agentName && !request.providerSessionId) args.push('--agent', request.agentName)
-    args.push('--model', request.model || 'sonnet')
-    if (request.effort && request.effort !== 'normal') args.push('--effort', request.effort)
-    args.push(...resolvedPolicyArgs(this, request.executionPolicy || 'default'))
-    if (request.providerContext?.settingsPath) args.push('--settings', request.providerContext.settingsPath)
-    if (request.allowedTools.length > 0) args.push('--allowedTools', request.allowedTools.join(','))
-    if (request.disallowedTools?.length) args.push('--disallowedTools', request.disallowedTools.join(','))
-    if (request.availableTools?.length) args.push('--tools', request.availableTools.join(','))
-    if (request.additionalDirs?.length) args.push('--add-dir', ...request.additionalDirs)
-    const fileSpecs = claudeFileSpecs(request.attachments)
-    if (fileSpecs.length > 0) args.push('--file', ...fileSpecs)
-    return command(this.binary, args)
-  },
-
-  buildResumeCommand(request) {
-    return this.buildStartCommand({ ...request, prompt: request.prompt || 'Please continue.' })
-  },
 
   parseOutputLine: parseAnthropicStyleLine
 }
@@ -2018,7 +2113,7 @@ const copilotProvider: ProviderAdapter = {
   },
 
   buildResumeCommand(request) {
-    return this.buildStartCommand({ ...request, prompt: request.prompt || 'Please continue.' })
+    return this.buildStartCommand!({ ...request, prompt: request.prompt || 'Please continue.' })
   },
 
   buildInteractiveCommand(request) {
@@ -3199,8 +3294,34 @@ function cursorPolicy(policyId: string): ResolvedExecutionPolicy {
       }
     })
   }
-  if (policyId === 'sandbox') {
-    return policy(policyId, 'exact', ['--sandbox', 'enabled', '--trust'], 'Sandbox', 'Requests Cursor sandbox mode.', undefined, {
+  if (policyId === 'ask') {
+    return policy(
+      policyId,
+      'exact',
+      ['--mode', 'ask', '--trust'],
+      'Read-only',
+      'Cursor ask mode is read-only and does not apply edits.',
+      undefined,
+      {
+        intent: 'ask',
+        interaction: 'headless',
+        controls: cursorPermissionControls,
+        execution: {
+          nativeMode: 'ask',
+          sandboxMode: 'read-only',
+          configSource: 'cli'
+        }
+      }
+    )
+  }
+  return policy(
+    policyId,
+    'exact',
+    ['--sandbox', 'enabled', '--trust'],
+    'Sandbox',
+    'Requests Cursor sandbox mode so the agent can edit inside the workspace.',
+    undefined,
+    {
       intent: 'workspaceSandbox',
       interaction: 'headless',
       controls: cursorPermissionControls,
@@ -3209,29 +3330,11 @@ function cursorPolicy(policyId: string): ResolvedExecutionPolicy {
         sandboxMode: 'enabled',
         configSource: 'cli'
       }
-    })
-  }
-  return policy(
-    policyId,
-    'exact',
-    ['--mode', 'ask', '--trust'],
-    'Ask',
-    'Cursor ask mode is read-only and does not apply edits.',
-    undefined,
-    {
-      intent: 'ask',
-      interaction: 'headless',
-      controls: cursorPermissionControls,
-      execution: {
-        nativeMode: 'ask',
-        sandboxMode: 'read-only',
-        configSource: 'cli'
-      }
     }
   )
 }
 
-function effectiveCursorModel(request: RunRequest): string {
+export function effectiveCursorModel(request: RunRequest): string {
   const modelDef = PROVIDER_DEFS.cursor.models.find((m) => m.id === request.model)
   const cfg = modelDef?.cursorConfig
   let effectiveModel = request.model || 'auto'
@@ -3288,7 +3391,7 @@ const cursorProvider: ProviderAdapter = {
   },
 
   buildResumeCommand(request) {
-    return this.buildStartCommand({ ...request, prompt: request.prompt || 'Please continue.' })
+    return this.buildStartCommand!({ ...request, prompt: request.prompt || 'Please continue.' })
   },
 
   buildInteractiveCommand(request) {

@@ -26,7 +26,7 @@ export type WebviewElement = HTMLElement & {
   stopFindInPage: (action: 'clearSelection' | 'keepSelection' | 'activateSelection') => void
   setZoomFactor: (factor: number) => void
   getZoomFactor?: () => number
-  capturePage: () => Promise<{ toDataURL: () => string }>
+  capturePage: () => Promise<{ toDataURL: () => string; getSize?: () => { width: number; height: number } }>
   executeJavaScript: <T = unknown>(code: string, userGesture?: boolean) => Promise<T>
 }
 

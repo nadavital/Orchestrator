@@ -1,10 +1,11 @@
 import { spawn as ptySpawn } from 'node-pty'
 import type { IPty } from 'node-pty'
-import { BrowserWindow } from 'electron'
 import type { RunEvent, RunRequest, Session, UserInputAnswerPayload } from '../types'
 import { approvalBroker } from './approvalBroker'
-import { browserClientDynamicTools, callBrowserClientTool, isBrowserClientDynamicTool } from './browserClientTools'
+import { ClaudeSdkRuntimeManager } from './claudeSdkRuntime'
 import { CodexAppServerRuntimeManager } from './codexAppServerRuntime'
+import { CursorSdkRuntimeManager } from './cursorSdkRuntime'
+import { browserProviderHostToolBridge, type ProviderHostToolBridge } from './providerHostTools'
 import {
   buildProviderCommandForRuntime,
   providerSpawnEnv,
@@ -66,16 +67,48 @@ function defaultSpawn(
   return ptySpawn(binary, args, options) as IPty
 }
 
+function providerExitedWithoutCompletionMessage(providerId: string, rawTail: string): string {
+  const cleanedTail = rawTail
+    .replace(/\u001b\[[0-?]*[ -/]*[@-~]/g, '')
+    .replace(/\r/g, '\n')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .slice(-4)
+    .join('\n')
+  const suffix = cleanedTail ? ` Last output:\n${cleanedTail}` : ''
+  return `${providerId} exited before emitting a structured completion event.${suffix}`
+}
+
+function parseProviderOutputLine(provider: ProviderAdapter, line: string): RunEvent[] {
+  try {
+    return provider.parseOutputLine(line)
+  } catch {
+    return []
+  }
+}
+
 export class ProviderRuntimeManager {
   private readonly activeProcesses = new Map<string, ProviderRuntimeProcess>()
   private readonly activeProcessInfo = new Map<string, { providerId: string; runtime: NonNullable<RunRequest['runtime']> }>()
   private readonly activeRunCleanups = new Map<string, () => void>()
-  private readonly appServerRuntime = new CodexAppServerRuntimeManager()
+  private readonly appServerRuntime: CodexAppServerRuntimeManager
+  private readonly claudeSdkRuntime: ClaudeSdkRuntimeManager
+  private readonly cursorSdkRuntime: CursorSdkRuntimeManager
+  private readonly hostToolBridge: ProviderHostToolBridge
 
-  constructor(private readonly spawnProcess: ProviderRuntimeSpawn = defaultSpawn) {}
+  constructor(
+    private readonly spawnProcess: ProviderRuntimeSpawn = defaultSpawn,
+    hostToolBridge: ProviderHostToolBridge = browserProviderHostToolBridge()
+  ) {
+    this.hostToolBridge = hostToolBridge
+    this.appServerRuntime = new CodexAppServerRuntimeManager()
+    this.claudeSdkRuntime = new ClaudeSdkRuntimeManager(hostToolBridge)
+    this.cursorSdkRuntime = new CursorSdkRuntimeManager()
+  }
 
   hasActiveRun(sessionId: string): boolean {
-    return this.activeProcesses.has(sessionId) || this.appServerRuntime.has(sessionId)
+    return this.activeProcesses.has(sessionId) || this.appServerRuntime.has(sessionId) || this.claudeSdkRuntime.has(sessionId) || this.cursorSdkRuntime.has(sessionId)
   }
 
   write(sessionId: string, data: string): void {
@@ -88,28 +121,67 @@ export class ProviderRuntimeManager {
 
   async prepareRunRequest(
     sessionId: string,
-    provider: ProviderAdapter,
+    _provider: ProviderAdapter,
     runRequest: RunRequest,
     applyEvents: (sessionId: string, events: RunEvent[]) => void
   ): Promise<RunRequest> {
     this.cleanupBridge(sessionId)
     approvalBroker.setEventSink(applyEvents)
-
-    if (provider.id !== 'claude' || (runRequest.runtime ?? 'headless') !== 'headless') return runRequest
-
-    const prepared = await approvalBroker.prepareClaudeRun(sessionId, runRequest.allowedTools ?? [])
-    this.activeRunCleanups.set(sessionId, prepared.dispose)
-    return {
-      ...runRequest,
-      providerContext: {
-        ...runRequest.providerContext,
-        settingsPath: prepared.settingsPath,
-        includeHookEvents: true
-      }
-    }
+    return runRequest
   }
 
   startRun(options: StartProviderRunOptions): ProviderRunStartResult {
+    if (options.provider.id === 'claude' && options.request.runtime === 'sdk') {
+      const result = this.claudeSdkRuntime.start({
+        sessionId: options.sessionId,
+        session: options.session,
+        provider: options.provider,
+        request: options.request,
+        mode: options.mode ?? 'start',
+        onRawData: options.onRawData,
+        onParsedEvents: options.onParsedEvents,
+        onExit: options.onExit
+      })
+      return result.ok ? { ok: true } : { ok: false, error: 'spawn-failed', message: result.message }
+    }
+
+    if (options.provider.id === 'cursor' && options.request.runtime === 'sdk') {
+      const result = this.cursorSdkRuntime.start({
+        sessionId: options.sessionId,
+        session: options.session,
+        provider: options.provider,
+        request: options.request,
+        mode: options.mode ?? 'start',
+        onRawData: options.onRawData,
+        onParsedEvents: options.onParsedEvents,
+        onExit: options.onExit
+      })
+      return result.ok ? { ok: true } : { ok: false, error: 'spawn-failed', message: result.message }
+    }
+
+    if (options.provider.id === 'claude') {
+      const runtime = options.request.runtime ?? 'headless'
+      const message = 'Claude CLI runtime has been removed. Start Claude with the SDK runtime.'
+      this.cleanupBridge(options.sessionId)
+      recordProviderRuntimeDebugEvent({
+        providerId: options.provider.id,
+        runtime,
+        sessionId: options.sessionId,
+        severity: 'error',
+        code: 'spawn-failed',
+        message
+      })
+      updateProviderRuntimeConnection({
+        providerId: options.provider.id,
+        runtime,
+        sessionId: options.sessionId,
+        status: 'failed',
+        errorCode: 'spawn-failed',
+        message
+      })
+      return { ok: false, error: 'spawn-failed', message }
+    }
+
     if (options.provider.id === 'codex' && options.request.runtime === 'app-server') {
       recordProviderRuntimeDebugEvent({
         providerId: options.provider.id,
@@ -130,11 +202,7 @@ export class ProviderRuntimeManager {
         provider: options.provider,
         request: options.request,
         mode: options.mode ?? 'start',
-        clientDynamicToolBridge: {
-          dynamicTools: browserClientDynamicTools,
-          isSupported: isBrowserClientDynamicTool,
-          call: (call) => callBrowserClientTool(BrowserWindow.getAllWindows(), call)
-        },
+        clientDynamicToolBridge: this.hostToolBridge,
         onRawData: options.onRawData,
         onParsedEvents: options.onParsedEvents,
         onExit: options.onExit
@@ -163,10 +231,8 @@ export class ProviderRuntimeManager {
       }
     }
 
-    const command = resolveProviderCommand(
-      options.provider,
-      buildProviderCommandForRuntime(options.provider, options.request, options.mode ?? 'start')
-    )
+    const commandSpec = buildProviderCommandForRuntime(options.provider, options.request, options.mode ?? 'start')
+    const command = commandSpec ? resolveProviderCommand(options.provider, commandSpec) : null
     if (!command) {
       this.cleanupBridge(options.sessionId)
       recordProviderRuntimeDebugEvent({
@@ -247,20 +313,45 @@ export class ProviderRuntimeManager {
       message: `Started ${options.provider.id} ${options.request.runtime ?? 'headless'} runtime.`
     })
     let buffer = ''
+    let rawTail = ''
+    let sawTerminalEvent = false
+    let sawPauseEvent = false
+
+    const emitParsedEvents = (events: RunEvent[]): void => {
+      if (events.length === 0) return
+      sawTerminalEvent ||= events.some((event) => event.type === 'run.completed' || event.type === 'run.failed')
+      sawPauseEvent ||= events.some((event) => event.type === 'permission.requested' || event.type === 'user_input.requested')
+      options.onParsedEvents(events)
+    }
 
     process.onData((data) => {
       if (this.activeProcesses.get(options.sessionId) !== process) return
       options.onRawData(data)
       options.onData(data, process)
+      rawTail = `${rawTail}${data}`.slice(-2000)
 
       buffer += data
       const lines = buffer.split('\n')
       buffer = lines.pop() ?? ''
-      for (const line of lines) options.onParsedEvents(options.provider.parseOutputLine(line))
+      for (const line of lines) emitParsedEvents(parseProviderOutputLine(options.provider, line))
     })
 
     process.onExit(() => {
       if (this.activeProcesses.get(options.sessionId) !== process) return
+      const trailingLine = buffer.trim()
+      buffer = ''
+      if (trailingLine) emitParsedEvents(parseProviderOutputLine(options.provider, trailingLine))
+      if (
+        options.request.runtime !== 'interactive' &&
+        options.provider.capabilities.streamingJson &&
+        !sawTerminalEvent &&
+        !sawPauseEvent
+      ) {
+        emitParsedEvents([{
+          type: 'run.failed',
+          content: providerExitedWithoutCompletionMessage(options.provider.id, rawTail)
+        }])
+      }
       this.activeProcesses.delete(options.sessionId)
       this.activeProcessInfo.delete(options.sessionId)
       this.cleanupBridge(options.sessionId)
@@ -285,6 +376,14 @@ export class ProviderRuntimeManager {
   }
 
   stop(sessionId: string): boolean {
+    if (this.cursorSdkRuntime.stop(sessionId)) {
+      this.cleanupSession(sessionId)
+      return true
+    }
+    if (this.claudeSdkRuntime.stop(sessionId)) {
+      this.cleanupSession(sessionId)
+      return true
+    }
     if (this.appServerRuntime.stop(sessionId)) {
       recordProviderRuntimeDebugEvent({
         providerId: 'codex',
@@ -330,6 +429,8 @@ export class ProviderRuntimeManager {
   }
 
   interrupt(sessionId: string): boolean {
+    if (this.cursorSdkRuntime.stop(sessionId)) return true
+    if (this.claudeSdkRuntime.stop(sessionId)) return true
     if (this.appServerRuntime.has(sessionId)) return this.appServerRuntime.interrupt(sessionId)
     const process = this.activeProcesses.get(sessionId)
     if (!process) return false
