@@ -1361,7 +1361,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
             </div>
           ) : (
             /* Active session: compact thread settings */
-            <div className="relative flex items-center gap-1.5" style={{ minWidth: 0 }}>
+            <div className="relative flex items-center gap-1.5 composer-agent-picker" style={{ minWidth: 0 }}>
               <ToolbarBtn
                 active={showAgentMenu}
                 onClick={() => setShowAgentMenu((v) => !v)}
@@ -1390,7 +1390,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
                 </span>
               )}
               {showAgentMenu && (
-                <DropdownPanel onClose={() => setShowAgentMenu(false)} style={{ bottom: '100%', marginBottom: 8, left: 0, width: 320 }}>
+                <DropdownPanel onClose={() => setShowAgentMenu(false)} style={{ bottom: '100%', marginBottom: 8, right: 0, width: 320 }}>
                   <div
                     className="sr-only"
                     data-testid="composer-active-agent-summary"
@@ -1520,13 +1520,14 @@ function InputBar({ session, isNew }: Props): JSX.Element {
             title={isSavingPastedFiles ? 'Saving pasted files' : 'Attach files'}
             ariaLabel={isSavingPastedFiles ? 'Saving pasted files' : 'Attach files'}
             iconOnly
+            className="composer-attach-trigger"
           >
             <Icon name="plus" size={14} />
           </ToolbarBtn>
 
           {/* New session: combined agent picker */}
           {isNew && (
-            <div className="relative">
+            <div className="relative composer-agent-picker">
               <ToolbarBtn
                 active={false}
                 onClick={() => setShowAgentMenu((v) => !v)}
@@ -1668,7 +1669,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
           )}
 
           {/* Permission mode picker — always shown */}
-          <div className="relative">
+          <div className="relative composer-permission-picker">
             <ToolbarBtn
               active={permissionMode !== defaultPermissionMode}
               onClick={() => setShowPermMenu((v) => !v)}
@@ -1823,7 +1824,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
                 data-native-title-free="true"
                 aria-label="Stop current run"
                 onClick={() => { void stopCurrentRun() }}
-                className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium"
+                className="composer-stop-trigger flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium"
                 style={{ background: 'var(--color-red)', color: '#fff' }}
               >
                 <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
@@ -1841,7 +1842,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
                 aria-label={sendTitle}
                 data-tooltip-label={sendTitle}
                 data-native-title-free="true"
-                className="flex items-center justify-center rounded-lg transition-colors"
+                className="composer-send-trigger flex items-center justify-center rounded-lg transition-colors"
                 style={{
                   width: 30, height: 30,
                   background: canSend ? 'var(--text-primary)' : 'var(--control-bg)',

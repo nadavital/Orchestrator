@@ -815,6 +815,33 @@
   .composer-toolbar {
     container: composer-toolbar / inline-size;
     min-width: 0;
+    align-items: center;
+    gap: 6px !important;
+  }
+
+  .composer-toolbar > .flex-1 {
+    order: 1;
+  }
+
+  .composer-toolbar .orchestrator-tooltip-anchor:has(.composer-attach-trigger),
+  .composer-attach-trigger {
+    order: 2;
+  }
+
+  .composer-permission-picker {
+    order: 3;
+  }
+
+  .composer-agent-picker {
+    order: 4;
+    min-width: 0;
+  }
+
+  .composer-toolbar .orchestrator-tooltip-anchor:has(.composer-stop-trigger),
+  .composer-toolbar .orchestrator-tooltip-anchor:has(.composer-send-trigger),
+  .composer-stop-trigger,
+  .composer-send-trigger {
+    order: 5;
   }
 
   [data-testid='session-primary-content'][data-bottom-panel-expanded='true'] .composer-reserve-shell {
@@ -850,12 +877,45 @@
     min-width: 0;
   }
 
+  .composer-agent-trigger,
+  .composer-permission-trigger,
+  .composer-worktree-trigger {
+    border-color: transparent !important;
+    background: color-mix(in srgb, var(--control-bg) 32%, transparent) !important;
+    box-shadow: none;
+  }
+
+  .composer-agent-trigger:hover,
+  .composer-agent-trigger[aria-expanded='true'],
+  .composer-permission-trigger:hover,
+  .composer-permission-trigger[aria-expanded='true'],
+  .composer-worktree-trigger:hover,
+  .composer-worktree-trigger[aria-expanded='true'] {
+    background: color-mix(in srgb, var(--control-bg-hover) 58%, transparent) !important;
+  }
+
+  .composer-attach-trigger {
+    background: transparent !important;
+  }
+
+  .composer-agent-trigger {
+    max-width: min(190px, 32cqw);
+  }
+
+  .composer-permission-trigger {
+    max-width: min(96px, 18cqw);
+  }
+
   .composer-control-label {
     min-width: 0;
-    max-width: min(260px, 38cqw);
+    max-width: min(142px, 24cqw);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .composer-worktree-trigger .composer-control-label {
+    max-width: 58px;
   }
 
   .composer-tiered-row {
@@ -912,13 +972,19 @@
 
   .composer-permission-trigger .composer-control-label {
     display: inline-flex;
-    max-width: min(76px, 14cqw);
+    max-width: min(64px, 12cqw);
     font-weight: 560;
+  }
+
+  .composer-dropdown-surface {
+    border-color: color-mix(in srgb, var(--border-subtle) 10%, transparent) !important;
+    background: color-mix(in srgb, var(--surface-bg) 32%, transparent) !important;
+    box-shadow: 0 12px 26px rgba(0, 0, 0, 0.12) !important;
   }
 
   @container composer-toolbar (width <= 560px) {
     .composer-agent-trigger .composer-control-label {
-      max-width: min(176px, 32cqw);
+      max-width: min(118px, 25cqw);
     }
 
     .composer-permission-trigger .composer-control-label,
@@ -5307,24 +5373,23 @@
     background:
       linear-gradient(
         180deg,
-        color-mix(in srgb, var(--surface-bg) 22%, transparent),
-        color-mix(in srgb, var(--canvas-bg) 10%, transparent)
+        color-mix(in srgb, var(--surface-bg) 16%, transparent),
+        color-mix(in srgb, var(--canvas-bg) 6%, transparent)
       );
     backdrop-filter: blur(22px) saturate(145%);
     -webkit-backdrop-filter: blur(22px) saturate(145%);
     color: var(--text-primary);
-    box-shadow:
-      inset 1px 0 0 color-mix(in srgb, var(--border-subtle) 18%, transparent),
-      inset 0 1px 0 color-mix(in srgb, var(--surface-bg) 16%, transparent);
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--surface-bg) 12%, transparent);
   }
 
   .workbench-panel-surface[data-right-panel-bottom-panel-expanded='true'] .side-chat-panel {
     padding: 8px 10px;
+    background: color-mix(in srgb, var(--surface-bg) 10%, transparent);
   }
 
   .workbench-panel-surface:has(.side-chat-panel),
   .app-shell-panel:has(.side-chat-panel) {
-    background: color-mix(in srgb, var(--surface-bg) 18%, transparent);
+    background: color-mix(in srgb, var(--surface-bg) 12%, transparent);
     backdrop-filter: blur(22px) saturate(145%);
     -webkit-backdrop-filter: blur(22px) saturate(145%);
   }
@@ -5334,13 +5399,18 @@
     flex-shrink: 0;
     align-items: flex-start;
     gap: 10px;
-    border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 34%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 18%, transparent);
     padding: 0 0 9px;
   }
 
   .workbench-panel-surface[data-right-panel-bottom-panel-expanded='true'] .side-chat-header {
     gap: 8px;
     padding-bottom: 6px;
+  }
+
+  .workbench-panel-surface[data-right-panel-bottom-panel-expanded='true'] .side-chat-title {
+    font-size: 12px;
+    line-height: 16px;
   }
 
   .side-chat-title {
@@ -5376,6 +5446,10 @@
     margin-top: 1px;
   }
 
+  .workbench-panel-surface[data-right-panel-bottom-panel-expanded='true'] .side-chat-count-line {
+    display: none;
+  }
+
   .side-chat-message-log {
     display: flex;
     min-height: 0;
@@ -5383,7 +5457,7 @@
     flex-direction: column;
     gap: 0;
     overflow-y: auto;
-    padding: 7px 2px 0 0;
+    padding: 6px 2px 0 0;
   }
 
   .side-chat-empty {
@@ -5421,9 +5495,10 @@
 
   .side-chat-composer {
     min-height: 34px;
-    border: 1px solid color-mix(in srgb, var(--border-subtle) 26%, transparent);
+    flex-shrink: 0;
+    border: 1px solid color-mix(in srgb, var(--border-subtle) 16%, transparent);
     border-radius: 8px;
-    background: color-mix(in srgb, var(--surface-bg) 30%, transparent);
+    background: color-mix(in srgb, var(--surface-bg) 22%, transparent);
     backdrop-filter: blur(12px) saturate(125%);
     -webkit-backdrop-filter: blur(12px) saturate(125%);
     padding: 4px 5px 4px 10px;
@@ -5433,11 +5508,13 @@
     min-height: 30px;
     margin-top: 6px;
     padding: 3px 4px 3px 8px;
+    border-color: color-mix(in srgb, var(--border-subtle) 12%, transparent);
+    background: color-mix(in srgb, var(--surface-bg) 18%, transparent);
   }
 
   .side-chat-composer:focus-within {
-    border-color: color-mix(in srgb, var(--border-subtle) 34%, transparent);
-    background: color-mix(in srgb, var(--surface-bg) 40%, transparent);
+    border-color: color-mix(in srgb, var(--border-subtle) 28%, transparent);
+    background: color-mix(in srgb, var(--surface-bg) 30%, transparent);
   }
 
   .side-chat-input {
@@ -5458,6 +5535,11 @@
     background: color-mix(in srgb, var(--accent) 7%, transparent) !important;
   }
 
+  .workbench-panel-surface[data-right-panel-bottom-panel-expanded='true'] .side-chat-send {
+    width: 26px !important;
+    height: 26px !important;
+  }
+
   .side-chat-action-status {
     width: fit-content;
     max-width: 108px;
@@ -5473,6 +5555,11 @@
     font-weight: 600;
     line-height: 12px;
     padding: 2px 7px;
+  }
+
+  .workbench-panel-surface[data-right-panel-bottom-panel-expanded='true'] .side-chat-action-status {
+    max-width: 82px;
+    padding-inline: 6px;
   }
 
   .side-chat-action-status[data-side-chat-action-status-tone="danger"] {
