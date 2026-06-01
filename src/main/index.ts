@@ -7645,11 +7645,41 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             setTextareaValue('');
             await sleep(80);
 
+            const currentComposerDropdownSurface = () => {
+              const surfaces = [...document.querySelectorAll('.motion-popover-surface')]
+                .filter((element) =>
+                  element instanceof HTMLElement &&
+                  element.getAttribute('data-motion-exit') !== 'true' &&
+                  element.querySelector('[data-composer-dropdown-surface="true"]') instanceof HTMLElement
+                );
+              return surfaces.at(-1) ?? null;
+            };
+            const composerDropdownSurfaceForTrigger = async (selector) => {
+              for (let attempt = 0; attempt < 8; attempt += 1) {
+                const trigger = document.querySelector(selector);
+                const owner = trigger instanceof HTMLElement
+                  ? (trigger.closest('.relative') ?? trigger.parentElement)
+                  : null;
+                const surfaces = owner instanceof HTMLElement
+                  ? [...owner.querySelectorAll('.motion-popover-surface')]
+                    .filter((element) =>
+                      element instanceof HTMLElement &&
+                      element.getAttribute('data-motion-exit') !== 'true' &&
+                      element.querySelector('[data-composer-dropdown-surface="true"]') instanceof HTMLElement
+                    )
+                  : [];
+                const surface = surfaces.at(-1);
+                if (surface instanceof HTMLElement) return surface;
+                await sleep(40);
+              }
+              return currentComposerDropdownSurface();
+            };
+
             setTextareaValue('/model');
             await sleep(120);
             window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
             await sleep(180);
-            const slashModelMenu = document.querySelector('.motion-popover-surface');
+            const slashModelMenu = await composerDropdownSurfaceForTrigger('[data-testid="composer-agent-menu"]');
             const slashModelSummary = document.querySelector('[data-testid="composer-active-agent-summary"]');
             const slashModelActiveElement = document.activeElement;
             var composerSlashModelOpensSettings =
@@ -7668,7 +7698,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             await sleep(120);
             window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
             await sleep(180);
-            const slashPermissionsMenu = document.querySelector('.motion-popover-surface');
+            const slashPermissionsMenu = await composerDropdownSurfaceForTrigger('[data-testid="composer-permission-menu"]');
             const slashPermissionsActiveElement = document.activeElement;
             var composerSlashPermissionsOpensMenu =
               slashPermissionsMenu instanceof HTMLElement &&
