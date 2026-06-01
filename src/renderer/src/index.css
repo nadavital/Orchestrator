@@ -14155,17 +14155,33 @@
     font-weight: 650;
   }
 
-  .capability-status-row button {
+  .capability-issue-pill {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    border: 0;
-    border-radius: var(--radius-md);
-    background: color-mix(in srgb, var(--state-danger) 8%, var(--control-bg));
-    color: var(--state-danger);
-    padding: 5px 8px;
+    gap: 6.5px;
+    min-height: 27px;
+    border: 1px solid color-mix(in srgb, var(--state-danger) 16%, transparent);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--state-danger) 3%, transparent);
+    color: color-mix(in srgb, var(--state-danger) 70%, var(--text-secondary));
+    padding: 0 9px;
     font-size: 11px;
-    font-weight: 740;
+    font-weight: 700;
+    transition:
+      border-color var(--motion-duration-fast) var(--motion-ease-standard),
+      background var(--motion-duration-fast) var(--motion-ease-standard),
+      color var(--motion-duration-fast) var(--motion-ease-standard);
+  }
+
+  .capability-issue-pill:hover {
+    border-color: color-mix(in srgb, var(--state-danger) 28%, var(--border-subtle));
+    background: color-mix(in srgb, var(--state-danger) 6%, var(--control-bg));
+    color: color-mix(in srgb, var(--state-danger) 82%, var(--text-primary));
+  }
+
+  .capability-issue-pill:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--state-danger) 28%, transparent);
+    outline-offset: 2px;
   }
 
   .capability-tabs {
@@ -14406,11 +14422,10 @@
   }
 
   .capability-issues {
-    margin-top: 12px;
-    border: 1px solid color-mix(in srgb, var(--state-danger) 28%, var(--border-subtle));
-    border-radius: var(--radius-lg);
-    background: color-mix(in srgb, var(--state-danger) 5%, var(--surface-bg));
-    padding: 9px 10px;
+    margin-top: 9px;
+    border-top: 1px solid color-mix(in srgb, var(--border-subtle) 58%, transparent);
+    background: transparent;
+    padding: 8px 0 0;
   }
 
   .capability-issues-header {
@@ -14418,12 +14433,14 @@
     align-items: center;
     gap: 9px;
     justify-content: space-between;
-    color: var(--text-primary);
-    font-size: 12px;
+    color: var(--text-secondary);
+    font-size: 11.5px;
   }
 
   .capability-issues-header strong {
     flex-shrink: 0;
+    color: color-mix(in srgb, var(--state-danger) 58%, var(--text-secondary));
+    font-weight: 680;
   }
 
   .capability-issues-header span {
@@ -14437,13 +14454,23 @@
 
   .capability-issues-header button {
     flex-shrink: 0;
-    border: 0;
+    border: 1px solid color-mix(in srgb, var(--border-subtle) 52%, transparent);
     border-radius: var(--radius-md);
-    background: var(--control-bg);
+    background: color-mix(in srgb, var(--control-bg) 72%, transparent);
     color: var(--text-secondary);
-    padding: 5px 8px;
+    padding: 4px 7px;
     font-size: 11px;
-    font-weight: 720;
+    font-weight: 680;
+    transition:
+      border-color var(--motion-duration-fast) var(--motion-ease-standard),
+      background var(--motion-duration-fast) var(--motion-ease-standard),
+      color var(--motion-duration-fast) var(--motion-ease-standard);
+  }
+
+  .capability-issues-header button:hover {
+    border-color: color-mix(in srgb, var(--border-subtle) 80%, transparent);
+    background: var(--control-bg-hover);
+    color: var(--text-primary);
   }
 
   .capability-empty {
