@@ -1753,17 +1753,18 @@ export default function BrowserPanel({
           navigate(address)
         }}
       >
-        <ToolbarButton icon="arrowLeft" label="Back" size="sm" disabled={!canGoBack || !visible} onClick={() => webviewRef.current?.goBack()} />
-        <ToolbarButton icon="arrowRight" label="Forward" size="sm" disabled={!canGoForward || !visible} onClick={() => webviewRef.current?.goForward()} />
+        <ToolbarButton icon="arrowLeft" label="Back" size="sm" variant="toolbar" disabled={!canGoBack || !visible} onClick={() => webviewRef.current?.goBack()} />
+        <ToolbarButton icon="arrowRight" label="Forward" size="sm" variant="toolbar" disabled={!canGoForward || !visible} onClick={() => webviewRef.current?.goForward()} />
         <ToolbarButton
           icon={isLoading ? 'close' : 'refresh'}
           label={isLoading ? 'Stop loading' : 'Reload'}
           size="sm"
+          variant="toolbar"
           disabled={!currentUrl || !visible}
           onClick={stopOrReload}
         />
         {workbench.tabs.length <= 1 && (
-          <IconButton icon="plus" label="New browser tab" size="sm" onClick={newTab} dataTestId="browser-new-tab" />
+          <IconButton icon="plus" label="New browser tab" size="sm" variant="toolbar" onClick={newTab} dataTestId="browser-new-tab" />
         )}
         <WorkbenchSearchField
           value={address}
@@ -1788,11 +1789,12 @@ export default function BrowserPanel({
             </span>
           )}
         />
-        <ToolbarButton icon="search" label="Find in page" size="sm" disabled={!currentUrl || !visible} active={workbench.findVisible} onClick={() => patchWorkbench({ findVisible: !workbench.findVisible })} />
+        <ToolbarButton icon="search" label="Find in page" size="sm" variant="toolbar" disabled={!currentUrl || !visible} active={workbench.findVisible} onClick={() => patchWorkbench({ findVisible: !workbench.findVisible })} />
         <ToolbarButton
           icon="wrench"
           label="Inspect browser"
           size="sm"
+          variant="toolbar"
           active={workbench.inspectorOpen}
           disabled={!currentUrl || !visible}
           dataTestId="browser-run-inspection"
@@ -1803,6 +1805,7 @@ export default function BrowserPanel({
             icon="ellipsis"
             label="Browser actions"
             size="sm"
+            variant="toolbar"
             active={browserMenuOpen}
             dataTestId="browser-actions-menu"
             ariaExpanded={browserMenuOpen}
