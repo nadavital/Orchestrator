@@ -4909,12 +4909,12 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               bottomPanelShellForVisual instanceof HTMLElement &&
               bottomPanelForTerminalVisual instanceof HTMLElement &&
               terminalTabPanelForVisualSizing instanceof HTMLElement &&
-              bottomPanelVisualContentHeight >= 110 &&
+              bottomPanelVisualContentHeight >= 96 &&
               bottomPanelVisualChromeHeight === 50 &&
-              bottomPanelVisualDefaultHeight === 230 &&
-              bottomPanelVisualMinHeight === 110 &&
+              bottomPanelVisualDefaultHeight === 190 &&
+              bottomPanelVisualMinHeight === 96 &&
               bottomPanelVisualTotalHeight === bottomPanelVisualContentHeight + bottomPanelVisualChromeHeight &&
-              bottomPanelVisualTotalHeight === 280 &&
+              bottomPanelVisualTotalHeight === 240 &&
               bottomPanelVisualTargetSize === bottomPanelVisualTotalHeight &&
               Number(bottomPanelShellForVisual.getAttribute('data-bottom-panel-content-height') ?? '0') === bottomPanelVisualContentHeight &&
               Number(bottomPanelShellForVisual.getAttribute('data-bottom-panel-chrome-height') ?? '0') === bottomPanelVisualChromeHeight &&

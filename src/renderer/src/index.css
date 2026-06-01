@@ -1634,7 +1634,7 @@
   }
 
   .workbench-panel-tabbar .motion-tab-button {
-    flex: 0 1 auto;
+    flex: 0 0 auto;
     width: max-content;
     min-height: var(--app-shell-tab-height);
     min-width: 0;
@@ -1671,6 +1671,10 @@
     height: 16px;
   }
 
+  .workbench-panel-tabbar .motion-tab-button[data-closable='true'] {
+    padding-right: 6px;
+  }
+
   .workbench-panel-tabbar .motion-tab-button[data-tab-id='browser'],
   .workbench-panel-tabbar .motion-tab-button[data-tab-id='new-tab'],
   .workbench-panel-tabbar .motion-tab-button[data-tab-id='environment'],
@@ -1681,7 +1685,7 @@
   .workbench-panel-tabbar .motion-tab-button[data-tab-id='agents'],
   .workbench-panel-tabbar .motion-tab-button[data-tab-id='extensions'] {
     min-width: 0;
-    max-width: none;
+    max-width: var(--app-shell-tab-max-width);
   }
 
   .workbench-panel-tabbar .motion-tab-button[data-tab-id='browser'] .panel-tab-content,
@@ -1693,7 +1697,7 @@
   .workbench-panel-tabbar .motion-tab-button[data-tab-id='plan'] .panel-tab-content,
   .workbench-panel-tabbar .motion-tab-button[data-tab-id='agents'] .panel-tab-content,
   .workbench-panel-tabbar .motion-tab-button[data-tab-id='extensions'] .panel-tab-content {
-    max-width: none;
+    max-width: min(var(--app-shell-tab-content-max-width), calc(100% - 2px));
   }
 
   [data-testid='terminal-panel-tabstrip'] .motion-tab-button[data-tab-kind='terminal'],
