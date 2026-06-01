@@ -920,21 +920,26 @@
   }
 
   .composer-tiered-row {
-    gap: 7px !important;
-    padding: 3px 8px !important;
+    position: relative;
+    gap: 0 !important;
+    padding: 3px 7px !important;
   }
 
   .composer-agent-row-label {
-    width: 38px !important;
-    padding-top: 4px !important;
-    color: color-mix(in srgb, var(--color-text-muted) 66%, transparent) !important;
-    font-size: 9.5px !important;
-    line-height: 1.2 !important;
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    margin: -1px !important;
+    overflow: hidden !important;
+    clip: rect(0 0 0 0) !important;
+    clip-path: inset(50%) !important;
+    white-space: nowrap !important;
   }
 
   .composer-tiered-row-choices {
+    width: 100%;
     min-width: 0;
-    gap: 4px !important;
+    gap: 5px !important;
   }
 
   .composer-choice-chip {
@@ -1797,65 +1802,8 @@
   .workbench-panel-tabbar .motion-tab-button[data-tab-id='plan'],
   .workbench-panel-tabbar .motion-tab-button[data-tab-id='agents'],
   .workbench-panel-tabbar .motion-tab-button[data-tab-id='extensions'] {
-    min-width: 0;
+    min-width: max-content;
     max-width: var(--app-shell-tab-max-width);
-  }
-
-  .workbench-panel-tabbar .motion-tab-button[data-tab-id='new-tab'] {
-    min-width: 96px;
-  }
-
-  .workbench-panel-tabbar .motion-tab-button[data-tab-id='new-tab'][data-active='true'] {
-    min-width: 96px;
-  }
-
-  .workbench-panel-tabbar .motion-tab-button[data-tab-id='environment'] {
-    min-width: 126px;
-  }
-
-  .workbench-panel-tabbar .motion-tab-button[data-tab-id='environment'][data-active='true'] {
-    min-width: 126px;
-  }
-
-  .workbench-panel-tabbar .motion-tab-button[data-tab-id='diff'],
-  .workbench-panel-tabbar .motion-tab-button[data-tab-id='agents'] {
-    min-width: 92px;
-  }
-
-  .workbench-panel-tabbar .motion-tab-button[data-tab-id='diff'][data-active='true'],
-  .workbench-panel-tabbar .motion-tab-button[data-tab-id='agents'][data-active='true'] {
-    min-width: 92px;
-  }
-
-  .workbench-panel-tabbar .motion-tab-button[data-tab-id='browser'] {
-    min-width: 142px;
-  }
-
-  .workbench-panel-tabbar .motion-tab-button[data-tab-id='browser'][data-active='true'] {
-    min-width: 142px;
-  }
-
-  .workbench-panel-tabbar .motion-tab-button[data-tab-id='browser'] .motion-tab-label-host,
-  .workbench-panel-tabbar .motion-tab-button[data-tab-id='browser'] .panel-tab-content {
-    min-width: 86px;
-  }
-
-  .workbench-panel-tabbar .motion-tab-button[data-tab-id='files'],
-  .workbench-panel-tabbar .motion-tab-button[data-tab-id='plan'] {
-    min-width: 82px;
-  }
-
-  .workbench-panel-tabbar .motion-tab-button[data-tab-id='files'][data-active='true'],
-  .workbench-panel-tabbar .motion-tab-button[data-tab-id='plan'][data-active='true'] {
-    min-width: 82px;
-  }
-
-  .workbench-panel-tabbar .motion-tab-button[data-tab-id='extensions'] {
-    min-width: 118px;
-  }
-
-  .workbench-panel-tabbar .motion-tab-button[data-tab-id='extensions'][data-active='true'] {
-    min-width: 118px;
   }
 
   .workbench-panel-tabbar .motion-tab-button[data-tab-id='browser'] .panel-tab-content,
@@ -1867,6 +1815,7 @@
   .workbench-panel-tabbar .motion-tab-button[data-tab-id='plan'] .panel-tab-content,
   .workbench-panel-tabbar .motion-tab-button[data-tab-id='agents'] .panel-tab-content,
   .workbench-panel-tabbar .motion-tab-button[data-tab-id='extensions'] .panel-tab-content {
+    min-width: max-content;
     max-width: min(var(--app-shell-tab-content-max-width), calc(100% - 2px));
   }
 
