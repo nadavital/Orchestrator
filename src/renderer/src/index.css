@@ -7868,9 +7868,9 @@
     min-width: 18px;
     height: 18px;
     place-items: center;
-    border: 1px solid var(--border-subtle);
+    border: 1px solid color-mix(in srgb, var(--border-subtle) 38%, transparent);
     border-radius: 999px;
-    background: var(--control-bg);
+    background: color-mix(in srgb, var(--control-bg) 64%, transparent);
     color: var(--text-secondary);
     font-size: 10px;
     line-height: 1;
@@ -7893,7 +7893,7 @@
   }
 
   .extensions-panel-embedded-entry {
-    border-top-color: var(--border-subtle) !important;
+    border-top-color: color-mix(in srgb, var(--border-subtle) 34%, transparent) !important;
   }
 
   .extension-panel-card .motion-disclosure-trigger {

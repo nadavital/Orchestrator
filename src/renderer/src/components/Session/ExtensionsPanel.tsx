@@ -13,6 +13,12 @@ import {
 } from '../shared/designSystem'
 
 const join = (...parts: string[]): string => parts.join('/').replace(/\/+/g, '/')
+const EXTENSION_DIVIDER = '1px solid color-mix(in srgb, var(--border-subtle) 34%, transparent)'
+const EXTENSION_ROW_BORDER = '1px solid color-mix(in srgb, var(--border-subtle) 38%, transparent)'
+const EXTENSION_PANEL_BG = 'color-mix(in srgb, var(--surface-bg) 82%, transparent)'
+const EXTENSION_CONTENT_BG = 'color-mix(in srgb, var(--canvas-bg) 78%, transparent)'
+const EXTENSION_CONTROL_BG = 'color-mix(in srgb, var(--control-bg) 62%, transparent)'
+const EXTENSION_EDITOR_BG = 'color-mix(in srgb, var(--color-surface2) 70%, transparent)'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -363,12 +369,12 @@ export default function ExtensionsPanel({ provider, workDir, onClose, embedded =
         width: embedded ? '100%' : 360,
         maxWidth: '100%',
         height: embedded ? '100%' : undefined,
-        borderLeft: embedded ? 'none' : '1px solid var(--border-subtle)',
-        background: 'var(--surface-bg)'
+        borderLeft: embedded ? 'none' : EXTENSION_DIVIDER,
+        background: EXTENSION_PANEL_BG
       }}
     >
       {!embedded && (
-        <div className="flex items-center gap-2 px-4 py-3 shrink-0" style={{ borderBottom: '1px solid var(--border-subtle)', background: 'var(--surface-bg)' }}>
+        <div className="flex items-center gap-2 px-4 py-3 shrink-0" style={{ borderBottom: EXTENSION_DIVIDER, background: EXTENSION_PANEL_BG }}>
           <ProviderIcon providerId={provider} size={12} color={providerDef.color} />
           <span className="text-sm font-semibold flex-1" style={{ color: 'var(--text-primary)' }}>
             {providerDef.name} Extensions
@@ -379,7 +385,7 @@ export default function ExtensionsPanel({ provider, workDir, onClose, embedded =
         </div>
       )}
 
-      <div className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden" style={{ background: 'var(--canvas-bg)' }}>
+      <div className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden" style={{ background: EXTENSION_CONTENT_BG }}>
         {provider === 'codex' && (
           <CodexExtensionsView
             groups={extensionGroups}
@@ -392,7 +398,7 @@ export default function ExtensionsPanel({ provider, workDir, onClose, embedded =
 
         {/* Dir file editor (inline at top when a command file is open) */}
         {selectedDir && (
-          <div style={{ borderBottom: '1px solid var(--border-subtle)', background: 'var(--surface-bg)' }}>
+          <div style={{ borderBottom: EXTENSION_DIVIDER, background: EXTENSION_PANEL_BG }}>
             <div className="flex items-center justify-between px-4 py-2">
               <div className="flex items-center gap-1.5">
                 <IconButton icon="chevronDown" label="Back" onClick={() => setSelectedDir(null)} size="sm" style={{ transform: 'rotate(90deg)' }} />
@@ -415,9 +421,9 @@ export default function ExtensionsPanel({ provider, workDir, onClose, embedded =
               className="w-full font-mono text-xs resize-none"
               rows={10}
               style={{
-                background: 'var(--color-surface2)',
+                background: EXTENSION_EDITOR_BG,
                 border: 'none',
-                borderTop: '1px solid var(--border-subtle)',
+                borderTop: EXTENSION_DIVIDER,
                 color: 'var(--color-text)',
                 padding: '8px 16px',
                 outline: 'none',
@@ -461,7 +467,7 @@ function CodexExtensionsView({
   const errorCount = groups.filter((group) => group.status === 'error').length
 
   return (
-    <div style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+    <div style={{ borderBottom: EXTENSION_DIVIDER }}>
       <div className={embedded ? 'px-3 py-2' : 'px-4 py-3'}>
         <div className="flex items-center justify-between gap-3">
           {!embedded && (
@@ -562,7 +568,7 @@ function ExtensionGroupCard({
           bodyClassName="pt-2"
         >
           {group.error ? (
-            <div className="rounded-md px-2 py-1.5 text-xs" style={{ color: 'var(--state-danger)', background: 'var(--control-bg)', border: '1px solid var(--border-subtle)', fontSize: 11 }}>
+            <div className="rounded-md px-2 py-1.5 text-xs" style={{ color: 'var(--state-danger)', background: EXTENSION_CONTROL_BG, border: EXTENSION_ROW_BORDER, fontSize: 11 }}>
               {group.error}
             </div>
           ) : group.items.length === 0 ? (
@@ -577,7 +583,7 @@ function ExtensionGroupCard({
                   index={index}
                   data-extension-item-row-surface="shared"
                   className="items-start gap-2 rounded-md px-2.5 py-2"
-                  style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)' }}
+                  style={{ background: EXTENSION_CONTROL_BG, border: EXTENSION_ROW_BORDER }}
                 >
                   <span className="mt-1 shrink-0 rounded-full" style={{ width: 6, height: 6, background: item.tone ?? accentColor }} />
                   <span className="min-w-0 flex-1">
@@ -739,7 +745,7 @@ function AgentSectionView({
       <div
         className={embedded ? 'extensions-panel-section-heading justify-between gap-2 px-3' : 'px-4 py-3'}
         data-extension-summary-surface={embedded ? 'shared' : undefined}
-        style={{ borderTop: '1px solid var(--border-subtle)', borderBottom: '1px solid var(--border-subtle)', background: 'var(--surface-bg)' }}
+        style={{ borderTop: EXTENSION_DIVIDER, borderBottom: EXTENSION_DIVIDER, background: EXTENSION_PANEL_BG }}
       >
         <div className="text-xs font-semibold" style={{ color: 'var(--color-text)' }}>
           {embedded ? 'Instructions' : 'Local Instructions'}
@@ -786,7 +792,7 @@ function AgentSectionView({
           style={{
             color: 'var(--accent)',
             background: 'color-mix(in srgb, var(--accent) 8%, var(--surface-bg))',
-            border: '1px solid var(--border-subtle)'
+            border: EXTENSION_ROW_BORDER
           }}
         >
           {actionStatus}
@@ -876,7 +882,7 @@ function McpServersView({ servers, accentColor, embedded = false }: {
       data-testid={embedded ? 'extensions-embedded-entry' : undefined}
       data-extension-disclosure-surface="shared"
       className={embedded ? 'extensions-panel-embedded-entry px-2 py-0' : 'px-4 py-3'}
-      style={{ borderTop: '1px solid var(--color-border)' }}
+      style={{ borderTop: EXTENSION_DIVIDER }}
     >
       <InspectorCard className={embedded ? 'extension-panel-card p-0' : 'p-2'}>
         <DisclosureSection
@@ -900,7 +906,7 @@ function McpServersView({ servers, accentColor, embedded = false }: {
                     index={index}
                     data-extension-item-row-surface="shared"
                     className={embedded ? 'items-start gap-2 rounded-md px-2 py-1.5' : 'items-start gap-2 rounded-md px-2.5 py-2'}
-                    style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)' }}
+                    style={{ background: EXTENSION_CONTROL_BG, border: EXTENSION_ROW_BORDER }}
                   >
                     <span className="mt-1 shrink-0 rounded-full" style={{ width: 6, height: 6, background: accentColor ?? 'var(--accent)' }} />
                     <span className="min-w-0 flex-1">
@@ -938,7 +944,7 @@ function FileEditor({ file, embedded = false, accentColor, onUpdate, onSave }: {
       data-extension-file-row-surface="shared"
       data-extension-disclosure-surface="shared"
       className={embedded ? 'extensions-panel-embedded-entry px-2 py-0' : 'px-4 py-3'}
-      style={{ borderTop: '1px solid var(--color-border)' }}
+      style={{ borderTop: EXTENSION_DIVIDER }}
     >
       <InspectorCard className={embedded ? 'extension-panel-card p-0' : 'p-2'}>
         <DisclosureSection
@@ -960,8 +966,8 @@ function FileEditor({ file, embedded = false, accentColor, onUpdate, onSave }: {
             data-extension-editor-surface="shared"
             rows={embedded ? 5 : 6}
             style={{
-              background: 'var(--color-surface2)',
-              border: `1px solid ${file.dirty ? (accentColor ?? 'var(--color-accent)') : 'var(--color-border)'}`,
+              background: EXTENSION_EDITOR_BG,
+              border: file.dirty ? `1px solid ${accentColor ?? 'var(--color-accent)'}` : EXTENSION_ROW_BORDER,
               color: 'var(--color-text)',
               padding: '6px 8px',
               minHeight: embedded ? 72 : 80,
@@ -1005,7 +1011,7 @@ function CommandsDirView({ dir, embedded = false, onOpenFile }: {
       data-extension-command-section-surface="shared"
       data-extension-disclosure-surface="shared"
       className={embedded ? 'extensions-panel-embedded-entry px-2 py-0' : 'px-4 py-3'}
-      style={{ borderTop: '1px solid var(--color-border)' }}
+      style={{ borderTop: EXTENSION_DIVIDER }}
     >
       <InspectorCard className={embedded ? 'extension-panel-card p-0' : 'p-2'}>
         <DisclosureSection
