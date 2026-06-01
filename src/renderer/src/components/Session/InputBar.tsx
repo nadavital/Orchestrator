@@ -1390,7 +1390,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
                 </span>
               )}
               {showAgentMenu && (
-                <DropdownPanel onClose={() => setShowAgentMenu(false)} style={{ bottom: '100%', marginBottom: 8, left: 0, minWidth: 268 }}>
+                <DropdownPanel onClose={() => setShowAgentMenu(false)} style={{ bottom: '100%', marginBottom: 8, left: 0, width: 320 }}>
                   <div
                     className="sr-only"
                     data-testid="composer-active-agent-summary"
@@ -1546,7 +1546,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
               </ToolbarBtn>
 
               {showAgentMenu && (
-                <DropdownPanel onClose={() => setShowAgentMenu(false)} style={{ bottom: '100%', marginBottom: 8, right: 0, minWidth: 268 }}>
+                <DropdownPanel onClose={() => setShowAgentMenu(false)} style={{ bottom: '100%', marginBottom: 8, right: 0, width: 320 }}>
                   {/* Provider row */}
                   <TieredRow label="Provider">
                     {visibleProviderChoices.map((opt) => {
@@ -2451,18 +2451,18 @@ function PolicyBadge({
 function TieredRow({ label, children }: { label: string; children: React.ReactNode }): JSX.Element {
   return (
     <div
-      className="flex items-start gap-2 px-2.5 py-1"
+      className="composer-tiered-row flex items-start gap-2 px-2.5 py-1"
       role="group"
       aria-label={`${label} choices`}
     >
       <span
-        className="shrink-0 pt-1 text-[10px] font-medium tracking-normal"
+        className="composer-agent-row-label shrink-0 pt-1 text-[10px] font-medium tracking-normal"
         data-testid="composer-agent-row-label"
         style={{ color: 'color-mix(in srgb, var(--color-text-muted) 76%, transparent)', width: 46 }}
       >
         {label}
       </span>
-      <div className="flex flex-wrap gap-1">
+      <div className="composer-tiered-row-choices flex flex-wrap gap-1">
         {children}
       </div>
     </div>
@@ -2660,7 +2660,7 @@ function Chip({
       data-tooltip-label={title}
       data-native-title-free="true"
       data-composer-choice-active={active ? 'true' : 'false'}
-      className="flex items-center gap-1.5 text-xs transition-colors"
+      className="composer-choice-chip flex items-center gap-1.5 text-xs transition-colors"
       style={{
         background: active ? 'color-mix(in srgb, var(--control-bg-active) 15%, transparent)' : 'transparent',
         color: active ? activeColor : disabled ? 'var(--text-tertiary)' : 'var(--text-primary)',

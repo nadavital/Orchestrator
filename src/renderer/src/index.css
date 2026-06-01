@@ -846,6 +846,38 @@
     white-space: nowrap;
   }
 
+  .composer-tiered-row {
+    gap: 7px !important;
+    padding: 3px 8px !important;
+  }
+
+  .composer-agent-row-label {
+    width: 38px !important;
+    padding-top: 4px !important;
+    color: color-mix(in srgb, var(--color-text-muted) 66%, transparent) !important;
+    font-size: 9.5px !important;
+    line-height: 1.2 !important;
+  }
+
+  .composer-tiered-row-choices {
+    min-width: 0;
+    gap: 4px !important;
+  }
+
+  .composer-choice-chip {
+    max-width: 100%;
+    gap: 5px !important;
+    padding: 2px 5px !important;
+    font-size: 11px !important;
+    line-height: 1.15 !important;
+  }
+
+  .composer-choice-chip > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
   .composer-queued-summary {
     min-width: 0;
     max-width: min(180px, 30cqw);
