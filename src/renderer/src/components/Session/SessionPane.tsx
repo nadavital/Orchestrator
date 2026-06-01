@@ -62,6 +62,15 @@ function SessionPane({ sessionId }: SessionPaneProps): JSX.Element | null {
     }
   }))
   const hydrateSession = useSessionStore((state) => state.hydrateSession)
+  const bottomPanelState = useSessionStore(useShallow((state) => {
+    const ui = state.uiState[sessionId]
+    const height = ui?.terminalPanel?.height ?? 0
+    return {
+      open: ui?.showTerminal === true,
+      height,
+      expanded: ui?.showTerminal === true && height >= 260
+    }
+  }))
   useEffect(() => {
     const globals = window as typeof window & { __orchestratorSessionPaneCommitCount?: number }
     if (typeof globals.__orchestratorSessionPaneCommitCount === 'number') {
@@ -93,6 +102,9 @@ function SessionPane({ sessionId }: SessionPaneProps): JSX.Element | null {
     <div
       className="relative flex flex-col h-full overflow-hidden"
       data-testid="session-shell"
+      data-bottom-panel-open={bottomPanelState.open ? 'true' : 'false'}
+      data-bottom-panel-expanded={bottomPanelState.expanded ? 'true' : 'false'}
+      data-bottom-panel-height={bottomPanelState.height}
       style={{ background: 'var(--canvas-bg)' }}
     >
       {/* Main content row: chat + optional side panels */}
@@ -101,6 +113,9 @@ function SessionPane({ sessionId }: SessionPaneProps): JSX.Element | null {
           ref={primaryContentRef}
           className="flex-1 min-w-0 flex flex-col overflow-hidden"
           data-testid="session-primary-content"
+          data-bottom-panel-open={bottomPanelState.open ? 'true' : 'false'}
+          data-bottom-panel-expanded={bottomPanelState.expanded ? 'true' : 'false'}
+          data-bottom-panel-height={bottomPanelState.height}
           data-composer-reserve-height={composerReserveHeight}
           data-composer-reserve-ready={composerReserveHeight > 0 ? 'true' : 'false'}
           style={{
@@ -116,6 +131,7 @@ function SessionPane({ sessionId }: SessionPaneProps): JSX.Element | null {
           <div
             ref={composerReserveRef}
             data-testid="composer-reserve"
+            data-bottom-panel-expanded={bottomPanelState.expanded ? 'true' : 'false'}
             data-composer-reserve-height={composerReserveHeight}
             className="shrink-0"
           >

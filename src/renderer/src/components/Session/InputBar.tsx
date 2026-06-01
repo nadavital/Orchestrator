@@ -1007,7 +1007,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
 
   return (
     <div
-      className="shrink-0 px-6 pt-2 pb-3"
+      className="composer-reserve-shell shrink-0 px-6 pt-2 pb-3"
       style={{
         background: 'color-mix(in srgb, var(--canvas-bg) 76%, transparent)'
       }}
@@ -1064,7 +1064,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
         )}
 
         {/* Text input */}
-        <div className="flex items-end px-4 pt-2.5 pb-1 gap-2">
+        <div className="composer-text-row flex items-end px-4 pt-2.5 pb-1 gap-2">
           <textarea
             id="orchestrator-chat-composer"
             data-testid="composer-textarea"
@@ -1080,7 +1080,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
             data-composer-enter-behavior={composerEnterBehavior}
             rows={1}
             autoFocus={isNew}
-            className="flex-1 resize-none bg-transparent outline-none"
+            className="composer-textarea flex-1 resize-none bg-transparent outline-none"
             style={{ color: 'var(--text-primary)', lineHeight: 1.5, maxHeight: 180, userSelect: 'text', fontSize: 14 }}
           />
         </div>

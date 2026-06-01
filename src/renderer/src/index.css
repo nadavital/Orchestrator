@@ -805,6 +805,35 @@
     min-width: 0;
   }
 
+  [data-testid='session-primary-content'][data-bottom-panel-expanded='true'] .composer-reserve-shell {
+    padding-top: 4px;
+    padding-bottom: 8px;
+    background: color-mix(in srgb, var(--canvas-bg) 84%, transparent) !important;
+  }
+
+  [data-testid='session-primary-content'][data-bottom-panel-expanded='true'] .composer-shell {
+    border-radius: 12px !important;
+  }
+
+  [data-testid='session-primary-content'][data-bottom-panel-expanded='true'] .composer-text-row {
+    padding-top: 8px;
+    padding-bottom: 0;
+  }
+
+  [data-testid='session-primary-content'][data-bottom-panel-expanded='true'] .composer-textarea {
+    max-height: 132px !important;
+    font-size: 13px !important;
+    line-height: 1.46 !important;
+  }
+
+  [data-testid='session-primary-content'][data-bottom-panel-expanded='true'] .composer-context-chips {
+    padding-bottom: 0;
+  }
+
+  [data-testid='session-primary-content'][data-bottom-panel-expanded='true'] .composer-toolbar {
+    padding-bottom: 6px;
+  }
+
   .composer-toolbar button {
     min-width: 0;
   }
