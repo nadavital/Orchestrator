@@ -495,10 +495,10 @@
     max-inline-size: var(--orchestrator-sidebar-width);
     overflow-x: hidden;
     border-right: 0;
-    background: color-mix(in srgb, var(--surface-bg) 18%, transparent);
+    background: color-mix(in srgb, var(--surface-bg) 10%, transparent);
     backdrop-filter: blur(18px) saturate(1.15);
     -webkit-backdrop-filter: blur(18px) saturate(1.15);
-    box-shadow: 8px 0 22px color-mix(in srgb, var(--text-primary) 2%, transparent);
+    box-shadow: 8px 0 22px color-mix(in srgb, var(--text-primary) 1.5%, transparent);
   }
 
   .app-sidebar::after {
@@ -1835,7 +1835,7 @@
   }
 
   [data-testid='terminal-panel-tabstrip'] .motion-tab-button[data-tab-kind='terminal'] {
-    min-width: 152px;
+    min-width: max-content;
   }
 
   [data-testid='terminal-panel-tabstrip'] .motion-tab-button[data-tab-kind='terminal'][data-closable='true']:hover .panel-tab-content {
@@ -1844,32 +1844,43 @@
 
   [data-testid='terminal-panel-tabstrip'] .motion-tab-button[data-tab-kind='terminal'] .motion-tab-label-host,
   [data-testid='terminal-panel-tabstrip'] .motion-tab-button[data-tab-kind='terminal'] .panel-tab-content {
-    min-width: 108px;
+    min-width: max-content;
   }
 
   [data-testid='terminal-panel-tabstrip'] .motion-tab-button[data-tab-kind='terminal'] .panel-tab-label {
-    min-width: 78px;
+    min-width: max-content;
   }
 
   [data-testid='terminal-panel-tabstrip'] .motion-tab-button[data-tab-id='browser'] {
-    min-width: 104px;
+    min-width: max-content;
   }
 
   [data-testid='terminal-panel-tabstrip'] .motion-tab-button[data-tab-id='environment'] {
-    min-width: 124px;
+    min-width: max-content;
   }
 
   [data-testid='terminal-panel-tabstrip'] .motion-tab-button[data-tab-id='diff'] {
-    min-width: 88px;
+    min-width: max-content;
   }
 
   [data-testid='terminal-panel-tabstrip'] .motion-tab-button[data-tab-id='files'],
   [data-testid='terminal-panel-tabstrip'] .motion-tab-button[data-tab-id='plan'] {
-    min-width: 78px;
+    min-width: max-content;
   }
 
   [data-testid='terminal-panel-tabstrip'] .motion-tab-button[data-tab-kind='sidechat'] {
-    min-width: 112px;
+    min-width: max-content;
+  }
+
+  [data-testid='terminal-panel-tabstrip'] .motion-tab-button[data-tab-id='browser'] .panel-tab-content,
+  [data-testid='terminal-panel-tabstrip'] .motion-tab-button[data-tab-id='environment'] .panel-tab-content,
+  [data-testid='terminal-panel-tabstrip'] .motion-tab-button[data-tab-id='diff'] .panel-tab-content,
+  [data-testid='terminal-panel-tabstrip'] .motion-tab-button[data-tab-id='files'] .panel-tab-content,
+  [data-testid='terminal-panel-tabstrip'] .motion-tab-button[data-tab-id='plan'] .panel-tab-content,
+  [data-testid='terminal-panel-tabstrip'] .motion-tab-button[data-tab-id='agents'] .panel-tab-content,
+  [data-testid='terminal-panel-tabstrip'] .motion-tab-button[data-tab-id='extensions'] .panel-tab-content,
+  [data-testid='terminal-panel-tabstrip'] .motion-tab-button[data-tab-kind='sidechat'] .panel-tab-content {
+    min-width: max-content;
   }
 
   .motion-tab-button[data-tab-id='new-tab'] .panel-tab-label,

@@ -4722,6 +4722,14 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                     firstBottomTerminalTab.click();
                     await sleep(120);
                   }
+                  const bottomBrowserTabLabelAfterTerminal = bottomBrowserTab instanceof HTMLElement
+                    ? bottomBrowserTab.querySelector('.panel-tab-label')
+                    : null;
+                  bottomPanelOpenTabMenuWorks =
+                    bottomPanelOpenTabMenuWorks &&
+                    bottomBrowserTabLabelAfterTerminal instanceof HTMLElement &&
+                    bottomBrowserTabLabelAfterTerminal.textContent?.trim() === 'Browser' &&
+                    bottomBrowserTabLabelAfterTerminal.scrollWidth <= bottomBrowserTabLabelAfterTerminal.clientWidth + 2;
                 }
               }
             }
