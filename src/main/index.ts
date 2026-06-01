@@ -31936,7 +31936,7 @@ function runAutomatedReducedMotionSmoke(win: BrowserWindow, outputPath: string, 
             return {
               mainReducedDataset: root.dataset.reducedMotion === 'true',
               mainMotionDurationPanel: duration,
-              mainPanelDurationZero: duration === '0ms',
+              mainPanelDurationZero: allZero([duration]),
               mainTransitionsZero: allZero(transitionDurations),
               mainAnimationsZero: allZero(animationDurations),
               mainRightPanelReduced: rightPanel?.getAttribute('data-open') === 'true' && allZero(rightPanelDurations),
