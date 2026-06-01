@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useSessionStore } from '../../store/sessions'
-import { summarizeFileChanges } from '../../types'
-import type { AgentNode, FileChange, TextMessage } from '../../types'
+import { parseFileChangesFromUnifiedDiff, summarizeFileChanges } from '../../types'
+import type { AgentNode, TextMessage, SessionRunEventRecord } from '../../types'
 import Icon from '../shared/Icon'
 import { deriveSessionAgentNodes } from './agentNodes'
 
@@ -34,20 +34,10 @@ export default function ComposerContextShelf({ sessionId }: Props): JSX.Element 
       removeMessage: state.removeMessage
     }
   }))
-  const [changes, setChanges] = useState<FileChange[]>([])
-
-  useEffect(() => {
-    if (!session) return
-    let cancelled = false
-    window.api.sessions.getChangedFiles(session.id, 'all')
-      .then((files) => {
-        if (!cancelled) setChanges(files)
-      })
-      .catch(() => {
-        if (!cancelled) setChanges([])
-      })
-    return () => { cancelled = true }
-  }, [session?.id, session?.latestMessageAt, session?.status, session?.workDir])
+  const changes = useMemo(
+    () => parseFileChangesFromUnifiedDiff(latestDiffUpdatedContent(events)),
+    [events]
+  )
 
   const queuedMessages = useMemo(() => {
     if (!session) return []
@@ -86,16 +76,17 @@ export default function ComposerContextShelf({ sessionId }: Props): JSX.Element 
 
   return (
     <div
-      className="composer-context-shelf-shell shrink-0 px-6 pt-2"
+      className="composer-context-shelf-shell shrink-0 px-4 pt-2"
       style={{
-        paddingRight: 'calc(1.5rem + var(--transcript-scrollbar-width, 0px))'
+        paddingRight: 'calc(1rem + var(--transcript-scrollbar-width, 0px))'
       }}
     >
       <div
         className="composer-context-shelf mx-auto"
         data-testid="composer-context-shelf"
         style={{
-          maxWidth: 'var(--composer-effective-column-max-width, var(--composer-column-max-width, 860px))'
+          width: 'max(280px, calc(100% - 48px))',
+          maxWidth: 'max(280px, calc(var(--composer-effective-column-max-width, var(--composer-column-max-width, 860px)) - 48px))'
         }}
       >
         {changes.length > 0 && (
@@ -147,6 +138,14 @@ export default function ComposerContextShelf({ sessionId }: Props): JSX.Element 
       </div>
     </div>
   )
+}
+
+function latestDiffUpdatedContent(records: SessionRunEventRecord[]): string {
+  for (let index = records.length - 1; index >= 0; index -= 1) {
+    const event = records[index]?.event
+    if (event?.type === 'diff.updated' && event.content.trim().length > 0) return event.content
+  }
+  return ''
 }
 
 function QueuedMessageRow({

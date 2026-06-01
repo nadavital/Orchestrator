@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { MouseEvent, ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import type { Project, Session } from '../../types'
 import { useProjectStore } from '../../store/projects'
 import { useSidebarStore } from '../../store/sidebar'
@@ -113,13 +113,6 @@ export default function ProjectSection({ project, sessions, renderSession }: Pro
     useSessionStore.getState().sessions.filter((session) => session.projectId === project.id)
   )
 
-  const openProjectMenu = (event: MouseEvent<HTMLElement>): void => {
-    event.preventDefault()
-    event.stopPropagation()
-    const rect = event.currentTarget.getBoundingClientRect()
-    setMenuPoint({ x: rect.right - 214, y: rect.bottom + 6 })
-  }
-
   const visibleSessions = expanded ? sessions : sessions.slice(0, 6)
   const hiddenSessionCount = Math.max(0, sessions.length - visibleSessions.length)
 
@@ -157,15 +150,6 @@ export default function ProjectSection({ project, sessions, renderSession }: Pro
               </Tooltip>
             )}
             <span className="surface-row-secondary">
-              <IconButton
-                icon="ellipsis"
-                label="Project actions"
-                size="sm"
-                ariaExpanded={menuPoint !== null}
-                ariaControls={projectMenuId}
-                ariaHasPopup="menu"
-                onClick={openProjectMenu}
-              />
               <IconButton
                 icon={creating ? 'refresh' : 'plus'}
                 label={creating ? 'Creating chat' : 'New chat'}

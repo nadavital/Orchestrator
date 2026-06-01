@@ -16,7 +16,6 @@ import {
   MenuSection,
   MenuSectionLabel,
   MenuSurface,
-  ScrollEdgeButton,
   StatusBadge,
   SurfaceRow,
   ThinkingDots,
@@ -1003,14 +1002,10 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
         </div>
       </div>
       {showJumpToLatest && (
-        <ScrollEdgeButton
+        <LatestActivityButton
           onClick={() => scrollToBottom(true)}
-          ariaLabel="Jump to latest"
-          dataTestId="jump-to-latest"
-          className="absolute bottom-4 right-6"
-        >
-          Jump to latest
-        </ScrollEdgeButton>
+          working={showThinkingIndicator}
+        />
       )}
     </div>
   )
@@ -2232,22 +2227,19 @@ function MessageRow({
 	                color: 'var(--text-secondary)'
 	              }}
 	            >
-	              {canEditAsDraft && (
-	                <Button
-	                  variant="ghost"
-	                  className="transcript-message-action h-7 px-2 text-[11px]"
-	                  dataTestId="chat-user-message-edit"
-	                  ariaLabel="Edit from here"
-	                  title="Edit from here"
-	                  onClick={(event) => {
-	                    event.stopPropagation()
-	                    void onEditUserMessageFromHere(msg.id, content, msg.attachments ?? [])
-	                  }}
-	                >
-	                  <Icon name="pencil" size={13} />
-	                  <span>Edit</span>
-	                </Button>
-	              )}
+              {canEditAsDraft && (
+                <IconButton
+                  icon="pencil"
+                  label="Edit from here"
+                  size="sm"
+                  dataTestId="chat-user-message-edit"
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    void onEditUserMessageFromHere(msg.id, content, msg.attachments ?? [])
+                  }}
+                  className="transcript-message-action transcript-message-icon-action"
+                />
+              )}
 	              {canRetryUnansweredUserMessage && <RetryMenuButton sessionId={session.id} providerLabel={retryProviderLabel} kind="retry" />}
 	              {canForkFromMessage && (
 	                <ForkFromMessageButton
@@ -4381,18 +4373,51 @@ function permissionRiskColor(risk: 'low' | 'medium' | 'high'): string {
 function ThinkingIndicator({ streaming }: { streaming: boolean }): JSX.Element {
   const statusText = streaming ? 'Assistant response streaming' : 'Assistant is thinking'
   return (
-    <div className="flex justify-center">
+    <div className="transcript-thinking-row" data-testid="thinking-indicator">
       <div
         className="transcript-thinking-indicator"
-        data-testid="thinking-indicator"
         data-thinking-indicator-streaming={streaming ? 'true' : 'false'}
         role="status"
         aria-live="polite"
         aria-atomic="true"
       >
-        <ThinkingDots label={statusText} />
+        <span className="transcript-thinking-shimmer" aria-hidden="true">
+          Thinking
+        </span>
         <span className="sr-only">{statusText}</span>
       </div>
     </div>
+  )
+}
+
+function LatestActivityButton({
+  onClick,
+  working
+}: {
+  onClick: () => void
+  working: boolean
+}): JSX.Element {
+  const label = working ? 'Jump to latest activity' : 'Jump to latest'
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      data-testid="jump-to-latest"
+      data-jump-to-latest-working={working ? 'true' : 'false'}
+      onClick={onClick}
+      className="transcript-latest-button"
+    >
+      {working ? (
+        <span className="transcript-working-dots" aria-hidden="true">
+          <span />
+          <span />
+          <span />
+        </span>
+      ) : (
+        <span className="transcript-latest-arrow">
+          <Icon name="arrowDown" size={17} />
+        </span>
+      )}
+    </button>
   )
 }

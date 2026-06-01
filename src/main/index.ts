@@ -28263,6 +28263,25 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
               await sleep(120);
             }
             const userEditButton = document.querySelector('[data-testid="chat-user-message-edit"]');
+            const userEditActionRow = userEditButton?.closest('.transcript-message-actions-user');
+            const userEditActionRowBeforeFocus = userEditActionRow instanceof HTMLElement
+              ? userEditActionRow.getBoundingClientRect()
+              : null;
+            if (userEditButton instanceof HTMLButtonElement) {
+              userEditButton.focus();
+              await sleep(120);
+            }
+            const userEditActionRowAfterFocus = userEditActionRow instanceof HTMLElement
+              ? userEditActionRow.getBoundingClientRect()
+              : null;
+            const chatUserMessageActionsReserve =
+              userEditActionRow instanceof HTMLElement &&
+              (userEditActionRowBeforeFocus?.height ?? 0) >= 24 &&
+              Math.abs((userEditActionRowAfterFocus?.height ?? 0) - (userEditActionRowBeforeFocus?.height ?? 0)) < 1;
+            const chatUserMessageEditIconOnly =
+              userEditButton instanceof HTMLButtonElement &&
+              userEditButton.getAttribute('aria-label') === 'Edit from here' &&
+              userEditButton.textContent?.trim() === '';
             if (userEditButton instanceof HTMLButtonElement) {
               userEditButton.click();
               await sleep(180);
@@ -28570,6 +28589,8 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
               chatUserMessageEditDraftSourceStatus,
               chatUserMessageEditDraftRestore,
               chatUserMessageEditDraftClear,
+              chatUserMessageActionsReserve,
+              chatUserMessageEditIconOnly,
               relativeProseCardSuppressed,
               absoluteMissingFileCardDisabled,
               fileReferenceOpenOutcomeWorks,
@@ -32418,13 +32439,37 @@ function runAutomatedStreamingTypingSmoke(win: BrowserWindow, outputPath: string
               steeringCancelStatus.getAttribute('role') === 'status' &&
               steeringCancelStatus.getAttribute('aria-live') === 'polite' &&
               steeringCancelStatus.getAttribute('aria-atomic') === 'true';
+            const transcriptScroller = document.querySelector('[data-testid="transcript-scroll"]');
+            if (transcriptScroller instanceof HTMLElement) {
+              transcriptScroller.scrollTop = 0;
+              transcriptScroller.dispatchEvent(new Event('scroll', { bubbles: true }));
+              await sleep(120);
+            }
+            const jumpToLatestButton = document.querySelector('[data-testid="jump-to-latest"]');
+            const thinkingIndicator = document.querySelector('[data-testid="thinking-indicator"]');
+            const thinkingStatus = thinkingIndicator?.querySelector('.transcript-thinking-indicator');
+            const latestActivityButtonWorking =
+              jumpToLatestButton instanceof HTMLButtonElement &&
+              jumpToLatestButton.getAttribute('data-jump-to-latest-working') === 'true' &&
+              jumpToLatestButton.querySelector('.transcript-working-dots') instanceof HTMLElement;
+            const thinkingIndicatorWorks =
+              thinkingIndicator instanceof HTMLElement &&
+              thinkingIndicator.textContent?.includes('Thinking') === true &&
+              thinkingStatus instanceof HTMLElement &&
+              thinkingStatus.getAttribute('role') === 'status' &&
+              thinkingStatus.getAttribute('aria-live') === 'polite' &&
+              thinkingIndicator.querySelector('.transcript-thinking-shimmer') instanceof HTMLElement;
             const stopRunButton = document.querySelector('[data-testid="composer-stop-run"]');
+            const stopRunButtonRect = stopRunButton instanceof HTMLElement
+              ? stopRunButton.getBoundingClientRect()
+              : null;
             const composerStopRunControlWorks =
               stopRunButton instanceof HTMLButtonElement &&
               stopRunButton.getAttribute('aria-label') === 'Stop current run' &&
               stopRunButton.getAttribute('data-tooltip-label') === 'Stop current run' &&
               stopRunButton.getAttribute('data-native-title-free') === 'true' &&
-              stopRunButton.textContent?.includes('Stop') === true;
+              Math.round(stopRunButtonRect?.width ?? 0) === 30 &&
+              Math.round(stopRunButtonRect?.height ?? 0) === 30;
             if (stopRunButton instanceof HTMLButtonElement) {
               stopRunButton.click();
               await sleep(180);
@@ -32432,12 +32477,7 @@ function runAutomatedStreamingTypingSmoke(win: BrowserWindow, outputPath: string
             const runActionStatus = document.querySelector('[data-testid="composer-run-action-status"]');
             const composerStopRunStatusWorks =
               composerStopRunControlWorks &&
-              runActionStatus instanceof HTMLElement &&
-              runActionStatus.textContent?.includes('Run stopped') === true &&
-              runActionStatus.getAttribute('data-composer-run-action-status-tone') === 'info' &&
-              runActionStatus.getAttribute('role') === 'status' &&
-              runActionStatus.getAttribute('aria-live') === 'polite' &&
-              runActionStatus.getAttribute('aria-atomic') === 'true';
+              !(runActionStatus instanceof HTMLElement);
             return {
               profile: window.__orchestratorSmokeProfile ?? null,
               inputBarCommitCount: window.__orchestratorInputBarCommitCount ?? null,
@@ -32454,6 +32494,8 @@ function runAutomatedStreamingTypingSmoke(win: BrowserWindow, outputPath: string
                 !document.body.innerText.includes('STREAMING_TYPING_STEERING_FOLLOW_UP') &&
                 !(document.querySelector('[data-message-id="streaming-typing-steering-follow-up"] [data-testid="queued-message-actions"]') instanceof HTMLElement),
               composerSteeringCancelStatusWorks,
+              latestActivityButtonWorking,
+              thinkingIndicatorWorks,
               composerStopRunControlWorks,
               composerStopRunStatusWorks
             };

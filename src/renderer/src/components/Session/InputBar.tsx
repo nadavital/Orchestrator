@@ -1,9 +1,10 @@
 import { memo, useState, useRef, useEffect } from 'react'
-import type { Ref } from 'react'
-import type { Attachment, ProviderModelDef, ProviderPermissionPreset, ProviderPermissionRuntimeContext, ProviderRuntimeInfo, ProviderSlashCommand, ResolvedExecutionPolicy, Session } from '../../types'
+import type { Ref, RefObject } from 'react'
+import type { Attachment, GitRefOption, Project, ProviderModelDef, ProviderPermissionPreset, ProviderPermissionRuntimeContext, ProviderRuntimeInfo, ProviderSlashCommand, ResolvedExecutionPolicy, Session, WorktreeInventoryItem } from '../../types'
 import type { SlashPaletteCommand } from '../../types'
-import { PROVIDER_DEFS, canStopSession, expandSlashCommandPrompt, getComposerSendState, getDefaultPermissionMode, getProviderPermissionPresetForMode, getProviderPermissionPresets, getVisibleModels } from '../../types'
-import { defaultUI, sideChatContextSnapshot, useSessionStore } from '../../store/sessions'
+import { PROVIDER_DEFS, canStopSession, expandSlashCommandPrompt, getComposerSendState, getDefaultPermissionMode, getProviderPermissionPresetForMode, getProviderPermissionPresets, getVisibleModels, sessionRouteUrlForLocation } from '../../types'
+import { defaultUI, hasComposerDraft, sideChatContextSnapshot, useSessionStore } from '../../store/sessions'
+import { useProjectStore } from '../../store/projects'
 import SlashCommandPalette, { getSlashQuery } from './SlashCommandPalette'
 import ProviderIcon from '../shared/ProviderIcon'
 import Icon from '../shared/Icon'
@@ -67,6 +68,13 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   const openSideChat = useSessionStore((state) => state.openSideChat)
   const appendSideChatMessage = useSessionStore((state) => state.appendSideChatMessage)
   const updateSideChatMessage = useSessionStore((state) => state.updateSideChatMessage)
+  const addSession = useSessionStore((state) => state.addSession)
+  const removeSession = useSessionStore((state) => state.removeSession)
+  const setActiveSession = useSessionStore((state) => state.setActiveSession)
+  const projects = useProjectStore((state) => state.projects)
+  const addProject = useProjectStore((state) => state.addProject)
+  const addSessionToProject = useProjectStore((state) => state.addSessionToProject)
+  const removeSessionFromProject = useProjectStore((state) => state.removeSessionFromProject)
   const [text, setText] = useState(() => currentUi.composerDraft ?? '')
   const attachments = currentUi.composerAttachments ?? []
   const composerPromptHistory = currentUi.composerPromptHistory ?? []
@@ -74,7 +82,10 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   const [useWorktree, setUseWorktree] = useState(false)
   const [isGitRepo, setIsGitRepo] = useState(false)
   const [currentBranch, setCurrentBranch] = useState<string | null>(null)
+  const [branchOptions, setBranchOptions] = useState<GitRefOption[]>([])
+  const [worktreeInventory, setWorktreeInventory] = useState<WorktreeInventoryItem[]>([])
   const [showModeMenu, setShowModeMenu] = useState(false)
+  const [showProjectMenu, setShowProjectMenu] = useState(false)
   const [showAgentMenu, setShowAgentMenu] = useState(false)
   const [agentMenuPane, setAgentMenuPane] = useState<AgentMenuPane>('main')
   const [showPermMenu, setShowPermMenu] = useState(false)
@@ -94,6 +105,8 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const agentButtonRef = useRef<HTMLButtonElement>(null)
   const permissionButtonRef = useRef<HTMLButtonElement>(null)
+  const projectButtonRef = useRef<HTMLButtonElement>(null)
+  const modeButtonRef = useRef<HTMLButtonElement>(null)
   const cancelledPendingAttachments = useRef<Set<string>>(new Set())
   const activeAttachmentSaves = useRef<Set<string>>(new Set())
   const pendingSettingsUpdateRef = useRef<Promise<void>>(Promise.resolve())
@@ -123,9 +136,32 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   }
 
   useEffect(() => {
-    window.api.git.isGitRepo(session.workDir).then(setIsGitRepo)
-    window.api.git.getCurrentBranch(session.workDir).then(setCurrentBranch)
+    let alive = true
+    void Promise.all([
+      window.api.git.isGitRepo(session.workDir).catch(() => false),
+      window.api.git.getCurrentBranch(session.workDir).catch(() => null),
+      window.api.git.listBranches(session.workDir).catch(() => [])
+    ]).then(([nextIsGitRepo, nextCurrentBranch, nextBranches]) => {
+      if (!alive) return
+      setIsGitRepo(nextIsGitRepo)
+      setCurrentBranch(nextCurrentBranch)
+      setBranchOptions(nextBranches)
+    })
+    return () => { alive = false }
   }, [session.workDir])
+
+  useEffect(() => {
+    if (!showModeMenu) return
+    let alive = true
+    window.api.worktrees.list()
+      .then((items) => {
+        if (alive) setWorktreeInventory(items)
+      })
+      .catch(() => {
+        if (alive) setWorktreeInventory([])
+      })
+    return () => { alive = false }
+  }, [showModeMenu])
 
   useEffect(() => {
     let alive = true
@@ -268,7 +304,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   const permissionTriggerTitle = permissionTriggerLabel
   const permissionPresets = filterPermissionPresets(getProviderPermissionPresets(provider), permissionContext, permissionMode)
   const canUsePermission = resolvedPermission?.support !== 'unsupported' && !contextDisabledPermissionReason
-  const composerDropdownOpen = showAgentMenu || showPermMenu || showModeMenu
+  const composerDropdownOpen = showAgentMenu || showPermMenu || showModeMenu || showProjectMenu
 
   // Cursor per-model effort/thinking/fast config
   const cursorCfg = provider.id === 'cursor'
@@ -352,6 +388,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     setAgentMenuPane('main')
     setShowPermMenu(false)
     setShowModeMenu(false)
+    setShowProjectMenu(false)
     setShowAgentMenu(true)
   }
 
@@ -378,6 +415,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     setShowAgentMenu(false)
     setAgentMenuPane('main')
     setShowModeMenu(false)
+    setShowProjectMenu(false)
     setShowPermMenu((value) => !value)
   }
 
@@ -385,15 +423,125 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     setShowAgentMenu(false)
     setAgentMenuPane('main')
     setShowPermMenu(false)
+    setShowProjectMenu(false)
     setShowModeMenu((value) => !value)
+  }
+
+  const toggleProjectMenu = (): void => {
+    setShowAgentMenu(false)
+    setAgentMenuPane('main')
+    setShowPermMenu(false)
+    setShowModeMenu(false)
+    setShowProjectMenu((value) => !value)
   }
 
   const openPermissionMenuAndFocus = (): void => {
     setShowAgentMenu(false)
     setAgentMenuPane('main')
     setShowModeMenu(false)
+    setShowProjectMenu(false)
     setShowPermMenu(true)
     if (permissionButtonRef.current) queueFocusComposerDropdownButton(permissionButtonRef.current, 'first')
+  }
+
+  const cleanupCurrentEmptySession = async (): Promise<void> => {
+    const state = useSessionStore.getState()
+    const active = state.sessions.find((candidate) => candidate.id === state.activeSessionId)
+    if (!active || active.status === 'running') return
+    if ((active.messageCount ?? active.messages.length) > 0) return
+    if (hasComposerDraft(state.uiState[active.id])) return
+    await window.api.sessions.remove(active.id)
+    await window.api.projects.removeSession(active.projectId, active.id)
+    removeSession(active.id)
+    removeSessionFromProject(active.projectId, active.id)
+  }
+
+  const activateCreatedSession = (nextSession: Session): void => {
+    addSession(nextSession)
+    addSessionToProject(nextSession.projectId, nextSession.id)
+    setActiveSession(nextSession.id)
+    setShowCapabilities(false)
+    setShowSettings(false)
+    window.history.replaceState(null, '', sessionRouteUrlForLocation(nextSession.id, window.location))
+  }
+
+  const createProjectSession = async (
+    project: Project,
+    options: { useWorktree?: boolean; worktreeBaseRef?: string } = {}
+  ): Promise<void> => {
+    setRunActionStatus(null)
+    try {
+      await cleanupCurrentEmptySession()
+      const nextSession = await window.api.sessions.create({
+        projectId: project.id,
+        workDir: project.rootPath,
+        useWorktree: options.useWorktree === true,
+        repoRoot: project.rootPath,
+        worktreeBaseRef: options.worktreeBaseRef
+      })
+      await window.api.projects.addSession(project.id, nextSession.id)
+      activateCreatedSession(nextSession)
+    } catch (error) {
+      setRunActionStatus({ text: `Workspace switch failed: ${errorText(error)}`, tone: 'danger' })
+    }
+  }
+
+  const switchProject = (project: Project): void => {
+    setShowProjectMenu(false)
+    if (project.id === session.projectId) return
+    void createProjectSession(project)
+  }
+
+  const addProjectFromPicker = async (): Promise<void> => {
+    setShowProjectMenu(false)
+    setRunActionStatus(null)
+    try {
+      const dir = await window.api.dialog.openDirectory()
+      if (!dir) return
+      const name = pathBaseName(dir) || dir
+      const project = await window.api.projects.add(name, dir)
+      addProject(project)
+      await createProjectSession(project)
+    } catch (error) {
+      setRunActionStatus({ text: `Project open failed: ${errorText(error)}`, tone: 'danger' })
+    }
+  }
+
+  const checkoutBranch = async (branchName: string): Promise<void> => {
+    setShowModeMenu(false)
+    setRunActionStatus(null)
+    try {
+      const result = await window.api.git.checkoutBranch(session.workDir, branchName)
+      if (!result.ok) throw new Error(result.error ?? 'Could not switch branch')
+      setCurrentBranch(result.currentBranch ?? branchName)
+      setBranchOptions(result.branches)
+    } catch (error) {
+      setRunActionStatus({ text: `Branch switch failed: ${errorText(error)}`, tone: 'danger' })
+    }
+  }
+
+  const createWorktreeFromBranch = (branchName: string): void => {
+    const project = projects.find((candidate) => candidate.id === session.projectId)
+    if (!project) {
+      setRunActionStatus({ text: 'Project is not available for worktree creation.', tone: 'danger' })
+      return
+    }
+    setShowModeMenu(false)
+    void createProjectSession(project, { useWorktree: true, worktreeBaseRef: branchName })
+  }
+
+  const openWorktreeConversation = async (conversationId: string): Promise<void> => {
+    setShowModeMenu(false)
+    setRunActionStatus(null)
+    try {
+      await cleanupCurrentEmptySession()
+      const existing = useSessionStore.getState().sessions.find((candidate) => candidate.id === conversationId)
+      const targetSession = existing ?? await window.api.sessions.get(conversationId)
+      if (!targetSession || targetSession.archivedAt) throw new Error('Linked worktree chat is not available locally')
+      activateCreatedSession(targetSession)
+    } catch (error) {
+      setRunActionStatus({ text: `Worktree open failed: ${errorText(error)}`, tone: 'danger' })
+    }
   }
 
   const sendState = getComposerSendState({
@@ -943,6 +1091,17 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   const additionalContextDirs = session.additionalDirs ?? []
   const showComposerContextChips = Boolean(additionalContextDirs.length > 0)
   const workspaceLabel = pathBaseName(session.workDir) || session.workDir
+  const activeProject = projects.find((candidate) => candidate.id === session.projectId)
+  const projectWorktrees = worktreeInventory.filter((worktree) => {
+    const repoRoot = worktree.repoRoot ?? ''
+    return repoRoot === session.repoRoot || (activeProject ? repoRoot === activeProject.rootPath : false)
+  })
+  const projectWorktreeConversations = projectWorktrees.flatMap((worktree) =>
+    worktree.conversations.map((conversation) => ({
+      worktree,
+      conversation
+    }))
+  )
   const additionalDirsLabel = additionalContextDirs.length === 1
     ? pathBaseName(additionalContextDirs[0]) || additionalContextDirs[0]
     : `${additionalContextDirs.length} dirs`
@@ -1145,10 +1304,10 @@ function InputBar({ session, isNew }: Props): JSX.Element {
 
   return (
     <div
-      className="composer-reserve-shell shrink-0 px-6 pt-2 pb-3"
+      className="composer-reserve-shell shrink-0 px-4 pt-2 pb-3"
       style={{
         background: 'linear-gradient(180deg, transparent, color-mix(in srgb, var(--canvas-bg) 62%, transparent))',
-        paddingRight: 'calc(1.5rem + var(--transcript-scrollbar-width, 0px))'
+        paddingRight: 'calc(1rem + var(--transcript-scrollbar-width, 0px))'
       }}
     >
       <div
@@ -1172,7 +1331,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
           border: isNew
             ? '1px solid color-mix(in srgb, var(--border-subtle) 72%, transparent)'
             : '1px solid color-mix(in srgb, var(--border-subtle) 62%, transparent)',
-          borderRadius: isNew ? '24px' : '18px',
+          borderRadius: '24px',
           boxShadow: '0 12px 34px rgba(15, 23, 42, 0.1), 0 1px 2px rgba(15, 23, 42, 0.08)',
           position: 'relative',
           transition: 'background 110ms ease, border-color 110ms ease, box-shadow 110ms ease'
@@ -1204,7 +1363,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
         )}
 
         {/* Text input */}
-        <div className="composer-text-row flex items-end px-4 pt-2.5 pb-1 gap-2">
+        <div className="composer-text-row flex px-4 pt-2.5 pb-1 gap-2">
           <textarea
             id="orchestrator-chat-composer"
             data-testid="composer-textarea"
@@ -1214,7 +1373,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
             onPaste={handlePaste}
             onKeyDown={handleKeyDown}
             aria-label="Message composer"
-            placeholder={isNew ? 'What do you want to build?' : 'Message…'}
+            placeholder={isNew ? 'What do you want to build?' : 'Ask for follow-up changes'}
             data-composer-prompt-history-count={composerPromptHistory.length}
             data-composer-prompt-history-active={historyCursor !== null ? 'true' : 'false'}
             data-composer-enter-behavior={composerEnterBehavior}
@@ -1547,13 +1706,19 @@ function InputBar({ session, isNew }: Props): JSX.Element {
                 data-native-title-free="true"
                 aria-label="Stop current run"
                 onClick={() => { void stopCurrentRun() }}
-                className="composer-stop-trigger flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium"
-                style={{ background: 'var(--color-red)', color: '#fff' }}
+                className="composer-stop-trigger flex items-center justify-center transition-colors"
+                style={{
+                  width: 30,
+                  height: 30,
+                  borderRadius: 999,
+                  background: 'var(--text-primary)',
+                  color: 'var(--canvas-bg)',
+                  cursor: 'pointer'
+                }}
               >
-                <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-                  <rect x="3" y="3" width="10" height="10" rx="1" />
+                <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                  <rect x="3" y="3" width="10" height="10" rx="2" />
                 </svg>
-                Stop
               </button>
             </Tooltip>
           )}
@@ -1568,6 +1733,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
                 className="composer-send-trigger flex items-center justify-center rounded-lg transition-colors"
                 style={{
                   width: 30, height: 30,
+                  borderRadius: 999,
                   background: canSend ? 'var(--text-primary)' : 'var(--control-bg)',
                   color: canSend ? 'var(--canvas-bg)' : 'var(--color-text-muted)',
                   cursor: canSend ? 'pointer' : 'default'
@@ -1580,10 +1746,54 @@ function InputBar({ session, isNew }: Props): JSX.Element {
         </div>
         {isNew && (
           <div className="composer-workspace-row" data-testid="composer-workspace-row">
-            <span className="composer-workspace-pill" title={session.workDir}>
-              <Icon name="folder" size={15} />
-              <span>{workspaceLabel}</span>
-            </span>
+            <div className="relative min-w-0">
+              <ToolbarBtn
+                active={showProjectMenu}
+                onClick={toggleProjectMenu}
+                dataTestId="composer-project-menu"
+                buttonRef={projectButtonRef}
+                className="composer-project-trigger composer-workspace-trigger"
+                title={`Project: ${workspaceLabel}`}
+                ariaLabel="Project"
+                ariaExpanded={showProjectMenu}
+                ariaHasPopup="menu"
+                suppressTooltip={composerDropdownOpen}
+              >
+                <Icon name="folder" size={14} />
+                <span className="composer-control-label composer-control-label-sm">{workspaceLabel}</span>
+                <Chevron />
+              </ToolbarBtn>
+              {showProjectMenu && (
+                <DropdownPanel
+                  onClose={() => setShowProjectMenu(false)}
+                  anchorRef={projectButtonRef}
+                  align="left"
+                  style={{ width: 260 }}
+                  testId="composer-project-dropdown"
+                >
+                  <ComposerMenuSection label="Projects">
+                    {projects.map((project) => (
+                      <ComposerMenuRow
+                        key={project.id}
+                        active={project.id === session.projectId}
+                        icon="folder"
+                        detail={project.rootPath}
+                        onClick={() => switchProject(project)}
+                      >
+                        {project.name}
+                      </ComposerMenuRow>
+                    ))}
+                    <ComposerMenuRow
+                      active={false}
+                      icon="plus"
+                      onClick={() => { void addProjectFromPicker() }}
+                    >
+                      Add project...
+                    </ComposerMenuRow>
+                  </ComposerMenuSection>
+                </DropdownPanel>
+              )}
+            </div>
             <div className="relative">
               <ToolbarBtn
                 active={effectiveMode}
@@ -1591,6 +1801,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
                 muted={!isGitRepo}
                 title={!isGitRepo ? 'Not a git repository' : undefined}
                 dataTestId="composer-worktree-menu"
+                buttonRef={modeButtonRef}
                 className="composer-worktree-trigger composer-workspace-trigger"
                 ariaExpanded={isGitRepo ? showModeMenu : undefined}
                 ariaHasPopup={isGitRepo ? 'menu' : undefined}
@@ -1600,6 +1811,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
                     setShowAgentMenu(false)
                     setAgentMenuPane('main')
                     setShowPermMenu(false)
+                    setShowProjectMenu(false)
                     setShowModeMenu(true)
                   })
                 }}
@@ -1612,28 +1824,80 @@ function InputBar({ session, isNew }: Props): JSX.Element {
               </ToolbarBtn>
 
               {showModeMenu && (
-                <DropdownPanel onClose={() => setShowModeMenu(false)} style={{ top: '100%', marginTop: 6, left: 0, minWidth: 180 }}>
-                  {(['local', 'worktree'] as const).map((mode) => {
-                    const active = mode === 'worktree' ? useWorktree : !useWorktree
-                    return (
-                      <ComposerMenuRow
-                        key={mode}
-                        active={active}
-                        icon={mode === 'local' ? 'folder' : 'branch'}
-                        onClick={() => { setUseWorktree(mode === 'worktree'); setShowModeMenu(false) }}
-                      >
-                        {mode === 'local' ? 'Work locally' : 'New branch'}
-                      </ComposerMenuRow>
-                    )
-                  })}
+                <DropdownPanel
+                    onClose={() => setShowModeMenu(false)}
+                    anchorRef={modeButtonRef}
+                    align="left"
+                    style={{ width: 284 }}
+                    testId="composer-worktree-dropdown"
+                  >
+                    <ComposerMenuSection label="Work mode">
+                      {(['local', 'worktree'] as const).map((mode) => {
+                        const active = mode === 'worktree' ? useWorktree : !useWorktree
+                        return (
+                          <ComposerMenuRow
+                            key={mode}
+                            active={active}
+                            icon={mode === 'local' ? 'folder' : 'branch'}
+                            detail={mode === 'local' ? 'Use the current checkout' : 'Create an isolated worktree on first send'}
+                            onClick={() => { setUseWorktree(mode === 'worktree') }}
+                          >
+                            {mode === 'local' ? 'Work locally' : 'New branch'}
+                          </ComposerMenuRow>
+                        )
+                      })}
+                    </ComposerMenuSection>
+                    <ComposerMenuSection label={useWorktree ? 'Start new branch from' : 'Switch branch'}>
+                      {branchOptions.length > 0
+                        ? branchOptions.map((branch) => (
+                          <ComposerMenuRow
+                            key={branch.name}
+                            active={!useWorktree && (branch.current === true || branch.name === currentBranch)}
+                            icon="branch"
+                            detail={branch.description}
+                            onClick={() => {
+                              if (useWorktree) createWorktreeFromBranch(branch.name)
+                              else void checkoutBranch(branch.name)
+                            }}
+                          >
+                            {branch.label}
+                          </ComposerMenuRow>
+                        ))
+                        : (
+                          <div className="composer-menu-empty">No branches found.</div>
+                        )}
+                    </ComposerMenuSection>
+                    {projectWorktreeConversations.length > 0 && (
+                      <ComposerMenuSection label="Worktrees">
+                        {projectWorktreeConversations.map(({ worktree, conversation }) => (
+                          <ComposerMenuRow
+                            key={`${worktree.id}:${conversation.id}`}
+                            active={conversation.id === session.id}
+                            icon="branch"
+                            detail={pathBaseName(worktree.workDir) || worktree.workDir}
+                            onClick={() => { void openWorktreeConversation(conversation.id) }}
+                          >
+                            {conversation.name}
+                          </ComposerMenuRow>
+                        ))}
+                      </ComposerMenuSection>
+                    )}
                 </DropdownPanel>
               )}
             </div>
             {isGitRepo && (
-              <span className="composer-workspace-pill" title={currentBranch ?? 'Current branch'}>
+              <button
+                type="button"
+                className="composer-workspace-pill composer-workspace-branch-trigger"
+                title={currentBranch ?? 'Current branch'}
+                onClick={toggleModeMenu}
+                aria-label="Branch"
+                aria-expanded={showModeMenu}
+              >
                 <Icon name="branch" size={15} />
                 <span>{currentBranch ?? 'Branch'}</span>
-              </span>
+                <Chevron />
+              </button>
             )}
           </div>
         )}
@@ -1961,13 +2225,55 @@ function Chevron(): JSX.Element {
 }
 
 function DropdownPanel({
-  children, onClose, style, testId = 'composer-dropdown-surface'
+  children, onClose, style, testId = 'composer-dropdown-surface', anchorRef, align = 'left'
 }: {
   children: React.ReactNode
   onClose: () => void
   style: React.CSSProperties
   testId?: string
+  anchorRef?: RefObject<HTMLElement | null>
+  align?: 'left' | 'right'
 }): JSX.Element {
+  const [fixedStyle, setFixedStyle] = useState<React.CSSProperties>({})
+
+  useEffect(() => {
+    if (!anchorRef?.current) {
+      setFixedStyle({})
+      return
+    }
+
+    const updatePosition = (): void => {
+      const rect = anchorRef.current?.getBoundingClientRect()
+      if (!rect) return
+      const numericWidth = typeof style.width === 'number'
+        ? style.width
+        : typeof style.minWidth === 'number'
+          ? style.minWidth
+          : 276
+      const rawLeft = align === 'right' ? rect.right - numericWidth : rect.left
+      const left = Math.max(8, Math.min(rawLeft, window.innerWidth - numericWidth - 8))
+      const availableAbove = Math.max(160, rect.top - 16)
+      setFixedStyle({
+        position: 'fixed',
+        left,
+        right: 'auto',
+        top: 'auto',
+        bottom: Math.max(8, window.innerHeight - rect.top + 8),
+        width: numericWidth,
+        maxHeight: Math.min(360, availableAbove),
+        zIndex: 1000
+      })
+    }
+
+    updatePosition()
+    window.addEventListener('resize', updatePosition)
+    window.addEventListener('scroll', updatePosition, true)
+    return () => {
+      window.removeEventListener('resize', updatePosition)
+      window.removeEventListener('scroll', updatePosition, true)
+    }
+  }, [align, anchorRef, style.minWidth, style.width])
+
   return (
     <DismissablePopoverSurface
       className="absolute z-50 composer-dropdown-surface"
@@ -1983,7 +2289,8 @@ function DropdownPanel({
         padding: '6px 0',
         maxWidth: 'min(420px, calc(100vw - 16px))',
         maxHeight: 'min(360px, calc(100vh - 120px))',
-        ...style
+        ...style,
+        ...fixedStyle
       }}
     >
       <div

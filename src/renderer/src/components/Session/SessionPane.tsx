@@ -121,9 +121,7 @@ function SessionPane({ sessionId }: SessionPaneProps): JSX.Element | null {
           style={{
             '--composer-reserve-height': `${composerReserveHeight}px`,
             '--transcript-scrollbar-width': '0px',
-            '--composer-effective-column-max-width': isNew
-              ? 'min(700px, var(--composer-column-max-width, 860px))'
-              : 'var(--composer-column-max-width, 860px)'
+            '--composer-effective-column-max-width': 'min(700px, var(--composer-column-max-width, 940px))'
           } as CSSProperties}
         >
           <Titlebar />
