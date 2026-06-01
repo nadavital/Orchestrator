@@ -495,7 +495,10 @@ function createWindow(): BrowserWindow {
     if (appWindows.size === 0) destroyPetOverlayWindow?.()
   })
 
-  win.on('ready-to-show', () => {
+  let didShowWindow = false
+  const showWindow = (): void => {
+    if (didShowWindow || win.isDestroyed()) return
+    didShowWindow = true
     if (shouldForegroundWindow) {
       win.show()
       markAppWindowActive(win)
@@ -506,7 +509,11 @@ function createWindow(): BrowserWindow {
     if (!getAppProfile().disablePetOverlay) {
       createPetOverlayWindow(win)
     }
-  })
+  }
+
+  win.once('ready-to-show', showWindow)
+  const showWindowFallback = setTimeout(showWindow, 2500)
+  showWindowFallback.unref?.()
 
   win.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
