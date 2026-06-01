@@ -2135,7 +2135,7 @@ function ProviderDiagnosticsCard({
             borderTop: '1px solid color-mix(in srgb, var(--border-subtle) 12%, transparent)'
           }}
         >
-          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text)' }}>{row.label}</div>
+          <div style={{ fontSize: 11, fontWeight: 560, color: 'var(--text-secondary)' }}>{row.label}</div>
           <DiagnosticPill status={row.status} color={color} />
         </div>
       ))}
@@ -2427,8 +2427,8 @@ function ProviderProbeGrid({
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',
               fontSize: 11,
-              fontWeight: 600,
-              color: 'var(--color-text)'
+              fontWeight: 560,
+              color: 'var(--text-secondary)'
             }}
           >
             {probe.label}

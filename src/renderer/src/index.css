@@ -12330,16 +12330,16 @@
 
   .provider-details-panel-summary span {
     display: inline-flex;
-    min-height: 21px;
+    min-height: 18px;
     align-items: center;
-    border: 1px solid color-mix(in srgb, var(--border-subtle) 24%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border-subtle) 14%, transparent);
     border-radius: 999px;
-    background: color-mix(in srgb, var(--control-bg) 22%, transparent);
+    background: transparent;
     color: var(--text-tertiary);
     font-size: 10.5px;
-    font-weight: 620;
+    font-weight: 560;
     line-height: 1;
-    padding: 0 7px;
+    padding: 0 6px;
   }
 
   .provider-models-row {
@@ -12972,7 +12972,18 @@
     gap: 8px;
     color: var(--text-tertiary);
     font-size: 10.5px;
-    font-weight: 620;
+    font-weight: 560;
+  }
+
+  .provider-diagnostics-group .status-pill {
+    min-height: 18px;
+    border-color: color-mix(in srgb, var(--border-subtle) 22%, transparent) !important;
+    background: transparent;
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1;
+    opacity: 0.76;
+    padding: 0 6px;
   }
 
   .provider-sidebar-refresh-status {
