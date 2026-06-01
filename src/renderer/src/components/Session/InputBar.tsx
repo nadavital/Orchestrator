@@ -1382,11 +1382,11 @@ function InputBar({ session, isNew }: Props): JSX.Element {
                 </span>
               )}
               {showAgentMenu && (
-                <DropdownPanel onClose={() => setShowAgentMenu(false)} style={{ bottom: '100%', marginBottom: 8, left: 0, minWidth: 300 }}>
+                <DropdownPanel onClose={() => setShowAgentMenu(false)} style={{ bottom: '100%', marginBottom: 8, left: 0, minWidth: 292 }}>
                   <div
                     className="px-3 py-2"
                     data-testid="composer-active-agent-summary"
-                    style={{ borderBottom: '1px solid color-mix(in srgb, var(--border-subtle) 28%, transparent)' }}
+                    style={{ borderBottom: '1px solid color-mix(in srgb, var(--border-subtle) 16%, transparent)' }}
                   >
                     <div className="flex items-center gap-2">
                       <ProviderIcon providerId={provider.id} size={12} color={provider.color} />
@@ -1551,7 +1551,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
               </ToolbarBtn>
 
               {showAgentMenu && (
-                <DropdownPanel onClose={() => setShowAgentMenu(false)} style={{ bottom: '100%', marginBottom: 8, right: 0, minWidth: 320 }}>
+                <DropdownPanel onClose={() => setShowAgentMenu(false)} style={{ bottom: '100%', marginBottom: 8, right: 0, minWidth: 300 }}>
                   {/* Provider row */}
                   <TieredRow label="Provider">
                     {Object.values(PROVIDER_DEFS).sort((a, b) => {
@@ -2143,11 +2143,12 @@ function DropdownPanel({
       style={{
         border: '1px solid color-mix(in srgb, var(--border-subtle) 13%, transparent)',
         borderRadius: 12,
-        background: 'color-mix(in srgb, var(--surface-bg) 50%, transparent)',
-        boxShadow: '0 10px 28px rgba(0, 0, 0, 0.14)',
-        backdropFilter: 'blur(18px) saturate(130%)',
-        WebkitBackdropFilter: 'blur(18px) saturate(130%)',
+        background: 'color-mix(in srgb, var(--surface-bg) 38%, transparent)',
+        boxShadow: '0 8px 22px rgba(0, 0, 0, 0.1)',
+        backdropFilter: 'blur(20px) saturate(135%)',
+        WebkitBackdropFilter: 'blur(20px) saturate(135%)',
         overflow: 'hidden',
+        padding: '5px 0',
         maxWidth: 'min(420px, calc(100vw - 16px))',
         maxHeight: 'min(360px, calc(100vh - 16px))',
         ...style
@@ -2457,19 +2458,18 @@ function PolicyBadge({
 function TieredRow({ label, children }: { label: string; children: React.ReactNode }): JSX.Element {
   return (
     <div
-      className="flex items-start gap-3 px-3 py-2"
+      className="flex items-start gap-2.5 px-2.5 py-1.5"
       role="group"
       aria-label={`${label} choices`}
-      style={{ borderBottom: '1px solid color-mix(in srgb, var(--border-subtle) 12%, transparent)' }}
     >
       <span
-        className="shrink-0 pt-0.5 text-[11px] font-semibold tracking-normal"
+        className="shrink-0 pt-1 text-[10.5px] font-medium tracking-normal"
         data-testid="composer-agent-row-label"
-        style={{ color: 'var(--color-text-muted)', width: 52 }}
+        style={{ color: 'color-mix(in srgb, var(--color-text-muted) 82%, transparent)', width: 54 }}
       >
         {label}
       </span>
-      <div className="flex flex-wrap gap-1">
+      <div className="flex flex-wrap gap-0.5">
         {children}
       </div>
     </div>
@@ -2669,11 +2669,11 @@ function Chip({
       data-composer-choice-active={active ? 'true' : 'false'}
       className="flex items-center gap-1.5 text-xs transition-colors"
       style={{
-        background: active ? 'color-mix(in srgb, var(--control-bg-active) 24%, transparent)' : 'color-mix(in srgb, var(--control-bg) 10%, transparent)',
+        background: active ? 'color-mix(in srgb, var(--control-bg-active) 15%, transparent)' : 'transparent',
         color: active ? activeColor : disabled ? 'var(--text-tertiary)' : 'var(--text-primary)',
-        border: '1px solid ' + (active ? `color-mix(in srgb, ${activeColor} 30%, var(--border-subtle))` : 'color-mix(in srgb, var(--border-subtle) 14%, transparent)'),
+        border: '1px solid ' + (active ? `color-mix(in srgb, ${activeColor} 20%, var(--border-subtle))` : 'color-mix(in srgb, var(--border-subtle) 8%, transparent)'),
         borderRadius: 'var(--radius-pill)',
-        padding: '3.5px 7px',
+        padding: '3px 6.5px',
         cursor: disabled ? 'default' : 'pointer',
         opacity: disabled ? 0.5 : 1,
         fontWeight: active ? 650 : 500

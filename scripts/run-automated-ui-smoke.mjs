@@ -15,6 +15,7 @@ const captureViewOptions = [
   { flag: '--capabilities', view: 'capabilities', surface: 'Capabilities', scope: 'Capability browser and installed capability controls' },
   { flag: '--resources', view: 'resources', surface: 'Resources', scope: 'Provider resource browser and resource cards' },
   { flag: '--composer', view: 'composer', surface: 'Composer', scope: 'Drafts, attachments, send blocking, provider/model controls' },
+  { flag: '--composer-popover', view: 'composer-popover', surface: 'Composer', scope: 'Open thread settings popover visual capture' },
   { flag: '--pets', view: 'pets', surface: 'Settings', scope: 'Pet settings and overlay configuration' },
   { flag: '--terminal-visual', view: 'terminal-visual', surface: 'Terminal', scope: 'Bottom terminal screenshot and visual health only' },
   { flag: '--header', view: 'header', surface: 'Shell', scope: 'Header/sidebar/right-panel contact contract' },
@@ -1816,6 +1817,14 @@ child.on('exit', async (code) => {
         addProjectNoFreeze: result.addProjectNoFreezeWorks === true,
         addProjectSidebarVisible: result.addProjectSidebarVisibleWorks === true,
         addProjectNoError: result.addProjectNoErrorWorks === true
+      }
+    : captureView === 'composer-popover'
+    ? {
+        isolatedProfile: result.profile?.isIsolated === true,
+        composerPopoverOpen: result.composerPopoverOpen === true,
+        composerPopoverChoices: result.composerPopoverChoicesWork === true,
+        composerPopoverLabels: result.composerPopoverLabelsCalm === true,
+        composerPopoverChrome: result.composerPopoverChromeWorks === true
       }
     : captureView === 'worktree-lifecycle'
     ? {

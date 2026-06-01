@@ -657,6 +657,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
     runAutomatedBrowserSmoke(win, outputPath, screenshotPath)
     return
   }
+  if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'composer-popover') {
+    runAutomatedComposerPopoverSmoke(win, outputPath, screenshotPath)
+    return
+  }
   const smokeView = process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW ?? ''
   if (['header', 'right-panel', 'workbench-launcher', 'workbench-new-tab', 'git-panel', 'agent-inspector', 'environment', 'diff', 'files', 'side-chat'].includes(smokeView) || smokeView.startsWith('diff-')) {
     runAutomatedFocusedSurfaceSmoke(
@@ -9275,6 +9279,108 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
           focused: win.isFocused(),
           visible: win.isVisible()
         }
+        if (screenshotPath) {
+          const image = await win.webContents.capturePage()
+          writeFileSync(screenshotPath, image.toPNG())
+        }
+        writeFileSync(outputPath, JSON.stringify({ ok: true, result, screenshotPath }, null, 2))
+        app.quit()
+      }).catch((error) => {
+        writeFileSync(outputPath, JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2))
+        app.quit()
+      })
+    }, 700)
+  })
+}
+
+function runAutomatedComposerPopoverSmoke(
+  win: BrowserWindow,
+  outputPath: string,
+  screenshotPath: string
+): void {
+  win.webContents.once('did-finish-load', () => {
+    setTimeout(() => {
+      win.webContents.executeJavaScript(`
+        (async () => {
+          const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+          const readAlpha = (value) => {
+            const color = String(value ?? '').trim().toLowerCase();
+            if (!color || color === 'transparent') return 0;
+            const rgba = color.match(/rgba?\\(([^)]+)\\)/);
+            if (!rgba) return 1;
+            const parts = rgba[1].split(/[,/\\s]+/).filter(Boolean);
+            return parts.length >= 4 ? Number.parseFloat(parts[3]) : 1;
+          };
+          const waitFor = async (selector, attempts = 20) => {
+            for (let index = 0; index < attempts; index += 1) {
+              const node = document.querySelector(selector);
+              if (node instanceof HTMLElement) return node;
+              await sleep(120);
+            }
+            return null;
+          };
+          const profile = await window.api.app.getProfile();
+          let projects = await window.api.projects.list();
+          if (projects.length === 0) {
+            const root = ${JSON.stringify(process.env.ORCHESTRATOR_SMOKE_WORKSPACE_DIR ?? process.cwd())};
+            const project = await window.api.projects.add('Automated UI Smoke', root);
+            projects = [project];
+          }
+          let sessions = await window.api.sessions.list();
+          if (sessions.length === 0) {
+            const project = projects[0];
+            const session = await window.api.sessions.create({
+              projectId: project.id,
+              workDir: project.rootPath,
+              useWorktree: false,
+              repoRoot: project.rootPath
+            });
+            await window.api.projects.addSession(project.id, session.id);
+            sessions = [session];
+          }
+          await sleep(900);
+          const agentButton = await waitFor('[data-testid="composer-agent-menu"]');
+          if (agentButton instanceof HTMLElement) {
+            agentButton.click();
+          }
+          await sleep(220);
+          const surface = document.querySelector('[data-testid="composer-dropdown-surface"]');
+          const popover = document.querySelector('.motion-popover-surface');
+          const choiceButtons = [...document.querySelectorAll('.motion-popover-surface button[aria-pressed]')];
+          const labels = [...document.querySelectorAll('.motion-popover-surface [data-testid="composer-agent-row-label"]')];
+          const popoverRect = popover instanceof HTMLElement ? popover.getBoundingClientRect() : null;
+          const surfaceStyle = surface instanceof HTMLElement ? getComputedStyle(surface) : null;
+          const popoverStyle = popover instanceof HTMLElement ? getComputedStyle(popover) : null;
+          return {
+            profile,
+            composerPopoverOpen:
+              agentButton instanceof HTMLElement &&
+              popover instanceof HTMLElement &&
+              popoverRect !== null &&
+              popoverRect.width >= 260 &&
+              popoverRect.height >= 160,
+            composerPopoverChoicesWork:
+              choiceButtons.length >= 3 &&
+              choiceButtons.some((button) => button.textContent?.includes('Claude') === true || button.textContent?.includes('Codex') === true) &&
+              choiceButtons.some((button) => button.getAttribute('aria-pressed') === 'true'),
+            composerPopoverLabelsCalm:
+              labels.length >= 2 &&
+              labels.every((label) => {
+                const text = label.textContent?.trim() ?? '';
+                return text.length > 0 &&
+                  text !== text.toUpperCase() &&
+                  getComputedStyle(label).textTransform !== 'uppercase';
+              }),
+            composerPopoverChromeWorks:
+              surface instanceof HTMLElement &&
+              popover instanceof HTMLElement &&
+              surface.dataset.composerDropdownSurface === 'true' &&
+              popoverStyle?.borderRadius === '12px' &&
+              surfaceStyle !== null &&
+              readAlpha(surfaceStyle.backgroundColor) < 0.9
+          };
+        })()
+      `).then(async (result) => {
         if (screenshotPath) {
           const image = await win.webContents.capturePage()
           writeFileSync(screenshotPath, image.toPNG())
