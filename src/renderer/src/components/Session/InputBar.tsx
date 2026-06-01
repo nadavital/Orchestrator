@@ -1,6 +1,6 @@
 import { memo, useState, useRef, useEffect } from 'react'
 import type { Ref } from 'react'
-import type { Attachment, ProviderModelDef, ProviderPermissionPreset, ProviderPermissionRuntimeContext, ProviderRuntimeInfo, ProviderSlashCommand, ResolvedExecutionPolicy, Session, TextMessage } from '../../types'
+import type { Attachment, ProviderModelDef, ProviderPermissionPreset, ProviderPermissionRuntimeContext, ProviderRuntimeInfo, ProviderSlashCommand, ResolvedExecutionPolicy, Session } from '../../types'
 import type { SlashPaletteCommand } from '../../types'
 import { PROVIDER_DEFS, canStopSession, expandSlashCommandPrompt, getComposerSendState, getDefaultPermissionMode, getProviderPermissionPresetForMode, getProviderPermissionPresets, getVisibleModels } from '../../types'
 import { defaultUI, sideChatContextSnapshot, useSessionStore } from '../../store/sessions'
@@ -9,7 +9,6 @@ import ProviderIcon from '../shared/ProviderIcon'
 import Icon from '../shared/Icon'
 import type { IconName } from '../shared/Icon'
 import { AttachmentPill, DismissablePopoverSurface, Tooltip } from '../shared/designSystem'
-import { useShallow } from 'zustand/react/shallow'
 
 interface Props {
   session: Session
@@ -54,15 +53,6 @@ function normalizeComposerEnterBehavior(value: unknown): ComposerEnterBehavior {
 function InputBar({ session, isNew }: Props): JSX.Element {
   const providerAvailability = useSessionStore((state) => state.providerAvailability)
   const providerModels = useSessionStore((state) => state.providerModels)
-  const queuedFollowUpSummary = useSessionStore(useShallow((state) => {
-    const current = state.sessions.find((candidate) => candidate.id === session.id)
-    const queuedMessages = (current?.messages ?? []).filter((message): message is TextMessage =>
-      message.type === 'text' && message.role === 'user' && Boolean(message.queueState)
-    )
-    const queued = queuedMessages.filter((message) => message.queueState === 'queued').length
-    const steering = queuedMessages.filter((message) => message.queueState === 'steer_next').length
-    return { queued, steering }
-  }))
   const currentUi = useSessionStore((state) => state.uiState[session.id] ?? defaultUI)
   const setComposerDraft = useSessionStore((state) => state.setComposerDraft)
   const setComposerAttachments = useSessionStore((state) => state.setComposerAttachments)
@@ -278,13 +268,6 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   const permissionTriggerTitle = permissionTriggerLabel
   const permissionPresets = filterPermissionPresets(getProviderPermissionPresets(provider), permissionContext, permissionMode)
   const canUsePermission = resolvedPermission?.support !== 'unsupported' && !contextDisabledPermissionReason
-  const queuedFollowUpCount = queuedFollowUpSummary.queued
-  const steeringFollowUpCount = queuedFollowUpSummary.steering
-  const queuedFollowUpTotal = queuedFollowUpCount + steeringFollowUpCount
-  const queuedFollowUpLabel = [
-    queuedFollowUpCount > 0 ? `${queuedFollowUpCount} queued` : null,
-    steeringFollowUpCount > 0 ? `${steeringFollowUpCount} steering` : null
-  ].filter(Boolean).join(' · ')
   const composerDropdownOpen = showAgentMenu || showPermMenu || showModeMenu
 
   // Cursor per-model effort/thinking/fast config
@@ -1541,16 +1524,6 @@ function InputBar({ session, isNew }: Props): JSX.Element {
               <span className="composer-control-label">{agentTriggerLabel}</span>
               <Chevron />
             </ToolbarBtn>
-            {queuedFollowUpTotal > 0 && (
-              <span
-                className="composer-queued-summary"
-                data-testid="composer-queued-summary"
-                data-queued-follow-up-count={queuedFollowUpCount}
-                data-steering-follow-up-count={steeringFollowUpCount}
-              >
-                {queuedFollowUpLabel}
-              </span>
-            )}
             {showAgentMenu && (
               <DropdownPanel onClose={closeAgentMenu} style={{ bottom: '100%', marginBottom: 8, right: 0, width: 276 }}>
                 <div

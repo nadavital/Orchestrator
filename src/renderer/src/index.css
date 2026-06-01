@@ -893,41 +893,175 @@
     pointer-events: auto;
   }
 
-  .composer-reserve-frame .composer-live-agents-shell {
+  .composer-reserve-frame .composer-context-shelf-shell {
     pointer-events: none;
   }
 
-  .composer-reserve-frame .composer-live-agents-bar {
+  .composer-reserve-frame .composer-context-shelf {
     pointer-events: auto;
   }
 
-  .composer-live-agents-bar {
+  .composer-context-shelf {
     display: flex;
     width: 100%;
     min-width: 0;
-    min-height: 38px;
-    align-items: center;
-    gap: 8px;
+    flex-direction: column;
     overflow: hidden;
-    border: 1px solid color-mix(in srgb, var(--border-subtle) 58%, transparent);
-    border-radius: 16px;
-    background: color-mix(in srgb, var(--control-bg) 72%, transparent);
-    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+    border: 1px solid color-mix(in srgb, var(--border-subtle) 64%, transparent);
+    border-radius: 18px 18px 10px 10px;
+    background: color-mix(in srgb, var(--surface-bg) 91%, transparent);
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
     color: var(--text-secondary);
-    padding: 6px 9px 6px 11px;
-    backdrop-filter: blur(18px) saturate(1.16);
-    -webkit-backdrop-filter: blur(18px) saturate(1.16);
+    backdrop-filter: blur(22px) saturate(1.18);
+    -webkit-backdrop-filter: blur(22px) saturate(1.18);
   }
 
-  .composer-live-agents-label {
+  .composer-context-shelf-shell + .composer-reserve-shell {
+    padding-top: 0;
+  }
+
+  .composer-context-row {
+    display: flex;
+    width: 100%;
+    min-width: 0;
+    align-items: center;
+    gap: 10px;
+    min-height: 44px;
+    padding: 8px 14px;
+  }
+
+  .composer-context-row + .composer-context-row {
+    border-top: 1px solid color-mix(in srgb, var(--border-subtle) 48%, transparent);
+  }
+
+  .composer-context-row-main,
+  .composer-context-queue-copy {
+    display: flex;
+    min-width: 0;
+    flex: 1 1 auto;
+    align-items: baseline;
+    gap: 8px;
+  }
+
+  .composer-context-title {
+    min-width: 0;
+    color: var(--text-tertiary);
+    font-size: 15px;
+    font-weight: 450;
+    line-height: 1.2;
+    white-space: nowrap;
+  }
+
+  .composer-context-stat-additions {
+    color: var(--color-green);
+    font-size: 15px;
+    font-weight: 500;
+  }
+
+  .composer-context-stat-deletions {
+    color: var(--color-red);
+    font-size: 15px;
+    font-weight: 500;
+  }
+
+  .composer-context-review-button {
+    flex: 0 0 auto;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-primary);
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 520;
+    line-height: 1;
+    padding: 7px 9px;
+  }
+
+  .composer-context-review-button:hover,
+  .composer-context-review-button:focus-visible,
+  .composer-context-action-button:hover,
+  .composer-context-action-button:focus-visible,
+  .composer-context-icon-button:hover,
+  .composer-context-icon-button:focus-visible {
+    background: color-mix(in srgb, var(--control-bg-hover) 68%, transparent);
+    color: var(--text-primary);
+    outline: none;
+  }
+
+  .composer-context-row-leading {
+    display: inline-flex;
+    width: 20px;
+    flex: 0 0 20px;
+    justify-content: center;
+    color: var(--text-tertiary);
+  }
+
+  .composer-context-queue-copy {
+    align-items: center;
+    gap: 9px;
+  }
+
+  .composer-context-queue-label {
     flex: 0 0 auto;
     color: var(--text-tertiary);
-    font-size: 11px;
+    font-size: 12px;
+    font-weight: 560;
+    white-space: nowrap;
+  }
+
+  .composer-context-queue-preview {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--text-secondary);
+    font-size: 14px;
+    font-weight: 420;
+    line-height: 1.3;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .composer-context-actions {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 4px;
+    color: var(--text-tertiary);
+  }
+
+  .composer-context-action-button,
+  .composer-context-icon-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-tertiary);
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 520;
+    height: 28px;
+  }
+
+  .composer-context-action-button {
+    gap: 5px;
+    padding: 0 7px;
+  }
+
+  .composer-context-icon-button {
+    width: 28px;
+    padding: 0;
+  }
+
+  .composer-context-agent-label {
+    flex: 0 0 auto;
+    color: var(--text-tertiary);
+    font-size: 12px;
     font-weight: 560;
     line-height: 1;
   }
 
-  .composer-live-agents-list {
+  .composer-context-agent-list {
     display: flex;
     min-width: 0;
     flex: 1 1 auto;
@@ -937,11 +1071,11 @@
     scrollbar-width: none;
   }
 
-  .composer-live-agents-list::-webkit-scrollbar {
+  .composer-context-agent-list::-webkit-scrollbar {
     display: none;
   }
 
-  .composer-live-agent-pill {
+  .composer-context-agent-pill {
     display: inline-flex;
     max-width: 220px;
     min-width: 0;
@@ -960,33 +1094,33 @@
     padding: 0 8px;
   }
 
-  .composer-live-agent-pill:hover,
-  .composer-live-agent-pill:focus-visible,
-  .composer-live-agent-pill[data-active='true'] {
+  .composer-context-agent-pill:hover,
+  .composer-context-agent-pill:focus-visible,
+  .composer-context-agent-pill[data-active='true'] {
     background: color-mix(in srgb, var(--control-bg-hover) 68%, transparent);
     color: var(--text-primary);
     outline: none;
   }
 
-  .composer-live-agent-pill[data-active='true'] {
+  .composer-context-agent-pill[data-active='true'] {
     color: var(--accent);
   }
 
-  .composer-live-agent-status {
+  .composer-context-agent-status {
     width: 7px;
     height: 7px;
     flex: 0 0 7px;
     border-radius: 999px;
   }
 
-  .composer-live-agent-name {
+  .composer-context-agent-name {
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
-  .composer-live-agent-state {
+  .composer-context-agent-state {
     flex: 0 0 auto;
     color: var(--text-tertiary);
     font-size: 10px;
@@ -1024,15 +1158,24 @@
     background: color-mix(in srgb, var(--canvas-bg) 84%, transparent) !important;
   }
 
-  [data-testid='session-primary-content'][data-bottom-panel-expanded='true'] .composer-live-agents-shell {
+  [data-testid='session-primary-content'][data-bottom-panel-expanded='true'] .composer-context-shelf-shell {
     padding-top: 4px;
   }
 
-  [data-testid='session-primary-content'][data-bottom-panel-expanded='true'] .composer-live-agents-bar {
-    min-height: 34px;
+  [data-testid='session-primary-content'][data-bottom-panel-expanded='true'] .composer-context-shelf {
     border-radius: 12px;
-    padding-top: 4px;
-    padding-bottom: 4px;
+  }
+
+  [data-testid='session-primary-content'][data-bottom-panel-expanded='true'] .composer-context-row {
+    min-height: 34px;
+    padding-top: 5px;
+    padding-bottom: 5px;
+  }
+
+  [data-testid='session-primary-content'][data-bottom-panel-expanded='true'] .composer-context-title,
+  [data-testid='session-primary-content'][data-bottom-panel-expanded='true'] .composer-context-stat-additions,
+  [data-testid='session-primary-content'][data-bottom-panel-expanded='true'] .composer-context-stat-deletions {
+    font-size: 13px;
   }
 
   [data-testid='session-primary-content'][data-bottom-panel-expanded='true'] .composer-shell {

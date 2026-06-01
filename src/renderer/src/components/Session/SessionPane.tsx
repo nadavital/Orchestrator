@@ -3,7 +3,7 @@ import { useSessionStore } from '../../store/sessions'
 import ChatView from './ChatView'
 import InputBar from './InputBar'
 import ContextSidebar from './ContextSidebar'
-import RunningAgentsStrip from './RunningAgentsStrip'
+import ComposerContextShelf from './ComposerContextShelf'
 import TerminalPanel from './TerminalPanel'
 import Titlebar from '../Titlebar'
 import { Button, PanelNotice } from '../shared/designSystem'
@@ -138,7 +138,7 @@ function SessionPane({ sessionId }: SessionPaneProps): JSX.Element | null {
             data-composer-reserve-height={composerReserveHeight}
             className="composer-reserve-frame shrink-0"
           >
-            <RunningAgentsStrip sessionId={session.id} />
+            <ComposerContextShelf sessionId={session.id} />
             <InputBar session={session} isNew={isNew} />
           </div>
         </div>
