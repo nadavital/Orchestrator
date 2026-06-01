@@ -649,6 +649,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
     runAutomatedEmptyStateSmoke(win, outputPath, screenshotPath)
     return
   }
+  if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'automations') {
+    runAutomatedAutomationsSmoke(win, outputPath, screenshotPath)
+    return
+  }
   if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'add-project') {
     runAutomatedAddProjectSmoke(win, outputPath, screenshotPath)
     return
@@ -25000,6 +25004,156 @@ function runAutomatedEmptyStateSmoke(win: BrowserWindow, outputPath: string, scr
                 getComputedStyle(sidebar).overflowX === 'hidden' &&
                 sidebar.scrollWidth <= sidebar.clientWidth + 2,
               noStaticSuggestionCards: !bodyText.includes('Try asking')
+            };
+          })()
+        `)
+        if (screenshotPath) {
+          const image = await win.webContents.capturePage()
+          writeFileSync(screenshotPath, image.toPNG())
+        }
+        writeFileSync(outputPath, JSON.stringify({ ok: true, result, screenshotPath }, null, 2))
+        app.quit()
+      } catch (error) {
+        writeFileSync(outputPath, JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2))
+        app.quit()
+      }
+    }, 700)
+  })
+}
+
+function runAutomatedAutomationsSmoke(win: BrowserWindow, outputPath: string, screenshotPath?: string): void {
+  win.webContents.once('did-finish-load', () => {
+    setTimeout(async () => {
+      try {
+        const result = await win.webContents.executeJavaScript(`
+          (async () => {
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            const waitFor = async (predicate, attempts = 40, delay = 100) => {
+              for (let index = 0; index < attempts; index += 1) {
+                const value = predicate();
+                if (value) return value;
+                await sleep(delay);
+              }
+              return null;
+            };
+            const buttonLabel = (button) =>
+              button.getAttribute('aria-label') ??
+              button.getAttribute('data-tooltip-label') ??
+              button.textContent?.replace(/\\s+/g, ' ').trim() ??
+              '';
+            const profile = await window.api.app.getProfile();
+            const root = ${JSON.stringify(process.env.ORCHESTRATOR_SMOKE_WORKSPACE_DIR ?? process.cwd())};
+            let projects = await window.api.projects.list();
+            if (projects.length === 0) {
+              const project = await window.api.projects.add('Automations Smoke', root);
+              projects = [project];
+            }
+            let sessions = await window.api.sessions.list();
+            if (sessions.length === 0) {
+              const project = projects[0];
+              const session = await window.api.sessions.create({
+                projectId: project.id,
+                workDir: project.rootPath,
+                useWorktree: false,
+                repoRoot: project.rootPath
+              });
+              await window.api.projects.addSession(project.id, session.id);
+              sessions = [session];
+            }
+            const targetSession = sessions[0];
+            const existingAutomations = await window.api.automations.list();
+            const existingActive = existingAutomations.find((automation) => automation.name === 'Automations visual smoke');
+            const existingPaused = existingAutomations.find((automation) => automation.name === 'Paused automation smoke');
+            await window.api.automations.upsert({
+              id: existingActive?.id,
+              kind: 'heartbeat',
+              name: 'Automations visual smoke',
+              prompt: 'Summarize whether this smoke fixture is still healthy.',
+              status: 'ACTIVE',
+              target: { type: 'session', sessionId: targetSession.id },
+              schedule: { mode: 'interval', intervalMinutes: 15, rrule: null }
+            });
+            await window.api.automations.upsert({
+              id: existingPaused?.id,
+              kind: 'heartbeat',
+              name: 'Paused automation smoke',
+              prompt: 'Paused fixture for visual inventory.',
+              status: 'PAUSED',
+              target: { type: 'session', sessionId: targetSession.id },
+              schedule: { mode: 'interval', intervalMinutes: 60, rrule: null }
+            });
+            await sleep(400);
+            const automationsButton = document.querySelector('[data-testid="sidebar-primary-action-automations"]');
+            if (automationsButton instanceof HTMLElement) automationsButton.click();
+            const page = await waitFor(() => document.querySelector('[data-testid="automations-standalone-page"]'));
+            await sleep(500);
+            const sidebar = document.querySelector('[data-testid="app-sidebar"]');
+            const topbar = document.querySelector('.automations-standalone-topbar');
+            const body = document.querySelector('.automations-standalone-body');
+            const settingsShell = document.querySelector('[data-testid="settings-shell"]');
+            const currentSurface = document.querySelector('[data-testid="automations-current-surface"]');
+            const pausedSurface = document.querySelector('[data-testid="automations-paused-surface"]');
+            const historySurface = document.querySelector('[data-testid="automations-history-surface"]');
+            const rows = [...document.querySelectorAll('[data-testid="automation-settings-row"]')]
+              .filter((row) => row instanceof HTMLElement);
+            const buttons = [...document.querySelectorAll('[data-testid="automations-standalone-page"] button')]
+              .filter((button) => button instanceof HTMLButtonElement);
+            const pageRect = page instanceof HTMLElement ? page.getBoundingClientRect() : null;
+            const content = document.querySelector('.automations-standalone-body .automations-settings-page');
+            const contentRect = content instanceof HTMLElement ? content.getBoundingClientRect() : null;
+            const topbarStyle = topbar instanceof HTMLElement ? getComputedStyle(topbar) : null;
+            const surfaceStyles = [currentSurface, pausedSurface, historySurface]
+              .filter((surface) => surface instanceof HTMLElement)
+              .map((surface) => getComputedStyle(surface));
+            const rowsWithinBody = body instanceof HTMLElement &&
+              rows.every((row) => {
+                const rowRect = row.getBoundingClientRect();
+                const bodyRect = body.getBoundingClientRect();
+                return rowRect.left >= bodyRect.left - 1 && rowRect.right <= bodyRect.right + 1;
+              });
+            return {
+              profile,
+              automationsStandalonePageWorks:
+                page instanceof HTMLElement &&
+                pageRect !== null &&
+                pageRect.width > 600 &&
+                sidebar?.getAttribute('data-sidebar-selected-key') === 'automations' &&
+                document.body.innerText.includes('Automations'),
+              automationsNotSettingsWorks:
+                !(settingsShell instanceof HTMLElement) &&
+                topbar instanceof HTMLElement &&
+                topbar.textContent?.includes('Automations') === true &&
+                document.querySelector('[data-testid="automations-back-to-chat"]') instanceof HTMLButtonElement,
+              automationsSectionsWorks:
+                currentSurface instanceof HTMLElement &&
+                pausedSurface instanceof HTMLElement &&
+                historySurface instanceof HTMLElement &&
+                currentSurface.innerText.includes('Automations visual smoke') &&
+                pausedSurface.innerText.includes('Paused automation smoke') &&
+                document.body.innerText.includes('Run history'),
+              automationsRowsWorks:
+                rows.length >= 2 &&
+                rowsWithinBody &&
+                rows.every((row) => row.getBoundingClientRect().height <= 96),
+              automationsActionsA11yWorks:
+                buttons.some((button) => buttonLabel(button) === 'Refresh automations') &&
+                buttons.some((button) => buttonLabel(button).includes('Run')) &&
+                buttons.some((button) => buttonLabel(button).includes('Pause') || buttonLabel(button).includes('Resume')) &&
+                buttons.some((button) => buttonLabel(button).includes('Delete')),
+              automationsSurfaceCalmWorks:
+                topbarStyle !== null &&
+                pageRect !== null &&
+                contentRect !== null &&
+                document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1 &&
+                contentRect.width <= 840 &&
+                contentRect.left >= pageRect.left + 24 &&
+                surfaceStyles.length >= 3 &&
+                surfaceStyles.every((style) =>
+                  Number.parseFloat(style.borderTopWidth || '0') <= 1 &&
+                  Number.parseFloat(style.borderRightWidth || '0') === 0 &&
+                  Number.parseFloat(style.borderLeftWidth || '0') === 0
+                ) &&
+                Number.parseFloat(topbarStyle.borderBottomWidth || '0') <= 1
             };
           })()
         `)

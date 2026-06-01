@@ -39,6 +39,7 @@ const fullViews = [
   { id: 'terminal-behavior', surface: 'Terminal Bottom Panel', state: 'transfer behavior and shortcuts', flag: '--terminal' },
   { id: 'multi-window-focus', surface: 'App Shell / Window Lifecycle', state: 'multi-window focus and menu command routing', flag: '--multi-window-focus' },
   { id: 'settings-providers', surface: 'Settings', state: 'provider settings', flag: '--settings-providers' },
+  { id: 'automations', surface: 'Automations', state: 'standalone workflow and local schedule rows', flag: '--automations' },
   { id: 'side-chat', surface: 'Workbench Side Chat', state: 'side chat tabs and composer', flag: '--side-chat' },
   { id: 'plan', surface: 'Plan Panel', state: 'plan rows and agent tab', flag: '--plan' },
   { id: 'extensions', surface: 'Extensions Panel', state: 'tabs and copy surface', flag: '--extensions' },

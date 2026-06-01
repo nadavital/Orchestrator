@@ -13,6 +13,7 @@ const captureViewOptions = [
   { flag: '--settings-providers', view: 'settings-providers', surface: 'Settings', scope: 'Provider defaults and provider settings controls' },
   { flag: '--settings', view: 'settings', surface: 'Settings', scope: 'Settings navigation, search, and focused section behavior' },
   { flag: '--capabilities', view: 'capabilities', surface: 'Capabilities', scope: 'Capability browser and installed capability controls' },
+  { flag: '--automations', view: 'automations', surface: 'Automations', scope: 'Standalone automations page and local schedule rows' },
   { flag: '--resources', view: 'resources', surface: 'Resources', scope: 'Provider resource browser and resource cards' },
   { flag: '--composer', view: 'composer', surface: 'Composer', scope: 'Drafts, attachments, send blocking, provider/model controls' },
   { flag: '--composer-popover', view: 'composer-popover', surface: 'Composer', scope: 'Open thread settings popover visual capture' },
@@ -89,7 +90,7 @@ const userDataDir = join(tmpdir(), 'orchestrator-profiles', `${profile}-${captur
 const workspaceDir = join(tmpdir(), 'orchestrator-automated-ui-workspace')
 const isDiffCaptureView = captureView === 'diff' || captureView.startsWith('diff-')
 const fixtureWorkspaceViews = new Set(['inspector', 'right-panel', 'workbench-launcher', 'workbench-new-tab', 'git-panel', 'agent-inspector', 'environment', 'workbench-perf', 'cross-panel-keyboard', 'diff', 'diff-entry', 'diff-empty', 'diff-loading', 'diff-conflict', 'diff-narrow', 'diff-metadata', 'diff-core', 'diff-last-turn', 'diff-source', 'diff-preview', 'files', 'side-chat', 'browser'])
-const resetWorkspaceViews = new Set([...fixtureWorkspaceViews, 'add-project', 'sidebar', 'multi-window-focus', 'worktree-lifecycle'])
+const resetWorkspaceViews = new Set([...fixtureWorkspaceViews, 'add-project', 'automations', 'sidebar', 'multi-window-focus', 'worktree-lifecycle'])
 const outputPath = join(tmpdir(), `orchestrator-automated-ui-smoke-${captureView}-${Date.now()}.json`)
 const screenshotPath = join(tmpdir(), `orchestrator-automated-ui-smoke-${captureView}-${Date.now()}.png`)
 let browserSmokeServer = null
@@ -2820,6 +2821,16 @@ child.on('exit', async (code) => {
           sideChatRetryStatusA11y: result.sideChatRetryStatusA11yWorks === true,
           sideChatPersonalizationContext: result.sideChatPersonalizationContextWorks === true,
           sideChatClose: result.sideChatCloseWorks === true
+        }
+    : captureView === 'automations'
+      ? {
+          isolatedProfile: result.profile?.isIsolated === true,
+          automationsStandalonePage: result.automationsStandalonePageWorks === true,
+          automationsNotSettings: result.automationsNotSettingsWorks === true,
+          automationsSections: result.automationsSectionsWorks === true,
+          automationsRows: result.automationsRowsWorks === true,
+          automationsActionsA11y: result.automationsActionsA11yWorks === true,
+          automationsSurfaceCalm: result.automationsSurfaceCalmWorks === true
         }
     : captureView === 'terminal-visual'
       ? {

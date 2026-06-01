@@ -235,7 +235,12 @@ function AutomationInventoryRow({
       label="Inventory"
       description={`${activeCount} current, ${pausedCount} paused`}
       control={(
-        <button type="button" className="settings-action-button" onClick={() => { void onRefresh() }}>
+        <button
+          type="button"
+          className="settings-action-button"
+          onClick={() => { void onRefresh() }}
+          aria-label="Refresh automations"
+        >
           Refresh
         </button>
       )}
