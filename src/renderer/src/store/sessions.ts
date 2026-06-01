@@ -9,6 +9,7 @@ export type RightPanelTabId = Exclude<RightPanelTabKind, 'file' | 'sidechat' | '
 export type BottomPanelTabKind = Exclude<RightPanelTabKind, 'new-tab' | 'terminal'> | 'terminal'
 export type BottomPanelTabId = number | Exclude<RightPanelTabId, 'new-tab' | `terminal:${number}`>
 export type GitFocusTarget = 'branch' | 'commit' | 'pull-request'
+const RETIRED_RIGHT_PANEL_TAB_IDS = new Set<RightPanelTabId>(['git'])
 
 export interface SourceAnnotationState {
   id: string
@@ -1629,13 +1630,17 @@ function ensureRightPanel(panel?: RightPanelState): RightPanelState {
     panel?.width === 468 &&
     typeof panel?.widthRatio === 'number' &&
     Math.abs(panel.widthRatio - 0.34) <= 0.0001
+  const tabs = (panel?.tabs ?? []).filter((tab) => !RETIRED_RIGHT_PANEL_TAB_IDS.has(tab.id))
+  const activeTabId = panel?.activeTabId && tabs.some((tab) => tab.id === panel.activeTabId)
+    ? panel.activeTabId
+    : tabs[0]?.id ?? null
   return {
-    open: panel?.open ?? false,
+    open: (panel?.open ?? false) && tabs.length > 0,
     width: isLegacyDefaultPanel ? 600 : panel?.width ?? 600,
     widthRatio: isLegacyDefaultPanel ? undefined : panel?.widthRatio,
     fullWidth: panel?.fullWidth ?? false,
-    activeTabId: panel?.activeTabId ?? null,
-    tabs: panel?.tabs ?? []
+    activeTabId,
+    tabs
   }
 }
 
@@ -1831,6 +1836,9 @@ function truncateSideChatPreview(value: string): string {
 }
 
 function syncRightPanelTab(panel: RightPanelState | undefined, id: RightPanelTabId, open: boolean): RightPanelState {
+  if (RETIRED_RIGHT_PANEL_TAB_IDS.has(id)) {
+    return open ? syncRightPanelTab(panel, 'environment', true) : ensureRightPanel(panel)
+  }
   const current = ensureRightPanel(panel)
   if (!open) {
     const next = closePanelTab(current, id)

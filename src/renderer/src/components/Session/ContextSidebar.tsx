@@ -99,6 +99,12 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
   const terminalActionStatusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const ui = uiState[session.id]
   const rightPanel = ui?.rightPanel
+    ? {
+        ...ui.rightPanel,
+        activeTabId: ui.rightPanel.activeTabId === 'git' ? null : ui.rightPanel.activeTabId,
+        tabs: ui.rightPanel.tabs.filter((tab) => tab.id !== 'git')
+      }
+    : undefined
   const bottomPanelOpen = ui?.showTerminal === true
   const bottomPanelContentHeight = ui?.terminalPanel?.height ?? 0
   const bottomPanelExpanded = bottomPanelOpen && bottomPanelContentHeight >= 260
@@ -380,7 +386,7 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
       openRightPanelTab(session.id, tab)
       return
     }
-    if (tab === 'new-tab' || tab === 'environment' || tab === 'git' || tab === 'files' || tab === 'browser') {
+    if (tab === 'new-tab' || tab === 'environment' || tab === 'files' || tab === 'browser') {
       openRightPanelTab(session.id, tab)
       return
     }
@@ -407,7 +413,6 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
     exitFullscreenForPanelTab('right', tab)
     if (tab === 'new-tab') closeRightPanelTab(session.id, 'new-tab')
     if (tab === 'environment') closeRightPanelTab(session.id, 'environment')
-    if (tab === 'git') closeRightPanelTab(session.id, 'git')
     if (tab === 'files') closeRightPanelTab(session.id, 'files')
     if (filePathFromTabId(tab)) closeRightPanelTab(session.id, tab)
     if (tab === 'browser') closeRightPanelTab(session.id, 'browser')
