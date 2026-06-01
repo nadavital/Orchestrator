@@ -10086,11 +10086,66 @@ function runAutomatedFocusedSurfaceSmoke(
                 let workbenchNewTabGitCommitDraftHandoffWorks = false;
                 let workbenchNewTabGitCommitWorks = false;
                 let workbenchNewTabGitDiscardWorks = false;
+                let workbenchNewTabGitRetiredWorks = false;
                 let workbenchNewTabSingletonSwitchWorks = false;
                 if (smokeView === 'workbench-new-tab') {
                 const gitAction = document.querySelector('[data-testid="workbench-new-tab-action-git"]');
+                workbenchNewTabGitRetiredWorks =
+                  !(gitAction instanceof HTMLButtonElement) &&
+                  newTabCardIds.length === 8 &&
+                  !newTabCardIds.includes('git');
                 let openedGitFromContext = false;
-                if (gitAction instanceof HTMLButtonElement) {
+                if (workbenchNewTabGitRetiredWorks) {
+                  const environmentAction = document.querySelector('[data-testid="workbench-new-tab-action-environment"]');
+                  if (environmentAction instanceof HTMLButtonElement) {
+                    environmentAction.click();
+                    await sleep(180);
+                    const tabsBeforeEnvironmentReselect = document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-tabs') ?? '';
+                    environmentAction.click();
+                    await sleep(140);
+                    const tabsAfterEnvironmentReselect = document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-tabs') ?? '';
+                    const environmentCommitRow = document.querySelector('[data-testid="codex-environment-commit"]');
+                    if (environmentCommitRow instanceof HTMLButtonElement && environmentCommitRow.disabled === false) {
+                      environmentCommitRow.click();
+                      await sleep(180);
+                    }
+                    const rightPanelAfterContextualGit = document.querySelector('[data-testid="session-right-panel"]');
+                    workbenchNewTabGitRetiredWorks =
+                      rightPanelAfterContextualGit instanceof HTMLElement &&
+                      rightPanelAfterContextualGit.getAttribute('data-right-panel-active-tab') === 'diff' &&
+                      document.querySelector('[data-testid="git-panel"]') === null &&
+                      tabsBeforeEnvironmentReselect.split(',').filter((tab) => tab === 'environment').length === 1 &&
+                      tabsAfterEnvironmentReselect.split(',').filter((tab) => tab === 'environment').length === 1;
+                    workbenchNewTabSingletonSwitchWorks =
+                      workbenchNewTabGitRetiredWorks;
+                    const newTabAfterContextualGit = document.querySelector('[data-testid="workbench-panel-tabbar"] [role="tab"][data-tab-id="new-tab"]');
+                    if (newTabAfterContextualGit instanceof HTMLElement) {
+                      newTabAfterContextualGit.click();
+                      await sleep(120);
+                    }
+                  }
+                  workbenchNewTabGitActionWorks = workbenchNewTabGitRetiredWorks;
+                  workbenchNewTabGitFileActionsWorks = workbenchNewTabGitRetiredWorks;
+                  workbenchNewTabGitFileCopyPathWorks = workbenchNewTabGitRetiredWorks;
+                  workbenchNewTabGitFileAddToChatWorks = workbenchNewTabGitRetiredWorks;
+                  workbenchNewTabGitFileInsertTerminalWorks = workbenchNewTabGitRetiredWorks;
+                  workbenchNewTabGitFileOpenWorkbenchWorks = workbenchNewTabGitRetiredWorks;
+                  workbenchNewTabGitFileDiscardWorks = workbenchNewTabGitRetiredWorks;
+                  workbenchNewTabGitBranchWorks = workbenchNewTabGitRetiredWorks;
+                  workbenchNewTabGitCheckoutWorks = workbenchNewTabGitRetiredWorks;
+                  workbenchNewTabGitPrCommandWorks = workbenchNewTabGitRetiredWorks;
+                  workbenchNewTabGitPrCreateUrlWorks = workbenchNewTabGitRetiredWorks;
+                  workbenchNewTabGitPrPushCommandWorks = workbenchNewTabGitRetiredWorks;
+                  workbenchNewTabGitPrCreateActionWorks = workbenchNewTabGitRetiredWorks;
+                  workbenchNewTabGitPrMetadataWorks = workbenchNewTabGitRetiredWorks;
+                  workbenchNewTabGitPrCommandHandoffWorks = workbenchNewTabGitRetiredWorks;
+                  workbenchNewTabGitPrCommandTerminalHandoffWorks = workbenchNewTabGitRetiredWorks;
+                  workbenchNewTabGitRefreshStatusWorks = workbenchNewTabGitRetiredWorks;
+                  workbenchNewTabGitStatusHandoffWorks = workbenchNewTabGitRetiredWorks;
+                  workbenchNewTabGitCommitDraftHandoffWorks = workbenchNewTabGitRetiredWorks;
+                  workbenchNewTabGitCommitWorks = workbenchNewTabGitRetiredWorks;
+                  workbenchNewTabGitDiscardWorks = workbenchNewTabGitRetiredWorks;
+                } else if (gitAction instanceof HTMLButtonElement) {
                   gitAction.click();
                 } else {
                   const environmentAction = document.querySelector('[data-testid="workbench-new-tab-action-environment"]');
@@ -10104,7 +10159,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     }
                   }
                 }
-                if (gitAction instanceof HTMLButtonElement || openedGitFromContext) {
+                if ((gitAction instanceof HTMLButtonElement || openedGitFromContext) && !workbenchNewTabGitRetiredWorks) {
                   for (let attempt = 0; attempt < 16; attempt += 1) {
                     await sleep(100);
                     const gitPanel = document.querySelector('[data-testid="git-panel"]');
@@ -11645,6 +11700,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   workbenchNewTabGitCommitDraftHandoffWorks,
                   workbenchNewTabGitCommitWorks,
                   workbenchNewTabGitDiscardWorks,
+                  workbenchNewTabGitRetiredWorks,
                   agentSessionContextCopyWorks,
                   agentSessionContextAddToChatWorks,
                   agentRuntimeEventDetailWorks,
@@ -11927,46 +11983,40 @@ function runAutomatedFocusedSurfaceSmoke(
                   Number(environmentPanel.getAttribute('data-environment-staged-count') ?? '0') >= 1 &&
                   Number(environmentPanel.getAttribute('data-environment-unstaged-count') ?? '0') >= 1 &&
                   environmentBranchRow instanceof HTMLButtonElement &&
-                  environmentBranchRow.getAttribute('data-environment-row-action') === 'open-git-branch' &&
-                  environmentBranchRow.getAttribute('aria-label')?.endsWith('. Manage branches') === true &&
+                  environmentBranchRow.getAttribute('data-environment-row-action') === 'switch-branch' &&
+                  environmentBranchRow.getAttribute('aria-label')?.endsWith('. Switch branch') === true &&
                   environmentCommitRow instanceof HTMLButtonElement &&
-                  environmentCommitRow.getAttribute('data-environment-row-action') === 'open-git-commit' &&
-                  environmentCommitRow.getAttribute('aria-label') === 'Commit. Stage and commit changes' &&
+                  environmentCommitRow.getAttribute('data-environment-row-action') === 'commit-or-push' &&
+                  environmentCommitRow.getAttribute('aria-label') === 'Commit. Commit or push changes' &&
                   environmentCreatePrRow instanceof HTMLButtonElement &&
                   environmentCreatePrRow.getAttribute('data-environment-row-action') === 'open-pull-request' &&
                   environmentCreatePrRow.textContent?.includes('View pull request') === true &&
                   environmentCreatePrRow.textContent?.includes('PR 42') === true &&
                   environmentPanel.getAttribute('data-environment-pull-request') === 'true';
-                let environmentBranchOpensGitWorks = false;
+                let environmentBranchStaysContextualWorks = false;
                 if (environmentBranchRow instanceof HTMLButtonElement) {
                   environmentBranchRow.click();
                   for (let attempt = 0; attempt < 12; attempt += 1) {
-                    const gitPanel = document.querySelector('[data-testid="git-panel"]');
-                    const branchCard = document.querySelector('[data-testid="git-branch-card"]');
+                    const status = document.querySelector('[data-testid="codex-environment-action-status"]');
                     const activeTab = document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-active-tab') ?? '';
                     if (
-                      activeTab === 'git' &&
-                      gitPanel instanceof HTMLElement &&
-                      gitPanel.getAttribute('data-git-focus-target') === 'branch' &&
-                      branchCard instanceof HTMLElement &&
-                      branchCard.getAttribute('data-git-focused-target') === 'true'
+                      activeTab === 'environment' &&
+                      status instanceof HTMLElement &&
+                      status.textContent?.includes('Branch controls stay in Environment') === true &&
+                      !(document.querySelector('[data-testid="git-panel"]') instanceof HTMLElement)
                     ) {
                       break;
                     }
                     await sleep(100);
                   }
                   const rightPanelAfterBranchOpen = document.querySelector('[data-testid="session-right-panel"]');
-                  const gitPanelAfterBranchOpen = document.querySelector('[data-testid="git-panel"]');
-                  const branchCardAfterOpen = document.querySelector('[data-testid="git-branch-card"]');
-                  const branchInputAfterOpen = document.querySelector('[data-testid="git-branch-name"]');
-                  environmentBranchOpensGitWorks =
+                  const branchStatusAfterOpen = document.querySelector('[data-testid="codex-environment-action-status"]');
+                  environmentBranchStaysContextualWorks =
                     rightPanelAfterBranchOpen instanceof HTMLElement &&
-                    rightPanelAfterBranchOpen.getAttribute('data-right-panel-active-tab') === 'git' &&
-                    gitPanelAfterBranchOpen instanceof HTMLElement &&
-                    gitPanelAfterBranchOpen.getAttribute('data-git-focus-target') === 'branch' &&
-                    branchCardAfterOpen instanceof HTMLElement &&
-                    branchCardAfterOpen.getAttribute('data-git-focused-target') === 'true' &&
-                    branchInputAfterOpen instanceof HTMLInputElement;
+                    rightPanelAfterBranchOpen.getAttribute('data-right-panel-active-tab') === 'environment' &&
+                    branchStatusAfterOpen instanceof HTMLElement &&
+                    branchStatusAfterOpen.textContent?.includes('Branch controls stay in Environment') === true &&
+                    !(document.querySelector('[data-testid="git-panel"]') instanceof HTMLElement);
                   await openPanelTab('environment', 'Environment');
                   for (let attempt = 0; attempt < 12; attempt += 1) {
                     const reloadedEnvironmentPanel = document.querySelector('[data-testid="codex-environment-panel"]');
@@ -11979,37 +12029,27 @@ function runAutomatedFocusedSurfaceSmoke(
                     await sleep(100);
                   }
                 }
-                let environmentCommitOpensGitWorks = false;
+                let environmentCommitOpensReviewWorks = false;
                 const environmentCommitRowForOpen = document.querySelector('[data-testid="codex-environment-commit"]');
                 if (environmentCommitRowForOpen instanceof HTMLButtonElement) {
                   environmentCommitRowForOpen.click();
                   for (let attempt = 0; attempt < 12; attempt += 1) {
-                    const gitPanel = document.querySelector('[data-testid="git-panel"]');
-                    const commitCard = document.querySelector('[data-testid="git-commit-card"]');
                     const activeTab = document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-active-tab') ?? '';
                     if (
-                      activeTab === 'git' &&
-                      gitPanel instanceof HTMLElement &&
-                      gitPanel.getAttribute('data-git-focus-target') === 'commit' &&
-                      commitCard instanceof HTMLElement &&
-                      commitCard.getAttribute('data-git-focused-target') === 'true'
+                      activeTab === 'diff' &&
+                      !(document.querySelector('[data-testid="git-panel"]') instanceof HTMLElement)
                     ) break;
                     await sleep(100);
                   }
                   const rightPanelAfterCommitOpen = document.querySelector('[data-testid="session-right-panel"]');
-                  const gitPanelAfterCommitOpen = document.querySelector('[data-testid="git-panel"]');
-                  const commitCardAfterOpen = document.querySelector('[data-testid="git-commit-card"]');
-                  environmentCommitOpensGitWorks =
+                  environmentCommitOpensReviewWorks =
                     rightPanelAfterCommitOpen instanceof HTMLElement &&
-                    rightPanelAfterCommitOpen.getAttribute('data-right-panel-active-tab') === 'git' &&
-                    gitPanelAfterCommitOpen instanceof HTMLElement &&
-                    gitPanelAfterCommitOpen.getAttribute('data-git-focus-target') === 'commit' &&
-                    commitCardAfterOpen instanceof HTMLElement &&
-                    commitCardAfterOpen.getAttribute('data-git-focused-target') === 'true';
+                    rightPanelAfterCommitOpen.getAttribute('data-right-panel-active-tab') === 'diff' &&
+                    !(document.querySelector('[data-testid="git-panel"]') instanceof HTMLElement);
                   await openPanelTab('environment', 'Environment');
                   await sleep(120);
                 }
-                let environmentCreatePrOpensGitWorks = false;
+                let environmentCreatePrOpensReviewWorks = false;
                 const setSessionReviewMetadataForSmoke = window.__orchestratorSetSessionReviewMetadataForSmoke;
                 if (
                   typeof setSessionReviewMetadataForSmoke === 'function' &&
@@ -12019,7 +12059,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     const noPrRow = document.querySelector('[data-testid="codex-environment-create-pr"]');
                     if (
                       noPrRow instanceof HTMLButtonElement &&
-                      noPrRow.getAttribute('data-environment-row-action') === 'open-git-pr' &&
+                      noPrRow.getAttribute('data-environment-row-action') === 'create-pull-request' &&
                       noPrRow.textContent?.includes('Create pull request') === true &&
                       noPrRow.getAttribute('aria-label') === 'Create pull request. Create a pull request'
                     ) {
@@ -12031,32 +12071,22 @@ function runAutomatedFocusedSurfaceSmoke(
                   if (noPrRow instanceof HTMLButtonElement) {
                     noPrRow.click();
                     for (let attempt = 0; attempt < 12; attempt += 1) {
-                      const gitPanel = document.querySelector('[data-testid="git-panel"]');
-                      const prCard = document.querySelector('[data-testid="git-pr-card"]');
                       const activeTab = document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-active-tab') ?? '';
                       if (
-                        activeTab === 'git' &&
-                        gitPanel instanceof HTMLElement &&
-                        gitPanel.getAttribute('data-git-focus-target') === 'pull-request' &&
-                        prCard instanceof HTMLElement &&
-                        prCard.getAttribute('data-git-focused-target') === 'true'
+                        activeTab === 'diff' &&
+                        !(document.querySelector('[data-testid="git-panel"]') instanceof HTMLElement)
                       ) break;
                       await sleep(100);
                     }
                   }
                   const rightPanelAfterPrOpen = document.querySelector('[data-testid="session-right-panel"]');
-                  const gitPanelAfterPrOpen = document.querySelector('[data-testid="git-panel"]');
-                  const prCardAfterOpen = document.querySelector('[data-testid="git-pr-card"]');
-                  environmentCreatePrOpensGitWorks =
+                  environmentCreatePrOpensReviewWorks =
                     noPrRow instanceof HTMLButtonElement &&
-                    noPrRow.getAttribute('data-environment-row-action') === 'open-git-pr' &&
+                    noPrRow.getAttribute('data-environment-row-action') === 'create-pull-request' &&
                     noPrRow.getAttribute('aria-label') === 'Create pull request. Create a pull request' &&
                     rightPanelAfterPrOpen instanceof HTMLElement &&
-                    rightPanelAfterPrOpen.getAttribute('data-right-panel-active-tab') === 'git' &&
-                    gitPanelAfterPrOpen instanceof HTMLElement &&
-                    gitPanelAfterPrOpen.getAttribute('data-git-focus-target') === 'pull-request' &&
-                    prCardAfterOpen instanceof HTMLElement &&
-                    prCardAfterOpen.getAttribute('data-git-focused-target') === 'true';
+                    rightPanelAfterPrOpen.getAttribute('data-right-panel-active-tab') === 'diff' &&
+                    !(document.querySelector('[data-testid="git-panel"]') instanceof HTMLElement);
                   await openPanelTab('environment', 'Environment');
                   await sleep(120);
                 }
@@ -12098,7 +12128,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     environmentScroll instanceof HTMLElement &&
                     environmentScroll.scrollWidth <= environmentScroll.clientWidth + 2,
                   environmentActionRowsWork,
-                  environmentBranchOpensGitWorks,
+                  environmentBranchStaysContextualWorks,
                   environmentSourcesWork:
                     environmentSourcesCard instanceof HTMLElement &&
                     environmentWebSearchRow instanceof HTMLElement &&
@@ -12116,8 +12146,8 @@ function runAutomatedFocusedSurfaceSmoke(
                     environmentWebSearchRow instanceof HTMLElement &&
                     environmentWebSearchRow.getAttribute('aria-disabled') === 'true' &&
                     environmentWebSearchRow.getAttribute('aria-label') === 'Web search. Provider web-search source is not connected for this session',
-                  environmentCommitOpensGitWorks,
-                  environmentCreatePrOpensGitWorks,
+                  environmentCommitOpensReviewWorks,
+                  environmentCreatePrOpensReviewWorks,
                   environmentSettingsOpensProviders: environmentSettingsOpensProvidersWorks
                 };
               }
@@ -18375,7 +18405,7 @@ function runAutomatedFocusedSurfaceSmoke(
 	                  environmentBranchRow instanceof HTMLElement &&
 	                  (environmentBranchRow.textContent ?? '').trim().length > 0 &&
                     environmentCommitRow instanceof HTMLButtonElement &&
-                    environmentCommitRow.getAttribute('data-environment-row-action') === 'open-git-commit' &&
+                    environmentCommitRow.getAttribute('data-environment-row-action') === 'commit-or-push' &&
 	                  environmentCreatePrRow instanceof HTMLButtonElement &&
                     environmentCreatePrRow.getAttribute('data-environment-row-action') === 'open-pull-request' &&
                     environmentCreatePrRow.textContent?.includes('View pull request') === true &&

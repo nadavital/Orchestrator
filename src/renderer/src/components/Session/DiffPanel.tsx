@@ -856,11 +856,11 @@ export default function DiffPanel({ sessionId, workDir, embedded = false, focusP
   const openReviewPathInGit = (path: string): void => {
     const change = sourceFiles.find((file) => file.path === path)
     if (!change) {
-      setReviewGitActionMessage({ text: 'Select a changed path to open in Git', tone: 'danger' })
+      setReviewGitActionMessage({ text: 'Select a changed path for commit options', tone: 'danger' })
       return
     }
     focusRightPanelGitPath(sessionId, path)
-    setReviewGitActionMessage({ text: `Opened Git for ${basename(path)}`, tone: 'info' })
+    setReviewGitActionMessage({ text: `Focused Review on ${basename(path)}`, tone: 'info' })
   }
 
   const openReviewRowContextMenu = (event: WorkbenchTreeContextMenuEvent, file: FileChange): void => {
@@ -1648,12 +1648,12 @@ export default function DiffPanel({ sessionId, workDir, embedded = false, focusP
           if (selectedFile) {
             focusRightPanelGitPath(sessionId, selectedFile)
           } else {
-            openRightPanelTab(sessionId, 'git')
+            setShowDiff(sessionId, true)
           }
         }}
       >
         <Icon name="branch" size={12} />
-        <span>Commit options</span>
+        <span>Commit or push</span>
       </Button>
       {reviewActionStatus}
     </div>

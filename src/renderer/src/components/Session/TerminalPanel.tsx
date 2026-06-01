@@ -12,7 +12,6 @@ import EventInspectorPanel from './EventInspectorPanel'
 import ExtensionsPanel from './ExtensionsPanel'
 import FileTabPanel from './FileTabPanel'
 import FilesPanel from './FilesPanel'
-import GitPanel from './GitPanel'
 import PlanPanel from './PlanPanel'
 import SideQuestionPanel from './SideQuestionPanel'
 import TerminalView from './TerminalView'
@@ -56,8 +55,6 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
   const openRightPanelBrowserUrl = useSessionStore((state) => state.openRightPanelBrowserUrl)
   const setShowDiff = useSessionStore((state) => state.setShowDiff)
   const openRightPanelTab = useSessionStore((state) => state.openRightPanelTab)
-  const focusRightPanelGitTarget = useSessionStore((state) => state.focusRightPanelGitTarget)
-  const focusRightPanelReviewPath = useSessionStore((state) => state.focusRightPanelReviewPath)
   const updateRightPanelFileTabState = useSessionStore((state) => state.updateRightPanelFileTabState)
   const setRightPanelBrowserUrl = useSessionStore((state) => state.setRightPanelBrowserUrl)
   const setRightPanelBrowserWorkbench = useSessionStore((state) => state.setRightPanelBrowserWorkbench)
@@ -90,16 +87,17 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
   const terminalChromeHeight = TERMINAL_PANEL_CHROME_HEIGHT
   const terminalPanelTotalHeight = terminalHeight + terminalChromeHeight
   const primaryContentHeight = Math.max(0, Math.round(terminalLayout.containerSize - terminalPanelTotalHeight))
-  const tabs = terminalPanel.tabs
-  const activeTab = terminalPanel.activeTabId
+  const tabs = terminalPanel.tabs.filter((tabId) => tabId !== 'git')
+  const effectiveTabs = tabs.length > 0 ? tabs : [0]
+  const activeTab = effectiveTabs.includes(terminalPanel.activeTabId) ? terminalPanel.activeTabId : effectiveTabs[0]
 
   const terminalId = (tab: number): string => `${session.id}-${tab}`
-  const terminalTabs = tabs.map((tabId, idx) => ({
+  const terminalTabs = effectiveTabs.map((tabId, idx) => ({
     id: tabId,
-    label: bottomPanelTabLabel(tabId, idx, tabs, ui),
+    label: bottomPanelTabLabel(tabId, idx, effectiveTabs, ui),
     icon: bottomPanelTabIcon(tabId),
     kind: bottomPanelTabKind(tabId),
-    closable: canCloseBottomPanelTab(tabId, tabs),
+    closable: canCloseBottomPanelTab(tabId, effectiveTabs),
     closeLabel: bottomPanelTabCloseLabel(tabId)
   }))
   const activeTabKind = bottomPanelTabKind(activeTab)
@@ -132,7 +130,7 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
   }
 
   const openPlanTab = (): void => {
-    if (tabs.includes('plan')) {
+    if (effectiveTabs.includes('plan')) {
       setActiveTerminalTab(session.id, 'plan')
       setPanelActionStatus({ text: 'Plan tab selected', tone: 'info' })
       setBottomTabMenuOpen(false)
@@ -157,7 +155,7 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
     tabKind: BottomPanelTabKind,
     label: string
   ): void => {
-    if (tabs.includes(tabId)) {
+    if (effectiveTabs.includes(tabId)) {
       setShowTerminal(session.id, true)
       setActiveTerminalTab(session.id, tabId)
       setPanelActionStatus({ text: `${label} tab selected`, tone: 'info' })
@@ -332,7 +330,7 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
   const closeTab = (tabId: BottomPanelTabId): void => {
     exitFullscreenForPanelTab('bottom', tabId)
     if (typeof tabId === 'number') window.api.terminal.kill(terminalId(tabId))
-    const closingFinalTab = tabs.length <= 1
+    const closingFinalTab = effectiveTabs.length <= 1
     closeTerminalTab(session.id, tabId)
     setPanelActionStatus({ text: `${bottomPanelTabLabel(tabId, 0, [tabId], ui)} tab closed`, tone: 'info' })
     setTerminalMenu(null)
@@ -375,7 +373,7 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
     }
   }, [openRightPanelBrowserUrl, session.id])
 
-  const terminalMenuIndex = terminalMenu ? tabs.findIndex((tabId) => tabId === terminalMenu.tabId) : -1
+  const terminalMenuIndex = terminalMenu ? effectiveTabs.findIndex((tabId) => tabId === terminalMenu.tabId) : -1
 
   return (
     <AppShellPanel
@@ -435,9 +433,9 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
             data-bottom-panel-container-size={Math.round(terminalLayout.containerSize)}
             data-bottom-panel-min-primary-content-height={MIN_PRIMARY_CONTENT_HEIGHT}
             data-bottom-panel-primary-content-height={primaryContentHeight}
-            data-bottom-panel-tabs={tabs.join(',')}
+            data-bottom-panel-tabs={effectiveTabs.join(',')}
             data-bottom-panel-active-tab={activeTab}
-            data-bottom-panel-tab-kinds={tabs.map((tab) => bottomPanelTabKind(tab)).join(',')}
+            data-bottom-panel-tab-kinds={effectiveTabs.map((tab) => bottomPanelTabKind(tab)).join(',')}
             data-bottom-panel-active-tab-kind={activeTabKind}
             data-bottom-panel-active-terminal-id={activeTerminalId ?? ''}
             data-terminal-last-command={activeCommandState?.command ?? ''}
@@ -613,31 +611,31 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
                 />
                 <MenuItem
                   icon="plan"
-                  label={tabs.includes('plan') ? 'Select Plan' : 'Plan'}
+                  label={effectiveTabs.includes('plan') ? 'Select Plan' : 'Plan'}
                   dataTestId="bottom-panel-open-plan-from-menu"
                   onClick={openPlanTab}
                 />
                 <MenuItem
                   icon="settings"
-                  label={tabs.includes('environment') ? 'Select Environment' : 'Environment'}
+                  label={effectiveTabs.includes('environment') ? 'Select Environment' : 'Environment'}
                   dataTestId="bottom-panel-open-environment"
                   onClick={() => openBottomWorkbenchTab('environment', 'environment', 'Environment')}
                 />
                 <MenuItem
                   icon="diff"
-                  label={tabs.includes('diff') ? 'Select Review' : 'Review'}
+                  label={effectiveTabs.includes('diff') ? 'Select Review' : 'Review'}
                   dataTestId="bottom-panel-open-review"
                   onClick={() => openBottomWorkbenchTab('diff', 'diff', 'Review')}
                 />
                 <MenuItem
                   icon="folder"
-                  label={tabs.includes('files') ? 'Select Files' : 'Files'}
+                  label={effectiveTabs.includes('files') ? 'Select Files' : 'Files'}
                   dataTestId="bottom-panel-open-files"
                   onClick={() => openBottomWorkbenchTab('files', 'files', 'Files')}
                 />
                 <MenuItem
                   icon="browser"
-                  label={tabs.includes('browser') ? 'Select Browser' : 'Browser'}
+                  label={effectiveTabs.includes('browser') ? 'Select Browser' : 'Browser'}
                   dataTestId="bottom-panel-open-browser"
                   onClick={() => openBottomWorkbenchTab('browser', 'browser', 'Browser')}
                 />
@@ -652,13 +650,13 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
                 <MenuSectionLabel>Diagnostics</MenuSectionLabel>
                 <MenuItem
                   icon="agents"
-                  label={tabs.includes('agents') ? 'Select Agents' : 'Agents'}
+                  label={effectiveTabs.includes('agents') ? 'Select Agents' : 'Agents'}
                   dataTestId="bottom-panel-open-agents"
                   onClick={() => openBottomWorkbenchTab('agents', 'agents', 'Agents')}
                 />
                 <MenuItem
                   icon="extensions"
-                  label={tabs.includes('extensions') ? 'Select Extensions' : 'Extensions'}
+                  label={effectiveTabs.includes('extensions') ? 'Select Extensions' : 'Extensions'}
                   dataTestId="bottom-panel-open-extensions"
                   onClick={() => openBottomWorkbenchTab('extensions', 'extensions', 'Extensions')}
                 />
@@ -695,7 +693,7 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
                 <MenuItem
                   icon="arrowRight"
                   label="Move tab right"
-                  disabled={terminalMenuIndex < 0 || terminalMenuIndex >= tabs.length - 1}
+                  disabled={terminalMenuIndex < 0 || terminalMenuIndex >= effectiveTabs.length - 1}
                   onClick={() => moveTab(terminalMenu.tabId, 'right')}
                 />
               </MenuSection>
@@ -717,7 +715,7 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
                 <MenuItem
                   icon="close"
                   label="Close tab"
-                  disabled={!canCloseBottomPanelTab(terminalMenu.tabId, tabs)}
+                  disabled={!canCloseBottomPanelTab(terminalMenu.tabId, effectiveTabs)}
                   onClick={() => closeTab(terminalMenu.tabId)}
                 />
               </MenuSection>
@@ -756,20 +754,7 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
                 embedded
                 onOpenReview={() => setShowDiff(session.id, true)}
                 onOpenGit={(target) => {
-                  if (target) focusRightPanelGitTarget(session.id, target)
-                  else openRightPanelTab(session.id, 'git')
-                }}
-              />
-            ) : activeTab === 'git' ? (
-              <GitPanel
-                session={session}
-                embedded
-                focusPath={null}
-                focusRequest={undefined}
-                focusTarget={null}
-                focusTargetRequest={undefined}
-                onOpenReview={(path) => {
-                  if (path) focusRightPanelReviewPath(session.id, path)
+                  if (target === 'branch') openRightPanelTab(session.id, 'environment')
                   else setShowDiff(session.id, true)
                 }}
               />
@@ -826,10 +811,9 @@ function bottomPanelTabKind(tabId: BottomPanelTabId): BottomPanelTabKind {
   return tabId
 }
 
-function bottomPanelTabIcon(tabId: BottomPanelTabId): 'terminal' | 'plan' | 'settings' | 'branch' | 'diff' | 'agents' | 'extensions' | 'chat' | 'folder' | 'browser' | 'file' {
+function bottomPanelTabIcon(tabId: BottomPanelTabId): 'terminal' | 'plan' | 'settings' | 'diff' | 'agents' | 'extensions' | 'chat' | 'folder' | 'browser' | 'file' {
   const kind = bottomPanelTabKind(tabId)
   if (kind === 'environment') return 'settings'
-  if (kind === 'git') return 'branch'
   if (kind === 'diff') return 'diff'
   if (kind === 'agents') return 'agents'
   if (kind === 'extensions') return 'extensions'
@@ -843,7 +827,6 @@ function bottomPanelTabIcon(tabId: BottomPanelTabId): 'terminal' | 'plan' | 'set
 function bottomPanelTabLabel(tabId: BottomPanelTabId, index: number, tabs: BottomPanelTabId[], ui?: ReturnType<typeof useSessionStore.getState>['uiState'][string]): string {
   if (typeof tabId === 'string') {
     if (tabId === 'environment') return 'Environment'
-    if (tabId === 'git') return 'Git'
     if (tabId === 'diff') return 'Review'
     if (tabId === 'agents') return 'Agents'
     if (tabId === 'extensions') return 'Extensions'

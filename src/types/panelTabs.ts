@@ -10,7 +10,6 @@ export const BOTTOM_PANEL_TRANSFER_TAB_KINDS = [
   'terminal',
   'plan',
   'environment',
-  'git',
   'diff',
   'agents',
   'extensions',

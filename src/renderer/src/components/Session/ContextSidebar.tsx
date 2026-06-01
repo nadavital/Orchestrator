@@ -10,7 +10,6 @@ import EventInspectorPanel from './EventInspectorPanel'
 import ExtensionsPanel from './ExtensionsPanel'
 import FileTabPanel from './FileTabPanel'
 import FilesPanel from './FilesPanel'
-import GitPanel from './GitPanel'
 import PlanPanel from './PlanPanel'
 import SideQuestionPanel from './SideQuestionPanel'
 import TerminalView from './TerminalView'
@@ -79,8 +78,6 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
     moveRightPanelTab,
     resetRightPanelTabState,
     pinRightPanelTab,
-    focusRightPanelGitTarget,
-    focusRightPanelReviewPath,
     updateRightPanelFileTabState,
     setRightPanelBrowserUrl,
     openRightPanelBrowserUrl,
@@ -132,7 +129,6 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
   const hasLiveAgent = agents.some(isLiveAgent)
   const hasSideQuestions = (ui?.sideQuestions?.length ?? 0) > 0
   const hasEnvironmentTab = rightPanel?.tabs.some((tab) => tab.id === 'environment') ?? false
-  const hasGitTab = rightPanel?.tabs.some((tab) => tab.id === 'git') ?? false
   const hasDiffTab = rightPanel?.tabs.some((tab) => tab.id === 'diff') ?? false
   const hasFilesTab = rightPanel?.tabs.some((tab) => tab.id === 'files') ?? false
   const hasBrowserTab = rightPanel?.tabs.some((tab) => tab.id === 'browser') ?? false
@@ -172,7 +168,6 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
   const availableTabs: ContextTabSpec[] = [
     ...(hasNewTab ? [{ id: 'new-tab' as const, label: 'New tab', icon: 'plus' as const }] : []),
     ...(hasEnvironmentTab ? [{ id: 'environment' as const, label: 'Environment', icon: 'settings' as const }] : []),
-    ...(hasGitTab ? [{ id: 'git' as const, label: 'Git', icon: 'branch' as const }] : []),
     ...(ui?.showDiff || hasDiffTab ? [{ id: 'diff' as const, label: 'Review', icon: 'diff' as const }] : []),
     ...(hasBrowserTab ? [{ id: 'browser' as const, label: 'Browser', icon: 'browser' as const }] : []),
     ...(hasFilesTab ? [{ id: 'files' as const, label: 'Files', icon: 'folder' as const }] : []),
@@ -209,7 +204,6 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
   const effectiveTab = tabs.some((tab) => tab.id === activeTab) ? activeTab : tabs[0]?.id ?? null
   const effectiveFilePath = filePathFromTabId(effectiveTab ?? 'plan')
   const effectiveFileTab = rightPanel?.tabs.find((tab) => tab.id === effectiveTab && tab.kind === 'file') ?? null
-  const effectiveGitTab = rightPanel?.tabs.find((tab) => tab.id === 'git' && tab.kind === 'git') ?? null
   const effectiveDiffTab = rightPanel?.tabs.find((tab) => tab.id === 'diff' && tab.kind === 'diff') ?? null
   const effectiveTabLabel = tabs.find((tab) => tab.id === effectiveTab)?.label ?? 'Workbench'
   const rightPanelOpen = rightPanel?.open ?? false
@@ -476,7 +470,7 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
     ? tabMenu.tabId === 'browser' || Boolean(filePathFromTabId(tabMenu.tabId))
     : false
 
-  const openToolTab = (tab: 'environment' | 'git' | 'diff' | 'browser' | 'files'): void => {
+  const openToolTab = (tab: 'environment' | 'diff' | 'browser' | 'files'): void => {
     if (tab === 'diff') {
       openRightPanelTab(session.id, 'environment')
       setShowDiff(session.id, true)
@@ -735,28 +729,8 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
             embedded
             onOpenReview={() => setShowDiff(session.id, true)}
             onOpenGit={(target) => {
-              if (target) {
-                focusRightPanelGitTarget(session.id, target)
-              } else {
-                openRightPanelTab(session.id, 'git')
-              }
-            }}
-          />
-        )}
-        {effectiveTab === 'git' && (
-          <GitPanel
-            session={session}
-            embedded
-            focusPath={effectiveGitTab?.gitFocusPath ?? null}
-            focusRequest={effectiveGitTab?.gitFocusRequest}
-            focusTarget={effectiveGitTab?.gitFocusTarget ?? null}
-            focusTargetRequest={effectiveGitTab?.gitFocusTargetRequest}
-            onOpenReview={(path) => {
-              if (path) {
-                focusRightPanelReviewPath(session.id, path)
-              } else {
-                setShowDiff(session.id, true)
-              }
+              if (target === 'branch') openToolTab('environment')
+              else setShowDiff(session.id, true)
             }}
           />
         )}

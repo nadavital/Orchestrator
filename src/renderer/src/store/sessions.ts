@@ -907,7 +907,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   focusRightPanelGitPath: (id, path) =>
     set((s) => {
       const current = s.uiState[id] ?? defaultUI
-      const nextPanel = syncRightPanelTab(current.rightPanel, 'git', true)
+      const nextPanel = syncRightPanelTab(syncRightPanelTab(current.rightPanel, 'environment', true), 'diff', true)
       const request = Date.now()
       return {
         uiState: {
@@ -917,11 +917,16 @@ export const useSessionStore = create<SessionState>((set, get) => ({
             rightPanel: {
               ...nextPanel,
               tabs: nextPanel.tabs.map((tab) =>
-                tab.id === 'git'
-                  ? { ...tab, gitFocusPath: path, gitFocusRequest: request }
+                tab.id === 'diff'
+                  ? { ...tab, reviewFocusPath: path, reviewFocusRequest: request }
                   : tab
               )
-            }
+            },
+            showDiff: true,
+            showPlan: false,
+            showEvents: false,
+            showExtensions: false,
+            showSideQuestions: false
           }
         }
       }
@@ -930,21 +935,19 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   focusRightPanelGitTarget: (id, target) =>
     set((s) => {
       const current = s.uiState[id] ?? defaultUI
-      const nextPanel = syncRightPanelTab(current.rightPanel, 'git', true)
-      const request = Date.now()
+      const tabId = target === 'branch' ? 'environment' : 'diff'
+      const nextPanel = syncRightPanelTab(current.rightPanel, tabId, true)
       return {
         uiState: {
           ...s.uiState,
           [id]: {
             ...current,
-            rightPanel: {
-              ...nextPanel,
-              tabs: nextPanel.tabs.map((tab) =>
-                tab.id === 'git'
-                  ? { ...tab, gitFocusTarget: target, gitFocusTargetRequest: request }
-                  : tab
-              )
-            }
+            rightPanel: nextPanel,
+            showDiff: target === 'branch' ? current.showDiff : true,
+            showPlan: false,
+            showEvents: false,
+            showExtensions: false,
+            showSideQuestions: false
           }
         }
       }
