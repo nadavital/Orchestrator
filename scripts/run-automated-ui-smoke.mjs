@@ -2629,13 +2629,13 @@ child.on('exit', async (code) => {
           environmentPanelVisual: result.environmentPanelVisualWorks === true,
           environmentActionRows: result.environmentActionRowsWork === true,
           environmentBranchStaysContextual: result.environmentBranchStaysContextualWorks === true,
-          environmentCommitOpensReview: result.environmentCommitOpensReviewWorks === true,
+          environmentCommitOpensDialog: result.environmentCommitOpensReviewWorks === true,
           environmentSources: result.environmentSourcesWork === true,
           environmentAddToChat: result.environmentAddToChatWorks === true,
           environmentWorkspacePathActions: result.environmentWorkspacePathActionsWork === true,
           environmentSourceBoundary: result.environmentSourceBoundaryWorks === true,
           environmentDisabledRowsA11y: result.environmentDisabledRowsA11yWorks === true,
-          environmentCreatePrOpensReview: result.environmentCreatePrOpensReviewWorks === true,
+          environmentCreatePrOpensDialog: result.environmentCreatePrOpensReviewWorks === true,
           environmentSettingsOpensProviders: result.environmentSettingsOpensProviders === true
         }
     : captureView === 'workbench-perf'

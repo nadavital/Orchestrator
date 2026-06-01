@@ -10110,14 +10110,20 @@ function runAutomatedFocusedSurfaceSmoke(
                       await sleep(180);
                     }
                     const rightPanelAfterContextualGit = document.querySelector('[data-testid="session-right-panel"]');
+                    const contextualGitDialog = document.querySelector('[data-testid="git-action-dialog"]');
                     workbenchNewTabGitRetiredWorks =
                       rightPanelAfterContextualGit instanceof HTMLElement &&
-                      rightPanelAfterContextualGit.getAttribute('data-right-panel-active-tab') === 'diff' &&
+                      rightPanelAfterContextualGit.getAttribute('data-right-panel-active-tab') === 'environment' &&
+                      contextualGitDialog instanceof HTMLElement &&
+                      contextualGitDialog.getAttribute('data-git-action-dialog-target') === 'commit' &&
                       document.querySelector('[data-testid="git-panel"]') === null &&
                       tabsBeforeEnvironmentReselect.split(',').filter((tab) => tab === 'environment').length === 1 &&
                       tabsAfterEnvironmentReselect.split(',').filter((tab) => tab === 'environment').length === 1;
                     workbenchNewTabSingletonSwitchWorks =
                       workbenchNewTabGitRetiredWorks;
+                    [...document.querySelectorAll('[data-testid="git-action-dialog"] button')]
+                      .find((button) => button.textContent?.trim() === 'Close')
+                      ?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
                     const newTabAfterContextualGit = document.querySelector('[data-testid="workbench-panel-tabbar"] [role="tab"][data-tab-id="new-tab"]');
                     if (newTabAfterContextualGit instanceof HTMLElement) {
                       newTabAfterContextualGit.click();
@@ -11997,12 +12003,12 @@ function runAutomatedFocusedSurfaceSmoke(
                 if (environmentBranchRow instanceof HTMLButtonElement) {
                   environmentBranchRow.click();
                   for (let attempt = 0; attempt < 12; attempt += 1) {
-                    const status = document.querySelector('[data-testid="codex-environment-action-status"]');
+                    const dialog = document.querySelector('[data-testid="git-action-dialog"]');
                     const activeTab = document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-active-tab') ?? '';
                     if (
                       activeTab === 'environment' &&
-                      status instanceof HTMLElement &&
-                      status.textContent?.includes('Branch controls stay in Environment') === true &&
+                      dialog instanceof HTMLElement &&
+                      dialog.getAttribute('data-git-action-dialog-target') === 'branch' &&
                       !(document.querySelector('[data-testid="git-panel"]') instanceof HTMLElement)
                     ) {
                       break;
@@ -12010,13 +12016,16 @@ function runAutomatedFocusedSurfaceSmoke(
                     await sleep(100);
                   }
                   const rightPanelAfterBranchOpen = document.querySelector('[data-testid="session-right-panel"]');
-                  const branchStatusAfterOpen = document.querySelector('[data-testid="codex-environment-action-status"]');
+                  const branchDialogAfterOpen = document.querySelector('[data-testid="git-action-dialog"]');
                   environmentBranchStaysContextualWorks =
                     rightPanelAfterBranchOpen instanceof HTMLElement &&
                     rightPanelAfterBranchOpen.getAttribute('data-right-panel-active-tab') === 'environment' &&
-                    branchStatusAfterOpen instanceof HTMLElement &&
-                    branchStatusAfterOpen.textContent?.includes('Branch controls stay in Environment') === true &&
+                    branchDialogAfterOpen instanceof HTMLElement &&
+                    branchDialogAfterOpen.getAttribute('data-git-action-dialog-target') === 'branch' &&
                     !(document.querySelector('[data-testid="git-panel"]') instanceof HTMLElement);
+                  [...document.querySelectorAll('[data-testid="git-action-dialog"] button')]
+                    .find((button) => button.textContent?.trim() === 'Close')
+                    ?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
                   await openPanelTab('environment', 'Environment');
                   for (let attempt = 0; attempt < 12; attempt += 1) {
                     const reloadedEnvironmentPanel = document.querySelector('[data-testid="codex-environment-panel"]');
@@ -12034,18 +12043,22 @@ function runAutomatedFocusedSurfaceSmoke(
                 if (environmentCommitRowForOpen instanceof HTMLButtonElement) {
                   environmentCommitRowForOpen.click();
                   for (let attempt = 0; attempt < 12; attempt += 1) {
-                    const activeTab = document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-active-tab') ?? '';
+                    const dialog = document.querySelector('[data-testid="git-action-dialog"]');
                     if (
-                      activeTab === 'diff' &&
+                      dialog instanceof HTMLElement &&
+                      dialog.getAttribute('data-git-action-dialog-target') === 'commit' &&
                       !(document.querySelector('[data-testid="git-panel"]') instanceof HTMLElement)
                     ) break;
                     await sleep(100);
                   }
-                  const rightPanelAfterCommitOpen = document.querySelector('[data-testid="session-right-panel"]');
+                  const commitDialogAfterOpen = document.querySelector('[data-testid="git-action-dialog"]');
                   environmentCommitOpensReviewWorks =
-                    rightPanelAfterCommitOpen instanceof HTMLElement &&
-                    rightPanelAfterCommitOpen.getAttribute('data-right-panel-active-tab') === 'diff' &&
+                    commitDialogAfterOpen instanceof HTMLElement &&
+                    commitDialogAfterOpen.getAttribute('data-git-action-dialog-target') === 'commit' &&
                     !(document.querySelector('[data-testid="git-panel"]') instanceof HTMLElement);
+                  [...document.querySelectorAll('[data-testid="git-action-dialog"] button')]
+                    .find((button) => button.textContent?.trim() === 'Close')
+                    ?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
                   await openPanelTab('environment', 'Environment');
                   await sleep(120);
                 }
@@ -12071,22 +12084,26 @@ function runAutomatedFocusedSurfaceSmoke(
                   if (noPrRow instanceof HTMLButtonElement) {
                     noPrRow.click();
                     for (let attempt = 0; attempt < 12; attempt += 1) {
-                      const activeTab = document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-active-tab') ?? '';
+                      const dialog = document.querySelector('[data-testid="git-action-dialog"]');
                       if (
-                        activeTab === 'diff' &&
+                        dialog instanceof HTMLElement &&
+                        dialog.getAttribute('data-git-action-dialog-target') === 'pull-request' &&
                         !(document.querySelector('[data-testid="git-panel"]') instanceof HTMLElement)
                       ) break;
                       await sleep(100);
                     }
                   }
-                  const rightPanelAfterPrOpen = document.querySelector('[data-testid="session-right-panel"]');
+                  const prDialogAfterOpen = document.querySelector('[data-testid="git-action-dialog"]');
                   environmentCreatePrOpensReviewWorks =
                     noPrRow instanceof HTMLButtonElement &&
                     noPrRow.getAttribute('data-environment-row-action') === 'create-pull-request' &&
                     noPrRow.getAttribute('aria-label') === 'Create pull request. Create a pull request' &&
-                    rightPanelAfterPrOpen instanceof HTMLElement &&
-                    rightPanelAfterPrOpen.getAttribute('data-right-panel-active-tab') === 'diff' &&
+                    prDialogAfterOpen instanceof HTMLElement &&
+                    prDialogAfterOpen.getAttribute('data-git-action-dialog-target') === 'pull-request' &&
                     !(document.querySelector('[data-testid="git-panel"]') instanceof HTMLElement);
+                  [...document.querySelectorAll('[data-testid="git-action-dialog"] button')]
+                    .find((button) => button.textContent?.trim() === 'Close')
+                    ?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
                   await openPanelTab('environment', 'Environment');
                   await sleep(120);
                 }

@@ -5,6 +5,7 @@ import remarkGfm from 'remark-gfm'
 import { adjacentFileChangePath, buildFileChangeTreeRows, diffForPathFromUnifiedDiff, fileStatusLabel, isBinaryDiffText, parseFileChangesFromUnifiedDiff, resolveReviewDiffRenderWindow, shouldPreferTextDiff } from '../../types'
 import type { CodexReviewStartRequest, FileChange, GitLineBlameResult, GitRefOption, ReviewCheckStatus, ReviewDiffSource, ReviewMetadata, ReviewProviderComment, SessionRunEventRecord } from '../../types'
 import type { FilePreviewResult } from '../../env'
+import type { GitFocusTarget } from '../../store/sessions'
 import { useSessionStore } from '../../store/sessions'
 import { Badge, Button, IconButton, MenuItem, MenuMessage, MenuRow, MenuSection, MenuSectionLabel, MenuSurface, PanelHeader, PanelNotice, PanelResizeHandle, PanelToolbar, WorkbenchSearchField, useAppShellResizeController } from '../shared/designSystem'
 import Icon, { type IconName } from '../shared/Icon'
@@ -18,6 +19,7 @@ interface Props {
   embedded?: boolean
   focusPath?: string | null
   focusRequest?: number
+  onOpenGitAction?: (target: GitFocusTarget, path?: string) => void
 }
 
 type ReviewDiffMode = 'unified' | 'split'
@@ -82,7 +84,7 @@ function shellAnsiQuote(value: string): string {
     .replace(/\t/g, '\\t')}'`
 }
 
-export default function DiffPanel({ sessionId, workDir, embedded = false, focusPath = null, focusRequest }: Props): JSX.Element {
+export default function DiffPanel({ sessionId, workDir, embedded = false, focusPath = null, focusRequest, onOpenGitAction }: Props): JSX.Element {
   const [files, setFiles] = useState<FileChange[]>([])
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
   const [reviewFileContentByPath, setReviewFileContentByPath] = useState<Record<string, ReviewFileContent>>({})
@@ -124,8 +126,6 @@ export default function DiffPanel({ sessionId, workDir, embedded = false, focusP
   const [customReviewInstructions, setCustomReviewInstructions] = useState('')
   const rootRef = useRef<HTMLDivElement | null>(null)
   const reviewSearchInputRef = useRef<HTMLInputElement | null>(null)
-  const openRightPanelTab = useSessionStore((state) => state.openRightPanelTab)
-  const focusRightPanelGitPath = useSessionStore((state) => state.focusRightPanelGitPath)
   const openRightPanelFileTab = useSessionStore((state) => state.openRightPanelFileTab)
   const setShowTerminal = useSessionStore((state) => state.setShowTerminal)
   const addTerminalTab = useSessionStore((state) => state.addTerminalTab)
@@ -859,8 +859,13 @@ export default function DiffPanel({ sessionId, workDir, embedded = false, focusP
       setReviewGitActionMessage({ text: 'Select a changed path for commit options', tone: 'danger' })
       return
     }
-    focusRightPanelGitPath(sessionId, path)
-    setReviewGitActionMessage({ text: `Focused Review on ${basename(path)}`, tone: 'info' })
+    if (onOpenGitAction) {
+      onOpenGitAction('commit', path)
+      setReviewGitActionMessage({ text: `Commit options opened for ${basename(path)}`, tone: 'info' })
+    } else {
+      setShowDiff(sessionId, true)
+      setReviewGitActionMessage({ text: `Focused Review on ${basename(path)}`, tone: 'info' })
+    }
   }
 
   const openReviewRowContextMenu = (event: WorkbenchTreeContextMenuEvent, file: FileChange): void => {
@@ -1646,9 +1651,11 @@ export default function DiffPanel({ sessionId, workDir, embedded = false, focusP
         dataTestId="review-open-git-tab"
         onClick={() => {
           if (selectedFile) {
-            focusRightPanelGitPath(sessionId, selectedFile)
+            if (onOpenGitAction) onOpenGitAction('commit', selectedFile)
+            else setShowDiff(sessionId, true)
           } else {
-            setShowDiff(sessionId, true)
+            if (onOpenGitAction) onOpenGitAction('commit')
+            else setShowDiff(sessionId, true)
           }
         }}
       >

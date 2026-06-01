@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { DEFAULT_TERMINAL_PANEL_CONTENT_HEIGHT, defaultUI, filePathFromTabId, sideChatContextSnapshot, sideChatIdFromTabId, sideChatTabId, useSessionStore } from '../../store/sessions'
-import type { BottomPanelTabId, BottomPanelTabKind } from '../../store/sessions'
+import type { BottomPanelTabId, BottomPanelTabKind, GitFocusTarget } from '../../store/sessions'
 import type { Session } from '../../types'
 import { canCloseBottomPanelTab } from '../../../../types/panelTabs'
 import { AppShellPanel, IconButton, MenuItem, MenuSection, MenuSectionLabel, MenuSurface, PanelResizeHandle, PanelTabStrip, ToolbarButton, exitFullscreenForPanelTab, panelTabContextMenuPoint, panelTabDomId, panelTabPanelDomId, useAppShellBottomPanelLayout, useAppShellResizeController } from '../shared/designSystem'
@@ -12,6 +12,7 @@ import EventInspectorPanel from './EventInspectorPanel'
 import ExtensionsPanel from './ExtensionsPanel'
 import FileTabPanel from './FileTabPanel'
 import FilesPanel from './FilesPanel'
+import GitActionDialog from './GitActionDialog'
 import PlanPanel from './PlanPanel'
 import SideQuestionPanel from './SideQuestionPanel'
 import TerminalView from './TerminalView'
@@ -63,6 +64,7 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
   const [terminalOutputs, setTerminalOutputs] = useState<Record<string, string>>({})
   const [terminalSelections, setTerminalSelections] = useState<Record<string, string>>({})
   const [terminalCommandStates, setTerminalCommandStates] = useState<Record<string, TerminalCommandState>>({})
+  const [gitActionDialog, setGitActionDialog] = useState<{ target: GitFocusTarget; path?: string | null } | null>(null)
   const terminalActionStatusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [bottomTabMenuOpen, setBottomTabMenuOpen] = useState(false)
   const terminalPanel = ui.terminalPanel ?? { height: DEFAULT_TERMINAL_HEIGHT, tabs: [0], activeTabId: 0, nextTabId: 1 }
@@ -754,12 +756,16 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
                 embedded
                 onOpenReview={() => setShowDiff(session.id, true)}
                 onOpenGit={(target) => {
-                  if (target === 'branch') openRightPanelTab(session.id, 'environment')
-                  else setShowDiff(session.id, true)
+                  setGitActionDialog({ target: target ?? 'commit' })
                 }}
               />
             ) : activeTab === 'diff' ? (
-              <DiffPanel sessionId={session.id} workDir={session.workDir} embedded />
+              <DiffPanel
+                sessionId={session.id}
+                workDir={session.workDir}
+                embedded
+                onOpenGitAction={(target, path) => setGitActionDialog({ target, path })}
+              />
             ) : activeTab === 'agents' ? (
               <EventInspectorPanel session={session} embedded activeAgentId={null} />
             ) : activeTab === 'extensions' ? (
@@ -799,6 +805,14 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
             )}
           </div>
         </>
+      )}
+      {gitActionDialog && (
+        <GitActionDialog
+          session={session}
+          initialTarget={gitActionDialog.target}
+          focusPath={gitActionDialog.path ?? null}
+          onClose={() => setGitActionDialog(null)}
+        />
       )}
     </AppShellPanel>
   )

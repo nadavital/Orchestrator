@@ -2822,6 +2822,115 @@
     color: var(--state-danger);
   }
 
+  .git-action-dialog {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: min(560px, calc(100vw - 64px));
+  }
+
+  .git-action-dialog-tabs {
+    display: inline-flex;
+    width: fit-content;
+    gap: 2px;
+    border-radius: 9px;
+    background: color-mix(in srgb, var(--control-bg) 52%, transparent);
+    padding: 2px;
+  }
+
+  .git-action-dialog-tab {
+    height: 26px;
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--text-secondary);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 520;
+    padding: 0 10px;
+  }
+
+  .git-action-dialog-tab[data-active='true'] {
+    background: color-mix(in srgb, var(--text-primary) 8%, transparent);
+    color: var(--text-primary);
+  }
+
+  .git-action-dialog-section {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .git-action-dialog-summary,
+  .git-action-dialog-row,
+  .git-action-dialog-files {
+    display: flex;
+    min-width: 0;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .git-action-dialog-summary {
+    color: var(--text-secondary);
+    font-size: 12px;
+  }
+
+  .git-action-dialog-input,
+  .git-action-dialog-textarea {
+    min-width: 0;
+    border: 1px solid color-mix(in srgb, var(--border-subtle) 42%, transparent);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--control-bg) 48%, transparent);
+    color: var(--text-primary);
+    font: inherit;
+    font-size: 13px;
+    outline: none;
+  }
+
+  .git-action-dialog-input {
+    height: 32px;
+    flex: 1 1 220px;
+    padding: 0 10px;
+  }
+
+  .git-action-dialog-textarea {
+    resize: vertical;
+    padding: 9px 10px;
+  }
+
+  .git-action-dialog-input:focus,
+  .git-action-dialog-textarea:focus {
+    border-color: color-mix(in srgb, var(--accent) 55%, var(--border-subtle));
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 12%, transparent);
+  }
+
+  .git-action-dialog-file {
+    display: inline-flex;
+    min-width: 0;
+    max-width: 100%;
+    align-items: center;
+    gap: 5px;
+    color: var(--text-tertiary);
+    font-size: 11px;
+  }
+
+  .git-action-dialog-file svg {
+    flex: 0 0 auto;
+  }
+
+  .git-action-dialog-status {
+    margin: 0;
+    color: var(--accent);
+    font-size: 12px;
+    line-height: 17px;
+  }
+
+  .git-action-dialog-status[data-tone='danger'] {
+    color: var(--state-danger);
+  }
+
   .git-panel .environment-panel-scroll {
     gap: 4px;
     padding: 8px;

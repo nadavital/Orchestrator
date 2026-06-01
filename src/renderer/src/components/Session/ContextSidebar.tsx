@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { filePathFromTabId, sideChatContextSnapshot, sideChatIdFromTabId, terminalTabIdFromTabId, useSessionStore } from '../../store/sessions'
-import type { RightPanelTabId, RightPanelTabKind } from '../../store/sessions'
+import type { GitFocusTarget, RightPanelTabId, RightPanelTabKind } from '../../store/sessions'
 import { bottomPanelTransferPolicyLabel, derivePlanStates, derivePlanStatesFromMessages, resolvePanelTabTransferAvailability } from '../../types'
 import type { AgentNode, Session, SessionRunEventRecord } from '../../types'
 import BrowserPanel from './BrowserPanel'
@@ -10,6 +10,7 @@ import EventInspectorPanel from './EventInspectorPanel'
 import ExtensionsPanel from './ExtensionsPanel'
 import FileTabPanel from './FileTabPanel'
 import FilesPanel from './FilesPanel'
+import GitActionDialog from './GitActionDialog'
 import PlanPanel from './PlanPanel'
 import SideQuestionPanel from './SideQuestionPanel'
 import TerminalView from './TerminalView'
@@ -94,6 +95,7 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
   const [terminalSelections, setTerminalSelections] = useState<Record<string, string>>({})
   const [terminalCommandStates, setTerminalCommandStates] = useState<Record<string, TerminalCommandState>>({})
   const [terminalActionStatus, setTerminalActionStatus] = useState<TerminalActionStatus | null>(null)
+  const [gitActionDialog, setGitActionDialog] = useState<{ target: GitFocusTarget; path?: string | null } | null>(null)
   const terminalActionStatusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const ui = uiState[session.id]
   const rightPanel = ui?.rightPanel
@@ -729,8 +731,7 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
             embedded
             onOpenReview={() => setShowDiff(session.id, true)}
             onOpenGit={(target) => {
-              if (target === 'branch') openToolTab('environment')
-              else setShowDiff(session.id, true)
+              setGitActionDialog({ target: target ?? 'commit' })
             }}
           />
         )}
@@ -780,6 +781,7 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
             embedded
             focusPath={effectiveDiffTab?.reviewFocusPath ?? null}
             focusRequest={effectiveDiffTab?.reviewFocusRequest}
+            onOpenGitAction={(target, path) => setGitActionDialog({ target, path })}
           />
         )}
         {effectiveTab === 'side' && <SideQuestionPanel session={session} embedded />}
@@ -904,6 +906,14 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
             />
           </MenuSection>
         </MenuSurface>
+      )}
+      {gitActionDialog && (
+        <GitActionDialog
+          session={session}
+          initialTarget={gitActionDialog.target}
+          focusPath={gitActionDialog.path ?? null}
+          onClose={() => setGitActionDialog(null)}
+        />
       )}
       </aside>
     </AppShellPanel>
