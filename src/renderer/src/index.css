@@ -12105,6 +12105,19 @@
     flex-wrap: wrap;
   }
 
+  .provider-provider-row .settings-row-control {
+    width: 100%;
+  }
+
+  .provider-provider-row .provider-selector-card {
+    width: 100%;
+    margin-bottom: 0;
+  }
+
+  .provider-provider-row .provider-selector-grid {
+    grid-template-columns: minmax(135px, 1fr) minmax(170px, 220px) auto;
+  }
+
   .provider-selector-card {
     display: grid;
     min-width: 0;

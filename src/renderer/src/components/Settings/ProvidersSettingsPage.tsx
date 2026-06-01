@@ -184,20 +184,24 @@ export default function ProvidersSettingsPage({
           dataTestId="settings-content-layout-providers"
         >
           <div className="provider-settings-stack">
-            <SettingsContentGroup
-              className="provider-settings-content-group"
-              rootAttrs={{
-                tabIndex: -1,
-                'data-settings-search-anchor': 'provider-picker'
-              }}
-            >
-              <SettingsSectionHeading
-                title="Provider"
-                description="Choose the default agent provider and check whether its local runtime is ready."
-              />
-              <SettingsGroupContent>
-                <SettingsSurface className="provider-selector-surface">
-                  <div className="provider-selector-pad">
+        <div key={selectedId}>
+          <SettingsContentGroup
+            className="provider-settings-content-group"
+            rootAttrs={{
+              tabIndex: -1,
+              'data-settings-search-anchor': 'provider-defaults'
+            }}
+          >
+            <SettingsSectionHeading
+              title="Defaults"
+              description="Choose the provider, model, reasoning, permissions, and visible model list."
+            />
+            <SettingsGroupContent>
+              <SettingsSurface className="provider-settings-control-surface">
+                <SettingsRow
+                  label="Provider"
+                  className="provider-settings-row provider-settings-row-stacked provider-provider-row"
+                  control={(
                     <ProviderDropdown
                       providers={providerList}
                       selectedId={selectedId}
@@ -209,26 +213,9 @@ export default function ProvidersSettingsPage({
                       onSelect={setSelectedId}
                       onSetDefault={() => onSetDefaultProvider(selectedId)}
                     />
-                  </div>
-                </SettingsSurface>
-              </SettingsGroupContent>
-            </SettingsContentGroup>
+                  )}
+                />
 
-        {/* Per-provider content — key forces clean remount on provider switch, stopping DnD jitter */}
-        <div key={selectedId}>
-          <SettingsContentGroup
-            className="provider-settings-content-group"
-            rootAttrs={{
-              tabIndex: -1,
-              'data-settings-search-anchor': 'provider-defaults'
-            }}
-          >
-            <SettingsSectionHeading
-              title="Defaults"
-              description="Configure the model, reasoning, permissions, and visible model list for this provider."
-            />
-            <SettingsGroupContent>
-              <SettingsSurface className="provider-settings-control-surface">
                 <SettingsRow
                   label="Default"
                   className="provider-settings-row"
