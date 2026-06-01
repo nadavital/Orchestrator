@@ -3540,6 +3540,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             var bottomPanelPlanToolbarActionWorks = false;
             var bottomPanelOpenTabMenuWorks = false;
             var bottomPanelPlanAddToChatWorks = false;
+            var bottomPanelEnvironmentTallCaptureWorks = false;
             const activeTerminalTabForA11y = document.querySelector('[data-testid="session-bottom-panel"] [role="tab"][data-active="true"]');
             const terminalPanelForA11y = document.querySelector('[role="tabpanel"][data-app-shell-tab-panel-controller="bottom"]');
             const terminalBottomHeader = document.querySelector('[data-testid="session-bottom-panel"]');
@@ -4758,6 +4759,75 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               }
               terminalLinkScopedRoutingWorks = terminalLinkRoutingWorks && terminalLinkOpenerWasScoped;
             }
+            const environmentRightTab = document.querySelector('[data-app-shell-tab-controller="right"][role="tab"][data-tab-id="environment"]');
+            if (environmentRightTab instanceof HTMLElement) {
+              environmentRightTab.click();
+            } else {
+              const addWorkbenchTabForEnvironment = document.querySelector('[data-testid="right-panel-add-tab"]') ?? findButton('Add Workbench tab');
+              if (addWorkbenchTabForEnvironment instanceof HTMLElement) {
+                addWorkbenchTabForEnvironment.click();
+                await sleep(140);
+              }
+              const environmentLauncherAction = document.querySelector('[data-testid="workbench-new-tab-action-environment"]');
+              if (environmentLauncherAction instanceof HTMLButtonElement) {
+                environmentLauncherAction.click();
+              }
+            }
+            for (let attempt = 0; attempt < 16; attempt += 1) {
+              const candidate = document.querySelector('[data-testid="codex-environment-panel"]');
+              const activeRightTab = document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-active-tab') ?? '';
+              if (candidate instanceof HTMLElement && activeRightTab === 'environment') break;
+              await sleep(100);
+            }
+            const bottomPanelForEnvironmentCapture = document.querySelector('[data-testid="session-bottom-panel"]');
+            const resizeHandleForEnvironmentCapture = document.querySelector('[data-app-shell-resize-handle="true"][data-app-shell-resize-edge="top"]');
+            if (bottomPanelForEnvironmentCapture instanceof HTMLElement && resizeHandleForEnvironmentCapture instanceof HTMLElement) {
+              const captureResizeRect = resizeHandleForEnvironmentCapture.getBoundingClientRect();
+              const captureStartX = captureResizeRect.left + captureResizeRect.width / 2;
+              const captureStartY = captureResizeRect.top + captureResizeRect.height / 2;
+              resizeHandleForEnvironmentCapture.dispatchEvent(new PointerEvent('pointerdown', {
+                bubbles: true,
+                cancelable: true,
+                pointerId: 88,
+                pointerType: 'mouse',
+                clientX: captureStartX,
+                clientY: captureStartY
+              }));
+              window.dispatchEvent(new PointerEvent('pointermove', {
+                bubbles: true,
+                cancelable: true,
+                pointerId: 88,
+                pointerType: 'mouse',
+                clientX: captureStartX,
+                clientY: captureStartY - 140
+              }));
+              window.dispatchEvent(new PointerEvent('pointerup', {
+                bubbles: true,
+                cancelable: true,
+                pointerId: 88,
+                pointerType: 'mouse',
+                clientX: captureStartX,
+                clientY: captureStartY - 140
+              }));
+              await sleep(240);
+            }
+            const environmentCaptureRightPanel = document.querySelector('[data-testid="session-right-panel"]');
+            const environmentCapturePanel = document.querySelector('[data-testid="codex-environment-panel"]');
+            const environmentCaptureRows = environmentCapturePanel instanceof HTMLElement
+              ? [...environmentCapturePanel.querySelectorAll('.environment-row')]
+              : [];
+            const environmentCaptureBottomPanel = document.querySelector('[data-testid="session-bottom-panel"]');
+            bottomPanelEnvironmentTallCaptureWorks =
+              environmentCaptureRightPanel instanceof HTMLElement &&
+              environmentCaptureRightPanel.getAttribute('data-right-panel-active-tab') === 'environment' &&
+              environmentCaptureRightPanel.getAttribute('data-right-panel-bottom-panel-open') === 'true' &&
+              environmentCaptureRightPanel.getAttribute('data-right-panel-bottom-panel-expanded') === 'true' &&
+              Number(environmentCaptureRightPanel.getAttribute('data-right-panel-bottom-panel-height') ?? '0') >= 260 &&
+              environmentCapturePanel instanceof HTMLElement &&
+              environmentCaptureRows.length >= 3 &&
+              environmentCaptureRows.every((row) => row instanceof HTMLElement && row.getBoundingClientRect().height <= 28) &&
+              environmentCaptureBottomPanel instanceof HTMLElement &&
+              Number(environmentCaptureBottomPanel.getAttribute('data-bottom-panel-height') ?? '0') >= 260;
           }
           if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'terminal-visual') {
             const terminalButton = findButton('Toggle bottom panel') ?? findButton('Toggle terminal');
@@ -8882,6 +8952,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             bottomPanelPlanToolbarActionWorks: typeof bottomPanelPlanToolbarActionWorks === 'boolean' ? bottomPanelPlanToolbarActionWorks : null,
             bottomPanelOpenTabMenuWorks: typeof bottomPanelOpenTabMenuWorks === 'boolean' ? bottomPanelOpenTabMenuWorks : null,
             bottomPanelPlanAddToChatWorks: typeof bottomPanelPlanAddToChatWorks === 'boolean' ? bottomPanelPlanAddToChatWorks : null,
+            bottomPanelEnvironmentTallCaptureWorks: typeof bottomPanelEnvironmentTallCaptureWorks === 'boolean' ? bottomPanelEnvironmentTallCaptureWorks : null,
             terminalLinkScopedRoutingWorks: typeof terminalLinkScopedRoutingWorks === 'boolean' ? terminalLinkScopedRoutingWorks : null,
             terminalLinkRoutingWorks: typeof terminalLinkRoutingWorks === 'boolean' ? terminalLinkRoutingWorks : null,
             terminalThemeFontSyncWorks: typeof terminalThemeFontSyncWorks === 'boolean' ? terminalThemeFontSyncWorks : null,
