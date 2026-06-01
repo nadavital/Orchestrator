@@ -308,10 +308,10 @@ export default function CapabilitiesPage(): JSX.Element {
       <header className="capabilities-header">
         <div className="min-w-0">
           <div className="capabilities-title-row">
-            <h1>Capabilities</h1>
+            <h1>Plugins</h1>
           </div>
           <p>
-            Skills, MCPs, plugins, apps, and provider-native extensions across global and project scopes.
+            Manage capabilities from skills, MCPs, plugins, apps, and provider-native extensions.
           </p>
         </div>
         <div className="capabilities-header-actions">
@@ -354,7 +354,7 @@ export default function CapabilitiesPage(): JSX.Element {
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search capabilities"
+            placeholder="Search plugins and capabilities"
             className="capabilities-search"
           />
           <select
