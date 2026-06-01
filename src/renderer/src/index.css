@@ -1869,9 +1869,53 @@
     max-width: min(var(--app-shell-tab-content-max-width), calc(100% - 2px));
   }
 
-  [data-testid='terminal-panel-tabstrip'] .motion-tab-button[data-tab-kind='terminal'],
+  [data-testid='terminal-panel-tabstrip'] .panel-tab-row {
+    --app-shell-tab-max-width: 160px;
+    --app-shell-tab-content-max-width: 156px;
+    gap: 4px;
+  }
+
+  [data-testid='terminal-panel-tabstrip'] .motion-tab-button {
+    width: max-content;
+    max-width: var(--app-shell-tab-max-width);
+  }
+
+  [data-testid='terminal-panel-tabstrip'] .motion-tab-button[data-tab-kind='terminal'] {
+    min-width: 152px;
+  }
+
+  [data-testid='terminal-panel-tabstrip'] .motion-tab-button[data-tab-kind='terminal'][data-closable='true']:hover .panel-tab-content {
+    max-width: min(var(--app-shell-tab-content-max-width), calc(100% - 2px));
+  }
+
+  [data-testid='terminal-panel-tabstrip'] .motion-tab-button[data-tab-kind='terminal'] .motion-tab-label-host,
+  [data-testid='terminal-panel-tabstrip'] .motion-tab-button[data-tab-kind='terminal'] .panel-tab-content {
+    min-width: 108px;
+  }
+
+  [data-testid='terminal-panel-tabstrip'] .motion-tab-button[data-tab-kind='terminal'] .panel-tab-label {
+    min-width: 78px;
+  }
+
   [data-testid='terminal-panel-tabstrip'] .motion-tab-button[data-tab-id='browser'] {
-    min-width: 0;
+    min-width: 104px;
+  }
+
+  [data-testid='terminal-panel-tabstrip'] .motion-tab-button[data-tab-id='environment'] {
+    min-width: 124px;
+  }
+
+  [data-testid='terminal-panel-tabstrip'] .motion-tab-button[data-tab-id='diff'] {
+    min-width: 88px;
+  }
+
+  [data-testid='terminal-panel-tabstrip'] .motion-tab-button[data-tab-id='files'],
+  [data-testid='terminal-panel-tabstrip'] .motion-tab-button[data-tab-id='plan'] {
+    min-width: 78px;
+  }
+
+  [data-testid='terminal-panel-tabstrip'] .motion-tab-button[data-tab-kind='sidechat'] {
+    min-width: 112px;
   }
 
   .motion-tab-button[data-tab-id='new-tab'] .panel-tab-label,
