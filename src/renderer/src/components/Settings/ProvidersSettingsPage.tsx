@@ -543,7 +543,7 @@ function ProviderPermissionContract({
             data-permission-context-status={context.status}
             title={context.cwd ? `${context.summary ?? ''} ${context.cwd}` : context.summary}
           >
-            <span>{context.status === 'ok' ? 'Live config' : 'Config fallback'} · {context.summary ?? 'Permission config checked.'}</span>
+            <span>{context.status === 'ok' ? 'Live config loaded' : 'Config fallback loaded'}</span>
             <button
               type="button"
               className="provider-details-inline-action"
