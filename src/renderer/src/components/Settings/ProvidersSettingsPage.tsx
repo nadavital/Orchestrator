@@ -2136,9 +2136,9 @@ function ProviderDiagnosticsCard({
             alignItems: 'center',
             justifyContent: 'space-between',
             gap: 8,
-            minHeight: 28,
-            padding: '3px 0',
-            borderTop: '1px solid color-mix(in srgb, var(--border-subtle) 24%, transparent)'
+            minHeight: 24,
+            padding: '2px 0',
+            borderTop: '1px solid color-mix(in srgb, var(--border-subtle) 12%, transparent)'
           }}
         >
           <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text)' }}>{row.label}</div>
@@ -2411,7 +2411,7 @@ function ProviderProbeGrid({
   color: string
 }): JSX.Element {
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: 6 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: 4 }}>
       {diagnostics.probes.map((probe) => (
         <div
           key={probe.id}
@@ -2421,10 +2421,9 @@ function ProviderProbeGrid({
             justifyContent: 'space-between',
             gap: 8,
             minWidth: 0,
-            padding: '8px 10px',
-            borderRadius: 8,
-            background: 'var(--color-surface)',
-            border: '1px solid var(--color-border)'
+            minHeight: 26,
+            padding: '2px 0',
+            borderTop: '1px solid color-mix(in srgb, var(--border-subtle) 12%, transparent)'
           }}
         >
           <div
