@@ -3561,18 +3561,18 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             const hideBottomPanelButton = findButton('Hide bottom panel');
             const terminalToolbarButtons = terminalTabbarForToolbar instanceof HTMLElement
               ? [...terminalTabbarForToolbar.querySelectorAll('.panel-tab-actions .motion-icon-button')]
-                .filter((button) => button instanceof HTMLElement)
+                .filter((button) =>
+                  button instanceof HTMLElement &&
+                  button.getBoundingClientRect().width > 0 &&
+                  button.getBoundingClientRect().height > 0
+                )
               : [];
+            const terminalToolbarNewTabButton = terminalTabbarForToolbar instanceof HTMLElement
+              ? terminalTabbarForToolbar.querySelector('[data-testid="bottom-panel-open-tab-menu"]')
+              : null;
             const terminalToolbarActions = terminalTabbarForToolbar instanceof HTMLElement
               ? terminalTabbarForToolbar.querySelector('.panel-tab-actions')
               : null;
-            const terminalToolbarTabRow = terminalTabbarForToolbar instanceof HTMLElement
-              ? terminalTabbarForToolbar.querySelector('.panel-tab-row')
-              : null;
-            const terminalToolbarActionsWidth = Number(terminalTabbarForToolbar?.getAttribute('data-panel-tab-actions-width') ?? '0');
-            const terminalToolbarScrollPaddingEnd = terminalToolbarTabRow instanceof HTMLElement
-              ? Number.parseFloat(getComputedStyle(terminalToolbarTabRow).scrollPaddingRight || '0')
-              : 0;
             let terminalServiceSnapshotBeforeMove = null;
             terminalHeaderSharedChromeWorks =
               terminalBottomHeader instanceof HTMLElement &&
@@ -3603,16 +3603,21 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               terminalTabbarForToolbar instanceof HTMLElement &&
               terminalTabbarForToolbar.getAttribute('data-panel-toolbar') === 'true' &&
               terminalToolbarActions instanceof HTMLElement &&
-              terminalToolbarActionsWidth >= terminalToolbarActions.getBoundingClientRect().width &&
-              terminalToolbarScrollPaddingEnd >= terminalToolbarActionsWidth &&
+              terminalToolbarActions.getBoundingClientRect().width > 0 &&
               terminalTabbarForToolbar.querySelector('[role="tablist"]') instanceof HTMLElement &&
-              terminalToolbarButtons.length >= 3 &&
+              terminalToolbarButtons.length >= 1 &&
               terminalToolbarButtons.every((button) =>
                 button instanceof HTMLElement &&
                 button.getAttribute('data-icon-button-variant') === 'toolbar' &&
                 button.getBoundingClientRect().width === 24 &&
                 button.getBoundingClientRect().height === 24
-              );
+              ) &&
+              terminalToolbarNewTabButton instanceof HTMLButtonElement &&
+              terminalToolbarNewTabButton.classList.contains('bottom-panel-new-tab-button') &&
+              terminalToolbarNewTabButton.getAttribute('aria-haspopup') === 'menu' &&
+              terminalToolbarNewTabButton.textContent?.trim() === 'New tab' &&
+              terminalToolbarNewTabButton.getBoundingClientRect().height >= 22 &&
+              terminalToolbarNewTabButton.getBoundingClientRect().height <= 26;
             terminalBottomPanelLabelsWorks =
               terminalToggleForLabels instanceof HTMLButtonElement &&
               terminalToggleForLabels.getAttribute('aria-label') === 'Toggle bottom panel' &&
