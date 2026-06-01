@@ -2825,8 +2825,29 @@
   .git-action-dialog {
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    min-width: min(560px, calc(100vw - 64px));
+    gap: 10px;
+    min-width: min(520px, calc(100vw - 64px));
+  }
+
+  .git-action-dialog-context {
+    display: inline-flex;
+    max-width: min(440px, calc(100vw - 120px));
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .git-action-dialog-context span {
+    min-width: 0;
+    max-width: 260px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .git-action-dialog-context span + span::before {
+    color: var(--text-tertiary);
+    content: 'in ';
   }
 
   .git-action-dialog-tabs {
@@ -2873,8 +2894,30 @@
   }
 
   .git-action-dialog-summary {
+    gap: 6px;
     color: var(--text-secondary);
     font-size: 12px;
+  }
+
+  .git-action-dialog-summary span {
+    display: inline-flex;
+    min-height: 22px;
+    max-width: 100%;
+    align-items: center;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--control-bg) 28%, transparent);
+    color: var(--text-tertiary);
+    font-size: 11px;
+    font-weight: 620;
+    line-height: 1;
+    padding: 0 8px;
+  }
+
+  .git-action-dialog-summary .git-action-dialog-selected-path {
+    max-width: 280px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .git-action-dialog-input,
@@ -2896,7 +2939,9 @@
   }
 
   .git-action-dialog-textarea {
+    min-height: 82px;
     resize: vertical;
+    background: color-mix(in srgb, var(--control-bg) 32%, transparent);
     padding: 9px 10px;
   }
 
@@ -2909,15 +2954,24 @@
   .git-action-dialog-file {
     display: inline-flex;
     min-width: 0;
-    max-width: 100%;
+    max-width: min(100%, 248px);
     align-items: center;
     gap: 5px;
     color: var(--text-tertiary);
     font-size: 11px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .git-action-dialog-file svg {
     flex: 0 0 auto;
+  }
+
+  .git-action-dialog-file-more {
+    max-width: none;
+    color: var(--text-secondary);
+    font-weight: 620;
   }
 
   .git-action-dialog-status {

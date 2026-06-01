@@ -37,6 +37,9 @@ export default function GitActionDialog({ session, initialTarget, focusPath = nu
   const unstagedPaths = useMemo(() => changes.filter((change) => change.unstaged).map((change) => change.path), [changes])
   const selectedPaths = selectedChange ? [selectedChange.path] : []
   const currentBranch = branches.find((branch) => branch.current)?.label ?? 'main'
+  const repositoryLabel = shortWorkDirLabel(workDir)
+  const visibleChanges = changes.slice(0, 4)
+  const hiddenChangeCount = Math.max(0, changes.length - visibleChanges.length)
   const checkoutBranchOptions = branches.filter((branch) => !branch.current && !branch.description?.startsWith('Remote branch'))
   const defaultBaseBranch = inferDefaultBaseBranch(branches)
   const prCommand = currentBranch && currentBranch !== defaultBaseBranch
@@ -221,7 +224,12 @@ export default function GitActionDialog({ session, initialTarget, focusPath = nu
       <DialogContent>
         <DialogHeader
           title={target === 'branch' ? 'Branch' : target === 'pull-request' ? 'Pull request' : 'Commit or push'}
-          description={`${currentBranch} in ${workDir}`}
+          description={(
+            <span className="git-action-dialog-context">
+              <span>{currentBranch}</span>
+              <span>{repositoryLabel}</span>
+            </span>
+          )}
         />
         <div
           className="git-action-dialog"
@@ -239,7 +247,7 @@ export default function GitActionDialog({ session, initialTarget, focusPath = nu
               <div className="git-action-dialog-summary">
                 <span>{changes.length} changed</span>
                 <span>{stagedPaths.length} staged</span>
-                {selectedChange && <span>{selectedChange.path}</span>}
+                {selectedChange && <span className="git-action-dialog-selected-path">{selectedChange.path}</span>}
               </div>
               <div className="git-action-dialog-row">
                 <Button variant="secondary" disabled={busy || unstagedPaths.length === 0} onClick={() => void runPathAction('stage', selectedChange?.unstaged ? selectedPaths : unstagedPaths)}>
@@ -257,12 +265,13 @@ export default function GitActionDialog({ session, initialTarget, focusPath = nu
                 onChange={(event) => setCommitMessage(event.currentTarget.value)}
               />
               <div className="git-action-dialog-files">
-                {changes.slice(0, 5).map((change) => (
+                {visibleChanges.map((change) => (
                   <span key={change.path} className="git-action-dialog-file">
                     <Icon name={change.staged ? 'check' : 'diff'} size={12} />
                     {change.path} ({fileStatusLabel(change.status)})
                   </span>
                 ))}
+                {hiddenChangeCount > 0 && <span className="git-action-dialog-file git-action-dialog-file-more">+{hiddenChangeCount} more</span>}
               </div>
             </form>
           )}
@@ -315,6 +324,11 @@ function inferDefaultBaseBranch(branches: GitRefOption[]): string {
     branches.find((branch) => branch.label === 'master')?.label ??
     branches.find((branch) => branch.description?.includes('default'))?.label ??
     'main'
+}
+
+function shortWorkDirLabel(workDir: string): string {
+  const parts = workDir.split('/').filter(Boolean)
+  return parts[parts.length - 1] ?? workDir
 }
 
 function shellQuote(value: string): string {
