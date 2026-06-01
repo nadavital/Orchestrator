@@ -307,7 +307,7 @@ export default function ProvidersSettingsPage({
                   <div className="provider-details-panel-header">
                     <div className="provider-details-panel-copy">
                       <div className="provider-details-panel-title">Diagnostics</div>
-                      <div className="provider-details-panel-description">Runtime status, setup, usage, and provider capability checks.</div>
+                      <div className="provider-details-panel-description">Runtime and capability checks.</div>
                     </div>
                     <div className="provider-details-panel-summary" aria-label={`${providerDef.name} diagnostics summary`}>
                       {diagnosticSummary.map((item) => (
@@ -329,7 +329,7 @@ export default function ProvidersSettingsPage({
                       />
                     </ProviderDetailCard>
                     {diagnostics && diagnostics.probes.length > 0 && (
-                      <ProviderDetailCard title="Checks" wide>
+                      <ProviderDetailCard title="Checks">
                         <ProviderProbeGrid diagnostics={diagnostics} color={providerDef.color} />
                       </ProviderDetailCard>
                     )}
@@ -344,11 +344,11 @@ export default function ProvidersSettingsPage({
                       </ProviderDetailCard>
                     )}
                     {runtime?.registry.gaps.length ? (
-                      <ProviderDetailCard title="Boundaries" wide>
+                      <ProviderDetailCard title="Boundaries">
                         <ProviderBoundarySummary gaps={runtime.registry.gaps} color={providerDef.color} />
                       </ProviderDetailCard>
                     ) : null}
-                    <ProviderDetailCard title="Setup" wide>
+                    <ProviderDetailCard title="Setup">
                       <ProviderSetupDetails providerDef={providerDef} />
                     </ProviderDetailCard>
                   </div>
@@ -660,9 +660,9 @@ function ProviderRuntimeEventsCard({
       data-provider-runtime-add-chat-status-tone={actionStatus?.action === 'chat' ? actionStatus.tone : ''}
       style={{ display: 'grid', gap: 6 }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, minWidth: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, minWidth: 0 }}>
         <InlineMutedText>Latest runtime activity</InlineMutedText>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6, minWidth: 0 }}>
           <button
             type="button"
             className="provider-details-inline-action"

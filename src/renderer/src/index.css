@@ -12289,8 +12289,8 @@
   .provider-details-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px 18px;
-    margin-top: 8px;
+    gap: 8px 16px;
+    margin-top: 6px;
   }
 
   .provider-diagnostics-group {
@@ -12948,9 +12948,9 @@
   }
 
   .provider-detail-card-title {
-    min-height: 26px;
+    min-height: 24px;
     border-bottom: 0;
-    padding: 7px 0 3px;
+    padding: 6px 0 2px;
     color: var(--text-secondary);
     font-size: 12px;
     font-weight: 600;
@@ -12958,14 +12958,14 @@
 
   .provider-detail-card-body {
     min-width: 0;
-    padding: 4px 0 8px;
+    padding: 3px 0 7px;
   }
 
   .provider-status-card {
     display: grid;
     min-width: 0;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    gap: 7px 16px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 7px 14px;
   }
 
   .provider-status-section {
@@ -13013,6 +13013,10 @@
     min-width: 0;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
+  }
+
+  .provider-detail-card:not([data-wide='true']) .provider-setup-card {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .provider-setup-row {
