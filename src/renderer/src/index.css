@@ -10660,7 +10660,7 @@
     display: flex;
     min-width: 0;
     flex-direction: column;
-    gap: 18px;
+    gap: 16px;
   }
 
   .settings-content-layout-header {
@@ -10710,7 +10710,7 @@
     display: flex;
     min-width: 0;
     flex-direction: column;
-    gap: 18px;
+    gap: 16px;
   }
 
   .settings-page-section {
@@ -10726,7 +10726,7 @@
   }
 
   .settings-content-group + .settings-content-group {
-    margin-top: 14px;
+    margin-top: 12px;
   }
 
   .settings-advanced-disclosure {
@@ -10897,18 +10897,18 @@
     min-width: 0;
     align-items: center;
     justify-content: space-between;
-    gap: 20px;
+    gap: 18px;
     min-height: 44px;
     border: 0;
     border-radius: 0;
     background: transparent;
-    padding: 10px 0;
+    padding: 9px 0;
   }
 
   .settings-row + .settings-row,
   .settings-row + .compact-setting,
   .compact-setting + .settings-row {
-    border-top: 1px solid color-mix(in srgb, var(--border-subtle) 14%, transparent);
+    border-top: 1px solid color-mix(in srgb, var(--border-subtle) 8%, transparent);
   }
 
   .settings-surface > .settings-row:first-child,
@@ -12322,13 +12322,13 @@
   }
 
   .provider-settings-shell {
-    max-width: 860px;
+    max-width: 880px;
     margin: 0;
     padding: 32px 42px 64px;
   }
 
   .provider-settings-stack {
-    max-width: 700px;
+    max-width: 740px;
     margin: 0;
   }
 
@@ -12345,8 +12345,8 @@
 
   .provider-settings-row {
     align-items: center;
-    min-height: 38px;
-    padding: 7px 0;
+    min-height: 36px;
+    padding: 6px 0;
   }
 
   .provider-settings-row-stacked {
@@ -12354,7 +12354,7 @@
   }
 
   .provider-settings-row .settings-row-copy {
-    flex: 0 0 96px;
+    flex: 0 0 92px;
   }
 
   .provider-settings-row .settings-row-control {
@@ -12489,8 +12489,8 @@
   .provider-details-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 6px 14px;
-    margin-top: 4px;
+    gap: 4px 12px;
+    margin-top: 2px;
   }
 
   .provider-diagnostics-group {
@@ -12499,8 +12499,8 @@
 
   .provider-details-panel {
     min-width: 0;
-    border-top: 1px solid color-mix(in srgb, var(--border-subtle) 14%, transparent);
-    padding-top: 9px;
+    border-top: 1px solid color-mix(in srgb, var(--border-subtle) 8%, transparent);
+    padding-top: 8px;
   }
 
   .provider-details-panel-header {
@@ -12517,15 +12517,15 @@
 
   .provider-details-panel-title {
     color: var(--text-primary);
-    font-size: 13px;
-    font-weight: 690;
+    font-size: 12.5px;
+    font-weight: 620;
     line-height: 1.25;
   }
 
   .provider-details-panel-description {
     margin-top: 2px;
     color: var(--text-tertiary);
-    font-size: 11.5px;
+    font-size: 11px;
     line-height: 1.3;
   }
 
@@ -13137,7 +13137,7 @@
   .provider-detail-card {
     min-width: 0;
     border: 0;
-    border-top: 1px solid color-mix(in srgb, var(--border-subtle) 8%, transparent);
+    border-top: 1px solid color-mix(in srgb, var(--border-subtle) 5%, transparent);
     border-radius: 0;
     background: transparent;
     overflow: hidden;
@@ -13148,24 +13148,24 @@
   }
 
   .provider-detail-card-title {
-    min-height: 24px;
+    min-height: 21px;
     border-bottom: 0;
-    padding: 5px 0 1px;
+    padding: 3px 0 0;
     color: var(--text-secondary);
-    font-size: 12px;
-    font-weight: 600;
+    font-size: 11.5px;
+    font-weight: 560;
   }
 
   .provider-detail-card-body {
     min-width: 0;
-    padding: 3px 0 7px;
+    padding: 2px 0 6px;
   }
 
   .provider-status-card {
     display: grid;
     min-width: 0;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 7px 14px;
+    gap: 6px 12px;
   }
 
   .provider-status-section {
