@@ -1972,7 +1972,7 @@ function AutomationsStandalonePage({
         </button>
       </div>
       <div className="automations-standalone-body">
-        <AutomationsSettingsPage sessions={sessions} />
+        <AutomationsSettingsPage sessions={sessions} standalone />
       </div>
     </div>
   )

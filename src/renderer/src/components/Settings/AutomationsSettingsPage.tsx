@@ -17,8 +17,10 @@ type AutomationActionStatus = {
 
 export default function AutomationsSettingsPage({
   sessions,
+  standalone = false,
 }: {
   sessions: SessionListItem[]
+  standalone?: boolean
 }): JSX.Element {
   const [automations, setAutomations] = useState<Automation[]>([])
   const [runsByAutomation, setRunsByAutomation] = useState<Record<string, AutomationRun[]>>({})
@@ -114,8 +116,9 @@ export default function AutomationsSettingsPage({
     >
       <SettingsPageSection dataTestId="automations-settings-section" className="automations-settings-page">
         <SettingsContentLayout
-          title="Automations"
-          subtitle="Manage local scheduled follow-ups and inspect the run history used by sidebar automation state."
+          title={standalone ? undefined : 'Automations'}
+          subtitle={standalone ? undefined : 'Manage local scheduled follow-ups and inspect the run history used by sidebar automation state.'}
+          className={standalone ? 'automations-settings-layout-standalone' : ''}
           dataTestId="settings-content-layout-automations"
         >
           <SettingsContentGroup className="automations-settings-content-group">
