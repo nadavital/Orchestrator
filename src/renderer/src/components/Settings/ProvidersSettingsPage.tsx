@@ -2036,25 +2036,32 @@ function DefaultModelPicker({
 
   return (
     <div className="provider-default-model-picker">
-      <div className="provider-default-model-options">
-        {models.map((m) => {
-          const active = currentModel === m.id
-          return (
-            <button
-              key={m.id}
-              className="provider-default-model-option"
-              data-active={active ? 'true' : 'false'}
-              onClick={() => { onSetModel(m.id); setCustomInput(''); setCustomOpen(false) }}
-              style={{ '--provider-color': providerDef.color } as CSSProperties}
-            >
-              {m.label}
-            </button>
-          )
-        })}
+      <div className="provider-default-model-select-row">
+        <select
+          className="settings-select provider-default-model-select"
+          value={isPreset ? currentModel : '__custom__'}
+          aria-label={`${providerDef.name} default model`}
+          data-testid="provider-default-model-select"
+          onChange={(event) => {
+            if (event.target.value === '__custom__') {
+              setCustomOpen(true)
+              return
+            }
+            onSetModel(event.target.value)
+            setCustomInput('')
+            setCustomOpen(false)
+          }}
+        >
+          {models.map((m) => (
+            <option key={m.id} value={m.id}>{m.label}</option>
+          ))}
+          <option value="__custom__">Custom model...</option>
+        </select>
         {isPreset && !customOpen && (
           <button
+            type="button"
             data-testid="provider-custom-model-toggle"
-            className="provider-default-model-option"
+            className="provider-default-model-custom-toggle"
             onClick={() => setCustomOpen(true)}
           >
             Custom

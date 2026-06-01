@@ -1004,6 +1004,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     provider.id === 'cursor' && useThinking ? 'Thinking on' : null,
     provider.id === 'cursor' && useFast ? 'Fast mode' : null,
   ].filter(Boolean).join(' · ')
+  const agentTriggerLabel = agentLabel || provider.name
 
   return (
     <div
@@ -1361,14 +1362,14 @@ function InputBar({ session, isNew }: Props): JSX.Element {
                 dataTestId="composer-agent-menu"
                 buttonRef={agentButtonRef}
                 className="composer-agent-trigger"
-                title={agentTriggerTitle ? `Thread model settings: ${agentTriggerTitle}` : 'Thread model settings'}
-                ariaLabel="Thread model settings"
+                title={agentTriggerTitle ? `Model: ${agentTriggerTitle}` : 'Model'}
+                ariaLabel="Model"
                 ariaExpanded={showAgentMenu}
                 ariaHasPopup="menu"
                 onKeyDown={(event) => handleDropdownTriggerKeyDown(event, () => setShowAgentMenu(true))}
               >
                 <ProviderIcon providerId={provider.id} size={11} color={provider.color} />
-                <span className="composer-control-label">{agentLabel}</span>
+                <span className="composer-control-label">{agentTriggerLabel}</span>
                 <Chevron />
               </ToolbarBtn>
               {queuedFollowUpTotal > 0 && (
@@ -1384,21 +1385,10 @@ function InputBar({ session, isNew }: Props): JSX.Element {
               {showAgentMenu && (
                 <DropdownPanel onClose={() => setShowAgentMenu(false)} style={{ bottom: '100%', marginBottom: 8, left: 0, minWidth: 292 }}>
                   <div
-                    className="px-3 py-2"
+                    className="sr-only"
                     data-testid="composer-active-agent-summary"
-                    style={{ borderBottom: '1px solid color-mix(in srgb, var(--border-subtle) 16%, transparent)' }}
                   >
-                    <div className="flex items-center gap-2">
-                      <ProviderIcon providerId={provider.id} size={12} color={provider.color} />
-                      <div className="min-w-0">
-                        <div className="text-xs font-semibold truncate" style={{ color: 'var(--color-text)' }}>
-                          {provider.name}
-                        </div>
-                        <div className="text-[11px] truncate" style={{ color: 'var(--color-text-muted)' }}>
-                          Thread settings
-                        </div>
-                      </div>
-                    </div>
+                    {provider.name} Thread settings
                   </div>
 
                   <TieredRow label="Provider">
@@ -1528,7 +1518,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
             ariaLabel={isSavingPastedFiles ? 'Saving pasted files' : 'Attach files'}
             iconOnly
           >
-            <Icon name="paperclip" size={13} />
+            <Icon name="plus" size={14} />
           </ToolbarBtn>
 
           {/* New session: combined agent picker */}
@@ -1541,12 +1531,14 @@ function InputBar({ session, isNew }: Props): JSX.Element {
                 dataTestId="composer-agent-menu"
                 buttonRef={agentButtonRef}
                 className="composer-agent-trigger"
+                title={agentTriggerTitle ? `Model: ${agentTriggerTitle}` : 'Model'}
+                ariaLabel="Model"
                 ariaExpanded={showAgentMenu}
                 ariaHasPopup="menu"
                 onKeyDown={(event) => handleDropdownTriggerKeyDown(event, () => setShowAgentMenu(true))}
               >
                 <ProviderIcon providerId={provider.id} size={11} color={provider.color} />
-                <span className="composer-control-label">{agentLabel}</span>
+                <span className="composer-control-label">{agentTriggerLabel}</span>
                 <Chevron />
               </ToolbarBtn>
 
@@ -1690,7 +1682,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
               ariaHasPopup="menu"
               onKeyDown={(event) => handleDropdownTriggerKeyDown(event, () => setShowPermMenu(true))}
             >
-              <Icon name="settings" size={13} />
+              <Icon name="checkCircle" size={13} />
               <span className="composer-control-label composer-control-label-xs">{permLabel}</span>
               {permissionContext && (
                 <span
