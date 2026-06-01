@@ -2838,6 +2838,14 @@
     padding: 4px 8px 8px;
   }
 
+  .git-panel .motion-button:disabled {
+    border-color: transparent !important;
+    background: color-mix(in srgb, var(--control-bg) 36%, transparent) !important;
+    box-shadow: none !important;
+    color: var(--text-tertiary) !important;
+    opacity: 1 !important;
+  }
+
   .git-commit-card {
     gap: 0;
     border: 0;

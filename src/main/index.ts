@@ -654,11 +654,11 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
     return
   }
   const smokeView = process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW ?? ''
-  if (['header', 'right-panel', 'workbench-launcher', 'workbench-new-tab', 'agent-inspector', 'environment', 'diff', 'files', 'side-chat'].includes(smokeView) || smokeView.startsWith('diff-')) {
+  if (['header', 'right-panel', 'workbench-launcher', 'workbench-new-tab', 'git-panel', 'agent-inspector', 'environment', 'diff', 'files', 'side-chat'].includes(smokeView) || smokeView.startsWith('diff-')) {
     runAutomatedFocusedSurfaceSmoke(
       win,
       outputPath,
-      (smokeView === 'workbench-launcher' || smokeView === 'workbench-new-tab' || smokeView === 'agent-inspector' || smokeView === 'environment' ? 'right-panel' : smokeView.startsWith('diff-') ? 'diff' : smokeView) as 'header' | 'right-panel' | 'diff' | 'files' | 'side-chat',
+      (smokeView === 'workbench-launcher' || smokeView === 'workbench-new-tab' || smokeView === 'git-panel' || smokeView === 'agent-inspector' || smokeView === 'environment' ? 'right-panel' : smokeView.startsWith('diff-') ? 'diff' : smokeView) as 'header' | 'right-panel' | 'diff' | 'files' | 'side-chat',
       screenshotPath
     )
     return
@@ -11502,6 +11502,148 @@ function runAutomatedFocusedSurfaceSmoke(
                     rightPanelRect !== null &&
                     newTabPanel instanceof HTMLElement &&
                     newTabPanel.scrollWidth <= Math.ceil(rightPanelRect.width) + 2
+                };
+              }
+              if (smokeView === 'git-panel') {
+                await openPanelTab('git', 'Git');
+                for (let attempt = 0; attempt < 16; attempt += 1) {
+                  const gitPanel = document.querySelector('[data-testid="git-panel"]');
+                  const activeRightTab = document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-active-tab') ?? '';
+                  if (
+                    gitPanel instanceof HTMLElement &&
+                    activeRightTab === 'git' &&
+                    Number(gitPanel.getAttribute('data-git-change-count') ?? '0') >= 3 &&
+                    gitPanel.getAttribute('data-git-action-state') === 'idle'
+                  ) {
+                    break;
+                  }
+                  await sleep(100);
+                }
+                let gitPanel = document.querySelector('[data-testid="git-panel"]');
+                if (!(gitPanel instanceof HTMLElement)) {
+                  await openPanelTab('environment', 'Environment');
+                  for (let attempt = 0; attempt < 12; attempt += 1) {
+                    const environmentPanel = document.querySelector('[data-testid="codex-environment-panel"]');
+                    if (environmentPanel instanceof HTMLElement) break;
+                    await sleep(100);
+                  }
+                  const environmentBranchRow = document.querySelector('[data-testid="codex-environment-branch"]');
+                  if (environmentBranchRow instanceof HTMLButtonElement) {
+                    environmentBranchRow.click();
+                    await sleep(180);
+                  }
+                  for (let attempt = 0; attempt < 16; attempt += 1) {
+                    gitPanel = document.querySelector('[data-testid="git-panel"]');
+                    if (gitPanel instanceof HTMLElement) break;
+                    await sleep(100);
+                  }
+                }
+                const bottomPanelToggle = document.querySelector('[data-testid="titlebar-toggle-terminal"]') ?? findButton('Toggle bottom panel') ?? findButton('Toggle terminal');
+                const existingBottomPanel = document.querySelector('[data-testid="session-bottom-panel"]');
+                if (!(existingBottomPanel instanceof HTMLElement) && bottomPanelToggle instanceof HTMLElement) {
+                  bottomPanelToggle.click();
+                  for (let attempt = 0; attempt < 16; attempt += 1) {
+                    if (document.querySelector('[data-testid="session-bottom-panel"]') instanceof HTMLElement) break;
+                    await sleep(100);
+                  }
+                }
+                const bottomPanelForGitCapture = document.querySelector('[data-testid="session-bottom-panel"]');
+                const resizeHandleForGitCapture = document.querySelector('[data-app-shell-resize-handle="true"][data-app-shell-resize-edge="top"]');
+                if (bottomPanelForGitCapture instanceof HTMLElement && resizeHandleForGitCapture instanceof HTMLElement) {
+                  const captureResizeRect = resizeHandleForGitCapture.getBoundingClientRect();
+                  const captureStartX = captureResizeRect.left + captureResizeRect.width / 2;
+                  const captureStartY = captureResizeRect.top + captureResizeRect.height / 2;
+                  resizeHandleForGitCapture.dispatchEvent(new PointerEvent('pointerdown', {
+                    bubbles: true,
+                    cancelable: true,
+                    pointerId: 89,
+                    pointerType: 'mouse',
+                    clientX: captureStartX,
+                    clientY: captureStartY
+                  }));
+                  window.dispatchEvent(new PointerEvent('pointermove', {
+                    bubbles: true,
+                    cancelable: true,
+                    pointerId: 89,
+                    pointerType: 'mouse',
+                    clientX: captureStartX,
+                    clientY: captureStartY - 140
+                  }));
+                  window.dispatchEvent(new PointerEvent('pointerup', {
+                    bubbles: true,
+                    cancelable: true,
+                    pointerId: 89,
+                    pointerType: 'mouse',
+                    clientX: captureStartX,
+                    clientY: captureStartY - 140
+                  }));
+                  await sleep(240);
+                }
+                const rightPanelForGitCapture = document.querySelector('[data-testid="session-right-panel"]');
+                const activeGitTab = document.querySelector('[data-app-shell-tab-controller="right"][role="tab"][data-tab-id="git"][data-active="true"]');
+                const gitPanelForCapture = document.querySelector('[data-testid="git-panel"]');
+                const gitSummaryCard = document.querySelector('[data-testid="git-summary-card"]');
+                const gitCommitCard = document.querySelector('[data-testid="git-commit-card"]');
+                const gitFileListCard = document.querySelector('[data-testid="git-file-list-card"]');
+                const gitFileRows = gitPanelForCapture instanceof HTMLElement
+                  ? [...gitPanelForCapture.querySelectorAll('[data-testid="git-file-row"]')]
+                  : [];
+                const gitEnvironmentRows = gitPanelForCapture instanceof HTMLElement
+                  ? [...gitPanelForCapture.querySelectorAll('.environment-row')]
+                  : [];
+                const gitStageAllButton = document.querySelector('[data-testid="git-stage-all"]');
+                const disabledGitButtons = gitPanelForCapture instanceof HTMLElement
+                  ? [...gitPanelForCapture.querySelectorAll('.motion-button:disabled')]
+                  : [];
+                const activeGitPrimaryBackground = gitStageAllButton instanceof HTMLElement
+                  ? getComputedStyle(gitStageAllButton).backgroundColor
+                  : '';
+                const gitPanelRect = gitPanelForCapture instanceof HTMLElement ? gitPanelForCapture.getBoundingClientRect() : null;
+                const rightPanelRect = rightPanelForGitCapture instanceof HTMLElement ? rightPanelForGitCapture.getBoundingClientRect() : null;
+                const bottomPanelForFinalGitCapture = document.querySelector('[data-testid="session-bottom-panel"]');
+                return {
+                  profile,
+                  hasRightPanelState: rightPanelForGitCapture instanceof HTMLElement &&
+                    rightPanelForGitCapture.dataset.rightPanelTabs?.includes('git') === true &&
+                    Number(rightPanelForGitCapture.dataset.rightPanelWidth ?? '0') >= 360,
+                  rightPanelShellOwnershipWorks,
+                  gitPanelVisualWorks:
+                    gitPanelForCapture instanceof HTMLElement &&
+                    gitSummaryCard instanceof HTMLElement &&
+                    gitCommitCard instanceof HTMLElement &&
+                    gitFileListCard instanceof HTMLElement &&
+                    gitPanelRect !== null &&
+                    gitPanelRect.width >= 280 &&
+                    gitPanelRect.height >= 240,
+                  gitPanelExplicitDestinationWorks:
+                    rightPanelForGitCapture instanceof HTMLElement &&
+                    rightPanelForGitCapture.getAttribute('data-right-panel-active-tab') === 'git' &&
+                    activeGitTab instanceof HTMLElement,
+                  gitPanelBottomPressureWorks:
+                    rightPanelForGitCapture instanceof HTMLElement &&
+                    rightPanelForGitCapture.getAttribute('data-right-panel-bottom-panel-open') === 'true' &&
+                    rightPanelForGitCapture.getAttribute('data-right-panel-bottom-panel-expanded') === 'true' &&
+                    Number(rightPanelForGitCapture.getAttribute('data-right-panel-bottom-panel-height') ?? '0') >= 260 &&
+                    bottomPanelForFinalGitCapture instanceof HTMLElement &&
+                    Number(bottomPanelForFinalGitCapture.getAttribute('data-bottom-panel-height') ?? '0') >= 260,
+                  gitPanelCompactRowsWorks:
+                    gitFileRows.length >= 3 &&
+                    gitFileRows.every((row) => row instanceof HTMLElement && row.getBoundingClientRect().height <= 34) &&
+                    gitEnvironmentRows.length >= 3 &&
+                    gitEnvironmentRows.every((row) => row instanceof HTMLElement && row.getBoundingClientRect().height <= 30),
+                  gitPanelDisabledActionsQuietWorks:
+                    disabledGitButtons.length >= 2 &&
+                    disabledGitButtons.every((button) => {
+                      if (!(button instanceof HTMLElement)) return false;
+                      const style = getComputedStyle(button);
+                      return style.opacity === '1' &&
+                        style.boxShadow === 'none' &&
+                        style.backgroundColor !== activeGitPrimaryBackground;
+                    }),
+                  gitPanelNoHorizontalOverflow:
+                    rightPanelRect !== null &&
+                    gitPanelForCapture instanceof HTMLElement &&
+                    gitPanelForCapture.scrollWidth <= Math.ceil(rightPanelRect.width) + 2
                 };
               }
               if (smokeView === 'environment') {

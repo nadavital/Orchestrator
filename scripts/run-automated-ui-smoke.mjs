@@ -22,6 +22,7 @@ const captureViewOptions = [
   { flag: '--worktree-lifecycle', view: 'worktree-lifecycle', surface: 'Worktrees', scope: 'Pending/failed worktree notices and retry controls' },
   { flag: '--workbench-launcher', view: 'workbench-launcher', surface: 'Workbench', scope: 'New-tab launcher discovery and tab activation' },
   { flag: '--workbench-new-tab', view: 'workbench-new-tab', surface: 'Workbench', scope: 'New-tab launcher, keyboard navigation, singleton switching, Git/agent workflows' },
+  { flag: '--git-panel', view: 'git-panel', surface: 'Git', scope: 'Explicit Git destination visual state under bottom-panel pressure' },
   { flag: '--agent-inspector', view: 'agent-inspector', surface: 'Workbench', scope: 'Agent Activity inspector diagnostics and composer handoffs' },
   { flag: '--environment', view: 'environment', surface: 'Workbench', scope: 'Environment panel and add-to-chat context handoff' },
   { flag: '--right-panel', view: 'right-panel', surface: 'Workbench', scope: 'Right-panel tab shell, transfer boundaries, keyboard routing' },
@@ -85,7 +86,7 @@ const profile = 'automated-ui-smoke'
 const userDataDir = join(tmpdir(), 'orchestrator-profiles', `${profile}-${captureView}`)
 const workspaceDir = join(tmpdir(), 'orchestrator-automated-ui-workspace')
 const isDiffCaptureView = captureView === 'diff' || captureView.startsWith('diff-')
-const fixtureWorkspaceViews = new Set(['inspector', 'right-panel', 'workbench-launcher', 'workbench-new-tab', 'agent-inspector', 'environment', 'workbench-perf', 'cross-panel-keyboard', 'diff', 'diff-entry', 'diff-empty', 'diff-loading', 'diff-conflict', 'diff-narrow', 'diff-metadata', 'diff-core', 'diff-last-turn', 'diff-source', 'diff-preview', 'files', 'side-chat', 'browser'])
+const fixtureWorkspaceViews = new Set(['inspector', 'right-panel', 'workbench-launcher', 'workbench-new-tab', 'git-panel', 'agent-inspector', 'environment', 'workbench-perf', 'cross-panel-keyboard', 'diff', 'diff-entry', 'diff-empty', 'diff-loading', 'diff-conflict', 'diff-narrow', 'diff-metadata', 'diff-core', 'diff-last-turn', 'diff-source', 'diff-preview', 'files', 'side-chat', 'browser'])
 const resetWorkspaceViews = new Set([...fixtureWorkspaceViews, 'sidebar', 'multi-window-focus', 'worktree-lifecycle'])
 const outputPath = join(tmpdir(), `orchestrator-automated-ui-smoke-${captureView}-${Date.now()}.json`)
 const screenshotPath = join(tmpdir(), `orchestrator-automated-ui-smoke-${captureView}-${Date.now()}.png`)
@@ -2554,6 +2555,18 @@ child.on('exit', async (code) => {
           agentSelectedTranscriptAddToChat: result.agentSelectedTranscriptAddToChatWorks === true,
           workbenchNewTabCards: Number(result.workbenchNewTabActionCount ?? 0) >= 5,
           workbenchNewTabNoHorizontalOverflow: result.workbenchNewTabNoHorizontalOverflow === true
+        }
+    : captureView === 'git-panel'
+      ? {
+          isolatedProfile: result.profile?.isIsolated === true,
+          rightPanelState: result.hasRightPanelState === true,
+          rightPanelShellOwnership: result.rightPanelShellOwnershipWorks === true,
+          gitPanelVisual: result.gitPanelVisualWorks === true,
+          gitPanelExplicitDestination: result.gitPanelExplicitDestinationWorks === true,
+          gitPanelBottomPressure: result.gitPanelBottomPressureWorks === true,
+          gitPanelCompactRows: result.gitPanelCompactRowsWorks === true,
+          gitPanelDisabledActionsQuiet: result.gitPanelDisabledActionsQuietWorks === true,
+          gitPanelNoHorizontalOverflow: result.gitPanelNoHorizontalOverflow === true
         }
     : captureView === 'agent-inspector'
       ? {
