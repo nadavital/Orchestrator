@@ -32,6 +32,7 @@ export default function WorktreesSettingsPage({ onClose }: WorktreesSettingsPage
   const updateSessionName = useSessionStore((state) => state.updateName)
   const setActiveSession = useSessionStore((state) => state.setActiveSession)
   const removeSession = useSessionStore((state) => state.removeSession)
+  const setShowSettings = useSessionStore((state) => state.setShowSettings)
   const addSessionToProject = useProjectStore((state) => state.addSessionToProject)
 
   const groupedWorktrees = useMemo(() => groupByRepo(worktrees), [worktrees])
@@ -120,12 +121,24 @@ export default function WorktreesSettingsPage({ onClose }: WorktreesSettingsPage
     }
   }
 
-  const openConversation = (conversationId: string): void => {
+  const openConversation = async (conversationId: string): Promise<void> => {
     const testWindow = window as typeof window & { __orchestratorLastOpenedWorktreeConversationId?: string }
     testWindow.__orchestratorLastOpenedWorktreeConversationId = conversationId
-    setActiveSession(conversationId)
-    setStatus('Opened linked chat')
-    onClose?.()
+    try {
+      const currentSessions = useSessionStore.getState().sessions
+      if (!currentSessions.some((session) => session.id === conversationId)) {
+        const stored = await window.api.sessions.get(conversationId)
+        if (!stored || stored.archivedAt) throw new Error('Linked chat is not available locally')
+        addSession(stored)
+        addSessionToProject(stored.projectId, stored.id)
+      }
+      setActiveSession(conversationId)
+      setStatus('Opened linked chat')
+      setShowSettings(false)
+      onClose?.()
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : 'Could not open linked chat')
+    }
   }
 
   return (
@@ -149,47 +162,67 @@ export default function WorktreesSettingsPage({ onClose }: WorktreesSettingsPage
             </div>
             <SettingsGroupContent>
               <SettingsSurface className="worktrees-settings-surface" dataTestId="worktrees-create-surface">
-                <div className="worktrees-create-grid">
-                  <label className="worktrees-field">
-                    <span>Project</span>
-                    <select
-                      value={selectedProjectId}
-                      onChange={(event) => setSelectedProjectId(event.target.value)}
-                      data-testid="worktrees-create-project"
+                <SettingsRow
+                  label="Project"
+                  description="Choose the source project for the isolated workspace."
+                  className="worktrees-create-row"
+                  control={(
+                      <select
+                        className="settings-select settings-control-fill"
+                        value={selectedProjectId}
+                        onChange={(event) => setSelectedProjectId(event.target.value)}
+                        data-testid="worktrees-create-project"
+                      >
+                        {projects.map((project) => (
+                          <option key={project.id} value={project.id}>{project.name}</option>
+                        ))}
+                      </select>
+                  )}
+                />
+                <SettingsRow
+                  label="Base ref"
+                  description="Branch, tag, or commit to start from."
+                  className="worktrees-create-row"
+                  control={(
+                      <input
+                        className="settings-input"
+                        value={baseRef}
+                        onChange={(event) => setBaseRef(event.target.value)}
+                        placeholder="HEAD"
+                        data-testid="worktrees-create-base"
+                      />
+                  )}
+                />
+                <SettingsRow
+                  label="Branch"
+                  description="Optional branch name for the new worktree chat."
+                  className="worktrees-create-row"
+                  control={(
+                      <input
+                        className="settings-input"
+                        value={branchName}
+                        onChange={(event) => setBranchName(event.target.value)}
+                        placeholder="orchestrator/my-work"
+                        data-testid="worktrees-create-branch"
+                      />
+                  )}
+                />
+                <SettingsRow
+                  label="Create"
+                  description="Open a new chat in the managed worktree."
+                  className="worktrees-create-row"
+                  control={(
+                    <button
+                      type="button"
+                      className="settings-action-button"
+                      disabled={!selectedProjectId || createBusy}
+                      onClick={() => { void createWorktree() }}
+                      data-testid="worktrees-create-submit"
                     >
-                      {projects.map((project) => (
-                        <option key={project.id} value={project.id}>{project.name}</option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="worktrees-field">
-                    <span>Base</span>
-                    <input
-                      value={baseRef}
-                      onChange={(event) => setBaseRef(event.target.value)}
-                      placeholder="HEAD"
-                      data-testid="worktrees-create-base"
-                    />
-                  </label>
-                  <label className="worktrees-field">
-                    <span>Branch</span>
-                    <input
-                      value={branchName}
-                      onChange={(event) => setBranchName(event.target.value)}
-                      placeholder="orchestrator/my-work"
-                      data-testid="worktrees-create-branch"
-                    />
-                  </label>
-                  <button
-                    type="button"
-                    className="settings-action-button"
-                    disabled={!selectedProjectId || createBusy}
-                    onClick={() => { void createWorktree() }}
-                    data-testid="worktrees-create-submit"
-                  >
-                    {createBusy ? 'Creating...' : 'Create worktree'}
-                  </button>
-                </div>
+                      {createBusy ? 'Creating...' : 'Create worktree'}
+                    </button>
+                  )}
+                />
               </SettingsSurface>
             </SettingsGroupContent>
           </SettingsContentGroup>
@@ -296,7 +329,7 @@ function WorktreeRow({
   worktree: WorktreeInventoryItem
   busy: boolean
   onDeleteRequest: (worktree: WorktreeInventoryItem) => void
-  onOpenConversation: (conversationId: string) => void
+  onOpenConversation: (conversationId: string) => void | Promise<void>
   onStatus: (status: string) => void
 }): JSX.Element {
   const conversationsLabelId = useId()
@@ -414,7 +447,7 @@ function WorktreeRow({
                 type="button"
                 className="settings-action-button worktrees-open-chat-button"
                 aria-label={`Open ${conversation.name}`}
-                onClick={() => onOpenConversation(conversation.id)}
+                onClick={() => { void onOpenConversation(conversation.id) }}
                 data-testid="worktree-open-conversation"
               >
                 Open

@@ -55,7 +55,7 @@ export default function EnvironmentPanel({ session, embedded = false, onOpenRevi
     ? `PR ${pullRequest.number}`
     : pullRequestUrl
       ? 'Open'
-      : 'Git'
+      : 'Review'
   const commitTrailing = changes.length > 0
     ? stagedCount > 0
       ? `${stagedCount} staged`
@@ -70,7 +70,7 @@ export default function EnvironmentPanel({ session, embedded = false, onOpenRevi
   const openPullRequest = (): void => {
     if (!pullRequestUrl) {
       onOpenGit('pull-request')
-      setActionStatus('Opening Git to create pull request')
+      setActionStatus('Open Review to prepare a pull request')
       return
     }
     void window.api.browser.openExternal(pullRequestUrl)
@@ -84,12 +84,12 @@ export default function EnvironmentPanel({ session, embedded = false, onOpenRevi
 
   const openGitForCommit = (): void => {
     onOpenGit('commit')
-    setActionStatus('Opening Git to commit changes')
+    setActionStatus('Open Review to stage, commit, or push changes')
   }
 
   const openGitForBranch = (): void => {
     onOpenGit('branch')
-    setActionStatus('Opening Git branch controls')
+    setActionStatus('Branch controls stay in Environment')
   }
 
   const copyWorkspacePath = async (): Promise<void> => {
@@ -249,9 +249,9 @@ export default function EnvironmentPanel({ session, embedded = false, onOpenRevi
             icon="branch"
             label={currentBranch}
             dataTestId="codex-environment-branch"
-            action="open-git-branch"
-            title="Open Git branch controls"
-            trailing={<span className="environment-row-muted">Git</span>}
+            action="switch-branch"
+            title="Switch branch"
+            trailing={<span className="environment-row-muted">Branch</span>}
             onClick={openGitForBranch}
           />
           <EnvironmentRow
@@ -260,8 +260,8 @@ export default function EnvironmentPanel({ session, embedded = false, onOpenRevi
             dataTestId="codex-environment-commit"
             disabled={changes.length === 0}
             disabledReason="No changes to commit"
-            action="open-git-commit"
-            title={changes.length > 0 ? 'Open Git to commit changes' : 'No changes to commit'}
+            action="commit-or-push"
+            title={changes.length > 0 ? 'Commit or push changes' : 'No changes to commit'}
             trailing={<span className="environment-row-muted">{commitTrailing}</span>}
             onClick={changes.length > 0 ? openGitForCommit : undefined}
           />
@@ -269,8 +269,8 @@ export default function EnvironmentPanel({ session, embedded = false, onOpenRevi
             icon={pullRequestUrl ? 'external' : 'browser'}
             label={pullRequestLabel}
             dataTestId="codex-environment-create-pr"
-            action={pullRequestUrl ? 'open-pull-request' : 'open-git-pr'}
-            title={pullRequestUrl ? pullRequestUrl : 'Open Git to create a pull request'}
+            action={pullRequestUrl ? 'open-pull-request' : 'create-pull-request'}
+            title={pullRequestUrl ? pullRequestUrl : 'Create a pull request'}
             trailing={<span className="environment-row-muted">{pullRequestTrailing}</span>}
             onClick={openPullRequest}
           />

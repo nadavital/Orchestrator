@@ -305,19 +305,19 @@ export const APP_COMMANDS: Record<StableAppCommand, AppCommandDefinition> = {
   },
   'toggle-terminal': {
     id: 'toggle-terminal',
-    label: 'Toggle Terminal',
+    label: 'Toggle Bottom Panel',
     group: 'Panels',
-    description: 'Show or hide the terminal pane.',
+    description: 'Show or hide the bottom panel.',
     shortcuts: [['mod', 'J'], ['mod', '`']],
     accelerator: 'CmdOrCtrl+J',
-    keywords: ['shell'],
+    keywords: ['shell', 'terminal', 'bottom', 'panel'],
     showInShortcuts: true
   },
   'close-active-panel-tab': {
     id: 'close-active-panel-tab',
     label: 'Close Active Panel Tab',
     group: 'Panels',
-    description: 'Close the active Workbench or Terminal tab when that panel is focused.',
+    description: 'Close the active Workbench or bottom panel tab when that panel is focused.',
     shortcuts: [['mod', 'W']],
     keywords: ['tab', 'panel', 'workbench', 'terminal'],
     showInShortcuts: true

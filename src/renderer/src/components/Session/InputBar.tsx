@@ -285,6 +285,13 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   const provider = PROVIDER_DEFS[session.provider ?? 'claude'] ?? PROVIDER_DEFS.claude
   const model = session.model || provider.models[0]?.id || ''
   const visibleModelChoices = getVisibleModelsWithCurrent(provider, providerModels, model)
+  const visibleProviderChoices = Object.values(PROVIDER_DEFS)
+    .filter((opt) => providerAvailability[opt.id] !== false || opt.id === provider.id)
+    .sort((a, b) => {
+      const aOk = providerAvailability[a.id] !== false
+      const bOk = providerAvailability[b.id] !== false
+      return aOk === bOk ? 0 : aOk ? -1 : 1
+    })
   const effort = session.effort ?? provider.effortLevels[0]?.id ?? ''
   const contextDefaultPermissionMode = permissionContext?.providerId === provider.id ? permissionContext.defaultPolicy : undefined
   const defaultPermissionMode = contextDefaultPermissionMode ?? getDefaultPermissionMode(provider)
@@ -979,27 +986,38 @@ function InputBar({ session, isNew }: Props): JSX.Element {
       ? `Queue message (${sendShortcutTitle})`
       : `Send (${sendShortcutTitle})`
   const additionalContextDirs = session.additionalDirs ?? []
+  const showComposerContextChips = Boolean(effectiveMode || additionalContextDirs.length > 0)
   const workspaceLabel = pathBaseName(session.workDir) || session.workDir
   const additionalDirsLabel = additionalContextDirs.length === 1
     ? pathBaseName(additionalContextDirs[0]) || additionalContextDirs[0]
     : `${additionalContextDirs.length} dirs`
 
-  // Compact agent pill label: "Provider · Model [· Effort]"
+  const defaultEffort = provider.effortLevels[0]?.id ?? ''
+  const showEffortInTrigger = provider.supportsEffort && effortLabel && effort !== defaultEffort
   const agentLabel = [
-    providerShortName(provider.id),
     selectedAgentName,
     modelLabel,
-    provider.supportsEffort && effortLabel ? effortLabel : null,
+    showEffortInTrigger ? effortLabel : null,
     provider.id === 'cursor' && cursorEffortLevels.length > 0 && cursorEfLevel ? cursorEfLevel.label : null,
     provider.id === 'cursor' && useThinking ? 'Think' : null,
     provider.id === 'cursor' && useFast ? 'Fast' : null,
   ].filter(Boolean).join(' · ')
+  const agentTriggerTitle = [
+    provider.name,
+    selectedAgentName,
+    modelLabel,
+    provider.supportsEffort && effortLabel ? effortLabel : null,
+    provider.id === 'cursor' && cursorEffortLevels.length > 0 && cursorEfLevel ? cursorEfLevel.label : null,
+    provider.id === 'cursor' && useThinking ? 'Thinking on' : null,
+    provider.id === 'cursor' && useFast ? 'Fast mode' : null,
+  ].filter(Boolean).join(' · ')
+  const agentTriggerLabel = agentLabel || provider.name
 
   return (
     <div
-      className="shrink-0 px-6 pt-2 pb-3"
+      className="composer-reserve-shell shrink-0 px-6 pt-2 pb-3"
       style={{
-        background: 'var(--canvas-bg)'
+        background: 'color-mix(in srgb, var(--canvas-bg) 76%, transparent)'
       }}
     >
       <div
@@ -1016,12 +1034,16 @@ function InputBar({ session, isNew }: Props): JSX.Element {
         onDrop={handleDrop}
         style={{
           maxWidth: isNew ? 700 : 860,
-          background: 'var(--surface-bg)',
-          border: '1px solid var(--border-subtle)',
-          borderRadius: 'var(--radius-xl)',
-          boxShadow: isNew ? 'var(--shadow-composer)' : '0 6px 18px rgba(15, 23, 42, 0.045)',
+          background: isNew
+            ? 'color-mix(in srgb, var(--surface-bg) 32%, transparent)'
+            : 'color-mix(in srgb, var(--surface-bg) 22%, transparent)',
+          border: isNew
+            ? '1px solid color-mix(in srgb, var(--border-subtle) 16%, transparent)'
+            : '1px solid color-mix(in srgb, var(--border-subtle) 9%, transparent)',
+          borderRadius: '14px',
+          boxShadow: 'none',
           position: 'relative',
-          transition: 'box-shadow 140ms ease, border-color 140ms ease'
+          transition: 'background 110ms ease, border-color 110ms ease'
         }}
       >
         {dragActive && (
@@ -1050,7 +1072,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
         )}
 
         {/* Text input */}
-        <div className="flex items-end px-4 pt-3 pb-1 gap-2">
+        <div className="composer-text-row flex items-end px-4 pt-2.5 pb-1 gap-2">
           <textarea
             id="orchestrator-chat-composer"
             data-testid="composer-textarea"
@@ -1066,32 +1088,30 @@ function InputBar({ session, isNew }: Props): JSX.Element {
             data-composer-enter-behavior={composerEnterBehavior}
             rows={1}
             autoFocus={isNew}
-            className="flex-1 resize-none bg-transparent outline-none"
+            className="composer-textarea flex-1 resize-none bg-transparent outline-none"
             style={{ color: 'var(--text-primary)', lineHeight: 1.5, maxHeight: 180, userSelect: 'text', fontSize: 14 }}
           />
         </div>
         <div
-          className="flex flex-wrap gap-1.5 px-4 pb-2"
+          className="composer-context-chips flex flex-wrap gap-1 px-4 pb-1"
           data-testid="composer-context-chips"
+          data-composer-context-visible={showComposerContextChips ? 'true' : 'false'}
           data-composer-context-workdir={session.workDir}
           data-composer-context-workspace-label={workspaceLabel}
           data-composer-context-additional-dir-count={additionalContextDirs.length}
           data-composer-context-worktree={effectiveMode ? 'true' : 'false'}
           role="list"
           aria-label="Current composer context"
+          hidden={!showComposerContextChips}
         >
-          <ComposerContextChip
-            icon="folder"
-            label={workspaceLabel}
-            detail={`Workspace: ${session.workDir}`}
-            dataTestId="composer-context-workspace-chip"
-          />
-          <ComposerContextChip
-            icon={effectiveMode ? 'branch' : 'folder'}
-            label={effectiveMode ? 'Branch' : 'Local'}
-            detail={effectiveMode ? 'Runs in a new branch/worktree' : 'Runs in the current workspace'}
-            dataTestId="composer-context-worktree-chip"
-          />
+          {effectiveMode && (
+            <ComposerContextChip
+              icon="branch"
+              label="Branch"
+              detail={`Workspace: ${workspaceLabel}`}
+              dataTestId="composer-context-worktree-chip"
+            />
+          )}
           {additionalContextDirs.length > 0 && (
             <ComposerContextChip
               icon="folder"
@@ -1102,7 +1122,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
           )}
         </div>
         {(attachments.length > 0 || pendingAttachments.length > 0) && (
-          <div className="flex flex-wrap gap-1.5 px-4 pb-2" aria-label="Attachments">
+          <div className="flex flex-wrap gap-1.5 px-4 pb-1.5" aria-label="Attachments">
             {attachments.map((attachment) => (
               <AttachmentChip
                 key={attachment.id}
@@ -1121,7 +1141,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
         )}
         {draftSource && (
           <div
-            className="mx-3 mb-2 flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs"
+            className="mx-3 mb-1.5 flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs"
             data-testid="composer-draft-source-status"
             data-composer-draft-source={draftSource.kind}
             data-composer-draft-source-message-id={draftSource.messageId}
@@ -1132,8 +1152,8 @@ function InputBar({ session, isNew }: Props): JSX.Element {
             aria-live="polite"
             aria-atomic="true"
             style={{
-              borderColor: 'var(--border-subtle)',
-              background: 'var(--control-bg)',
+              borderColor: 'color-mix(in srgb, var(--border-subtle) 16%, transparent)',
+              background: 'color-mix(in srgb, var(--control-bg) 46%, transparent)',
               color: 'var(--text-secondary)'
             }}
           >
@@ -1341,7 +1361,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
             </div>
           ) : (
             /* Active session: compact thread settings */
-            <div className="relative flex items-center gap-1.5" style={{ minWidth: 0 }}>
+            <div className="relative flex items-center gap-1.5 composer-agent-picker" style={{ minWidth: 0 }}>
               <ToolbarBtn
                 active={showAgentMenu}
                 onClick={() => setShowAgentMenu((v) => !v)}
@@ -1349,14 +1369,14 @@ function InputBar({ session, isNew }: Props): JSX.Element {
                 dataTestId="composer-agent-menu"
                 buttonRef={agentButtonRef}
                 className="composer-agent-trigger"
-                title="Thread model settings"
-                ariaLabel="Thread model settings"
+                title={agentTriggerTitle ? `Model: ${agentTriggerTitle}` : 'Model'}
+                ariaLabel="Model"
                 ariaExpanded={showAgentMenu}
                 ariaHasPopup="menu"
                 onKeyDown={(event) => handleDropdownTriggerKeyDown(event, () => setShowAgentMenu(true))}
               >
                 <ProviderIcon providerId={provider.id} size={11} color={provider.color} />
-                <span className="composer-control-label">{agentLabel}</span>
+                <span className="composer-control-label">{agentTriggerLabel}</span>
                 <Chevron />
               </ToolbarBtn>
               {queuedFollowUpTotal > 0 && (
@@ -1370,31 +1390,16 @@ function InputBar({ session, isNew }: Props): JSX.Element {
                 </span>
               )}
               {showAgentMenu && (
-                <DropdownPanel onClose={() => setShowAgentMenu(false)} style={{ bottom: '100%', marginBottom: 8, left: 0, minWidth: 300 }}>
+                <DropdownPanel onClose={() => setShowAgentMenu(false)} style={{ bottom: '100%', marginBottom: 8, right: 0, width: 320 }}>
                   <div
-                    className="px-3 py-2"
+                    className="sr-only"
                     data-testid="composer-active-agent-summary"
-                    style={{ borderBottom: '1px solid var(--color-border)' }}
                   >
-                    <div className="flex items-center gap-2">
-                      <ProviderIcon providerId={provider.id} size={12} color={provider.color} />
-                      <div className="min-w-0">
-                        <div className="text-xs font-semibold truncate" style={{ color: 'var(--color-text)' }}>
-                          {provider.name}
-                        </div>
-                        <div className="text-[11px] truncate" style={{ color: 'var(--color-text-muted)' }}>
-                          Thread settings
-                        </div>
-                      </div>
-                    </div>
+                    {provider.name} Thread settings
                   </div>
 
                   <TieredRow label="Provider">
-                    {Object.values(PROVIDER_DEFS).sort((a, b) => {
-                      const aOk = providerAvailability[a.id] !== false
-                      const bOk = providerAvailability[b.id] !== false
-                      return aOk === bOk ? 0 : aOk ? -1 : 1
-                    }).map((opt) => {
+                    {visibleProviderChoices.map((opt) => {
                       const available = providerAvailability[opt.id] !== false
                       const isActive = provider.id === opt.id
                       return (
@@ -1514,13 +1519,15 @@ function InputBar({ session, isNew }: Props): JSX.Element {
             onClick={attachFiles}
             title={isSavingPastedFiles ? 'Saving pasted files' : 'Attach files'}
             ariaLabel={isSavingPastedFiles ? 'Saving pasted files' : 'Attach files'}
+            iconOnly
+            className="composer-attach-trigger"
           >
-            <Icon name="paperclip" size={13} />
+            <Icon name="plus" size={14} />
           </ToolbarBtn>
 
           {/* New session: combined agent picker */}
           {isNew && (
-            <div className="relative">
+            <div className="relative composer-agent-picker">
               <ToolbarBtn
                 active={false}
                 onClick={() => setShowAgentMenu((v) => !v)}
@@ -1528,24 +1535,22 @@ function InputBar({ session, isNew }: Props): JSX.Element {
                 dataTestId="composer-agent-menu"
                 buttonRef={agentButtonRef}
                 className="composer-agent-trigger"
+                title={agentTriggerTitle ? `Model: ${agentTriggerTitle}` : 'Model'}
+                ariaLabel="Model"
                 ariaExpanded={showAgentMenu}
                 ariaHasPopup="menu"
                 onKeyDown={(event) => handleDropdownTriggerKeyDown(event, () => setShowAgentMenu(true))}
               >
                 <ProviderIcon providerId={provider.id} size={11} color={provider.color} />
-                <span className="composer-control-label">{agentLabel}</span>
+                <span className="composer-control-label">{agentTriggerLabel}</span>
                 <Chevron />
               </ToolbarBtn>
 
               {showAgentMenu && (
-                <DropdownPanel onClose={() => setShowAgentMenu(false)} style={{ bottom: '100%', marginBottom: 8, right: 0, minWidth: 320 }}>
+                <DropdownPanel onClose={() => setShowAgentMenu(false)} style={{ bottom: '100%', marginBottom: 8, right: 0, width: 320 }}>
                   {/* Provider row */}
                   <TieredRow label="Provider">
-                    {Object.values(PROVIDER_DEFS).sort((a, b) => {
-                      const aOk = providerAvailability[a.id] !== false
-                      const bOk = providerAvailability[b.id] !== false
-                      return aOk === bOk ? 0 : aOk ? -1 : 1
-                    }).map((opt) => {
+                    {visibleProviderChoices.map((opt) => {
                       const available = providerAvailability[opt.id] !== false
                       const isActive = provider.id === opt.id
                       return (
@@ -1664,7 +1669,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
           )}
 
           {/* Permission mode picker — always shown */}
-          <div className="relative">
+          <div className="relative composer-permission-picker">
             <ToolbarBtn
               active={permissionMode !== defaultPermissionMode}
               onClick={() => setShowPermMenu((v) => !v)}
@@ -1677,7 +1682,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
               ariaHasPopup="menu"
               onKeyDown={(event) => handleDropdownTriggerKeyDown(event, () => setShowPermMenu(true))}
             >
-              <ProviderIcon providerId={provider.id} size={11} color={provider.color} />
+              <Icon name="checkCircle" size={13} />
               <span className="composer-control-label composer-control-label-xs">{permLabel}</span>
               {permissionContext && (
                 <span
@@ -1819,7 +1824,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
                 data-native-title-free="true"
                 aria-label="Stop current run"
                 onClick={() => { void stopCurrentRun() }}
-                className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium"
+                className="composer-stop-trigger flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium"
                 style={{ background: 'var(--color-red)', color: '#fff' }}
               >
                 <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
@@ -1837,7 +1842,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
                 aria-label={sendTitle}
                 data-tooltip-label={sendTitle}
                 data-native-title-free="true"
-                className="flex items-center justify-center rounded-lg transition-colors"
+                className="composer-send-trigger flex items-center justify-center rounded-lg transition-colors"
                 style={{
                   width: 30, height: 30,
                   background: canSend ? 'var(--text-primary)' : 'var(--control-bg)',
@@ -1924,15 +1929,15 @@ function ComposerContextChip({
 }): JSX.Element {
   return (
     <span
-      className="inline-flex max-w-full items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] leading-4"
+      className="composer-context-chip inline-flex max-w-full items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] leading-4"
       data-testid={dataTestId}
       data-composer-context-detail={detail}
       role="listitem"
       aria-label={detail}
       style={{
-        background: 'var(--control-bg)',
-        borderColor: 'var(--border-subtle)',
-        color: 'var(--text-secondary)'
+        background: 'transparent',
+        borderColor: 'color-mix(in srgb, var(--border-subtle) 28%, transparent)',
+        color: 'var(--text-tertiary)'
       }}
     >
       <Icon name={icon} size={11} />
@@ -2050,7 +2055,7 @@ function getVisibleModelsWithCurrent(
 }
 
 function ToolbarBtn({
-  children, active, onClick, onKeyDown, muted, title, ariaLabel, ariaExpanded, ariaHasPopup, providerColor, dataTestId, buttonRef, className
+  children, active, onClick, onKeyDown, muted, title, ariaLabel, ariaExpanded, ariaHasPopup, providerColor, dataTestId, buttonRef, className, iconOnly
 }: {
   children: React.ReactNode
   active: boolean
@@ -2065,10 +2070,14 @@ function ToolbarBtn({
   dataTestId?: string
   buttonRef?: Ref<HTMLButtonElement>
   className?: string
+  iconOnly?: boolean
 }): JSX.Element {
-  const borderColor = active ? 'var(--border-strong)' : 'transparent'
+  const borderColor = active
+    ? 'color-mix(in srgb, var(--border-subtle) 70%, transparent)'
+    : 'transparent'
   const textColor = muted ? 'var(--text-tertiary)' : active ? 'var(--text-primary)' : 'var(--text-secondary)'
   void providerColor
+  const tooltipLabel = title ?? ''
   const button = (
     <button
       ref={buttonRef}
@@ -2080,25 +2089,27 @@ function ToolbarBtn({
       aria-expanded={ariaExpanded}
       aria-haspopup={ariaHasPopup}
       onKeyDown={onKeyDown}
-      data-tooltip-label={title}
+      data-tooltip-label={ariaExpanded ? undefined : tooltipLabel}
       data-native-title-free="true"
       data-testid={dataTestId}
       className={`flex items-center gap-1.5 text-xs transition-colors ${className ?? ''}`}
       style={{
-        background: active ? 'var(--control-bg-active)' : 'var(--control-bg)',
+        background: active ? 'color-mix(in srgb, var(--control-bg-active) 78%, transparent)' : 'transparent',
         color: textColor,
         border: '1px solid ' + borderColor,
         borderRadius: 'var(--radius-lg)',
-        padding: '5px 8px',
+        padding: iconOnly ? 0 : '4px 7px',
         cursor: onClick ? 'pointer' : 'default',
         fontWeight: 600,
-        minHeight: 28
+        minHeight: 28,
+        minWidth: iconOnly ? 28 : undefined,
+        justifyContent: iconOnly ? 'center' : undefined
       }}
     >
       {children}
     </button>
   )
-  return title ? <Tooltip label={title}>{button}</Tooltip> : button
+  return <Tooltip label={tooltipLabel} disabled={ariaExpanded || !tooltipLabel}>{button}</Tooltip>
 }
 
 function Chevron(): JSX.Element {
@@ -2122,12 +2133,14 @@ function DropdownPanel({
       className="absolute z-50 composer-dropdown-surface"
       onClose={onClose}
       style={{
-        border: '0.5px solid var(--border-subtle)',
+        border: '1px solid color-mix(in srgb, var(--border-subtle) 13%, transparent)',
         borderRadius: 12,
-        background: 'color-mix(in srgb, var(--surface-bg) 90%, transparent)',
-        boxShadow: 'var(--shadow-menu)',
-        backdropFilter: 'blur(12px)',
+        background: 'color-mix(in srgb, var(--surface-bg) 38%, transparent)',
+        boxShadow: '0 8px 22px rgba(0, 0, 0, 0.1)',
+        backdropFilter: 'blur(20px) saturate(135%)',
+        WebkitBackdropFilter: 'blur(20px) saturate(135%)',
         overflow: 'hidden',
+        padding: '5px 0',
         maxWidth: 'min(420px, calc(100vw - 16px))',
         maxHeight: 'min(360px, calc(100vh - 16px))',
         ...style
@@ -2229,8 +2242,10 @@ function focusComposerDropdownButton(trigger: HTMLElement, position: 'first' | '
 
 function composerDropdownSurfaceForTrigger(trigger: HTMLElement): HTMLElement | null {
   const owner = trigger.closest('.relative') ?? trigger.parentElement
-  const surface = owner?.querySelector('[data-composer-dropdown-surface="true"]') ??
-    Array.from(document.querySelectorAll('[data-composer-dropdown-surface="true"]')).at(-1)
+  const ownedSurface = owner?.querySelector('[data-composer-dropdown-surface="true"]')
+  if (ownedSurface instanceof HTMLElement) return ownedSurface
+  if (owner) return null
+  const surface = Array.from(document.querySelectorAll('[data-composer-dropdown-surface="true"]')).at(-1)
   return surface instanceof HTMLElement ? surface : null
 }
 
@@ -2437,19 +2452,18 @@ function PolicyBadge({
 function TieredRow({ label, children }: { label: string; children: React.ReactNode }): JSX.Element {
   return (
     <div
-      className="flex items-start gap-3 px-3 py-2"
+      className="composer-tiered-row flex items-start gap-2 px-2.5 py-1"
       role="group"
       aria-label={`${label} choices`}
-      style={{ borderBottom: '1px solid var(--color-border)' }}
     >
       <span
-        className="shrink-0 pt-0.5 text-[11px] font-semibold tracking-normal"
+        className="composer-agent-row-label shrink-0 pt-1 text-[10px] font-medium tracking-normal"
         data-testid="composer-agent-row-label"
-        style={{ color: 'var(--color-text-muted)', width: 52 }}
+        style={{ color: 'color-mix(in srgb, var(--color-text-muted) 76%, transparent)', width: 46 }}
       >
         {label}
       </span>
-      <div className="flex flex-wrap gap-1">
+      <div className="composer-tiered-row-choices flex flex-wrap gap-1">
         {children}
       </div>
     </div>
@@ -2647,13 +2661,13 @@ function Chip({
       data-tooltip-label={title}
       data-native-title-free="true"
       data-composer-choice-active={active ? 'true' : 'false'}
-      className="flex items-center gap-1.5 text-xs transition-colors"
+      className="composer-choice-chip flex items-center gap-1.5 text-xs transition-colors"
       style={{
-        background: active ? 'var(--control-bg-active)' : 'var(--control-bg)',
+        background: active ? 'color-mix(in srgb, var(--control-bg-active) 15%, transparent)' : 'transparent',
         color: active ? activeColor : disabled ? 'var(--text-tertiary)' : 'var(--text-primary)',
-        border: '1px solid ' + (active ? activeColor : 'var(--border-subtle)'),
+        border: '1px solid ' + (active ? `color-mix(in srgb, ${activeColor} 20%, var(--border-subtle))` : 'color-mix(in srgb, var(--border-subtle) 8%, transparent)'),
         borderRadius: 'var(--radius-pill)',
-        padding: '5px 9px',
+        padding: '2.5px 6px',
         cursor: disabled ? 'default' : 'pointer',
         opacity: disabled ? 0.5 : 1,
         fontWeight: active ? 650 : 500

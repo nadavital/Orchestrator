@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { filePathFromTabId, sideChatContextSnapshot, sideChatIdFromTabId, terminalTabIdFromTabId, useSessionStore } from '../../store/sessions'
-import type { RightPanelTabId, RightPanelTabKind } from '../../store/sessions'
+import type { GitFocusTarget, RightPanelTabId, RightPanelTabKind } from '../../store/sessions'
 import { bottomPanelTransferPolicyLabel, derivePlanStates, derivePlanStatesFromMessages, resolvePanelTabTransferAvailability } from '../../types'
 import type { AgentNode, Session, SessionRunEventRecord } from '../../types'
 import BrowserPanel from './BrowserPanel'
@@ -10,7 +10,7 @@ import EventInspectorPanel from './EventInspectorPanel'
 import ExtensionsPanel from './ExtensionsPanel'
 import FileTabPanel from './FileTabPanel'
 import FilesPanel from './FilesPanel'
-import GitPanel from './GitPanel'
+import GitActionDialog from './GitActionDialog'
 import PlanPanel from './PlanPanel'
 import SideQuestionPanel from './SideQuestionPanel'
 import TerminalView from './TerminalView'
@@ -79,8 +79,6 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
     moveRightPanelTab,
     resetRightPanelTabState,
     pinRightPanelTab,
-    focusRightPanelGitTarget,
-    focusRightPanelReviewPath,
     updateRightPanelFileTabState,
     setRightPanelBrowserUrl,
     openRightPanelBrowserUrl,
@@ -97,9 +95,19 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
   const [terminalSelections, setTerminalSelections] = useState<Record<string, string>>({})
   const [terminalCommandStates, setTerminalCommandStates] = useState<Record<string, TerminalCommandState>>({})
   const [terminalActionStatus, setTerminalActionStatus] = useState<TerminalActionStatus | null>(null)
+  const [gitActionDialog, setGitActionDialog] = useState<{ target: GitFocusTarget; path?: string | null } | null>(null)
   const terminalActionStatusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const ui = uiState[session.id]
   const rightPanel = ui?.rightPanel
+    ? {
+        ...ui.rightPanel,
+        activeTabId: String(ui.rightPanel.activeTabId) === 'git' ? null : ui.rightPanel.activeTabId,
+        tabs: ui.rightPanel.tabs.filter((tab) => String(tab.id) !== 'git')
+      }
+    : undefined
+  const bottomPanelOpen = ui?.showTerminal === true
+  const bottomPanelContentHeight = ui?.terminalPanel?.height ?? 0
+  const bottomPanelExpanded = bottomPanelOpen && bottomPanelContentHeight >= 260
   const rawPanelWidthRatio = rightPanel?.widthRatio
   const panelLayout = useAppShellSidePanelLayout({
     containerTestId: 'session-main-row',
@@ -129,7 +137,6 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
   const hasLiveAgent = agents.some(isLiveAgent)
   const hasSideQuestions = (ui?.sideQuestions?.length ?? 0) > 0
   const hasEnvironmentTab = rightPanel?.tabs.some((tab) => tab.id === 'environment') ?? false
-  const hasGitTab = rightPanel?.tabs.some((tab) => tab.id === 'git') ?? false
   const hasDiffTab = rightPanel?.tabs.some((tab) => tab.id === 'diff') ?? false
   const hasFilesTab = rightPanel?.tabs.some((tab) => tab.id === 'files') ?? false
   const hasBrowserTab = rightPanel?.tabs.some((tab) => tab.id === 'browser') ?? false
@@ -169,7 +176,6 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
   const availableTabs: ContextTabSpec[] = [
     ...(hasNewTab ? [{ id: 'new-tab' as const, label: 'New tab', icon: 'plus' as const }] : []),
     ...(hasEnvironmentTab ? [{ id: 'environment' as const, label: 'Environment', icon: 'settings' as const }] : []),
-    ...(hasGitTab ? [{ id: 'git' as const, label: 'Git', icon: 'branch' as const }] : []),
     ...(ui?.showDiff || hasDiffTab ? [{ id: 'diff' as const, label: 'Review', icon: 'diff' as const }] : []),
     ...(hasBrowserTab ? [{ id: 'browser' as const, label: 'Browser', icon: 'browser' as const }] : []),
     ...(hasFilesTab ? [{ id: 'files' as const, label: 'Files', icon: 'folder' as const }] : []),
@@ -206,7 +212,6 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
   const effectiveTab = tabs.some((tab) => tab.id === activeTab) ? activeTab : tabs[0]?.id ?? null
   const effectiveFilePath = filePathFromTabId(effectiveTab ?? 'plan')
   const effectiveFileTab = rightPanel?.tabs.find((tab) => tab.id === effectiveTab && tab.kind === 'file') ?? null
-  const effectiveGitTab = rightPanel?.tabs.find((tab) => tab.id === 'git' && tab.kind === 'git') ?? null
   const effectiveDiffTab = rightPanel?.tabs.find((tab) => tab.id === 'diff' && tab.kind === 'diff') ?? null
   const effectiveTabLabel = tabs.find((tab) => tab.id === effectiveTab)?.label ?? 'Workbench'
   const rightPanelOpen = rightPanel?.open ?? false
@@ -381,7 +386,7 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
       openRightPanelTab(session.id, tab)
       return
     }
-    if (tab === 'new-tab' || tab === 'environment' || tab === 'git' || tab === 'files' || tab === 'browser') {
+    if (tab === 'new-tab' || tab === 'environment' || tab === 'files' || tab === 'browser') {
       openRightPanelTab(session.id, tab)
       return
     }
@@ -408,7 +413,6 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
     exitFullscreenForPanelTab('right', tab)
     if (tab === 'new-tab') closeRightPanelTab(session.id, 'new-tab')
     if (tab === 'environment') closeRightPanelTab(session.id, 'environment')
-    if (tab === 'git') closeRightPanelTab(session.id, 'git')
     if (tab === 'files') closeRightPanelTab(session.id, 'files')
     if (filePathFromTabId(tab)) closeRightPanelTab(session.id, tab)
     if (tab === 'browser') closeRightPanelTab(session.id, 'browser')
@@ -473,7 +477,7 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
     ? tabMenu.tabId === 'browser' || Boolean(filePathFromTabId(tabMenu.tabId))
     : false
 
-  const openToolTab = (tab: 'environment' | 'git' | 'diff' | 'browser' | 'files'): void => {
+  const openToolTab = (tab: 'environment' | 'diff' | 'browser' | 'files'): void => {
     if (tab === 'diff') {
       openRightPanelTab(session.id, 'environment')
       setShowDiff(session.id, true)
@@ -536,14 +540,6 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
       icon: 'browser',
       state: hasBrowserTab ? 'open' : 'new',
       onSelect: () => openToolTab('browser')
-    },
-    {
-      id: 'git',
-      title: 'Git',
-      description: hasGitTab ? 'Switch to open Git tab' : 'Stage and review changes',
-      icon: 'branch',
-      state: hasGitTab ? 'open' : 'new',
-      onSelect: () => openToolTab('git')
     },
     {
       id: 'review',
@@ -624,6 +620,9 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
         data-right-panel-width-ratio={panelWidthRatio?.toFixed(4) ?? ''}
         data-right-panel-layout={panelLayout.mode}
         data-right-panel-tabs={rightPanel?.tabs.map((tab) => tab.id).join(',') ?? ''}
+        data-right-panel-bottom-panel-open={bottomPanelOpen ? 'true' : 'false'}
+        data-right-panel-bottom-panel-expanded={bottomPanelExpanded ? 'true' : 'false'}
+        data-right-panel-bottom-panel-height={bottomPanelContentHeight}
         data-right-panel-active-terminal-id={effectiveTerminalId ?? ''}
         data-right-panel-terminal-last-command={effectiveTerminalCommandState?.command ?? ''}
         data-right-panel-terminal-latest-command-output-lines={effectiveTerminalCommandOutput ? effectiveTerminalCommandOutput.split('\n').length : 0}
@@ -737,28 +736,7 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
             embedded
             onOpenReview={() => setShowDiff(session.id, true)}
             onOpenGit={(target) => {
-              if (target) {
-                focusRightPanelGitTarget(session.id, target)
-              } else {
-                openRightPanelTab(session.id, 'git')
-              }
-            }}
-          />
-        )}
-        {effectiveTab === 'git' && (
-          <GitPanel
-            session={session}
-            embedded
-            focusPath={effectiveGitTab?.gitFocusPath ?? null}
-            focusRequest={effectiveGitTab?.gitFocusRequest}
-            focusTarget={effectiveGitTab?.gitFocusTarget ?? null}
-            focusTargetRequest={effectiveGitTab?.gitFocusTargetRequest}
-            onOpenReview={(path) => {
-              if (path) {
-                focusRightPanelReviewPath(session.id, path)
-              } else {
-                setShowDiff(session.id, true)
-              }
+              setGitActionDialog({ target: target ?? 'commit' })
             }}
           />
         )}
@@ -808,6 +786,7 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
             embedded
             focusPath={effectiveDiffTab?.reviewFocusPath ?? null}
             focusRequest={effectiveDiffTab?.reviewFocusRequest}
+            onOpenGitAction={(target, path) => setGitActionDialog({ target, path })}
           />
         )}
         {effectiveTab === 'side' && <SideQuestionPanel session={session} embedded />}
@@ -836,6 +815,7 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
       </div>
       {tabMenu && (
         <MenuSurface
+          key={`${tabMenu.tabId}:${Math.round(tabMenu.x)}:${Math.round(tabMenu.y)}`}
           className="workbench-tab-context-menu"
           data-panel-tab-transfer-model={tabMenuTransferAvailability?.model ?? 'shared'}
           data-panel-tab-transfer-source="right"
@@ -874,33 +854,11 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
               />
             )}
           </MenuSection>
-          {terminalTabIdFromTabId(tabMenu.tabId) !== null && (
+          {tabMenuTransferAvailability?.supported && (
             <MenuSection
-              dataTestId="workbench-tab-context-menu-terminal-section"
-              data-panel-tab-transfer-model="shared"
-              data-panel-tab-transfer-source="right"
-              data-panel-tab-transfer-target="bottom"
-            >
-              <MenuSectionLabel>Terminal</MenuSectionLabel>
-              <MenuItem
-                icon="terminal"
-                label="Move tab to bottom panel"
-                dataTestId="workbench-tab-context-menu-move-bottom"
-                onClick={() => {
-                  transferSessionPanelTab(session.id, {
-                    sourcePanel: 'right',
-                    targetPanel: 'bottom',
-                    tabKind: 'terminal',
-                    tabId: tabMenu.tabId
-                  })
-                  setTabMenu(null)
-                }}
-              />
-            </MenuSection>
-          )}
-          {tabMenu.tabId === 'plan' && tabMenuTransferAvailability?.supported && (
-            <MenuSection
-              dataTestId="workbench-tab-context-menu-bottom-panel-section"
+              dataTestId={terminalTabIdFromTabId(tabMenu.tabId) !== null
+                ? 'workbench-tab-context-menu-terminal-section'
+                : 'workbench-tab-context-menu-bottom-panel-section'}
               data-panel-tab-transfer-model="shared"
               data-panel-tab-transfer-source="right"
               data-panel-tab-transfer-target="bottom"
@@ -909,12 +867,14 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
               <MenuItem
                 icon="panelRight"
                 label="Move tab to bottom panel"
-                dataTestId="workbench-tab-context-menu-move-plan-bottom"
+                dataTestId={tabMenu.tabId === 'plan'
+                  ? 'workbench-tab-context-menu-move-plan-bottom'
+                  : 'workbench-tab-context-menu-move-bottom'}
                 onClick={() => {
                   transferSessionPanelTab(session.id, {
                     sourcePanel: 'right',
                     targetPanel: 'bottom',
-                    tabKind: 'plan',
+                    tabKind: tabMenuTransferKind as RightPanelTabKind,
                     tabId: tabMenu.tabId
                   })
                   setTabMenu(null)
@@ -951,6 +911,14 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
             />
           </MenuSection>
         </MenuSurface>
+      )}
+      {gitActionDialog && (
+        <GitActionDialog
+          session={session}
+          initialTarget={gitActionDialog.target}
+          focusPath={gitActionDialog.path ?? null}
+          onClose={() => setGitActionDialog(null)}
+        />
       )}
       </aside>
     </AppShellPanel>

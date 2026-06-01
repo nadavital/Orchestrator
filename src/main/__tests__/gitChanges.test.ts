@@ -112,14 +112,14 @@ test('create branch validates names and checks out the new branch', async () => 
     assert.equal(empty.ok, false)
     assert.match(empty.error ?? '', /branch name/i)
 
-    const result = await gitManager.createBranch(root, 'orchestrator/git-panel-test')
+    const result = await gitManager.createBranch(root, 'orchestrator/git-action-test')
     assert.equal(result.ok, true)
-    assert.equal(result.currentBranch, 'orchestrator/git-panel-test')
-    assert.equal(result.branches.find((branch) => branch.name === 'orchestrator/git-panel-test')?.current, true)
+    assert.equal(result.currentBranch, 'orchestrator/git-action-test')
+    assert.equal(result.branches.find((branch) => branch.name === 'orchestrator/git-action-test')?.current, true)
 
     const current = spawnSync('git', ['branch', '--show-current'], { cwd: root, encoding: 'utf-8' })
     assert.equal(current.status, 0, current.stderr || current.stdout)
-    assert.equal(current.stdout.trim(), 'orchestrator/git-panel-test')
+    assert.equal(current.stdout.trim(), 'orchestrator/git-action-test')
     assert.equal(readFileSync(join(root, 'tracked.txt'), 'utf-8'), 'before\ndirty\n')
 
     const checkoutEmpty = await gitManager.checkoutBranch(root, '   ')
@@ -147,15 +147,15 @@ test('pull request create URL uses the GitHub origin remote and branch compare r
     git(root, 'add', '.')
     git(root, 'commit', '-m', 'baseline')
 
-    const result = await gitManager.getPullRequestCreateUrl(root, 'main', 'codex/git-panel-pr')
+    const result = await gitManager.getPullRequestCreateUrl(root, 'main', 'codex/git-action-pr')
 
     assert.equal(result.ok, true)
     assert.equal(result.remoteUrl, 'git@github.com:nadavital/Orchestrator.git')
     assert.equal(result.remoteName, 'origin')
-    assert.equal(result.url, 'https://github.com/nadavital/Orchestrator/compare/main...codex%2Fgit-panel-pr?quick_pull=1')
+    assert.equal(result.url, 'https://github.com/nadavital/Orchestrator/compare/main...codex%2Fgit-action-pr?quick_pull=1')
     assert.equal(result.branchPublished, false)
-    assert.equal(result.remoteBranch, 'origin/codex/git-panel-pr')
-    assert.equal(result.pushCommand, 'git push -u origin codex/git-panel-pr')
+    assert.equal(result.remoteBranch, 'origin/codex/git-action-pr')
+    assert.equal(result.pushCommand, 'git push -u origin codex/git-action-pr')
   } finally {
     rmSync(root, { recursive: true, force: true })
   }
@@ -171,13 +171,13 @@ test('pull request create URL marks locally known remote branches as published',
     git(root, 'remote', 'add', 'origin', 'git@github.com:nadavital/Orchestrator.git')
     git(root, 'add', '.')
     git(root, 'commit', '-m', 'baseline')
-    git(root, 'update-ref', 'refs/remotes/origin/codex/git-panel-pr', 'HEAD')
+    git(root, 'update-ref', 'refs/remotes/origin/codex/git-action-pr', 'HEAD')
 
-    const result = await gitManager.getPullRequestCreateUrl(root, 'main', 'codex/git-panel-pr')
+    const result = await gitManager.getPullRequestCreateUrl(root, 'main', 'codex/git-action-pr')
 
     assert.equal(result.ok, true)
     assert.equal(result.branchPublished, true)
-    assert.equal(result.remoteBranch, 'origin/codex/git-panel-pr')
+    assert.equal(result.remoteBranch, 'origin/codex/git-action-pr')
     assert.equal(result.pushCommand, undefined)
   } finally {
     rmSync(root, { recursive: true, force: true })

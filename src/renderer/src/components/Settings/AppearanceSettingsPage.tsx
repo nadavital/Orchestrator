@@ -330,81 +330,92 @@ export default function AppearanceSettingsPage({
           </SettingsGroupContent>
           </SettingsContentGroup>
 
-          <SettingsContentGroup className="appearance-settings-content-group">
-          <SettingsSectionHeading
-            title="Theme editor"
-            description="Tune chrome and semantic colors independently for light and dark variants."
-          />
-          <SettingsGroupContent>
-            <SettingsSurface className="appearance-settings-surface">
-              <div className="appearance-theme-editor-grid">
-                <ChromeThemeEditor title="Light chrome" variant="light" theme={lightChromeTheme} onChange={updateChrome} />
-                <ChromeThemeEditor title="Dark chrome" variant="dark" theme={darkChromeTheme} onChange={updateChrome} />
-              </div>
-            </SettingsSurface>
-          </SettingsGroupContent>
-          </SettingsContentGroup>
+          <details className="settings-advanced-disclosure appearance-advanced-disclosure" data-testid="appearance-advanced-disclosure">
+            <summary className="settings-advanced-summary" data-testid="appearance-advanced-toggle">
+              <span className="settings-advanced-summary-copy">
+                <span className="settings-advanced-summary-title">Advanced appearance</span>
+                <span className="settings-advanced-summary-description">Theme editing and portable theme import.</span>
+              </span>
+            </summary>
 
-          <SettingsContentGroup className="appearance-settings-content-group">
-          <SettingsSectionHeading
-            title="Sharing"
-            description="Import or copy a portable Codex theme string."
-          />
-          <SettingsGroupContent>
-            <SettingsSurface className="appearance-settings-surface">
-              <div className="appearance-sharing-controls" data-import-controls-surface="shared">
-                <div className="settings-actions-inline appearance-sharing-actions">
-                  <button
-                    type="button"
-                    data-testid="copy-light-theme"
-                    className="settings-action-button"
-                    onClick={() => { void copyTheme('light') }}
-                  >
-                    Copy light theme
-                  </button>
-                  <button
-                    type="button"
-                    data-testid="copy-dark-theme"
-                    className="settings-action-button"
-                    onClick={() => { void copyTheme('dark') }}
-                  >
-                    Copy dark theme
-                  </button>
-                </div>
-                <textarea
-                  data-testid="theme-import-input"
-                  data-import-input-surface="shared"
-                  value={themeImportText}
-                  onChange={(event) => setThemeImportText(event.currentTarget.value)}
-                  placeholder="codex-theme-v1:{...}"
-                  className="appearance-theme-import-input"
+            <div className="settings-advanced-body">
+              <SettingsContentGroup className="appearance-settings-content-group">
+                <SettingsSectionHeading
+                  title="Theme editor"
+                  description="Tune chrome and semantic colors independently for light and dark variants."
                 />
-                <div className="appearance-theme-import-footer">
-                  <button
-                    type="button"
-                    data-testid="theme-import-button"
-                    className="settings-action-button appearance-theme-import-action"
-                    onClick={importTheme}
-                  >
-                    Import theme
-                  </button>
-                  {themeSharingStatus && (
-                    <span
-                      data-testid="theme-import-status"
-                      className="appearance-theme-import-status"
-                      data-tone={themeSharingStatus.tone}
-                      role={themeSharingStatus.tone === 'error' ? 'alert' : 'status'}
-                      aria-live={themeSharingStatus.tone === 'error' ? 'assertive' : 'polite'}
-                      aria-atomic="true"
-                    >
-                      {themeSharingStatus.text}
-                    </span>
-                  )}
-                </div>
-              </div>
-            </SettingsSurface>
-          </SettingsGroupContent>
-          </SettingsContentGroup>
+                <SettingsGroupContent>
+                  <SettingsSurface className="appearance-settings-surface">
+                    <div className="appearance-theme-editor-grid">
+                      <ChromeThemeEditor title="Light chrome" variant="light" theme={lightChromeTheme} onChange={updateChrome} />
+                      <ChromeThemeEditor title="Dark chrome" variant="dark" theme={darkChromeTheme} onChange={updateChrome} />
+                    </div>
+                  </SettingsSurface>
+                </SettingsGroupContent>
+              </SettingsContentGroup>
+
+              <SettingsContentGroup className="appearance-settings-content-group">
+                <SettingsSectionHeading
+                  title="Sharing"
+                  description="Import or copy a portable Codex theme string."
+                />
+                <SettingsGroupContent>
+                  <SettingsSurface className="appearance-settings-surface">
+                    <div className="appearance-sharing-controls" data-import-controls-surface="shared">
+                      <div className="settings-actions-inline appearance-sharing-actions">
+                        <button
+                          type="button"
+                          data-testid="copy-light-theme"
+                          className="settings-action-button"
+                          onClick={() => { void copyTheme('light') }}
+                        >
+                          Copy light theme
+                        </button>
+                        <button
+                          type="button"
+                          data-testid="copy-dark-theme"
+                          className="settings-action-button"
+                          onClick={() => { void copyTheme('dark') }}
+                        >
+                          Copy dark theme
+                        </button>
+                      </div>
+                      <textarea
+                        data-testid="theme-import-input"
+                        data-import-input-surface="shared"
+                        value={themeImportText}
+                        onChange={(event) => setThemeImportText(event.currentTarget.value)}
+                        placeholder="codex-theme-v1:{...}"
+                        className="appearance-theme-import-input"
+                      />
+                      <div className="appearance-theme-import-footer">
+                        <button
+                          type="button"
+                          data-testid="theme-import-button"
+                          className="settings-action-button appearance-theme-import-action"
+                          onClick={importTheme}
+                        >
+                          Import theme
+                        </button>
+                        {themeSharingStatus && (
+                          <span
+                            data-testid="theme-import-status"
+                            className="appearance-theme-import-status"
+                            data-tone={themeSharingStatus.tone}
+                            role={themeSharingStatus.tone === 'error' ? 'alert' : 'status'}
+                            aria-live={themeSharingStatus.tone === 'error' ? 'assertive' : 'polite'}
+                            aria-atomic="true"
+                          >
+                            {themeSharingStatus.text}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </SettingsSurface>
+                </SettingsGroupContent>
+              </SettingsContentGroup>
+            </div>
+          </details>
 
           <SettingsContentGroup className="appearance-settings-content-group">
           <SettingsSectionHeading

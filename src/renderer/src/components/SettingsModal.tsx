@@ -20,7 +20,6 @@ import type { ShortcutOverrides } from '../../../types/appCommands'
 import { parsePortableTheme } from '../../../types/themeSharing'
 import Icon from './shared/Icon'
 import AppearanceSettingsPage, { defaultDarkChromeTheme, defaultLightChromeTheme, type AppearancePreset } from './Settings/AppearanceSettingsPage'
-import AutomationsSettingsPage from './Settings/AutomationsSettingsPage'
 import BrowserSettingsPage from './Settings/BrowserSettingsPage'
 import DataControlsSettingsPage from './Settings/DataControlsSettingsPage'
 import GeneralSettingsPage from './Settings/GeneralSettingsPage'
@@ -58,7 +57,6 @@ const SETTINGS_SEARCH_ITEMS: Array<{
   { section: 'providers', label: 'Provider picker', description: 'Default provider and runtime readiness', keywords: 'provider picker default provider runtime ready install claude codex openai cursor copilot', anchor: 'provider-picker' },
   { section: 'providers', label: 'Provider defaults', description: 'Default model, reasoning, permissions, and model list', keywords: 'models model reasoning thinking permission permissions mode default visible list provider agent', anchor: 'provider-defaults' },
   { section: 'providers', label: 'Providers', description: 'Default provider, models, permissions, and diagnostics', keywords: 'model agent permission diagnostics runtime codex claude openai' },
-  { section: 'automations', label: 'Automations', description: 'Scheduled follow-ups and run history', keywords: 'schedule reminder heartbeat cron run history pause' },
   { section: 'worktrees', label: 'Worktree create', description: 'Project, base ref, and branch controls', keywords: 'worktree worktrees create project base ref branch isolated workspace fork', anchor: 'worktrees-create' },
   { section: 'worktrees', label: 'Worktrees', description: 'Managed isolated workspaces', keywords: 'git branch fork workspace isolated cleanup' },
   { section: 'shortcuts', label: 'Shortcut bindings', description: 'Search, edit, clear, and reset keyboard shortcuts', keywords: 'shortcut shortcuts keybinding keybindings keyboard command commands hotkey hotkeys edit clear reset capture binding bindings', anchor: 'shortcut-bindings' },
@@ -546,7 +544,7 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
         rootAttrs={{ 'data-app-shell-header-band': 'shared' }}
       >
         <div className="settings-topbar-leading">
-          <span className="settings-topbar-title">{settingsTitle(effectiveSection)}</span>
+          <span className="settings-topbar-title">Settings</span>
           <div
             className="settings-topbar-search-host"
             data-testid="settings-search-results-host"
@@ -709,7 +707,6 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
                 />
               )}
               {effectiveSection === 'pets' && <PetsSettingsPage />}
-              {effectiveSection === 'automations' && <AutomationsSettingsPage sessions={sessions} />}
               {effectiveSection === 'worktrees' && <WorktreesSettingsPage onClose={onClose} />}
               {effectiveSection === 'shortcuts' && (
                 <ShortcutsSettingsPage

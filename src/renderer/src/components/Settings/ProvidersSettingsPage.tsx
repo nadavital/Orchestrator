@@ -95,6 +95,11 @@ export default function ProvidersSettingsPage({
   const [advancedOpen, setAdvancedOpen] = useState(defaultAdvancedOpen)
   const settingsCommandSurfaces = visibleSettingsCommandSurfaces(selectedId, runtime?.registry.commandSurfaces ?? [])
   const usageSnapshot = summarizeProviderUsage(sessions, selectedId)
+  const diagnosticSummary = [
+    installed ? 'Ready' : 'Unavailable',
+    `${usageSnapshot.sessionCount} chat${usageSnapshot.sessionCount === 1 ? '' : 's'}`,
+    diagnostics ? `${diagnostics.probes.filter((probe) => probe.status === 'ok').length}/${diagnostics.probes.length} checks` : 'Checks pending'
+  ]
   const modelForPicker = visibleIds.includes(currentModel)
     ? currentModel
     : visibleModels[0]?.id ?? currentModel
@@ -103,6 +108,8 @@ export default function ProvidersSettingsPage({
   const [permissionContextLoading, setPermissionContextLoading] = useState(false)
   const [permissionContextRefreshStatus, setPermissionContextRefreshStatus] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
   const permissionContextCwd = sessions.find((session) => session.provider === selectedId)?.workDir ?? sessions[0]?.workDir
+  const detailsDialogTitleId = useId()
+  const detailsDialogDescriptionId = useId()
 
   const loadPermissionContext = useCallback(async (options: { announce?: boolean } = {}): Promise<void> => {
     setPermissionContextLoading(true)
@@ -136,6 +143,15 @@ export default function ProvidersSettingsPage({
     setSidebarSyncResult(null)
     setPermissionContextRefreshStatus(null)
   }, [selectedId])
+
+  useEffect(() => {
+    if (!advancedOpen) return undefined
+    const handleKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') setAdvancedOpen(false)
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [advancedOpen])
 
   useEffect(() => {
     let alive = true
@@ -179,20 +195,24 @@ export default function ProvidersSettingsPage({
           dataTestId="settings-content-layout-providers"
         >
           <div className="provider-settings-stack">
-            <SettingsContentGroup
-              className="provider-settings-content-group"
-              rootAttrs={{
-                tabIndex: -1,
-                'data-settings-search-anchor': 'provider-picker'
-              }}
-            >
-              <SettingsSectionHeading
-                title="Provider"
-                description="Choose the default agent provider and check whether its local runtime is ready."
-              />
-              <SettingsGroupContent>
-                <SettingsSurface className="provider-selector-surface">
-                  <div className="provider-selector-pad">
+        <div key={selectedId}>
+          <SettingsContentGroup
+            className="provider-settings-content-group"
+            rootAttrs={{
+              tabIndex: -1,
+              'data-settings-search-anchor': 'provider-defaults'
+            }}
+          >
+            <SettingsSectionHeading
+              title="Defaults"
+              description="Choose the provider, model, reasoning, permissions, and visible model list."
+            />
+            <SettingsGroupContent>
+              <SettingsSurface className="provider-settings-control-surface">
+                <SettingsRow
+                  label="Provider"
+                  className="provider-settings-row provider-settings-row-stacked provider-provider-row"
+                  control={(
                     <ProviderDropdown
                       providers={providerList}
                       selectedId={selectedId}
@@ -204,26 +224,9 @@ export default function ProvidersSettingsPage({
                       onSelect={setSelectedId}
                       onSetDefault={() => onSetDefaultProvider(selectedId)}
                     />
-                  </div>
-                </SettingsSurface>
-              </SettingsGroupContent>
-            </SettingsContentGroup>
+                  )}
+                />
 
-        {/* Per-provider content — key forces clean remount on provider switch, stopping DnD jitter */}
-        <div key={selectedId}>
-          <SettingsContentGroup
-            className="provider-settings-content-group"
-            rootAttrs={{
-              tabIndex: -1,
-              'data-settings-search-anchor': 'provider-defaults'
-            }}
-          >
-            <SettingsSectionHeading
-              title="Defaults"
-              description="Configure the model, reasoning, permissions, and visible model list for this provider."
-            />
-            <SettingsGroupContent>
-              <SettingsSurface className="provider-settings-control-surface">
                 <SettingsRow
                   label="Default"
                   className="provider-settings-row"
@@ -304,63 +307,88 @@ export default function ProvidersSettingsPage({
                   )}
                 />
 
-                {settingsCommandSurfaces.length > 0 && (
-                  <SettingsRow
-                    label="Capabilities"
-                    className="provider-settings-row provider-settings-row-stacked"
-                    control={(
-                      <ProviderCommandSurfaces
-                        providerId={selectedId}
-                        color={providerDef.color}
-                        surfaces={settingsCommandSurfaces}
-                        sessions={sessions}
-                      />
-                    )}
-                  />
-                )}
-
-                {runtime?.registry.gaps.length ? (
-                  <SettingsRow
-                    label="Boundaries"
-                    className="provider-settings-row provider-settings-row-stacked"
-                    control={<ProviderBoundarySummary gaps={runtime.registry.gaps} color={providerDef.color} />}
-                  />
-                ) : null}
               </SettingsSurface>
             </SettingsGroupContent>
           </SettingsContentGroup>
 
           {advancedOpen && (
-            <SettingsContentGroup className="provider-settings-content-group">
-              <SettingsSectionHeading
-                title="Details"
-                description="Local runtime status, setup, usage, and provider capability checks."
-              />
-              <SettingsGroupContent>
-                <div className="provider-details-grid" data-testid="provider-details-grid">
-                  <ProviderDetailCard wide>
-                    <ProviderStatusDetails
-                      providerId={selectedId}
-                      diagnostics={diagnostics}
-                      loadingDiagnostics={loadingDiagnostics}
-                      usage={usageSnapshot}
-                      color={providerDef.color}
-                      sidebarSyncResult={sidebarSyncResult}
-                      sidebarSyncLoading={sidebarSyncLoading}
-                      onRefreshSidebarMetadata={selectedId === 'codex' ? refreshSidebarMetadata : undefined}
-                    />
-                  </ProviderDetailCard>
-                  {diagnostics && diagnostics.probes.length > 0 && (
-                    <ProviderDetailCard title="Checks" wide>
-                      <ProviderProbeGrid diagnostics={diagnostics} color={providerDef.color} />
+            <div
+              className="provider-details-dialog-backdrop"
+              role="presentation"
+              onMouseDown={(event) => {
+                if (event.target === event.currentTarget) setAdvancedOpen(false)
+              }}
+            >
+              <div
+                className="provider-details-dialog provider-diagnostics-group"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby={detailsDialogTitleId}
+                aria-describedby={detailsDialogDescriptionId}
+                data-testid="provider-details-dialog"
+              >
+                <div className="provider-details-panel">
+                  <div className="provider-details-panel-header">
+                    <div className="provider-details-panel-copy">
+                      <div id={detailsDialogTitleId} className="provider-details-panel-title">Provider details</div>
+                      <div id={detailsDialogDescriptionId} className="provider-details-panel-description">Runtime diagnostics, capability checks, and setup commands for {providerDef.name}.</div>
+                    </div>
+                    <div className="provider-details-panel-actions">
+                      <div className="provider-details-panel-summary" aria-label={`${providerDef.name} diagnostics summary`}>
+                        {diagnosticSummary.map((item) => (
+                          <span key={item}>{item}</span>
+                        ))}
+                      </div>
+                      <button
+                        type="button"
+                        className="provider-details-dialog-close"
+                        aria-label="Close provider details"
+                        onClick={() => setAdvancedOpen(false)}
+                      >
+                        <Icon name="close" size={14} />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="provider-details-grid" data-testid="provider-details-grid">
+                    <ProviderDetailCard wide>
+                      <ProviderStatusDetails
+                        providerId={selectedId}
+                        diagnostics={diagnostics}
+                        loadingDiagnostics={loadingDiagnostics}
+                        usage={usageSnapshot}
+                        color={providerDef.color}
+                        sidebarSyncResult={sidebarSyncResult}
+                        sidebarSyncLoading={sidebarSyncLoading}
+                        onRefreshSidebarMetadata={selectedId === 'codex' ? refreshSidebarMetadata : undefined}
+                      />
                     </ProviderDetailCard>
-                  )}
-                  <ProviderDetailCard title="Setup" wide>
-                    <ProviderSetupDetails providerDef={providerDef} />
-                  </ProviderDetailCard>
+                    {diagnostics && diagnostics.probes.length > 0 && (
+                      <ProviderDetailCard title="Checks">
+                        <ProviderProbeGrid diagnostics={diagnostics} color={providerDef.color} />
+                      </ProviderDetailCard>
+                    )}
+                    {settingsCommandSurfaces.length > 0 && (
+                      <ProviderDetailCard title="Capabilities" wide>
+                        <ProviderCommandSurfaces
+                          providerId={selectedId}
+                          color={providerDef.color}
+                          surfaces={settingsCommandSurfaces}
+                          sessions={sessions}
+                        />
+                      </ProviderDetailCard>
+                    )}
+                    {runtime?.registry.gaps.length ? (
+                      <ProviderDetailCard title="Boundaries">
+                        <ProviderBoundarySummary gaps={runtime.registry.gaps} color={providerDef.color} />
+                      </ProviderDetailCard>
+                    ) : null}
+                    <ProviderDetailCard title="Setup">
+                      <ProviderSetupDetails providerDef={providerDef} />
+                    </ProviderDetailCard>
+                  </div>
                 </div>
-              </SettingsGroupContent>
-            </SettingsContentGroup>
+              </div>
+            </div>
           )}
         </div>
           </div>
@@ -524,57 +552,33 @@ function ProviderPermissionContract({
     <div>
       {chips.length > 0 && (
         <div
+          className="provider-permission-contract"
           data-testid="settings-permission-execution-contract"
-          style={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            gap: 5,
-            marginTop: 6
-          }}
         >
           {chips.map((chip) => (
             <span
               key={`${chip.label}:${chip.value}`}
+              className="provider-permission-chip"
+              data-strong={chip.strong ? 'true' : 'false'}
               title={`${chip.label}: ${chip.value}`}
-              style={{
-                maxWidth: 180,
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-                padding: '3px 6px',
-                borderRadius: 7,
-                border: `1px solid ${chip.strong ? color : 'var(--color-border)'}`,
-                color: chip.strong ? color : 'var(--color-text-muted)',
-                background: 'var(--color-surface)',
-                fontSize: 10,
-                fontWeight: chip.strong ? 650 : 500
-              }}
+              style={{ '--provider-color': color } as CSSProperties}
             >
               {chip.label} {chip.value}
             </span>
           ))}
         </div>
       )}
-      {context && context.source !== 'static' && (
+      {context && (
         <>
           <div
+            className="provider-permission-runtime-context"
             data-testid="settings-permission-runtime-context"
             data-permission-context-refreshing={refreshing ? 'true' : 'false'}
             data-permission-context-source={context.source}
             data-permission-context-status={context.status}
-            style={{
-              display: 'flex',
-              flexWrap: 'wrap',
-              alignItems: 'center',
-              gap: 6,
-              marginTop: 6,
-              color: context.status === 'ok' ? 'var(--color-green)' : 'var(--color-text-muted)',
-              fontSize: 10.5,
-              lineHeight: 1.35
-            }}
             title={context.cwd ? `${context.summary ?? ''} ${context.cwd}` : context.summary}
           >
-            <span>{context.status === 'ok' ? 'Live config' : 'Config fallback'} · {context.summary ?? 'Permission config checked.'}</span>
+            <span>{context.status === 'ok' ? 'Live config loaded' : 'Config fallback loaded'}</span>
             <button
               type="button"
               className="provider-details-inline-action"
@@ -589,16 +593,13 @@ function ProviderPermissionContract({
           </div>
           {refreshStatus && (
             <div
+              className="provider-permission-refresh-status"
               data-testid="settings-permission-runtime-refresh-status"
+              data-tone={refreshStatus.tone}
               role={refreshStatus.tone === 'danger' ? 'alert' : 'status'}
               aria-live={refreshStatus.tone === 'danger' ? 'assertive' : 'polite'}
               aria-atomic="true"
-              style={{
-                marginTop: 5,
-                color: refreshStatus.tone === 'danger' ? 'var(--color-red)' : color,
-                fontSize: 10.5,
-                fontWeight: 600
-              }}
+              style={{ '--provider-color': color } as CSSProperties}
             >
               {refreshStatus.text}
             </div>
@@ -693,9 +694,9 @@ function ProviderRuntimeEventsCard({
       data-provider-runtime-add-chat-status-tone={actionStatus?.action === 'chat' ? actionStatus.tone : ''}
       style={{ display: 'grid', gap: 6 }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, minWidth: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, minWidth: 0 }}>
         <InlineMutedText>Latest runtime activity</InlineMutedText>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6, minWidth: 0 }}>
           <button
             type="button"
             className="provider-details-inline-action"
@@ -2055,49 +2056,34 @@ function DefaultModelPicker({
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-        {models.map((m) => {
-          const active = currentModel === m.id
-          return (
-            <button
-              key={m.id}
-              onClick={() => { onSetModel(m.id); setCustomInput(''); setCustomOpen(false) }}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '5px 10px',
-                borderRadius: 8,
-                background: active ? 'var(--color-surface2)' : 'var(--color-surface)',
-                border: `1px solid ${active ? providerDef.color : 'var(--color-border)'}`,
-                color: active ? providerDef.color : 'var(--color-text)',
-                cursor: 'pointer',
-                fontSize: 12,
-                fontWeight: active ? 600 : 500
-              }}
-            >
-              {m.label}
-            </button>
-          )
-        })}
+    <div className="provider-default-model-picker">
+      <div className="provider-default-model-select-row">
+        <select
+          className="settings-select provider-default-model-select"
+          value={isPreset ? currentModel : '__custom__'}
+          aria-label={`${providerDef.name} default model`}
+          data-testid="provider-default-model-select"
+          onChange={(event) => {
+            if (event.target.value === '__custom__') {
+              setCustomOpen(true)
+              return
+            }
+            onSetModel(event.target.value)
+            setCustomInput('')
+            setCustomOpen(false)
+          }}
+        >
+          {models.map((m) => (
+            <option key={m.id} value={m.id}>{m.label}</option>
+          ))}
+          <option value="__custom__">Custom model...</option>
+        </select>
         {isPreset && !customOpen && (
           <button
+            type="button"
             data-testid="provider-custom-model-toggle"
+            className="provider-default-model-custom-toggle"
             onClick={() => setCustomOpen(true)}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '5px 10px',
-              borderRadius: 8,
-              background: 'var(--color-surface)',
-              border: '1px solid var(--color-border)',
-              color: 'var(--color-text-muted)',
-              cursor: 'pointer',
-              fontSize: 12,
-              fontWeight: 600
-            }}
           >
             Custom
           </button>
@@ -2106,12 +2092,9 @@ function DefaultModelPicker({
 
       {customOpen && (
         <div
-          style={{
-            display: 'flex', alignItems: 'center', gap: 8,
-            padding: '8px 12px', borderRadius: 8,
-            background: !isPreset && currentModel ? 'var(--color-surface2)' : 'var(--color-surface)',
-            border: `1px solid ${!isPreset && currentModel ? providerDef.color : 'var(--color-border)'}`
-          }}
+          className="provider-default-model-custom"
+          data-active={!isPreset && currentModel ? 'true' : 'false'}
+          style={{ '--provider-color': providerDef.color } as CSSProperties}
         >
           <input
             data-testid="provider-custom-model-input"
@@ -2120,16 +2103,10 @@ function DefaultModelPicker({
             onBlur={applyCustom}
             onKeyDown={(e) => { if (e.key === 'Enter') applyCustom() }}
             placeholder="Custom model ID..."
-            style={{
-              flex: 1, background: 'transparent', border: 'none', outline: 'none',
-              fontSize: 11, fontFamily: 'monospace',
-              color: customInput ? 'var(--color-text)' : 'var(--color-text-muted)'
-            }}
+            className="provider-default-model-custom-input"
           />
           {!isPreset && currentModel && (
-            <svg width="12" height="12" viewBox="0 0 16 16" fill={providerDef.color}>
-              <path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z" />
-            </svg>
+            <Icon name="check" size={12} />
           )}
         </div>
       )}
@@ -2178,7 +2155,7 @@ function ProviderDiagnosticsCard({
   ]
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(86px, 1fr))', gap: 6 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(112px, 1fr))', gap: 2 }}>
       {rows.map((row) => (
         <div
           key={row.label}
@@ -2187,13 +2164,12 @@ function ProviderDiagnosticsCard({
             alignItems: 'center',
             justifyContent: 'space-between',
             gap: 8,
-            padding: '8px 10px',
-            borderRadius: 8,
-            background: 'var(--color-surface)',
-            border: '1px solid var(--color-border)'
+            minHeight: 24,
+            padding: '2px 0',
+            borderTop: '1px solid color-mix(in srgb, var(--border-subtle) 12%, transparent)'
           }}
         >
-          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text)' }}>{row.label}</div>
+          <div style={{ fontSize: 11, fontWeight: 560, color: 'var(--text-secondary)' }}>{row.label}</div>
           <DiagnosticPill status={row.status} color={color} />
         </div>
       ))}
@@ -2342,10 +2318,8 @@ function ProviderUsageDiagnosticsCard({
               gap: 8,
               minWidth: 0,
               minHeight: 22,
-              padding: '3px 6px',
-              borderRadius: 7,
-              background: 'var(--color-surface)',
-              border: '1px solid var(--color-border)'
+              padding: '3px 0',
+              borderTop: '1px solid color-mix(in srgb, var(--border-subtle) 24%, transparent)'
             }}
           >
             <div
@@ -2385,10 +2359,8 @@ function ProviderUsageDiagnosticsCard({
               gap: 5,
               minWidth: 0,
               minHeight: 22,
-              padding: '3px 6px',
-              borderRadius: 7,
-              background: 'var(--color-surface)',
-              border: '1px solid var(--color-border)'
+              padding: '3px 0',
+              borderTop: '1px solid color-mix(in srgb, var(--border-subtle) 24%, transparent)'
             }}
           >
             <div
@@ -2467,7 +2439,7 @@ function ProviderProbeGrid({
   color: string
 }): JSX.Element {
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: 6 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: 4 }}>
       {diagnostics.probes.map((probe) => (
         <div
           key={probe.id}
@@ -2477,10 +2449,9 @@ function ProviderProbeGrid({
             justifyContent: 'space-between',
             gap: 8,
             minWidth: 0,
-            padding: '8px 10px',
-            borderRadius: 8,
-            background: 'var(--color-surface)',
-            border: '1px solid var(--color-border)'
+            minHeight: 26,
+            padding: '2px 0',
+            borderTop: '1px solid color-mix(in srgb, var(--border-subtle) 12%, transparent)'
           }}
         >
           <div
@@ -2490,8 +2461,8 @@ function ProviderProbeGrid({
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',
               fontSize: 11,
-              fontWeight: 600,
-              color: 'var(--color-text)'
+              fontWeight: 560,
+              color: 'var(--text-secondary)'
             }}
           >
             {probe.label}

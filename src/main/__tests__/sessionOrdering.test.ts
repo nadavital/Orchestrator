@@ -446,7 +446,7 @@ test('settings navigation filters local-only sections for remote hosts', () => {
   const remoteSections = remoteGroups.flatMap((group) => group.sections)
 
   assert.deepEqual(localGroups.map((group) => group.id), ['app', 'host'])
-  assert.equal(localSections.includes('automations'), true)
+  assert.equal(localSections.includes('automations'), false)
   assert.equal(localSections.includes('worktrees'), true)
   assert.equal(localSections.includes('data'), true)
   assert.deepEqual(remoteGroups.map((group) => group.id), ['app', 'host'])
@@ -457,6 +457,7 @@ test('settings navigation filters local-only sections for remote hosts', () => {
   assert.equal(remoteSections.includes('personalization'), true)
   assert.equal(remoteSections.includes('pets'), true)
   assert.equal(normalizeSettingsSectionForHostKind('worktrees', 'remote'), 'general')
+  assert.equal(normalizeSettingsSectionForHostKind('automations', 'local'), 'general')
   assert.equal(normalizeSettingsSectionForHostKind('shortcuts', 'remote'), 'shortcuts')
   assert.equal(settingsSectionScope('general'), 'app')
   assert.equal(settingsSectionScope('personalization'), 'host')

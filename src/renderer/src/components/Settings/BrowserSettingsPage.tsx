@@ -189,28 +189,38 @@ export default function BrowserSettingsPage({ hostId, hostLabel }: BrowserSettin
             </SettingsGroupContent>
           </SettingsContentGroup>
 
-          <SettingsContentGroup
-            className="browser-settings-content-group"
-            rootAttrs={{
-              tabIndex: -1,
-              'data-settings-search-anchor': 'browser-domains'
-            }}
+          <details
+            className="settings-advanced-disclosure browser-domains-disclosure"
+            data-testid="settings-browser-domains-disclosure"
+            tabIndex={-1}
+            data-settings-search-anchor="browser-domains"
           >
-            <div className="settings-content-heading">
-              <div className="settings-content-title">Domains</div>
-              <div className="settings-content-description">Persist allowed and blocked domain defaults for Browser opening, downloads, and uploads.</div>
+            <summary className="settings-advanced-summary" data-testid="settings-browser-domains-toggle">
+              <span className="settings-advanced-summary-copy">
+                <span className="settings-advanced-summary-title">Domain rules</span>
+                <span className="settings-advanced-summary-description">Allowed and blocked defaults for Browser opening, downloads, and uploads.</span>
+              </span>
+            </summary>
+
+            <div className="settings-advanced-body">
+              <SettingsContentGroup className="browser-settings-content-group">
+                <div className="settings-content-heading">
+                  <div className="settings-content-title">Domains</div>
+                  <div className="settings-content-description">Persist allowed and blocked domain defaults for Browser opening, downloads, and uploads.</div>
+                </div>
+                <SettingsGroupContent>
+                  <SettingsSurface className="browser-settings-surface browser-domain-settings-surface" dataTestId="settings-browser-domains-surface">
+                    <DomainPolicyRow title="Allowed domains" description="Domains that can open without asking." listKey="allowedOrigins" values={policy.allowedOrigins} onSave={savePolicy} />
+                    <DomainPolicyRow title="Blocked domains" description="Domains Orchestrator will not open." listKey="blockedOrigins" values={policy.blockedOrigins} onSave={savePolicy} />
+                    <DomainPolicyRow title="Allowed download domains" description="Domains that can download files without asking." listKey="allowedDownloadOrigins" values={policy.allowedDownloadOrigins} onSave={savePolicy} />
+                    <DomainPolicyRow title="Blocked download domains" description="Domains Orchestrator will not download files from." listKey="blockedDownloadOrigins" values={policy.blockedDownloadOrigins} onSave={savePolicy} />
+                    <DomainPolicyRow title="Allowed upload domains" description="Domains that can receive file uploads without asking." listKey="allowedUploadOrigins" values={policy.allowedUploadOrigins} onSave={savePolicy} />
+                    <DomainPolicyRow title="Blocked upload domains" description="Domains Orchestrator will not upload files to." listKey="blockedUploadOrigins" values={policy.blockedUploadOrigins} onSave={savePolicy} />
+                  </SettingsSurface>
+                </SettingsGroupContent>
+              </SettingsContentGroup>
             </div>
-            <SettingsGroupContent>
-              <SettingsSurface className="browser-settings-surface browser-domain-settings-surface" dataTestId="settings-browser-domains-surface">
-                <DomainPolicyRow title="Allowed domains" description="Domains that can open without asking." listKey="allowedOrigins" values={policy.allowedOrigins} onSave={savePolicy} />
-                <DomainPolicyRow title="Blocked domains" description="Domains Orchestrator will not open." listKey="blockedOrigins" values={policy.blockedOrigins} onSave={savePolicy} />
-                <DomainPolicyRow title="Allowed download domains" description="Domains that can download files without asking." listKey="allowedDownloadOrigins" values={policy.allowedDownloadOrigins} onSave={savePolicy} />
-                <DomainPolicyRow title="Blocked download domains" description="Domains Orchestrator will not download files from." listKey="blockedDownloadOrigins" values={policy.blockedDownloadOrigins} onSave={savePolicy} />
-                <DomainPolicyRow title="Allowed upload domains" description="Domains that can receive file uploads without asking." listKey="allowedUploadOrigins" values={policy.allowedUploadOrigins} onSave={savePolicy} />
-                <DomainPolicyRow title="Blocked upload domains" description="Domains Orchestrator will not upload files to." listKey="blockedUploadOrigins" values={policy.blockedUploadOrigins} onSave={savePolicy} />
-              </SettingsSurface>
-            </SettingsGroupContent>
-          </SettingsContentGroup>
+          </details>
         </SettingsContentLayout>
       </SettingsPageSection>
     </div>

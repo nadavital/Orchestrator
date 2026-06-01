@@ -1411,7 +1411,7 @@ export const SETTINGS_NAVIGATION_GROUP_DEFINITIONS: SettingsNavigationGroupDefin
   {
     id: 'host',
     label: 'Host',
-    sections: ['automations', 'worktrees', 'shortcuts', 'personalization', 'browser', 'data']
+    sections: ['worktrees', 'shortcuts', 'personalization', 'browser', 'data']
   }
 ]
 
@@ -1476,7 +1476,9 @@ export function normalizeSettingsHostId(hostId: string | null | undefined, hosts
 }
 
 export function isSettingsSectionVisibleForHostKind(section: SettingsSectionId, hostKind: SettingsHostOption['kind']): boolean {
-  if (hostKind === 'local') return true
+  const isInSettingsNavigation = SETTINGS_NAVIGATION_GROUP_DEFINITIONS
+    .some((group) => group.sections.includes(section))
+  if (hostKind === 'local') return isInSettingsNavigation
   return REMOTE_HOST_VISIBLE_SETTINGS_SECTIONS.has(section)
 }
 

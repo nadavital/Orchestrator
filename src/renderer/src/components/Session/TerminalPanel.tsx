@@ -1,17 +1,27 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
-import { DEFAULT_TERMINAL_PANEL_CONTENT_HEIGHT, defaultUI, useSessionStore } from '../../store/sessions'
-import type { BottomPanelTabId, BottomPanelTabKind } from '../../store/sessions'
+import { DEFAULT_TERMINAL_PANEL_CONTENT_HEIGHT, defaultUI, filePathFromTabId, sideChatContextSnapshot, sideChatIdFromTabId, sideChatTabId, useSessionStore } from '../../store/sessions'
+import type { BottomPanelTabId, BottomPanelTabKind, GitFocusTarget } from '../../store/sessions'
 import type { Session } from '../../types'
 import { canCloseBottomPanelTab } from '../../../../types/panelTabs'
 import { AppShellPanel, IconButton, MenuItem, MenuSection, MenuSectionLabel, MenuSurface, PanelResizeHandle, PanelTabStrip, ToolbarButton, exitFullscreenForPanelTab, panelTabContextMenuPoint, panelTabDomId, panelTabPanelDomId, useAppShellBottomPanelLayout, useAppShellResizeController } from '../shared/designSystem'
+import BrowserPanel from './BrowserPanel'
+import DiffPanel from './DiffPanel'
+import EnvironmentPanel from './EnvironmentPanel'
+import EventInspectorPanel from './EventInspectorPanel'
+import ExtensionsPanel from './ExtensionsPanel'
+import FileTabPanel from './FileTabPanel'
+import FilesPanel from './FilesPanel'
+import GitActionDialog from './GitActionDialog'
+import Icon from '../shared/Icon'
 import PlanPanel from './PlanPanel'
+import SideQuestionPanel from './SideQuestionPanel'
 import TerminalView from './TerminalView'
 
-const MIN_TERMINAL_HEIGHT = 110
-const MAX_TERMINAL_HEIGHT = 600
+const MIN_TERMINAL_HEIGHT = 96
+const MAX_TERMINAL_HEIGHT = 340
 const DEFAULT_TERMINAL_HEIGHT = DEFAULT_TERMINAL_PANEL_CONTENT_HEIGHT
-const MIN_PRIMARY_CONTENT_HEIGHT = 260
+const MIN_PRIMARY_CONTENT_HEIGHT = 440
 const TERMINAL_PANEL_CHROME_HEIGHT = 50
 
 type TerminalActionStatus = {
@@ -43,13 +53,21 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
   const moveTerminalTab = useSessionStore((state) => state.moveTerminalTab)
   const transferSessionPanelTab = useSessionStore((state) => state.transferSessionPanelTab)
   const closeTerminalTab = useSessionStore((state) => state.closeTerminalTab)
+  const openSideChat = useSessionStore((state) => state.openSideChat)
   const openRightPanelBrowserUrl = useSessionStore((state) => state.openRightPanelBrowserUrl)
+  const setShowDiff = useSessionStore((state) => state.setShowDiff)
+  const openRightPanelTab = useSessionStore((state) => state.openRightPanelTab)
+  const updateRightPanelFileTabState = useSessionStore((state) => state.updateRightPanelFileTabState)
+  const setRightPanelBrowserUrl = useSessionStore((state) => state.setRightPanelBrowserUrl)
+  const setRightPanelBrowserWorkbench = useSessionStore((state) => state.setRightPanelBrowserWorkbench)
   const [terminalMenu, setTerminalMenu] = useState<{ tabId: BottomPanelTabId; x: number; y: number } | null>(null)
   const [terminalActionStatus, setTerminalActionStatus] = useState<TerminalActionStatus | null>(null)
   const [terminalOutputs, setTerminalOutputs] = useState<Record<string, string>>({})
   const [terminalSelections, setTerminalSelections] = useState<Record<string, string>>({})
   const [terminalCommandStates, setTerminalCommandStates] = useState<Record<string, TerminalCommandState>>({})
+  const [gitActionDialog, setGitActionDialog] = useState<{ target: GitFocusTarget; path?: string | null } | null>(null)
   const terminalActionStatusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [bottomTabMenuOpen, setBottomTabMenuOpen] = useState(false)
   const terminalPanel = ui.terminalPanel ?? { height: DEFAULT_TERMINAL_HEIGHT, tabs: [0], activeTabId: 0, nextTabId: 1 }
   const terminalResizeController = useAppShellResizeController({
     edge: 'top',
@@ -71,20 +89,24 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
   const terminalHeight = terminalLayout.size
   const terminalChromeHeight = TERMINAL_PANEL_CHROME_HEIGHT
   const terminalPanelTotalHeight = terminalHeight + terminalChromeHeight
-  const tabs = terminalPanel.tabs
-  const activeTab = terminalPanel.activeTabId
+  const primaryContentHeight = Math.max(0, Math.round(terminalLayout.containerSize - terminalPanelTotalHeight))
+  const tabs = terminalPanel.tabs.filter((tabId) => String(tabId) !== 'git')
+  const effectiveTabs = tabs.length > 0 ? tabs : [0]
+  const activeTab = effectiveTabs.includes(terminalPanel.activeTabId) ? terminalPanel.activeTabId : effectiveTabs[0]
 
   const terminalId = (tab: number): string => `${session.id}-${tab}`
-  const terminalTabs = tabs.map((tabId, idx) => ({
+  const terminalTabs = effectiveTabs.map((tabId, idx) => ({
     id: tabId,
-    label: bottomPanelTabLabel(tabId, idx, tabs),
+    label: bottomPanelTabLabel(tabId, idx, effectiveTabs, ui),
     icon: bottomPanelTabIcon(tabId),
     kind: bottomPanelTabKind(tabId),
-    closable: canCloseBottomPanelTab(tabId, tabs),
+    closable: canCloseBottomPanelTab(tabId, effectiveTabs),
     closeLabel: bottomPanelTabCloseLabel(tabId)
   }))
   const activeTabKind = bottomPanelTabKind(activeTab)
   const activeTerminalId = typeof activeTab === 'number' ? terminalId(activeTab) : null
+  const activeFilePath = typeof activeTab === 'string' ? filePathFromTabId(activeTab) : null
+  const activeSideChatId = typeof activeTab === 'string' ? sideChatIdFromTabId(activeTab) : null
   const activeTerminalOutput = activeTerminalId ? terminalOutputs[activeTerminalId] ?? '' : ''
   const activeTerminalSelection = activeTerminalId ? terminalSelections[activeTerminalId] ?? '' : ''
   const activeCommandState = activeTerminalId ? terminalCommandStates[activeTerminalId] : undefined
@@ -111,9 +133,10 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
   }
 
   const openPlanTab = (): void => {
-    if (tabs.includes('plan')) {
+    if (effectiveTabs.includes('plan')) {
       setActiveTerminalTab(session.id, 'plan')
       setPanelActionStatus({ text: 'Plan tab selected', tone: 'info' })
+      setBottomTabMenuOpen(false)
       return
     }
 
@@ -123,9 +146,55 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
       tabKind: 'plan',
       tabId: 'plan'
     })
+    if (moved) setActiveTerminalTab(session.id, 'plan')
     setPanelActionStatus(moved
       ? { text: 'Plan opened in bottom panel', tone: 'info' }
       : { text: 'Plan tab unavailable', tone: 'danger' })
+    setBottomTabMenuOpen(false)
+  }
+
+  const openBottomWorkbenchTab = (
+    tabId: Exclude<BottomPanelTabId, number>,
+    tabKind: BottomPanelTabKind,
+    label: string
+  ): void => {
+    if (effectiveTabs.includes(tabId)) {
+      setShowTerminal(session.id, true)
+      setActiveTerminalTab(session.id, tabId)
+      setPanelActionStatus({ text: `${label} tab selected`, tone: 'info' })
+      setBottomTabMenuOpen(false)
+      return
+    }
+
+    openRightPanelTab(session.id, tabId)
+    const moved = transferSessionPanelTab(session.id, {
+      sourcePanel: 'right',
+      targetPanel: 'bottom',
+      tabKind,
+      tabId
+    })
+    if (moved) setActiveTerminalTab(session.id, tabId)
+    setPanelActionStatus(moved
+      ? { text: `${label} opened in bottom panel`, tone: 'info' }
+      : { text: `${label} tab unavailable`, tone: 'danger' })
+    setBottomTabMenuOpen(false)
+  }
+
+  const openSideChatInBottomPanel = (): void => {
+    const chatId = crypto.randomUUID()
+    const tabId = sideChatTabId(chatId)
+    openSideChat(session.id, chatId, 'Side chat', sideChatContextSnapshot(session, 'workbench-new-tab'))
+    const moved = transferSessionPanelTab(session.id, {
+      sourcePanel: 'right',
+      targetPanel: 'bottom',
+      tabKind: 'sidechat',
+      tabId
+    })
+    if (moved) setActiveTerminalTab(session.id, tabId)
+    setPanelActionStatus(moved
+      ? { text: 'Side chat opened in bottom panel', tone: 'info' }
+      : { text: 'Side chat tab unavailable', tone: 'danger' })
+    setBottomTabMenuOpen(false)
   }
 
   const clearActiveTerminal = useCallback((): void => {
@@ -264,16 +333,16 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
   const closeTab = (tabId: BottomPanelTabId): void => {
     exitFullscreenForPanelTab('bottom', tabId)
     if (typeof tabId === 'number') window.api.terminal.kill(terminalId(tabId))
-    const closingFinalTab = tabs.length <= 1
+    const closingFinalTab = effectiveTabs.length <= 1
     closeTerminalTab(session.id, tabId)
-    setPanelActionStatus({ text: `${bottomPanelTabLabel(tabId, 0, [tabId])} tab closed`, tone: 'info' })
+    setPanelActionStatus({ text: `${bottomPanelTabLabel(tabId, 0, [tabId], ui)} tab closed`, tone: 'info' })
     setTerminalMenu(null)
     if (closingFinalTab) focusBottomPanelToggle()
   }
 
   const moveTab = (tabId: BottomPanelTabId, direction: 'left' | 'right'): void => {
     moveTerminalTab(session.id, tabId, direction)
-    setPanelActionStatus({ text: `${bottomPanelTabLabel(tabId, 0, [tabId])} tab moved ${direction}`, tone: 'info' })
+    setPanelActionStatus({ text: `${bottomPanelTabLabel(tabId, 0, [tabId], ui)} tab moved ${direction}`, tone: 'info' })
     setTerminalMenu(null)
   }
 
@@ -284,7 +353,7 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
       tabKind: bottomPanelTabKind(tabId),
       tabId
     })
-    setPanelActionStatus({ text: `${bottomPanelTabLabel(tabId, 0, [tabId])} moved to right panel`, tone: 'info' })
+    setPanelActionStatus({ text: `${bottomPanelTabLabel(tabId, 0, [tabId], ui)} moved to right panel`, tone: 'info' })
     setTerminalMenu(null)
   }
 
@@ -307,7 +376,7 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
     }
   }, [openRightPanelBrowserUrl, session.id])
 
-  const terminalMenuIndex = terminalMenu ? tabs.findIndex((tabId) => tabId === terminalMenu.tabId) : -1
+  const terminalMenuIndex = terminalMenu ? effectiveTabs.findIndex((tabId) => tabId === terminalMenu.tabId) : -1
 
   return (
     <AppShellPanel
@@ -331,6 +400,8 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
       data-bottom-panel-chrome-height={terminalChromeHeight}
       data-bottom-panel-total-height={terminalPanelTotalHeight}
       data-bottom-panel-default-height={DEFAULT_TERMINAL_HEIGHT}
+      data-bottom-panel-min-primary-content-height={MIN_PRIMARY_CONTENT_HEIGHT}
+      data-bottom-panel-primary-content-height={primaryContentHeight}
     >
       <PanelResizeHandle
         orientation="horizontal"
@@ -360,11 +431,14 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
             data-bottom-panel-default-height={DEFAULT_TERMINAL_HEIGHT}
             data-bottom-panel-min-height={MIN_TERMINAL_HEIGHT}
             data-bottom-panel-max-height={terminalLayout.maxSize}
+            data-bottom-panel-configured-max-height={MAX_TERMINAL_HEIGHT}
             data-bottom-panel-layout={terminalLayout.mode}
             data-bottom-panel-container-size={Math.round(terminalLayout.containerSize)}
-            data-bottom-panel-tabs={tabs.join(',')}
+            data-bottom-panel-min-primary-content-height={MIN_PRIMARY_CONTENT_HEIGHT}
+            data-bottom-panel-primary-content-height={primaryContentHeight}
+            data-bottom-panel-tabs={effectiveTabs.join(',')}
             data-bottom-panel-active-tab={activeTab}
-            data-bottom-panel-tab-kinds={tabs.map((tab) => bottomPanelTabKind(tab)).join(',')}
+            data-bottom-panel-tab-kinds={effectiveTabs.map((tab) => bottomPanelTabKind(tab)).join(',')}
             data-bottom-panel-active-tab-kind={activeTabKind}
             data-bottom-panel-active-terminal-id={activeTerminalId ?? ''}
             data-terminal-last-command={activeCommandState?.command ?? ''}
@@ -402,51 +476,109 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
                       {terminalActionStatus.text}
                     </span>
                   )}
-                  <IconButton icon="plus" label="New terminal" size="sm" variant="toolbar" onClick={addTab} />
+                  <IconButton icon="terminal" label="New terminal" size="sm" variant="toolbar" className="bottom-panel-quick-tab-action" onClick={addTab} />
                   <IconButton
                     icon="plan"
                     label="Open Plan in bottom panel"
                     size="sm"
                     variant="toolbar"
+                    className="bottom-panel-quick-tab-action"
                     active={activeTab === 'plan'}
                     dataTestId="bottom-panel-open-plan"
                     onClick={openPlanTab}
                   />
-                  <ToolbarButton
+                  <IconButton
+                    icon="browser"
+                    label="Open Browser in bottom panel"
+                    size="sm"
+                    variant="toolbar"
+                    className="bottom-panel-quick-tab-action"
+                    active={activeTab === 'browser'}
+                    dataTestId="bottom-panel-open-browser-quick"
+                    onClick={() => openBottomWorkbenchTab('browser', 'browser', 'Browser')}
+                  />
+                  <IconButton
+                    icon="folder"
+                    label="Open Files in bottom panel"
+                    size="sm"
+                    variant="toolbar"
+                    className="bottom-panel-quick-tab-action"
+                    active={activeTab === 'files'}
+                    dataTestId="bottom-panel-open-files-quick"
+                    onClick={() => openBottomWorkbenchTab('files', 'files', 'Files')}
+                  />
+                  <IconButton
+                    icon="diff"
+                    label="Open Review in bottom panel"
+                    size="sm"
+                    variant="toolbar"
+                    className="bottom-panel-quick-tab-action"
+                    active={activeTab === 'diff'}
+                    dataTestId="bottom-panel-open-review-quick"
+                    onClick={() => openBottomWorkbenchTab('diff', 'diff', 'Review')}
+                  />
+                  <IconButton
                     icon="chat"
-                    label="Add terminal output to chat"
+                    label="Open Side chat in bottom panel"
                     size="sm"
                     variant="toolbar"
-                    disabled={activeTabKind !== 'terminal' || !activeTerminalOutput.trim()}
-                    dataTestId="terminal-add-output-to-chat"
-                    onClick={addActiveTerminalOutputToChat}
+                    className="bottom-panel-quick-tab-action"
+                    active={activeTabKind === 'sidechat' || activeTab === 'side'}
+                    dataTestId="bottom-panel-open-side-chat-quick"
+                    onClick={openSideChatInBottomPanel}
                   />
-                  <ToolbarButton
-                    icon="copy"
-                    label="Add selected terminal output to chat"
-                    size="sm"
-                    variant="toolbar"
-                    disabled={activeTabKind !== 'terminal' || !activeTerminalSelection.trim()}
-                    dataTestId="terminal-add-selected-output-to-chat"
-                    onClick={addActiveTerminalSelectionToChat}
-                  />
-                  <ToolbarButton
-                    icon="terminal"
-                    label="Add latest command output to chat"
-                    size="sm"
-                    variant="toolbar"
-                    disabled={activeTabKind !== 'terminal' || !activeCommandState || !activeCommandOutput.trim()}
-                    dataTestId="terminal-add-command-output-to-chat"
-                    onClick={addActiveTerminalCommandOutputToChat}
-                  />
-                  <ToolbarButton
-                    icon="eraser"
-                    label="Clear terminal"
-                    size="sm"
-                    variant="toolbar"
-                    disabled={activeTabKind !== 'terminal'}
-                    onClick={clearActiveTerminal}
-                  />
+                  <button
+                    type="button"
+                    className="bottom-panel-new-tab-button"
+                    aria-label="Open bottom panel tab"
+                    aria-expanded={bottomTabMenuOpen}
+                    aria-haspopup="menu"
+                    data-testid="bottom-panel-open-tab-menu"
+                    data-active={bottomTabMenuOpen ? 'true' : 'false'}
+                    data-native-title-free="true"
+                    onClick={() => setBottomTabMenuOpen((open) => !open)}
+                  >
+                    <Icon name="plus" size={13} />
+                    <span>New tab</span>
+                  </button>
+                  {activeTabKind === 'terminal' && (
+                    <>
+                      <ToolbarButton
+                        icon="chat"
+                        label="Add terminal output to chat"
+                        size="sm"
+                        variant="toolbar"
+                        disabled={!activeTerminalOutput.trim()}
+                        dataTestId="terminal-add-output-to-chat"
+                        onClick={addActiveTerminalOutputToChat}
+                      />
+                      <ToolbarButton
+                        icon="copy"
+                        label="Add selected terminal output to chat"
+                        size="sm"
+                        variant="toolbar"
+                        disabled={!activeTerminalSelection.trim()}
+                        dataTestId="terminal-add-selected-output-to-chat"
+                        onClick={addActiveTerminalSelectionToChat}
+                      />
+                      <ToolbarButton
+                        icon="terminal"
+                        label="Add latest command output to chat"
+                        size="sm"
+                        variant="toolbar"
+                        disabled={!activeCommandState || !activeCommandOutput.trim()}
+                        dataTestId="terminal-add-command-output-to-chat"
+                        onClick={addActiveTerminalCommandOutputToChat}
+                      />
+                      <ToolbarButton
+                        icon="eraser"
+                        label="Clear terminal"
+                        size="sm"
+                        variant="toolbar"
+                        onClick={clearActiveTerminal}
+                      />
+                    </>
+                  )}
                   <ToolbarButton
                     icon="close"
                     label="Hide bottom panel"
@@ -464,6 +596,86 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
               )}
             />
           </div>
+
+          {bottomTabMenuOpen && (
+            <MenuSurface
+              className="bottom-panel-open-tab-menu"
+              data-testid="bottom-panel-open-tab-menu-surface"
+              data-bottom-panel-open-tab-menu="true"
+              onClose={() => setBottomTabMenuOpen(false)}
+              style={{
+                position: 'fixed',
+                right: 8,
+                bottom: terminalPanelTotalHeight + 8,
+                width: 214,
+                zIndex: 80
+              }}
+            >
+              <MenuSection dataTestId="bottom-panel-open-tab-menu-primary-section">
+                <MenuSectionLabel>Open in bottom panel</MenuSectionLabel>
+                <MenuItem
+                  icon="terminal"
+                  label="New terminal"
+                  dataTestId="bottom-panel-open-terminal"
+                  onClick={() => {
+                    addTab()
+                    setBottomTabMenuOpen(false)
+                  }}
+                />
+                <MenuItem
+                  icon="plan"
+                  label={effectiveTabs.includes('plan') ? 'Select Plan' : 'Plan'}
+                  dataTestId="bottom-panel-open-plan-from-menu"
+                  onClick={openPlanTab}
+                />
+                <MenuItem
+                  icon="settings"
+                  label={effectiveTabs.includes('environment') ? 'Select Environment' : 'Environment'}
+                  dataTestId="bottom-panel-open-environment"
+                  onClick={() => openBottomWorkbenchTab('environment', 'environment', 'Environment')}
+                />
+                <MenuItem
+                  icon="diff"
+                  label={effectiveTabs.includes('diff') ? 'Select Review' : 'Review'}
+                  dataTestId="bottom-panel-open-review"
+                  onClick={() => openBottomWorkbenchTab('diff', 'diff', 'Review')}
+                />
+                <MenuItem
+                  icon="folder"
+                  label={effectiveTabs.includes('files') ? 'Select Files' : 'Files'}
+                  dataTestId="bottom-panel-open-files"
+                  onClick={() => openBottomWorkbenchTab('files', 'files', 'Files')}
+                />
+                <MenuItem
+                  icon="browser"
+                  label={effectiveTabs.includes('browser') ? 'Select Browser' : 'Browser'}
+                  dataTestId="bottom-panel-open-browser"
+                  onClick={() => openBottomWorkbenchTab('browser', 'browser', 'Browser')}
+                />
+                <MenuItem
+                  icon="chat"
+                  label="Side chat"
+                  dataTestId="bottom-panel-open-side-chat"
+                  onClick={openSideChatInBottomPanel}
+                />
+              </MenuSection>
+              <MenuSection dataTestId="bottom-panel-open-tab-menu-secondary-section">
+                <MenuSectionLabel>Diagnostics</MenuSectionLabel>
+                <MenuItem
+                  icon="agents"
+                  label={effectiveTabs.includes('agents') ? 'Select Agents' : 'Agents'}
+                  dataTestId="bottom-panel-open-agents"
+                  onClick={() => openBottomWorkbenchTab('agents', 'agents', 'Agents')}
+                />
+                <MenuItem
+                  icon="extensions"
+                  label={effectiveTabs.includes('extensions') ? 'Select Extensions' : 'Extensions'}
+                  dataTestId="bottom-panel-open-extensions"
+                  onClick={() => openBottomWorkbenchTab('extensions', 'extensions', 'Extensions')}
+                />
+              </MenuSection>
+            </MenuSurface>
+          )}
 
           {terminalMenu && (
             <MenuSurface
@@ -494,7 +706,7 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
                 <MenuItem
                   icon="arrowRight"
                   label="Move tab right"
-                  disabled={terminalMenuIndex < 0 || terminalMenuIndex >= tabs.length - 1}
+                  disabled={terminalMenuIndex < 0 || terminalMenuIndex >= effectiveTabs.length - 1}
                   onClick={() => moveTab(terminalMenu.tabId, 'right')}
                 />
               </MenuSection>
@@ -504,7 +716,7 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
                 data-panel-tab-transfer-source="bottom"
                 data-panel-tab-transfer-target="right"
               >
-                <MenuSectionLabel>{terminalMenu ? bottomPanelTabLabel(terminalMenu.tabId, 0, [terminalMenu.tabId]) : 'Tab'}</MenuSectionLabel>
+              <MenuSectionLabel>{terminalMenu ? bottomPanelTabLabel(terminalMenu.tabId, 0, [terminalMenu.tabId], ui) : 'Tab'}</MenuSectionLabel>
                 <MenuItem
                   icon="panelRight"
                   label="Move tab to right panel"
@@ -516,7 +728,7 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
                 <MenuItem
                   icon="close"
                   label="Close tab"
-                  disabled={!canCloseBottomPanelTab(terminalMenu.tabId, tabs)}
+                  disabled={!canCloseBottomPanelTab(terminalMenu.tabId, effectiveTabs)}
                   onClick={() => closeTab(terminalMenu.tabId)}
                 />
               </MenuSection>
@@ -549,25 +761,108 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
                 onSelectionChange={handleTerminalSelectionChange}
                 onCommandSubmitted={handleTerminalCommandSubmitted}
               />
+            ) : activeTab === 'environment' ? (
+              <EnvironmentPanel
+                session={session}
+                embedded
+                onOpenReview={() => setShowDiff(session.id, true)}
+                onOpenGit={(target) => {
+                  setGitActionDialog({ target: target ?? 'commit' })
+                }}
+              />
+            ) : activeTab === 'diff' ? (
+              <DiffPanel
+                sessionId={session.id}
+                workDir={session.workDir}
+                embedded
+                onOpenGitAction={(target, path) => setGitActionDialog({ target, path })}
+              />
+            ) : activeTab === 'agents' ? (
+              <EventInspectorPanel session={session} embedded activeAgentId={null} />
+            ) : activeTab === 'extensions' ? (
+              <ExtensionsPanel provider={session.provider ?? 'claude'} workDir={session.workDir} embedded />
+            ) : activeTab === 'browser' ? (
+              <BrowserPanel
+                embedded
+                hostId={`bottom:${session.id}:browser`}
+                initialUrl={ui.browserUrl ?? ''}
+                browserState={ui.browserWorkbench}
+                onUrlChange={(url) => setRightPanelBrowserUrl(session.id, url)}
+                onBrowserStateChange={(patch) => setRightPanelBrowserWorkbench(session.id, patch)}
+              />
+            ) : activeTab === 'files' ? (
+              <FilesPanel sessionId={session.id} workDir={session.workDir} embedded />
+            ) : activeFilePath ? (
+              <FileTabPanel
+                workDir={session.workDir}
+                sessionId={session.id}
+                filePath={activeFilePath}
+                tabId={activeTab}
+                sourceWrap
+                sourceSearchIndex={0}
+                sourceSearchQuery=""
+                sourceAnnotations={[]}
+                sourceBlameVisible={false}
+                sourceRevealRequest={0}
+                onPin={() => undefined}
+                onFileTabStateChange={(tabId, patch) => updateRightPanelFileTabState(session.id, tabId, patch)}
+              />
+            ) : activeTab === 'side' ? (
+              <SideQuestionPanel session={session} embedded />
+            ) : activeSideChatId ? (
+              <SideQuestionPanel session={session} chatId={activeSideChatId} embedded />
             ) : (
               <PlanPanel session={session} embedded />
             )}
           </div>
         </>
       )}
+      {gitActionDialog && (
+        <GitActionDialog
+          session={session}
+          initialTarget={gitActionDialog.target}
+          focusPath={gitActionDialog.path ?? null}
+          onClose={() => setGitActionDialog(null)}
+        />
+      )}
     </AppShellPanel>
   )
 }
 
 function bottomPanelTabKind(tabId: BottomPanelTabId): BottomPanelTabKind {
-  return typeof tabId === 'number' ? 'terminal' : 'plan'
+  if (typeof tabId === 'number') return 'terminal'
+  if (tabId.startsWith('file:')) return 'file'
+  if (tabId.startsWith('sidechat:')) return 'sidechat'
+  return tabId
 }
 
-function bottomPanelTabIcon(tabId: BottomPanelTabId): 'terminal' | 'plan' {
-  return typeof tabId === 'number' ? 'terminal' : 'plan'
+function bottomPanelTabIcon(tabId: BottomPanelTabId): 'terminal' | 'plan' | 'settings' | 'diff' | 'agents' | 'extensions' | 'chat' | 'folder' | 'browser' | 'file' {
+  const kind = bottomPanelTabKind(tabId)
+  if (kind === 'environment') return 'settings'
+  if (kind === 'diff') return 'diff'
+  if (kind === 'agents') return 'agents'
+  if (kind === 'extensions') return 'extensions'
+  if (kind === 'side' || kind === 'sidechat') return 'chat'
+  if (kind === 'files') return 'folder'
+  if (kind === 'browser') return 'browser'
+  if (kind === 'file') return 'file'
+  return kind === 'terminal' ? 'terminal' : 'plan'
 }
 
-function bottomPanelTabLabel(tabId: BottomPanelTabId, index: number, tabs: BottomPanelTabId[]): string {
+function bottomPanelTabLabel(tabId: BottomPanelTabId, index: number, tabs: BottomPanelTabId[], ui?: ReturnType<typeof useSessionStore.getState>['uiState'][string]): string {
+  if (typeof tabId === 'string') {
+    if (tabId === 'environment') return 'Environment'
+    if (tabId === 'diff') return 'Review'
+    if (tabId === 'agents') return 'Agents'
+    if (tabId === 'extensions') return 'Extensions'
+    if (tabId === 'side') return 'Side'
+    if (tabId === 'files') return 'Files'
+    if (tabId === 'browser') return 'Browser'
+    const sideChatId = sideChatIdFromTabId(tabId)
+    if (sideChatId) return ui?.sideChats?.find((chat) => chat.id === sideChatId)?.title ?? 'Side chat'
+    const filePath = filePathFromTabId(tabId)
+    if (filePath) return basename(filePath)
+  }
   if (tabId === 'plan') return 'Plan'
   const terminalTabs = tabs.filter((tab): tab is number => typeof tab === 'number')
   const terminalOrdinal = terminalTabs.findIndex((tab) => tab === tabId) + 1
@@ -575,7 +870,12 @@ function bottomPanelTabLabel(tabId: BottomPanelTabId, index: number, tabs: Botto
 }
 
 function bottomPanelTabCloseLabel(tabId: BottomPanelTabId): string {
-  return tabId === 'plan' ? 'Close plan tab' : 'Close terminal'
+  if (typeof tabId === 'number') return 'Close terminal'
+  return `Close ${bottomPanelTabLabel(tabId, 0, [tabId])}`
+}
+
+function basename(path: string): string {
+  return path.split('/').filter(Boolean).at(-1) ?? path
 }
 
 function focusBottomPanelToggle(): void {

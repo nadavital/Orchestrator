@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
 import type { OpenTargetAvailability, PreferredOpenTarget } from '../../types'
 import {
-  SettingChoiceCard,
   SettingsContentLayout,
   SettingsContentGroup,
   SettingsGroupContent,
   SettingsPageSection,
+  SettingsRow,
   SettingsSurface
 } from '../shared/designSystem'
 
@@ -52,6 +52,11 @@ export default function GeneralSettingsPage({
     { id: 'send', label: 'Enter sends', desc: 'Press Enter to send; Shift-Enter inserts a new line' },
     { id: 'newline', label: 'Enter inserts line', desc: 'Press Command-Enter or Control-Enter to send' }
   ]
+  const selectedEditorOption = editorOptions.find((option) => option.id === preferredEditor) ?? editorOptions[0]
+  const selectedEditorTarget = openTargets.find((target) => target.id === selectedEditorOption.id)
+  const selectedEditorDescription = selectedEditorTarget
+    ? openTargetDescription(selectedEditorOption.desc, selectedEditorTarget)
+    : selectedEditorOption.desc
 
   const selectPreferredEditor = async (option: { id: PreferredEditor; label: string }): Promise<void> => {
     try {
@@ -92,33 +97,40 @@ export default function GeneralSettingsPage({
               'data-settings-search-anchor': 'general-files'
             }}
           >
-            <div className="settings-content-heading">
-              <div className="settings-content-title">Files</div>
-              <div className="settings-content-description">Choose where referenced file cards open from chat.</div>
-            </div>
             <SettingsGroupContent>
-              <SettingsSurface className="general-settings-editor-surface">
-                <div className="settings-choice-grid">
-                  {editorOptions.map((option) => {
-                    const active = preferredEditor === option.id
-                    const target = openTargets.find((candidate) => candidate.id === option.id)
-                    const unavailable = Boolean(target && !target.available && option.id !== 'system')
-                    const description = target
-                      ? openTargetDescription(option.desc, target)
-                      : option.desc
-                    return (
-                      <SettingChoiceCard
-                        key={option.id}
-                        label={option.label}
-                        description={description}
-                        active={active}
-                        onClick={() => { void selectPreferredEditor(option) }}
-                        disabled={unavailable}
-                        dataTestId={`settings-general-preferred-editor-${option.id}`}
-                      />
-                    )
-                  })}
-                </div>
+              <SettingsSurface className="general-settings-control-surface">
+                <SettingsRow
+                  label="Open files with"
+                  description={selectedEditorDescription}
+                  className="general-settings-row"
+                  control={(
+                    <select
+                      className="settings-select general-settings-select"
+                      value={preferredEditor}
+                      aria-label="Preferred file editor"
+                      data-testid="settings-general-preferred-editor"
+                      onChange={(event) => {
+                        const option = editorOptions.find((candidate) => candidate.id === event.target.value)
+                        if (option) void selectPreferredEditor(option)
+                      }}
+                    >
+                      {editorOptions.map((option) => {
+                        const target = openTargets.find((candidate) => candidate.id === option.id)
+                        const unavailable = Boolean(target && !target.available && option.id !== 'system')
+                        return (
+                          <option
+                            key={option.id}
+                            value={option.id}
+                            disabled={unavailable}
+                            data-testid={`settings-general-preferred-editor-${option.id}`}
+                          >
+                            {option.label}
+                          </option>
+                        )
+                      })}
+                    </select>
+                  )}
+                />
               </SettingsSurface>
             </SettingsGroupContent>
           </SettingsContentGroup>
@@ -129,24 +141,30 @@ export default function GeneralSettingsPage({
               'data-settings-search-anchor': 'general-composer'
             }}
           >
-            <div className="settings-content-heading">
-              <div className="settings-content-title">Composer</div>
-              <div className="settings-content-description">Choose how the main message field handles Enter.</div>
-            </div>
             <SettingsGroupContent>
-              <SettingsSurface className="general-settings-composer-surface">
-                <div className="settings-choice-grid">
+              <SettingsSurface className="general-settings-control-surface">
+                <SettingsRow
+                  label="Enter key"
+                  description={composerEnterOptions.find((option) => option.id === composerEnterBehavior)?.desc}
+                  className="general-settings-row"
+                  control={(
+                    <div className="general-settings-segmented-control" role="group" aria-label="Composer Enter behavior">
                   {composerEnterOptions.map((option) => (
-                    <SettingChoiceCard
+                    <button
                       key={option.id}
-                      label={option.label}
-                      description={option.desc}
-                      active={composerEnterBehavior === option.id}
+                      type="button"
+                      className="general-settings-segment"
+                      data-active={composerEnterBehavior === option.id ? 'true' : 'false'}
+                      aria-pressed={composerEnterBehavior === option.id}
                       onClick={() => { void selectComposerEnterBehavior(option) }}
-                      dataTestId={`settings-general-composer-enter-${option.id}`}
-                    />
+                      data-testid={`settings-general-composer-enter-${option.id}`}
+                    >
+                      {option.label}
+                    </button>
                   ))}
-                </div>
+                    </div>
+                  )}
+                />
               </SettingsSurface>
             </SettingsGroupContent>
           </SettingsContentGroup>

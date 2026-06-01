@@ -13,15 +13,19 @@ const captureViewOptions = [
   { flag: '--settings-providers', view: 'settings-providers', surface: 'Settings', scope: 'Provider defaults and provider settings controls' },
   { flag: '--settings', view: 'settings', surface: 'Settings', scope: 'Settings navigation, search, and focused section behavior' },
   { flag: '--capabilities', view: 'capabilities', surface: 'Capabilities', scope: 'Capability browser and installed capability controls' },
+  { flag: '--automations', view: 'automations', surface: 'Automations', scope: 'Standalone automations page and local schedule rows' },
   { flag: '--resources', view: 'resources', surface: 'Resources', scope: 'Provider resource browser and resource cards' },
   { flag: '--composer', view: 'composer', surface: 'Composer', scope: 'Drafts, attachments, send blocking, provider/model controls' },
+  { flag: '--composer-popover', view: 'composer-popover', surface: 'Composer', scope: 'Open thread settings popover visual capture' },
   { flag: '--pets', view: 'pets', surface: 'Settings', scope: 'Pet settings and overlay configuration' },
   { flag: '--terminal-visual', view: 'terminal-visual', surface: 'Terminal', scope: 'Bottom terminal screenshot and visual health only' },
+  { flag: '--bottom-panel-max', view: 'bottom-panel-max', surface: 'Workbench', scope: 'Right-panel usability while the bottom panel is at maximum height' },
   { flag: '--header', view: 'header', surface: 'Shell', scope: 'Header/sidebar/right-panel contact contract' },
   { flag: '--multi-window-focus', view: 'multi-window-focus', surface: 'Shell', scope: 'Window focus and menu routing' },
   { flag: '--worktree-lifecycle', view: 'worktree-lifecycle', surface: 'Worktrees', scope: 'Pending/failed worktree notices and retry controls' },
   { flag: '--workbench-launcher', view: 'workbench-launcher', surface: 'Workbench', scope: 'New-tab launcher discovery and tab activation' },
-  { flag: '--workbench-new-tab', view: 'workbench-new-tab', surface: 'Workbench', scope: 'New-tab launcher, keyboard navigation, singleton switching, Git/agent workflows' },
+  { flag: '--workbench-new-tab', view: 'workbench-new-tab', surface: 'Workbench', scope: 'New-tab launcher, keyboard navigation, contextual Git, and agent workflows' },
+  { flag: '--git-real-repo', view: 'git-real-repo', surface: 'Git actions', scope: 'Contextual Git dialog against the current repo without mutating it' },
   { flag: '--agent-inspector', view: 'agent-inspector', surface: 'Workbench', scope: 'Agent Activity inspector diagnostics and composer handoffs' },
   { flag: '--environment', view: 'environment', surface: 'Workbench', scope: 'Environment panel and add-to-chat context handoff' },
   { flag: '--right-panel', view: 'right-panel', surface: 'Workbench', scope: 'Right-panel tab shell, transfer boundaries, keyboard routing' },
@@ -42,6 +46,7 @@ const captureViewOptions = [
   { flag: '--side-chat', view: 'side-chat', surface: 'Side chat', scope: 'Side-chat tabs, drafts, context metadata, retry' },
   { flag: '--motion-reduced', view: 'motion-reduced', surface: 'Shell', scope: 'Reduced-motion shell behavior' },
   { flag: '--empty-state', view: 'empty-state', surface: 'Shell', scope: 'No-project/no-session empty state' },
+  { flag: '--add-project', view: 'add-project', surface: 'Sidebar', scope: 'Add a real local project through the renderer flow' },
   { flag: '--pet-overlay', view: 'pet-overlay', surface: 'Shell', scope: 'Pet overlay rendering' },
   { flag: '--sidebar', view: 'sidebar', surface: 'Sidebar', scope: 'Sidebar actions, pins, projects, deep links' },
   { flag: '--transcript-live-lifecycle', view: 'transcript-live-lifecycle', surface: 'Transcript', scope: 'Live Codex renderer lifecycle proof' },
@@ -86,7 +91,7 @@ const userDataDir = join(tmpdir(), 'orchestrator-profiles', `${profile}-${captur
 const workspaceDir = join(tmpdir(), 'orchestrator-automated-ui-workspace')
 const isDiffCaptureView = captureView === 'diff' || captureView.startsWith('diff-')
 const fixtureWorkspaceViews = new Set(['inspector', 'right-panel', 'workbench-launcher', 'workbench-new-tab', 'agent-inspector', 'environment', 'workbench-perf', 'cross-panel-keyboard', 'diff', 'diff-entry', 'diff-empty', 'diff-loading', 'diff-conflict', 'diff-narrow', 'diff-metadata', 'diff-core', 'diff-last-turn', 'diff-source', 'diff-preview', 'files', 'side-chat', 'browser'])
-const resetWorkspaceViews = new Set([...fixtureWorkspaceViews, 'sidebar', 'multi-window-focus', 'worktree-lifecycle'])
+const resetWorkspaceViews = new Set([...fixtureWorkspaceViews, 'add-project', 'automations', 'sidebar', 'multi-window-focus', 'worktree-lifecycle'])
 const outputPath = join(tmpdir(), `orchestrator-automated-ui-smoke-${captureView}-${Date.now()}.json`)
 const screenshotPath = join(tmpdir(), `orchestrator-automated-ui-smoke-${captureView}-${Date.now()}.png`)
 let browserSmokeServer = null
@@ -158,7 +163,7 @@ function buildDiffChecks(result, view) {
     reviewRowKeyboardContextMenu: result.reviewRowKeyboardContextMenuWorks === true,
     reviewRowAddToChat: result.reviewRowAddToChatWorks === true,
     reviewRowInsertPathTerminal: result.reviewRowInsertPathTerminalWorks === true,
-    reviewRowOpenGit: result.reviewRowOpenGitWorks === true,
+    reviewRowOpenGit: result.reviewRowOpenGitWorks === true || result.reviewFloatingGitBridgeRetiredWorks === true,
     reviewSidePaneChrome: result.reviewSidePaneChromeWorks === true,
     reviewSidePaneResize: result.reviewSidePaneResizeWorks === true,
     reviewLineOpensFileSourceTab: result.reviewLineOpensFileSourceTabWork === true,
@@ -178,11 +183,11 @@ function buildDiffChecks(result, view) {
     reviewGitApplyTerminalHandoff: result.reviewGitApplyTerminalHandoffWorks === true,
     reviewSelectedGitPathActions: result.reviewSelectedGitPathActionsWorks === true,
     reviewMergeConflictMarkResolved: result.reviewMergeConflictMarkResolvedWorks === true,
-    reviewFloatingGitActions: result.reviewFloatingGitActionsWork === true,
+    reviewFloatingGitActions: result.reviewFloatingGitActionsWork === true || result.reviewFloatingGitBridgeRetiredWorks === true,
     reviewFloatingGitActionStatus: result.reviewFloatingGitActionStatusWorks === true,
-    reviewFloatingGitOpenTab: result.reviewFloatingGitOpenTabWorks === true,
-    reviewGitHandoffSelectedFile: result.reviewGitHandoffSelectedFileWorks === true,
-    gitReviewHandoffSelectedFile: result.gitReviewHandoffSelectedFileWorks === true,
+    reviewFloatingGitOpenTab: result.reviewFloatingGitOpenTabWorks === true || result.reviewFloatingGitBridgeRetiredWorks === true,
+    reviewGitHandoffSelectedFile: result.reviewGitHandoffSelectedFileWorks === true || result.reviewFloatingGitBridgeRetiredWorks === true,
+    gitReviewHandoffSelectedFile: result.gitReviewHandoffSelectedFileWorks === true || result.reviewFloatingGitBridgeRetiredWorks === true,
     reviewFloatingGitBridgeRetired: result.reviewFloatingGitBridgeRetiredWorks === true,
     reviewLastTurnGitApplyCommand: result.reviewLastTurnGitApplyCommandWorks === true,
     reviewLastTurnGitApplyCopyStatus: result.reviewLastTurnGitApplyCopyStatusWorks === true,
@@ -1704,7 +1709,7 @@ if (fixtureWorkspaceViews.has(captureView)) {
   if (address && typeof address === 'object') browserSmokeUrl = `http://127.0.0.1:${address.port}`
 }
 
-if (captureView === 'sidebar' || captureView === 'worktree-lifecycle') {
+if (captureView === 'add-project' || captureView === 'sidebar' || captureView === 'worktree-lifecycle') {
   writeFileSync(join(workspaceDir, 'README.md'), '# Sidebar worktree smoke\n')
   spawnSync('git', ['init'], { cwd: workspaceDir, stdio: 'ignore' })
   spawnSync('git', ['config', 'user.email', 'orchestrator-smoke@example.test'], { cwd: workspaceDir, stdio: 'ignore' })
@@ -1731,6 +1736,7 @@ const child = spawn(launch.bin, launch.args, {
     ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT: outputPath,
     ORCHESTRATOR_AUTOMATED_UI_SMOKE_SCREENSHOT: screenshotPath,
     ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW: captureView,
+    ORCHESTRATOR_REAL_REPO_SMOKE_DIR: root,
     ORCHESTRATOR_BROWSER_SMOKE_URL: browserSmokeUrl
   },
   stdio: ['ignore', 'pipe', 'pipe']
@@ -1768,7 +1774,7 @@ child.on('exit', async (code) => {
   const report = JSON.parse(readFileSync(outputPath, 'utf8'))
   browserSmokeServer?.close()
   if (!report.ok) {
-    console.error(JSON.stringify(report, null, 2))
+    console.error(JSON.stringify({ ...report, logTail: log.slice(-4000) }, null, 2))
     process.exit(1)
   }
 
@@ -1804,6 +1810,25 @@ child.on('exit', async (code) => {
         focusSwitchRestoresFirstWindowMenu: result.focusSwitchRestoresFirstWindowMenu === true,
         menuCommandRoutedToFocusedWindow: result.menuCommandRoutedToFocusedWindow === true
       }
+    : captureView === 'add-project'
+    ? {
+        isolatedProfile: result.profile?.isIsolated === true,
+        addProjectPickerMocked: result.addProjectPickerMocked === true,
+        addProjectStatusLifecycle: result.addProjectStatusLifecycleWorks === true,
+        addProjectCreated: result.addProjectCreatedWorks === true,
+        addProjectSessionOpened: result.addProjectSessionOpenedWorks === true,
+        addProjectNoFreeze: result.addProjectNoFreezeWorks === true,
+        addProjectSidebarVisible: result.addProjectSidebarVisibleWorks === true,
+        addProjectNoError: result.addProjectNoErrorWorks === true
+      }
+    : captureView === 'composer-popover'
+    ? {
+        isolatedProfile: result.profile?.isIsolated === true,
+        composerPopoverOpen: result.composerPopoverOpen === true,
+        composerPopoverChoices: result.composerPopoverChoicesWork === true,
+        composerPopoverLabels: result.composerPopoverLabelsCalm === true,
+        composerPopoverChrome: result.composerPopoverChromeWorks === true
+      }
     : captureView === 'worktree-lifecycle'
     ? {
         isolatedProfile: result.profile?.isIsolated === true,
@@ -1822,6 +1847,7 @@ child.on('exit', async (code) => {
         sessionRouteResolvingVisible: result.sessionRouteResolvingVisible === true,
         missingRouteRecoveryVisible: result.missingRouteRecoveryVisible === true,
         missingRouteReturnWorks: result.missingRouteReturnWorks === true,
+        missingRouteNewChatWorks: result.missingRouteNewChatWorks === true,
         firstTranscriptFound: result.firstTranscriptFound === true,
         firstTitleFound: result.firstTitleFound === true,
         firstRouteUpdated: result.firstRouteUpdated === true,
@@ -2508,27 +2534,29 @@ child.on('exit', async (code) => {
           workbenchNewTabSingletonSwitch: result.workbenchNewTabSingletonSwitch === true,
           workbenchNewTabFinalCapture: result.workbenchNewTabFinalCapture === true,
           workbenchNewTabAgentsAction: result.workbenchNewTabAgentsActionWorks === true,
-          workbenchNewTabGitAction: result.workbenchNewTabGitActionWorks === true,
-          workbenchNewTabGitFileActions: result.workbenchNewTabGitFileActionsWorks === true,
-          workbenchNewTabGitFileCopyPath: result.workbenchNewTabGitFileCopyPathWorks === true,
-          workbenchNewTabGitFileAddToChat: result.workbenchNewTabGitFileAddToChatWorks === true,
-          workbenchNewTabGitFileInsertTerminal: result.workbenchNewTabGitFileInsertTerminalWorks === true,
-          workbenchNewTabGitFileOpenWorkbench: result.workbenchNewTabGitFileOpenWorkbenchWorks === true,
-          workbenchNewTabGitFileDiscard: result.workbenchNewTabGitFileDiscardWorks === true,
-          workbenchNewTabGitBranch: result.workbenchNewTabGitBranchWorks === true,
-          workbenchNewTabGitCheckout: result.workbenchNewTabGitCheckoutWorks === true,
-          workbenchNewTabGitPrCommand: result.workbenchNewTabGitPrCommandWorks === true,
-          workbenchNewTabGitPrCreateUrl: result.workbenchNewTabGitPrCreateUrlWorks === true,
-          workbenchNewTabGitPrPushCommand: result.workbenchNewTabGitPrPushCommandWorks === true,
-          workbenchNewTabGitPrCreateAction: result.workbenchNewTabGitPrCreateActionWorks === true,
-          workbenchNewTabGitPrMetadata: result.workbenchNewTabGitPrMetadataWorks === true,
-          workbenchNewTabGitPrCommandHandoff: result.workbenchNewTabGitPrCommandHandoffWorks === true,
-          workbenchNewTabGitPrCommandTerminalHandoff: result.workbenchNewTabGitPrCommandTerminalHandoffWorks === true,
-          workbenchNewTabGitRefreshStatus: result.workbenchNewTabGitRefreshStatusWorks === true,
-          workbenchNewTabGitStatusHandoff: result.workbenchNewTabGitStatusHandoffWorks === true,
-          workbenchNewTabGitCommitDraftHandoff: result.workbenchNewTabGitCommitDraftHandoffWorks === true,
-          workbenchNewTabGitCommit: result.workbenchNewTabGitCommitWorks === true,
-          workbenchNewTabGitDiscard: result.workbenchNewTabGitDiscardWorks === true,
+          workbenchNewTabGitRetired: result.workbenchNewTabGitRetiredWorks === true,
+          workbenchNewTabGitNotPrimary: result.workbenchNewTabActionCount === 8 && result.workbenchNewTabGitRetiredWorks === true,
+          workbenchNewTabGitAction: result.workbenchNewTabGitActionWorks === true || result.workbenchNewTabGitRetiredWorks === true,
+          workbenchNewTabGitFileActions: result.workbenchNewTabGitFileActionsWorks === true || result.workbenchNewTabGitRetiredWorks === true,
+          workbenchNewTabGitFileCopyPath: result.workbenchNewTabGitFileCopyPathWorks === true || result.workbenchNewTabGitRetiredWorks === true,
+          workbenchNewTabGitFileAddToChat: result.workbenchNewTabGitFileAddToChatWorks === true || result.workbenchNewTabGitRetiredWorks === true,
+          workbenchNewTabGitFileInsertTerminal: result.workbenchNewTabGitFileInsertTerminalWorks === true || result.workbenchNewTabGitRetiredWorks === true,
+          workbenchNewTabGitFileOpenWorkbench: result.workbenchNewTabGitFileOpenWorkbenchWorks === true || result.workbenchNewTabGitRetiredWorks === true,
+          workbenchNewTabGitFileDiscard: result.workbenchNewTabGitFileDiscardWorks === true || result.workbenchNewTabGitRetiredWorks === true,
+          workbenchNewTabGitBranch: result.workbenchNewTabGitBranchWorks === true || result.workbenchNewTabGitRetiredWorks === true,
+          workbenchNewTabGitCheckout: result.workbenchNewTabGitCheckoutWorks === true || result.workbenchNewTabGitRetiredWorks === true,
+          workbenchNewTabGitPrCommand: result.workbenchNewTabGitPrCommandWorks === true || result.workbenchNewTabGitRetiredWorks === true,
+          workbenchNewTabGitPrCreateUrl: result.workbenchNewTabGitPrCreateUrlWorks === true || result.workbenchNewTabGitRetiredWorks === true,
+          workbenchNewTabGitPrPushCommand: result.workbenchNewTabGitPrPushCommandWorks === true || result.workbenchNewTabGitRetiredWorks === true,
+          workbenchNewTabGitPrCreateAction: result.workbenchNewTabGitPrCreateActionWorks === true || result.workbenchNewTabGitRetiredWorks === true,
+          workbenchNewTabGitPrMetadata: result.workbenchNewTabGitPrMetadataWorks === true || result.workbenchNewTabGitRetiredWorks === true,
+          workbenchNewTabGitPrCommandHandoff: result.workbenchNewTabGitPrCommandHandoffWorks === true || result.workbenchNewTabGitRetiredWorks === true,
+          workbenchNewTabGitPrCommandTerminalHandoff: result.workbenchNewTabGitPrCommandTerminalHandoffWorks === true || result.workbenchNewTabGitRetiredWorks === true,
+          workbenchNewTabGitRefreshStatus: result.workbenchNewTabGitRefreshStatusWorks === true || result.workbenchNewTabGitRetiredWorks === true,
+          workbenchNewTabGitStatusHandoff: result.workbenchNewTabGitStatusHandoffWorks === true || result.workbenchNewTabGitRetiredWorks === true,
+          workbenchNewTabGitCommitDraftHandoff: result.workbenchNewTabGitCommitDraftHandoffWorks === true || result.workbenchNewTabGitRetiredWorks === true,
+          workbenchNewTabGitCommit: result.workbenchNewTabGitCommitWorks === true || result.workbenchNewTabGitRetiredWorks === true,
+          workbenchNewTabGitDiscard: result.workbenchNewTabGitDiscardWorks === true || result.workbenchNewTabGitRetiredWorks === true,
           agentSessionContextCopy: result.agentSessionContextCopyWorks === true,
           agentSessionContextAddToChat: result.agentSessionContextAddToChatWorks === true,
           agentRuntimeEventDetail: result.agentRuntimeEventDetailWorks === true,
@@ -2552,6 +2580,18 @@ child.on('exit', async (code) => {
           agentSelectedTranscriptAddToChat: result.agentSelectedTranscriptAddToChatWorks === true,
           workbenchNewTabCards: Number(result.workbenchNewTabActionCount ?? 0) >= 5,
           workbenchNewTabNoHorizontalOverflow: result.workbenchNewTabNoHorizontalOverflow === true
+        }
+    : captureView === 'git-real-repo'
+      ? {
+          isolatedProfile: result.profile?.isIsolated === true,
+          realRepoProject: result.gitRealRepoProjectWorks === true,
+          bottomEnvironment: result.gitRealRepoBottomEnvironmentWorks === true,
+          gitTabRetired: result.gitRealRepoGitTabRetiredWorks === true,
+          branchTarget: result.gitRealRepoBranchTargetWorks === true,
+          commitTarget: result.gitRealRepoCommitTargetWorks === true,
+          pullRequestTarget: result.gitRealRepoPullRequestTargetWorks === true,
+          noMutation: result.gitRealRepoNoMutationWorks === true,
+          dialogVisualHealth: result.gitRealRepoDialogVisualHealthWorks === true
         }
     : captureView === 'agent-inspector'
       ? {
@@ -2591,14 +2631,14 @@ child.on('exit', async (code) => {
           rightPanelShellOwnership: result.rightPanelShellOwnershipWorks === true,
           environmentPanelVisual: result.environmentPanelVisualWorks === true,
           environmentActionRows: result.environmentActionRowsWork === true,
-          environmentBranchOpensGit: result.environmentBranchOpensGitWorks === true,
-          environmentCommitOpensGit: result.environmentCommitOpensGitWorks === true,
+          environmentBranchStaysContextual: result.environmentBranchStaysContextualWorks === true,
+          environmentCommitOpensDialog: result.environmentCommitOpensReviewWorks === true,
           environmentSources: result.environmentSourcesWork === true,
           environmentAddToChat: result.environmentAddToChatWorks === true,
           environmentWorkspacePathActions: result.environmentWorkspacePathActionsWork === true,
           environmentSourceBoundary: result.environmentSourceBoundaryWorks === true,
           environmentDisabledRowsA11y: result.environmentDisabledRowsA11yWorks === true,
-          environmentCreatePrOpensGit: result.environmentCreatePrOpensGitWorks === true,
+          environmentCreatePrOpensDialog: result.environmentCreatePrOpensReviewWorks === true,
           environmentSettingsOpensProviders: result.environmentSettingsOpensProviders === true
         }
     : captureView === 'workbench-perf'
@@ -2784,6 +2824,16 @@ child.on('exit', async (code) => {
           sideChatPersonalizationContext: result.sideChatPersonalizationContextWorks === true,
           sideChatClose: result.sideChatCloseWorks === true
         }
+    : captureView === 'automations'
+      ? {
+          isolatedProfile: result.profile?.isIsolated === true,
+          automationsStandalonePage: result.automationsStandalonePageWorks === true,
+          automationsNotSettings: result.automationsNotSettingsWorks === true,
+          automationsSections: result.automationsSectionsWorks === true,
+          automationsRows: result.automationsRowsWorks === true,
+          automationsActionsA11y: result.automationsActionsA11yWorks === true,
+          automationsSurfaceCalm: result.automationsSurfaceCalmWorks === true
+        }
     : captureView === 'terminal-visual'
       ? {
           isolatedProfile: result.profile?.isIsolated === true,
@@ -2795,6 +2845,19 @@ child.on('exit', async (code) => {
           terminalVisualToolbar: result.terminalVisualToolbarWorks === true,
           terminalVisualHealthyContent: result.terminalVisualHealthyContentWorks === true
         }
+    : captureView === 'bottom-panel-max'
+      ? {
+          isolatedProfile: result.profile?.isIsolated === true,
+          bottomPanelMaximized: result.bottomPanelMaximizedWorks === true,
+          bottomPanelPreservesPrimaryContent: result.bottomPanelPreservesPrimaryContentWorks === true,
+          bottomPanelMaxEnvironment: result.bottomPanelMaxEnvironmentWorks === true,
+          bottomPanelMaxFiles: result.bottomPanelMaxFilesWorks === true,
+          bottomPanelMaxReview: result.bottomPanelMaxReviewWorks === true,
+          bottomPanelMaxBrowser: result.bottomPanelMaxBrowserWorks === true,
+          bottomPanelMaxSideChat: result.bottomPanelMaxSideChatWorks === true,
+          bottomPanelMaxSideChatLabel: result.bottomPanelMaxSideChatLabelWorks === true,
+          bottomPanelMaxNoHorizontalOverflow: result.bottomPanelMaxNoHorizontalOverflowWorks === true
+        }
     : captureView === 'terminal'
       ? {
           isolatedProfile: result.profile?.isIsolated === true,
@@ -2804,6 +2867,8 @@ child.on('exit', async (code) => {
           terminalSharedAnimationController: result.terminalSharedAnimationControllerWorks === true,
           terminalSharedLayoutController: result.terminalSharedLayoutControllerWorks === true,
           terminalBottomPanelSizeDecomposition: result.terminalBottomPanelSizeDecompositionWorks === true,
+          terminalBottomPanelPreservesPrimaryContent: result.terminalBottomPanelPreservesPrimaryContentWorks === true,
+          terminalRightPanelBottomCompaction: result.terminalRightPanelBottomCompactionWorks === true,
           terminalRestore: result.terminalRestoreWorks === true,
           terminalTabMenu: result.terminalTabMenuWorks === true,
           terminalTabKeyboardContextMenu: result.terminalTabKeyboardContextMenuWorks === true,
@@ -2845,7 +2910,9 @@ child.on('exit', async (code) => {
           terminalBottomPanelLabels: result.terminalBottomPanelLabelsWorks === true,
           bottomPanelPlanTransfer: result.bottomPanelPlanTransferWorks === true,
           bottomPanelPlanToolbarAction: result.bottomPanelPlanToolbarActionWorks === true,
+          bottomPanelOpenTabMenu: result.bottomPanelOpenTabMenuWorks === true,
           bottomPanelPlanAddToChat: result.bottomPanelPlanAddToChatWorks === true,
+          bottomPanelEnvironmentTallCapture: result.bottomPanelEnvironmentTallCaptureWorks === true,
           terminalLinkRouting: result.terminalLinkRoutingWorks === true,
           terminalLinkScopedRouting: result.terminalLinkScopedRoutingWorks === true,
           terminalThemeFontSync: result.terminalThemeFontSyncWorks === true,
@@ -3137,6 +3204,7 @@ child.on('exit', async (code) => {
         bottomPanelPlanTransfer: captureView !== 'terminal' || result.bottomPanelPlanTransferWorks === true,
         bottomPanelPlanToolbarAction: captureView !== 'terminal' || result.bottomPanelPlanToolbarActionWorks === true,
         bottomPanelPlanAddToChat: captureView !== 'terminal' || result.bottomPanelPlanAddToChatWorks === true,
+        bottomPanelEnvironmentTallCapture: captureView !== 'terminal' || result.bottomPanelEnvironmentTallCaptureWorks === true,
         terminalLinkRouting: captureView !== 'terminal' || result.terminalLinkRoutingWorks === true,
         terminalLinkScopedRouting: captureView !== 'terminal' || result.terminalLinkScopedRoutingWorks === true,
         terminalThemeFontSync: captureView !== 'terminal' || result.terminalThemeFontSyncWorks === true,
@@ -3279,6 +3347,7 @@ child.on('exit', async (code) => {
           result.capabilityAddToChatActionClicked === true &&
           result.capabilityAddToChatDraft === true
         ),
+        capabilityFinalPageCapture: captureView !== 'capabilities' || result.capabilityFinalPageCaptureWorks === true,
         composerPermissionMenu: captureView !== 'composer' || result.composerPermissionMenuOpened === true,
         appSkipLinksKeyboard: captureView !== 'composer' || result.appSkipLinksKeyboard === true,
         composerPermissionContextSignal: captureView !== 'composer' || result.composerPermissionContextSignal === true,

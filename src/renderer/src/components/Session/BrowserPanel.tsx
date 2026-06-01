@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { MouseEvent as ReactMouseEvent, MutableRefObject, PointerEvent as ReactPointerEvent } from 'react'
+import type { CSSProperties, MouseEvent as ReactMouseEvent, MutableRefObject, PointerEvent as ReactPointerEvent } from 'react'
 import type { BrowserAnnotationState, BrowserApprovalMode, BrowserDeviceMode, BrowserHistoryEntry, BrowserLocalServerRoute, BrowserTabState, BrowserUseCursorState, BrowserUseSurfaceBounds, BrowserUseSurfaceSize, BrowserWorkbenchState } from '../../store/sessions'
 import type { BrowserUsePolicy } from '../../types'
 import { browserWebviewPartitionForHost, DEFAULT_BROWSER_USE_POLICY, normalizeBrowserUsePolicy } from '../../types'
@@ -9,6 +9,15 @@ import BrowserWebviewManager, { type BrowserVisibleGeometry, type WebviewElement
 
 const BROWSER_ACTIONS_MENU_ID = 'browser-actions-menu-surface'
 const BROWSER_ZOOM_PRESETS = [0.5, 0.75, 1, 1.25, 1.5, 2]
+const BROWSER_CONTROL_STYLE: CSSProperties = {
+  background: 'color-mix(in srgb, var(--control-bg) 62%, transparent)',
+  border: '1px solid color-mix(in srgb, var(--border-subtle) 38%, transparent)',
+  color: 'var(--text-primary)'
+}
+const BROWSER_MUTED_CONTROL_STYLE: CSSProperties = {
+  ...BROWSER_CONTROL_STYLE,
+  color: 'var(--text-secondary)'
+}
 
 type BrowserOriginPolicyKey =
   | 'allowedOrigins'
@@ -1744,17 +1753,18 @@ export default function BrowserPanel({
           navigate(address)
         }}
       >
-        <ToolbarButton icon="arrowLeft" label="Back" size="sm" disabled={!canGoBack || !visible} onClick={() => webviewRef.current?.goBack()} />
-        <ToolbarButton icon="arrowRight" label="Forward" size="sm" disabled={!canGoForward || !visible} onClick={() => webviewRef.current?.goForward()} />
+        <ToolbarButton icon="arrowLeft" label="Back" size="sm" variant="toolbar" disabled={!canGoBack || !visible} onClick={() => webviewRef.current?.goBack()} />
+        <ToolbarButton icon="arrowRight" label="Forward" size="sm" variant="toolbar" disabled={!canGoForward || !visible} onClick={() => webviewRef.current?.goForward()} />
         <ToolbarButton
           icon={isLoading ? 'close' : 'refresh'}
           label={isLoading ? 'Stop loading' : 'Reload'}
           size="sm"
+          variant="toolbar"
           disabled={!currentUrl || !visible}
           onClick={stopOrReload}
         />
         {workbench.tabs.length <= 1 && (
-          <IconButton icon="plus" label="New browser tab" size="sm" onClick={newTab} dataTestId="browser-new-tab" />
+          <IconButton icon="plus" label="New browser tab" size="sm" variant="toolbar" onClick={newTab} dataTestId="browser-new-tab" />
         )}
         <WorkbenchSearchField
           value={address}
@@ -1779,11 +1789,12 @@ export default function BrowserPanel({
             </span>
           )}
         />
-        <ToolbarButton icon="search" label="Find in page" size="sm" disabled={!currentUrl || !visible} active={workbench.findVisible} onClick={() => patchWorkbench({ findVisible: !workbench.findVisible })} />
+        <ToolbarButton icon="search" label="Find in page" size="sm" variant="toolbar" disabled={!currentUrl || !visible} active={workbench.findVisible} onClick={() => patchWorkbench({ findVisible: !workbench.findVisible })} />
         <ToolbarButton
           icon="wrench"
           label="Inspect browser"
           size="sm"
+          variant="toolbar"
           active={workbench.inspectorOpen}
           disabled={!currentUrl || !visible}
           dataTestId="browser-run-inspection"
@@ -1794,6 +1805,7 @@ export default function BrowserPanel({
             icon="ellipsis"
             label="Browser actions"
             size="sm"
+            variant="toolbar"
             active={browserMenuOpen}
             dataTestId="browser-actions-menu"
             ariaExpanded={browserMenuOpen}
@@ -2117,7 +2129,7 @@ export default function BrowserPanel({
                 value={workbench.deviceMode}
                 onChange={(event) => setViewportMode(event.target.value as BrowserWorkbenchState['deviceMode'])}
                 className="rounded-md px-2 py-0.5 text-xs outline-none"
-                style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
+                style={BROWSER_CONTROL_STYLE}
               >
                 {VIEWPORT_PRESETS.map((preset) => (
                   <option key={preset.mode} value={preset.mode}>{preset.label}</option>
@@ -2131,14 +2143,14 @@ export default function BrowserPanel({
                     value={workbench.viewportWidth}
                     onChange={(event) => patchWorkbench({ viewportWidth: clampViewportSize(Number(event.target.value) || 1280, 'width') })}
                     className="w-14 rounded-md px-1 py-0.5 text-xs outline-none"
-                    style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
+                    style={BROWSER_CONTROL_STYLE}
                   />
                   <input
                     aria-label="Viewport height"
                     value={workbench.viewportHeight}
                     onChange={(event) => patchWorkbench({ viewportHeight: clampViewportSize(Number(event.target.value) || 720, 'height') })}
                     className="w-14 rounded-md px-1 py-0.5 text-xs outline-none"
-                    style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
+                    style={BROWSER_CONTROL_STYLE}
                   />
                 </>
               )}
@@ -3005,7 +3017,7 @@ function BrowserAnnotationHistory({
               data-browser-comment-history-scope={annotation.scope}
               data-browser-comment-history-screenshot={annotation.screenshotPath ?? ''}
               role="listitem"
-              style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)' }}
+              style={BROWSER_CONTROL_STYLE}
             >
               <div className="flex min-w-0 items-start gap-2">
                 <div className="min-w-0 flex-1">
@@ -3110,7 +3122,7 @@ function TargetsPane({
             value={selectedTargetId}
             onChange={(event) => onSelectTarget(event.target.value)}
             className="w-full rounded-md px-2 py-1 text-xs outline-none"
-            style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
+            style={BROWSER_CONTROL_STYLE}
           >
             <option value="">Targets ({targets.length})</option>
             {targets.map((target) => <option key={target.nodeId} value={target.nodeId}>{target.preview}</option>)}
@@ -3123,7 +3135,7 @@ function TargetsPane({
             value={targetAction}
             onChange={(event) => setTargetAction(event.target.value as BrowserTargetAction)}
             className="w-full rounded-md px-2 py-1 text-xs outline-none"
-            style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
+            style={BROWSER_CONTROL_STYLE}
           >
             <option value="click">Click</option>
             <option value="type">Type</option>
@@ -3140,7 +3152,7 @@ function TargetsPane({
             onChange={(event) => onActionTextChange(event.target.value)}
             placeholder="Text or key"
             className="w-full rounded-md px-2 py-1 text-xs outline-none"
-            style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
+            style={BROWSER_CONTROL_STYLE}
           />
           <IconButton
             icon="send"
@@ -3158,7 +3170,7 @@ function TargetsPane({
           <div
             data-testid="browser-target-read-output"
             className="browser-target-read-output"
-            style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)', color: 'var(--text-secondary)' }}
+            style={BROWSER_MUTED_CONTROL_STYLE}
           >
             <span style={{ color: 'var(--text-tertiary)' }}>target</span>
             <span className="truncate" style={{ color: 'var(--text-primary)' }}>
@@ -3204,7 +3216,7 @@ function TargetsPane({
               onChange={(event) => onClipboardChange(event.target.value)}
               placeholder="Clip text"
               className="min-w-0 flex-1 rounded-md px-2 py-1 text-xs outline-none"
-              style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
+              style={BROWSER_CONTROL_STYLE}
             />
             <ActionButton label="Read" dataTestId="browser-target-clipboard-read" onClick={onReadClipboard} />
             <ActionButton label="Write" dataTestId="browser-target-clipboard-write" onClick={onWriteClipboard} />
@@ -3404,7 +3416,7 @@ function PolicySelect({ label, value, onChange }: { label: string; value: Browse
         value={value}
         onChange={(event) => onChange(event.target.value as BrowserApprovalMode)}
         className="rounded-md px-2 py-1 text-xs outline-none"
-        style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
+        style={BROWSER_CONTROL_STYLE}
       >
         <option value="alwaysAsk">Ask</option>
         <option value="alwaysAllow">Allow</option>
@@ -3481,7 +3493,7 @@ function SmallNumber({ label, value, onChange }: { label: string; value: number;
         value={value}
         onChange={(event) => onChange(Number(event.target.value) || 0)}
         className="w-full rounded-md px-1 py-1 text-xs outline-none"
-        style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
+        style={BROWSER_CONTROL_STYLE}
       />
     </label>
   )

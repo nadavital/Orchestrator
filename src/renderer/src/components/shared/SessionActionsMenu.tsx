@@ -151,9 +151,9 @@ export default function SessionActionsMenu({
   }
 
   const openInNewWindow = async (): Promise<void> => {
-    await window.api.app.openSessionWindow(session.id)
     const testWindow = window as typeof window & { __orchestratorLastOpenedSessionWindowId?: string }
     testWindow.__orchestratorLastOpenedSessionWindowId = session.id
+    await window.api.app.openSessionWindow(session.id)
     onClose()
   }
 
@@ -300,14 +300,13 @@ export default function SessionActionsMenu({
     {!renaming && !confirmingArchive && !automationDialogOpen && (
       <MenuSurface
         id={menuId}
-        className="fixed p-[5px]"
+        className="fixed"
         onClose={onClose}
         style={{
           left: Math.max(8, Math.min(x, window.innerWidth - 208)),
           top: Math.max(8, Math.min(y, window.innerHeight - 292)),
           width: 216,
           maxHeight: Math.min(320, window.innerHeight - 16),
-          overflowY: 'auto',
           zIndex: 10000,
         }}
       >

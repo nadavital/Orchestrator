@@ -41,8 +41,46 @@ const SETTINGS_SECTION_ICONS: Record<SettingsSection, IconName> = {
 export async function pickAndAddProject(addProject: (p: Project) => void): Promise<Project | null> {
   const dir = await window.api.dialog.openDirectory()
   if (!dir) return null
+  const project = await addProjectForDirectory(dir, addProject)
+  return project
+}
+
+const PROJECT_OPEN_TIMEOUT_MS = 12_000
+
+export type ProjectOpenStatus = 'selecting' | 'adding' | 'opening'
+
+export function projectOpenStatusText(status: ProjectOpenStatus): string {
+  if (status === 'selecting') return 'Waiting for folder selection...'
+  if (status === 'adding') return 'Adding project...'
+  return 'Opening project chat...'
+}
+
+export function withProjectOpenTimeout<T>(promise: Promise<T>, label: string): Promise<T> {
+  let timeout: ReturnType<typeof window.setTimeout> | null = null
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeout = window.setTimeout(() => {
+      reject(new Error(`${label} is taking longer than expected. Try again or choose a smaller local folder.`))
+    }, PROJECT_OPEN_TIMEOUT_MS)
+  })
+  return Promise.race([promise, timeoutPromise]).finally(() => {
+    if (timeout) window.clearTimeout(timeout)
+  })
+}
+
+export async function pickAndAddProjectWithStatus(
+  addProject: (p: Project) => void,
+  setStatus: (status: ProjectOpenStatus) => void
+): Promise<Project | null> {
+  setStatus('selecting')
+  const dir = await window.api.dialog.openDirectory()
+  if (!dir) return null
+  setStatus('adding')
+  return addProjectForDirectory(dir, addProject)
+}
+
+async function addProjectForDirectory(dir: string, addProject: (p: Project) => void): Promise<Project> {
   const name = dir.split('/').pop() ?? dir
-  const project = await window.api.projects.add(name, dir)
+  const project = await withProjectOpenTimeout(window.api.projects.add(name, dir), 'Adding the project')
   addProject(project)
   return project
 }
@@ -52,6 +90,8 @@ interface SidebarProps {
   onSearch: () => void
   onOpenPlugins: () => void
   onOpenAutomations: () => void
+  onCloseAutomations?: () => void
+  isAutomationsOpen?: boolean
   isCollapsed?: boolean
   onToggleSidebar?: () => void
 }
@@ -61,6 +101,8 @@ export default function Sidebar({
   onSearch,
   onOpenPlugins,
   onOpenAutomations,
+  onCloseAutomations,
+  isAutomationsOpen = false,
   isCollapsed = false,
   onToggleSidebar
 }: SidebarProps): JSX.Element {
@@ -114,6 +156,9 @@ export default function Sidebar({
   const [activePinnedDropTarget, setActivePinnedDropTarget] = useState<string | null>(null)
   const [draggedSectionKey, setDraggedSectionKey] = useState<`custom:${string}` | null>(null)
   const [activeSectionDropTarget, setActiveSectionDropTarget] = useState<string | null>(null)
+  const [isAddingProject, setIsAddingProject] = useState(false)
+  const [addProjectStatus, setAddProjectStatus] = useState<ProjectOpenStatus | null>(null)
+  const [addProjectError, setAddProjectError] = useState<string | null>(null)
   const settingsHostOptions = useMemo(() => settingsHostOptionsFromSessions(sessions), [sessions])
   const normalizedSettingsHostId = normalizeSettingsHostId(settingsHostId, settingsHostOptions)
   const selectedSettingsHost = settingsHostOptions.find((host) => host.id === normalizedSettingsHostId) ?? settingsHostOptions[0]
@@ -156,11 +201,13 @@ export default function Sidebar({
       ? sidebarSettingsSelectedKey(currentSessionState.settingsSection)
       : currentSessionState.showCapabilities
         ? 'capabilities'
-        : currentSessionState.activeSessionId
-          ? sidebarSessionSelectedKey(currentSessionState.activeSessionId)
-          : null
+        : isAutomationsOpen
+          ? 'automations'
+          : currentSessionState.activeSessionId
+            ? sidebarSessionSelectedKey(currentSessionState.activeSessionId)
+            : null
     setSelectedSidebarKey(nextSelectedKey)
-  }, [activeSessionId, setSelectedSidebarKey, settingsSection, showCapabilities, showSettings])
+  }, [activeSessionId, isAutomationsOpen, setSelectedSidebarKey, settingsSection, showCapabilities, showSettings])
 
   const pushSettingsRoute = (section: SettingsSection, hostId: string | null): void => {
     const nextUrl = settingsRouteUrlForLocation(section, hostId, window.location)
@@ -248,30 +295,49 @@ export default function Sidebar({
   }, [activeSessionId, sortMode, unpinnedSessions])
 
   const handleAddProject = async (): Promise<void> => {
-    const project = await pickAndAddProject(addProject)
-    if (!project) return
+    if (isAddingProject) return
+    setIsAddingProject(true)
+    setAddProjectStatus('selecting')
+    setAddProjectError(null)
+    try {
+      const project = await pickAndAddProjectWithStatus(addProject, setAddProjectStatus)
+      if (!project) return
 
-    const { sessions: currentSessions, activeSessionId: currentActiveSessionId, uiState } = useSessionStore.getState()
-    const active = currentSessions.find((session) => session.id === currentActiveSessionId)
-    if (active && (active.messageCount ?? active.messages.length) === 0 && active.status !== 'running' && !hasComposerDraft(uiState[active.id])) {
-      await window.api.sessions.remove(active.id)
-      await window.api.projects.removeSession(active.projectId, active.id)
-      removeSession(active.id)
-      removeSessionFromProject(active.projectId, active.id)
+      const { sessions: currentSessions, activeSessionId: currentActiveSessionId, uiState } = useSessionStore.getState()
+      const active = currentSessions.find((session) => session.id === currentActiveSessionId)
+      if (active && (active.messageCount ?? active.messages.length) === 0 && active.status !== 'running' && !hasComposerDraft(uiState[active.id])) {
+        await window.api.sessions.remove(active.id)
+        await window.api.projects.removeSession(active.projectId, active.id)
+        removeSession(active.id)
+        removeSessionFromProject(active.projectId, active.id)
+      }
+
+      setAddProjectStatus('opening')
+      const session = await withProjectOpenTimeout(
+        window.api.sessions.create({
+          projectId: project.id,
+          workDir: project.rootPath,
+          useWorktree: false,
+          repoRoot: project.rootPath
+        }),
+        'Opening the project chat'
+      )
+      setAddProjectStatus(null)
+      addSession(session)
+      addSessionToProject(project.id, session.id)
+      setActiveSession(session.id)
+      setShowCapabilities(false)
+      setShowSettings(false)
+      void withProjectOpenTimeout(window.api.projects.addSession(project.id, session.id), 'Linking the project chat')
+        .catch((error) => {
+          setAddProjectError(error instanceof Error ? error.message : 'Could not link project chat')
+        })
+    } catch (error) {
+      setAddProjectError(error instanceof Error ? error.message : 'Could not add project')
+    } finally {
+      setIsAddingProject(false)
+      setAddProjectStatus(null)
     }
-
-    const session = await window.api.sessions.create({
-      projectId: project.id,
-      workDir: project.rootPath,
-      useWorktree: false,
-      repoRoot: project.rootPath
-    })
-    await window.api.projects.addSession(project.id, session.id)
-    addSession(session)
-    addSessionToProject(project.id, session.id)
-    setActiveSession(session.id)
-    setShowCapabilities(false)
-    setShowSettings(false)
   }
 
   const openPlugins = (): void => {
@@ -280,11 +346,16 @@ export default function Sidebar({
   }
 
   const openAutomations = (): void => {
-    setSelectedSidebarKey(sidebarSettingsSelectedKey('automations'))
+    setSelectedSidebarKey('automations')
     onOpenAutomations()
   }
 
   const handleFooterAction = (): void => {
+    if (isAutomationsOpen) {
+      setSelectedSidebarKey(activeSessionId ? sidebarSessionSelectedKey(activeSessionId) : null)
+      onCloseAutomations?.()
+      return
+    }
     if (showCapabilities) {
       setSelectedSidebarKey(activeSessionId ? sidebarSessionSelectedKey(activeSessionId) : null)
       setShowCapabilities(false)
@@ -406,7 +477,7 @@ export default function Sidebar({
 
   const sectionKeyFromDragEvent = (event: ReactDragEvent<HTMLElement>): `custom:${string}` | null => {
     const key = event.dataTransfer.getData('application/x-orchestrator-sidebar-section-key') || draggedSectionKey
-    return key.startsWith('custom:') ? key as `custom:${string}` : null
+    return typeof key === 'string' && key.startsWith('custom:') ? key as `custom:${string}` : null
   }
 
   const activateSectionDropTarget = (event: ReactDragEvent<HTMLElement>, beforeSectionKey: SidebarSectionKey): void => {
@@ -536,9 +607,11 @@ export default function Sidebar({
           />
           <IconButton
             icon="plus"
-            label="Add project"
+            label={isAddingProject ? 'Adding project' : 'Add project'}
             size="sm"
             variant="toolbar"
+            disabled={isAddingProject}
+            dataTestId="sidebar-add-project"
             onClick={() => { void handleAddProject() }}
           />
           {organizeOpen && (
@@ -619,6 +692,16 @@ export default function Sidebar({
       </div>
 
       {!projectsSectionCollapsed && <div className="min-w-0 px-2 py-1.5">
+        {addProjectError && (
+          <div className="sidebar-inline-status" role="status" data-testid="sidebar-add-project-error">
+            {addProjectError}
+          </div>
+        )}
+        {addProjectStatus && (
+          <div className="sidebar-inline-status" role="status" data-testid="sidebar-add-project-status">
+            {projectOpenStatusText(addProjectStatus)}
+          </div>
+        )}
         {viewMode === 'chronological' ? (
           <div className="min-w-0 space-y-1">
             {unpinnedSessions.length === 0 && (
@@ -828,10 +911,10 @@ export default function Sidebar({
           <IconButton icon="pencil" label="New chat" size="sm" variant="toolbar" dataTestId="sidebar-collapsed-action-new-chat" onClick={onNewChat} />
           <IconButton icon="search" label="Search" size="sm" variant="toolbar" dataTestId="sidebar-collapsed-action-search" onClick={onSearch} />
           <IconButton icon="extensions" label="Plugins" size="sm" variant="toolbar" active={showCapabilities} dataTestId="sidebar-collapsed-action-plugins" onClick={openPlugins} />
-          <IconButton icon="clock" label="Automations" size="sm" variant="toolbar" dataTestId="sidebar-collapsed-action-automations" onClick={openAutomations} />
+          <IconButton icon="clock" label="Automations" size="sm" variant="toolbar" active={isAutomationsOpen} dataTestId="sidebar-collapsed-action-automations" onClick={openAutomations} />
         </div>
         <div className="sidebar-collapsed-footer" data-testid="sidebar-collapsed-footer">
-          <IconButton icon={showSettings || showCapabilities ? 'chat' : 'settings'} label={showSettings || showCapabilities ? 'Back to chats' : 'Settings'} size="sm" variant="toolbar" dataTestId="sidebar-collapsed-footer-action" onClick={handleFooterAction} />
+          <IconButton icon={showSettings || showCapabilities || isAutomationsOpen ? 'chat' : 'settings'} label={showSettings || showCapabilities || isAutomationsOpen ? 'Back to chats' : 'Settings'} size="sm" variant="toolbar" dataTestId="sidebar-collapsed-footer-action" onClick={handleFooterAction} />
           <IconButton icon="panelRight" label="Expand sidebar" size="sm" variant="toolbar" dataTestId="sidebar-rail-expand-toggle" ariaExpanded={false} onClick={onToggleSidebar} />
         </div>
       </aside>
@@ -934,8 +1017,8 @@ export default function Sidebar({
             <SidebarNavItem
               icon="clock"
               label="Automations"
-              active={false}
-              sidebarKey={sidebarSettingsSelectedKey('automations')}
+              active={isAutomationsOpen}
+              sidebarKey="automations"
               dataTestId="sidebar-primary-action-automations"
               onClick={openAutomations}
             />
@@ -974,8 +1057,8 @@ export default function Sidebar({
         <SidebarListRow
           onClick={handleFooterAction}
           dataTestId="sidebar-footer-action"
-          icon={showSettings || showCapabilities ? 'chat' : 'settings'}
-          label={showSettings || showCapabilities ? 'Back to chats' : 'Settings'}
+          icon={showSettings || showCapabilities || isAutomationsOpen ? 'chat' : 'settings'}
+          label={showSettings || showCapabilities || isAutomationsOpen ? 'Back to chats' : 'Settings'}
           className="sidebar-footer-row"
         />
         <IconButton

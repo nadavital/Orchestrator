@@ -308,10 +308,10 @@ export default function CapabilitiesPage(): JSX.Element {
       <header className="capabilities-header">
         <div className="min-w-0">
           <div className="capabilities-title-row">
-            <h1>Capabilities</h1>
+            <h1>Plugins</h1>
           </div>
           <p>
-            Skills, MCPs, plugins, apps, and provider-native extensions across global and project scopes.
+            Manage capabilities from skills, MCPs, plugins, apps, and provider-native extensions.
           </p>
         </div>
         <div className="capabilities-header-actions">
@@ -354,7 +354,7 @@ export default function CapabilitiesPage(): JSX.Element {
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search capabilities"
+            placeholder="Search plugins and capabilities"
             className="capabilities-search"
           />
           <select
@@ -372,10 +372,10 @@ export default function CapabilitiesPage(): JSX.Element {
         <section className="capability-status-row">
           <span>{groups.length.toLocaleString()} capabilities across {providerCount.toLocaleString()} provider{providerCount === 1 ? '' : 's'}</span>
           {errors.length > 0 && (
-            <Button variant="danger" onClick={openProviderSettings}>
+            <button type="button" className="capability-issue-pill" onClick={openProviderSettings}>
               <Icon name="wrench" size={13} />
               {errors.length} issue{errors.length === 1 ? '' : 's'}
-            </Button>
+            </button>
           )}
         </section>
 
@@ -668,7 +668,7 @@ function IssuesBanner({
       <div className="capability-issues-header">
         <strong>{count} capability issue{count === 1 ? '' : 's'}</strong>
         <span>Some native provider inventory calls did not respond.</span>
-        <button onClick={onOpenProviders}>Open provider settings</button>
+        <button type="button" onClick={onOpenProviders}>Open provider settings</button>
       </div>
     </section>
   )

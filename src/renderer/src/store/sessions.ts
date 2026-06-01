@@ -4,11 +4,12 @@ import { closePanelTab, DEFAULT_BROWSER_USE_POLICY, filePanelTabId, movePanelTab
 import type { SettingsSectionId } from '../../../types'
 
 export type SettingsSection = SettingsSectionId
-export type RightPanelTabKind = 'new-tab' | 'environment' | 'git' | 'plan' | 'diff' | 'agents' | 'extensions' | 'side' | 'files' | 'browser' | 'file' | 'sidechat' | 'terminal'
+export type RightPanelTabKind = 'new-tab' | 'environment' | 'plan' | 'diff' | 'agents' | 'extensions' | 'side' | 'files' | 'browser' | 'file' | 'sidechat' | 'terminal'
 export type RightPanelTabId = Exclude<RightPanelTabKind, 'file' | 'sidechat' | 'terminal'> | `file:${string}` | `sidechat:${string}` | `terminal:${number}`
-export type BottomPanelTabKind = 'terminal' | 'plan'
-export type BottomPanelTabId = number | 'plan'
+export type BottomPanelTabKind = Exclude<RightPanelTabKind, 'new-tab' | 'terminal'> | 'terminal'
+export type BottomPanelTabId = number | Exclude<RightPanelTabId, 'new-tab' | `terminal:${number}`>
 export type GitFocusTarget = 'branch' | 'commit' | 'pull-request'
+const RETIRED_RIGHT_PANEL_TAB_IDS = new Set<string>(['git'])
 
 export interface SourceAnnotationState {
   id: string
@@ -328,7 +329,7 @@ interface SessionState {
 }
 
 const SESSION_STORE_TAIL_MESSAGES = 64
-export const DEFAULT_TERMINAL_PANEL_CONTENT_HEIGHT = 230
+export const DEFAULT_TERMINAL_PANEL_CONTENT_HEIGHT = 190
 export const LEGACY_TERMINAL_PANEL_CONTENT_HEIGHTS = [260, 350] as const
 
 export const defaultUI: SessionUIState = {
@@ -907,7 +908,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   focusRightPanelGitPath: (id, path) =>
     set((s) => {
       const current = s.uiState[id] ?? defaultUI
-      const nextPanel = syncRightPanelTab(current.rightPanel, 'git', true)
+      const nextPanel = syncRightPanelTab(syncRightPanelTab(current.rightPanel, 'environment', true), 'diff', true)
       const request = Date.now()
       return {
         uiState: {
@@ -917,11 +918,16 @@ export const useSessionStore = create<SessionState>((set, get) => ({
             rightPanel: {
               ...nextPanel,
               tabs: nextPanel.tabs.map((tab) =>
-                tab.id === 'git'
-                  ? { ...tab, gitFocusPath: path, gitFocusRequest: request }
+                tab.id === 'diff'
+                  ? { ...tab, reviewFocusPath: path, reviewFocusRequest: request }
                   : tab
               )
-            }
+            },
+            showDiff: true,
+            showPlan: false,
+            showEvents: false,
+            showExtensions: false,
+            showSideQuestions: false
           }
         }
       }
@@ -930,21 +936,19 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   focusRightPanelGitTarget: (id, target) =>
     set((s) => {
       const current = s.uiState[id] ?? defaultUI
-      const nextPanel = syncRightPanelTab(current.rightPanel, 'git', true)
-      const request = Date.now()
+      const tabId = target === 'branch' ? 'environment' : 'diff'
+      const nextPanel = syncRightPanelTab(current.rightPanel, tabId, true)
       return {
         uiState: {
           ...s.uiState,
           [id]: {
             ...current,
-            rightPanel: {
-              ...nextPanel,
-              tabs: nextPanel.tabs.map((tab) =>
-                tab.id === 'git'
-                  ? { ...tab, gitFocusTarget: target, gitFocusTargetRequest: request }
-                  : tab
-              )
-            }
+            rightPanel: nextPanel,
+            showDiff: target === 'branch' ? current.showDiff : true,
+            showPlan: false,
+            showEvents: false,
+            showExtensions: false,
+            showSideQuestions: false
           }
         }
       }
@@ -1345,8 +1349,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           tabId,
           (tab) => {
             if (typeof tab.id === 'number') return rightPanelTab(terminalTabId(tab.id))
-            if (tab.id === 'plan') return rightPanelTab('plan')
-            return null
+            return rightPanelTab(tab.id)
           },
           { activate: true, replacePreview: true }
         )
@@ -1383,9 +1386,9 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       const terminalId = terminalTabIdFromTabId(rightPanelTabId)
       const bottomTabId: BottomPanelTabId | null = terminalId !== null
         ? terminalId
-        : rightPanelTabId === 'plan'
-          ? 'plan'
-          : null
+        : rightPanelTabId === 'new-tab'
+          ? null
+          : rightPanelTabId
       if (bottomTabId === null) return s
       const rightPanelSource =
         rightPanelTabId === 'plan' &&
@@ -1609,7 +1612,6 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 const RIGHT_PANEL_TAB_TITLES: Record<RightPanelTabKind, string> = {
   'new-tab': 'New tab',
   environment: 'Environment',
-  git: 'Git',
   plan: 'Plan',
   diff: 'Review',
   agents: 'Agents',
@@ -1627,13 +1629,17 @@ function ensureRightPanel(panel?: RightPanelState): RightPanelState {
     panel?.width === 468 &&
     typeof panel?.widthRatio === 'number' &&
     Math.abs(panel.widthRatio - 0.34) <= 0.0001
+  const tabs = (panel?.tabs ?? []).filter((tab) => !RETIRED_RIGHT_PANEL_TAB_IDS.has(tab.id))
+  const activeTabId = panel?.activeTabId && tabs.some((tab) => tab.id === panel.activeTabId)
+    ? panel.activeTabId
+    : tabs[0]?.id ?? null
   return {
-    open: panel?.open ?? false,
+    open: (panel?.open ?? false) && tabs.length > 0,
     width: isLegacyDefaultPanel ? 600 : panel?.width ?? 600,
     widthRatio: isLegacyDefaultPanel ? undefined : panel?.widthRatio,
     fullWidth: panel?.fullWidth ?? false,
-    activeTabId: panel?.activeTabId ?? null,
-    tabs: panel?.tabs ?? []
+    activeTabId,
+    tabs
   }
 }
 
@@ -1829,6 +1835,9 @@ function truncateSideChatPreview(value: string): string {
 }
 
 function syncRightPanelTab(panel: RightPanelState | undefined, id: RightPanelTabId, open: boolean): RightPanelState {
+  if (RETIRED_RIGHT_PANEL_TAB_IDS.has(id)) {
+    return open ? syncRightPanelTab(panel, 'environment', true) : ensureRightPanel(panel)
+  }
   const current = ensureRightPanel(panel)
   if (!open) {
     const next = closePanelTab(current, id)

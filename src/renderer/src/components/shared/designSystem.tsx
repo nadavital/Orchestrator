@@ -529,7 +529,7 @@ export function WorkbenchSearchField({
   )
 }
 
-export function Tooltip({ label, children }: { label: string; children: ReactNode }): JSX.Element {
+export function Tooltip({ label, children, disabled = false }: { label: string; children: ReactNode; disabled?: boolean }): JSX.Element {
   const idRef = useRef(`tooltip-${Math.random().toString(36).slice(2)}`)
   const anchorRef = useRef<HTMLSpanElement | null>(null)
   const tooltipRef = useRef<HTMLSpanElement | null>(null)
@@ -544,6 +544,7 @@ export function Tooltip({ label, children }: { label: string; children: ReactNod
   }
 
   const showNow = (): void => {
+    if (disabled || !label) return
     clearShowTimeout()
     const rect = anchorRef.current?.getBoundingClientRect()
     if (!rect) return
@@ -558,6 +559,7 @@ export function Tooltip({ label, children }: { label: string; children: ReactNod
   }
 
   const scheduleShow = (): void => {
+    if (disabled || !label) return
     clearShowTimeout()
     showTimeoutRef.current = window.setTimeout(() => {
       showTimeoutRef.current = null
@@ -573,6 +575,10 @@ export function Tooltip({ label, children }: { label: string; children: ReactNod
   useExclusiveHoverSurface(idRef.current, hide)
 
   useEffect(() => () => clearShowTimeout(), [])
+
+  useEffect(() => {
+    if (disabled || !label) hide()
+  }, [disabled, label])
 
   useLayoutEffect(() => {
     if (!visible || !position) return
@@ -620,23 +626,23 @@ export function Tooltip({ label, children }: { label: string; children: ReactNod
       ref={anchorRef}
       className="orchestrator-tooltip-anchor"
       onPointerEnter={(event) => {
-        if (event.pointerType !== 'touch') scheduleShow()
+        if (!disabled && event.pointerType !== 'touch') scheduleShow()
       }}
       onPointerMove={(event) => {
-        if (event.pointerType !== 'touch') scheduleShow()
+        if (!disabled && event.pointerType !== 'touch') scheduleShow()
       }}
-      onMouseEnter={scheduleShow}
-      onMouseMove={scheduleShow}
-      onMouseOver={showNow}
+      onMouseEnter={disabled ? undefined : scheduleShow}
+      onMouseMove={disabled ? undefined : scheduleShow}
+      onMouseOver={disabled ? undefined : showNow}
       onPointerLeave={hide}
       onMouseLeave={hide}
-      onFocus={showNow}
+      onFocus={disabled ? undefined : showNow}
       onBlur={hide}
       onMouseDownCapture={hide}
       onContextMenu={hide}
     >
       {children}
-      {createPortal(
+      {!disabled && label && createPortal(
         <span
           ref={tooltipRef}
           className="orchestrator-tooltip"
@@ -826,8 +832,8 @@ export function AppShellPanel({
 } & Omit<HTMLAttributes<HTMLDivElement>, 'children'>): JSX.Element {
   const previousOpenRef = useRef(open)
   const shellBorder: CSSProperties = side === 'right'
-    ? { borderLeft: '1px solid var(--border-subtle)' }
-    : { borderTop: '1px solid var(--border-subtle)' }
+    ? { borderLeft: '1px solid color-mix(in srgb, var(--border-subtle) 24%, transparent)' }
+    : { borderTop: '1px solid color-mix(in srgb, var(--border-subtle) 24%, transparent)' }
 
   useEffect(() => {
     const wasOpen = previousOpenRef.current
@@ -1425,7 +1431,7 @@ export function TabButton({
         onClick()
       }}
     >
-      <span className="min-w-0 truncate">{children}</span>
+      <span className="motion-tab-label-host">{children}</span>
       {onClose && (
         <button
           type="button"
@@ -1522,12 +1528,15 @@ export function PanelTabStrip<T extends string | number>({
     if (!activeTab) return
     const rowRect = row.getBoundingClientRect()
     const activeRect = activeTab.getBoundingClientRect()
-    const visibleLeft = rowRect.left
-    const visibleRight = rowRect.right
-    if (activeRect.left < visibleLeft) {
-      row.scrollLeft -= visibleLeft - activeRect.left
-    } else if (activeRect.right > visibleRight) {
-      row.scrollLeft += activeRect.right - visibleRight
+    const activeLeft = row.scrollLeft + (activeRect.left - rowRect.left)
+    const activeRight = row.scrollLeft + (activeRect.right - rowRect.left)
+    const visibleLeft = row.scrollLeft
+    const visibleRight = visibleLeft + row.clientWidth
+    const inset = 12
+    if (activeLeft < visibleLeft + inset) {
+      row.scrollLeft = Math.max(0, activeLeft - inset)
+    } else if (activeRight > visibleRight - inset) {
+      row.scrollLeft = Math.max(0, activeRight - row.clientWidth + inset)
     }
   }, [activeTabId, panelId])
 
@@ -1555,9 +1564,17 @@ export function PanelTabStrip<T extends string | number>({
     const updateActiveTabVisibility = (): void => {
       scrollActiveTabIntoView()
       updateEdges()
+      window.requestAnimationFrame(() => {
+        scrollActiveTabIntoView()
+        updateEdges()
+      })
     }
     const resizeObserver = new ResizeObserver(() => window.requestAnimationFrame(updateActiveTabVisibility))
     resizeObserver.observe(row)
+    const frame = row.parentElement
+    if (frame) resizeObserver.observe(frame)
+    const strip = row.closest('.panel-tab-strip')
+    if (strip) resizeObserver.observe(strip)
     row.addEventListener('scroll', updateEdges, { passive: true })
     window.addEventListener('resize', updateEdges)
     return () => {
@@ -2608,7 +2625,7 @@ export function MotionOverlay({
       className={`motion-overlay-backdrop fixed inset-0 z-50 flex items-center justify-center ${className}`}
       data-motion-exit={exiting ? 'true' : 'false'}
       aria-hidden={exiting ? 'true' : undefined}
-      style={{ background: 'rgba(16, 24, 40, 0.18)', backdropFilter: 'blur(4px)', ...backdropStyle }}
+      style={{ background: 'rgba(16, 24, 40, 0.12)', backdropFilter: 'blur(3px)', ...backdropStyle }}
       onClick={(event) => event.target === event.currentTarget && close()}
     >
       <div
@@ -2685,9 +2702,11 @@ export const PopoverSurface = forwardRef<HTMLDivElement, {
       className={`motion-popover-surface ${className}`}
       style={{
         borderRadius: 'var(--radius-lg)',
-        border: '1px solid var(--border-subtle)',
-        background: 'var(--surface-bg)',
+        border: '1px solid color-mix(in srgb, var(--border-subtle) 16%, transparent)',
+        background: 'color-mix(in srgb, var(--surface-bg) 74%, transparent)',
         boxShadow: 'var(--shadow-menu)',
+        backdropFilter: 'blur(14px) saturate(120%)',
+        WebkitBackdropFilter: 'blur(14px) saturate(120%)',
         color: 'var(--text-primary)',
         ...style,
       }}
@@ -2849,10 +2868,11 @@ export function MenuSurface({
       className={`orchestrator-menu-surface ${className}`.trim()}
       style={{
         borderRadius: 12,
-        border: '0.5px solid var(--border-subtle)',
-        background: 'color-mix(in srgb, var(--surface-bg) 90%, transparent)',
+        border: '0.5px solid color-mix(in srgb, var(--border-subtle) 18%, transparent)',
+        background: 'color-mix(in srgb, var(--surface-bg) 68%, transparent)',
         boxShadow: 'var(--shadow-menu)',
-        backdropFilter: 'blur(12px)',
+        backdropFilter: 'blur(14px) saturate(120%)',
+        WebkitBackdropFilter: 'blur(14px) saturate(120%)',
         minWidth: 178,
         maxWidth: 'min(420px, calc(100vw - 16px))',
         maxHeight: 'min(320px, calc(100vh - 16px))',

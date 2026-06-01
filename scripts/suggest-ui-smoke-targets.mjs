@@ -14,7 +14,7 @@ const targetRules = [
   { flag: '--side-chat', label: 'Side chat', patterns: [/^src\/renderer\/src\/components\/Session\/(SideChat|SideQuestion)/] },
   { flag: '--right-panel', label: 'Right Workbench shell', patterns: [/^src\/renderer\/src\/components\/Session\/(WorkbenchPanel|RightPanel|ContextSidebar)/, /^src\/renderer\/src\/components\/Session\/.*Workbench/, /^src\/renderer\/src\/components\/ui\/ToolbarButton/] },
   { flag: '--workbench-launcher', label: 'Workbench launcher', patterns: [/^src\/renderer\/src\/components\/Session\/ContextSidebar/, /^src\/renderer\/src\/components\/Session\/WorkbenchNewTab/] },
-  { flag: '--workbench-new-tab', label: 'Workbench New Tab full workflow', patterns: [/^src\/renderer\/src\/components\/Session\/(WorkbenchNewTab|GitPanel|EnvironmentPanel)/, /^src\/main\/git/] },
+  { flag: '--workbench-new-tab', label: 'Workbench New Tab full workflow', patterns: [/^src\/renderer\/src\/components\/Session\/(WorkbenchNewTab|GitActionDialog|EnvironmentPanel)/, /^src\/main\/git/] },
   { flag: '--agent-inspector', label: 'Agent Activity inspector', patterns: [/^src\/renderer\/src\/components\/Session\/EventInspectorPanel\.tsx$/] },
   { flag: '--environment', label: 'Environment panel', patterns: [/^src\/renderer\/src\/components\/Session\/Environment/] },
   { flag: '--browser', label: 'Browser panel', patterns: [/^src\/renderer\/src\/components\/Session\/Browser/, /^src\/main\/browser/, /^src\/renderer\/src\/.*browser/i] },
@@ -176,7 +176,7 @@ const diffRules = [
   {
     flag: '--diff-core',
     label: 'Review local diff',
-    filePatterns: [/^src\/renderer\/src\/components\/Session\/DiffPanel\.tsx$/, /^src\/renderer\/src\/components\/Session\/GitPanel\.tsx$/, /^src\/renderer\/src\/components\/Session\/ContextSidebar\.tsx$/, /^src\/renderer\/src\/components\/Session\/WorkbenchTree\.tsx$/, /^src\/renderer\/src\/index\.css$/, /^src\/renderer\/src\/store\/sessions\.ts$/, /^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
+    filePatterns: [/^src\/renderer\/src\/components\/Session\/DiffPanel\.tsx$/, /^src\/renderer\/src\/components\/Session\/GitActionDialog\.tsx$/, /^src\/renderer\/src\/components\/Session\/ContextSidebar\.tsx$/, /^src\/renderer\/src\/components\/Session\/WorkbenchTree\.tsx$/, /^src\/renderer\/src\/index\.css$/, /^src\/renderer\/src\/store\/sessions\.ts$/, /^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
     diffPatterns: [/reviewRowKeyboardContextMenu/, /reviewRowAddToChat/, /reviewRowInsertPathTerminal/, /reviewGitApplyTerminalHandoff/, /reviewTreeKeyboardNavigation/, /data-keyboard-navigation/, /review-row-context-menu/, /review-row-copy-path/, /review-row-add-chat/, /review-row-insert-terminal/, /review-insert-git-apply-terminal/, /review-merge-conflict-mark-resolved/, /reviewMergeConflictMarkResolved/, /Added .* to chat/, /Review path inserted in terminal/, /Git apply command inserted in terminal/, /__orchestratorLastReviewGitApplyTerminal/, /reviewSelectedGitPathActions/, /review-stage-selected-file/, /review-unstage-selected-file/, /reviewGitHandoffSelectedFile/, /gitReviewHandoffSelectedFile/, /gitFocusPath/, /reviewFocusPath/, /git-file-row-focused/, /git-file-open-review/]
   },
   {
@@ -243,7 +243,7 @@ const diffRules = [
   {
     flag: '--environment',
     label: 'Environment panel',
-    filePatterns: [/^src\/renderer\/src\/components\/Session\/EnvironmentPanel\.tsx$/, /^src\/renderer\/src\/components\/Session\/ContextSidebar\.tsx$/, /^src\/renderer\/src\/components\/Session\/GitPanel\.tsx$/, /^src\/renderer\/src\/store\/sessions\.ts$/, /^src\/renderer\/src\/App\.tsx$/, /^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
+    filePatterns: [/^src\/renderer\/src\/components\/Session\/EnvironmentPanel\.tsx$/, /^src\/renderer\/src\/components\/Session\/ContextSidebar\.tsx$/, /^src\/renderer\/src\/components\/Session\/GitActionDialog\.tsx$/, /^src\/renderer\/src\/store\/sessions\.ts$/, /^src\/renderer\/src\/App\.tsx$/, /^scripts\/run-automated-ui-smoke\.mjs$/, /^src\/main\/index\.ts$/],
     diffPatterns: [/environmentCreatePrOpensGit/, /environmentCommitOpensGit/, /environmentBranchOpensGit/, /environmentWorkspacePathActions/, /open-git-pr/, /open-git-commit/, /open-git-branch/, /codex-environment-(?:copy-workspace-path|insert-workspace-terminal)/, /Workspace path (?:copied|inserted in terminal)/, /__orchestratorLastEnvironment/, /Open Git to create a pull request/, /Open Git to commit changes/, /Open Git branch controls/, /gitFocusTarget/, /GitFocusTarget/, /data-git-focus-target/, /data-git-focused-target/, /focusTarget/, /focusRightPanelGitTarget/, /__orchestratorSetSessionReviewMetadataForSmoke/, /onOpenGit/]
   }
 ]
@@ -1197,7 +1197,7 @@ function suppressTerminalForWorkbenchGitPrTerminalHandoffDiff(matched, paths) {
   if (!terminal || !workbench) return
   if (!terminal.files.every((file) => file === 'scripts/run-automated-ui-smoke.mjs' || file === 'src/main/index.ts')) return
   const diff = [
-    paths.includes('src/renderer/src/components/Session/GitPanel.tsx') ? diffForFile('src/renderer/src/components/Session/GitPanel.tsx') : '',
+    paths.includes('src/renderer/src/components/Session/GitActionDialog.tsx') ? diffForFile('src/renderer/src/components/Session/GitActionDialog.tsx') : '',
     paths.includes('scripts/run-automated-ui-smoke.mjs') ? diffForFile('scripts/run-automated-ui-smoke.mjs') : '',
     paths.includes('src/main/index.ts') ? diffForFile('src/main/index.ts') : ''
   ].join('\n')
@@ -1209,9 +1209,9 @@ function suppressTerminalForWorkbenchGitFileTerminalHandoffDiff(matched, paths) 
   const terminal = matched.get('--terminal')
   const workbench = matched.get('--workbench-new-tab')
   if (!terminal || !workbench) return
-  if (!terminal.files.every((file) => file === 'src/renderer/src/components/Session/GitPanel.tsx' || file === 'scripts/run-automated-ui-smoke.mjs' || file === 'src/main/index.ts')) return
+  if (!terminal.files.every((file) => file === 'src/renderer/src/components/Session/GitActionDialog.tsx' || file === 'scripts/run-automated-ui-smoke.mjs' || file === 'src/main/index.ts')) return
   const diff = [
-    paths.includes('src/renderer/src/components/Session/GitPanel.tsx') ? diffForFile('src/renderer/src/components/Session/GitPanel.tsx') : '',
+    paths.includes('src/renderer/src/components/Session/GitActionDialog.tsx') ? diffForFile('src/renderer/src/components/Session/GitActionDialog.tsx') : '',
     paths.includes('scripts/run-automated-ui-smoke.mjs') ? diffForFile('scripts/run-automated-ui-smoke.mjs') : '',
     paths.includes('src/main/index.ts') ? diffForFile('src/main/index.ts') : ''
   ].join('\n')
@@ -1225,7 +1225,7 @@ function suppressFilesForWorkbenchGitFileAddToChatDiff(matched, paths) {
   if (!files || !workbench) return
   if (!files.files.every((file) => file === 'scripts/run-automated-ui-smoke.mjs' || file === 'src/main/index.ts')) return
   const diff = [
-    paths.includes('src/renderer/src/components/Session/GitPanel.tsx') ? diffForFile('src/renderer/src/components/Session/GitPanel.tsx') : '',
+    paths.includes('src/renderer/src/components/Session/GitActionDialog.tsx') ? diffForFile('src/renderer/src/components/Session/GitActionDialog.tsx') : '',
     paths.includes('scripts/run-automated-ui-smoke.mjs') ? diffForFile('scripts/run-automated-ui-smoke.mjs') : '',
     paths.includes('src/main/index.ts') ? diffForFile('src/main/index.ts') : ''
   ].join('\n')
@@ -1361,12 +1361,12 @@ function suppressEnvironmentForGitFileWorkflowDiff(matched, paths) {
   if (!environment.files.every((file) =>
     file === 'scripts/run-automated-ui-smoke.mjs' ||
     file === 'src/main/index.ts' ||
-    file === 'src/renderer/src/components/Session/GitPanel.tsx'
+    file === 'src/renderer/src/components/Session/GitActionDialog.tsx'
   )) return
   const diff = [
     paths.includes('scripts/run-automated-ui-smoke.mjs') ? diffForFile('scripts/run-automated-ui-smoke.mjs') : '',
     paths.includes('src/main/index.ts') ? diffForFile('src/main/index.ts') : '',
-    paths.includes('src/renderer/src/components/Session/GitPanel.tsx') ? diffForFile('src/renderer/src/components/Session/GitPanel.tsx') : ''
+    paths.includes('src/renderer/src/components/Session/GitActionDialog.tsx') ? diffForFile('src/renderer/src/components/Session/GitActionDialog.tsx') : ''
   ].join('\n')
   if (!/workbenchNewTabGitFile(?:CopyPath|AddToChat|InsertTerminal|OpenWorkbench)|git-file-(?:copy-path|add-chat|insert-terminal|open-workbench)|Copy path for|Add .* to chat|Insert .* in terminal|File path inserted in terminal|__orchestratorLastGitFileTerminal|Open .* in Workbench/.test(diff)) return
   matched.delete('--environment')
@@ -1382,7 +1382,7 @@ function suppressWorkbenchForReviewGitHandoffDiff(matched, paths) {
       file === 'scripts/suggest-ui-smoke-targets.mjs' ||
       file === 'src/renderer/src/components/Session/ContextSidebar.tsx' ||
       file === 'src/renderer/src/components/Session/DiffPanel.tsx' ||
-      file === 'src/renderer/src/components/Session/GitPanel.tsx' ||
+      file === 'src/renderer/src/components/Session/GitActionDialog.tsx' ||
       file === 'src/renderer/src/index.css' ||
       file === 'src/renderer/src/store/sessions.ts'
     )
@@ -1407,7 +1407,7 @@ function suppressWorkbenchForEnvironmentCreatePrDiff(matched, paths) {
       file === 'src/renderer/src/App.tsx' ||
       file === 'src/renderer/src/components/Session/ContextSidebar.tsx' ||
       file === 'src/renderer/src/components/Session/EnvironmentPanel.tsx' ||
-      file === 'src/renderer/src/components/Session/GitPanel.tsx' ||
+      file === 'src/renderer/src/components/Session/GitActionDialog.tsx' ||
       file === 'src/renderer/src/store/sessions.ts'
     )
     .map(diffForFile)
