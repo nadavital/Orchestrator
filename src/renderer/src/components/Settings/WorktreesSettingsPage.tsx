@@ -162,10 +162,11 @@ export default function WorktreesSettingsPage({ onClose }: WorktreesSettingsPage
             </div>
             <SettingsGroupContent>
               <SettingsSurface className="worktrees-settings-surface" dataTestId="worktrees-create-surface">
-                <div className="worktrees-create-form">
-                  <div className="worktrees-create-fields">
-                    <label className="settings-field-stack">
-                      <span>Project</span>
+                <SettingsRow
+                  label="Project"
+                  description="Choose the source project for the isolated workspace."
+                  className="worktrees-create-row"
+                  control={(
                       <select
                         className="settings-select settings-control-fill"
                         value={selectedProjectId}
@@ -176,9 +177,13 @@ export default function WorktreesSettingsPage({ onClose }: WorktreesSettingsPage
                           <option key={project.id} value={project.id}>{project.name}</option>
                         ))}
                       </select>
-                    </label>
-                    <label className="settings-field-stack">
-                      <span>Base</span>
+                  )}
+                />
+                <SettingsRow
+                  label="Base ref"
+                  description="Branch, tag, or commit to start from."
+                  className="worktrees-create-row"
+                  control={(
                       <input
                         className="settings-input"
                         value={baseRef}
@@ -186,9 +191,13 @@ export default function WorktreesSettingsPage({ onClose }: WorktreesSettingsPage
                         placeholder="HEAD"
                         data-testid="worktrees-create-base"
                       />
-                    </label>
-                    <label className="settings-field-stack">
-                      <span>Branch</span>
+                  )}
+                />
+                <SettingsRow
+                  label="Branch"
+                  description="Optional branch name for the new worktree chat."
+                  className="worktrees-create-row"
+                  control={(
                       <input
                         className="settings-input"
                         value={branchName}
@@ -196,18 +205,24 @@ export default function WorktreesSettingsPage({ onClose }: WorktreesSettingsPage
                         placeholder="orchestrator/my-work"
                         data-testid="worktrees-create-branch"
                       />
-                    </label>
-                  </div>
-                  <button
-                    type="button"
-                    className="settings-action-button"
-                    disabled={!selectedProjectId || createBusy}
-                    onClick={() => { void createWorktree() }}
-                    data-testid="worktrees-create-submit"
-                  >
-                    {createBusy ? 'Creating...' : 'Create worktree'}
-                  </button>
-                </div>
+                  )}
+                />
+                <SettingsRow
+                  label="Create"
+                  description="Open a new chat in the managed worktree."
+                  className="worktrees-create-row"
+                  control={(
+                    <button
+                      type="button"
+                      className="settings-action-button"
+                      disabled={!selectedProjectId || createBusy}
+                      onClick={() => { void createWorktree() }}
+                      data-testid="worktrees-create-submit"
+                    >
+                      {createBusy ? 'Creating...' : 'Create worktree'}
+                    </button>
+                  )}
+                />
               </SettingsSurface>
             </SettingsGroupContent>
           </SettingsContentGroup>

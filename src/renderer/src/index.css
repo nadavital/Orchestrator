@@ -11566,23 +11566,22 @@
     flex-direction: column;
   }
 
-  .worktrees-create-form {
-    display: grid;
-    min-width: 0;
-    gap: 9px;
-    padding: 10px 12px;
+  .worktrees-create-row {
+    min-height: 42px;
   }
 
-  .worktrees-create-form > .settings-action-button {
-    justify-self: end;
-    width: fit-content;
+  .worktrees-create-row .settings-row-copy {
+    flex: 1 1 auto;
+    padding-right: 18px;
   }
 
-  .worktrees-create-fields {
-    display: grid;
-    min-width: 0;
-    grid-template-columns: minmax(180px, 1.15fr) minmax(120px, 0.75fr) minmax(180px, 1.1fr);
-    gap: 9px;
+  .worktrees-create-row .settings-row-control {
+    flex: 0 1 320px;
+  }
+
+  .worktrees-create-row .settings-select,
+  .worktrees-create-row .settings-input {
+    width: 100%;
   }
 
   .worktrees-row {
@@ -11737,8 +11736,16 @@
   }
 
   @media (max-width: 760px) {
-    .worktrees-create-fields {
-      grid-template-columns: 1fr;
+    .worktrees-create-row {
+      align-items: flex-start;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .worktrees-create-row .settings-row-control {
+      width: 100%;
+      flex-basis: auto;
+      justify-content: stretch;
     }
 
     .worktrees-row-header {
