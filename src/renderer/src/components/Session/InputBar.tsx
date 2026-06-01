@@ -2085,7 +2085,7 @@ function ToolbarBtn({
     : 'transparent'
   const textColor = muted ? 'var(--text-tertiary)' : active ? 'var(--text-primary)' : 'var(--text-secondary)'
   void providerColor
-  const tooltipLabel = ariaExpanded ? undefined : title
+  const tooltipLabel = title ?? ''
   const button = (
     <button
       ref={buttonRef}
@@ -2097,7 +2097,7 @@ function ToolbarBtn({
       aria-expanded={ariaExpanded}
       aria-haspopup={ariaHasPopup}
       onKeyDown={onKeyDown}
-      data-tooltip-label={tooltipLabel}
+      data-tooltip-label={ariaExpanded ? undefined : tooltipLabel}
       data-native-title-free="true"
       data-testid={dataTestId}
       className={`flex items-center gap-1.5 text-xs transition-colors ${className ?? ''}`}
@@ -2117,7 +2117,7 @@ function ToolbarBtn({
       {children}
     </button>
   )
-  return tooltipLabel ? <Tooltip label={tooltipLabel}>{button}</Tooltip> : button
+  return <Tooltip label={tooltipLabel} disabled={ariaExpanded || !tooltipLabel}>{button}</Tooltip>
 }
 
 function Chevron(): JSX.Element {
@@ -2141,10 +2141,10 @@ function DropdownPanel({
       className="absolute z-50 composer-dropdown-surface"
       onClose={onClose}
       style={{
-        border: '1px solid color-mix(in srgb, var(--border-subtle) 30%, transparent)',
+        border: '1px solid color-mix(in srgb, var(--border-subtle) 22%, transparent)',
         borderRadius: 12,
-        background: 'color-mix(in srgb, var(--surface-bg) 78%, transparent)',
-        boxShadow: '0 16px 42px rgba(0, 0, 0, 0.26)',
+        background: 'color-mix(in srgb, var(--surface-bg) 70%, transparent)',
+        boxShadow: '0 14px 36px rgba(0, 0, 0, 0.20)',
         backdropFilter: 'blur(18px) saturate(130%)',
         WebkitBackdropFilter: 'blur(18px) saturate(130%)',
         overflow: 'hidden',
@@ -2669,11 +2669,11 @@ function Chip({
       data-composer-choice-active={active ? 'true' : 'false'}
       className="flex items-center gap-1.5 text-xs transition-colors"
       style={{
-        background: active ? 'color-mix(in srgb, var(--control-bg-active) 58%, transparent)' : 'color-mix(in srgb, var(--control-bg) 34%, transparent)',
+        background: active ? 'color-mix(in srgb, var(--control-bg-active) 42%, transparent)' : 'color-mix(in srgb, var(--control-bg) 18%, transparent)',
         color: active ? activeColor : disabled ? 'var(--text-tertiary)' : 'var(--text-primary)',
-        border: '1px solid ' + (active ? `color-mix(in srgb, ${activeColor} 72%, var(--border-subtle))` : 'color-mix(in srgb, var(--border-subtle) 42%, transparent)'),
+        border: '1px solid ' + (active ? `color-mix(in srgb, ${activeColor} 48%, var(--border-subtle))` : 'color-mix(in srgb, var(--border-subtle) 24%, transparent)'),
         borderRadius: 'var(--radius-pill)',
-        padding: '4px 8px',
+        padding: '3.5px 7px',
         cursor: disabled ? 'default' : 'pointer',
         opacity: disabled ? 0.5 : 1,
         fontWeight: active ? 650 : 500

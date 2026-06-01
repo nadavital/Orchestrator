@@ -529,7 +529,7 @@ export function WorkbenchSearchField({
   )
 }
 
-export function Tooltip({ label, children }: { label: string; children: ReactNode }): JSX.Element {
+export function Tooltip({ label, children, disabled = false }: { label: string; children: ReactNode; disabled?: boolean }): JSX.Element {
   const idRef = useRef(`tooltip-${Math.random().toString(36).slice(2)}`)
   const anchorRef = useRef<HTMLSpanElement | null>(null)
   const tooltipRef = useRef<HTMLSpanElement | null>(null)
@@ -544,6 +544,7 @@ export function Tooltip({ label, children }: { label: string; children: ReactNod
   }
 
   const showNow = (): void => {
+    if (disabled || !label) return
     clearShowTimeout()
     const rect = anchorRef.current?.getBoundingClientRect()
     if (!rect) return
@@ -558,6 +559,7 @@ export function Tooltip({ label, children }: { label: string; children: ReactNod
   }
 
   const scheduleShow = (): void => {
+    if (disabled || !label) return
     clearShowTimeout()
     showTimeoutRef.current = window.setTimeout(() => {
       showTimeoutRef.current = null
@@ -573,6 +575,10 @@ export function Tooltip({ label, children }: { label: string; children: ReactNod
   useExclusiveHoverSurface(idRef.current, hide)
 
   useEffect(() => () => clearShowTimeout(), [])
+
+  useEffect(() => {
+    if (disabled || !label) hide()
+  }, [disabled, label])
 
   useLayoutEffect(() => {
     if (!visible || !position) return
@@ -620,23 +626,23 @@ export function Tooltip({ label, children }: { label: string; children: ReactNod
       ref={anchorRef}
       className="orchestrator-tooltip-anchor"
       onPointerEnter={(event) => {
-        if (event.pointerType !== 'touch') scheduleShow()
+        if (!disabled && event.pointerType !== 'touch') scheduleShow()
       }}
       onPointerMove={(event) => {
-        if (event.pointerType !== 'touch') scheduleShow()
+        if (!disabled && event.pointerType !== 'touch') scheduleShow()
       }}
-      onMouseEnter={scheduleShow}
-      onMouseMove={scheduleShow}
-      onMouseOver={showNow}
+      onMouseEnter={disabled ? undefined : scheduleShow}
+      onMouseMove={disabled ? undefined : scheduleShow}
+      onMouseOver={disabled ? undefined : showNow}
       onPointerLeave={hide}
       onMouseLeave={hide}
-      onFocus={showNow}
+      onFocus={disabled ? undefined : showNow}
       onBlur={hide}
       onMouseDownCapture={hide}
       onContextMenu={hide}
     >
       {children}
-      {createPortal(
+      {!disabled && label && createPortal(
         <span
           ref={tooltipRef}
           className="orchestrator-tooltip"

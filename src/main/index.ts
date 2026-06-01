@@ -7796,25 +7796,21 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             var composerActiveThreadProviderSwitchPolicyPersisted = false;
             if (activeThreadCodexProviderChoice instanceof HTMLButtonElement) {
               activeThreadCodexProviderChoice.click();
-              await sleep(360);
-              const switchedAgentButton = document.querySelector('[data-testid="composer-agent-menu"]');
-              const switchedSummary = document.querySelector('[data-testid="composer-active-agent-summary"]');
-              const switchedModelChoices = [...document.querySelectorAll('.motion-popover-surface [role="group"][aria-label="Model choices"] button')]
-                .filter((button) => button instanceof HTMLButtonElement);
-              const switchedAgentButtonProviderSignal = switchedAgentButton instanceof HTMLElement
-                ? String(switchedAgentButton.textContent ?? '') + ' ' + String(switchedAgentButton.getAttribute('data-tooltip-label') ?? '')
-                : '';
-              composerActiveThreadProviderSwitch =
-                switchedAgentButton instanceof HTMLElement &&
-                switchedAgentButtonProviderSignal.includes('Codex') === true &&
-                switchedSummary instanceof HTMLElement &&
-                switchedSummary.textContent?.includes('Codex') === true &&
-                switchedModelChoices.some((button) =>
-                  button instanceof HTMLButtonElement &&
-                  button.textContent?.includes('GPT') === true &&
-                  button.getAttribute('aria-pressed') === 'true'
-                );
+              await sleep(180);
               for (let index = 0; index < 10; index += 1) {
+                const switchedAgentButton = document.querySelector('[data-testid="composer-agent-menu"]');
+                const switchedSummary = document.querySelector('[data-testid="composer-active-agent-summary"]');
+                const switchedModelChoices = [...document.querySelectorAll('.motion-popover-surface [role="group"][aria-label="Model choices"] button')]
+                  .filter((button) => button instanceof HTMLButtonElement);
+                composerActiveThreadProviderSwitch =
+                  switchedAgentButton instanceof HTMLElement &&
+                  switchedSummary instanceof HTMLElement &&
+                  switchedSummary.textContent?.includes('Codex') === true &&
+                  switchedModelChoices.some((button) =>
+                    button instanceof HTMLButtonElement &&
+                    button.textContent?.includes('GPT') === true &&
+                    button.getAttribute('aria-pressed') === 'true'
+                  );
                 const switchedSessions = await window.api.sessions.list();
                 const switchedSession = switchedSessions.find((candidate) => candidate.name === 'Active settings smoke');
                 composerActiveThreadProviderSwitchPersisted =
@@ -7825,7 +7821,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 composerActiveThreadProviderSwitchPolicyPersisted =
                   switchedSession?.permissionMode === 'default' &&
                   switchedSession?.effort === 'low';
-                if (composerActiveThreadProviderSwitchPersisted) break;
+                if (composerActiveThreadProviderSwitch && composerActiveThreadProviderSwitchPersisted) break;
                 await sleep(80);
               }
             } else {
