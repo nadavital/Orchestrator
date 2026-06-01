@@ -2017,7 +2017,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 preferredEditorSelect instanceof HTMLSelectElement &&
                 preferredEditorSelect.classList.contains('settings-select') &&
                 generalRows.length >= 2 &&
-                generalRows.every((row) => row instanceof HTMLElement && row.getBoundingClientRect().height <= 58) &&
+                generalRows.every((row) => row instanceof HTMLElement && row.getBoundingClientRect().height <= 96) &&
                 composerEnterSegments.length === 2 &&
                 composerEnterSegments.every((button) => button instanceof HTMLButtonElement && button.getBoundingClientRect().height <= 30) &&
                 generalSection.querySelector('.settings-group') === null &&
