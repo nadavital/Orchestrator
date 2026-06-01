@@ -137,6 +137,7 @@ export default function SideQuestionPanel({ session, chatId, embedded }: Props):
               <div
                 className="side-chat-context-meta"
                 data-testid="side-chat-context-meta"
+                data-side-chat-visible="false"
                 data-side-chat-context-source={context.source}
                 data-side-chat-context-message-count={context.messageCount}
                 data-side-chat-context-provider={context.provider}

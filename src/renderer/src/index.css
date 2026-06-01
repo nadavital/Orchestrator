@@ -5454,6 +5454,16 @@
     margin-top: 2px;
   }
 
+  .side-chat-context-meta[data-side-chat-visible='false'] {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
   .workbench-panel-surface[data-right-panel-bottom-panel-expanded='true'] .side-chat-context-meta {
     display: none;
   }
@@ -12544,8 +12554,8 @@
 
   .provider-details-grid {
     display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    gap: 12px;
+    grid-template-columns: minmax(0, 1fr) minmax(220px, 0.82fr);
+    gap: 10px 18px;
     margin-top: 2px;
   }
 
@@ -13241,7 +13251,7 @@
   .provider-detail-card {
     min-width: 0;
     border: 0;
-    border-top: 1px solid color-mix(in srgb, var(--border-subtle) 5%, transparent);
+    border-top: 1px solid color-mix(in srgb, var(--border-subtle) 4%, transparent);
     border-radius: 0;
     background: transparent;
     overflow: hidden;
