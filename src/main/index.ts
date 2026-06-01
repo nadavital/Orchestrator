@@ -657,6 +657,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
     runAutomatedGitRealRepoSmoke(win, outputPath, screenshotPath)
     return
   }
+  if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'bottom-panel-max') {
+    runAutomatedBottomPanelMaxSmoke(win, outputPath, screenshotPath)
+    return
+  }
   if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'add-project') {
     runAutomatedAddProjectSmoke(win, outputPath, screenshotPath)
     return
@@ -25172,6 +25176,254 @@ function runAutomatedAutomationsSmoke(win: BrowserWindow, outputPath: string, sc
         app.quit()
       }
     }, 700)
+  })
+}
+
+function runAutomatedBottomPanelMaxSmoke(win: BrowserWindow, outputPath: string, screenshotPath?: string): void {
+  win.webContents.once('did-finish-load', () => {
+    setTimeout(async () => {
+      try {
+        const result = await win.webContents.executeJavaScript(`
+          (async () => {
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            const profile = await window.api.app.getProfile();
+            const buttonLabel = (button) =>
+              button.getAttribute('aria-label') ??
+              button.getAttribute('data-tooltip-label') ??
+              button.getAttribute('title') ??
+              button.textContent?.trim() ??
+              '';
+            const findButton = (label) =>
+              [...document.querySelectorAll('button')]
+                .find((button) => buttonLabel(button) === label);
+            const waitFor = async (predicate, attempts = 30, delay = 90) => {
+              for (let index = 0; index < attempts; index += 1) {
+                const value = predicate();
+                if (value) return value;
+                await sleep(delay);
+              }
+              return null;
+            };
+            const ensureRightPanelOpen = async () => {
+              const existing = document.querySelector('[data-testid="session-right-panel"]');
+              if (existing instanceof HTMLElement && existing.getBoundingClientRect().width > 160) return existing;
+              const toggle = document.querySelector('[data-testid="titlebar-toggle-sidebar"]') ?? findButton('Toggle side panel');
+              if (toggle instanceof HTMLElement) toggle.click();
+              return waitFor(() => {
+                const panel = document.querySelector('[data-testid="session-right-panel"]');
+                return panel instanceof HTMLElement && panel.getBoundingClientRect().width > 160 ? panel : null;
+              });
+            };
+            const ensureBottomPanelOpen = async () => {
+              const existing = document.querySelector('[data-testid="session-bottom-panel"]');
+              if (existing instanceof HTMLElement) return existing;
+              const toggle = document.querySelector('[data-testid="titlebar-toggle-terminal"]') ?? findButton('Toggle bottom panel') ?? findButton('Toggle terminal');
+              if (toggle instanceof HTMLElement) toggle.click();
+              return waitFor(() => {
+                const panel = document.querySelector('[data-testid="session-bottom-panel"]');
+                return panel instanceof HTMLElement ? panel : null;
+              }, 36, 100);
+            };
+            const openNewTabLauncher = async () => {
+              await ensureRightPanelOpen();
+              const rightPanel = document.querySelector('[data-testid="session-right-panel"]');
+              if (rightPanel instanceof HTMLElement && rightPanel.getAttribute('data-right-panel-active-tab') === 'new-tab') return;
+              const addButton = document.querySelector('[data-testid="right-panel-add-tab"]') ?? findButton('Add Workbench tab');
+              if (addButton instanceof HTMLElement) addButton.click();
+              await waitFor(() => document.querySelector('[data-testid="workbench-new-tab-action-files"]'), 20, 80);
+            };
+            const openRightPanelSurface = async ({ tabId, actionId, panelSelector, dynamicPrefix }) => {
+              await ensureRightPanelOpen();
+              const existingTab = tabId
+                ? document.querySelector('[data-app-shell-tab-controller="right"][role="tab"][data-tab-id="' + tabId + '"]')
+                : null;
+              if (existingTab instanceof HTMLElement) {
+                existingTab.click();
+              } else {
+                await openNewTabLauncher();
+                const action = document.querySelector('[data-testid="workbench-new-tab-action-' + actionId + '"]');
+                if (action instanceof HTMLButtonElement && action.getAttribute('aria-disabled') !== 'true') {
+                  action.click();
+                } else if (action instanceof HTMLElement && action.getAttribute('aria-disabled') !== 'true') {
+                  action.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+                }
+              }
+              const panel = await waitFor(() => {
+                const rightPanel = document.querySelector('[data-testid="session-right-panel"]');
+                const activeTab = rightPanel instanceof HTMLElement ? rightPanel.getAttribute('data-right-panel-active-tab') ?? '' : '';
+                const content = document.querySelector(panelSelector);
+                const activeMatches = dynamicPrefix ? activeTab.startsWith(dynamicPrefix) : activeTab === tabId;
+                return rightPanel instanceof HTMLElement && content instanceof HTMLElement && activeMatches ? content : null;
+              }, 36, 90);
+              return panel instanceof HTMLElement ? panel : null;
+            };
+            const maximizeBottomPanel = async () => {
+              const panel = await ensureBottomPanelOpen();
+              const handle = document.querySelector('[data-app-shell-resize-handle="true"][data-app-shell-resize-edge="top"]');
+              if (!(panel instanceof HTMLElement) || !(handle instanceof HTMLElement)) return panel;
+              for (let attempt = 0; attempt < 3; attempt += 1) {
+                const rect = handle.getBoundingClientRect();
+                const startX = rect.left + rect.width / 2;
+                const startY = rect.top + rect.height / 2;
+                handle.dispatchEvent(new PointerEvent('pointerdown', {
+                  bubbles: true,
+                  cancelable: true,
+                  pointerId: 141,
+                  pointerType: 'mouse',
+                  clientX: startX,
+                  clientY: startY
+                }));
+                window.dispatchEvent(new PointerEvent('pointermove', {
+                  bubbles: true,
+                  cancelable: true,
+                  pointerId: 141,
+                  pointerType: 'mouse',
+                  clientX: startX,
+                  clientY: startY - 720
+                }));
+                window.dispatchEvent(new PointerEvent('pointerup', {
+                  bubbles: true,
+                  cancelable: true,
+                  pointerId: 141,
+                  pointerType: 'mouse',
+                  clientX: startX,
+                  clientY: startY - 720
+                }));
+                await sleep(220);
+                const nextPanel = document.querySelector('[data-testid="session-bottom-panel"]');
+                const currentHeight = Number(nextPanel?.getAttribute('data-bottom-panel-height') ?? '0');
+                const maxHeight = Number(nextPanel?.getAttribute('data-bottom-panel-max-height') ?? '0');
+                if (maxHeight > 0 && currentHeight >= maxHeight - 4) return nextPanel;
+              }
+              return document.querySelector('[data-testid="session-bottom-panel"]');
+            };
+            const surfaceUsability = async (surface) => {
+              const panel = await openRightPanelSurface(surface);
+              const rightPanel = document.querySelector('[data-testid="session-right-panel"]');
+              if (!(panel instanceof HTMLElement) || !(rightPanel instanceof HTMLElement)) return false;
+              const panelRect = panel.getBoundingClientRect();
+              const rightRect = rightPanel.getBoundingClientRect();
+              return (
+                rightPanel.getAttribute('data-right-panel-bottom-panel-open') === 'true' &&
+                rightPanel.getAttribute('data-right-panel-bottom-panel-expanded') === 'true' &&
+                panelRect.width >= 220 &&
+                panelRect.height >= surface.minHeight &&
+                rightRect.width >= 260 &&
+                rightPanel.scrollWidth <= rightPanel.clientWidth + 2
+              );
+            };
+
+            await waitFor(() => document.querySelector('[data-testid="active-session-title"], [data-testid="session-right-panel"], [data-testid="composer-textarea"]'), 40, 100);
+            await ensureRightPanelOpen();
+            const bottomPanel = await maximizeBottomPanel();
+            const maxHeight = Number(bottomPanel?.getAttribute('data-bottom-panel-max-height') ?? '0');
+            const configuredMaxHeight = Number(bottomPanel?.getAttribute('data-bottom-panel-configured-max-height') ?? '0');
+            const currentHeight = Number(bottomPanel?.getAttribute('data-bottom-panel-height') ?? '0');
+            const primaryContentHeight = Number(bottomPanel?.getAttribute('data-bottom-panel-primary-content-height') ?? '0');
+            const minPrimaryContentHeight = Number(bottomPanel?.getAttribute('data-bottom-panel-min-primary-content-height') ?? '0');
+            const bottomPanelMaximizedWorks =
+              bottomPanel instanceof HTMLElement &&
+              maxHeight > 0 &&
+              configuredMaxHeight >= 300 &&
+              currentHeight >= Math.min(maxHeight, configuredMaxHeight) - 4;
+            const bottomPanelPreservesPrimaryContentWorks =
+              primaryContentHeight >= minPrimaryContentHeight &&
+              minPrimaryContentHeight >= 400;
+
+            const bottomPanelMaxEnvironmentWorks = await surfaceUsability({
+              tabId: 'environment',
+              actionId: 'environment',
+              panelSelector: '[data-testid="codex-environment-panel"]',
+              minHeight: 170
+            });
+            const bottomPanelMaxFilesWorks = await surfaceUsability({
+              tabId: 'files',
+              actionId: 'files',
+              panelSelector: '[data-testid="files-panel-body"]',
+              minHeight: 170
+            });
+            const bottomPanelMaxReviewWorks = await surfaceUsability({
+              tabId: 'diff',
+              actionId: 'review',
+              panelSelector: '.diff-panel-root, [data-testid="review-empty-state"], [data-testid="review-source-summary"], [data-testid="review-files-stack"], [data-testid="review-preview"]',
+              minHeight: 170
+            });
+            const bottomPanelMaxBrowserWorks = await surfaceUsability({
+              tabId: 'browser',
+              actionId: 'browser',
+              panelSelector: '[data-testid="browser-panel"]',
+              minHeight: 170
+            });
+            const bottomPanelMaxSideChatWorks = await surfaceUsability({
+              tabId: null,
+              actionId: 'side-chat',
+              dynamicPrefix: 'sidechat:',
+              panelSelector: '[data-testid="side-chat-panel"]',
+              minHeight: 160
+            });
+            const activeSideChatTab =
+              document.querySelector('[data-app-shell-tab-controller="right"][role="tab"][data-active="true"][data-tab-kind="side-chat"]') ??
+              document.querySelector('[data-app-shell-tab-controller="right"][role="tab"][data-active="true"][data-tab-id^="sidechat:"]');
+            const activeSideChatLabel = activeSideChatTab instanceof HTMLElement
+              ? activeSideChatTab.querySelector('.panel-tab-label')
+              : null;
+            const bottomPanelMaxSideChatLabelWorks =
+              activeSideChatTab instanceof HTMLElement &&
+              activeSideChatLabel instanceof HTMLElement &&
+              activeSideChatLabel.textContent?.trim() === 'Side chat' &&
+              activeSideChatLabel.scrollWidth <= activeSideChatLabel.getBoundingClientRect().width + 8;
+            const rightPanel = document.querySelector('[data-testid="session-right-panel"]');
+            const bottomTabRow = document.querySelector('[data-testid="terminal-panel-tab-row"]');
+            const rightTabRow = document.querySelector('[data-testid="workbench-panel-tab-row"]');
+            const bottomPanelMaxNoHorizontalOverflowWorks =
+              rightPanel instanceof HTMLElement &&
+              bottomPanel instanceof HTMLElement &&
+              rightPanel.scrollWidth <= rightPanel.clientWidth + 2 &&
+              bottomPanel.scrollWidth <= bottomPanel.clientWidth + 2 &&
+              (!(rightTabRow instanceof HTMLElement) || rightTabRow.scrollWidth <= rightTabRow.clientWidth + 72) &&
+              (!(bottomTabRow instanceof HTMLElement) || bottomTabRow.scrollWidth <= bottomTabRow.clientWidth + 72);
+
+            return {
+              profile,
+              bottomPanelMaximizedWorks,
+              bottomPanelPreservesPrimaryContentWorks,
+              bottomPanelMaxEnvironmentWorks,
+              bottomPanelMaxFilesWorks,
+              bottomPanelMaxReviewWorks,
+              bottomPanelMaxBrowserWorks,
+              bottomPanelMaxSideChatWorks,
+              bottomPanelMaxSideChatLabelWorks,
+              bottomPanelMaxNoHorizontalOverflowWorks,
+              diagnostics: {
+                currentHeight,
+                maxHeight,
+                configuredMaxHeight,
+                primaryContentHeight,
+                minPrimaryContentHeight,
+                rightPanelActiveTab: rightPanel instanceof HTMLElement ? rightPanel.getAttribute('data-right-panel-active-tab') : null,
+                rightPanelHeight: rightPanel instanceof HTMLElement ? rightPanel.getBoundingClientRect().height : null,
+                bottomPanelTabs: bottomPanel instanceof HTMLElement ? bottomPanel.getAttribute('data-bottom-panel-tabs') : null,
+                activeSideChatLabel: activeSideChatLabel instanceof HTMLElement ? {
+                  text: activeSideChatLabel.textContent?.trim() ?? '',
+                  width: activeSideChatLabel.getBoundingClientRect().width,
+                  scrollWidth: activeSideChatLabel.scrollWidth
+                } : null
+              }
+            };
+          })()
+        `)
+
+        if (screenshotPath) {
+          const image = await win.webContents.capturePage()
+          writeFileSync(screenshotPath, image.toPNG())
+        }
+        writeFileSync(outputPath, JSON.stringify({ ok: true, result, screenshotPath }, null, 2))
+        app.quit()
+      } catch (error) {
+        writeFileSync(outputPath, JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2))
+        app.quit()
+      }
+    }, 900)
   })
 }
 

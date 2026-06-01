@@ -19,6 +19,7 @@ const captureViewOptions = [
   { flag: '--composer-popover', view: 'composer-popover', surface: 'Composer', scope: 'Open thread settings popover visual capture' },
   { flag: '--pets', view: 'pets', surface: 'Settings', scope: 'Pet settings and overlay configuration' },
   { flag: '--terminal-visual', view: 'terminal-visual', surface: 'Terminal', scope: 'Bottom terminal screenshot and visual health only' },
+  { flag: '--bottom-panel-max', view: 'bottom-panel-max', surface: 'Workbench', scope: 'Right-panel usability while the bottom panel is at maximum height' },
   { flag: '--header', view: 'header', surface: 'Shell', scope: 'Header/sidebar/right-panel contact contract' },
   { flag: '--multi-window-focus', view: 'multi-window-focus', surface: 'Shell', scope: 'Window focus and menu routing' },
   { flag: '--worktree-lifecycle', view: 'worktree-lifecycle', surface: 'Worktrees', scope: 'Pending/failed worktree notices and retry controls' },
@@ -2856,6 +2857,19 @@ child.on('exit', async (code) => {
           terminalPanelTabCodexMetrics: result.terminalPanelTabCodexMetricsWorks === true,
           terminalVisualToolbar: result.terminalVisualToolbarWorks === true,
           terminalVisualHealthyContent: result.terminalVisualHealthyContentWorks === true
+        }
+    : captureView === 'bottom-panel-max'
+      ? {
+          isolatedProfile: result.profile?.isIsolated === true,
+          bottomPanelMaximized: result.bottomPanelMaximizedWorks === true,
+          bottomPanelPreservesPrimaryContent: result.bottomPanelPreservesPrimaryContentWorks === true,
+          bottomPanelMaxEnvironment: result.bottomPanelMaxEnvironmentWorks === true,
+          bottomPanelMaxFiles: result.bottomPanelMaxFilesWorks === true,
+          bottomPanelMaxReview: result.bottomPanelMaxReviewWorks === true,
+          bottomPanelMaxBrowser: result.bottomPanelMaxBrowserWorks === true,
+          bottomPanelMaxSideChat: result.bottomPanelMaxSideChatWorks === true,
+          bottomPanelMaxSideChatLabel: result.bottomPanelMaxSideChatLabelWorks === true,
+          bottomPanelMaxNoHorizontalOverflow: result.bottomPanelMaxNoHorizontalOverflowWorks === true
         }
     : captureView === 'terminal'
       ? {

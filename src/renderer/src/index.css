@@ -1803,7 +1803,9 @@
   .workbench-panel-tabbar .motion-tab-button[data-tab-id='git'],
   .workbench-panel-tabbar .motion-tab-button[data-tab-id='plan'],
   .workbench-panel-tabbar .motion-tab-button[data-tab-id='agents'],
-  .workbench-panel-tabbar .motion-tab-button[data-tab-id='extensions'] {
+  .workbench-panel-tabbar .motion-tab-button[data-tab-id='extensions'],
+  .workbench-panel-tabbar .motion-tab-button[data-tab-kind='side-chat'],
+  .workbench-panel-tabbar .motion-tab-button[data-tab-id^='sidechat:'] {
     min-width: max-content;
     max-width: var(--app-shell-tab-max-width);
   }
@@ -1816,7 +1818,9 @@
   .workbench-panel-tabbar .motion-tab-button[data-tab-id='git'] .panel-tab-content,
   .workbench-panel-tabbar .motion-tab-button[data-tab-id='plan'] .panel-tab-content,
   .workbench-panel-tabbar .motion-tab-button[data-tab-id='agents'] .panel-tab-content,
-  .workbench-panel-tabbar .motion-tab-button[data-tab-id='extensions'] .panel-tab-content {
+  .workbench-panel-tabbar .motion-tab-button[data-tab-id='extensions'] .panel-tab-content,
+  .workbench-panel-tabbar .motion-tab-button[data-tab-kind='side-chat'] .panel-tab-content,
+  .workbench-panel-tabbar .motion-tab-button[data-tab-id^='sidechat:'] .panel-tab-content {
     min-width: max-content;
     max-width: min(var(--app-shell-tab-content-max-width), calc(100% - 2px));
   }
