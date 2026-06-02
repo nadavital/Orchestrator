@@ -83,7 +83,7 @@ Provider features:
 | Plugins | `verified-cli` | `claude plugin install/list/enable/disable/update/validate/marketplace/prune/tag`. | No-quota list surfaced; mutating management routed away from auto-run. |
 | Slash commands/skills | `verified-cli` | `--disable-slash-commands`; skills resolve through slash names. | Partial registry. |
 | Review | `verified-cli` | `claude ultrareview [target]`. | Prompt shortcut plus quota-blocked command surface. |
-| Auth/project/doctor | `verified-cli` | `auth`, `project`, `doctor`, `setup-token`, `install`, `update`. | Safe auth status surfaced; mutating/install flows blocked from auto-run. |
+| Auth/project/doctor | `verified-cli` | `auth status/login/logout`, `project`, `doctor`, `setup-token`, `install`, `update`. | Auth status is read-only in Settings; login/logout are explicit terminal handoffs and blocked from auto-run. |
 | Attachments | `verified-cli` | `--file file_id:relative_path`. | Not surfaced. |
 | Structured final schema | `verified-cli` | `--json-schema`. | Not surfaced. |
 
@@ -162,6 +162,7 @@ Provider features:
 | Auto-review approvals | `verified-schema` | App-server v2 schema exposes `approvalsReviewer: "auto_review"` and config key `approvals_reviewer`. | Advanced Codex permission mode passes the config; live user-review command approval is proven by `npm run live:codex-composer-approval`, but auto-review-specific behavior still needs approval-producing verification. |
 | Hooks | `verified-cli` | Feature flag `codex_hooks` true. | Not surfaced. |
 | Runtime metrics | `verified-cli` | Feature flag `runtime_metrics` false/under development. | Not surfaced. |
+| Login/logout/status | `verified-cli` | `codex login status`, `codex login --device-auth`, `codex login --with-api-key`, and `codex logout`. App-server `getAuthStatus` is available for account status without exposing tokens. | App-server auth status and CLI status are read-only Settings checks; device/API-key sign-in and logout are explicit terminal handoffs blocked from auto-run. |
 
 ## Cursor Agent
 
@@ -247,7 +248,7 @@ CLI surface:
 | Feature | Evidence | Details | Orchestrator status |
 | --- | --- | --- | --- |
 | Top-level CLI help | `verified-cli` | `copilot --help` exposes interactive mode, prompt mode, ACP, plugins, MCP, permissions, providers, monitoring, and completion. | Supported baseline. |
-| Version/status/auth | `verified-cli` | `copilot --version` works outside the sandbox; account-sensitive probes still need app-process verification. | Partial. |
+| Version/status/auth | `verified-cli` / `verified-package` | `copilot --version` works outside the sandbox; package inspection verifies `copilot login` OAuth device flow. SDK status/auth metadata is available, but account-sensitive CLI probes still need app-process verification. | Copilot sign-in is surfaced as an explicit terminal handoff; SDK/runtime status remains the source for account diagnostics until CLI status/logout commands are fixture-backed. |
 | Prompt mode flags | `verified-cli` | `-p`, `--output-format json`, `--allow-all-tools`, `--allow-all`, `--model`, and `--effort` are exposed by help. | Partial. |
 | Interactive mode | `verified-cli` | Default interactive CLI plus `-i`, `--mode interactive/plan/autopilot`, `--plan`, `--autopilot`, and `--no-ask-user`. | Supported CLI lane. |
 | Permissions | `verified-cli` | `--allow-tool`, `--deny-tool`, `--available-tools`, `--allow-url`, `--deny-url`, `--allow-all-paths`, `--allow-all-urls`, and MCP tool flags. | Needs richer GUI mapping. |

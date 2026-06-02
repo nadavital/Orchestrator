@@ -1107,6 +1107,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               var settingsProviderCommandOutputSharedWorks = false;
               var settingsProviderCommandTerminalHandoffWorks = false;
               var settingsProviderCommandTerminalStatusA11yWorks = false;
+              var settingsProviderManagedAuthWorks = false;
               if (providerCapabilitySelect instanceof HTMLSelectElement) {
                 const firstCapabilityOption = [...providerCapabilitySelect.options]
                   .find((option) => option.value.length > 0);
@@ -1137,6 +1138,27 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 providerSelectorSelect.value = 'claude';
                 providerSelectorSelect.dispatchEvent(new Event('change', { bubbles: true }));
                 await sleep(220);
+                const managedAuth = document.querySelector('[data-testid="provider-setup-managed-auth"]');
+                const managedAuthActions = document.querySelector('[data-testid="provider-managed-auth-actions"]');
+                const authStatusAction = document.querySelector('[data-testid="provider-managed-auth-action-auth-status"]');
+                const authLoginAction = document.querySelector('[data-testid="provider-managed-auth-action-auth-login"]');
+                const authLogoutAction = document.querySelector('[data-testid="provider-managed-auth-action-auth-logout"]');
+                const authLoginDetail = document.querySelector('[data-testid="provider-managed-auth-detail-auth-login"]');
+                const authLogoutDetail = document.querySelector('[data-testid="provider-managed-auth-detail-auth-logout"]');
+                settingsProviderManagedAuthWorks =
+                  managedAuth instanceof HTMLElement &&
+                  managedAuthActions instanceof HTMLElement &&
+                  managedAuth.textContent?.includes('Provider-managed account state') === true &&
+                  authStatusAction instanceof HTMLButtonElement &&
+                  authStatusAction.textContent?.includes('Check Auth status') === true &&
+                  authLoginAction instanceof HTMLButtonElement &&
+                  authLoginAction.textContent?.includes('Sign in') === true &&
+                  authLogoutAction instanceof HTMLButtonElement &&
+                  authLogoutAction.textContent?.includes('Sign out') === true &&
+                  authLoginDetail instanceof HTMLElement &&
+                  authLoginDetail.textContent?.includes('claude auth login') === true &&
+                  authLogoutDetail instanceof HTMLElement &&
+                  authLogoutDetail.textContent?.includes('claude auth logout') === true;
                 const claudeCapabilitySelect = document.querySelector('[data-testid="provider-capability-select"]');
                 if (claudeCapabilitySelect instanceof HTMLSelectElement) {
                   const purgeOption = [...claudeCapabilitySelect.options]
@@ -9181,6 +9203,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             settingsProvidersModuleWorks: typeof settingsProvidersModuleWorks === 'boolean' ? settingsProvidersModuleWorks : null,
             settingsProviderCatalogLabelCalm: typeof settingsProviderCatalogLabelCalm === 'boolean' ? settingsProviderCatalogLabelCalm : null,
             settingsDiagnosticsDisclosureCompactWorks: typeof settingsDiagnosticsDisclosureCompactWorks === 'boolean' ? settingsDiagnosticsDisclosureCompactWorks : null,
+            settingsProviderManagedAuthWorks: typeof settingsProviderManagedAuthWorks === 'boolean' ? settingsProviderManagedAuthWorks : null,
             settingsProviderCommandOutputSharedWorks: typeof settingsProviderCommandOutputSharedWorks === 'boolean' ? settingsProviderCommandOutputSharedWorks : null,
             settingsProviderCommandTerminalHandoffWorks: typeof settingsProviderCommandTerminalHandoffWorks === 'boolean' ? settingsProviderCommandTerminalHandoffWorks : null,
             settingsProviderCommandTerminalStatusA11yWorks: typeof settingsProviderCommandTerminalStatusA11yWorks === 'boolean' ? settingsProviderCommandTerminalStatusA11yWorks : null,

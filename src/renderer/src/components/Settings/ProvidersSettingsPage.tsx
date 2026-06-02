@@ -98,6 +98,7 @@ export default function ProvidersSettingsPage({
   const loadingDiagnostics = diagnosticsLoading[selectedId] === true
   const [advancedOpen, setAdvancedOpen] = useState(defaultAdvancedOpen)
   const settingsCommandSurfaces = visibleSettingsCommandSurfaces(selectedId, runtime?.registry.commandSurfaces ?? [])
+  const authCommandSurfaces = visibleProviderAuthCommandSurfaces(selectedId, settingsCommandSurfaces)
   const usageSnapshot = summarizeProviderUsage(sessions, selectedId)
   const diagnosticSummary = [
     installed ? 'Ready' : 'Unavailable',
@@ -392,7 +393,11 @@ export default function ProvidersSettingsPage({
                       </ProviderDetailCard>
                     ) : null}
                     <ProviderDetailCard title="Setup">
-                      <ProviderSetupDetails providerDef={providerDef} />
+                      <ProviderSetupDetails
+                        providerDef={providerDef}
+                        authCommandSurfaces={authCommandSurfaces}
+                        sessions={sessions}
+                      />
                     </ProviderDetailCard>
                   </div>
                 </div>
@@ -415,7 +420,23 @@ const CODEX_SETTINGS_COMMAND_SURFACE_IDS = new Set([
   'appserver-config-requirements',
   'appserver-account',
   'appserver-rate-limits',
-  'appserver-auth-status'
+  'appserver-auth-status',
+  'codex-login-status',
+  'codex-login-device',
+  'codex-login-api-key',
+  'codex-logout'
+])
+
+const PROVIDER_AUTH_COMMAND_SURFACE_IDS = new Set([
+  'auth-status',
+  'auth-login',
+  'auth-logout',
+  'appserver-auth-status',
+  'codex-login-status',
+  'codex-login-device',
+  'codex-login-api-key',
+  'codex-logout',
+  'copilot-login'
 ])
 
 function ProviderDetailCard({
@@ -883,7 +904,15 @@ function formatProviderRuntimeActivity(
   return lines.join('\n')
 }
 
-function ProviderSetupDetails({ providerDef }: { providerDef: typeof PROVIDER_DEFS[string] }): JSX.Element {
+function ProviderSetupDetails({
+  providerDef,
+  authCommandSurfaces,
+  sessions
+}: {
+  providerDef: typeof PROVIDER_DEFS[string]
+  authCommandSurfaces: ProviderCommandSurface[]
+  sessions: SessionListItem[]
+}): JSX.Element {
   return (
     <div className="provider-setup-card" data-testid="provider-setup-card">
       {providerDef.id === 'claude' && (
@@ -898,10 +927,126 @@ function ProviderSetupDetails({ providerDef }: { providerDef: typeof PROVIDER_DE
           <CursorAuthField color={providerDef.color} />
         </div>
       )}
+      {authCommandSurfaces.length > 0 && (
+        <div className="provider-setup-row" data-testid="provider-setup-managed-auth">
+          <div className="provider-setup-label">Auth</div>
+          <ProviderManagedAuthActions
+            providerId={providerDef.id}
+            color={providerDef.color}
+            surfaces={authCommandSurfaces}
+            sessions={sessions}
+          />
+        </div>
+      )}
       <div className="provider-setup-row" data-testid="provider-setup-config">
         <div className="provider-setup-label">Config</div>
         <ProviderConfigEditor providerId={providerDef.id} color={providerDef.color} />
       </div>
+    </div>
+  )
+}
+
+function ProviderManagedAuthActions({
+  providerId,
+  color,
+  surfaces,
+  sessions
+}: {
+  providerId: string
+  color: string
+  surfaces: ProviderCommandSurface[]
+  sessions: SessionListItem[]
+}): JSX.Element {
+  const [results, setResults] = useState<Record<string, ProviderCommandSurfaceResult>>({})
+  const [loading, setLoading] = useState<Record<string, boolean>>({})
+  const { terminalStatus, insertSurfaceInTerminal } = useProviderCommandTerminalHandoff(providerId, sessions)
+
+  const runSurface = async (surface: ProviderCommandSurface): Promise<void> => {
+    if (surface.quota !== 'none' || surface.mutatesState) return
+    setLoading((current) => ({ ...current, [surface.id]: true }))
+    try {
+      const result = await window.api.providers.runCommandSurface(providerId, surface.id)
+      setResults((current) => ({ ...current, [surface.id]: result }))
+    } finally {
+      setLoading((current) => ({ ...current, [surface.id]: false }))
+    }
+  }
+
+  return (
+    <div data-testid="provider-managed-auth-actions" style={{ display: 'grid', gap: 8, minWidth: 0 }}>
+      <div style={{ color: 'var(--color-text-muted)', fontSize: 11, lineHeight: 1.35 }}>
+        Provider-managed account state. Orchestrator opens explicit terminal flows for sign-in changes.
+      </div>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+        {surfaces.map((surface) => {
+          const runnable = surface.quota === 'none' && !surface.mutatesState
+          const busy = loading[surface.id] === true
+          return (
+            <button
+              key={surface.id}
+              type="button"
+              className="provider-command-output-action"
+              data-testid={`provider-managed-auth-action-${surface.id}`}
+              data-runnable="true"
+              disabled={busy || (!runnable && sessions.length === 0)}
+              aria-label={`${runnable ? 'Check' : 'Open terminal for'} ${surface.label}`}
+              onClick={() => {
+                if (runnable) void runSurface(surface)
+                else void insertSurfaceInTerminal(surface)
+              }}
+              style={{ '--provider-accent': color } as CSSProperties}
+            >
+              {busy ? 'Checking' : runnable ? `Check ${surface.label}` : surface.label}
+            </button>
+          )
+        })}
+      </div>
+      {surfaces.map((surface) => {
+        const runnable = surface.quota === 'none' && !surface.mutatesState
+        const result = results[surface.id]
+        const status = terminalStatus?.surfaceId === surface.id ? terminalStatus : null
+        return (
+          <div
+            key={`${surface.id}-detail`}
+            data-testid={`provider-managed-auth-detail-${surface.id}`}
+            style={{ display: 'grid', gap: 4, minWidth: 0 }}
+          >
+            {!runnable && (
+              <code className="provider-command-output-command">{providerSurfaceTerminalCommand(providerId, surface)}</code>
+            )}
+            {surface.note && (
+              <div style={{ color: 'var(--color-text-muted)', fontSize: 11, lineHeight: 1.35 }}>
+                {surface.note}
+              </div>
+            )}
+            {result && (
+              <div
+                style={{
+                  color: result.status === 'ok' ? 'var(--color-green)' : result.status === 'error' ? 'var(--color-red)' : 'var(--color-text-muted)',
+                  fontSize: 11,
+                  lineHeight: 1.35
+                }}
+              >
+                {result.status}: {compactProviderCommandOutput(result.output)}
+              </div>
+            )}
+            {status && (
+              <div
+                role={status.tone === 'danger' ? 'alert' : 'status'}
+                aria-live={status.tone === 'danger' ? 'assertive' : 'polite'}
+                data-testid="provider-managed-auth-terminal-status"
+                style={{
+                  color: status.tone === 'danger' ? 'var(--color-red)' : 'var(--color-text-muted)',
+                  fontSize: 11,
+                  lineHeight: 1.35
+                }}
+              >
+                {status.text}
+              </div>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -1052,6 +1197,20 @@ function visibleSettingsCommandSurfaces(providerId: string, surfaces: ProviderCo
   return surfaces.filter((surface) => CODEX_SETTINGS_COMMAND_SURFACE_IDS.has(surface.id))
 }
 
+function visibleProviderAuthCommandSurfaces(_providerId: string, surfaces: ProviderCommandSurface[]): ProviderCommandSurface[] {
+  return surfaces.filter((surface) => PROVIDER_AUTH_COMMAND_SURFACE_IDS.has(surface.id))
+}
+
+function compactProviderCommandOutput(output: string): string {
+  const compact = output
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .join(' ')
+  if (!compact) return 'No output'
+  return compact.length > 180 ? `${compact.slice(0, 177)}...` : compact
+}
+
 function ProviderDropdown({
   providers,
   selectedId,
@@ -1157,23 +1316,13 @@ function ProviderBoundarySummary({ gaps, color }: { gaps: ProviderCapabilityGap[
   )
 }
 
-function ProviderCommandSurfaces({
-  providerId,
-  color,
-  surfaces,
-  sessions
-}: {
-  providerId: string
-  color: string
-  surfaces: ProviderCommandSurface[]
+function useProviderCommandTerminalHandoff(
+  providerId: string,
   sessions: SessionListItem[]
-}): JSX.Element {
-  const runnableSurfaces = surfaces.filter((surface) => surface.quota === 'none' && !surface.mutatesState)
-  const mutatingSurfaces = surfaces.filter((surface) => surface.mutatesState)
-  const quotaSurfaces = surfaces.filter((surface) => surface.quota !== 'none')
-  const [results, setResults] = useState<Record<string, ProviderCommandSurfaceResult>>({})
-  const [loading, setLoading] = useState<Record<string, boolean>>({})
-  const [openId, setOpenId] = useState<string | null>(null)
+): {
+  terminalStatus: { surfaceId: string; text: string; tone: 'info' | 'danger' } | null
+  insertSurfaceInTerminal: (surface: ProviderCommandSurface) => Promise<void>
+} {
   const [terminalStatus, setTerminalStatus] = useState<{ surfaceId: string; text: string; tone: 'info' | 'danger' } | null>(null)
   const statusTimeoutRef = useRef<number | null>(null)
   const activeSessionId = useSessionStore((state) => state.activeSessionId)
@@ -1181,34 +1330,21 @@ function ProviderCommandSurfaces({
   const setShowTerminal = useSessionStore((state) => state.setShowTerminal)
   const addTerminalTab = useSessionStore((state) => state.addTerminalTab)
   const setActiveTerminalTab = useSessionStore((state) => state.setActiveTerminalTab)
-  const selectedSurface = surfaces.find((surface) => surface.id === openId)
 
   useEffect(() => () => {
     if (statusTimeoutRef.current) window.clearTimeout(statusTimeoutRef.current)
   }, [])
 
-  const showTerminalStatus = (surfaceId: string, text: string, tone: 'info' | 'danger'): void => {
+  const showTerminalStatus = useCallback((surfaceId: string, text: string, tone: 'info' | 'danger'): void => {
     if (statusTimeoutRef.current) window.clearTimeout(statusTimeoutRef.current)
     setTerminalStatus({ surfaceId, text, tone })
     statusTimeoutRef.current = window.setTimeout(() => {
       setTerminalStatus((current) => current?.surfaceId === surfaceId ? null : current)
       statusTimeoutRef.current = null
     }, 1800)
-  }
+  }, [])
 
-  const runSurface = async (surface: ProviderCommandSurface): Promise<void> => {
-    if (surface.quota !== 'none' || surface.mutatesState) return
-    setOpenId(surface.id)
-    setLoading((current) => ({ ...current, [surface.id]: true }))
-    try {
-      const result = await window.api.providers.runCommandSurface(providerId, surface.id)
-      setResults((current) => ({ ...current, [surface.id]: result }))
-    } finally {
-      setLoading((current) => ({ ...current, [surface.id]: false }))
-    }
-  }
-
-  const insertSurfaceInTerminal = async (surface: ProviderCommandSurface): Promise<void> => {
+  const insertSurfaceInTerminal = useCallback(async (surface: ProviderCommandSurface): Promise<void> => {
     const terminalSession =
       sessions.find((session) => session.id === activeSessionId) ??
       sessions.find((session) => session.provider === providerId) ??
@@ -1243,6 +1379,50 @@ function ProviderCommandSurfaces({
       showTerminalStatus(surface.id, 'Provider command inserted in terminal', 'info')
     } catch {
       showTerminalStatus(surface.id, 'Insert provider command in terminal failed', 'danger')
+    }
+  }, [
+    activeSessionId,
+    addTerminalTab,
+    providerId,
+    sessions,
+    setActiveSession,
+    setActiveTerminalTab,
+    setShowTerminal,
+    showTerminalStatus
+  ])
+
+  return { terminalStatus, insertSurfaceInTerminal }
+}
+
+function ProviderCommandSurfaces({
+  providerId,
+  color,
+  surfaces,
+  sessions
+}: {
+  providerId: string
+  color: string
+  surfaces: ProviderCommandSurface[]
+  sessions: SessionListItem[]
+}): JSX.Element {
+  const runnableSurfaces = surfaces.filter((surface) => surface.quota === 'none' && !surface.mutatesState)
+  const mutatingSurfaces = surfaces.filter((surface) => surface.mutatesState)
+  const quotaSurfaces = surfaces.filter((surface) => surface.quota !== 'none')
+  const [results, setResults] = useState<Record<string, ProviderCommandSurfaceResult>>({})
+  const [loading, setLoading] = useState<Record<string, boolean>>({})
+  const [openId, setOpenId] = useState<string | null>(null)
+  const { terminalStatus, insertSurfaceInTerminal } = useProviderCommandTerminalHandoff(providerId, sessions)
+  const selectedSurface = surfaces.find((surface) => surface.id === openId)
+
+  const runSurface = async (surface: ProviderCommandSurface): Promise<void> => {
+    if (surface.quota !== 'none' || surface.mutatesState) return
+    setOpenId(surface.id)
+    setLoading((current) => ({ ...current, [surface.id]: true }))
+    try {
+      const result = await window.api.providers.runCommandSurface(providerId, surface.id)
+      setResults((current) => ({ ...current, [surface.id]: result }))
+    } finally {
+      setLoading((current) => ({ ...current, [surface.id]: false }))
     }
   }
 

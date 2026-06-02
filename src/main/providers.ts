@@ -1014,6 +1014,8 @@ const providerRegistries: Record<string, ProviderCapabilityRegistry> = {
     ],
     commandSurfaces: [
       commandSurface('auth-status', 'Auth status', 'runtime', ['auth', 'status'], 'sdk', 'none', false, 'settings', { featureId: 'auth' }),
+      commandSurface('auth-login', 'Sign in', 'runtime', ['auth', 'login'], 'sdk', 'none', true, 'settings', { featureId: 'auth', note: 'Starts the Claude account sign-in flow in the terminal.' }),
+      commandSurface('auth-logout', 'Sign out', 'runtime', ['auth', 'logout'], 'sdk', 'none', true, 'settings', { featureId: 'auth', note: 'Removes the active Claude authentication from the provider CLI.' }),
       commandSurface('agents-list', 'Configured agents', 'agents', ['agents'], 'sdk', 'none', false, 'settings', { featureId: 'agents' }),
       commandSurface('mcp-list', 'MCP servers', 'mcp', ['mcp', 'list'], 'sdk', 'none', false, 'settings', { featureId: 'mcp' }),
       commandSurface('mcp-details', 'MCP details', 'mcp', ['mcp', 'get'], 'sdk', 'none', false, 'settings', { featureId: 'mcp', note: 'Runs mcp list, then mcp get for each discovered server.' }),
@@ -1098,7 +1100,9 @@ const providerRegistries: Record<string, ProviderCapabilityRegistry> = {
       probe('version', 'Version', ['--version'], 'version'),
       probe('help', 'Help', ['--help'], 'help')
     ],
-    commandSurfaces: [],
+    commandSurfaces: [
+      commandSurface('copilot-login', 'Sign in', 'runtime', ['login'], 'interactive', 'none', true, 'settings', { featureId: 'sdk-status', note: 'Starts GitHub Copilot OAuth device flow in the terminal. The SDK can also use an existing GitHub/Copilot login when available.' })
+    ],
     slashCommands: [
       slashCommand('/review', 'Start a Copilot code review task', 'sdk', 'sdk', 'sdk-command', { featureId: 'code-review' }),
       slashCommand('/agents', 'Show Copilot agents', 'sdk', 'sdk', 'sdk-command', { featureId: 'subagents' }),
@@ -1201,6 +1205,10 @@ const providerRegistries: Record<string, ProviderCapabilityRegistry> = {
       commandSurface('appserver-account', 'Account', 'usage', ['app-server', 'account/read'], 'app-server', 'none', false, 'settings', { featureId: 'app-server' }),
       commandSurface('appserver-rate-limits', 'Rate limits', 'usage', ['app-server', 'account/rateLimits/read'], 'app-server', 'none', false, 'settings', { featureId: 'app-server' }),
       commandSurface('appserver-auth-status', 'Auth status', 'runtime', ['app-server', 'getAuthStatus'], 'app-server', 'none', false, 'settings', { featureId: 'app-server' }),
+      commandSurface('codex-login-status', 'CLI login status', 'runtime', ['login', 'status'], 'headless', 'none', false, 'settings', { featureId: 'app-server' }),
+      commandSurface('codex-login-device', 'Device sign in', 'runtime', ['login', '--device-auth'], 'interactive', 'none', true, 'settings', { featureId: 'app-server', note: 'Starts Codex device auth in the terminal.' }),
+      commandSurface('codex-login-api-key', 'API key sign in', 'runtime', ['login', '--with-api-key'], 'interactive', 'none', true, 'settings', { featureId: 'app-server', note: 'Reads the API key from stdin. You can edit the inserted terminal command into: printenv OPENAI_API_KEY | codex login --with-api-key' }),
+      commandSurface('codex-logout', 'Sign out', 'runtime', ['logout'], 'interactive', 'none', true, 'settings', { featureId: 'app-server', note: 'Removes stored Codex authentication credentials.' }),
       commandSurface('appserver-skills', 'Skills', 'extensions', ['app-server', 'skills/list'], 'app-server', 'none', false, 'settings', { featureId: 'plugins' }),
       commandSurface('appserver-hooks', 'Hooks', 'extensions', ['app-server', 'hooks/list'], 'app-server', 'none', false, 'settings', { featureId: 'plugins' }),
       commandSurface('appserver-plugins', 'Plugins', 'extensions', ['app-server', 'plugin/list'], 'app-server', 'none', false, 'settings', { featureId: 'plugins' }),
