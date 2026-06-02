@@ -16,6 +16,16 @@ Fresh evidence:
 - Focused Review Last Turn smoke after source-stats and split-view density fixes: `/var/folders/5n/nwtbs9wj6jl7whlscmg47_pc0000gn/T/orchestrator-automated-ui-smoke-diff-last-turn-1780357732401.json`
 - Focused transcript layout smoke after transcript/composer column alignment: `/var/folders/5n/nwtbs9wj6jl7whlscmg47_pc0000gn/T/orchestrator-automated-ui-smoke-transcript-layout-1780358497551.json`
 - Focused composer smoke after compact menu and provider/model re-scope: `/var/folders/5n/nwtbs9wj6jl7whlscmg47_pc0000gn/T/orchestrator-automated-ui-smoke-composer-1780358992551.json`
+- Fresh live Codex screenshot attempt with nonblank window/screen captures: `tmp/codex-side-panel-live-gap-verification/comparison-report.json`
+- Focused header smoke proof: `/var/folders/5n/nwtbs9wj6jl7whlscmg47_pc0000gn/T/orchestrator-automated-ui-smoke-header-1780365750233.json`
+- Focused right-panel smoke proof, with remaining overflow failures: `/var/folders/5n/nwtbs9wj6jl7whlscmg47_pc0000gn/T/orchestrator-automated-ui-smoke-right-panel-1780365766913.json`
+- Focused Review core smoke proof: `/var/folders/5n/nwtbs9wj6jl7whlscmg47_pc0000gn/T/orchestrator-automated-ui-smoke-diff-core-1780365796305.json`
+- Focused Workbench new-tab smoke proof: `/var/folders/5n/nwtbs9wj6jl7whlscmg47_pc0000gn/T/orchestrator-automated-ui-smoke-workbench-new-tab-1780365823368.json`
+- Focused sidebar smoke proof, with remaining menu/tooltip/action failures: `/var/folders/5n/nwtbs9wj6jl7whlscmg47_pc0000gn/T/orchestrator-automated-ui-smoke-sidebar-1780365848443.json`
+- Codex pinned-thread app-server proof: `tmp/codex-pinned-threads-live-proof/result.json`
+- GitHub hosted Review metadata proof for PR #7: `tmp/github-review-metadata-live-proof/result.json`
+- Codex Review app-server diff/checkpoint proof: `tmp/codex-review-appserver-live-proof/result.json`
+- Codex Browser dynamic-tools proof: `tmp/codex-browser-tools-live-proof/result.json`
 
 Branch/base note:
 
@@ -24,7 +34,7 @@ Branch/base note:
 - The previous parallel UI thread (`019e6a60-2ddc-7542-b22c-212279d723f0`) landed through `codex/provider-refresh`. Its work touched Codex-style transcript/composer behavior, including thinking indicator, jump-to-latest, and composer spacing. Treat those changes as the baseline, not work to redo.
 - Regenerate the comparison artifacts before taking screenshots as proof. The paths above are the current worktree evidence after the `46a437e6` baseline plus the agent-thread UI smoke/density fixes.
 
-The comparison still cannot prove exact live Codex pixel parity because the live Codex screenshot route did not provide a nonblank screenshot in this environment. The report therefore has `optionalFileEvidenceFailures=2` for the header/panel and Workbench shell rows. Treat this document as a concrete Orchestrator refinement queue, not a full Codex parity certificate.
+The original comparison could not prove exact live Codex pixel parity because the live Codex screenshot route did not provide a nonblank screenshot in that environment. Follow-up verification below captured a nonblank Codex window, but exact pixel/timing parity still needs explicit side-by-side measurement. Treat this document as a concrete Orchestrator refinement queue, not a full Codex parity certificate.
 
 ## Current Result
 
@@ -38,7 +48,21 @@ The final refreshed comparison completed with:
 - 19 remaining parity gaps, all classified by the comparison as live-proof, provider-contract, provider-proof, runtime-signal, or Phase 2 renderer work.
 - The previously failing local captures from this audit are now green in focused smoke and in the final full report: `review-last-turn`, `settings-providers`, `plan`, `composer`, and `transcript-narrow`.
 
-Important nuance: the comparison still cannot prove exact live Codex pixel parity because the live Codex screenshot route did not provide a nonblank screenshot in this environment. Treat remaining live-Codex rows as proof gaps, not as license to add fallback UI or visible unavailable clutter.
+Important nuance: the refreshed comparison still cannot prove exact live Codex pixel parity by itself. Treat remaining live-Codex rows as proof gaps, not as license to add fallback UI or visible unavailable clutter.
+
+Follow-up verification on 2026-06-02 narrowed this: the live Codex screenshot route now captured a nonblank Codex window and screen, so optional file evidence failures are gone for that run. Exact pixel/timing parity is still not proven because the report does not yet do an automated side-by-side measurement against the captured Codex window.
+
+## Verified Gap Status
+
+| Gap | Current verification result | Evidence | Next action |
+| --- | --- | --- | --- |
+| Header and panel interaction | Header smoke is green. Sidebar density is green, but sidebar menu/tooltip/action workflow assertions still fail locally. Live Codex screenshot capture now works, but exact side-by-side pixel/timing parity is not measured. | `--header`; `--sidebar`; `tmp/codex-side-panel-live-gap-verification/comparison-report.json` | Fix sidebar action-menu/tooltip workflow failures, then add side-by-side live Codex measurement if exact pixel parity is required. |
+| Right-side Workbench shell | Workbench new-tab focused smoke is green. Right-panel smoke finds real overflow issues: active tab is clipped after resize and fade-mask state does not indicate clipped tabs. | `--workbench-new-tab`; `--right-panel` | Fix tab overflow visibility/fade-mask behavior before calling Workbench shell fully locally verified. |
+| Global find / Review search | Review core focused smoke is green, including shared find/diff routing. The full report's `review-core` failure is likely broad-suite infrastructure or ordering fragility. | `--diff-core` | Keep focused Review core as the local regression proof; stabilize broad full-suite ordering separately. |
+| Chat sidebar provider pin mutations | Codex app-server currently supports `thread/list`, but rejects `list-pinned-threads`, `set-thread-pinned`, and `set-pinned-threads-order` as unknown variants. | `npm run live:codex-pinned-threads` | Keep Codex provider pin mutations read-only until the app-server exposes list/set/order methods or equivalent metadata mutations. |
+| Hosted Review metadata and commented PR proof | GitHub hosted PR metadata is authenticated and passes for PR #7, but `commentedProof=false` because this PR has no issue or review-thread comments. | `npm run live:github-review-metadata` | Use `npm run live:github-review-metadata:comments` against a safe commented PR before claiming commented-PR rendering proof. |
+| Codex Review diff/checkpoint metadata | Live Codex app-server emits `diff.updated` events and local `thread/rollback` by `numTurns:1` succeeds, but no checkpoint IDs are emitted. | `npm run live:codex-review-appserver` | Treat local turn rollback as verified; keep provider-history checkpoint rollback deferred until checkpoint IDs or provider history semantics are exposed. |
+| Browser dynamic tools/runtime events | Codex app-server can request real Browser dynamic tools and complete open/read/click/type/screenshot/fill/key/select/check/scroll round trips. Native browser runtime event count is still zero. | `npm run live:codex-browser-tools` | Keep Browser tool bridging verified; keep native browser-use event streaming as unavailable until runtime events are emitted. |
 
 ## Cross-Surface Gaps
 
@@ -55,7 +79,7 @@ Important nuance: the comparison still cannot prove exact live Codex pixel parit
 | Done | Agent Threads rows | The selected thread row was readable but too card-like in the earlier audit. | `plan.png`, live Agent Threads smoke, focused `--agent-inspector`, focused `--plan`. | The first row-density pass is preserved and now has broader Plan/Agent Threads smoke coverage. Continue only with live Codex or user-visible duplication evidence. |
 | Partially done | Provider details dialog | Provider details is now smoke-stable, but the dialog can still be simplified visually into everyday status plus disclosure-backed diagnostics. | `settings-providers.png`; focused `--settings-providers`. | This pass fixed correctness/verification. Deeper visual simplification remains a future density pass, not a blocker for this PR. |
 | Done | Review split view | The main chat side showed a large changed-file preview while the Review panel owned the detailed diff. | Focused `--diff-last-turn`; final `review-last-turn.png`. | Primary content now exposes right-panel state and applies compact Review summary styling when the Review panel is open. |
-| Deferred | Modal/dialog captures | Some broad full-smoke failures are still modal/interaction infrastructure states rather than clean reference screenshots. | Final report failures: `workbench-new-tab`, `environment`, `review-empty`, `review-loading`, `review-core`, `terminal-behavior`; `workbench-new-tab` remains infrastructure-failed. | Split baseline and modal interaction captures in a separate smoke-infrastructure pass. Do not treat these as open agent-thread UI regressions. |
+| Deferred | Modal/dialog captures | Some broad full-smoke failures are still modal/interaction infrastructure states rather than clean reference screenshots. Focused `workbench-new-tab` and `diff-core` now pass, so their old full-suite failures should be treated as broad-suite fragility unless they fail again focused. | Final report failures: `workbench-new-tab`, `environment`, `review-empty`, `review-loading`, `review-core`, `terminal-behavior`; focused `workbench-new-tab` and `diff-core` green. | Split baseline and modal interaction captures in a separate smoke-infrastructure pass. Do not treat focused-green captures as open agent-thread UI regressions. |
 | P2 | Settings general density | Main settings mostly passes, but shortcuts/settings table rows are still larger and more admin-like than Codex utility rows in narrow captures. | `transcript-narrow.png` accidentally landed on Shortcuts. | Audit Settings rows with a clean Settings-specific capture: row height, icon size, shortcut chip size, and edit/delete affordance density. |
 | P2 | Files/artifacts | Local Files passes, but full Codex-grade XLSX/PPTX/PDF/DOCX renderer fidelity is still deferred. | comparison `Files and file source tabs` blocked row. | Keep Phase 1 file/source controls stable; treat advanced artifact canvas fidelity as Phase 2 unless a coding workflow depends on it. |
 | P2 | Browser | Browser UI passes current local smoke, but native browser-use runtime events and exact Codex pixel/timing proof are not available. | comparison `Browser webview lifecycle` blocked row. | Do not add placeholder UI. Keep provider/runtime unavailable states explicit until native events exist. |
@@ -68,9 +92,10 @@ Important nuance: the comparison still cannot prove exact live Codex pixel parit
 2. The message-edit and pinned-fork behavior is implemented and smoke-guarded.
 3. The old local P0 captures are stabilized: `composer`, `transcript-narrow`, `review-last-turn`, `settings-providers`, and `plan`.
 4. The first density pass is applied for transcript/composer alignment, Agent Threads smoke coverage, and Review split-view duplication.
-5. Next local work should be a smoke-infrastructure pass for the remaining broad failures: `chat-sidebar`, `workbench-new-tab`, `review-core`, `review-loading`, `environment`, `review-empty`, and `terminal-behavior`.
-6. Next proof work should be live Codex capture or manual side-by-side evidence for exact header, Workbench, Browser, Terminal, and sidebar pixel/timing parity.
-7. Next provider work should be real contracts for provider-native Review metadata, hosted/cloud Review sources, checkpoint rollback, browser-use runtime signals, artifact metadata, and pinned-thread mutations.
+5. Next local work should fix the now-verified right-panel tab overflow/fade-mask failures and the sidebar action-menu/tooltip/action workflow failures.
+6. Next smoke-infrastructure work should stabilize broad full-suite failures that pass focused (`workbench-new-tab`, `review-core`) and still investigate the unfocused broad failures (`review-loading`, `environment`, `review-empty`, `terminal-behavior`).
+7. Next proof work should use the now-working live Codex capture route for side-by-side measurement of exact header, Workbench, Browser, Terminal, and sidebar pixel/timing parity.
+8. Next provider work should be real contracts for provider-native Review metadata, hosted/cloud Review sources, checkpoint IDs/provider-history rollback, browser-use runtime events, artifact metadata, and pinned-thread mutations.
 
 ## Provider-Agnostic Boundary
 
