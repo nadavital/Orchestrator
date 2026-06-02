@@ -913,7 +913,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 providerSelectorCard.getAttribute('data-provider-selector-surface') === 'shared' &&
                 providerSelectorGrid instanceof HTMLElement &&
                 providerSelectorSelect instanceof HTMLSelectElement &&
-                providerSelectorSummary.textContent?.includes('Ready') &&
+                providerSelectorSummary.textContent?.includes('Installed') &&
                 providerSelectorCard.getBoundingClientRect().height <= 38 &&
                 providerSelectorCard.scrollWidth <= providerSelectorCard.clientWidth + 2 &&
                 providerSelects.some((select) => [...select.options].some((option) => option.textContent?.includes('Codex CLI'))) &&
@@ -1138,7 +1138,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 providerSelectorSelect.value = 'claude';
                 providerSelectorSelect.dispatchEvent(new Event('change', { bubbles: true }));
                 await sleep(220);
-                const managedAuth = document.querySelector('[data-testid="provider-setup-managed-auth"]');
+                const visibleAuthAction = document.querySelector('[data-testid="provider-managed-auth-action-copilot-login"], [data-testid="provider-managed-auth-action-auth-login"]');
+                const managedAuth = visibleAuthAction?.closest('.provider-settings-row') ?? document.querySelector('[data-testid="provider-setup-managed-auth"]');
                 const managedAuthActions = document.querySelector('[data-testid="provider-managed-auth-actions"]');
                 const authStatusAction = document.querySelector('[data-testid="provider-managed-auth-action-auth-status"]');
                 const authLoginAction = document.querySelector('[data-testid="provider-managed-auth-action-auth-login"]');

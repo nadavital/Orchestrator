@@ -101,7 +101,7 @@ export default function ProvidersSettingsPage({
   const authCommandSurfaces = visibleProviderAuthCommandSurfaces(selectedId, settingsCommandSurfaces)
   const usageSnapshot = summarizeProviderUsage(sessions, selectedId)
   const diagnosticSummary = [
-    installed ? 'Ready' : 'Unavailable',
+    installed ? 'Installed' : 'Unavailable',
     `${usageSnapshot.sessionCount} chat${usageSnapshot.sessionCount === 1 ? '' : 's'}`,
     diagnostics ? `${diagnostics.probes.filter((probe) => probe.status === 'ok').length}/${diagnostics.probes.length} checks` : 'Checks pending'
   ]
@@ -288,6 +288,21 @@ export default function ProvidersSettingsPage({
                           </InlineMutedText>
                         )}
                       </div>
+                    )}
+                  />
+                )}
+
+                {authCommandSurfaces.length > 0 && (
+                  <SettingsRow
+                    label="Auth"
+                    className="provider-settings-row provider-settings-row-stacked"
+                    control={(
+                      <ProviderManagedAuthActions
+                        providerId={providerDef.id}
+                        color={providerDef.color}
+                        surfaces={authCommandSurfaces}
+                        sessions={sessions}
+                      />
                     )}
                   />
                 )}
@@ -1234,7 +1249,7 @@ function ProviderDropdown({
 }): JSX.Element {
   const selectedProvider = providers.find((provider) => provider.id === providerId)
   const providerStatus = installed
-    ? isDefault ? 'Default · Ready' : 'Ready'
+    ? isDefault ? 'Default · Installed' : 'Installed'
     : installCmd
 
   return (
