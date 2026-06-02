@@ -1,0 +1,8 @@
+{"type":"session.started","providerSessionId":"sdk-conversation-123"}
+{"type":"assistant.text.delta","streamId":"antigravity-stream-1","content":"I will inspect the workspace."}
+{"type":"assistant.text.completed","streamId":"antigravity-stream-1"}
+{"type":"tool.started","id":"tool-1","toolName":"list_directory","toolInput":{"path":"."}}
+{"type":"tool.completed","id":"result-1","toolUseId":"tool-1","content":"README.md\nsrc","isError":false}
+{"type":"agent.started","conversationId":"sdk-conversation-123","data":{"id":"agent-1","name":"Explorer","role":"inspect repo","model":"gemini-3.1-pro","threadId":"sdk-thread-1","parentThreadId":"sdk-conversation-123","turnId":"sdk-turn-1"}}
+{"type":"agent.completed","conversationId":"sdk-conversation-123","data":{"id":"agent-1","name":"Explorer","threadId":"sdk-thread-1","parentThreadId":"sdk-conversation-123","summary":"Found the provider adapter."}}
+{"type":"run.completed","usage":{"inputTokens":12,"outputTokens":8,"totalTokens":20,"modelUsage":{"thoughtsTokens":2}}}

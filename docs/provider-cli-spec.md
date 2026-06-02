@@ -1,6 +1,6 @@
 # Provider CLI Spec
 
-Date: 2026-05-07
+Date: 2026-06-02
 
 Canonical active plan: `docs/orchestrator-source-of-truth.md`.
 
@@ -8,10 +8,11 @@ This file is the provider CLI evidence reference for Orchestrator's provider sup
 
 Current implementation baseline:
 
-- Provider adapters expose separate structured automation commands and interactive CLI commands.
+- Provider adapters expose separate SDK, structured automation, and interactive CLI commands where those surfaces are useful.
 - Codex, Cursor, and Copilot are marked `interactiveCli=supported` in diagnostics. Claude's installed CLI can run interactively, but Orchestrator marks the Claude adapter's interactive chat lane unsupported so normal chat cannot drift back to the retired native parser.
 - Cursor and Copilot account-sensitive probes may need a non-sandbox app process for macOS Keychain access.
-- Orchestrator's normal Claude product path uses the structured `claude -p --output-format stream-json` CLI lane with per-run hook settings for approval UI. The old Claude-native chat parser/prompt bridge has been removed; provider management should be handled by Orchestrator settings or the separate user terminal.
+- Antigravity is now a first-class SDK provider entry, but live runtime execution is blocked until `google-antigravity` is installed in the selected Python 3.10+ interpreter.
+- Orchestrator's normal Claude product path uses `@anthropic-ai/claude-agent-sdk`. The old structured `claude -p --output-format stream-json` lane is retained only as historical evidence and compatibility/parser fixture context; provider management should be handled by Orchestrator settings, no-quota CLI probes, or the separate user terminal.
 
 Evidence levels:
 
@@ -42,10 +43,11 @@ Runtime modes:
 | Feature | Evidence | Details | Orchestrator status |
 | --- | --- | --- | --- |
 | Interactive session | `verified-cli` | Default `claude [prompt]` starts interactive mode and may show the workspace trust prompt. | Historical only for Orchestrator chat; the app adapter does not expose Claude interactive chat support. Provider-management work should use settings or a separate terminal handoff. |
-| Non-interactive print | `verified-cli` | `-p/--print`; output formats `text`, `json`, `stream-json`. | Normal Orchestrator session path. |
-| Streaming input | `verified-cli` | `--input-format stream-json`; `--replay-user-messages`. | Not implemented. |
-| Partial messages | `verified-cli` | `--include-partial-messages` with print stream JSON. | Implemented for assistant and subagent text streaming. |
-| Hook lifecycle events | `verified-cli` | `--include-hook-events` with stream JSON. | Enabled when Orchestrator attaches per-run hook settings. |
+| SDK runtime | `verified-package` | `@anthropic-ai/claude-agent-sdk` `query()` streams SDK messages and uses the local Claude auth/helper flow. | Normal Orchestrator session path. |
+| Non-interactive print | `verified-cli` | `-p/--print`; output formats `text`, `json`, `stream-json`. | Historical compatibility and probe evidence only; not the normal chat runtime. |
+| Streaming input | `verified-cli` | `--input-format stream-json`; `--replay-user-messages`. | Historical/deferred; SDK owns the active runtime. |
+| Partial messages | `verified-package` | SDK message streams include partial assistant/subagent text. | Implemented for assistant and subagent text streaming. |
+| Hook lifecycle events | `verified-package` | SDK message objects and host-tool bridge cover the app-owned approval/user-input flow. | Implemented where surfaced by the SDK normalizer; extra hook lifecycle UI remains a gap. |
 | Resume/continue | `verified-cli` | `--resume`, `--continue`, `--session-id`, `--fork-session`, `--from-pr`. | Resume implemented; fork/from-PR are advanced launch extras. |
 | Worktrees | `verified-cli` | `--worktree`, `--tmux`. | App-managed worktrees implemented; native launch extras tracked as advanced. |
 | Chrome/IDE integration | `verified-cli` | `--chrome`, `--no-chrome`, `--ide`. | Not surfaced. |
@@ -264,22 +266,67 @@ Installed package capabilities:
 | Skills | `verified-package` | Built-in skills directory exists. | Not CLI-verified. |
 | Review | `verified-package` | Built-in `code-review.agent.yaml`. | Not CLI-verified. |
 
+## Google Antigravity SDK
+
+Evidence commands and sources:
+
+- PyPI SDK package: https://pypi.org/project/google-antigravity/
+- Local temp SDK probe with Python 3.13:
+  - `pip install google-antigravity` installed `google-antigravity 0.1.1`.
+  - Import probe verified `Agent`, `LocalAgentConfig`, `CapabilitiesConfig`, `Conversation`, `ChatResponse`, `Step`, `ToolCall`, and usage metadata shapes.
+- Local probes in this worktree:
+  - `/usr/bin/python3` is Python 3.9 and cannot install the SDK because the package requires Python >=3.10.
+  - `/opt/homebrew/bin/python3.13` exists and can install/import the SDK in a temp venv.
+
+Local status:
+
+- Runtime binary: Python 3.10+ interpreter, preferred via `ORCHESTRATOR_ANTIGRAVITY_PYTHON`, then Homebrew/PATH Python candidates.
+- Runtime package: `google-antigravity` must be installed in the selected interpreter.
+- Runtime adapter: SDK bridge at `resources/provider-bridges/antigravity_sdk_bridge.py`.
+- CLI: not used by the Orchestrator Antigravity runtime.
+
+Runtime modes:
+
+| Feature | Evidence | Details | Orchestrator status |
+| --- | --- | --- | --- |
+| SDK Agent runtime | `verified-package` | `Agent(LocalAgentConfig(...))` supports async context startup and `agent.chat(prompt)`. | Implemented through the Python bridge. |
+| SDK streaming chunks | `verified-package` | `ChatResponse.chunks` yields `Text`, `Thought`, `ToolCall`, and `ToolResult`; `usage_metadata` exposes token counts. | Implemented parser/fixture for text deltas, tool start/complete, run completion, and usage. |
+| SDK conversations | `verified-package` | `LocalAgentConfig` accepts `conversation_id`, `workspaces`, `save_dir`, and `app_data_dir`. | Provider session id maps to SDK `conversation_id`; resume uses the same bridge. |
+| SDK policies | `verified-package` | Default SDK behavior is read-only unless write tools/MCP are paired with policies; `policy.allow_all()` exists. | Default and workspace modes keep SDK defaults; bypass mode passes `policy.allow_all()`. |
+| SDK subagents | `verified-package` | `BuiltinTools.START_SUBAGENT` exists. | Agent Threads graph is ready, but child thread open/resume remains planned pending fixtures. |
+
+Models and configuration:
+
+| Feature | Evidence | Details | Orchestrator status |
+| --- | --- | --- | --- |
+| SDK install | `verified-package` | `google-antigravity` requires Python >=3.10 and includes macOS arm64 wheels. | Install command is `python3.13 -m pip install google-antigravity`; diagnostics probe SDK import/version. |
+| API key | `verified-package` | `LocalAgentConfig` accepts `api_key`; bridge reads `GEMINI_API_KEY` or `GOOGLE_API_KEY`. | Supported through provider env. |
+| Model selection | `verified-package` | `LocalAgentConfig` accepts `model`. | Static Gemini-oriented model list is passed to the bridge. |
+| Workspaces | `verified-package` | `LocalAgentConfig` accepts `workspaces`. | Orchestrator passes the session cwd as the SDK workspace. |
+
+Provider features:
+
+| Feature | Evidence | Details | Orchestrator status |
+| --- | --- | --- | --- |
+| MCP/skills/hooks/triggers | `verified-package` | `LocalAgentConfig` accepts `mcp_servers`, `skills_paths`, hooks, and triggers. | Planned until fixture-backed UI mapping. |
+| Usage/cost | `verified-package` | `UsageMetadata` includes prompt/cached/candidate/thought/total token counts. | Run usage mapping implemented; no no-run quota probe. |
+
 ## Cross-Provider UI Implications
 
 These are the product surfaces Orchestrator should build around. Each provider row should remain provider-native; do not invent generic labels unless the feature is genuinely shared.
 
-| Surface | Claude | Codex | Cursor | Copilot |
-| --- | --- | --- | --- | --- |
-| Runtime lane | interactive + print JSON | interactive + exec JSON | interactive + print JSON | interactive + prompt JSON |
-| Approval axis | permission mode | approval policy | ask/plan/force/sandbox | interactive/plan/autopilot + allow/deny controls |
-| Sandbox axis | tool/directory grants, no workspace sandbox flag | read-only/workspace/danger | enabled/disabled | path/tool/url/MCP allow-deny controls |
-| Questions | AskUserQuestion / SendUserMessage | MCP elicitation + app user input features | unknown textual/interactive | ask_user / elicitation controls |
-| Review | ultrareview | review command | unknown | package code-review agent |
-| Agents | --agent/--agents/agents | multi_agent features | unknown | package subagents |
-| MCP | mcp command and config flags | mcp command/server | mcp command/list-tools | mcp command, built-in GitHub MCP controls, additional MCP config |
-| Plugins/skills | plugin command, slash skills | plugin marketplace, Codex plugins | rules, MCP | plugin command and plugin dirs |
-| Worktrees | --worktree/--tmux | cd/add-dir, interactive workspace flows | --worktree | unknown |
-| Attachments | --file | --image | unknown | unknown |
+| Surface | Claude | Codex | Cursor | Copilot | Antigravity |
+| --- | --- | --- | --- | --- | --- |
+| Runtime lane | interactive + print JSON | interactive + exec JSON | interactive + print JSON | SDK + interactive + prompt JSON | Python SDK bridge |
+| Approval axis | permission mode | approval policy | ask/plan/force/sandbox | interactive/plan/autopilot + allow/deny controls | SDK policy hooks |
+| Sandbox axis | tool/directory grants, no workspace sandbox flag | read-only/workspace/danger | enabled/disabled | path/tool/url/MCP allow-deny controls | SDK read-only default / allow_all bypass |
+| Questions | AskUserQuestion / SendUserMessage | MCP elicitation + app user input features | unknown textual/interactive | SDK user input / elicitation controls | SDK ask_question fixture needed |
+| Review | ultrareview | review command | unknown | SDK/built-in code-review agent | unknown |
+| Agents | --agent/--agents/agents | multi_agent features | unknown | SDK subagents | SDK START_SUBAGENT fixture needed |
+| MCP | mcp command and config flags | mcp command/server | mcp command/list-tools | SDK/CLI MCP config | SDK mcp_servers planned |
+| Plugins/skills | plugin command, slash skills | plugin marketplace, Codex plugins | rules, MCP | SDK/CLI plugins and skills | SDK skills_paths/hooks planned |
+| Worktrees | --worktree/--tmux | cd/add-dir, interactive workspace flows | --worktree | unknown | SDK workspaces=[cwd] |
+| Attachments | --file | --image | unknown | unknown | unknown |
 
 ## Required Next Specs
 
@@ -289,4 +336,6 @@ Before implementing the next provider-specific UI slice:
 2. For Copilot, capture help-topic details for permissions, providers, commands, plugin, and mcp, then map the useful controls into provider settings.
 3. For Cursor, capture account-sensitive `models`, `status`, and `about` output in a shell where keychain access works.
 4. For Claude, capture deeper subcommand help for `auth`, `project`, `doctor`, `setup-token`, `auto-mode`, and `ultrareview`.
-5. Add fixture transcripts for interactive approval prompts per provider before designing the GUI buttons.
+5. For Antigravity SDK, install `google-antigravity` into the selected Python 3.10+ runtime and run a no-mutation live smoke only with explicit quota approval.
+6. For Antigravity SDK, capture fixtures for `ask_question`, `START_SUBAGENT`, MCP servers, policy denial/allow, conversation resume, and cancellation.
+7. Add fixture transcripts for interactive approval prompts per provider before designing the GUI buttons.

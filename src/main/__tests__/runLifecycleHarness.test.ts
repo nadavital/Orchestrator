@@ -73,7 +73,7 @@ function hasEvent(events: RunEvent[], type: RunEvent['type']): boolean {
   return events.some((event) => event.type === type)
 }
 
-test('harness proves fast Claude structured JSON reaches assistant text and idle', () => {
+test('harness proves fast Claude normalized messages reach assistant text and idle', () => {
   const result = runLifecycleHarness('claude', [
     '{"type":"permission-mode","permissionMode":"default","sessionId":"claude-fast-session"}',
     '{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"orchestrator smoke ok"}]}}',
@@ -89,7 +89,7 @@ test('harness proves fast Claude structured JSON reaches assistant text and idle
   assert.ok(result.messages.some((message) => message.type === 'result' && message.subtype === 'success'))
 })
 
-test('harness pauses structured Claude user questions and interrupts the completed subprocess', () => {
+test('harness pauses Claude user questions and interrupts the completed subprocess', () => {
   const lines = [
     JSON.stringify({
       type: 'assistant',

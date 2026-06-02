@@ -98,7 +98,7 @@ function activeStoredSessions(): Session[] {
 
 function defaultRuntimeForProvider(providerId: string): ProviderRuntimeKind {
   if (providerId === 'codex') return 'app-server'
-  if (providerId === 'claude') return 'sdk'
+  if (providerId === 'claude' || providerId === 'copilot') return 'sdk'
   return 'headless'
 }
 

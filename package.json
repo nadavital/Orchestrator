@@ -17,6 +17,7 @@
       "node_modules/node-pty/**/*",
       "node_modules/@anthropic-ai/claude-agent-sdk*/**/*",
       "node_modules/@cursor/sdk*/**/*",
+      "node_modules/@github/copilot-sdk*/**/*",
       "node_modules/sqlite3/**/*"
     ],
     "mac": {
@@ -41,6 +42,13 @@
       {
         "from": "resources/pets",
         "to": "pets",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "resources/provider-bridges",
+        "to": "provider-bridges",
         "filter": [
           "**/*"
         ]
@@ -99,6 +107,7 @@
     "live:cursor-sdk-models": "node scripts/cursor-sdk-models.mjs",
     "live:cursor-sdk-probe": "node scripts/cursor-sdk-live-probe.mjs",
     "live:cursor-sdk-runtime": "node -e \"require('fs').rmSync('out-test',{recursive:true,force:true})\" && tsc -p tsconfig.node.json --outDir out-test --module commonjs && node scripts/cursor-sdk-runtime-live-smoke.mjs",
+    "live:copilot-sdk-probe": "node scripts/copilot-sdk-live-probe.mjs",
     "preview": "electron-vite preview",
     "rebuild": "electron-rebuild -f -w node-pty",
     "postinstall": "echo 'Run npm run rebuild to build native modules'",
@@ -107,6 +116,7 @@
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.3.152",
     "@cursor/sdk": "^1.0.15",
+    "@github/copilot-sdk": "^1.0.0",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",

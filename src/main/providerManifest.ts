@@ -25,8 +25,9 @@ export function providerManifests(): Record<string, ProviderManifest> {
 export function providerManifest(providerId: string): ProviderManifest {
   const adapter = getProvider(providerId)
   const def = PROVIDER_DEFS[providerId] ?? PROVIDER_DEFS.claude
-  const runtimes: ProviderRuntimeKind[] = providerId === 'claude' ? ['sdk'] : ['headless']
+  const runtimes: ProviderRuntimeKind[] = providerId === 'claude' || providerId === 'copilot' ? ['sdk'] : ['headless']
   if (providerId === 'cursor') runtimes.push('sdk')
+  if (providerId === 'copilot') runtimes.push('headless')
   if (providerId !== 'claude' && adapter.capabilities.interactiveCli) runtimes.push('interactive')
   if (providerId === 'codex') runtimes.push('app-server')
 
@@ -34,7 +35,7 @@ export function providerManifest(providerId: string): ProviderManifest {
     id: adapter.id,
     name: def.name,
     runtimes,
-    defaultRuntime: providerId === 'codex' ? 'app-server' : providerId === 'claude' ? 'sdk' : 'headless',
+    defaultRuntime: providerId === 'codex' ? 'app-server' : providerId === 'claude' || providerId === 'copilot' ? 'sdk' : 'headless',
     statusLifecycle: STATUS_LIFECYCLE,
     capabilityKeys: [
       'resume',

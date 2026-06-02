@@ -4,6 +4,7 @@ import type { RunEvent, RunRequest, Session, UserInputAnswerPayload } from '../t
 import { approvalBroker } from './approvalBroker'
 import { ClaudeSdkRuntimeManager } from './claudeSdkRuntime'
 import { CodexAppServerRuntimeManager } from './codexAppServerRuntime'
+import { CopilotSdkRuntimeManager } from './copilotSdkRuntime'
 import { CursorSdkRuntimeManager } from './cursorSdkRuntime'
 import { browserProviderHostToolBridge, type ProviderHostToolBridge } from './providerHostTools'
 import {
@@ -94,6 +95,7 @@ export class ProviderRuntimeManager {
   private readonly activeRunCleanups = new Map<string, () => void>()
   private readonly appServerRuntime: CodexAppServerRuntimeManager
   private readonly claudeSdkRuntime: ClaudeSdkRuntimeManager
+  private readonly copilotSdkRuntime: CopilotSdkRuntimeManager
   private readonly cursorSdkRuntime: CursorSdkRuntimeManager
   private readonly hostToolBridge: ProviderHostToolBridge
 
@@ -104,11 +106,12 @@ export class ProviderRuntimeManager {
     this.hostToolBridge = hostToolBridge
     this.appServerRuntime = new CodexAppServerRuntimeManager()
     this.claudeSdkRuntime = new ClaudeSdkRuntimeManager(hostToolBridge)
+    this.copilotSdkRuntime = new CopilotSdkRuntimeManager()
     this.cursorSdkRuntime = new CursorSdkRuntimeManager()
   }
 
   hasActiveRun(sessionId: string): boolean {
-    return this.activeProcesses.has(sessionId) || this.appServerRuntime.has(sessionId) || this.claudeSdkRuntime.has(sessionId) || this.cursorSdkRuntime.has(sessionId)
+    return this.activeProcesses.has(sessionId) || this.appServerRuntime.has(sessionId) || this.claudeSdkRuntime.has(sessionId) || this.copilotSdkRuntime.has(sessionId) || this.cursorSdkRuntime.has(sessionId)
   }
 
   write(sessionId: string, data: string): void {
@@ -147,6 +150,20 @@ export class ProviderRuntimeManager {
 
     if (options.provider.id === 'cursor' && options.request.runtime === 'sdk') {
       const result = this.cursorSdkRuntime.start({
+        sessionId: options.sessionId,
+        session: options.session,
+        provider: options.provider,
+        request: options.request,
+        mode: options.mode ?? 'start',
+        onRawData: options.onRawData,
+        onParsedEvents: options.onParsedEvents,
+        onExit: options.onExit
+      })
+      return result.ok ? { ok: true } : { ok: false, error: 'spawn-failed', message: result.message }
+    }
+
+    if (options.provider.id === 'copilot' && options.request.runtime === 'sdk') {
+      const result = this.copilotSdkRuntime.start({
         sessionId: options.sessionId,
         session: options.session,
         provider: options.provider,
@@ -380,6 +397,10 @@ export class ProviderRuntimeManager {
       this.cleanupSession(sessionId)
       return true
     }
+    if (this.copilotSdkRuntime.stop(sessionId)) {
+      this.cleanupSession(sessionId)
+      return true
+    }
     if (this.claudeSdkRuntime.stop(sessionId)) {
       this.cleanupSession(sessionId)
       return true
@@ -430,6 +451,7 @@ export class ProviderRuntimeManager {
 
   interrupt(sessionId: string): boolean {
     if (this.cursorSdkRuntime.stop(sessionId)) return true
+    if (this.copilotSdkRuntime.stop(sessionId)) return true
     if (this.claudeSdkRuntime.stop(sessionId)) return true
     if (this.appServerRuntime.has(sessionId)) return this.appServerRuntime.interrupt(sessionId)
     const process = this.activeProcesses.get(sessionId)

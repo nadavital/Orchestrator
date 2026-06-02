@@ -6,9 +6,36 @@ Canonical active plan: `docs/orchestrator-source-of-truth.md`.
 
 This file is research evidence. Active implementation status and completion gates live in the source-of-truth plan.
 
+## 2026-06-02 Provider SDK Integration Update
+
+This pass updated the provider registry after the official GitHub Copilot SDK package was available on npm and the Google Antigravity Python SDK could be installed and inspected in a temporary Python 3.13 environment.
+
+Primary sources:
+
+- GitHub Copilot SDK docs: https://docs.github.com/en/copilot/how-tos/copilot-sdk/sdk-getting-started
+- GitHub Copilot SDK compatibility/session docs: https://docs.github.com/copilot/how-tos/copilot-sdk/troubleshooting/sdk-and-cli-compatibility
+- PyPI package page: https://pypi.org/project/google-antigravity/
+
+Local changes:
+
+| Provider | Finding | Orchestrator implication |
+| --- | --- | --- |
+| Copilot | `@github/copilot-sdk@1.0.0` is installable and exports `CopilotClient`, `CopilotSession`, structured session events, permissions, user input, elicitation, resume, list sessions, foreground session APIs, and abort. The SDK can use signed-in Copilot CLI/GitHub credentials and therefore the user's Copilot subscription; BYOK is separate. | New Copilot sessions should default to the SDK runtime. Keep the older CLI prompt adapter only as an explicit headless/automation compatibility lane while live SDK prompt and response-handler fixtures are captured. |
+| Antigravity SDK | `google-antigravity 0.1.1` installs in Python 3.13 and exports `Agent`, `LocalAgentConfig`, `CapabilitiesConfig`, `Conversation`, `ChatResponse`, `Step`, `ToolCall`, `ToolResult`, `UsageMetadata`, and policy helpers. | Orchestrator should use a Python SDK bridge, not `agy`, for the provider runtime. The bridge maps SDK chunks to normalized RunEvent records. |
+| Antigravity setup | The default `/usr/bin/python3` is Python 3.9, while `google-antigravity` requires Python >=3.10. `/opt/homebrew/bin/python3.13` exists and the temp venv install/import succeeded. | Diagnostics should probe the selected Python interpreter for SDK import/version. Users can point `ORCHESTRATOR_ANTIGRAVITY_PYTHON` at the right interpreter. |
+
+Local proof:
+
+- `npm view @github/copilot-sdk version` returned `1.0.0`.
+- `npm install @github/copilot-sdk@1.0.0` succeeded and updated `package-lock.json`.
+- `/opt/homebrew/bin/python3.13 -m venv /private/tmp/antigravity-sdk-probe-313` plus `pip install google-antigravity` succeeded.
+- SDK introspection proved `Agent.chat()` returns `ChatResponse`, whose `chunks` stream yields `Text`, `Thought`, `ToolCall`, and `ToolResult`; `usage_metadata` includes token fields.
+
 ## 2026-05-19 Antigravity SDK And Managed-Agent Launch
 
 This pass used launch-day current sources and subagent research. It did not install packages, create a venv, or send provider prompts.
+
+Superseded implementation note: the 2026-06-02 update above installed and inspected `google-antigravity` in a temporary Python 3.13 environment. Orchestrator's Antigravity runtime should remain SDK-first; CLI launch notes below are product context only, not a planned adapter.
 
 Primary sources:
 
@@ -24,14 +51,14 @@ Current mapping:
 
 | Area | Launch-day finding | Orchestrator implication |
 | --- | --- | --- |
-| Product surface | Google announced Antigravity 2.0 desktop, Antigravity CLI, Antigravity SDK, and Managed Agents in the Gemini API on 2026-05-19. | Track Antigravity as a provider family with SDK/API, CLI, and desktop surfaces; do not assume one surface exposes all semantics. |
+| Product surface | Google announced Antigravity 2.0 desktop, Antigravity CLI, Antigravity SDK, and Managed Agents in the Gemini API on 2026-05-19. | Track Antigravity as a provider family with SDK/API, CLI, and desktop surfaces; Orchestrator's rich provider runtime targets the SDK bridge. |
 | Managed agent | The Gemini API exposes `antigravity-preview-05-2026` through the Interactions API. It runs in a Google-hosted Linux sandbox, can execute code, manage files, browse/fetch web content, and supports Python, JavaScript, and REST calls. | The first Orchestrator contract target should be a structured SDK/API adapter, not terminal scraping. |
 | Resume/session state | Interactions use `previous_interaction_id` for conversation context and `environment` / environment IDs for filesystem and sandbox state. Files and installed packages can persist across follow-up calls. | Map provider session identity to both interaction ID and environment ID; model these separately instead of squeezing everything into one CLI session id. |
 | Streaming/events | Streaming is Server-Sent Events with `interaction.created`, `step.start`, `step.delta`, `step.stop`, `interaction.completed`, and `done`; final completed events include token usage. | A fixture-backed adapter can map steps to assistant text, thoughts, tool calls, tool results, and usage without a PTY. |
 | Usage/cost | Managed-agent docs show token usage on completed events and launch docs warn that agentic loops can accumulate large token counts. Pricing is pay-as-you-go on underlying Gemini tokens/tools; preview compute is not billed in the docs. | Usage diagnostics should start with tokens/cache/tool/thought fields. Cost should remain estimated until API responses expose stable billable units. |
 | Tools | Managed Antigravity defaults include code execution, Google Search, URL context, and environment-backed file management; some tools like file_search, computer_use, google_maps, function_calling, and MCP are listed as not supported yet in the managed-agent doc. | Do not expose Antigravity MCP/file-search/computer-use capability in product UI until a local SDK or API fixture proves support for the selected runtime. |
-| SDK package | PyPI lists `google-antigravity` 0.1.0, Apache-2.0, Python >=3.10, alpha, with macOS arm64 and Linux wheels and no source distribution for this release. The package docs describe `Agent`, `Conversation`, `ChatResponse`, `Step`, tools, hooks, MCP, triggers, and connection layers. | Treat the Python SDK as promising but unverified locally. Add only research backlog items until a temp venv import probe captures real types/events. |
-| CLI | Google says Antigravity CLI is available today, built in Go, shares the Antigravity harness with desktop, and carries Gemini CLI features like Agent Skills, Hooks, Subagents, and Extensions as plugins. Exact CLI flags and JSON event schema were not available from fetchable docs. | Defer `docs/provider-cli-spec.md` changes until local `antigravity --help` or official CLI docs can be captured without spending quota. |
+| SDK package | PyPI lists `google-antigravity` 0.1.0, Apache-2.0, Python >=3.10, alpha, with macOS arm64 and Linux wheels and no source distribution for this release. The package docs describe `Agent`, `Conversation`, `ChatResponse`, `Step`, tools, hooks, MCP, triggers, and connection layers. | Superseded by the 2026-06-02 local import/type probe; build on the SDK bridge rather than a terminal adapter. |
+| CLI | Google says Antigravity CLI is available today, built in Go, shares the Antigravity harness with desktop, and carries Gemini CLI features like Agent Skills, Hooks, Subagents, and Extensions as plugins. Exact CLI flags and JSON event schema were not available from fetchable docs. | Keep as adjacent product evidence only. Do not add an Antigravity CLI runtime unless Google exposes SDK-equivalent behavior only through the CLI and we explicitly re-open that decision. |
 
 Non-findings and guardrails:
 
@@ -43,10 +70,9 @@ Non-findings and guardrails:
 
 Recommended next spike:
 
-1. Create a temp venv and verify `pip install google-antigravity` metadata/import on macOS arm64 without adding it to repo dependencies.
-2. Capture import-time type names and a no-prompt/no-auth diagnostic path.
-3. If credentials are available and the user approves spending quota, run a minimal no-mutation `Agent.chat()` or Interactions API smoke.
-4. Capture streaming, permission/policy `ask_user`, MCP, session resume, and usage fixtures before adding runtime UI.
+1. Install `google-antigravity` into the Python 3.10+ interpreter selected by Orchestrator, or point `ORCHESTRATOR_ANTIGRAVITY_PYTHON` at an environment that already has it.
+2. If credentials are available and the user approves spending quota, run a minimal no-mutation `Agent.chat()` SDK smoke.
+3. Capture streaming, permission/policy `ask_user`, MCP, session resume, cancellation, subagent, and usage fixtures before promoting provider-native thread actions.
 
 ## 2026-05-06 CLI Coverage Gap Baseline
 
@@ -82,7 +108,7 @@ These repos are architecture references only. Do not copy implementation code; u
 | `farion1231/cc-switch` | A desktop app can manage multiple coding CLI configs, MCP, prompts, skills, provider presets, usage, proxy/failover, and session browsing across apps. | Add a native-config management layer: import/backfill live provider config, switch provider profiles safely, use atomic writes/backups, and separate provider config management from agent runtime rendering. | Do not turn Orchestrator into a provider-proxy-first product. Proxy/takeover can be optional later; our core product remains real CLI sessions with clean GUI rendering. |
 | `johannesjo/parallel-code` | Multi-agent coding can be modeled as isolated branches/worktrees with separate terminals, diffs, notes, CI status, and merge decisions. | Make worktree/session provenance first-class: branch, base, task notes, per-task terminal, diff review, merge/push controls, and optional Docker sandboxing. | Do not make every session a worktree by default. Keep direct/local sessions available and make isolation an explicit task mode. |
 | `withcrux/claudia` | A narrow Claude Code desktop wrapper can still add value through session history, cost tracking, markdown rendering, tool-call viewers, export, and global stats. | Treat transcript quality as a product feature: searchable history, collapsed tool calls, cost/token summaries, export, and simple session stats. | It is Claude-only and very early, so do not use it as evidence for multi-provider behavior or mature parser coverage. |
-| `markes76/claude-code-gui` | Useful historical evidence for fallback terminal/session-log behavior, but no longer the target runtime shape for normal Claude chat. | Prefer Claude structured JSON/JSONL for first-class Orchestrator UI; keep xterm ideas only for explicit terminal handoffs and provider-management flows. | It is Claude-only and small/early, so treat the pattern as historical and verify every config/log shape against the installed Claude CLI before encoding behavior. |
+| `markes76/claude-code-gui` | Useful historical evidence for fallback terminal/session-log behavior, but no longer the target runtime shape for normal Claude chat. | Prefer Claude SDK message streams for first-class Orchestrator UI; keep xterm ideas only for explicit terminal handoffs and provider-management flows. | It is Claude-only and small/early, so treat the pattern as historical and verify every config/log shape against the installed Claude CLI before encoding behavior. |
 | `xintaofei/codeg` | A broader multi-agent workspace can aggregate local sessions across Claude Code, Codex, OpenCode, Gemini CLI, OpenClaw, Cline, and more while adding worktrees, MCP/skills, git/file/terminal flows, and remote chat channels. | Use it as a reference for long-term multi-provider session ingestion, permission notifications, remote control surfaces, and worktree-aware engineering loops. | Do not let remote/server/channel breadth distract from the local desktop CLI-first core. |
 | `sombraio/claudecodeui` | A CloudCLI/ClaudeCodeUI variant reinforces the same web/mobile session UI pattern: chat, integrated shell terminal, file/git explorer, session management, and native Claude MCP config sync. | Treat as corroborating evidence for the `claudecodeui` pattern rather than a separate architecture direction. | It appears to overlap heavily with CloudCLI; do not count it as independent proof of provider coverage. |
 
