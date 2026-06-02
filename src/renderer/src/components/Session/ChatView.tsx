@@ -238,31 +238,24 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
   const editUserMessageFromHere = useCallback(async (messageId: string, content: string, attachments: Attachment[] = []): Promise<void> => {
     const text = content.trim()
     if (!text && attachments.length === 0) return
-    setTranscriptActionStatus({ text: 'Opening editable fork', tone: 'info' })
-    try {
-      const forked = await window.api.sessions.fork(session.id, 'local', { beforeMessageId: messageId })
-      activateForkedSession(forked, messageId, 'local')
-      window.setTimeout(() => {
-        window.dispatchEvent(new CustomEvent('orchestrator:set-composer-text', {
-          detail: {
-            sessionId: forked.id,
-            text,
-            attachments,
-            source: {
-              kind: 'message-edit-from-here',
-              messageId,
-              attachmentCount: attachments.length
-            }
-          }
-        }))
-        const composer = document.querySelector<HTMLTextAreaElement>('[data-testid="composer-textarea"]')
-        composer?.focus()
-      }, 0)
-    } catch (error) {
-      setTranscriptActionStatus({ text: `Edit failed: ${errorText(error)}`, tone: 'danger' })
-      throw error
-    }
-  }, [activateForkedSession, session.id])
+    setTranscriptActionStatus({ text: 'Copied message and attachments into composer draft', tone: 'info' })
+    window.dispatchEvent(new CustomEvent('orchestrator:set-composer-text', {
+      detail: {
+        sessionId: session.id,
+        text,
+        attachments,
+        source: {
+          kind: 'message-edit-draft',
+          messageId,
+          attachmentCount: attachments.length
+        }
+      }
+    }))
+    window.setTimeout(() => {
+      const composer = document.querySelector<HTMLTextAreaElement>('[data-testid="composer-textarea"]')
+      composer?.focus()
+    }, 0)
+  }, [session.id])
 
   const updateScrollMetrics = useCallback(() => {
     const scroller = scrollContainerRef.current
@@ -899,7 +892,7 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
         onScroll={handleScroll}
         onWheel={handleWheel}
         onTouchStart={handleTouchStart}
-        className="h-full min-w-0 overflow-y-auto overflow-x-hidden px-6 pt-5"
+        className="h-full min-w-0 overflow-y-auto overflow-x-hidden px-4 pt-5"
         data-composer-reserve-aware="true"
         data-active-transcript-read-synced={readSyncedSessionId === session.id ? 'true' : 'false'}
         style={{
@@ -1586,7 +1579,8 @@ function RetryMenuButton({
         <span
           className="sr-only"
           data-testid={kind === 'regenerate' ? 'chat-regenerate-last-response-label' : 'chat-retry-unanswered-user-message-label'}
-          data-retry-state={state}
+          data-regenerate-state={kind === 'regenerate' ? state : undefined}
+          data-retry-state={kind === 'retry' ? state : undefined}
           role="status"
           aria-live="polite"
           aria-atomic="true"

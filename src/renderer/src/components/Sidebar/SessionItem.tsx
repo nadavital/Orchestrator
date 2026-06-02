@@ -234,7 +234,19 @@ function SessionItem({ session }: Props): JSX.Element {
   const openMenu = (event: React.MouseEvent): void => {
     event.preventDefault()
     event.stopPropagation()
+    hideDetails()
     setMenuPoint({ x: event.clientX, y: event.clientY })
+  }
+
+  const openActionsMenu = (event: React.MouseEvent<HTMLButtonElement>): void => {
+    event.preventDefault()
+    event.stopPropagation()
+    hideDetails()
+    const rect = event.currentTarget.getBoundingClientRect()
+    setMenuPoint({
+      x: rect.right - 8,
+      y: rect.bottom + 6
+    })
   }
 
   const hideDetails = (): void => {
@@ -427,6 +439,20 @@ function SessionItem({ session }: Props): JSX.Element {
                   onClick={(event) => void togglePinned(event)}
                 >
                   <Icon name="pin" size={12} />
+                </button>
+              </Tooltip>
+              <Tooltip label="Chat actions">
+                <button
+                  type="button"
+                  className="session-item-action-button"
+                  aria-label="Chat actions"
+                  aria-haspopup="menu"
+                  aria-controls={actionsMenuId}
+                  aria-expanded={menuPoint ? 'true' : 'false'}
+                  data-native-title-free="true"
+                  onClick={openActionsMenu}
+                >
+                  <Icon name="ellipsis" size={12} />
                 </button>
               </Tooltip>
             </span>

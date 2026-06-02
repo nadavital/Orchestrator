@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { claudeSdkContentBlocksForRequest, claudeSdkPromptForRequest, resolveClaudeSdkExecutablePath } from '../claudeSdkRuntime'
+import { claudeSdkAgentTeamsEnabled, claudeSdkContentBlocksForRequest, claudeSdkPromptForRequest, resolveClaudeSdkExecutablePath } from '../claudeSdkRuntime'
 import { normalizeClaudeMessageObject } from '../providers'
 import type { RunEvent } from '../../types'
 
@@ -68,6 +68,25 @@ test('claude sdk content block helper ignores invalid file resources', () => {
       ]
     }),
     [{ type: 'text', text: 'hello' }]
+  )
+})
+
+test('claude sdk enables agent teams only for resumed subagent shells', () => {
+  assert.equal(
+    claudeSdkAgentTeamsEnabled({ providerProjectlessThreadId: 'agent-123' }, { providerSessionId: 'parent-session' }),
+    true
+  )
+  assert.equal(
+    claudeSdkAgentTeamsEnabled({ providerProjectlessThreadId: null }, { providerSessionId: 'parent-session' }),
+    false
+  )
+  assert.equal(
+    claudeSdkAgentTeamsEnabled({ providerProjectlessThreadId: 'agent-123' }, { providerSessionId: null }),
+    false
+  )
+  assert.equal(
+    claudeSdkAgentTeamsEnabled({ providerProjectlessThreadId: 'claude-child-session' }, { providerSessionId: 'claude-child-session' }),
+    false
   )
 })
 

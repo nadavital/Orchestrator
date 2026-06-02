@@ -91,7 +91,7 @@ export function deriveAgentNodes(session: Pick<Session, 'id' | 'provider'>, reco
 }
 
 export function deriveAgentNodesFromMessages(
-  session: Pick<Session, 'id' | 'provider'>,
+  session: Pick<Session, 'id' | 'provider'> & Partial<Pick<Session, 'providerSessionId'>>,
   messages: ChatMessage[]
 ): AgentNode[] {
   const agents = new Map<string, AgentNode>()
@@ -104,6 +104,8 @@ export function deriveAgentNodesFromMessages(
         sessionId: session.id,
         name: agentNameFromTool(message.toolName, message.toolInput),
         role: compactToolInput(message.toolInput),
+        providerItemId: message.id,
+        parentThreadId: session.providerSessionId ?? undefined,
         status: 'running',
         startedAt: message.timestamp
       })
@@ -113,9 +115,15 @@ export function deriveAgentNodesFromMessages(
     if (message.type === 'tool_result') {
       const agent = agents.get(message.toolUseId)
       if (!agent) continue
+      const providerAgentId = session.provider === 'claude'
+        ? claudeAgentIdFromToolResult(message.content)
+        : undefined
       const content = readableAgentResult(message.content)
       agents.set(message.toolUseId, {
         ...agent,
+        providerAgentId: providerAgentId ?? agent.providerAgentId,
+        providerItemId: agent.providerItemId ?? message.toolUseId,
+        parentThreadId: agent.parentThreadId ?? session.providerSessionId ?? undefined,
         status: message.isError ? 'failed' : 'completed',
         completedAt: message.timestamp,
         summary: content ? compact(content) : agent.role,
@@ -286,6 +294,11 @@ function readableAgentResult(content: string): string | undefined {
   const readable = stripAgentMetadataTrailer(readableToolResult(content))
   if (isAgentLaunchBoilerplate(readable)) return undefined
   return readable
+}
+
+function claudeAgentIdFromToolResult(content: string): string | undefined {
+  const match = readableToolResult(content).match(/\bagentId:\s*([a-f0-9-]+)/iu)
+  return match?.[1]
 }
 
 function stripAgentMetadataTrailer(content: string): string {

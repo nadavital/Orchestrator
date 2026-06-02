@@ -71,6 +71,13 @@ function SessionPane({ sessionId }: SessionPaneProps): JSX.Element | null {
       expanded: ui?.showTerminal === true && height >= 260
     }
   }))
+  const rightPanelState = useSessionStore(useShallow((state) => {
+    const panel = state.uiState[sessionId]?.rightPanel
+    return {
+      open: panel?.open === true,
+      activeTabId: panel?.activeTabId ?? ''
+    }
+  }))
   useEffect(() => {
     const globals = window as typeof window & { __orchestratorSessionPaneCommitCount?: number }
     if (typeof globals.__orchestratorSessionPaneCommitCount === 'number') {
@@ -116,6 +123,8 @@ function SessionPane({ sessionId }: SessionPaneProps): JSX.Element | null {
           data-bottom-panel-open={bottomPanelState.open ? 'true' : 'false'}
           data-bottom-panel-expanded={bottomPanelState.expanded ? 'true' : 'false'}
           data-bottom-panel-height={bottomPanelState.height}
+          data-right-panel-open={rightPanelState.open ? 'true' : 'false'}
+          data-right-panel-active-tab={rightPanelState.activeTabId}
           data-composer-reserve-height={composerReserveHeight}
           data-composer-reserve-ready={composerReserveHeight > 0 ? 'true' : 'false'}
           style={{

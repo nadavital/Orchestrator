@@ -1582,11 +1582,11 @@ export function PanelTabStrip<T extends string | number>({
     const strip = row.closest('.panel-tab-strip')
     if (strip) resizeObserver.observe(strip)
     row.addEventListener('scroll', updateEdges, { passive: true })
-    window.addEventListener('resize', updateEdges)
+    window.addEventListener('resize', updateActiveTabVisibility)
     return () => {
       resizeObserver.disconnect()
       row.removeEventListener('scroll', updateEdges)
-      window.removeEventListener('resize', updateEdges)
+      window.removeEventListener('resize', updateActiveTabVisibility)
     }
   }, [scrollActiveTabIntoView])
 

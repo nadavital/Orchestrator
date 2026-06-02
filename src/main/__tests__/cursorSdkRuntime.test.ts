@@ -7,6 +7,7 @@ import {
   normalizeCursorSdkMessage,
   normalizeCursorSdkResult
 } from '../cursorSdkRuntime'
+import { deriveAgentThreadGraph } from '../../types'
 import type { RunEvent, RunRequest, Session } from '../../types'
 
 function request(patch: Partial<RunRequest> = {}): RunRequest {
@@ -143,8 +144,21 @@ test('cursor sdk normalizer maps system assistant tool status task and result me
   assert.ok(events.some((event) => event.type === 'agent.started'))
   assert.ok(events.some((event) => event.type === 'tool.completed' && event.toolUseId === 'tool-1'))
   assert.ok(events.some((event) => event.type === 'agent.completed'))
+  assert.ok(events.some((event) => event.type === 'agent.completed' && event.agent.source === 'sdk-run' && event.agent.providerThreadId === 'run-1'))
   assert.ok(events.some((event) => event.type === 'assistant.status' && event.content === 'Still running'))
   assert.ok(events.some((event) => event.type === 'run.failed' && event.content?.includes('requires HTTP/2')))
   assert.ok(events.some((event) => event.type === 'run.completed' && event.content === 'CURSOR_DONE' && event.usage?.durationMs === 123))
   assert.ok(events.some((event) => event.type === 'run.failed' && event.usage?.durationMs === 456 && event.content?.includes('requires HTTP/2')))
+
+  const graph = deriveAgentThreadGraph({
+    id: 'session-under-test',
+    provider: 'cursor',
+    providerSessionId: 'agent-1',
+    messages: []
+  }, events.map((event, index) => ({ id: `event-${index}`, timestamp: index, event })))
+  assert.ok(graph.threads.some((thread) => (
+    thread.evidence.source === 'sdk-run' &&
+    thread.identity.providerThreadId === 'run-1' &&
+    thread.transcript.kind === 'provider-thread'
+  )))
 })

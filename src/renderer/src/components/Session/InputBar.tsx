@@ -1936,7 +1936,11 @@ function ComposerMenuSection({
   children: React.ReactNode
 }): JSX.Element {
   return (
-    <div className="composer-menu-section">
+    <div
+      className="composer-menu-section"
+      role={label ? 'group' : undefined}
+      aria-label={label ? `${label} choices` : undefined}
+    >
       {label && <div className="composer-menu-label">{label}</div>}
       {children}
     </div>
@@ -1983,7 +1987,10 @@ function ComposerMenuRow({
     <button
       type="button"
       className="composer-menu-row"
+      data-testid="composer-menu-row"
       data-active={active ? 'true' : 'false'}
+      data-composer-choice-active={active ? 'true' : 'false'}
+      aria-pressed={active}
       disabled={disabled}
       onClick={() => {
         if (!disabled) onClick()

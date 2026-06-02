@@ -5,7 +5,7 @@ import { execFile } from 'child_process'
 import { readFileSync } from 'fs'
 import { performance } from 'perf_hooks'
 import { promisify } from 'util'
-import type { Attachment, AutomationPermissionSnapshot, CodexReviewStartRequest, Session, SessionForkMode, SessionForkOptions, SessionListItem, ChatMessage, TextMessage, ProviderRuntimeKind, ProviderSidebarSyncResult, ReviewMetadata, RunEvent, RunRequest, SessionStatus, SideQuestionMessage, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary, UserInputAnswerPayload, WorktreeInventoryItem } from '../types'
+import type { AgentThreadOpenRequest, AgentThreadOpenResult, Attachment, AutomationPermissionSnapshot, CodexReviewStartRequest, Session, SessionForkMode, SessionForkOptions, SessionListItem, ChatMessage, TextMessage, ProviderRuntimeKind, ProviderSidebarSyncResult, ReviewMetadata, RunEvent, RunRequest, SessionStatus, SideQuestionMessage, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary, UserInputAnswerPayload, WorktreeInventoryItem } from '../types'
 import { PROVIDER_DEFS, applyAutomationPermissionSnapshot, finalizeInterruptedMessages, getDefaultPermissionMode } from '../types'
 import { gitManager } from './git'
 import { buildProviderCommandForRuntime, getProvider, PROVIDERS, providerSpawnEnv, resolveProviderBinary, resolveProviderCommand, runCodexAppServerCommandSurfaceRaw } from './providers'
@@ -137,17 +137,6 @@ function cloneMessageForFork(message: ChatMessage): ChatMessage {
   return { ...message }
 }
 
-function pinOrderAfterSource(source: Session, sessions: Session[]): number | undefined {
-  if (source.pinned !== true) return undefined
-  const sourceOrder = typeof source.pinOrder === 'number' ? source.pinOrder : nextPinOrder(sessions)
-  const nextPinnedOrder = sessions
-    .filter((session) => session.id !== source.id && session.pinned === true && typeof session.pinOrder === 'number' && session.pinOrder > sourceOrder)
-    .map((session) => session.pinOrder!)
-    .sort((a, b) => a - b)[0]
-  if (typeof nextPinnedOrder === 'number') return sourceOrder + ((nextPinnedOrder - sourceOrder) / 2)
-  return sourceOrder + 1
-}
-
 function automatedReviewSmokeMetadata(): ReviewMetadata | undefined {
   const view = process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW
   if (!process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT || !(view === 'diff' || view?.startsWith('diff-') || view === 'environment' || view === 'inspector')) return undefined
@@ -242,15 +231,16 @@ function send(channel: string, ...args: unknown[]): void {
 
 function requestFromSession(session: Session, prompt: string): RunRequest {
   const providerId = session.provider ?? 'claude'
+  const preparedPrompt = claudeAgentThreadPromptForRequest(session, prompt)
   return {
-    prompt,
+    prompt: preparedPrompt,
     cwd: session.workDir,
     model: session.model,
     effort: session.effort,
     agentName: session.agentName ?? null,
     providerSessionId: session.providerSessionId ?? session.claudeSessionId ?? null,
     executionPolicy: session.permissionMode ?? 'default',
-    allowedTools: session.allowedTools ?? [],
+    allowedTools: claudeAgentThreadAllowedTools(session, session.allowedTools ?? []),
     disallowedTools: session.disallowedTools ?? [],
     availableTools: session.availableTools ?? [],
     additionalDirs: session.additionalDirs ?? [],
@@ -258,6 +248,76 @@ function requestFromSession(session: Session, prompt: string): RunRequest {
     useThinking: session.useThinking,
     useFast: session.useFast
   }
+}
+
+export function isClaudeAgentThreadSession(
+  session: Pick<Session, 'provider' | 'providerSessionId' | 'claudeSessionId' | 'providerProjectlessThreadId'>
+): boolean {
+  const providerSessionId = session.providerSessionId ?? session.claudeSessionId
+  const agentId = session.providerProjectlessThreadId
+  return (session.provider ?? 'claude') === 'claude' &&
+    Boolean(providerSessionId?.trim()) &&
+    Boolean(agentId?.trim()) &&
+    providerSessionId !== agentId
+}
+
+export function claudeAgentThreadPromptForRequest(
+  session: Pick<Session, 'provider' | 'providerSessionId' | 'claudeSessionId' | 'providerProjectlessThreadId'>,
+  prompt: string
+): string {
+  if (!isClaudeAgentThreadSession(session)) return prompt
+  const agentId = session.providerProjectlessThreadId?.trim()
+  if (!agentId) return prompt
+  return [
+    `Continue the existing Claude subagent with agent id ${agentId}.`,
+    `Use the SendMessage tool with the "to" field set to "${agentId}". Do not start a new Agent or Task invocation for this request.`,
+    'Forward the following user instruction to that subagent and return the subagent response:',
+    '',
+    prompt
+  ].join('\n')
+}
+
+export function claudeAgentThreadAllowedTools(
+  session: Pick<Session, 'provider' | 'providerSessionId' | 'claudeSessionId' | 'providerProjectlessThreadId'>,
+  allowedTools: string[]
+): string[] {
+  if (!isClaudeAgentThreadSession(session)) return allowedTools
+  return mergeToolNames(allowedTools, ['SendMessage'])
+}
+
+function shouldRefreshAgentThreadTitle(existingName: string | undefined, nextTitle: string): boolean {
+  const current = existingName?.trim()
+  if (!current || current === 'Agent thread') return true
+  if (current === nextTitle) return false
+  return /^Resume agent\b/i.test(current) || /^Opened .+ agent\b/i.test(current)
+}
+
+function agentThreadPreview(providerId: string, title: string, providerAgentId: string | undefined, providerThreadId: string | undefined): string {
+  if (providerId === 'claude') return providerAgentId ? `Claude agent thread: ${title}` : `Claude thread: ${title}`
+  const providerName = PROVIDER_DEFS[providerId]?.name ?? providerId
+  return providerThreadId ? `${providerName} agent thread: ${title}` : `${providerName} thread: ${title}`
+}
+
+function agentThreadOpenedNote(
+  providerId: string,
+  title: string,
+  providerAgentId: string | undefined,
+  providerThreadId: string | undefined,
+  parentThreadId: string | null
+): string {
+  if (providerId === 'claude') {
+    return [
+      `Claude agent thread: ${title}.`,
+      providerAgentId ? `Agent ${providerAgentId}.` : undefined,
+      parentThreadId ? `Parent session ${parentThreadId}.` : undefined
+    ].filter(Boolean).join(' ')
+  }
+  const providerName = PROVIDER_DEFS[providerId]?.name ?? providerId
+  return [
+    `${providerName} agent thread: ${title}.`,
+    providerThreadId ? `Thread ${providerThreadId}.` : undefined,
+    parentThreadId ? `Parent ${parentThreadId}.` : undefined
+  ].filter(Boolean).join(' ')
 }
 
 function codexReviewStartLabel(request: CodexReviewStartRequest): string {
@@ -897,15 +957,12 @@ export const sessionManager = {
         timestamp: now
       }
     ]
-    const sessions = ensurePinnedOrders(store.get('sessions', []))
-    const forkPinOrder = pinOrderAfterSource(source, sessions)
-
     const forked: Session = {
       ...source,
       id,
       name: `Forked: ${source.name}`,
-      pinned: source.pinned === true,
-      pinOrder: forkPinOrder,
+      pinned: false,
+      pinOrder: undefined,
       projectId: source.projectId,
       workDir,
       useWorktree,
@@ -1024,6 +1081,136 @@ export const sessionManager = {
     })
     void this.materializePendingWorktree(sessionId, repoRoot)
     return session
+  },
+
+  openAgentThread(request: AgentThreadOpenRequest): AgentThreadOpenResult {
+    const source = this.get(request.sourceSessionId)
+    if (!source) return { ok: false, error: `Session ${request.sourceSessionId} not found` }
+
+    const providerId = request.providerId || source.provider
+    const providerThreadId = request.providerThreadId?.trim()
+    const providerAgentId = request.providerAgentId?.trim()
+    if (providerId === 'claude' && !providerThreadId && !providerAgentId) {
+      return {
+        ok: false,
+        error: 'Claude did not expose an agent id or child thread id for this row.'
+      }
+    }
+    const parentThreadId = request.parentThreadId?.trim() || source.providerSessionId || source.claudeSessionId || null
+    if (!providerThreadId && !parentThreadId) {
+      return { ok: false, error: 'Provider did not expose a thread or session id for this agent.' }
+    }
+    if (providerId === 'claude' && providerAgentId && !parentThreadId) {
+      return { ok: false, error: 'Claude exposed an agent id, but no parent SDK session id was available to resume.' }
+    }
+
+    const providerSessionId = providerId === 'claude'
+      ? providerAgentId ? parentThreadId : providerThreadId ?? parentThreadId
+      : providerThreadId ?? parentThreadId
+    if (!providerSessionId) {
+      return { ok: false, error: 'Provider did not expose a resumable session id for this agent.' }
+    }
+
+    const now = Date.now()
+    const title = request.title.trim() || 'Agent thread'
+    const sessions = store.get('sessions', [])
+    const existing = sessions.find((session) => (
+      session.id !== source.id &&
+      session.provider === providerId &&
+      session.providerSessionId === providerSessionId &&
+      (
+        providerId !== 'claude' ||
+        session.providerProjectlessThreadId === (providerAgentId ?? providerThreadId) ||
+        (!providerAgentId && !providerThreadId && !session.providerProjectlessThreadId)
+      )
+    ))
+    const resumePrompt = undefined
+    if (existing) {
+      let changed = false
+      if (shouldRefreshAgentThreadTitle(existing.name, title)) {
+        existing.name = title
+        changed = true
+      }
+      const previewText = request.transcript?.trim() || agentThreadPreview(providerId, title, providerAgentId, providerThreadId)
+      if (existing.previewText !== previewText) {
+        existing.previewText = previewText
+        changed = true
+      }
+      if (existing.providerProjectless !== true) {
+        existing.providerProjectless = true
+        changed = true
+      }
+      const expectedProjectlessThreadId = providerId === 'claude' ? providerAgentId ?? providerThreadId ?? null : providerThreadId ?? null
+      if (existing.providerProjectlessThreadId !== expectedProjectlessThreadId) {
+        existing.providerProjectlessThreadId = expectedProjectlessThreadId
+        changed = true
+      }
+      if (changed) {
+        existing.latestMessageAt = Math.max(existing.latestMessageAt ?? 0, now)
+        store.set('sessions', sessions)
+        send('session:updated', {
+          id: existing.id,
+          name: existing.name,
+          providerProjectless: existing.providerProjectless,
+          providerProjectlessThreadId: existing.providerProjectlessThreadId,
+          previewText: existing.previewText,
+          latestMessageAt: existing.latestMessageAt
+        })
+      }
+      return { ok: true, session: existing, reused: true, resumePrompt }
+    }
+
+    const note = agentThreadOpenedNote(providerId, title, providerAgentId, providerThreadId, parentThreadId)
+    const messages: ChatMessage[] = [{
+      id: `agent-thread-opened-${now}`,
+      role: 'system',
+      type: 'text',
+      content: note,
+      timestamp: now
+    }]
+    if (request.transcript?.trim()) {
+      messages.push({
+        id: `agent-thread-transcript-${now}`,
+        role: 'assistant',
+        type: 'text',
+        content: request.transcript.trim(),
+        timestamp: now
+      })
+    }
+
+    const session: Session = {
+      ...source,
+      id: uuidv4(),
+      name: title,
+      pinned: false,
+      pinOrder: undefined,
+      provider: providerId,
+      providerSessionId,
+      claudeSessionId: providerId === 'claude' ? providerSessionId : null,
+      providerThreadSource: providerId === 'codex' ? 'cloud' : source.providerThreadSource,
+      providerProjectless: true,
+      providerProjectlessThreadId: providerId === 'claude' ? providerAgentId ?? providerThreadId ?? null : providerThreadId ?? null,
+      providerPinned: false,
+      providerPinOrder: undefined,
+      providerPinnedThreadKey: undefined,
+      status: 'idle',
+      messages,
+      messageCount: messages.length,
+      messagesLoaded: true,
+      previewText: request.transcript?.trim() || agentThreadPreview(providerId, title, providerAgentId, providerThreadId),
+      latestMessageAt: now,
+      forkedFromSessionId: source.id,
+      forkedFromSessionName: source.name,
+      forkedFromMessageId: undefined,
+      forkedAt: now,
+      forkMode: 'local',
+      archivedAt: undefined,
+      createdAt: now
+    }
+
+    this.save(session)
+    send('session:created', session)
+    return { ok: true, session, reused: false, resumePrompt }
   },
 
   updateName(id: string, name: string): void {
@@ -1376,10 +1563,11 @@ export const sessionManager = {
       ...requestFromSession(currentSession, runPrompt),
       attachments: provider.id === 'codex' ? attachments : claudeResourceAttachmentSpecs(attachments)
     }, options.permissionSnapshot)
+    const mode = currentSession.providerSessionId ? 'resume' : 'start'
     try {
       const started = simulateSendStartFailure
         ? false
-        : await this.startProviderRun(sessionId, currentSession, provider, runRequest, 'start', options.onProviderRunComplete)
+        : await this.startProviderRun(sessionId, currentSession, provider, runRequest, mode, options.onProviderRunComplete)
       if (!started) {
         this.removeMessage(sessionId, userMessageId)
         if (previousName && shouldAutoName) this.updateName(sessionId, previousName)

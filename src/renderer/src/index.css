@@ -3647,6 +3647,43 @@
     color: var(--text-tertiary);
   }
 
+  [data-testid='session-primary-content'][data-right-panel-active-tab='diff'] .codex-review-card {
+    width: min(560px, 100%);
+    gap: 3px;
+  }
+
+  [data-testid='session-primary-content'][data-right-panel-active-tab='diff'] .codex-review-card-summary,
+  [data-testid='session-primary-content'][data-right-panel-active-tab='diff'] .codex-review-card-header {
+    min-height: 24px;
+    gap: 6px;
+  }
+
+  [data-testid='session-primary-content'][data-right-panel-active-tab='diff'] .codex-review-card-icon {
+    width: 22px;
+    height: 22px;
+    flex-basis: 22px;
+    border-radius: 5px;
+  }
+
+  [data-testid='session-primary-content'][data-right-panel-active-tab='diff'] .codex-review-card-title,
+  [data-testid='session-primary-content'][data-right-panel-active-tab='diff'] .codex-review-card-file,
+  [data-testid='session-primary-content'][data-right-panel-active-tab='diff'] .codex-review-card-file-status {
+    font-size: 12px;
+    line-height: 18px;
+  }
+
+  [data-testid='session-primary-content'][data-right-panel-active-tab='diff'] .codex-review-card-action {
+    height: 24px;
+    border-radius: 6px;
+    font-size: 12px;
+    line-height: 24px;
+    padding: 0 8px;
+  }
+
+  [data-testid='session-primary-content'][data-right-panel-active-tab='diff'] .codex-review-card-list {
+    display: none;
+  }
+
   .codex-review-card-empty {
     color: var(--text-tertiary);
     font-size: 12px;
@@ -14612,7 +14649,7 @@
     position: relative;
     display: grid;
     place-items: center;
-    width: 30px;
+    width: 36px;
     height: 20px;
   }
 
@@ -14630,7 +14667,7 @@
     display: inline-flex;
     align-items: center;
     justify-content: flex-end;
-    gap: 0;
+    gap: 1px;
   }
 
   .session-row .surface-row-secondary {
@@ -14690,7 +14727,8 @@
     animation: motionSpinner 850ms linear infinite;
   }
 
-  .session-item-pin-button {
+  .session-item-pin-button,
+  .session-item-action-button {
     grid-area: 1 / 1;
     position: relative;
     z-index: 1;
@@ -14712,19 +14750,34 @@
       background-color var(--motion-duration-edge) var(--motion-ease-standard);
   }
 
+  .session-item-action-button {
+    color: color-mix(in srgb, var(--text-tertiary) 88%, transparent);
+  }
+
   .session-item-pin-button:hover,
-  .session-item-pin-button:focus-visible {
+  .session-item-pin-button:focus-visible,
+  .session-item-action-button:hover,
+  .session-item-action-button:focus-visible,
+  .session-item-action-button[aria-expanded='true'] {
     color: var(--text-primary);
     background: var(--control-bg-hover);
   }
 
   .surface-row:hover .session-item-pin-button,
+  .surface-row:hover .session-item-action-button,
   .surface-row:focus-within .session-item-pin-button,
+  .surface-row:focus-within .session-item-action-button,
   .session-row-shell:hover .session-item-pin-button,
+  .session-row-shell:hover .session-item-action-button,
   .session-row-shell:focus-within .session-item-pin-button,
+  .session-row-shell:focus-within .session-item-action-button,
   .session-row-shell:focus-visible .session-item-pin-button,
+  .session-row-shell:focus-visible .session-item-action-button,
   .session-row-shell[data-details-visible='true'] .session-item-pin-button,
-  .session-row-actions .session-item-pin-button {
+  .session-row-shell[data-details-visible='true'] .session-item-action-button,
+  .session-row-actions .session-item-pin-button:focus-visible,
+  .session-row-actions .session-item-action-button:focus-visible,
+  .session-item-action-button[aria-expanded='true'] {
     opacity: 1;
     transform: scale(1);
   }
@@ -14751,11 +14804,17 @@
   }
 
   .surface-row:hover .session-item-pin-button,
+  .surface-row:hover .session-item-action-button,
   .surface-row:focus-within .session-item-pin-button,
+  .surface-row:focus-within .session-item-action-button,
   .session-row-shell:hover .session-item-pin-button,
+  .session-row-shell:hover .session-item-action-button,
   .session-row-shell:focus-within .session-item-pin-button,
+  .session-row-shell:focus-within .session-item-action-button,
   .session-row-shell:focus-visible .session-item-pin-button,
-  .session-row-shell[data-details-visible='true'] .session-item-pin-button {
+  .session-row-shell:focus-visible .session-item-action-button,
+  .session-row-shell[data-details-visible='true'] .session-item-pin-button,
+  .session-row-shell[data-details-visible='true'] .session-item-action-button {
     opacity: 1;
     transform: scale(1);
   }

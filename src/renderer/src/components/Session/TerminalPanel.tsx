@@ -663,9 +663,9 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
                 <MenuSectionLabel>Diagnostics</MenuSectionLabel>
                 <MenuItem
                   icon="agents"
-                  label={effectiveTabs.includes('agents') ? 'Select Agents' : 'Agents'}
+                  label={effectiveTabs.includes('agents') ? 'Select Agent threads' : 'Agent threads'}
                   dataTestId="bottom-panel-open-agents"
-                  onClick={() => openBottomWorkbenchTab('agents', 'agents', 'Agents')}
+                  onClick={() => openBottomWorkbenchTab('agents', 'agents', 'Agent threads')}
                 />
                 <MenuItem
                   icon="extensions"
@@ -853,7 +853,7 @@ function bottomPanelTabLabel(tabId: BottomPanelTabId, index: number, tabs: Botto
   if (typeof tabId === 'string') {
     if (tabId === 'environment') return 'Environment'
     if (tabId === 'diff') return 'Review'
-    if (tabId === 'agents') return 'Agents'
+    if (tabId === 'agents') return 'Agent threads'
     if (tabId === 'extensions') return 'Extensions'
     if (tabId === 'side') return 'Side'
     if (tabId === 'files') return 'Files'
