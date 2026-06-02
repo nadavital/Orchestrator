@@ -113,6 +113,16 @@ export default function ProjectSection({ project, sessions, renderSession }: Pro
     useSessionStore.getState().sessions.filter((session) => session.projectId === project.id)
   )
 
+  const openProjectMenu = (event: React.MouseEvent<HTMLElement>): void => {
+    event.preventDefault()
+    event.stopPropagation()
+    const rect = event.currentTarget.getBoundingClientRect()
+    setMenuPoint({
+      x: rect.right - 8,
+      y: rect.bottom + 6
+    })
+  }
+
   const visibleSessions = expanded ? sessions : sessions.slice(0, 6)
   const hiddenSessionCount = Math.max(0, sessions.length - visibleSessions.length)
 
@@ -156,6 +166,15 @@ export default function ProjectSection({ project, sessions, renderSession }: Pro
                 disabled={creating}
                 size="sm"
                 onClick={(e) => { e.stopPropagation(); void handleNewSession() }}
+              />
+              <IconButton
+                icon="ellipsis"
+                label="Project actions"
+                size="sm"
+                ariaHasPopup="menu"
+                ariaControls={projectMenuId}
+                ariaExpanded={menuPoint !== null}
+                onClick={openProjectMenu}
               />
             </span>
           </>
