@@ -151,6 +151,9 @@ function AgentThreadsHero({
       className="shrink-0 px-3 py-2.5"
       data-testid="agent-threads-hero"
       data-agent-thread-total={stats.total}
+      data-agent-thread-active={stats.active}
+      data-agent-thread-waiting={stats.waiting}
+      data-agent-thread-issues={stats.issues}
       style={{ borderBottom: AGENT_DIVIDER }}
     >
       <div className="flex min-w-0 items-start justify-between gap-3">
@@ -227,7 +230,9 @@ function AgentThreadList({
                   <span className="min-w-0 truncate text-xs font-semibold" style={{ color: 'var(--color-text)' }}>
                     {label}
                   </span>
-                  <Badge tone={agentStatusTone(agent.status)}>{agent.status}</Badge>
+                  <Badge tone={agentStatusTone(agent.status)}>
+                    <span data-testid="agent-thread-status">{agent.status}</span>
+                  </Badge>
                 </div>
                 <div className="mt-1 truncate text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
                   {[thread.identity.providerId, thread.transcript.kind, thread.identity.providerThreadId ? 'thread' : thread.identity.providerAgentId ? 'agent' : null].filter(Boolean).join(' · ')}

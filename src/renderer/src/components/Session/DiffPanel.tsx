@@ -156,6 +156,7 @@ export default function DiffPanel({ sessionId, workDir, embedded = false, focusP
   const reviewSourceNeedsRef = reviewSource === 'branch' || reviewSource === 'commit'
   const reviewApiSource = localGitSourceForReviewSource(reviewSource)
   const sourceFiles = useMemo(() => files.filter((file) => fileMatchesReviewSource(file, reviewSource)), [files, reviewSource])
+  const activeReviewSourceFiles = reviewSource === 'last-turn' ? lastTurnReviewFiles : sourceFiles
   const reviewSearchMatchesByPath = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
     const matches = new Map<string, number>()
@@ -1061,7 +1062,7 @@ export default function DiffPanel({ sessionId, workDir, embedded = false, focusP
     reviewSource,
     reviewSourceCounts,
     reviewSource,
-    sourceFiles.length,
+    activeReviewSourceFiles.length,
     lastTurnReviewFiles.length
   )
   const activeReviewSourceLabel = reviewSourceSummaryLabel(reviewSource, activeReviewSource.label, branchReviewRef, commitReviewRef)
@@ -1075,7 +1076,7 @@ export default function DiffPanel({ sessionId, workDir, embedded = false, focusP
   const customReviewInstructionsTrimmed = customReviewInstructions.trim()
   const codexReviewStartDisabled = !canStartCodexReview || !codexReviewStartRequest || codexReviewStartPending || reviewSession?.status === 'running'
   const codexCustomReviewStartDisabled = !canStartCodexReview || customReviewInstructionsTrimmed.length === 0 || codexReviewStartPending || reviewSession?.status === 'running'
-  const activeReviewSourceStats = sourceFiles.reduce(
+  const activeReviewSourceStats = activeReviewSourceFiles.reduce(
     (totals, file) => ({
       additions: totals.additions + file.additions,
       deletions: totals.deletions + file.deletions

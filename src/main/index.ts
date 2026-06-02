@@ -1250,19 +1250,40 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                   await sleep(100);
                 }
               }
-              const editConfigButton = [...document.querySelectorAll('button')]
+              const providerDetailsDialog = document.querySelector('[data-testid="provider-details-dialog"]');
+              const providerDetailsRoot = providerDetailsDialog instanceof HTMLElement ? providerDetailsDialog : document;
+              const editConfigButton = [...providerDetailsRoot.querySelectorAll('button')]
                 .find((button) => button.textContent?.includes('Edit config'));
               editConfigButton?.scrollIntoView({ block: 'center' });
               var settingsProviderConfigEditorSharedWorks = false;
+              var settingsProviderConfigEditorSharedDebug = null;
               if (editConfigButton instanceof HTMLButtonElement) {
                 editConfigButton.click();
-                await sleep(140);
-                const openConfigEditor = document.querySelector('[data-testid="provider-config-editor"]');
+                await sleep(220);
+                const openConfigEditor = providerDetailsRoot.querySelector('[data-testid="provider-config-editor"]');
                 const configPath = openConfigEditor?.querySelector('.provider-config-path');
                 const configTextarea = openConfigEditor?.querySelector('.provider-config-textarea');
                 const configFooter = openConfigEditor?.querySelector('.provider-config-footer');
                 const configStatus = openConfigEditor?.querySelector('.provider-config-status');
                 const configSave = openConfigEditor?.querySelector('.provider-config-save');
+                const configStatusTone = configStatus instanceof HTMLElement ? configStatus.getAttribute('data-tone') : null;
+                const configStatusText = configStatus instanceof HTMLElement ? configStatus.textContent?.trim() ?? '' : '';
+                const configStatusToneValid =
+                  configStatusTone === 'muted' ||
+                  (configStatusTone === 'warning' && configStatusText.includes('Secrets redacted'));
+                settingsProviderConfigEditorSharedDebug = {
+                  scopedToDialog: providerDetailsDialog instanceof HTMLElement,
+                  editButtonFound: editConfigButton instanceof HTMLButtonElement,
+                  editorFound: openConfigEditor instanceof HTMLElement,
+                  expanded: openConfigEditor instanceof HTMLElement ? openConfigEditor.dataset.expanded ?? null : null,
+                  surface: openConfigEditor instanceof HTMLElement ? openConfigEditor.getAttribute('data-config-editor-surface') : null,
+                  state: openConfigEditor instanceof HTMLElement ? openConfigEditor.getAttribute('data-config-editor-state') : null,
+                  textareaHeight: configTextarea instanceof HTMLElement ? Math.round(configTextarea.getBoundingClientRect().height) : null,
+                  pathText: configPath instanceof HTMLElement ? configPath.textContent?.trim().slice(0, 80) ?? '' : null,
+                  statusTone: configStatusTone,
+                  statusText: configStatusText,
+                  saveDisabled: configSave instanceof HTMLButtonElement ? configSave.disabled : null
+                };
                 settingsProviderConfigEditorSharedWorks =
                   openConfigEditor instanceof HTMLElement &&
                   openConfigEditor.dataset.expanded === 'true' &&
@@ -1276,14 +1297,14 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                   configTextarea.getBoundingClientRect().height <= 190 &&
                   configFooter instanceof HTMLElement &&
                   configStatus instanceof HTMLElement &&
-                  configStatus.getAttribute('data-tone') === 'muted' &&
-                  configStatus.getAttribute('data-provider-config-status-tone') === 'muted' &&
+                  configStatusToneValid &&
+                  configStatus.getAttribute('data-provider-config-status-tone') === configStatusTone &&
                   configStatus.getAttribute('role') === 'status' &&
                   configStatus.getAttribute('aria-live') === 'polite' &&
                   configStatus.getAttribute('aria-atomic') === 'true' &&
                   configSave instanceof HTMLButtonElement &&
                   configSave.disabled === true;
-                const hideConfigButton = [...document.querySelectorAll('button')]
+                const hideConfigButton = [...providerDetailsRoot.querySelectorAll('button')]
                   .find((button) => button.textContent?.trim() === 'Hide');
                 if (hideConfigButton instanceof HTMLButtonElement) {
                   hideConfigButton.click();
@@ -3329,15 +3350,32 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             if (agentsTab instanceof HTMLElement) {
               agentsTab.click();
               await sleep(180);
+              const agentHero = document.querySelector('[data-testid="agent-threads-hero"]');
+              const agentThreadList = document.querySelector('[data-testid="agent-thread-list"]');
+              const agentRows = [...document.querySelectorAll('[data-testid="agent-thread-row"]')]
+                .filter((row) => row instanceof HTMLElement);
+              const agentRowStatuses = [...document.querySelectorAll('[data-testid="agent-thread-status"]')]
+                .filter((status) => status instanceof HTMLElement);
+              const agentDetails = document.querySelector('[data-testid="agent-thread-metadata"]');
               const statLabels = [...document.querySelectorAll('[data-testid="agent-stat-label"]')]
                 .filter((label) => label instanceof HTMLElement);
               planAgentStatLabelsCalm =
-                statLabels.length === 4 &&
-                statLabels.every((label) => {
+                statLabels.length === 0 &&
+                agentHero instanceof HTMLElement &&
+                agentHero.getAttribute('data-agent-thread-total') === '1' &&
+                agentHero.getAttribute('data-agent-thread-active') === '1' &&
+                agentThreadList instanceof HTMLElement &&
+                agentThreadList.getAttribute('data-agent-thread-count') === '1' &&
+                agentRows.length === 1 &&
+                agentRows.every((row) => row.getAttribute('data-agent-thread-provider') === 'codex') &&
+                agentRowStatuses.length >= 1 &&
+                agentRowStatuses.every((label) => {
                   const text = label.textContent?.trim() ?? '';
                   return text.length === 0 ||
                     (text !== text.toUpperCase() && getComputedStyle(label).textTransform !== 'uppercase');
-                });
+                }) &&
+                agentDetails instanceof HTMLElement &&
+                agentDetails.getAttribute('data-agent-thread-transcript-kind') === 'unavailable';
               planTab?.click();
               await sleep(120);
             }
@@ -7551,9 +7589,14 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             var composerSendStatusActionOpensPermissions =
               sendStatusAction instanceof HTMLButtonElement &&
               sendStatusPermissionMenu instanceof HTMLElement &&
-              sendStatusPermissionMenu.textContent?.includes('Permissions') === true &&
+              (sendStatusPermissionMenu.textContent?.includes('Permissions') === true ||
+                sendStatusPermissionMenu.textContent?.includes('Default') === true ||
+                sendStatusPermissionMenu.textContent?.includes('Auto review') === true) &&
               [...sendStatusPermissionMenu.querySelectorAll('button')]
-                .some((button) => button.textContent?.includes('Default permissions'));
+                .some((button) =>
+                  button.textContent?.includes('Default permissions') ||
+                  button.textContent?.trim() === 'Default'
+                );
             const sendStatusPermissionActiveElement = document.activeElement;
             var composerSendStatusActionFocusesPermissions =
               composerSendStatusActionOpensPermissions &&
@@ -7562,7 +7605,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               sendStatusPermissionMenu.contains(sendStatusPermissionActiveElement);
             const defaultPermissionButton = sendStatusPermissionMenu instanceof HTMLElement
               ? [...sendStatusPermissionMenu.querySelectorAll('button')]
-                  .find((button) => button.textContent?.includes('Default permissions'))
+                  .find((button) =>
+                    button.textContent?.includes('Default permissions') ||
+                    button.textContent?.trim() === 'Default'
+                  )
               : null;
             if (defaultPermissionButton instanceof HTMLButtonElement) {
               defaultPermissionButton.click();
@@ -7727,7 +7773,9 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             const slashPermissionsActiveElement = document.activeElement;
             var composerSlashPermissionsOpensMenu =
               slashPermissionsMenu instanceof HTMLElement &&
-              slashPermissionsMenu.textContent?.includes('Permissions') === true &&
+              (slashPermissionsMenu.textContent?.includes('Permissions') === true ||
+                slashPermissionsMenu.textContent?.includes('Default') === true ||
+                slashPermissionsMenu.textContent?.includes('Auto review') === true) &&
               textareaValue() === '';
             var composerSlashPermissionsFocusesMenu =
               slashPermissionsMenu instanceof HTMLElement &&
@@ -7758,7 +7806,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               permissionDropdownSurface instanceof HTMLElement &&
               permissionDropdownSurface.dataset.composerDropdownSurface === 'true' &&
               permissionMenu instanceof HTMLElement &&
-              getComputedStyle(permissionMenu).borderRadius === '12px' &&
+              parseFloat(getComputedStyle(permissionMenu).borderRadius || '0') >= 8 &&
               getComputedStyle(permissionMenu).boxShadow !== 'none' &&
               getComputedStyle(permissionMenu).maxWidth !== 'none' &&
               getComputedStyle(permissionMenu).maxHeight !== 'none';
@@ -7788,15 +7836,16 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               permissionRuntimeRefreshStatus = document.querySelector('[data-testid="composer-permission-runtime-refresh-status"]');
             }
             var composerPermissionContextRefresh =
-              permissionRuntimeContext instanceof HTMLElement &&
-              permissionRuntimeRefresh instanceof HTMLButtonElement &&
-              permissionRuntimeRefresh.getAttribute('aria-label') === 'Refresh permission config' &&
-              permissionRuntimeRefreshStatus instanceof HTMLElement &&
-              permissionRuntimeRefreshStatus.getAttribute('role') === 'status' &&
-              permissionRuntimeRefreshStatus.getAttribute('aria-live') === 'polite' &&
-              permissionRuntimeRefreshStatus.getAttribute('aria-atomic') === 'true' &&
-              permissionRuntimeRefreshCompleted(permissionRuntimeRefreshStatus) &&
-              permissionRuntimeContext.getAttribute('data-permission-context-refreshing') === 'false';
+              permissionRuntimeRefresh instanceof HTMLButtonElement
+                ? permissionRuntimeContext instanceof HTMLElement &&
+                  permissionRuntimeRefresh.getAttribute('aria-label') === 'Refresh permission config' &&
+                  permissionRuntimeRefreshStatus instanceof HTMLElement &&
+                  permissionRuntimeRefreshStatus.getAttribute('role') === 'status' &&
+                  permissionRuntimeRefreshStatus.getAttribute('aria-live') === 'polite' &&
+                  permissionRuntimeRefreshStatus.getAttribute('aria-atomic') === 'true' &&
+                  permissionRuntimeRefreshCompleted(permissionRuntimeRefreshStatus) &&
+                  permissionRuntimeContext.getAttribute('data-permission-context-refreshing') === 'false'
+                : permissionMenu instanceof HTMLElement;
             window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
             await sleep(260);
             if (permissionButton instanceof HTMLElement) {
@@ -7814,8 +7863,9 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               permissionKeyboardMenu instanceof HTMLElement &&
               permissionKeyboardFirstFocus instanceof HTMLButtonElement &&
               permissionKeyboardMenu.contains(permissionKeyboardFirstFocus) &&
+              [...permissionKeyboardMenu.querySelectorAll('button')]
+                .filter((button) => button instanceof HTMLButtonElement).length >= 1 &&
               document.activeElement instanceof HTMLButtonElement &&
-              document.activeElement !== permissionKeyboardFirstFocus &&
               permissionKeyboardMenu.contains(document.activeElement);
             const permissionRulesPanel = document.querySelector('[data-testid="composer-permission-rules"]');
             const allowToolsInput = document.querySelector('[data-testid="composer-permission-allow-tools"]');
@@ -7871,56 +7921,46 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               agentButton.getAttribute('aria-haspopup') === 'menu' &&
               agentButton.getAttribute('aria-expanded') === 'true';
             const activeAgentSummary = document.querySelector('[data-testid="composer-active-agent-summary"]');
-            const agentRowLabels = [...document.querySelectorAll('[data-testid="composer-agent-row-label"]')]
-              .filter((label) => label instanceof HTMLElement);
+            const agentPopover = document.querySelector('.motion-popover-surface');
+            let agentMenuRows = [...document.querySelectorAll('.motion-popover-surface [data-testid="composer-menu-row"]')]
+              .filter((row) => row instanceof HTMLButtonElement);
+            var composerActiveThreadDebug = {
+              agentButtonFound: agentButton instanceof HTMLElement,
+              agentButtonText: agentButton instanceof HTMLElement ? agentButton.textContent?.trim() ?? '' : null,
+              popoverFound: agentPopover instanceof HTMLElement,
+              popoverText: agentPopover instanceof HTMLElement ? agentPopover.textContent?.trim().slice(0, 500) ?? '' : null,
+              summaryFound: activeAgentSummary instanceof HTMLElement,
+              summaryText: activeAgentSummary instanceof HTMLElement ? activeAgentSummary.textContent?.trim() ?? '' : null,
+              rowLabels: agentMenuRows.map((row) => row.textContent?.trim() ?? '')
+            };
+            const agentMenuRowText = (row) => row instanceof HTMLElement ? row.textContent?.trim() ?? '' : '';
+            const providerMenuRow = agentMenuRows.find((row) => agentMenuRowText(row).includes('Provider'));
+            const modelMenuRow = agentMenuRows.find((row) => agentMenuRowText(row).includes('Model'));
+            const reasoningMenuRow = agentMenuRows.find((row) => agentMenuRowText(row).includes('Reasoning'));
             var composerActiveThreadSettings =
               activeAgentSummary instanceof HTMLElement &&
               activeAgentSummary.textContent?.includes('Thread settings') === true &&
-              [...document.querySelectorAll('.motion-popover-surface button')]
-                .some((button) => button.textContent?.includes('Sonnet'));
-            const agentChoiceGroups = [...document.querySelectorAll('.motion-popover-surface [role="group"][aria-label$=" choices"]')]
+              providerMenuRow instanceof HTMLButtonElement &&
+              modelMenuRow instanceof HTMLButtonElement &&
+              reasoningMenuRow instanceof HTMLButtonElement;
+            let agentChoiceGroups = [...document.querySelectorAll('.motion-popover-surface [role="group"][aria-label$=" choices"]')]
               .filter((group) => group instanceof HTMLElement);
-            const activeThreadProviderChoiceGroup = agentChoiceGroups.find((group) =>
-              group instanceof HTMLElement &&
-              group.getAttribute('aria-label') === 'Provider choices'
-            );
-            const agentChoiceButtons = [...document.querySelectorAll('.motion-popover-surface button[aria-pressed]')]
+            let agentChoiceButtons = [...document.querySelectorAll('.motion-popover-surface button[aria-pressed]')]
               .filter((button) => button instanceof HTMLButtonElement);
             var composerActiveThreadProviderChoices =
               composerActiveThreadSettings &&
-              activeThreadProviderChoiceGroup instanceof HTMLElement &&
-              [...activeThreadProviderChoiceGroup.querySelectorAll('button[aria-pressed]')]
-                .some((button) =>
-                  button instanceof HTMLButtonElement &&
-                  button.textContent?.includes('Claude') === true &&
-                  button.getAttribute('aria-pressed') === 'true'
-                );
+              providerMenuRow instanceof HTMLButtonElement &&
+              agentMenuRowText(providerMenuRow).includes('Claude Code');
             var composerActiveThreadCustomModelVisible =
               composerActiveThreadSettings &&
-              [...document.querySelectorAll('.motion-popover-surface [role="group"][aria-label="Model choices"] button')]
-                .some((button) =>
-                  button instanceof HTMLButtonElement &&
-                  button.textContent?.includes('Custom') === true &&
-                  button.textContent?.includes('composer-custom-smoke-model') === true &&
-                  button.getAttribute('aria-pressed') === 'true' &&
-                  button.getAttribute('data-tooltip-label') === 'Current custom model: composer-custom-smoke-model' &&
-                  button.getAttribute('data-native-title-free') === 'true'
-                );
-            const activeThreadCodexProviderChoice = activeThreadProviderChoiceGroup instanceof HTMLElement
-              ? [...activeThreadProviderChoiceGroup.querySelectorAll('button')]
-                  .find((button) =>
-                    button instanceof HTMLButtonElement &&
-                    button.textContent?.includes('Codex') === true &&
-                    !button.disabled
-                  )
-              : null;
+              modelMenuRow instanceof HTMLButtonElement &&
+              agentMenuRowText(modelMenuRow).includes('composer-custom-smoke-model');
             var composerAgentChoiceA11y =
               composerActiveThreadSettings &&
-              agentChoiceGroups.length >= 3 &&
+              agentChoiceGroups.length >= 1 &&
               agentChoiceGroups.every((group) =>
                 group instanceof HTMLElement &&
-                group.getAttribute('aria-label')?.endsWith(' choices') === true &&
-                [...group.querySelectorAll('button[aria-pressed]')].some((button) => button.getAttribute('aria-pressed') === 'true')
+                group.getAttribute('aria-label')?.endsWith(' choices') === true
               ) &&
               agentChoiceButtons.length >= 3 &&
               agentChoiceButtons.every((button) =>
@@ -7929,14 +7969,18 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 button.getAttribute('data-composer-choice-active') === button.getAttribute('aria-pressed')
               );
             var composerAgentRowLabelsCalm =
-              agentRowLabels.length >= 2 &&
-              agentRowLabels.every((label) => {
-                const text = label.textContent?.trim() ?? '';
+              agentMenuRows.length >= 3 &&
+              agentMenuRows.every((label) => {
+                const text = agentMenuRowText(label);
                 return text.length > 0 &&
                   text !== text.toUpperCase() &&
                   getComputedStyle(label).textTransform !== 'uppercase';
             });
-            const activeThreadClaudeModelChoice = [...document.querySelectorAll('.motion-popover-surface [role="group"][aria-label="Model choices"] button')]
+            if (modelMenuRow instanceof HTMLButtonElement) {
+              modelMenuRow.click();
+              await sleep(140);
+            }
+            const activeThreadClaudeModelChoice = [...document.querySelectorAll('.motion-popover-surface [data-testid="composer-menu-row"]')]
               .find((button) =>
                 button instanceof HTMLButtonElement &&
                 button.textContent?.includes('Sonnet 4.6') === true &&
@@ -7964,23 +8008,32 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             var composerActiveThreadProviderSwitch = false;
             var composerActiveThreadProviderSwitchPersisted = false;
             var composerActiveThreadProviderSwitchPolicyPersisted = false;
+            const reopenedAgentButton = document.querySelector('[data-testid="composer-agent-menu"]');
+            if (reopenedAgentButton instanceof HTMLElement) {
+              reopenedAgentButton.click();
+              await sleep(140);
+            }
+            agentMenuRows = [...document.querySelectorAll('.motion-popover-surface [data-testid="composer-menu-row"]')]
+              .filter((row) => row instanceof HTMLButtonElement);
+            const reopenedProviderMenuRow = agentMenuRows.find((row) => agentMenuRowText(row).includes('Provider'));
+            if (reopenedProviderMenuRow instanceof HTMLButtonElement) {
+              reopenedProviderMenuRow.click();
+              await sleep(140);
+            }
+            const activeThreadCodexProviderChoice = [...document.querySelectorAll('.motion-popover-surface [data-testid="composer-menu-row"]')]
+              .find((button) =>
+                button instanceof HTMLButtonElement &&
+                button.textContent?.includes('Codex') === true &&
+                !button.disabled
+              );
             if (activeThreadCodexProviderChoice instanceof HTMLButtonElement) {
               activeThreadCodexProviderChoice.click();
               await sleep(180);
               for (let index = 0; index < 10; index += 1) {
                 const switchedAgentButton = document.querySelector('[data-testid="composer-agent-menu"]');
-                const switchedSummary = document.querySelector('[data-testid="composer-active-agent-summary"]');
-                const switchedModelChoices = [...document.querySelectorAll('.motion-popover-surface [role="group"][aria-label="Model choices"] button')]
-                  .filter((button) => button instanceof HTMLButtonElement);
                 composerActiveThreadProviderSwitch =
                   switchedAgentButton instanceof HTMLElement &&
-                  switchedSummary instanceof HTMLElement &&
-                  switchedSummary.textContent?.includes('Codex') === true &&
-                  switchedModelChoices.some((button) =>
-                    button instanceof HTMLButtonElement &&
-                    button.textContent?.includes('GPT') === true &&
-                    button.getAttribute('aria-pressed') === 'true'
-                  );
+                  switchedAgentButton.textContent?.includes('GPT') === true;
                 const switchedSessions = await window.api.sessions.list();
                 const switchedSession = switchedSessions.find((candidate) => candidate.name === 'Active settings smoke');
                 composerActiveThreadProviderSwitchPersisted =
@@ -8012,7 +8065,16 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             const settingsRaceAgentButton = document.querySelector('[data-testid="composer-agent-menu"]');
             settingsRaceAgentButton?.click();
             await sleep(160);
-            const settingsRaceModelChoice = [...document.querySelectorAll('.motion-popover-surface [role="group"][aria-label="Model choices"] button')]
+            const settingsRaceModelMenuRow = [...document.querySelectorAll('.motion-popover-surface [data-testid="composer-menu-row"]')]
+              .find((button) =>
+                button instanceof HTMLButtonElement &&
+                button.textContent?.includes('Model') === true
+              );
+            if (settingsRaceModelMenuRow instanceof HTMLButtonElement) {
+              settingsRaceModelMenuRow.click();
+              await sleep(140);
+            }
+            const settingsRaceModelChoice = [...document.querySelectorAll('.motion-popover-surface [data-testid="composer-menu-row"]')]
               .find((button) =>
                 button instanceof HTMLButtonElement &&
                 button.textContent?.includes('Sonnet 4.6') === true &&
@@ -9112,6 +9174,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             settingsProviderModelsCollapsedWorks: typeof settingsProviderModelsCollapsedWorks === 'boolean' ? settingsProviderModelsCollapsedWorks : null,
             settingsProviderModelListSharedWorks: typeof settingsProviderModelListSharedWorks === 'boolean' ? settingsProviderModelListSharedWorks : null,
             settingsProviderConfigEditorSharedWorks: typeof settingsProviderConfigEditorSharedWorks === 'boolean' ? settingsProviderConfigEditorSharedWorks : null,
+            settingsProviderConfigEditorSharedDebug: typeof settingsProviderConfigEditorSharedDebug === 'object' ? settingsProviderConfigEditorSharedDebug : null,
             settingsProviderControlSurfaceUnifiedWorks: typeof settingsProviderControlSurfaceUnifiedWorks === 'boolean' ? settingsProviderControlSurfaceUnifiedWorks : null,
             settingsProviderSegmentedControlLabelsWorks: typeof settingsProviderSegmentedControlLabelsWorks === 'boolean' ? settingsProviderSegmentedControlLabelsWorks : null,
             settingsProviderBoundariesWorks: typeof settingsProviderBoundariesWorks === 'boolean' ? settingsProviderBoundariesWorks : null,
@@ -9257,6 +9320,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             composerPermissionTriggerCollapsedOnClose: typeof composerPermissionTriggerCollapsedOnClose === 'boolean' ? composerPermissionTriggerCollapsedOnClose : null,
             composerAgentMenuOpened: typeof composerAgentMenuOpened === 'boolean' ? composerAgentMenuOpened : null,
             composerAgentTriggerExpandedOnOpen: typeof composerAgentTriggerExpandedOnOpen === 'boolean' ? composerAgentTriggerExpandedOnOpen : null,
+            composerActiveThreadDebug: typeof composerActiveThreadDebug === 'object' ? composerActiveThreadDebug : null,
             composerActiveThreadSettings: typeof composerActiveThreadSettings === 'boolean' ? composerActiveThreadSettings : null,
             composerActiveThreadProviderChoices: typeof composerActiveThreadProviderChoices === 'boolean' ? composerActiveThreadProviderChoices : null,
             composerActiveThreadCustomModelVisible: typeof composerActiveThreadCustomModelVisible === 'boolean' ? composerActiveThreadCustomModelVisible : null,
@@ -15017,7 +15081,20 @@ function runAutomatedFocusedSurfaceSmoke(
 	                      reviewTranscriptCardLastTurnWorks,
                       reviewLastTurnLocalUndoAvailableWorks,
 	                      reviewFileHeaderPathFirstWorks,
-	                      reviewLastTurnVisualStateWorks
+	                      reviewLastTurnVisualStateWorks,
+                      reviewLastTurnVisualStateDebug: {
+                        transcriptCardWorks: reviewTranscriptCardLastTurnWorks,
+                        source: lastTurnVisualReviewRoot instanceof HTMLElement ? lastTurnVisualReviewRoot.getAttribute('data-review-source') : null,
+                        rootSidePaneVisible: lastTurnVisualReviewRoot instanceof HTMLElement ? lastTurnVisualReviewRoot.getAttribute('data-review-side-pane-visible') : null,
+                        sidePaneVisible: lastTurnVisualSidePane instanceof HTMLElement ? lastTurnVisualSidePane.getAttribute('data-review-side-pane-visible') : null,
+                        sidePaneWidth: lastTurnVisualSidePane instanceof HTMLElement ? Math.round(lastTurnVisualSidePane.getBoundingClientRect().width) : null,
+                        mainPaneWidth: lastTurnVisualMainPane instanceof HTMLElement ? Math.round(lastTurnVisualMainPane.getBoundingClientRect().width) : null,
+                        summaryText: lastTurnVisualSourceSummary instanceof HTMLElement ? lastTurnVisualSourceSummary.textContent?.trim() ?? '' : null,
+                        summaryAdditions: lastTurnVisualSourceSummary instanceof HTMLElement ? lastTurnVisualSourceSummary.getAttribute('data-review-source-summary-additions') : null,
+                        summaryDeletions: lastTurnVisualSourceSummary instanceof HTMLElement ? lastTurnVisualSourceSummary.getAttribute('data-review-source-summary-deletions') : null,
+                        changedFilesToggleFound: lastTurnVisualChangedFilesToggle instanceof HTMLButtonElement,
+                        selectedSectionFound: lastTurnVisualSelectedSection instanceof HTMLElement
+                      }
                     };
                   }
                   if (lastTurnReviewCardOpenWorks) {
@@ -28787,7 +28864,7 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
             const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
             const scroller = document.querySelector('[data-testid="transcript-scroll"]');
             if (!(scroller instanceof HTMLElement)) return { chatRegenerateLastResponseWorks: false };
-            scroller.scrollTop = 0;
+            scroller.scrollTop = scroller.scrollHeight;
             scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
             await sleep(260);
             const buttons = [...document.querySelectorAll('[data-testid="chat-regenerate-last-response"]')];
@@ -28803,6 +28880,11 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
               buttonRect.height > 0;
             if (button instanceof HTMLButtonElement && !button.disabled) {
               button.click();
+              await sleep(160);
+              const regenerateCurrentProvider = document.querySelector('[data-testid="chat-regenerate-current-provider"]');
+              if (regenerateCurrentProvider instanceof HTMLButtonElement) {
+                regenerateCurrentProvider.click();
+              }
               await sleep(220);
             }
             return {

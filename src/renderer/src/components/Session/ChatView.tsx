@@ -892,7 +892,7 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
         onScroll={handleScroll}
         onWheel={handleWheel}
         onTouchStart={handleTouchStart}
-        className="h-full min-w-0 overflow-y-auto overflow-x-hidden px-6 pt-5"
+        className="h-full min-w-0 overflow-y-auto overflow-x-hidden px-4 pt-5"
         data-composer-reserve-aware="true"
         data-active-transcript-read-synced={readSyncedSessionId === session.id ? 'true' : 'false'}
         style={{
@@ -1579,7 +1579,8 @@ function RetryMenuButton({
         <span
           className="sr-only"
           data-testid={kind === 'regenerate' ? 'chat-regenerate-last-response-label' : 'chat-retry-unanswered-user-message-label'}
-          data-retry-state={state}
+          data-regenerate-state={kind === 'regenerate' ? state : undefined}
+          data-retry-state={kind === 'retry' ? state : undefined}
           role="status"
           aria-live="polite"
           aria-atomic="true"

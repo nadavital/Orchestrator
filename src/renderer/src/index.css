@@ -3647,6 +3647,43 @@
     color: var(--text-tertiary);
   }
 
+  [data-testid='session-primary-content'][data-right-panel-active-tab='diff'] .codex-review-card {
+    width: min(560px, 100%);
+    gap: 3px;
+  }
+
+  [data-testid='session-primary-content'][data-right-panel-active-tab='diff'] .codex-review-card-summary,
+  [data-testid='session-primary-content'][data-right-panel-active-tab='diff'] .codex-review-card-header {
+    min-height: 24px;
+    gap: 6px;
+  }
+
+  [data-testid='session-primary-content'][data-right-panel-active-tab='diff'] .codex-review-card-icon {
+    width: 22px;
+    height: 22px;
+    flex-basis: 22px;
+    border-radius: 5px;
+  }
+
+  [data-testid='session-primary-content'][data-right-panel-active-tab='diff'] .codex-review-card-title,
+  [data-testid='session-primary-content'][data-right-panel-active-tab='diff'] .codex-review-card-file,
+  [data-testid='session-primary-content'][data-right-panel-active-tab='diff'] .codex-review-card-file-status {
+    font-size: 12px;
+    line-height: 18px;
+  }
+
+  [data-testid='session-primary-content'][data-right-panel-active-tab='diff'] .codex-review-card-action {
+    height: 24px;
+    border-radius: 6px;
+    font-size: 12px;
+    line-height: 24px;
+    padding: 0 8px;
+  }
+
+  [data-testid='session-primary-content'][data-right-panel-active-tab='diff'] .codex-review-card-list {
+    display: none;
+  }
+
   .codex-review-card-empty {
     color: var(--text-tertiary);
     font-size: 12px;
