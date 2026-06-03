@@ -80,7 +80,9 @@ interface Props {
 export default function SettingsPage({ section, onClose }: Props): JSX.Element {
   const { providerAvailability, sessions, setProviderModels: storeSetProviderModels } = useSessionStore()
   const selectedSettingsHostId = useSessionStore((state) => state.settingsHostId)
+  const selectedSettingsProviderId = useSessionStore((state) => state.selectedSettingsProviderId)
   const setSelectedSettingsHostId = useSessionStore((state) => state.setSettingsHostId)
+  const setSelectedSettingsProviderId = useSessionStore((state) => state.setSelectedSettingsProviderId)
   const setSettingsSection = useSessionStore((state) => state.setSettingsSection)
   const [defaultProvider, setDefaultProvider] = useState('claude')
   const [defaultModels, setDefaultModels] = useState<Record<string, string>>({})
@@ -751,6 +753,8 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
                   providerDiagnostics={providerDiagnostics}
                   diagnosticsLoading={diagnosticsLoading}
                   providerAvailability={providerAvailability}
+                  selectedProviderId={selectedSettingsProviderId}
+                  onSetSelectedProvider={setSelectedSettingsProviderId}
                   onSetDefaultProvider={saveDefaultProvider}
                   onSetDefaultModel={saveDefaultModel}
                   onSetDefaultEffort={saveDefaultEffort}

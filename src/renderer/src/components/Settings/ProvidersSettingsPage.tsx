@@ -58,7 +58,7 @@ function SettingsSectionHeading({ title, description }: { title: string; descrip
 
 export default function ProvidersSettingsPage({
   defaultProvider, sessions, defaultModels, defaultEfforts, defaultPermissionModes, providerModels,
-  providerRuntime, providerPermissionContexts, providerDiagnostics, diagnosticsLoading, providerAvailability, defaultAdvancedOpen = false, onSetDefaultProvider, onSetDefaultModel, onSetDefaultEffort, onSetDefaultPermissionMode, onSetProviderModels, onSetProviderPermissionContexts, onLoadProviderDiagnostics
+  providerRuntime, providerPermissionContexts, providerDiagnostics, diagnosticsLoading, providerAvailability, selectedProviderId, defaultAdvancedOpen = false, onSetSelectedProvider, onSetDefaultProvider, onSetDefaultModel, onSetDefaultEffort, onSetDefaultPermissionMode, onSetProviderModels, onSetProviderPermissionContexts, onLoadProviderDiagnostics
 }: {
   defaultProvider: string
   sessions: SessionListItem[]
@@ -71,7 +71,9 @@ export default function ProvidersSettingsPage({
   providerDiagnostics: Record<string, ProviderDiagnosticInfo>
   diagnosticsLoading: Record<string, boolean>
   providerAvailability: Record<string, boolean>
+  selectedProviderId: string
   defaultAdvancedOpen?: boolean
+  onSetSelectedProvider: (id: string) => void
   onSetDefaultProvider: (id: string) => void
   onSetDefaultModel: (providerId: string, modelId: string) => void
   onSetDefaultEffort: (providerId: string, effortId: string) => void
@@ -81,7 +83,7 @@ export default function ProvidersSettingsPage({
   onLoadProviderDiagnostics: (providerId: string, options?: { force?: boolean }) => void
 }): JSX.Element {
   const providerList = Object.values(PROVIDER_DEFS)
-  const [selectedId, setSelectedId] = useState(defaultProvider)
+  const selectedId = PROVIDER_DEFS[selectedProviderId] ? selectedProviderId : defaultProvider
   const providerDef = PROVIDER_DEFS[selectedId] ?? PROVIDER_DEFS.claude
   const installed = providerAvailability[selectedId] !== false
   const diagnostics = providerDiagnostics[selectedId]
@@ -202,39 +204,31 @@ export default function ProvidersSettingsPage({
           dataTestId="settings-content-layout-providers"
         >
           <div className="provider-settings-stack">
-            <ProviderSidebar
-              providers={providerList}
-              selectedId={selectedId}
-              defaultProvider={defaultProvider}
-              availability={providerAvailability}
-              diagnostics={providerDiagnostics}
-              onSelect={setSelectedId}
-            />
-        <div key={selectedId} className="provider-settings-main">
-          <SettingsContentGroup
-            className="provider-settings-content-group"
-            rootAttrs={{
-              tabIndex: -1,
-              'data-settings-search-anchor': 'provider-defaults'
-            }}
-          >
-            <SettingsSectionHeading
-              title={providerDef.name}
-              description={providerReadinessLabel(installed, diagnostics)}
-            />
-            <SettingsGroupContent>
-              <SettingsSurface className="provider-settings-control-surface">
-                <ProviderCompactHeader
-                  providers={providerList}
-                  providerDef={providerDef}
-                  selectedId={selectedId}
-                  installed={installed}
-                  isDefault={defaultProvider === selectedId}
-                  installCmd={providerDef.installCmd}
-                  color={providerDef.color}
-                  onSelect={setSelectedId}
-                  onSetDefault={() => onSetDefaultProvider(selectedId)}
+            <div key={selectedId} className="provider-settings-main">
+              <SettingsContentGroup
+                className="provider-settings-content-group"
+                rootAttrs={{
+                  tabIndex: -1,
+                  'data-settings-search-anchor': 'provider-defaults'
+                }}
+              >
+                <SettingsSectionHeading
+                  title={providerDef.name}
+                  description={providerReadinessLabel(installed, diagnostics)}
                 />
+                <SettingsGroupContent>
+                  <SettingsSurface className="provider-settings-control-surface">
+                    <ProviderCompactHeader
+                      providers={providerList}
+                      providerDef={providerDef}
+                      selectedId={selectedId}
+                      installed={installed}
+                      isDefault={defaultProvider === selectedId}
+                      installCmd={providerDef.installCmd}
+                      color={providerDef.color}
+                      onSelect={onSetSelectedProvider}
+                      onSetDefault={() => onSetDefaultProvider(selectedId)}
+                    />
 
                 <SettingsRow
                   label="Default"
@@ -509,56 +503,6 @@ function providerModelSourceLabel(
   }
   if (visibleCount > 0) return `${visibleCount} visible model${visibleCount === 1 ? '' : 's'}`
   return `${providerDef.models.length} bundled model${providerDef.models.length === 1 ? '' : 's'}`
-}
-
-function ProviderSidebar({
-  providers,
-  selectedId,
-  defaultProvider,
-  availability,
-  diagnostics,
-  onSelect
-}: {
-  providers: Array<typeof PROVIDER_DEFS[string]>
-  selectedId: string
-  defaultProvider: string
-  availability: Record<string, boolean>
-  diagnostics: Record<string, ProviderDiagnosticInfo>
-  onSelect: (id: string) => void
-}): JSX.Element {
-  return (
-    <aside className="provider-sidebar" aria-label="Providers">
-      <div className="provider-sidebar-title">Providers</div>
-      <div className="provider-sidebar-list">
-        {providers.map((provider) => {
-          const selected = provider.id === selectedId
-          const status = providerReadinessLabel(availability[provider.id] !== false, diagnostics[provider.id])
-          return (
-            <button
-              key={provider.id}
-              type="button"
-              className="provider-sidebar-item"
-              data-selected={selected ? 'true' : 'false'}
-              data-testid={`provider-sidebar-item-${provider.id}`}
-              onClick={() => onSelect(provider.id)}
-              style={{ '--provider-color': provider.color } as CSSProperties}
-            >
-              <span className="provider-sidebar-icon">
-                <ProviderIcon providerId={provider.id} size={15} color={provider.color} />
-              </span>
-              <span className="provider-sidebar-copy">
-                <span className="provider-sidebar-name">
-                  {provider.name}
-                  {provider.id === defaultProvider && <span className="provider-sidebar-default">Default</span>}
-                </span>
-                <span className="provider-sidebar-status">{status}</span>
-              </span>
-            </button>
-          )
-        })}
-      </div>
-    </aside>
-  )
 }
 
 function ProviderCompactHeader({

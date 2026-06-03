@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import type { DragEvent as ReactDragEvent, ReactNode } from 'react'
 import type { Project, Session, SidebarConnectionGroupIdentity } from '../../types'
-import { comparePinnedSessions, compareSidebarSessions, isSidebarPinnedSession, isSidebarProjectlessSession, normalizeSettingsHostId, normalizeSettingsSectionForHostKind, settingsHostOptionsFromSessions, settingsNavigationGroupsForHostKind, settingsRouteUrlForLocation, sidebarConnectionGroupIdentity } from '../../types'
+import { PROVIDER_DEFS, comparePinnedSessions, compareSidebarSessions, isSidebarPinnedSession, isSidebarProjectlessSession, normalizeSettingsHostId, normalizeSettingsSectionForHostKind, settingsHostOptionsFromSessions, settingsNavigationGroupsForHostKind, settingsRouteUrlForLocation, sidebarConnectionGroupIdentity } from '../../types'
 import { useProjectStore } from '../../store/projects'
 import type { SidebarCustomSection } from '../../store/sidebar'
 import { sidebarSessionSelectedKey, sidebarSettingsSelectedKey, useSidebarStore } from '../../store/sidebar'
@@ -10,6 +10,7 @@ import ProjectSection from './ProjectSection'
 import SessionItem from './SessionItem'
 import { IconButton, MenuItem, MenuSection, MenuSectionLabel, MenuSurface, SidebarListRow, TextInputDialog } from '../shared/designSystem'
 import type { IconName } from '../shared/Icon'
+import ProviderIcon from '../shared/ProviderIcon'
 import type { SettingsSection } from '../../store/sessions'
 
 const SETTINGS_SECTION_LABELS: Record<SettingsSection, string> = {
@@ -115,8 +116,11 @@ export default function Sidebar({
     showCapabilities,
     settingsSection,
     settingsHostId,
+    selectedSettingsProviderId,
+    providerAvailability,
     setSettingsSection,
     setSettingsHostId,
+    setSelectedSettingsProviderId,
     setShowCapabilities,
     setShowSettings,
     activeSessionId,
@@ -971,18 +975,54 @@ export default function Sidebar({
                 </div>
                 <div className="settings-nav-group-rows">
                   {group.sections.map((section) => (
-                    <SidebarNavItem
-                      key={section}
-                      icon={SETTINGS_SECTION_ICONS[section]}
-                      label={SETTINGS_SECTION_LABELS[section]}
-                      active={effectiveSettingsSection === section}
-                      sidebarKey={sidebarSettingsSelectedKey(section)}
-                      onClick={() => {
-                        pushSettingsRoute(section, selectedSettingsHost.id)
-                        setSelectedSidebarKey(sidebarSettingsSelectedKey(section))
-                        setSettingsSection(section)
-                      }}
-                    />
+                    <Fragment key={section}>
+                      <SidebarNavItem
+                        icon={SETTINGS_SECTION_ICONS[section]}
+                        label={SETTINGS_SECTION_LABELS[section]}
+                        active={effectiveSettingsSection === section}
+                        sidebarKey={sidebarSettingsSelectedKey(section)}
+                        onClick={() => {
+                          pushSettingsRoute(section, selectedSettingsHost.id)
+                          setSelectedSidebarKey(sidebarSettingsSelectedKey(section))
+                          setSettingsSection(section)
+                        }}
+                      />
+                      {section === 'providers' && effectiveSettingsSection === 'providers' && (
+                        <div
+                          className="settings-provider-nav-children"
+                          data-testid="settings-provider-nav-children"
+                          aria-label="Provider settings"
+                        >
+                          {Object.values(PROVIDER_DEFS).map((provider) => {
+                            const selected = selectedSettingsProviderId === provider.id
+                            const available = providerAvailability[provider.id] !== false
+                            return (
+                              <button
+                                key={provider.id}
+                                type="button"
+                                className="settings-provider-nav-child"
+                                data-testid={`settings-provider-nav-child-${provider.id}`}
+                                data-selected={selected ? 'true' : 'false'}
+                                data-available={available ? 'true' : 'false'}
+                                onClick={() => {
+                                  pushSettingsRoute('providers', selectedSettingsHost.id)
+                                  setSelectedSettingsProviderId(provider.id)
+                                  setSelectedSidebarKey(sidebarSettingsSelectedKey('providers'))
+                                  setSettingsSection('providers')
+                                }}
+                                style={{ '--provider-color': provider.color } as React.CSSProperties}
+                              >
+                                <ProviderIcon providerId={provider.id} size={13} color={provider.color} />
+                                <span className="settings-provider-nav-child-label">{provider.name}</span>
+                                <span className="settings-provider-nav-child-status">
+                                  {available ? 'Installed' : 'Missing'}
+                                </span>
+                              </button>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </Fragment>
                   ))}
                 </div>
               </div>

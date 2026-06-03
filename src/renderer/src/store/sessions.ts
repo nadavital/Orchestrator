@@ -244,6 +244,7 @@ interface SessionState {
   showCapabilities: boolean
   settingsSection: SettingsSection
   settingsHostId: string
+  selectedSettingsProviderId: string
   setSessions: (sessions: SessionListItem[]) => void
   addSession: (session: Session) => void
   hydrateSession: (session: Session) => void
@@ -321,6 +322,7 @@ interface SessionState {
   setShowCapabilities: (v: boolean) => void
   setSettingsSection: (section: SettingsSection) => void
   setSettingsHostId: (hostId: string) => void
+  setSelectedSettingsProviderId: (providerId: string) => void
   appendMessages: (id: string, messages: ChatMessage[]) => void
   upsertMessage: (id: string, message: ChatMessage) => void
   removeMessage: (id: string, messageId: string) => void
@@ -431,6 +433,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   showCapabilities: false,
   settingsSection: 'general',
   settingsHostId: 'local',
+  selectedSettingsProviderId: 'claude',
 
   setSessions: (sessions) => set({ sessions }),
 
@@ -1544,6 +1547,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   setSettingsSection: (section) => set({ settingsSection: section }),
   setSettingsHostId: (settingsHostId) => set({ settingsHostId }),
+  setSelectedSettingsProviderId: (selectedSettingsProviderId) => set({ selectedSettingsProviderId }),
 
   appendMessages: (id, messages) =>
     set((s) => ({
