@@ -78,7 +78,7 @@ export default function ProvidersSettingsPage({
   onSetDefaultPermissionMode: (providerId: string, modeId: string) => void
   onSetProviderModels: (providerId: string, models: string[]) => void
   onSetProviderPermissionContexts: Dispatch<SetStateAction<Record<string, ProviderPermissionRuntimeContext>>>
-  onLoadProviderDiagnostics: (providerId: string) => void
+  onLoadProviderDiagnostics: (providerId: string, options?: { force?: boolean }) => void
 }): JSX.Element {
   const providerList = Object.values(PROVIDER_DEFS)
   const [selectedId, setSelectedId] = useState(defaultProvider)
@@ -303,6 +303,8 @@ export default function ProvidersSettingsPage({
                         color={providerDef.color}
                         surfaces={authCommandSurfaces}
                         sessions={sessions}
+                        authStatus={diagnostics?.auth.status}
+                        onAuthFlowSettled={() => onLoadProviderDiagnostics(providerDef.id, { force: true })}
                       />
                     )}
                   />
@@ -413,6 +415,8 @@ export default function ProvidersSettingsPage({
                         providerDef={providerDef}
                         authCommandSurfaces={authCommandSurfaces}
                         sessions={sessions}
+                        authStatus={diagnostics?.auth.status}
+                        onAuthFlowSettled={() => onLoadProviderDiagnostics(providerDef.id, { force: true })}
                       />
                     </ProviderDetailCard>
                   </div>
@@ -927,11 +931,15 @@ function formatProviderRuntimeActivity(
 function ProviderSetupDetails({
   providerDef,
   authCommandSurfaces,
-  sessions
+  sessions,
+  authStatus,
+  onAuthFlowSettled
 }: {
   providerDef: typeof PROVIDER_DEFS[string]
   authCommandSurfaces: ProviderCommandSurface[]
   sessions: SessionListItem[]
+  authStatus?: ProviderDiagnosticInfo['auth']['status']
+  onAuthFlowSettled?: () => void
 }): JSX.Element {
   return (
     <div className="provider-setup-card" data-testid="provider-setup-card">
@@ -955,6 +963,8 @@ function ProviderSetupDetails({
             color={providerDef.color}
             surfaces={authCommandSurfaces}
             sessions={sessions}
+            authStatus={authStatus}
+            onAuthFlowSettled={onAuthFlowSettled}
           />
         </div>
       )}
@@ -970,15 +980,20 @@ function ProviderManagedAuthActions({
   providerId,
   color,
   surfaces,
-  sessions
+  sessions,
+  authStatus,
+  onAuthFlowSettled
 }: {
   providerId: string
   color: string
   surfaces: ProviderCommandSurface[]
   sessions: SessionListItem[]
+  authStatus?: ProviderDiagnosticInfo['auth']['status']
+  onAuthFlowSettled?: () => void
 }): JSX.Element {
   const [results, setResults] = useState<Record<string, ProviderCommandSurfaceResult>>({})
   const [authFlows, setAuthFlows] = useState<Record<string, ProviderAuthFlowResult>>({})
+  const [copiedCodes, setCopiedCodes] = useState<Record<string, boolean>>({})
   const [loading, setLoading] = useState<Record<string, boolean>>({})
   const { terminalStatus, insertSurfaceInTerminal } = useProviderCommandTerminalHandoff(providerId, sessions)
 
@@ -986,8 +1001,9 @@ function ProviderManagedAuthActions({
     return window.api.providers.onAuthFlowUpdate((result) => {
       if (result.providerId !== providerId) return
       setAuthFlows((current) => ({ ...current, [result.surfaceId]: result }))
+      if (result.status === 'completed' || result.status === 'error') onAuthFlowSettled?.()
     })
-  }, [providerId])
+  }, [onAuthFlowSettled, providerId])
 
   const runSurface = async (surface: ProviderCommandSurface): Promise<void> => {
     if (surface.quota !== 'none' || surface.mutatesState) return
@@ -998,6 +1014,14 @@ function ProviderManagedAuthActions({
     } finally {
       setLoading((current) => ({ ...current, [surface.id]: false }))
     }
+  }
+
+  const copyAuthCode = async (surfaceId: string, code: string): Promise<void> => {
+    await writeClipboardText(code)
+    setCopiedCodes((current) => ({ ...current, [surfaceId]: true }))
+    window.setTimeout(() => {
+      setCopiedCodes((current) => ({ ...current, [surfaceId]: false }))
+    }, 1400)
   }
 
   const startAuthFlow = async (surface: ProviderCommandSurface): Promise<void> => {
@@ -1030,6 +1054,7 @@ function ProviderManagedAuthActions({
           const runnable = surface.quota === 'none' && !surface.mutatesState
           const managedAuthFlow = supportsProviderManagedAuthFlow(providerId, surface)
           const waitingForBrowserAuth = managedAuthFlow && authFlows[surface.id]?.status === 'started'
+          const signedIn = managedAuthFlow && (authFlows[surface.id]?.status === 'completed' || authStatus === 'ok')
           const busy = loading[surface.id] === true
           return (
             <button
@@ -1038,7 +1063,7 @@ function ProviderManagedAuthActions({
               className="provider-command-output-action"
               data-testid={`provider-managed-auth-action-${surface.id}`}
               data-runnable="true"
-              disabled={busy || waitingForBrowserAuth || (!runnable && !managedAuthFlow && sessions.length === 0)}
+              disabled={busy || waitingForBrowserAuth || signedIn || (!runnable && !managedAuthFlow && sessions.length === 0)}
               aria-label={`${managedAuthFlow ? 'Start' : runnable ? 'Check' : 'Open terminal for'} ${surface.label}`}
               onClick={() => {
                 if (managedAuthFlow) void startAuthFlow(surface)
@@ -1047,7 +1072,7 @@ function ProviderManagedAuthActions({
               }}
               style={{ '--provider-accent': color } as CSSProperties}
             >
-              {busy ? (managedAuthFlow ? 'Starting' : 'Checking') : waitingForBrowserAuth ? 'Waiting for browser' : runnable ? `Check ${surface.label}` : surface.label}
+              {busy ? (managedAuthFlow ? 'Starting' : 'Checking') : signedIn ? 'Signed in' : waitingForBrowserAuth ? 'Waiting for browser' : runnable ? `Check ${surface.label}` : surface.label}
             </button>
           )
         })}
@@ -1099,7 +1124,7 @@ function ProviderManagedAuthActions({
                 >
                   {authFlow.message}
                 </div>
-                {authFlow.code && (
+                {authFlow.status === 'started' && authFlow.code && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', minWidth: 0 }}>
                     <code className="provider-command-output-command" data-testid={`provider-managed-auth-code-${surface.id}`}>
                       {authFlow.code}
@@ -1107,14 +1132,14 @@ function ProviderManagedAuthActions({
                     <button
                       type="button"
                       className="provider-command-output-action"
-                      onClick={() => void writeClipboardText(authFlow.code ?? '')}
+                      onClick={() => void copyAuthCode(surface.id, authFlow.code ?? '')}
                       style={{ '--provider-accent': color } as CSSProperties}
                     >
-                      Copy code
+                      {copiedCodes[surface.id] ? 'Copied' : 'Copy code'}
                     </button>
                   </div>
                 )}
-                {authFlow.url && (
+                {authFlow.status === 'started' && authFlow.url && (
                   <button
                     type="button"
                     className="provider-command-output-action"

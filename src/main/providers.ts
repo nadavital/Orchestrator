@@ -40,6 +40,8 @@ import { loadDotEnvFile } from './localEnv'
 import { listProviderRuntimeConnections, listProviderRuntimeDebugEvents } from './providerRuntimeDiagnostics'
 import { providerKeychainEnv } from './providerSecrets'
 
+const importEsm = new Function('specifier', 'return import(specifier)') as (specifier: string) => Promise<unknown>
+
 function isExecutablePath(path: string): boolean {
   try {
     accessSync(path, constants.X_OK)
@@ -1534,6 +1536,10 @@ async function providerSpecificDiagnosticsAsync(
   fallbackAuth: ProviderDiagnosticInfo['auth'],
   fallbackModels: ProviderDiagnosticInfo['models']
 ): Promise<Pick<ProviderDiagnosticInfo, 'auth' | 'models'>> {
+  if (providerId === 'copilot') {
+    return copilotSdkDiagnostics(fallbackAuth, fallbackModels)
+  }
+
   if (!binary || providerId !== 'cursor') {
     return { auth: fallbackAuth, models: fallbackModels }
   }
@@ -1557,6 +1563,100 @@ async function providerSpecificDiagnosticsAsync(
     : fallbackModels
 
   return { auth, models }
+}
+
+async function copilotSdkDiagnostics(
+  fallbackAuth: ProviderDiagnosticInfo['auth'],
+  fallbackModels: ProviderDiagnosticInfo['models']
+): Promise<Pick<ProviderDiagnosticInfo, 'auth' | 'models'>> {
+  let client: {
+    start: () => Promise<void>
+    stop: () => Promise<unknown>
+    forceStop?: () => Promise<unknown>
+    getAuthStatus: () => Promise<unknown>
+    listModels: () => Promise<Array<{ id?: string }>>
+    listSessions: (options?: { cwd?: string }) => Promise<Array<{ sessionId?: string }>>
+  } | null = null
+  let timeout: ReturnType<typeof setTimeout> | null = null
+
+  try {
+    const sdk = await importEsm('@github/copilot-sdk') as {
+      CopilotClient?: new (options: { workingDirectory: string; env: NodeJS.ProcessEnv; logLevel?: string }) => NonNullable<typeof client>
+    }
+    if (!sdk.CopilotClient) {
+      return {
+        auth: { status: 'unknown', message: 'GitHub Copilot SDK is installed, but CopilotClient was not exported.' },
+        models: fallbackModels
+      }
+    }
+
+    client = new sdk.CopilotClient({
+      workingDirectory: process.cwd(),
+      env: providerSpawnEnv('copilot'),
+      logLevel: 'error'
+    })
+
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeout = setTimeout(() => reject(new Error('Copilot SDK auth probe timed out.')), 15_000)
+    })
+
+    return await Promise.race<Pick<ProviderDiagnosticInfo, 'auth' | 'models'>>([
+      (async (): Promise<Pick<ProviderDiagnosticInfo, 'auth' | 'models'>> => {
+        await client?.start()
+        const authStatus = asRecord(await client?.getAuthStatus())
+        if (authStatus?.isAuthenticated !== true) {
+          return {
+            auth: fallbackAuth.status === 'error'
+              ? fallbackAuth
+              : {
+                  status: 'unknown',
+                  message: 'GitHub Copilot SDK is reachable, but no authenticated Copilot account was reported.'
+                },
+            models: fallbackModels
+          }
+        }
+
+        const models = await client?.listModels()
+        const sessions = await client?.listSessions({ cwd: process.cwd() })
+        const modelCount = Array.isArray(models) ? models.length : 0
+        const sessionCount = Array.isArray(sessions) ? sessions.length : 0
+        return {
+          auth: {
+            status: 'ok',
+            message: `GitHub Copilot SDK authenticated. ${sessionCount} existing session${sessionCount === 1 ? '' : 's'} visible.`
+          },
+          models: modelCount > 0
+            ? {
+                status: 'available',
+                count: modelCount,
+                message: `${modelCount} models reported by GitHub Copilot SDK for this account.`
+              }
+            : fallbackModels
+        } satisfies Pick<ProviderDiagnosticInfo, 'auth' | 'models'>
+      })(),
+      timeoutPromise
+    ])
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    const authFailure = providerAuthFailureMessage(message)
+    return {
+      auth: authFailure
+        ? { status: 'error', message: authFailure }
+        : { status: 'unknown', message: `GitHub Copilot SDK auth probe failed: ${message}` },
+      models: fallbackModels
+    }
+  } finally {
+    if (timeout) clearTimeout(timeout)
+    try {
+      await client?.stop()
+    } catch {
+      try {
+        await client?.forceStop?.()
+      } catch {
+        // Best-effort cleanup; diagnostics should not fail because stop failed.
+      }
+    }
+  }
 }
 
 function policy(
