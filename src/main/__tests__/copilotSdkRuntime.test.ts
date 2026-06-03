@@ -120,6 +120,7 @@ test('copilot sdk events normalize core thread, text, tools, prompts, usage, and
   assert.equal(subagent[0]?.type, 'agent.started')
   assert.equal(subagent[0]?.type === 'agent.started' ? subagent[0].agent.providerAgentId : undefined, 'agent-1')
 
+  const pendingUsage = {}
   const usage = normalizeCopilotSdkEvent({
     type: 'assistant.usage',
     id: 'event-6',
@@ -127,9 +128,19 @@ test('copilot sdk events normalize core thread, text, tools, prompts, usage, and
     timestamp: '2026-06-02T00:00:05.000Z',
     ephemeral: true,
     data: { model: 'gpt-5.5', inputTokens: 10, outputTokens: 5, cacheReadTokens: 2, cost: 0.01, duration: 250 }
-  } as unknown as import('@github/copilot-sdk').SessionEvent, 'copilot-session-1')
-  assert.deepEqual(usage.at(-1), { type: 'run.completed', usage: { inputTokens: 10, outputTokens: 5, cacheReadInputTokens: 2, totalTokens: 17, totalCostUsd: 0.01, durationMs: 250 } })
-  assert.equal(usage.some((event) => event.type === 'assistant.status' && event.content === 'Copilot SDK usage updated.'), false)
+  } as unknown as import('@github/copilot-sdk').SessionEvent, 'copilot-session-1', { pendingUsage })
+  assert.deepEqual(usage, [])
+
+  assert.deepEqual(
+    normalizeCopilotSdkEvent({
+      type: 'session.idle',
+      id: 'event-7',
+      parentId: 'event-6',
+      timestamp: '2026-06-02T00:00:06.000Z',
+      data: {}
+    } as unknown as import('@github/copilot-sdk').SessionEvent, 'copilot-session-1', { pendingUsage }),
+    [{ type: 'run.completed', usage: { inputTokens: 10, outputTokens: 5, cacheReadInputTokens: 2, totalTokens: 17, totalCostUsd: 0.01, durationMs: 250 } }]
+  )
 })
 
 test('copilot sdk final assistant message completes an existing stream', () => {
@@ -166,4 +177,65 @@ test('copilot sdk final assistant message completes an existing stream', () => {
     ]
   )
   assert.equal(streamedMessageIds.has('message-2'), false)
+})
+
+test('copilot sdk usage and task completion do not end a turn before final message', () => {
+  const streamedMessageIds = new Set<string>()
+  const pendingUsage = {}
+  assert.deepEqual(
+    normalizeCopilotSdkEvent({
+      type: 'assistant.message_delta',
+      id: 'event-9',
+      parentId: null,
+      timestamp: '2026-06-02T00:00:08.000Z',
+      ephemeral: true,
+      data: { messageId: 'message-3', deltaContent: 'Hey' }
+    } as import('@github/copilot-sdk').SessionEvent, 'copilot-session-1', { streamedMessageIds, pendingUsage }),
+    [{ type: 'assistant.text.delta', streamId: 'message-3', content: 'Hey' }]
+  )
+
+  assert.deepEqual(
+    normalizeCopilotSdkEvent({
+      type: 'assistant.usage',
+      id: 'event-10',
+      parentId: 'event-9',
+      timestamp: '2026-06-02T00:00:09.000Z',
+      ephemeral: true,
+      data: { inputTokens: 1, outputTokens: 2, cacheReadTokens: 0, cost: 0, duration: 0 }
+    } as unknown as import('@github/copilot-sdk').SessionEvent, 'copilot-session-1', { streamedMessageIds, pendingUsage }),
+    []
+  )
+
+  assert.deepEqual(
+    normalizeCopilotSdkEvent({
+      type: 'session.task_complete',
+      id: 'event-11',
+      parentId: 'event-10',
+      timestamp: '2026-06-02T00:00:10.000Z',
+      data: {}
+    } as unknown as import('@github/copilot-sdk').SessionEvent, 'copilot-session-1', { streamedMessageIds, pendingUsage }),
+    []
+  )
+
+  assert.deepEqual(
+    normalizeCopilotSdkEvent({
+      type: 'assistant.message',
+      id: 'event-12',
+      parentId: 'event-11',
+      timestamp: '2026-06-02T00:00:11.000Z',
+      data: { messageId: 'message-3', content: 'Hey! How can I help you today?' }
+    } as import('@github/copilot-sdk').SessionEvent, 'copilot-session-1', { streamedMessageIds, pendingUsage }),
+    [{ type: 'assistant.text.completed', streamId: 'message-3', content: 'Hey! How can I help you today?' }]
+  )
+
+  assert.deepEqual(
+    normalizeCopilotSdkEvent({
+      type: 'session.idle',
+      id: 'event-13',
+      parentId: 'event-12',
+      timestamp: '2026-06-02T00:00:12.000Z',
+      data: {}
+    } as unknown as import('@github/copilot-sdk').SessionEvent, 'copilot-session-1', { streamedMessageIds, pendingUsage }),
+    [{ type: 'run.completed', usage: { inputTokens: 1, outputTokens: 2, cacheReadInputTokens: 0, totalTokens: 3, totalCostUsd: 0, durationMs: 0 } }]
+  )
 })

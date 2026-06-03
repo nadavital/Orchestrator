@@ -35,6 +35,7 @@ interface ActiveCopilotSdkRun {
   client?: CopilotClient
   session?: CopilotSession
   streamedMessageIds: Set<string>
+  pendingUsage: { current?: UsageSummary }
   stopped: boolean
   completed: boolean
   exited?: boolean
@@ -58,6 +59,7 @@ export class CopilotSdkRuntimeManager {
 
     this.activeRuns.set(options.sessionId, {
       streamedMessageIds: new Set(),
+      pendingUsage: {},
       stopped: false,
       completed: false,
       sessionId: options.sessionId,
@@ -137,7 +139,10 @@ export class CopilotSdkRuntimeManager {
         if (this.activeRuns.get(options.sessionId) !== active || active.stopped) return
         const raw = `${JSON.stringify(event)}\n`
         options.onRawData(raw)
-        const events = normalizeCopilotSdkEvent(event, session.sessionId, { streamedMessageIds: active.streamedMessageIds })
+        const events = normalizeCopilotSdkEvent(event, session.sessionId, {
+          streamedMessageIds: active.streamedMessageIds,
+          pendingUsage: active.pendingUsage
+        })
         if (events.some((item) => item.type === 'run.completed' || item.type === 'run.failed')) active.completed = true
         options.onParsedEvents(events)
       })
@@ -239,7 +244,7 @@ export function copilotSdkMessageOptions(request: RunRequest): MessageOptions {
 export function normalizeCopilotSdkEvent(
   event: SessionEvent,
   providerSessionId?: string,
-  options: { streamedMessageIds?: Set<string> } = {}
+  options: { streamedMessageIds?: Set<string>; pendingUsage?: { current?: UsageSummary } } = {}
 ): RunEvent[] {
   const events: RunEvent[] = []
   const data = asRecord(event.data)
@@ -252,8 +257,12 @@ export function normalizeCopilotSdkEvent(
     if (producer) events.push({ type: 'assistant.status', content: `Copilot SDK session ${event.type === 'session.resume' ? 'resumed' : 'started'}: ${producer}` })
   } else if (event.type === 'session.error') {
     events.push({ type: 'run.failed', content: stringValue(data?.message) ?? 'Copilot SDK session error.' })
-  } else if (event.type === 'session.idle' || event.type === 'session.task_complete') {
-    events.push({ type: 'run.completed' })
+  } else if (event.type === 'session.idle') {
+    events.push({ type: 'run.completed', usage: options.pendingUsage?.current })
+    if (options.pendingUsage) options.pendingUsage.current = undefined
+  } else if (event.type === 'session.task_complete') {
+    const content = stringValue(data?.message, data?.summary, data?.description)
+    if (content) events.push({ type: 'assistant.status', content })
   } else if (event.type === 'assistant.message_delta') {
     const content = stringValue(data?.deltaContent)
     const streamId = stringValue(data?.messageId) ?? eventId
@@ -288,7 +297,7 @@ export function normalizeCopilotSdkEvent(
     if (content) events.push({ type: 'assistant.status', content })
   } else if (event.type === 'assistant.usage') {
     const usage = copilotUsageSummary(data)
-    if (usage) events.push({ type: 'run.completed', usage })
+    if (usage && options.pendingUsage) options.pendingUsage.current = usage
   } else if (event.type === 'tool.execution_start') {
     events.push({
       type: 'tool.started',
