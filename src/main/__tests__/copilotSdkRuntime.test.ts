@@ -154,7 +154,7 @@ test('copilot sdk final assistant message completes an existing stream', () => {
       ephemeral: true,
       data: { messageId: 'message-2', deltaContent: 'Hello! I am GitHubCopilot CLI.Howcan' }
     } as import('@github/copilot-sdk').SessionEvent, 'copilot-session-1', { streamedMessageIds }),
-    [{ type: 'assistant.text.delta', streamId: 'message-2', content: 'Hello! I am GitHub Copilot.Howcan' }]
+    [{ type: 'assistant.text.delta', streamId: 'message-2', content: 'Hello! I am GitHub Copilot. How can' }]
   )
 
   assert.deepEqual(

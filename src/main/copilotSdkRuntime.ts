@@ -268,7 +268,7 @@ export function normalizeCopilotSdkEvent(
     const streamId = stringValue(data?.messageId) ?? eventId
     options.streamedMessageIds?.add(streamId)
     if (content && event.agentId) events.push({ type: 'agent.text.delta', agentId: event.agentId, streamId, content })
-    else if (content) events.push({ type: 'assistant.text.delta', streamId, content: sanitizeCopilotAssistantText(content, 'delta') })
+    else if (content) events.push({ type: 'assistant.text.delta', streamId, content: sanitizeCopilotAssistantText(content) })
   } else if (event.type === 'assistant.message') {
     const messageId = stringValue(data?.messageId)
     const content = sanitizeCopilotAssistantText(stringValue(data?.content) ?? '')
@@ -352,18 +352,15 @@ export function normalizeCopilotSdkEvent(
   return events
 }
 
-function sanitizeCopilotAssistantText(content: string, mode: 'final' | 'delta' = 'final'): string {
+function sanitizeCopilotAssistantText(content: string): string {
   if (!content) return content
-  let next = content
+  return content
     .replace(/\bGitHubCopilot\s+CLI\b/g, 'GitHub Copilot')
     .replace(/\bGitHub Copilot\s+CLI\b/g, 'GitHub Copilot')
     .replace(/\bGitHubCopilot\b/g, 'GitHub Copilot')
-  if (mode === 'final') {
-    next = next
-      .replace(/([.!?])(?=[A-Z])/g, '$1 ')
-      .replace(/\bHowcan\b/g, 'How can')
-  }
-  return next
+    .replace(/([.!?])(?=[A-Z])/g, '$1 ')
+    .replace(/\bHowcan(?=[A-Z])/g, 'How can ')
+    .replace(/\bHowcan\b/g, 'How can')
 }
 
 function copilotAgentNode(status: AgentNode['status'], event: SessionEvent, sessionId: string): AgentNode {
