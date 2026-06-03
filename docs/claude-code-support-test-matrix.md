@@ -1,12 +1,12 @@
 # Claude Code Support Test Matrix
 
-This document is supporting evidence for `docs/orchestrator-source-of-truth.md`. The active Claude product path is structured print mode:
+This document is supporting evidence for `docs/orchestrator-source-of-truth.md`. The active Claude product path is now the Claude Agent SDK:
 
 ```text
-claude -p --output-format stream-json --verbose --include-partial-messages
+@anthropic-ai/claude-agent-sdk query()
 ```
 
-The old Claude-native chat parser/prompt bridge has been removed from the app runtime. Historical native PTY experiments remain useful only as evidence for why Orchestrator should prefer structured JSON for Claude chat.
+The old Claude-native chat parser/prompt bridge and structured `claude -p stream-json` normal chat lane have been removed from the app runtime. Historical native PTY and print-mode experiments remain useful only as evidence for why Orchestrator should prefer structured SDK messages for Claude chat.
 
 ## Status Legend
 
@@ -22,7 +22,7 @@ The old Claude-native chat parser/prompt bridge has been removed from the app ru
 
 | Claude surface | Expected Orchestrator UX | Current coverage | Next check |
 | --- | --- | --- | --- |
-| Structured print stream | Default Claude chat/runtime path; not a user-visible runtime choice. | Complete via provider fixtures, installed-app smokes, and live structured capability suite. | Keep `plain`, `file_ops`, `plan_mode`, and `streaming` live scenarios current. |
+| Claude SDK message stream | Default Claude chat/runtime path; not a user-visible runtime choice. | Complete via SDK runtime tests, provider fixtures, installed-app smokes, and live SDK probes. | Keep `plain`, `file_ops`, `plan_mode`, and `streaming` live scenarios current against the SDK path. |
 | Partial assistant messages | Stream deltas without duplicating final text. | Complete via `partial-message.jsonl` and provider tests. | Refresh fixture if Claude stream event shape changes. |
 | Hook approvals | Approval cards resolve without replaying the process. | Complete for current hook event bridge and installed-app smokes. | Keep `hook-approval.jsonl` current. |
 | Resume/continue | Preserve Claude session id and visible continuity. | Complete for normal multi-turn structured sessions. | Re-test after runtime/app-server refactors. |
@@ -44,7 +44,7 @@ The old Claude-native chat parser/prompt bridge has been removed from the app ru
 | Selectable Claude native chat runtime | Won't Do | Structured JSON covers the needed Claude Code surfaces with cleaner, testable events. |
 | Claude native terminal text parser | Won't Do | Removed as dead code after structured-first verification. |
 | Claude native workspace trust / `.mcp.json` prompt bridge | Won't Do | Removed with the native chat lane; future provider-management flows should use explicit settings or terminal handoff. |
-| Workspace trust prompt | Won't Do | Avoided in normal chat by using structured print mode; do not revive native chat parsing for this. |
+| Workspace trust prompt | Won't Do | Avoided in normal chat by using the SDK runtime; do not revive native chat parsing for this. |
 | Built-in TUI-only slash commands | Gated | Use Orchestrator-native surfaces where safe; route provider-state actions through settings/manual terminal flows. |
 
 ## Verification Gates
@@ -62,12 +62,12 @@ Do not call Claude support complete unless:
 9. Task/subagent runs show chips, sidebar tabs, transcript, and failure state.
 10. Slash commands, skills, MCP, plugins, and agents remain compact and non-noisy.
 11. Mutating provider commands remain gated.
-12. Automated tests and structured live smokes pass when auth/quota allow.
+12. Automated tests and SDK live smokes pass when auth/quota allow.
 
 ## Latest Notes
 
 - 2026-05-30: `npm run live:claude-capabilities` still records `Unavailable`, not a passing Claude proof. The elevated refresh shows `claude --version` reports `2.1.51`, `auth status`, MCP list, plugin list, and agents probes pass, but `auto-mode defaults` returns API 401 invalid credentials, so the harness skips `plain`, `file_ops`, `plan_mode`, and `streaming` structured scenarios. Artifact: `/Users/nadav/Desktop/Orchestrator/tmp/claude-live-capabilities/_summary/summary.json`.
 - 2026-05-29: `npm run live:claude-capabilities` added no-quota Claude probes before structured scenarios so auth/runtime unavailability is captured before quota-using proof runs.
-- 2026-05-13: Claude native runtime selection was removed from normal chat and stale Claude sessions normalize back to structured/headless before sending.
+- 2026-05-13, updated 2026-06-02: Claude native runtime selection was removed from normal chat; stale Claude sessions now normalize back to the SDK runtime before sending.
 - 2026-05-13: Structured plan sidebar, subagent tabs, attachments, usage, and side questions were verified in isolated dev UI profiles.
 - 2026-05-13: The old Claude-native terminal parser, native prompt bridge, and runtime-parity script were removed so Claude support stays structured-first.

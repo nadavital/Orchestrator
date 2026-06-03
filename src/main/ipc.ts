@@ -1,12 +1,12 @@
 import type { IpcMain, OpenDialogOptions } from 'electron'
 import { BrowserWindow, dialog, app, clipboard, shell, session } from 'electron'
-import { execFile } from 'child_process'
+import { execFile, spawn, type ChildProcess } from 'child_process'
 import { request as httpRequest } from 'http'
 import { closeSync, openSync, readFileSync, readSync, writeFileSync, mkdirSync, readdirSync, existsSync, statSync } from 'fs'
 import { tmpdir } from 'os'
 import { basename, dirname, extname, join } from 'path'
 import { inflateRawSync } from 'zlib'
-import type { Attachment, AutomationUpsertRequest, CapabilityCreateRequest, CapabilityDeleteRequest, CapabilitySyncRequest, CapabilityUpdateRequest, ChatMessage, CodexReviewStartRequest, GitBranchActionResult, GitCommitResult, GitLineBlameResult, GitPathActionResult, OpenPathMethod, OpenPathOptions, OpenPathResult, OpenTargetAvailability, PerformanceMetric, PreferredOpenTarget, ReviewDiffSource, Session, SessionForkMode, SessionForkOptions, SideQuestionMessage, TranscriptPageRequest, UserInputAnswerPayload, WorkspaceSearchRequest } from '../types'
+import type { Attachment, AutomationUpsertRequest, CapabilityCreateRequest, CapabilityDeleteRequest, CapabilitySyncRequest, CapabilityUpdateRequest, ChatMessage, CodexReviewStartRequest, GitBranchActionResult, GitCommitResult, GitLineBlameResult, GitPathActionResult, OpenPathMethod, OpenPathOptions, OpenPathResult, OpenTargetAvailability, PerformanceMetric, PreferredOpenTarget, ProviderAuthFlowResult, ReviewDiffSource, Session, SessionForkMode, SessionForkOptions, SideQuestionMessage, TranscriptPageRequest, UserInputAnswerPayload, WorkspaceSearchRequest } from '../types'
 import { browserWebviewPartitionForHost, isOrchestratorBrowserWebviewPartition } from '../types'
 import { projectStore } from './projects'
 import { sessionManager } from './sessions'
@@ -17,7 +17,7 @@ import { settingsStore } from './settings'
 import { terminalManager } from './terminal'
 import { petOverlayManager } from './petOverlay'
 import { getAppProfile } from './appProfile'
-import { getProviderDiagnosticsAsync, getProviderPermissionRuntimeContextAsync, getProviderRuntimeInfo, runProviderCommandSurfaceAsync, validateProviderAuthSecret } from './providers'
+import { PROVIDERS, getProviderDiagnosticsAsync, getProviderPermissionRuntimeContextAsync, getProviderRuntimeInfo, providerSpawnEnv, resolveProviderBinary, runProviderCommandSurfaceAsync, validateProviderAuthSecret } from './providers'
 import { resolveWorkspaceFileReference } from './workspaceResolver'
 import { searchWorkspace } from './workspaceSearch'
 import { discoverClaudeExtensions } from './claudeExtensions'
@@ -32,6 +32,7 @@ import { deleteProviderAuthSecret, getProviderAuthSecretStatus, setProviderAuthS
 import { setBrowserSecurityPolicy } from './browserSecurityPolicy'
 import { registerBrowserClientToolIpc } from './browserClientTools'
 import { EDITOR_OPEN_TARGETS, editorCliTargets, editorFileUrl, editorOpenTarget, findExecutableCommand, normalizePreferredOpenTarget, type EditorOpenTarget } from './editorOpen'
+import { safeWindowSend } from './safeWebContents'
 type FilePreviewResult =
   | { kind: 'text'; size: number; text: string; truncated: boolean }
   | { kind: 'markdown'; size: number; text: string; truncated: boolean }
@@ -2764,6 +2765,149 @@ function openProjectDirectoryDialogOptions(): OpenDialogOptions {
   }
 }
 
+const providerAuthProcesses = new Map<string, ChildProcess>()
+
+function emitProviderAuthFlowUpdate(result: ProviderAuthFlowResult): void {
+  for (const win of BrowserWindow.getAllWindows()) {
+    safeWindowSend(win, 'providers:authFlowUpdate', result)
+  }
+}
+
+function compactProviderAuthOutput(text: string): string {
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+  return lines.slice(-4).join(' ') || 'No output'
+}
+
+export function parseCopilotDeviceAuth(text: string): { url?: string; code?: string } {
+  const url = (
+    text.match(/https:\/\/github\.com\/login\/device\b[^\s]*/)?.[0] ??
+    text.match(/https?:\/\/\S+/)?.[0]
+  )?.replace(/[),.]+$/, '')
+  const code =
+    text.match(/\bcode\s+([A-Z0-9]{4}-[A-Z0-9]{4})\b/i)?.[1] ??
+    text.match(/\b([A-Z0-9]{4}-[A-Z0-9]{4})\b/)?.[1]
+  return { url, code }
+}
+
+async function startProviderAuthFlow(providerId: string, surfaceId: string): Promise<ProviderAuthFlowResult> {
+  if (providerId !== 'copilot' || surfaceId !== 'copilot-login') {
+    return {
+      providerId,
+      surfaceId,
+      status: 'unsupported',
+      message: 'This provider does not expose a managed browser sign-in flow yet.'
+    }
+  }
+
+  const currentDiagnostics = await getProviderDiagnosticsAsync(providerId).catch(() => null)
+  if (currentDiagnostics?.[providerId]?.auth.status === 'ok') {
+    return {
+      providerId,
+      surfaceId,
+      status: 'completed',
+      message: 'GitHub Copilot is already signed in.'
+    }
+  }
+
+  const provider = PROVIDERS[providerId]
+  const binary = provider ? resolveProviderBinary(provider) : null
+  if (!provider || !binary) {
+    return {
+      providerId,
+      surfaceId,
+      status: 'error',
+      message: 'GitHub Copilot CLI is not available.'
+    }
+  }
+
+  const processKey = `${providerId}:${surfaceId}`
+  const existing = providerAuthProcesses.get(processKey)
+  if (existing && !existing.killed) existing.kill()
+
+  return await new Promise<ProviderAuthFlowResult>((resolve) => {
+    let settled = false
+    let output = ''
+    const child = spawn(binary, ['login'], {
+      cwd: process.cwd(),
+      env: providerSpawnEnv(providerId),
+      stdio: ['ignore', 'pipe', 'pipe']
+    })
+    providerAuthProcesses.set(processKey, child)
+
+    const finish = (result: ProviderAuthFlowResult): void => {
+      if (settled) return
+      settled = true
+      resolve(result)
+    }
+
+    const timeout = setTimeout(() => {
+      finish({
+        providerId,
+        surfaceId,
+        status: 'error',
+        message: `GitHub Copilot did not emit a device code. ${compactProviderAuthOutput(output)}`
+      })
+      if (!child.killed) child.kill()
+    }, 20_000)
+
+    const cleanupTimer = setTimeout(() => {
+      providerAuthProcesses.delete(processKey)
+      if (!child.killed) child.kill()
+    }, 10 * 60 * 1000)
+
+    const inspectOutput = (chunk: Buffer | string): void => {
+      if (settled) return
+      output += chunk.toString()
+      const { url, code } = parseCopilotDeviceAuth(output)
+      if (url && code) {
+        clearTimeout(timeout)
+        finish({
+          providerId,
+          surfaceId,
+          status: 'started',
+          message: 'GitHub sign-in is waiting in your browser. Enter this code when GitHub asks for the app code.',
+          url,
+          code
+        })
+      }
+    }
+
+    child.stdout?.on('data', inspectOutput)
+    child.stderr?.on('data', inspectOutput)
+    child.once('error', (error) => {
+      clearTimeout(timeout)
+      clearTimeout(cleanupTimer)
+      providerAuthProcesses.delete(processKey)
+      const result: ProviderAuthFlowResult = {
+        providerId,
+        surfaceId,
+        status: 'error',
+        message: error.message
+      }
+      if (settled) emitProviderAuthFlowUpdate(result)
+      else finish(result)
+    })
+    child.once('exit', (code, signal) => {
+      clearTimeout(timeout)
+      clearTimeout(cleanupTimer)
+      providerAuthProcesses.delete(processKey)
+      const result: ProviderAuthFlowResult = {
+        providerId,
+        surfaceId,
+        status: code === 0 ? 'completed' : 'error',
+        message: code === 0
+          ? 'GitHub Copilot sign-in completed.'
+          : `GitHub Copilot sign-in exited${code === null ? '' : ` with code ${code}`}${signal ? ` (${signal})` : ''}. ${compactProviderAuthOutput(output)}`
+      }
+      if (settled) emitProviderAuthFlowUpdate(result)
+      else finish(result)
+    })
+  })
+}
+
 export function registerIpcHandlers(ipcMain: IpcMain): void {
   registerBrowserClientToolIpc(ipcMain)
 
@@ -3048,6 +3192,9 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   )
   ipcMain.handle('providers:runCommandSurface', (_, providerId: string, surfaceId: string) =>
     runProviderCommandSurfaceAsync(providerId, surfaceId)
+  )
+  ipcMain.handle('providers:startAuthFlow', (_, providerId: string, surfaceId: string) =>
+    startProviderAuthFlow(providerId, surfaceId)
   )
   ipcMain.handle('providers:refreshSidebarMetadata', (_, providerId: string, cwd?: string) => {
     if (providerId !== 'codex') {

@@ -225,8 +225,8 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
     setSettingsSearchActiveIndex(0)
   }, [settingsSearchQuery, selectedSettingsHost.id])
 
-  const loadProviderDiagnostics = useCallback((providerId: string): void => {
-    if (providerDiagnostics[providerId] || diagnosticsLoading[providerId]) return
+  const loadProviderDiagnostics = useCallback((providerId: string, options: { force?: boolean } = {}): void => {
+    if (!options.force && (providerDiagnostics[providerId] || diagnosticsLoading[providerId])) return
     setDiagnosticsLoading((current) => ({ ...current, [providerId]: true }))
     window.api.providers.getDiagnostics(providerId)
       .then((next) => setProviderDiagnostics((current) => ({ ...current, ...next })))

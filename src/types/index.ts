@@ -137,7 +137,7 @@ export interface ProviderDef {
   color: string
   icon: string          // SVG path `d` attribute, viewBox 0 0 24 24
   iconFillRule?: string // 'evenodd' if the path needs it (default: nonzero)
-  installCmd: string    // command to install the CLI
+  installCmd: string    // command to install the provider runtime
   models: ProviderModelDef[]
   supportsEffort: boolean
   effortLevels: Array<{ id: string; label: string }>
@@ -445,6 +445,29 @@ export const PROVIDER_DEFS: Record<string, ProviderDef> = {
       { id: 'ask', label: 'Read-only', desc: 'Cursor ask mode does not apply edits.', intent: 'ask' },
       { id: 'yolo', label: 'Auto', desc: 'Skip prompts', intent: 'bypass' }
     ]
+  },
+  antigravity: {
+    id: 'antigravity',
+    name: 'Google Antigravity',
+    color: '#4285F4',
+    icon: 'M12 2 14.71 8.27 21.5 9.05 16.38 13.48 17.87 20 12 16.57 6.13 20 7.62 13.48 2.5 9.05 9.29 8.27 12 2Z',
+    iconFillRule: 'evenodd',
+    installCmd: 'python3.13 -m pip install google-antigravity',
+    models: [
+      { id: 'gemini-3.1-pro', label: 'Gemini 3.1 Pro' },
+      { id: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash' },
+      { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
+      { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' }
+    ],
+    supportsEffort: false,
+    effortLevels: [],
+    supportsResume: true,
+    defaultPermissionMode: 'default',
+    permissionModes: [
+      { id: 'default', label: 'Read-only', desc: 'Use the SDK default read-only tool configuration.', intent: 'ask' },
+      { id: 'sandbox', label: 'Workspace', desc: 'Use SDK local workspace context while preserving SDK policy controls.', intent: 'workspaceSandbox' },
+      { id: 'bypassPermissions', label: 'Allow all', desc: 'Pass SDK allow_all policy and full capabilities. Use only in isolated sandboxes.', intent: 'bypass' }
+    ]
   }
 }
 
@@ -480,6 +503,10 @@ const PROVIDER_PERMISSION_PRESET_MODE_IDS: Record<string, Partial<Record<Provide
   copilot: {
     default: 'allowEdits',
     fullAccess: 'yolo'
+  },
+  antigravity: {
+    default: 'default',
+    fullAccess: 'bypassPermissions'
   }
 }
 
@@ -916,6 +943,15 @@ export interface ProviderCommandSurfaceResult {
   surfaceId: string
   status: 'ok' | 'error' | 'blocked'
   output: string
+}
+
+export interface ProviderAuthFlowResult {
+  providerId: string
+  surfaceId: string
+  status: 'started' | 'completed' | 'error' | 'unsupported'
+  message: string
+  url?: string
+  code?: string
 }
 
 export interface ProviderSidebarSyncResult {

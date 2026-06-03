@@ -18,7 +18,8 @@ const versionArgs = {
   claude: ['--version'],
   codex: ['--version'],
   copilot: ['--version'],
-  cursor: ['--version']
+  cursor: ['--version'],
+  antigravity: ['--version']
 }
 
 function runProbe(binary, args) {
@@ -72,7 +73,12 @@ for (const [providerId, provider] of Object.entries(PROVIDERS)) {
   }
 
   if (!binary) {
-    failures.push(`${providerId}: missing binary`)
+    const installBlocked = runtime.registry.gaps.some((gap) => gap.area === 'runtime' && gap.status === 'blocked' && /not.installed|missing|binary/i.test(`${gap.id} ${gap.label} ${gap.summary}`))
+    if (installBlocked) {
+      console.log('  install: blocked by known missing local binary')
+    } else {
+      failures.push(`${providerId}: missing binary`)
+    }
     continue
   }
 

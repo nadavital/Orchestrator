@@ -88,24 +88,32 @@ Remaining actions:
 Current support:
 
 - The graph and action contract are provider-neutral and can represent Copilot cloud-agent rows once normalized events include provider agent id, cloud run/thread id, parent thread id, and transcript/summary evidence.
+- `@github/copilot-sdk@1.0.0` is installed as the structured Copilot runtime dependency. Its public API exposes `CopilotClient`, `CopilotSession`, `createSession`, `resumeSession`, `listSessions`, `deleteSession`, `getEvents`, foreground session APIs, structured events, user input, elicitation, permissions, and `abort`.
+- `npm run live:copilot-sdk-probe` performs a no-prompt SDK readiness check by starting the JSON-RPC runtime, reading status/auth/models, listing sessions, and stopping the runtime.
+- Orchestrator now has a first Copilot SDK runtime manager. New Copilot sessions default to `runtime: "sdk"`, start/resume `CopilotSession`, stream common `SessionEvent` records into normalized RunEvents, and stop via `session.abort()` / `session.disconnect()` / `client.stop()`.
+- Copilot SDK auth is subscription-compatible by default: the SDK uses the signed-in Copilot CLI/GitHub identity unless a BYOK provider config is supplied. Do not model this like Antigravity's API-key-only SDK path.
 - Generic Copilot `agent.*` / `subagent.*` payloads already preserve `threadId`, `parentThreadId`, and `turnId` into graph rows.
-- No Copilot cloud-agent runtime event adapter is implemented in this change.
 
 Remaining actions:
 
-- All Copilot-native thread actions remain live-proof blocked until the SDK/cloud-agent event shape and action APIs are integrated.
-- The UI should not add a fallback inspector; Copilot rows should enter the same Agent Threads graph once real provider evidence is available.
+- `openProviderThread`, provider-native Agent Threads `resume`, and response handlers for SDK permission/user-input/elicitation remain `planned` until live fixtures prove the exact pending-request RPC path.
+- The UI should not add a fallback inspector; Copilot rows should enter the same Agent Threads graph once real provider evidence is available, then use SDK session IDs for native actions.
 
 ### Google Antigravity SDK
 
 Current support:
 
-- The graph reserves no provider-specific assumptions, so Antigravity can be added as another adapter that emits the same normalized agent-thread fields.
+- Google Antigravity is a first-class SDK provider definition and adapter. It launches a packaged Python bridge that imports `google-antigravity`, constructs `Agent(LocalAgentConfig)`, and streams `ChatResponse` chunks back as normalized Orchestrator events.
+- The adapter no longer wraps the `agy` CLI. CLI documentation is only adjacent product evidence; Orchestrator's Antigravity runtime is SDK-first.
+- The graph reserves no provider-specific assumptions, so Antigravity SDK events enter the same Agent Thread graph as Codex, Claude, Cursor, and Copilot.
+- Fixture coverage proves normalization for SDK-style session start, assistant deltas, tool start/complete, usage metadata, agent started/completed, conversation id, child thread id, parent thread id, and provider turn id.
+- Temporary Python 3.13 SDK inspection proved `Agent`, `LocalAgentConfig`, `CapabilitiesConfig`, `Conversation`, `ChatResponse`, `Step`, `ToolCall`, `ToolResult`, `UsageMetadata`, `BuiltinTools.START_SUBAGENT`, and policy helpers.
 
 Remaining actions:
 
-- All Antigravity actions are blocked until the SDK is added and its thread/session event model is known.
-- The first Antigravity adapter should map native agent/thread/run ids into `providerThreadId`, `parentThreadId`, and `providerTurnId` rather than inventing Orchestrator-only ids.
+- Live Antigravity proof requires a Python 3.10+ interpreter with `google-antigravity` installed and provider credentials; `/usr/bin/python3` is too old on this machine, while a temp Python 3.13 venv import probe succeeded.
+- `openProviderThread`, `resume`, and `stop` remain `planned` until SDK fixtures prove child subagent IDs, conversation resume semantics, and cancellation behavior.
+- The SDK runtime should continue mapping native conversation/thread/run ids into `providerThreadId`, `parentThreadId`, and `providerTurnId` rather than inventing Orchestrator-only ids.
 
 ## Verification
 

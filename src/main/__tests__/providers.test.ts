@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import type { RunEvent, RunRequest } from '../../types'
 import { AGENT_THREAD_ADAPTER_CONTRACTS, PROVIDER_DEFS, deriveAgentNodes, deriveAgentThreadGraph, derivePlanStatesFromMessages, getDefaultPermissionMode, getPrimaryPermissionModes, getProviderPermissionPresets, parseClaudeAgentsOutput, permissionRequestDetail } from '../../types'
-import { buildProviderCommandForRuntime, claudeMcpServerNames, codexRuntimePolicyConfig, getProviderDiagnostics, getProviderDiagnosticsAsync, getProviderRuntimeInfo, providerAuthFailureMessage, PROVIDERS, providerSpawnEnv, resolveProviderBinary, resolveProviderPermissionRuntimeContext, runProviderCommandSurface, runProviderCommandSurfaceAsync } from '../providers'
+import { buildProviderCommandForRuntime, claudeMcpServerNames, codexRuntimePolicyConfig, getProviderDiagnostics, getProviderDiagnosticsAsync, getProviderRuntimeInfo, providerAuthFailureMessage, PROVIDERS, providerSdkSpawnEnv, providerSpawnEnv, resolveProviderBinary, resolveProviderPermissionRuntimeContext, runProviderCommandSurface, runProviderCommandSurfaceAsync } from '../providers'
 import { eventsToMessages } from '../runEvents'
 
 const ABSTRACT_CAPABILITY_KEYS = [
@@ -132,6 +132,9 @@ test('runtime info exposes provider-specific capability registry and no-quota pr
   assert.ok(runtimeInfo.claude.registry.commandSurfaces.some((surface) => surface.id === 'mcp-details' && surface.command.join(' ') === 'mcp get'))
   assert.ok(runtimeInfo.claude.registry.commandSurfaces.some((surface) => surface.id === 'plugin-list' && surface.command.join(' ') === 'plugin list --json'))
   assert.ok(runtimeInfo.claude.registry.commandSurfaces.some((surface) => surface.id === 'ultrareview-json' && surface.quota === 'may-use-quota'))
+  assert.ok(runtimeInfo.claude.registry.commandSurfaces.some((surface) => surface.id === 'auth-status' && surface.quota === 'none' && surface.mutatesState === false))
+  assert.ok(runtimeInfo.claude.registry.commandSurfaces.some((surface) => surface.id === 'auth-login' && surface.command.join(' ') === 'auth login' && surface.mutatesState === true))
+  assert.ok(runtimeInfo.claude.registry.commandSurfaces.some((surface) => surface.id === 'auth-logout' && surface.command.join(' ') === 'auth logout' && surface.mutatesState === true))
   assert.ok(runtimeInfo.claude.registry.probes.some((probe) => probe.id === 'auto-mode-defaults' && probe.quota === 'none'))
   assert.ok(runtimeInfo.codex.registry.features.some((feature) => feature.id === 'multi-agent'))
   assert.ok(runtimeInfo.copilot.registry.features.some((feature) => feature.id === 'subagents'))
@@ -144,8 +147,18 @@ test('runtime info exposes provider-specific capability registry and no-quota pr
   assert.ok(runtimeInfo.codex.registry.commandSurfaces.some((surface) => surface.id === 'appserver-models' && surface.runtime === 'app-server'))
   assert.ok(runtimeInfo.codex.registry.commandSurfaces.some((surface) => surface.id === 'appserver-skills' && surface.quota === 'none'))
   assert.ok(runtimeInfo.codex.registry.commandSurfaces.some((surface) => surface.id === 'appserver-mcp-status' && surface.area === 'mcp'))
+  assert.ok(runtimeInfo.codex.registry.commandSurfaces.some((surface) => surface.id === 'codex-login-status' && surface.command.join(' ') === 'login status' && surface.mutatesState === false))
+  assert.ok(runtimeInfo.codex.registry.commandSurfaces.some((surface) => surface.id === 'codex-login-device' && surface.command.join(' ') === 'login --device-auth' && surface.mutatesState === true))
+  assert.ok(runtimeInfo.codex.registry.commandSurfaces.some((surface) => surface.id === 'codex-login-api-key' && surface.command.join(' ') === 'login --with-api-key' && surface.mutatesState === true))
+  assert.ok(runtimeInfo.codex.registry.commandSurfaces.some((surface) => surface.id === 'codex-logout' && surface.command.join(' ') === 'logout' && surface.mutatesState === true))
   assert.ok(runtimeInfo.codex.registry.gaps.some((gap) => gap.id === 'codex-auto-review-mode' && gap.status === 'partial'))
   assert.ok(runtimeInfo.copilot.registry.gaps.some((gap) => gap.id === 'copilot-cli-keychain' && gap.status === 'partial'))
+  assert.ok(runtimeInfo.copilot.registry.features.some((feature) => feature.id === 'sdk-runtime' && feature.support === 'supported'))
+  assert.ok(runtimeInfo.copilot.registry.gaps.some((gap) => gap.id === 'copilot-sdk-runtime-lane' && gap.status === 'partial'))
+  assert.ok(runtimeInfo.copilot.registry.commandSurfaces.some((surface) => surface.id === 'copilot-login' && surface.command.join(' ') === 'login' && surface.mutatesState === true))
+  assert.ok(runtimeInfo.antigravity.registry.features.some((feature) => feature.id === 'python-sdk' && feature.support === 'supported'))
+  assert.ok(runtimeInfo.antigravity.registry.features.some((feature) => feature.id === 'sdk-agent' && feature.support === 'supported'))
+  assert.ok(runtimeInfo.antigravity.registry.gaps.some((gap) => gap.id === 'antigravity-python-sdk-not-installed' && gap.status === 'blocked'))
   assert.ok(runtimeInfo.cursor.registry.gaps.some((gap) => gap.id === 'cursor-keychain-models' && gap.status === 'blocked'))
   assert.ok(runtimeInfo.codex.registry.slashCommands.some((command) => command.name === '/review' && command.runtime === 'headless'))
   assert.ok(runtimeInfo.cursor.registry.slashCommands.some((command) => command.name === '/plan' && command.prompt))
@@ -162,7 +175,7 @@ test('provider auth diagnostics recognize API credential failures from no-quota 
 test('provider CLI spec covers every configured provider with evidence levels', () => {
   const spec = readFileSync(join(process.cwd(), 'docs/provider-cli-spec.md'), 'utf8')
 
-  for (const providerName of ['Claude Code', 'Codex CLI', 'Cursor Agent', 'GitHub Copilot CLI']) {
+  for (const providerName of ['Claude Code', 'Codex CLI', 'Cursor Agent', 'GitHub Copilot CLI', 'Google Antigravity SDK']) {
     assert.match(spec, new RegExp(`## ${providerName}`), `Missing ${providerName} section`)
   }
 
@@ -205,12 +218,21 @@ test('provider diagnostics can load one provider asynchronously for settings', a
 
 test('provider command surfaces only auto-run no-quota non-mutating commands', () => {
   const mutating = runProviderCommandSurface('claude', 'project-purge')
+  const authLogin = runProviderCommandSurface('claude', 'auth-login')
+  const codexLogout = runProviderCommandSurface('codex', 'codex-logout')
+  const copilotLogin = runProviderCommandSurface('copilot', 'copilot-login')
   const quota = runProviderCommandSurface('claude', 'ultrareview-json')
   const unknown = runProviderCommandSurface('claude', 'missing-surface')
   const codexAppServer = runProviderCommandSurface('codex', 'appserver-models')
 
   assert.equal(mutating.status, 'blocked')
   assert.match(mutating.output, /not safe/i)
+  assert.equal(authLogin.status, 'blocked')
+  assert.match(authLogin.output, /not safe/i)
+  assert.equal(codexLogout.status, 'blocked')
+  assert.match(codexLogout.output, /not safe/i)
+  assert.equal(copilotLogin.status, 'blocked')
+  assert.match(copilotLogin.output, /not safe/i)
   assert.equal(quota.status, 'blocked')
   assert.match(quota.output, /not safe/i)
   assert.equal(unknown.status, 'blocked')
@@ -277,6 +299,15 @@ test('provider spawn env keeps desktop CLI directories available to provider hel
     process.env.HOME = originalHome
     rmSync(tmpRoot, { recursive: true, force: true })
   }
+})
+
+test('provider sdk spawn env pins Copilot to the real CLI binary', () => {
+  const env = providerSdkSpawnEnv('copilot', '/usr/local/bin/copilot')
+  assert.equal(env.COPILOT_CLI_PATH, '/usr/local/bin/copilot')
+  assert.equal(env.TERM, 'xterm-256color')
+
+  const claudeEnv = providerSdkSpawnEnv('claude', '/usr/local/bin/claude')
+  assert.equal(claudeEnv.COPILOT_CLI_PATH, undefined)
 })
 
 test('provider spawn env merges generic env overrides from provider settings', () => {
@@ -376,6 +407,12 @@ test('resolved permission policies expose GUI metadata for adaptive controls', (
   assert.equal(runtimeInfo.cursor.policies.default.execution?.sandboxMode, 'enabled')
   assert.equal(runtimeInfo.cursor.policies.ask.intent, 'ask')
   assert.equal(runtimeInfo.cursor.policies.ask.execution?.sandboxMode, 'read-only')
+
+  assert.equal(runtimeInfo.antigravity.policies.default.intent, 'ask')
+  assert.equal(runtimeInfo.antigravity.policies.default.interaction, 'headless')
+  assert.equal(runtimeInfo.antigravity.policies.sandbox.intent, 'workspaceSandbox')
+  assert.equal(runtimeInfo.antigravity.policies.sandbox.execution?.sandboxMode, 'sdk-default')
+  assert.equal(runtimeInfo.antigravity.policies.bypassPermissions.intent, 'bypass')
 })
 
 test('runtime info distinguishes interactive permission support from forced unattended modes', () => {
@@ -398,6 +435,10 @@ test('runtime info distinguishes interactive permission support from forced unat
     runtimeInfo.copilot.abstractCapabilities.find((capability) => capability.key === 'interactivePermissions')?.support,
     'supported'
   )
+  assert.equal(
+    runtimeInfo.antigravity.abstractCapabilities.find((capability) => capability.key === 'interactivePermissions')?.support,
+    'unsupported'
+  )
 })
 
 test('interactive CLI capability is exposed separately from structured output', () => {
@@ -407,6 +448,7 @@ test('interactive CLI capability is exposed separately from structured output', 
   assert.equal(runtimeInfo.codex.capabilities.interactiveCli, true)
   assert.equal(runtimeInfo.cursor.capabilities.interactiveCli, true)
   assert.equal(runtimeInfo.copilot.capabilities.interactiveCli, true)
+  assert.equal(runtimeInfo.antigravity.capabilities.interactiveCli, false)
   assert.equal(
     runtimeInfo.claude.abstractCapabilities.find((capability) => capability.key === 'interactiveCli')?.support,
     'unsupported'
@@ -459,6 +501,19 @@ test('providers expose native interactive CLI launch commands without headless o
   assert.equal(copilotCommand.args.includes('--output-format'), false)
   assert.equal(copilotCommand.args.includes('--allow-all-tools'), false)
   assert.deepEqual(copilotCommand.args.slice(-2), ['-i', 'hello'])
+
+  const antigravityCommand = PROVIDERS.antigravity.buildStartCommand!(request({
+    prompt: 'hello',
+    executionPolicy: 'sandbox',
+    providerSessionId: 'sdk-conversation-123'
+  }))
+  assert.match(antigravityCommand.binary, /python3/)
+  assert.match(antigravityCommand.args[0], /antigravity_sdk_bridge\.py$/)
+  assert.equal(antigravityCommand.args.includes('--conversation-id'), true)
+  assert.equal(antigravityCommand.args[antigravityCommand.args.indexOf('--conversation-id') + 1], 'sdk-conversation-123')
+  assert.equal(antigravityCommand.args.includes('--execution-policy'), true)
+  assert.equal(antigravityCommand.args[antigravityCommand.args.indexOf('--execution-policy') + 1], 'sandbox')
+  assert.equal(antigravityCommand.args[antigravityCommand.args.indexOf('--prompt') + 1], 'hello')
 })
 
 test('runtime command selection removes Claude CLI launch commands and keeps other interactive sessions on native lanes', () => {
@@ -519,6 +574,10 @@ test('product permission presets expose simple provider-aware controls', () => {
   assert.deepEqual(getProviderPermissionPresets(PROVIDER_DEFS.copilot).map((preset) => [preset.id, preset.modeId]), [
     ['default', 'allowEdits'],
     ['fullAccess', 'yolo']
+  ])
+  assert.deepEqual(getProviderPermissionPresets(PROVIDER_DEFS.antigravity).map((preset) => [preset.id, preset.modeId]), [
+    ['default', 'default'],
+    ['fullAccess', 'bypassPermissions']
   ])
 })
 
@@ -1597,7 +1656,43 @@ test('copilot subagent events normalize into agent activity nodes', () => {
   assert.equal(graph.threads[0]?.transcript.kind, 'provider-thread')
   assert.equal(graph.threads[0]?.evidence.source, 'provider-thread')
   assert.equal(AGENT_THREAD_ADAPTER_CONTRACTS.copilot?.supportedActions.openProviderThread, 'planned')
-  assert.equal(AGENT_THREAD_ADAPTER_CONTRACTS.antigravity?.runtimeKinds.includes('sdk'), true)
+  assert.equal(AGENT_THREAD_ADAPTER_CONTRACTS.antigravity?.runtimeKinds.includes('python-sdk'), true)
+})
+
+test('antigravity fixture normalizes conversation and agent thread identity', () => {
+  const events = parseFixture('antigravity', 'tool-flow.jsonl')
+  const assistant = firstEvent(events, 'assistant.text.delta')
+  const toolStarted = firstEvent(events, 'tool.started')
+  const toolCompleted = firstEvent(events, 'tool.completed')
+  const started = firstEvent(events, 'agent.started')
+  const completed = firstEvent(events, 'agent.completed')
+  const session = firstEvent(events, 'session.started')
+  const runCompleted = firstEvent(events, 'run.completed')
+
+  assert.equal(assistant.content, 'I will inspect the workspace.')
+  assert.equal(toolStarted.toolName, 'list_directory')
+  assert.equal(toolCompleted.toolUseId, 'tool-1')
+  assert.equal(started.agent.providerId, 'antigravity')
+  assert.equal(started.agent.sessionId, 'sdk-conversation-123')
+  assert.equal(started.agent.providerThreadId, 'sdk-thread-1')
+  assert.equal(started.agent.parentThreadId, 'sdk-conversation-123')
+  assert.equal(started.agent.providerTurnId, 'sdk-turn-1')
+  assert.equal(started.agent.source, 'provider-thread')
+  assert.equal(completed.agent.summary, 'Found the provider adapter.')
+  assert.equal(session.providerSessionId, 'sdk-conversation-123')
+  assert.equal(runCompleted.usage?.totalTokens, 20)
+
+  const graph = deriveAgentThreadGraph({
+    id: 'session-under-test',
+    provider: 'antigravity',
+    providerSessionId: 'sdk-conversation-123',
+    messages: []
+  }, records(events))
+  assert.equal(graph.threads[0]?.identity.providerThreadId, 'sdk-thread-1')
+  assert.equal(graph.threads[0]?.transcript.kind, 'provider-thread')
+  assert.equal(graph.threads[0]?.evidence.source, 'provider-thread')
+  assert.equal(graph.threads[0]?.capabilities.open.status, 'available')
+  assert.equal(graph.threads[0]?.capabilities.openProviderThread.status, 'planned')
 })
 
 test('codex approval modes map to native approval policy config', () => {

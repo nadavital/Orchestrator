@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { AgentThreadOpenRequest, AgentThreadOpenResult, Attachment, Automation, AutomationRun, AutomationUpsertRequest, CapabilityCreateRequest, CapabilityCreateResult, CapabilityDeleteRequest, CapabilityMutationResult, CapabilitySyncPlan, CapabilitySyncRequest, CapabilityUpdateRequest, CodexProjectImportResult, CodexReviewStartRequest, Project, Session, SessionForkMode, SessionForkOptions, SessionListItem, ChatMessage, FileChange, GitBranchActionResult, GitCommitResult, GitLineBlameResult, GitPathActionResult, GitPullRequestCreateResult, GitPullRequestCreateUrlResult, GitRefOption, OpenPathOptions, OpenPathResult, OpenTargetAvailability, OrchestratorDeepLinkNavigation, PerformanceMetric, PerformanceSnapshot, ProviderAuthSecretMutationResult, ProviderAuthSecretStatus, ProviderAuthValidationResult, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderManifest, ProviderPermissionRuntimeContext, ProviderResourceSnapshot, ProviderRuntimeConnectionState, ProviderRuntimeDebugEvent, ProviderRuntimeInfo, ProviderSidebarSyncResult, ProviderSlashCommand, ReviewDiffSource, ReviewMetadata, SessionRunEventRecord, SideQuestionMessage, TerminalServiceSnapshot, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary, UserInputAnswerPayload, WorktreeInventoryItem, WorkspaceSearchRequest, WorkspaceSearchResult } from '../types'
+import type { AgentThreadOpenRequest, AgentThreadOpenResult, Attachment, Automation, AutomationRun, AutomationUpsertRequest, CapabilityCreateRequest, CapabilityCreateResult, CapabilityDeleteRequest, CapabilityMutationResult, CapabilitySyncPlan, CapabilitySyncRequest, CapabilityUpdateRequest, CodexProjectImportResult, CodexReviewStartRequest, Project, Session, SessionForkMode, SessionForkOptions, SessionListItem, ChatMessage, FileChange, GitBranchActionResult, GitCommitResult, GitLineBlameResult, GitPathActionResult, GitPullRequestCreateResult, GitPullRequestCreateUrlResult, GitRefOption, OpenPathOptions, OpenPathResult, OpenTargetAvailability, OrchestratorDeepLinkNavigation, PerformanceMetric, PerformanceSnapshot, ProviderAuthFlowResult, ProviderAuthSecretMutationResult, ProviderAuthSecretStatus, ProviderAuthValidationResult, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderManifest, ProviderPermissionRuntimeContext, ProviderResourceSnapshot, ProviderRuntimeConnectionState, ProviderRuntimeDebugEvent, ProviderRuntimeInfo, ProviderSidebarSyncResult, ProviderSlashCommand, ReviewDiffSource, ReviewMetadata, SessionRunEventRecord, SideQuestionMessage, TerminalServiceSnapshot, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary, UserInputAnswerPayload, WorktreeInventoryItem, WorkspaceSearchRequest, WorkspaceSearchResult } from '../types'
 import type { BrowserUsePolicy } from '../types/browserUsePolicy'
 import type { AppCommandAvailability, AppMenuCommand, AppMenuCommandState, StableAppCommand } from '../types/appCommands'
 import type { ShortcutOverrides } from '../types/appCommands'
@@ -384,6 +384,13 @@ const api = {
       ipcRenderer.invoke('providers:validateAuthSecret', providerId),
     runCommandSurface: (providerId: string, surfaceId: string): Promise<ProviderCommandSurfaceResult> =>
       ipcRenderer.invoke('providers:runCommandSurface', providerId, surfaceId),
+    startAuthFlow: (providerId: string, surfaceId: string): Promise<ProviderAuthFlowResult> =>
+      ipcRenderer.invoke('providers:startAuthFlow', providerId, surfaceId),
+    onAuthFlowUpdate: (cb: (result: ProviderAuthFlowResult) => void): (() => void) => {
+      const handler = (_: Electron.IpcRendererEvent, result: ProviderAuthFlowResult): void => cb(result)
+      ipcRenderer.on('providers:authFlowUpdate', handler)
+      return () => ipcRenderer.off('providers:authFlowUpdate', handler)
+    },
     refreshSidebarMetadata: (providerId: string, cwd?: string): Promise<ProviderSidebarSyncResult> =>
       ipcRenderer.invoke('providers:refreshSidebarMetadata', providerId, cwd),
     getPermissionContext: (providerId: string, cwd?: string): Promise<ProviderPermissionRuntimeContext> =>

@@ -168,25 +168,25 @@ export const AGENT_THREAD_ADAPTER_CONTRACTS: Record<string, AgentThreadAdapterCo
     runtimeKinds: ['sdk', 'cloud-agent', 'headless'],
     source: 'provider-thread',
     supportedActions: {
-      open: 'planned',
+      open: 'available',
       openProviderThread: 'planned',
       copyTranscript: 'available',
       addTranscriptToChat: 'available',
-      stop: 'unknown',
-      resume: 'unknown'
+      stop: 'planned',
+      resume: 'planned'
     }
   },
   antigravity: {
     providerId: 'antigravity',
-    runtimeKinds: ['sdk'],
+    runtimeKinds: ['python-sdk'],
     source: 'provider-thread',
     supportedActions: {
-      open: 'unknown',
-      openProviderThread: 'unknown',
-      copyTranscript: 'unknown',
-      addTranscriptToChat: 'unknown',
-      stop: 'unknown',
-      resume: 'unknown'
+      open: 'available',
+      openProviderThread: 'planned',
+      copyTranscript: 'available',
+      addTranscriptToChat: 'available',
+      stop: 'planned',
+      resume: 'planned'
     }
   }
 }

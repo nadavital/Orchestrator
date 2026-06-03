@@ -40,6 +40,8 @@ import { loadDotEnvFile } from './localEnv'
 import { listProviderRuntimeConnections, listProviderRuntimeDebugEvents } from './providerRuntimeDiagnostics'
 import { providerKeychainEnv } from './providerSecrets'
 
+const importEsm = new Function('specifier', 'return import(specifier)') as (specifier: string) => Promise<unknown>
+
 function isExecutablePath(path: string): boolean {
   try {
     accessSync(path, constants.X_OK)
@@ -70,12 +72,41 @@ export function providerSearchPath(): string {
   return [...new Set([...existing, ...commonCliDirs()])].join(delimiter)
 }
 
+function resourcePath(relativePath: string): string {
+  const packagedResources = typeof process.resourcesPath === 'string'
+    ? join(process.resourcesPath, relativePath)
+    : ''
+  const candidates = [
+    process.env.ORCHESTRATOR_PROVIDER_RESOURCE_ROOT
+      ? join(process.env.ORCHESTRATOR_PROVIDER_RESOURCE_ROOT, relativePath)
+      : '',
+    join(process.cwd(), 'resources', relativePath),
+    packagedResources,
+    join(__dirname, '..', '..', 'resources', relativePath)
+  ].filter(Boolean)
+
+  for (const candidate of candidates) {
+    try {
+      accessSync(candidate, constants.R_OK)
+      return candidate
+    } catch {
+      // Try the next dev/package location.
+    }
+  }
+  return candidates[0] ?? relativePath
+}
+
+function antigravitySdkBridgePath(): string {
+  return resourcePath(join('provider-bridges', 'antigravity_sdk_bridge.py'))
+}
+
 function providerConfigPath(providerId?: string): string | null {
   const home = homedir()
   const paths: Record<string, string> = {
     claude: join(home, '.claude/settings.json'),
     cursor: join(home, '.cursor/cli-config.json'),
-    copilot: join(home, '.config/github-copilot/config.json')
+    copilot: join(home, '.config/github-copilot/config.json'),
+    antigravity: join(home, '.gemini/antigravity-sdk/settings.json')
   }
   return providerId ? paths[providerId] ?? null : null
 }
@@ -130,6 +161,17 @@ export function providerSpawnEnv(providerId?: string): NodeJS.ProcessEnv {
     PATH: providerSearchPath(),
     TERM: 'xterm-256color'
   }
+}
+
+export function providerSdkSpawnEnv(providerId: string, binary?: string | null): NodeJS.ProcessEnv {
+  const env = providerSpawnEnv(providerId)
+  if (providerId === 'copilot' && binary) {
+    return {
+      ...env,
+      COPILOT_CLI_PATH: binary
+    }
+  }
+  return env
 }
 
 export async function validateProviderAuthSecret(providerId: string): Promise<ProviderAuthValidationResult> {
@@ -428,6 +470,34 @@ function usageSummaryFromAnthropicResult(event: Record<string, unknown>): UsageS
     apiDurationMs,
     turns,
     serviceTier,
+    modelUsage: modelUsage as UsageSummary['modelUsage'] | undefined
+  }
+}
+
+function usageSummaryFromProviderPayload(value: unknown): UsageSummary | undefined {
+  const usage = asRecord(value)
+  if (!usage) return undefined
+  const inputTokens = numberValue(usage.inputTokens, usage.input_tokens, usage.prompt_token_count)
+  const outputTokens = numberValue(usage.outputTokens, usage.output_tokens, usage.candidates_token_count)
+  const cacheReadInputTokens = numberValue(usage.cacheReadInputTokens, usage.cache_read_input_tokens, usage.cached_content_token_count)
+  const explicitTotalTokens = numberValue(usage.totalTokens, usage.total_token_count)
+  const summedTokens = [inputTokens, outputTokens, cacheReadInputTokens].reduce<number>((sum, current) => sum + (current ?? 0), 0)
+  const totalTokens = explicitTotalTokens ?? (summedTokens > 0 ? summedTokens : undefined)
+  const modelUsage = asRecord(usage.modelUsage) ?? asRecord(usage.model_usage)
+  if (
+    inputTokens === undefined &&
+    outputTokens === undefined &&
+    cacheReadInputTokens === undefined &&
+    totalTokens === undefined &&
+    !modelUsage
+  ) {
+    return undefined
+  }
+  return {
+    inputTokens,
+    outputTokens,
+    cacheReadInputTokens,
+    totalTokens,
     modelUsage: modelUsage as UsageSummary['modelUsage'] | undefined
   }
 }
@@ -957,6 +1027,8 @@ const providerRegistries: Record<string, ProviderCapabilityRegistry> = {
     ],
     commandSurfaces: [
       commandSurface('auth-status', 'Auth status', 'runtime', ['auth', 'status'], 'sdk', 'none', false, 'settings', { featureId: 'auth' }),
+      commandSurface('auth-login', 'Sign in', 'runtime', ['auth', 'login'], 'sdk', 'none', true, 'settings', { featureId: 'auth', note: 'Starts the Claude account sign-in flow in the terminal.' }),
+      commandSurface('auth-logout', 'Sign out', 'runtime', ['auth', 'logout'], 'sdk', 'none', true, 'settings', { featureId: 'auth', note: 'Removes the active Claude authentication from the provider CLI.' }),
       commandSurface('agents-list', 'Configured agents', 'agents', ['agents'], 'sdk', 'none', false, 'settings', { featureId: 'agents' }),
       commandSurface('mcp-list', 'MCP servers', 'mcp', ['mcp', 'list'], 'sdk', 'none', false, 'settings', { featureId: 'mcp' }),
       commandSurface('mcp-details', 'MCP details', 'mcp', ['mcp', 'get'], 'sdk', 'none', false, 'settings', { featureId: 'mcp', note: 'Runs mcp list, then mcp get for each discovered server.' }),
@@ -978,14 +1050,17 @@ const providerRegistries: Record<string, ProviderCapabilityRegistry> = {
   copilot: {
     providerId: 'copilot',
     features: [
-      feature('json-output', 'JSON output', 'runtime', 'partial', 'adapter', ['headless']),
+      feature('sdk-runtime', 'SDK runtime', 'runtime', 'supported', 'sdk', ['sdk'], 'Official @github/copilot-sdk is installed and exposes JSON-RPC sessions, resume, events, permissions, user input, elicitation, and abort.'),
+      feature('sdk-status', 'SDK status/auth/models', 'runtime', 'supported', 'sdk', ['sdk'], 'No-prompt SDK probes can start the runtime and read status/auth/model metadata without sending a model prompt.'),
+      feature('sdk-sessions', 'Sessions', 'runtime', 'supported', 'sdk', ['sdk'], 'SDK exposes createSession, resumeSession, listSessions, deleteSession, foreground session APIs, and getEvents.'),
+      feature('json-output', 'CLI JSON output', 'runtime', 'partial', 'adapter', ['headless']),
       feature('interactive-cli', 'Interactive CLI', 'runtime', 'supported', 'local-cli', ['interactive']),
       feature('slash-commands', 'Commands', 'commands', 'supported', 'local-cli', ['interactive']),
-      feature('subagents', 'Subagents', 'agents', 'planned', 'local-cli', ['interactive']),
-      feature('rich-permissions', 'Rich permissions', 'permissions', 'supported', 'local-cli', ['interactive', 'headless'], 'Supports allow/deny tool, path, URL, MCP, plan, autopilot, and ask-user controls.'),
-      feature('mcp', 'MCP', 'mcp', 'supported', 'local-cli', ['interactive', 'headless']),
-      feature('skills', 'Plugins', 'extensions', 'supported', 'local-cli', ['interactive']),
-      feature('code-review', 'Review', 'review', 'planned', 'local-cli', ['interactive'])
+      feature('subagents', 'Subagents', 'agents', 'supported', 'sdk', ['sdk'], 'SDK session events and types include subagent lifecycle events; runtime fixtures are still needed before enabling native open/resume buttons.'),
+      feature('rich-permissions', 'Rich permissions', 'permissions', 'supported', 'sdk', ['sdk', 'interactive', 'headless'], 'SDK exposes onPermissionRequest; CLI supports allow/deny tool, path, URL, MCP, plan, autopilot, and ask-user controls.'),
+      feature('mcp', 'MCP', 'mcp', 'supported', 'sdk', ['sdk', 'interactive', 'headless']),
+      feature('skills', 'Plugins', 'extensions', 'supported', 'sdk', ['sdk', 'interactive']),
+      feature('code-review', 'Review', 'review', 'partial', 'sdk', ['sdk', 'interactive'], 'SDK supports custom/built-in agent definitions; Orchestrator still needs a provider-native review command fixture.')
     ],
     gaps: [
       gap(
@@ -1007,6 +1082,24 @@ const providerRegistries: Record<string, ProviderCapabilityRegistry> = {
         'Capture no-quota help for permissions, providers, mcp, plugin, and commands, then map the useful controls into provider settings.'
       ),
       gap(
+        'copilot-sdk-runtime-lane',
+        'SDK runtime launch',
+        'runtime',
+        'medium',
+        'partial',
+        'Orchestrator now has a Copilot SDK runtime path that creates/resumes sessions and maps common SessionEvent objects into RunEvent records. Live prompt proof and response handlers for pending permissions/questions still need fixture coverage.',
+        'Capture SDK live prompt and SessionEvent fixtures for permissions, user input, elicitation, subagents, abort, and resume before promoting all native Agent Threads actions.'
+      ),
+      gap(
+        'copilot-sdk-agent-thread-actions',
+        'SDK agent thread actions',
+        'agents',
+        'medium',
+        'partial',
+        'The SDK exposes sessions, getEvents, foreground session APIs, abort, and subagent events, but Orchestrator has not wired openProviderThread/resume/stop actions to SDK session controls yet.',
+        'Add fixtures for subagent/session lifecycle events and route Agent Threads open/resume/stop through SDK session IDs.'
+      ),
+      gap(
         'copilot-structured-runtime',
         'Structured CLI event parsing',
         'runtime',
@@ -1020,11 +1113,55 @@ const providerRegistries: Record<string, ProviderCapabilityRegistry> = {
       probe('version', 'Version', ['--version'], 'version'),
       probe('help', 'Help', ['--help'], 'help')
     ],
-    commandSurfaces: [],
+    commandSurfaces: [
+      commandSurface('copilot-login', 'Sign in', 'runtime', ['login'], 'interactive', 'none', true, 'settings', { featureId: 'sdk-status', note: 'Starts GitHub Copilot OAuth device flow; Orchestrator displays the device code and tracks completion. The SDK can also use an existing GitHub/Copilot login when available.' })
+    ],
     slashCommands: [
       slashCommand('/review', 'Start a Copilot code review task', 'sdk', 'sdk', 'sdk-command', { featureId: 'code-review' }),
       slashCommand('/agents', 'Show Copilot agents', 'sdk', 'sdk', 'sdk-command', { featureId: 'subagents' }),
       slashCommand('/commands', 'Refresh Copilot commands', 'sdk', 'sdk', 'sdk-command', { featureId: 'slash-commands' })
+    ]
+  },
+  antigravity: {
+    providerId: 'antigravity',
+    features: [
+      feature('python-sdk', 'Python SDK', 'runtime', 'supported', 'adapter', ['sdk'], 'Adapter launches the official google-antigravity Python SDK through the packaged Orchestrator bridge.'),
+      feature('sdk-agent', 'Agent runtime', 'runtime', 'supported', 'adapter', ['sdk'], 'The bridge uses Agent(LocalAgentConfig) and streams ChatResponse chunks into normalized Orchestrator events.'),
+      feature('sdk-conversations', 'Conversations', 'runtime', 'supported', 'adapter', ['sdk'], 'LocalAgentConfig supports conversation_id, workspaces, save_dir, and app_data_dir for stateful SDK sessions.'),
+      feature('sdk-tools', 'Tools', 'permissions', 'partial', 'adapter', ['sdk'], 'The bridge maps SDK ToolCall and ToolResult chunks; richer policy UI still needs fixtures.'),
+      feature('sdk-subagents', 'Subagents', 'agents', 'planned', 'sdk', ['sdk'], 'The SDK exposes START_SUBAGENT as a built-in tool; Orchestrator still needs event fixtures that prove child thread identity.'),
+      feature('mcp-plugins-skills', 'MCP, plugins, skills', 'mcp', 'planned', 'sdk', ['sdk'], 'SDK types expose MCP servers, skills paths, hooks, and triggers, but Orchestrator needs fixture-backed UI mapping.'),
+      feature('sdk-usage', 'Usage', 'usage', 'partial', 'adapter', ['sdk'], 'The bridge maps ChatResponse usage_metadata when the SDK returns it.')
+    ],
+    gaps: [
+      gap(
+        'antigravity-python-sdk-not-installed',
+        'Python SDK import',
+        'runtime',
+        'high',
+        'blocked',
+        'The app needs a Python 3.10+ interpreter with google-antigravity installed. The default /usr/bin/python3 on this machine is 3.9; a temp Python 3.13 venv import probe succeeded.',
+        'Point Orchestrator at a Python 3.10+ environment with google-antigravity installed, or install it into the selected interpreter.'
+      ),
+      gap(
+        'antigravity-sdk-agent-thread-actions',
+        'SDK agent thread actions',
+        'runtime',
+        'medium',
+        'missing',
+        'The SDK bridge handles a top-level Agent chat turn, but child subagent IDs, openProviderThread, stop, and resume action wiring still need runtime fixtures.',
+        'Capture SDK fixtures for START_SUBAGENT, ask_question, policy decisions, conversation resume, and cancellation before promoting native thread actions.'
+      )
+    ],
+    probes: [
+      probe('python-version', 'Python', ['--version'], 'version'),
+      probe('sdk-version', 'SDK version', ['-c', 'import importlib.metadata; print(importlib.metadata.version("google-antigravity"))'], 'features'),
+      probe('sdk-import', 'SDK import', ['-c', 'from google.antigravity import Agent, LocalAgentConfig, CapabilitiesConfig; print("google-antigravity import ok")'], 'features')
+    ],
+    commandSurfaces: [],
+    slashCommands: [
+      slashCommand('/resume', 'Resume an Antigravity SDK conversation id', 'sdk', 'sdk', 'sdk-command', { featureId: 'sdk-conversations' }),
+      slashCommand('/agents', 'Show Antigravity SDK subagent activity', 'sdk', 'sdk', 'sdk-command', { featureId: 'sdk-subagents' })
     ]
   },
   codex: {
@@ -1081,6 +1218,10 @@ const providerRegistries: Record<string, ProviderCapabilityRegistry> = {
       commandSurface('appserver-account', 'Account', 'usage', ['app-server', 'account/read'], 'app-server', 'none', false, 'settings', { featureId: 'app-server' }),
       commandSurface('appserver-rate-limits', 'Rate limits', 'usage', ['app-server', 'account/rateLimits/read'], 'app-server', 'none', false, 'settings', { featureId: 'app-server' }),
       commandSurface('appserver-auth-status', 'Auth status', 'runtime', ['app-server', 'getAuthStatus'], 'app-server', 'none', false, 'settings', { featureId: 'app-server' }),
+      commandSurface('codex-login-status', 'CLI login status', 'runtime', ['login', 'status'], 'headless', 'none', false, 'settings', { featureId: 'app-server' }),
+      commandSurface('codex-login-device', 'Device sign in', 'runtime', ['login', '--device-auth'], 'interactive', 'none', true, 'settings', { featureId: 'app-server', note: 'Starts Codex device auth in the terminal.' }),
+      commandSurface('codex-login-api-key', 'API key sign in', 'runtime', ['login', '--with-api-key'], 'interactive', 'none', true, 'settings', { featureId: 'app-server', note: 'Reads the API key from stdin. You can edit the inserted terminal command into: printenv OPENAI_API_KEY | codex login --with-api-key' }),
+      commandSurface('codex-logout', 'Sign out', 'runtime', ['logout'], 'interactive', 'none', true, 'settings', { featureId: 'app-server', note: 'Removes stored Codex authentication credentials.' }),
       commandSurface('appserver-skills', 'Skills', 'extensions', ['app-server', 'skills/list'], 'app-server', 'none', false, 'settings', { featureId: 'plugins' }),
       commandSurface('appserver-hooks', 'Hooks', 'extensions', ['app-server', 'hooks/list'], 'app-server', 'none', false, 'settings', { featureId: 'plugins' }),
       commandSurface('appserver-plugins', 'Plugins', 'extensions', ['app-server', 'plugin/list'], 'app-server', 'none', false, 'settings', { featureId: 'plugins' }),
@@ -1362,7 +1503,8 @@ function usageStatus(providerId: string): ProviderDiagnosticInfo['usage'] {
     claude: 'Claude Code CLI does not expose local quota usage through the current adapter.',
     codex: 'Codex CLI usage is not exposed through a local non-run probe yet.',
     copilot: 'GitHub Copilot CLI usage/quota is not exposed by the current prompt adapter.',
-    cursor: 'Cursor Agent usage/quota is not exposed by the local CLI probe yet.'
+    cursor: 'Cursor Agent usage/quota is not exposed by the local CLI probe yet.',
+    antigravity: 'Antigravity SDK usage is exposed after a run, but no local non-run quota probe is available yet.'
   }
   return {
     status: 'unavailable',
@@ -1405,6 +1547,13 @@ async function providerSpecificDiagnosticsAsync(
   fallbackAuth: ProviderDiagnosticInfo['auth'],
   fallbackModels: ProviderDiagnosticInfo['models']
 ): Promise<Pick<ProviderDiagnosticInfo, 'auth' | 'models'>> {
+  if (providerId === 'copilot') {
+    if (!binary) {
+      return { auth: fallbackAuth, models: fallbackModels }
+    }
+    return copilotSdkDiagnostics(binary, fallbackAuth, fallbackModels)
+  }
+
   if (!binary || providerId !== 'cursor') {
     return { auth: fallbackAuth, models: fallbackModels }
   }
@@ -1428,6 +1577,101 @@ async function providerSpecificDiagnosticsAsync(
     : fallbackModels
 
   return { auth, models }
+}
+
+async function copilotSdkDiagnostics(
+  binary: string,
+  fallbackAuth: ProviderDiagnosticInfo['auth'],
+  fallbackModels: ProviderDiagnosticInfo['models']
+): Promise<Pick<ProviderDiagnosticInfo, 'auth' | 'models'>> {
+  let client: {
+    start: () => Promise<void>
+    stop: () => Promise<unknown>
+    forceStop?: () => Promise<unknown>
+    getAuthStatus: () => Promise<unknown>
+    listModels: () => Promise<Array<{ id?: string }>>
+    listSessions: (options?: { cwd?: string }) => Promise<Array<{ sessionId?: string }>>
+  } | null = null
+  let timeout: ReturnType<typeof setTimeout> | null = null
+
+  try {
+    const sdk = await importEsm('@github/copilot-sdk') as {
+      CopilotClient?: new (options: { workingDirectory: string; env: NodeJS.ProcessEnv; logLevel?: string }) => NonNullable<typeof client>
+    }
+    if (!sdk.CopilotClient) {
+      return {
+        auth: { status: 'unknown', message: 'GitHub Copilot SDK is installed, but CopilotClient was not exported.' },
+        models: fallbackModels
+      }
+    }
+
+    client = new sdk.CopilotClient({
+      workingDirectory: process.cwd(),
+      env: providerSdkSpawnEnv('copilot', binary),
+      logLevel: 'error'
+    })
+
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeout = setTimeout(() => reject(new Error('Copilot SDK auth probe timed out.')), 15_000)
+    })
+
+    return await Promise.race<Pick<ProviderDiagnosticInfo, 'auth' | 'models'>>([
+      (async (): Promise<Pick<ProviderDiagnosticInfo, 'auth' | 'models'>> => {
+        await client?.start()
+        const authStatus = asRecord(await client?.getAuthStatus())
+        if (authStatus?.isAuthenticated !== true) {
+          return {
+            auth: fallbackAuth.status === 'error'
+              ? fallbackAuth
+              : {
+                  status: 'unknown',
+                  message: 'GitHub Copilot SDK is reachable, but no authenticated Copilot account was reported.'
+                },
+            models: fallbackModels
+          }
+        }
+
+        const models = await client?.listModels()
+        const sessions = await client?.listSessions({ cwd: process.cwd() })
+        const modelCount = Array.isArray(models) ? models.length : 0
+        const sessionCount = Array.isArray(sessions) ? sessions.length : 0
+        return {
+          auth: {
+            status: 'ok',
+            message: `GitHub Copilot SDK authenticated. ${sessionCount} existing session${sessionCount === 1 ? '' : 's'} visible.`
+          },
+          models: modelCount > 0
+            ? {
+                status: 'available',
+                count: modelCount,
+                message: `${modelCount} models reported by GitHub Copilot SDK for this account.`
+              }
+            : fallbackModels
+        } satisfies Pick<ProviderDiagnosticInfo, 'auth' | 'models'>
+      })(),
+      timeoutPromise
+    ])
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    const authFailure = providerAuthFailureMessage(message)
+    return {
+      auth: authFailure
+        ? { status: 'error', message: authFailure }
+        : { status: 'unknown', message: `GitHub Copilot SDK auth probe failed: ${message}` },
+      models: fallbackModels
+    }
+  } finally {
+    if (timeout) clearTimeout(timeout)
+    try {
+      await client?.stop()
+    } catch {
+      try {
+        await client?.forceStop?.()
+      } catch {
+        // Best-effort cleanup; diagnostics should not fail because stop failed.
+      }
+    }
+  }
 }
 
 function policy(
@@ -1685,6 +1929,30 @@ const copilotPermissionControls: PermissionRuntimeControl[] = [
     description: 'Copilot can expose selected GitHub MCP tools and external MCP configuration.',
     support: 'available',
     examples: ['--add-github-mcp-tool=*', '--additional-mcp-config @mcp.json']
+  }
+]
+
+const antigravityPermissionControls: PermissionRuntimeControl[] = [
+  {
+    kind: 'mode',
+    label: 'SDK policy',
+    description: 'The SDK defaults to read-only tools; bypass mode passes CapabilitiesConfig plus policy.allow_all().',
+    support: 'available',
+    examples: ['LocalAgentConfig()', 'CapabilitiesConfig()', 'policy.allow_all()']
+  },
+  {
+    kind: 'path',
+    label: 'Workspaces',
+    description: 'LocalAgentConfig receives the Orchestrator cwd as the SDK workspace root.',
+    support: 'available',
+    examples: ['workspaces=[cwd]']
+  },
+  {
+    kind: 'mcp',
+    label: 'MCP and skills',
+    description: 'The SDK accepts MCP servers and skills paths; Orchestrator still needs fixture-backed UI mapping.',
+    support: 'planned',
+    examples: ['mcp_servers=[...]', 'skills_paths=[...]']
   }
 ]
 
@@ -2116,8 +2384,8 @@ const copilotProvider: ProviderAdapter = {
   id: 'copilot',
   binary: 'copilot',
   binaryCandidates: [
-    'copilot',
-    join(homedir(), '.local/bin/copilot')
+    join(homedir(), '.local/bin/copilot'),
+    'copilot'
   ],
   capabilities: {
     resume: true,
@@ -2238,6 +2506,177 @@ const copilotProvider: ProviderAdapter = {
     }
 
     return events
+  }
+}
+
+// Google Antigravity Python SDK
+
+function antigravityPolicy(policyId: string): ResolvedExecutionPolicy {
+  if (policyId === 'sandbox') {
+    return policy(
+      policyId,
+      'approximate',
+      [],
+      'Workspace',
+      'Runs the SDK with the current Orchestrator cwd as the LocalAgentConfig workspace.',
+      'The SDK default remains read-only unless a broader policy is selected.',
+      {
+        intent: 'workspaceSandbox',
+        interaction: 'headless',
+        controls: antigravityPermissionControls,
+        execution: {
+          nativeMode: 'local-agent-workspace',
+          sandboxMode: 'sdk-default',
+          configSource: 'mixed'
+        }
+      }
+    )
+  }
+  if (policyId === 'bypassPermissions' || policyId === 'yolo') {
+    return policy(
+      policyId,
+      'approximate',
+      [],
+      'Allow all',
+      'Passes CapabilitiesConfig plus policy.allow_all() to the Antigravity SDK bridge.',
+      'This is broader than the SDK default read-only mode and should only be used in isolated sandboxes.',
+      {
+        intent: 'bypass',
+        interaction: 'headless',
+        controls: antigravityPermissionControls,
+        execution: {
+          nativeMode: 'allow_all',
+          toolPolicy: 'all SDK tools',
+          configSource: 'mixed'
+        }
+      }
+    )
+  }
+  if (policyId === 'default') {
+    return policy(
+      policyId,
+      'exact',
+      [],
+      'Read-only',
+      'Uses the Antigravity SDK default read-only tool configuration.',
+      undefined,
+      {
+        intent: 'ask',
+        interaction: 'headless',
+        controls: antigravityPermissionControls,
+        execution: {
+          nativeMode: 'read-only',
+          toolPolicy: 'SDK read-only default',
+          configSource: 'mixed'
+        }
+      }
+    )
+  }
+  return policy(policyId, 'unsupported', [], policyId, 'Antigravity does not support this policy in the current adapter.', undefined, {
+    intent: 'custom',
+    interaction: 'none',
+    controls: antigravityPermissionControls,
+    execution: {
+      nativeMode: 'unsupported',
+      configSource: 'config'
+    }
+  })
+}
+
+const antigravityProvider: ProviderAdapter = {
+  id: 'antigravity',
+  binary: 'python3.13',
+  binaryCandidates: [
+    process.env.ORCHESTRATOR_ANTIGRAVITY_PYTHON ?? '',
+    '/opt/homebrew/bin/python3.13',
+    'python3.13',
+    'python3.12',
+    'python3.11',
+    'python3.10',
+    'python3'
+  ].filter(Boolean),
+  capabilities: {
+    resume: true,
+    streamingJson: true,
+    interactiveCli: false,
+    interactivePermissions: false,
+    allowedTools: false,
+    workspaceSandbox: true,
+    fullAccessMode: true,
+    checkpointUndo: false
+  },
+
+  resolveExecutionPolicy: antigravityPolicy,
+
+  buildStartCommand(request) {
+    const args = [
+      antigravitySdkBridgePath(),
+      '--prompt', request.prompt,
+      '--cwd', request.cwd,
+      '--execution-policy', request.executionPolicy || 'default'
+    ]
+    if (request.providerSessionId) args.push('--conversation-id', request.providerSessionId)
+    if (request.model) args.push('--model', request.model)
+    return command(this.binary, args)
+  },
+
+  buildResumeCommand(request) {
+    return this.buildStartCommand!({ ...request, prompt: request.prompt || 'Please continue.' })
+  },
+
+  parseOutputLine(line) {
+    const obj = parseJsonLine(line)
+    if (!obj) return []
+
+    const type = obj.type as RunEvent['type'] | string | undefined
+    if (type === 'session.started' && typeof obj.providerSessionId === 'string') return [{ type, providerSessionId: obj.providerSessionId }]
+    if (type === 'assistant.text' && typeof obj.content === 'string') return [{ type, content: obj.content }]
+    if (type === 'assistant.status' && typeof obj.content === 'string') return [{ type, content: obj.content }]
+    if (type === 'assistant.text.delta' && typeof obj.streamId === 'string' && typeof obj.content === 'string') return [{ type, streamId: obj.streamId, content: obj.content }]
+    if (type === 'assistant.text.completed' && typeof obj.streamId === 'string') return [{ type, streamId: obj.streamId }]
+    if (type === 'tool.started') {
+      return [{
+        type,
+        id: stringValue(obj.id) ?? uuidv4(),
+        toolName: stringValue(obj.toolName) ?? 'unknown',
+        toolInput: asRecord(obj.toolInput) ?? {}
+      }]
+    }
+    if (type === 'tool.completed') {
+      return [{
+        type,
+        id: stringValue(obj.id) ?? uuidv4(),
+        toolUseId: stringValue(obj.toolUseId) ?? uuidv4(),
+        content: stringifyContent(obj.content),
+        isError: obj.isError === true
+      }]
+    }
+    if (type === 'run.completed') return [{ type, content: stringValue(obj.content), usage: usageSummaryFromProviderPayload(obj.usage) }]
+    if (type === 'run.failed') return [{ type, content: stringifyContent(obj.content ?? obj.error), usage: usageSummaryFromProviderPayload(obj.usage) }]
+
+    const data = asRecord(obj.data)
+    if (type === 'user_input.requested' || type === 'elicitation.requested' || type === 'input.requested') {
+      const userInput = userInputFromGenericPayload(data ?? obj)
+      return userInput ? [{ type: 'user_input.requested', ...userInput }] : []
+    }
+
+    if (type === 'permission.requested' || type === 'approval.requested' || type === 'tool.permission.requested') {
+      const permission = permissionRequestFromGenericPayload(data ?? obj)
+      return permission ? [permission] : []
+    }
+
+    if (typeof type === 'string' && (type.startsWith('subagent.') || type.startsWith('agent.'))) {
+      const agentEvent = agentEventFromProviderPayload(
+        'antigravity',
+        stringValue(obj.sessionId, obj.session_id, obj.conversationId, obj.conversation_id),
+        type,
+        data ?? obj,
+        typeof obj.id === 'string' ? obj.id : uuidv4()
+      )
+      return agentEvent ? [agentEvent] : []
+    }
+
+    return []
   }
 }
 
@@ -3534,6 +3973,7 @@ const cursorProvider: ProviderAdapter = {
 export const PROVIDERS: Record<string, ProviderAdapter> = {
   claude: claudeProvider,
   copilot: copilotProvider,
+  antigravity: antigravityProvider,
   codex: codexProvider,
   cursor: cursorProvider
 }

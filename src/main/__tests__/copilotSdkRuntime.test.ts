@@ -1,0 +1,132 @@
+import test from 'node:test'
+import assert from 'node:assert/strict'
+import type { RunRequest, Session } from '../../types'
+import { copilotSdkMessageOptions, copilotSdkSessionConfig, normalizeCopilotSdkEvent } from '../copilotSdkRuntime'
+
+function request(patch: Partial<RunRequest> = {}): RunRequest {
+  return {
+    prompt: 'Please inspect the repo.',
+    cwd: '/tmp/project',
+    model: 'gpt-5.5',
+    effort: 'medium',
+    providerSessionId: null,
+    executionPolicy: 'default',
+    allowedTools: [],
+    ...patch
+  }
+}
+
+function session(patch: Partial<Session> = {}): Session {
+  return {
+    id: 'session-1',
+    name: 'Copilot SDK',
+    projectId: 'project-1',
+    useWorktree: false,
+    providerSessionId: null,
+    messages: [],
+    status: 'idle',
+    createdAt: 1,
+    provider: 'copilot',
+    model: 'gpt-5.5',
+    effort: 'medium',
+    permissionMode: 'default',
+    allowedTools: [],
+    workDir: '/tmp/project',
+    ...patch
+  }
+}
+
+test('copilot sdk config uses subscription auth by default and yolo only for explicit bypass', () => {
+  const approveAll = () => ({ kind: 'approved' as const })
+  const sdk = { approveAll } as unknown as typeof import('@github/copilot-sdk')
+  const normal = copilotSdkSessionConfig(sdk, request(), session())
+  assert.equal(normal.workingDirectory, '/tmp/project')
+  assert.equal(normal.streaming, true)
+  assert.equal(normal.enableConfigDiscovery, true)
+  assert.equal(normal.onPermissionRequest, undefined)
+
+  const bypass = copilotSdkSessionConfig(sdk, request({ executionPolicy: 'yolo' }), session())
+  assert.equal(bypass.onPermissionRequest, approveAll)
+})
+
+test('copilot sdk message options map local file attachments', () => {
+  const options = copilotSdkMessageOptions(request({
+    attachments: [{ id: 'a1', kind: 'local_file', path: '/tmp/project/README.md', name: 'README.md' }]
+  }))
+  assert.equal(options.prompt, 'Please inspect the repo.')
+  assert.deepEqual(options.attachments, [{ type: 'file', path: '/tmp/project/README.md', displayName: 'README.md' }])
+})
+
+test('copilot sdk events normalize core thread, text, tools, prompts, usage, and subagents', () => {
+  assert.deepEqual(
+    normalizeCopilotSdkEvent({
+      type: 'assistant.message_delta',
+      id: 'event-1',
+      parentId: null,
+      timestamp: '2026-06-02T00:00:00.000Z',
+      ephemeral: true,
+      data: { messageId: 'message-1', deltaContent: 'hello' }
+    } as import('@github/copilot-sdk').SessionEvent, 'copilot-session-1'),
+    [{ type: 'assistant.text.delta', streamId: 'message-1', content: 'hello' }]
+  )
+
+  assert.deepEqual(
+    normalizeCopilotSdkEvent({
+      type: 'tool.execution_start',
+      id: 'event-2',
+      parentId: 'event-1',
+      timestamp: '2026-06-02T00:00:01.000Z',
+      data: { toolCallId: 'tool-1', toolName: 'read_file', arguments: { path: 'README.md' } }
+    } as import('@github/copilot-sdk').SessionEvent, 'copilot-session-1'),
+    [{ type: 'tool.started', id: 'tool-1', toolName: 'read_file', toolInput: { path: 'README.md' } }]
+  )
+
+  const permission = normalizeCopilotSdkEvent({
+    type: 'permission.requested',
+    id: 'event-3',
+    parentId: 'event-2',
+    timestamp: '2026-06-02T00:00:02.000Z',
+    data: {
+      requestId: 'perm-1',
+      permissionRequest: { kind: 'shell', fullCommandText: 'git status', intention: 'inspect repo', canOfferSessionApproval: true, commands: [], hasWriteFileRedirection: false, possiblePaths: [], possibleUrls: [] }
+    }
+  } as import('@github/copilot-sdk').SessionEvent, 'copilot-session-1')
+  assert.equal(permission[0]?.type, 'permission.requested')
+  assert.deepEqual(permission[0]?.type === 'permission.requested' ? permission[0].denials[0] : undefined, {
+    tool_name: 'git status',
+    tool_use_id: 'perm-1',
+    tool_input: { kind: 'shell', fullCommandText: 'git status', intention: 'inspect repo', canOfferSessionApproval: true, commands: [], hasWriteFileRedirection: false, possiblePaths: [], possibleUrls: [] }
+  })
+
+  const question = normalizeCopilotSdkEvent({
+    type: 'user_input.requested',
+    id: 'event-4',
+    parentId: 'event-3',
+    timestamp: '2026-06-02T00:00:03.000Z',
+    ephemeral: true,
+    data: { requestId: 'input-1', question: 'Which branch?', choices: ['main'], allowFreeform: true }
+  } as import('@github/copilot-sdk').SessionEvent, 'copilot-session-1')
+  assert.equal(question[0]?.type, 'user_input.requested')
+  assert.equal(question[0]?.type === 'user_input.requested' ? question[0].questions?.[0]?.options?.[0]?.label : undefined, 'main')
+
+  const subagent = normalizeCopilotSdkEvent({
+    type: 'subagent.started',
+    id: 'event-5',
+    agentId: 'agent-1',
+    parentId: 'event-4',
+    timestamp: '2026-06-02T00:00:04.000Z',
+    data: { toolCallId: 'tool-agent-1', agentName: 'reviewer', agentDisplayName: 'Reviewer', agentDescription: 'Review changes' }
+  } as import('@github/copilot-sdk').SessionEvent, 'copilot-session-1')
+  assert.equal(subagent[0]?.type, 'agent.started')
+  assert.equal(subagent[0]?.type === 'agent.started' ? subagent[0].agent.providerAgentId : undefined, 'agent-1')
+
+  const usage = normalizeCopilotSdkEvent({
+    type: 'assistant.usage',
+    id: 'event-6',
+    parentId: 'event-5',
+    timestamp: '2026-06-02T00:00:05.000Z',
+    ephemeral: true,
+    data: { model: 'gpt-5.5', inputTokens: 10, outputTokens: 5, cacheReadTokens: 2, cost: 0.01, duration: 250 }
+  } as unknown as import('@github/copilot-sdk').SessionEvent, 'copilot-session-1')
+  assert.deepEqual(usage.at(-1), { type: 'run.completed', usage: { inputTokens: 10, outputTokens: 5, cacheReadInputTokens: 2, totalTokens: 17, totalCostUsd: 0.01, durationMs: 250 } })
+})

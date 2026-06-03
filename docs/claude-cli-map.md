@@ -2,15 +2,16 @@
 
 Canonical active plan: `docs/orchestrator-source-of-truth.md`.
 
-This is the Claude-first provider mapping reference Orchestrator should use as the baseline for other CLI providers. Active implementation status and completion gates live in the source-of-truth plan.
+This is the historical Claude CLI mapping reference. Active Claude chat now uses `@anthropic-ai/claude-agent-sdk`; this file remains useful for no-quota CLI probes, provider-management surfaces, and compatibility fixture context. Active implementation status and completion gates live in the source-of-truth plan.
 
 ## Runtime Lanes
 
 | Lane | Claude surface | Orchestrator abstraction |
 | --- | --- | --- |
-| Structured session | `claude -p --output-format stream-json --verbose --include-partial-messages` | Default Orchestrator session path; stdout JSON event parser plus per-run approval hook bridge |
+| SDK session | `@anthropic-ai/claude-agent-sdk` `query()` | Default Orchestrator session path; SDK message object normalizer plus SDK-local host-tool bridge |
+| Structured print session | `claude -p --output-format stream-json --verbose --include-partial-messages` | Historical compatibility lane; no longer used for normal Orchestrator chat |
 | Interactive PTY | `claude [prompt]` | Historical experiment only; the native chat parser/prompt bridge has been removed from the app runtime |
-| Streaming input | `--input-format stream-json --output-format stream-json` | Planned bidirectional provider stream |
+| Streaming input | `--input-format stream-json --output-format stream-json` | Historical/deferred; SDK owns the active runtime |
 | Session resume | `--resume`, `--continue`, `--session-id`, `--fork-session` | `providerSessionId`, future launch options |
 | Worktree launch | `--worktree`, `--tmux`, `--from-pr`, `--name` | Future shared launch sheet |
 
