@@ -766,7 +766,6 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
                   providerDiagnostics={providerDiagnostics}
                   providerAvailability={providerAvailability}
                   selectedProviderId={selectedSettingsProviderId}
-                  onSetSelectedProvider={setSelectedSettingsProviderId}
                   onSetDefaultProvider={saveDefaultProvider}
                   onSetDefaultEffort={saveDefaultEffort}
                   onSetDefaultPermissionMode={saveDefaultPermissionMode}

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useRef, useState, type CSSProperties, type Dispatch, type ReactNode, type SetStateAction } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type Dispatch, type ReactNode, type SetStateAction } from 'react'
 import {
   DndContext, closestCenter, type DragEndEvent,
   KeyboardSensor, PointerSensor, useSensor, useSensors
@@ -45,20 +45,11 @@ import {
   SettingsSurface
 } from '../shared/designSystem'
 
-function SettingsSectionHeading({ title, description }: { title: string; description: string }): JSX.Element {
-  return (
-    <div className="settings-content-heading">
-      <div className="settings-content-title">{title}</div>
-      <div className="settings-content-description">{description}</div>
-    </div>
-  )
-}
-
 // ─── Providers section ────────────────────────────────────────────────────────
 
 export default function ProvidersSettingsPage({
   defaultProvider, sessions, defaultEfforts, defaultPermissionModes, providerModels,
-  providerRuntime, providerPermissionContexts, providerDiagnostics, providerAvailability, selectedProviderId, onSetSelectedProvider, onSetDefaultProvider, onSetDefaultEffort, onSetDefaultPermissionMode, onSetProviderModels, onSetProviderPermissionContexts, onLoadProviderDiagnostics
+  providerRuntime, providerPermissionContexts, providerDiagnostics, providerAvailability, selectedProviderId, onSetDefaultProvider, onSetDefaultEffort, onSetDefaultPermissionMode, onSetProviderModels, onSetProviderPermissionContexts, onLoadProviderDiagnostics
 }: {
   defaultProvider: string
   sessions: SessionListItem[]
@@ -70,7 +61,6 @@ export default function ProvidersSettingsPage({
   providerDiagnostics: Record<string, ProviderDiagnosticInfo>
   providerAvailability: Record<string, boolean>
   selectedProviderId: string
-  onSetSelectedProvider: (id: string) => void
   onSetDefaultProvider: (id: string) => void
   onSetDefaultEffort: (providerId: string, effortId: string) => void
   onSetDefaultPermissionMode: (providerId: string, modeId: string) => void
@@ -78,7 +68,6 @@ export default function ProvidersSettingsPage({
   onSetProviderPermissionContexts: Dispatch<SetStateAction<Record<string, ProviderPermissionRuntimeContext>>>
   onLoadProviderDiagnostics: (providerId: string, options?: { force?: boolean }) => void
 }): JSX.Element {
-  const providerList = Object.values(PROVIDER_DEFS)
   const selectedId = PROVIDER_DEFS[selectedProviderId] ? selectedProviderId : defaultProvider
   const providerDef = PROVIDER_DEFS[selectedId] ?? PROVIDER_DEFS.claude
   const installed = providerAvailability[selectedId] !== false
@@ -97,6 +86,7 @@ export default function ProvidersSettingsPage({
   const runtime = providerRuntime[selectedId]
   const settingsCommandSurfaces = visibleSettingsCommandSurfaces(selectedId, runtime?.registry.commandSurfaces ?? [])
   const authCommandSurfaces = visibleProviderAuthCommandSurfaces(selectedId, settingsCommandSurfaces)
+  const endpointConfig = providerEndpointConfig(selectedId)
   const [permissionContextLoading, setPermissionContextLoading] = useState(false)
   const [permissionContextRefreshStatus, setPermissionContextRefreshStatus] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
   const permissionContextCwd = sessions.find((session) => session.provider === selectedId)?.workDir ?? sessions[0]?.workDir
@@ -151,7 +141,7 @@ export default function ProvidersSettingsPage({
       <SettingsPageSection className="provider-settings-shell" dataTestId="provider-settings-section">
         <SettingsContentLayout
           title="Providers"
-          subtitle="Choose the default agent provider and configure runtime defaults."
+          subtitle="Configure provider accounts and model order."
           dataTestId="settings-content-layout-providers"
         >
           <div className="provider-settings-stack">
@@ -163,21 +153,12 @@ export default function ProvidersSettingsPage({
                   'data-settings-search-anchor': 'provider-defaults'
                 }}
               >
-                <SettingsSectionHeading
-                  title={providerDef.name}
-                  description={providerReadinessLabel(installed, diagnostics)}
-                />
                 <SettingsGroupContent>
                   <SettingsSurface className="provider-settings-control-surface">
                     <ProviderCompactHeader
-                      providers={providerList}
                       providerDef={providerDef}
-                      selectedId={selectedId}
                       installed={installed}
                       isDefault={defaultProvider === selectedId}
-                      installCmd={providerDef.installCmd}
-                      color={providerDef.color}
-                      onSelect={onSetSelectedProvider}
                       onSetDefault={() => onSetDefaultProvider(selectedId)}
                     />
 
@@ -223,11 +204,11 @@ export default function ProvidersSettingsPage({
                   />
                 )}
 
-                {providerDef.id === 'claude' && (
+                {endpointConfig && (
                   <SettingsRow
                     label="Endpoint"
                     className="provider-settings-row provider-settings-row-stacked"
-                    control={<ClaudeEndpointField color={providerDef.color} />}
+                    control={<ProviderEndpointField providerId={providerDef.id} color={providerDef.color} />}
                   />
                 )}
 
@@ -325,15 +306,6 @@ function providerAuthActionLabel(surface: ProviderCommandSurface): string {
   return surface.label
 }
 
-function providerReadinessLabel(installed: boolean, diagnostics?: ProviderDiagnosticInfo): string {
-  if (!installed) return 'Unavailable'
-  if (diagnostics?.auth.status === 'ok') return 'Signed in'
-  if (diagnostics?.auth.status === 'error') return 'Needs sign in'
-  if (diagnostics?.binary.status === 'found') return 'Installed'
-  if (diagnostics?.binary.status === 'missing') return 'CLI missing'
-  return 'Installed'
-}
-
 function providerDefWithDiagnosticModels(
   providerDef: typeof PROVIDER_DEFS[string],
   diagnostics: ProviderDiagnosticInfo | undefined
@@ -359,63 +331,28 @@ function readableModelLabel(id: string): string {
     .replace(/\b\w/g, (char) => char.toUpperCase())
 }
 
-function providerModelSourceLabel(
-  providerDef: typeof PROVIDER_DEFS[string],
-  diagnostics: ProviderDiagnosticInfo | undefined,
-  loading: boolean,
-  visibleCount: number
-): string {
-  if (loading && !diagnostics) return 'Checking models'
-  if (diagnostics?.models.status === 'available' && typeof diagnostics.models.count === 'number') {
-    return `${diagnostics.models.count} from ${providerModelSourceName(providerDef.id)}`
-  }
-  if (visibleCount > 0) return `${visibleCount} configured`
-  return `${providerDef.models.length} bundled model${providerDef.models.length === 1 ? '' : 's'}`
-}
-
-function providerModelSourceName(providerId: string): string {
-  if (providerId === 'copilot') return 'Copilot SDK'
-  if (providerId === 'cursor') return 'Cursor CLI'
-  if (providerId === 'codex') return 'Codex app-server'
-  if (providerId === 'claude') return 'Anthropic SDK'
-  if (providerId === 'antigravity') return 'Antigravity SDK'
-  return 'provider'
-}
-
 function ProviderCompactHeader({
-  providers,
   providerDef,
-  selectedId,
   installed,
   isDefault,
-  installCmd,
-  color,
-  onSelect,
   onSetDefault
 }: {
-  providers: Array<typeof PROVIDER_DEFS[string]>
   providerDef: typeof PROVIDER_DEFS[string]
-  selectedId: string
   installed: boolean
   isDefault: boolean
-  installCmd: string
-  color: string
-  onSelect: (id: string) => void
   onSetDefault: () => void
 }): JSX.Element {
   return (
     <div className="provider-compact-header">
-      <ProviderDropdown
-        providers={providers}
-        selectedId={selectedId}
-        providerId={selectedId}
-        color={color}
-        installed={installed}
-        isDefault={isDefault}
-        installCmd={installCmd}
-        onSelect={onSelect}
-        onSetDefault={onSetDefault}
-      />
+      <div className="provider-compact-identity">
+        <span className="provider-compact-identity-icon" aria-hidden="true">
+          <ProviderIcon providerId={providerDef.id} size={17} color={providerDef.color} />
+        </span>
+        <span className="provider-compact-identity-copy">
+          <span className="provider-compact-identity-name">{providerDef.name}</span>
+          <span className="provider-compact-identity-status">{isDefault ? 'Default · ' : ''}{installed ? 'Installed' : 'Missing'}</span>
+        </span>
+      </div>
       {!isDefault && (
         <div className="provider-compact-header-actions">
           <button
@@ -428,36 +365,6 @@ function ProviderCompactHeader({
         </div>
       )}
       {!installed && <InstallCommand cmd={providerDef.installCmd} />}
-    </div>
-  )
-}
-
-function ModelSourceSummary({
-  providerDef,
-  diagnostics,
-  loading,
-  visibleCount
-}: {
-  providerDef: typeof PROVIDER_DEFS[string]
-  diagnostics?: ProviderDiagnosticInfo
-  loading: boolean
-  visibleCount: number
-}): JSX.Element {
-  const source = diagnostics?.models.status === 'available'
-    ? 'live'
-    : loading && !diagnostics
-      ? 'checking'
-    : visibleCount > 0
-      ? 'configured'
-      : 'bundled'
-  return (
-    <div
-      className="provider-model-source-summary"
-      data-testid="provider-model-source-summary"
-      data-model-source={source}
-    >
-      <span>{providerModelSourceLabel(providerDef, diagnostics, loading, visibleCount)}</span>
-      <span>{source}</span>
     </div>
   )
 }
@@ -947,7 +854,7 @@ function ProviderSetupDetails({
       {providerDef.id === 'claude' && (
         <div className="provider-setup-row" data-testid="provider-setup-endpoint">
           <div className="provider-setup-label">Endpoint</div>
-          <ClaudeEndpointField color={providerDef.color} />
+          <ProviderEndpointField providerId={providerDef.id} color={providerDef.color} />
         </div>
       )}
       {providerDef.id === 'cursor' && (
@@ -3043,9 +2950,34 @@ function StaticModelChecklistRow({ label, modelId, checked, onToggle }: {
   )
 }
 
-// ─── Claude endpoint field ────────────────────────────────────────────────────
+// ─── Provider endpoint field ──────────────────────────────────────────────────
 
-function ClaudeEndpointField({ color }: { color: string }): JSX.Element {
+type ProviderEndpointConfig = {
+  envKey: string
+  configPath: (home: string) => string
+  placeholder: string
+}
+
+function providerEndpointConfig(providerId: string): ProviderEndpointConfig | null {
+  if (providerId === 'claude') {
+    return {
+      envKey: 'ANTHROPIC_BASE_URL',
+      configPath: (home) => `${home}/.claude/settings.json`,
+      placeholder: 'https://api.anthropic.com (default)'
+    }
+  }
+  if (providerId === 'cursor') {
+    return {
+      envKey: 'CURSOR_API_BASE_URL',
+      configPath: (home) => `${home}/.cursor/cli-config.json`,
+      placeholder: 'Provider default'
+    }
+  }
+  return null
+}
+
+function ProviderEndpointField({ providerId, color }: { providerId: string; color: string }): JSX.Element {
+  const config = useMemo(() => providerEndpointConfig(providerId), [providerId])
   const [endpoint, setEndpoint] = useState('')
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -3054,27 +2986,29 @@ function ClaudeEndpointField({ color }: { color: string }): JSX.Element {
 
   useEffect(() => {
     const load = async (): Promise<void> => {
+      if (!config) return
       const home = await window.api.fs.resolveHome()
-      pathRef.current = `${home}/.claude/settings.json`
+      pathRef.current = config.configPath(home)
       const content = await window.api.fs.readFile(pathRef.current)
       if (content) {
         try {
           const parsed = JSON.parse(content)
-          setEndpoint(parsed.env?.ANTHROPIC_BASE_URL ?? '')
+          setEndpoint(parsed.env?.[config.envKey] ?? '')
         } catch { /* leave empty */ }
       }
     }
     load()
-  }, [])
+  }, [config])
 
   const save = async (): Promise<void> => {
+    if (!config) return
     setSaving(true)
     const content = await window.api.fs.readFile(pathRef.current)
     let parsed: Record<string, unknown> = {}
     try { parsed = JSON.parse(content ?? '{}') } catch { /* start fresh */ }
     const env = { ...(parsed.env as Record<string, string> ?? {}) }
-    if (endpoint.trim()) env.ANTHROPIC_BASE_URL = endpoint.trim()
-    else delete env.ANTHROPIC_BASE_URL
+    if (endpoint.trim()) env[config.envKey] = endpoint.trim()
+    else delete env[config.envKey]
     parsed.env = env
     await window.api.fs.writeFile(pathRef.current, JSON.stringify(parsed, null, 2))
     setSaving(false)
@@ -3084,30 +3018,23 @@ function ClaudeEndpointField({ color }: { color: string }): JSX.Element {
   }
 
   return (
-    <div>
-      <div style={{ display: 'flex', gap: 8 }}>
+    <div className="provider-endpoint-field">
+      <div className="provider-endpoint-row">
         <input
           value={endpoint}
           onChange={(e) => { setEndpoint(e.target.value); setDirty(true); setSaved(false) }}
           onKeyDown={(e) => { if (e.key === 'Enter') save() }}
-          placeholder="https://api.anthropic.com (default)"
-          style={{
-            flex: 1, padding: '7px 10px', borderRadius: 6, fontSize: 11, fontFamily: 'monospace',
-            background: 'var(--color-surface2)',
-            border: `1px solid ${dirty ? color : 'var(--color-border)'}`,
-            color: 'var(--color-text)', outline: 'none'
-          }}
+          placeholder={config?.placeholder ?? 'Provider default'}
+          className="provider-endpoint-input"
+          style={{ '--provider-color': color } as CSSProperties}
         />
         <button
           onClick={save}
           disabled={!dirty || saving}
-          style={{
-            flexShrink: 0, padding: '6px 12px', borderRadius: 6, fontSize: 11, fontWeight: 500,
-            cursor: dirty ? 'pointer' : 'default',
-            background: saved ? 'var(--color-green)' : dirty ? color : 'var(--color-surface2)',
-            border: `1px solid ${dirty ? color : 'var(--color-border)'}`,
-            color: dirty || saved ? '#fff' : 'var(--color-text-muted)'
-          }}
+          className="provider-endpoint-save"
+          data-dirty={dirty ? 'true' : 'false'}
+          data-saved={saved ? 'true' : 'false'}
+          style={{ '--provider-color': color } as CSSProperties}
         >
           {saving ? 'Saving…' : saved ? 'Saved' : 'Save'}
         </button>

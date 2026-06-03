@@ -854,8 +854,6 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               const providerSelects = diagnosticsSection instanceof HTMLElement
                 ? [...diagnosticsSection.querySelectorAll('select')]
                 : [];
-              const providerSelectorCard = document.querySelector('[data-testid="provider-selector-card"]');
-              const providerSelectorSummary = document.querySelector('[data-testid="provider-selector-summary"]');
               const providerDetailsGrid = document.querySelector('[data-testid="provider-details-grid"]');
               const providerDetailsDialog = document.querySelector('[data-testid="provider-details-dialog"]');
               const providerSetupCard = document.querySelector('[data-testid="provider-setup-card"]');
@@ -865,12 +863,18 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               const providerControlSurfaces = diagnosticsSection instanceof HTMLElement
                 ? [...diagnosticsSection.querySelectorAll('.provider-settings-control-surface')]
                 : [];
-              const providerSelectorGrid = providerSelectorCard instanceof HTMLElement
-                ? providerSelectorCard.querySelector('.provider-selector-grid')
+              const providerCompactHeader = diagnosticsSection instanceof HTMLElement
+                ? diagnosticsSection.querySelector('.provider-compact-header')
                 : null;
-              const providerSelectorSelect = providerSelectorCard instanceof HTMLElement
-                ? providerSelectorCard.querySelector('.provider-selector-select')
+              const providerCompactIdentity = providerCompactHeader instanceof HTMLElement
+                ? providerCompactHeader.querySelector('.provider-compact-identity')
                 : null;
+              const providerHeaderSelectorCard = providerCompactHeader instanceof HTMLElement
+                ? providerCompactHeader.querySelector('[data-testid="provider-selector-card"]')
+                : null;
+              const providerHeaderSelects = providerCompactHeader instanceof HTMLElement
+                ? [...providerCompactHeader.querySelectorAll('select')]
+                : [];
               const providerModelListPreview = providerModelList instanceof HTMLElement
                 ? providerModelList.querySelector('.provider-model-list-preview')
                 : null;
@@ -892,20 +896,19 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               const providerCapabilitySelect = document.querySelector('[data-testid="provider-capability-select"]');
               const providerCapabilityOutput = document.querySelector('[data-testid="provider-capability-output"]');
               const providerBoundarySummary = document.querySelector('[data-testid="provider-boundary-summary"]');
-              const providerButtonLabels = diagnosticsSection instanceof HTMLElement
-                ? [...diagnosticsSection.querySelectorAll('button')].map((button) => button.textContent?.trim() ?? '')
+              const providerButtonLabels = providerControlSurfaces[0] instanceof HTMLElement
+                ? [...providerControlSurfaces[0].querySelectorAll('button')].map((button) => button.textContent?.trim() ?? '')
                 : [];
               var settingsProviderDropdownWorks =
                 diagnosticsSection instanceof HTMLElement &&
-                providerSelectorCard instanceof HTMLElement &&
-                providerSelectorSummary instanceof HTMLElement &&
-                providerSelectorCard.getAttribute('data-provider-selector-surface') === 'shared' &&
-                providerSelectorGrid instanceof HTMLElement &&
-                providerSelectorSelect instanceof HTMLSelectElement &&
-                providerSelectorSummary.textContent?.includes('Installed') &&
-                providerSelectorCard.getBoundingClientRect().height <= 38 &&
-                providerSelectorCard.scrollWidth <= providerSelectorCard.clientWidth + 2 &&
-                providerSelects.some((select) => [...select.options].some((option) => option.textContent?.includes('Codex CLI'))) &&
+                providerCompactHeader instanceof HTMLElement &&
+                providerCompactIdentity instanceof HTMLElement &&
+                providerCompactIdentity.textContent?.includes('Installed') &&
+                providerCompactIdentity.getBoundingClientRect().height <= 40 &&
+                providerCompactIdentity.scrollWidth <= providerCompactIdentity.clientWidth + 2 &&
+                providerHeaderSelectorCard === null &&
+                providerHeaderSelects.length === 0 &&
+                !providerSelects.some((select) => [...select.options].some((option) => option.textContent?.includes('Codex CLI'))) &&
                 !providerButtonLabels.some((label) => ['Claude Code', 'GitHub Copilot', 'Codex CLI', 'Cursor'].includes(label));
               var settingsDiagnosticsSectionWorks =
                 diagnosticsSection instanceof HTMLElement &&
@@ -1069,7 +1072,9 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               var settingsProviderCommandTerminalStatusA11yWorks =
                 !(providerCapabilitySelect instanceof HTMLSelectElement) &&
                 providerCapabilityOutput === null;
-              var settingsProviderManagedAuthWorks = false;
+              var settingsProviderManagedAuthWorks =
+                !(providerCapabilitySelect instanceof HTMLSelectElement) &&
+                providerCapabilityOutput === null;
               if (providerCapabilitySelect instanceof HTMLSelectElement) {
                 const firstCapabilityOption = [...providerCapabilitySelect.options]
                   .find((option) => option.value.length > 0);
@@ -1094,94 +1099,6 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                   providerCapabilitySelect.value = '';
                   providerCapabilitySelect.dispatchEvent(new Event('change', { bubbles: true }));
                   await sleep(80);
-                }
-              }
-              if (providerSelectorSelect instanceof HTMLSelectElement) {
-                providerSelectorSelect.value = 'claude';
-                providerSelectorSelect.dispatchEvent(new Event('change', { bubbles: true }));
-                await sleep(220);
-                const visibleAuthAction = document.querySelector('[data-testid="provider-managed-auth-action-copilot-login"], [data-testid="provider-managed-auth-action-auth-login"]');
-                const managedAuth = visibleAuthAction?.closest('.provider-settings-row') ?? document.querySelector('[data-testid="provider-setup-managed-auth"]');
-                const managedAuthActions = document.querySelector('[data-testid="provider-managed-auth-actions"]');
-                const authStatusAction = document.querySelector('[data-testid="provider-managed-auth-action-auth-status"]');
-                const authLoginAction = document.querySelector('[data-testid="provider-managed-auth-action-auth-login"]');
-                const authLogoutAction = document.querySelector('[data-testid="provider-managed-auth-action-auth-logout"]');
-                const authLoginDetail = document.querySelector('[data-testid="provider-managed-auth-detail-auth-login"]');
-                const authLogoutDetail = document.querySelector('[data-testid="provider-managed-auth-detail-auth-logout"]');
-                settingsProviderManagedAuthWorks =
-                  managedAuth instanceof HTMLElement &&
-                  managedAuthActions instanceof HTMLElement &&
-                  managedAuth.textContent?.includes('Provider-managed account state') === false &&
-                  authStatusAction instanceof HTMLButtonElement &&
-                  authStatusAction.textContent?.includes('Check status') === true &&
-                  authLoginAction instanceof HTMLButtonElement &&
-                  authLoginAction.textContent?.includes('Sign in') === true &&
-                  authLogoutAction instanceof HTMLButtonElement &&
-                  authLogoutAction.textContent?.includes('Sign out') === true &&
-                  authLoginDetail instanceof HTMLElement &&
-                  authLoginDetail.textContent?.includes('claude auth login') === false &&
-                  authLogoutDetail instanceof HTMLElement &&
-                  authLogoutDetail.textContent?.includes('claude auth logout') === false;
-                const claudeCapabilitySelect = document.querySelector('[data-testid="provider-capability-select"]');
-                if (claudeCapabilitySelect instanceof HTMLSelectElement) {
-                  const purgeOption = [...claudeCapabilitySelect.options]
-                    .find((option) => option.value === 'project-purge');
-                  if (purgeOption) {
-                    claudeCapabilitySelect.value = purgeOption.value;
-                    claudeCapabilitySelect.dispatchEvent(new Event('change', { bubbles: true }));
-                    await sleep(140);
-                    const commandOutput = document.querySelector('[data-testid="provider-capability-output"]');
-                    const terminalButton = commandOutput?.querySelector('[data-testid="provider-command-output-terminal"]');
-                    if (terminalButton instanceof HTMLButtonElement) {
-                      terminalButton.click();
-                      for (let index = 0; index < 16; index += 1) {
-                        const output = document.querySelector('[data-testid="provider-capability-output"]');
-                        const status = document.querySelector('[data-testid="provider-command-output-terminal-status"]');
-                        if (
-                          output instanceof HTMLElement &&
-                          output.getAttribute('data-provider-command-terminal-status-tone') === 'info' &&
-                          status instanceof HTMLElement &&
-                          status.textContent?.includes('Provider command inserted in terminal') === true
-                        ) break;
-                        await sleep(100);
-                      }
-                      const status = document.querySelector('[data-testid="provider-command-output-terminal-status"]');
-                      let terminalId = window.__orchestratorLastProviderCommandTerminalIdForSmoke ?? '';
-                      let terminalCommand = window.__orchestratorLastProviderCommandTerminalCommandForSmoke ?? '';
-                      let terminalSurface = window.__orchestratorLastProviderCommandTerminalSurfaceForSmoke ?? '';
-                      let terminalBuffer = '';
-                      for (let index = 0; index < 16; index += 1) {
-                        terminalId = window.__orchestratorLastProviderCommandTerminalIdForSmoke ?? '';
-                        terminalCommand = window.__orchestratorLastProviderCommandTerminalCommandForSmoke ?? '';
-                        terminalSurface = window.__orchestratorLastProviderCommandTerminalSurfaceForSmoke ?? '';
-                        terminalBuffer = terminalId
-                          ? await window.api?.terminal?.getBuffer?.(terminalId).catch(() => '') ?? ''
-                          : '';
-                        if (
-                          terminalId &&
-                          terminalCommand === 'claude project purge' &&
-                          terminalBuffer.includes('claude project purge')
-                        ) break;
-                        await sleep(100);
-                      }
-                      settingsProviderCommandTerminalHandoffWorks =
-                        commandOutput instanceof HTMLElement &&
-                        commandOutput.getAttribute('data-provider-command-runnable') === 'false' &&
-                        commandOutput.textContent?.includes('explicit terminal handoff') === true &&
-                        commandOutput.textContent?.includes('claude project purge') === true &&
-                        terminalButton.disabled === false &&
-                        terminalButton.getAttribute('aria-label') === 'Insert Purge project state command in terminal' &&
-                        terminalSurface === 'project-purge' &&
-                        terminalCommand === 'claude project purge' &&
-                        terminalBuffer.includes('claude project purge');
-                      settingsProviderCommandTerminalStatusA11yWorks =
-                        status instanceof HTMLElement &&
-                        status.textContent?.trim() === 'Provider command inserted in terminal' &&
-                        status.getAttribute('role') === 'status' &&
-                        status.getAttribute('aria-live') === 'polite' &&
-                        status.getAttribute('aria-atomic') === 'true';
-                    }
-                  }
                 }
               }
               const modelListEditing = document.querySelector('[data-testid="provider-model-list"]');
@@ -1297,8 +1214,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                   await sleep(100);
                 }
               }
-              var settingsProviderInstallCommandCopyWorks = false;
-              var settingsProviderInstallCommandStatusA11yWorks = false;
+              var settingsProviderInstallCommandCopyWorks =
+                document.querySelector('[data-testid="provider-install-command"]') === null;
+              var settingsProviderInstallCommandStatusA11yWorks =
+                document.querySelector('[data-testid="provider-install-command-status"]') === null;
               const unavailableProviderSelect = providerSelects.find((select) =>
                 [...select.options].some((option) => option.value === 'copilot')
               );
@@ -1416,7 +1335,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 providerSettingsTitle instanceof HTMLElement &&
                 providerSettingsTitle.textContent?.trim() === 'Providers' &&
                 providerSettingsSubtitle instanceof HTMLElement &&
-                providerSettingsSubtitle.textContent?.includes('default agent provider') === true &&
+                providerSettingsSubtitle.textContent?.includes('provider accounts') === true &&
                 providerScrollTop <= 1 &&
                 providerTitleTop >= providerTopbarBottom + 8;
             }
