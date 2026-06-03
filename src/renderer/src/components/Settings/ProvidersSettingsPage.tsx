@@ -141,6 +141,10 @@ export default function ProvidersSettingsPage({
   }, [onSetProviderPermissionContexts, permissionContextCwd, selectedId])
 
   useEffect(() => {
+    onLoadProviderDiagnostics(selectedId)
+  }, [onLoadProviderDiagnostics, selectedId])
+
+  useEffect(() => {
     if (advancedOpen) onLoadProviderDiagnostics(selectedId)
   }, [advancedOpen, onLoadProviderDiagnostics, selectedId])
 
@@ -296,8 +300,10 @@ export default function ProvidersSettingsPage({
                   className="provider-settings-row provider-settings-row-stacked"
                   control={(
                     <div className="provider-models-row">
-                      <div className="provider-model-default-block">
-                        <div className="provider-model-inline-label">Default model</div>
+                      <div className="provider-model-default-row">
+                        <div className="provider-model-row-copy">
+                          <div className="provider-model-inline-label">Default</div>
+                        </div>
                         <DefaultModelPicker
                           providerDef={modelCatalogProviderDef}
                           models={visibleModels}
@@ -306,10 +312,14 @@ export default function ProvidersSettingsPage({
                         />
                       </div>
                       <div className="provider-model-list-block">
-                        <div className="provider-model-list-meta">
+                        <div className="provider-model-list-header">
+                          <div className="provider-model-row-copy">
+                            <div className="provider-model-inline-label">Composer</div>
+                          </div>
                           <ModelSourceSummary
                             providerDef={modelCatalogProviderDef}
                             diagnostics={diagnostics}
+                            loading={loadingDiagnostics}
                             visibleCount={visibleIds.length}
                           />
                         </div>
@@ -319,17 +329,19 @@ export default function ProvidersSettingsPage({
                           onChange={handleVisibleModelsChange}
                         />
                       </div>
-                      <button
-                        className="provider-details-toggle"
-                        data-testid="provider-diagnostics-toggle"
-                        aria-expanded={advancedOpen}
-                        aria-label={advancedOpen ? 'Hide provider details' : 'Show provider details'}
-                        onClick={() => setAdvancedOpen((open) => !open)}
-                      >
-                        <Icon name="wrench" size={13} />
-                        Details
-                        <Icon name={advancedOpen ? 'chevronDown' : 'chevronRight'} size={12} />
-                      </button>
+                      <div className="provider-model-actions-row">
+                        <button
+                          className="provider-details-toggle"
+                          data-testid="provider-diagnostics-toggle"
+                          aria-expanded={advancedOpen}
+                          aria-label={advancedOpen ? 'Hide provider details' : 'Show provider details'}
+                          onClick={() => setAdvancedOpen((open) => !open)}
+                        >
+                          <Icon name="wrench" size={13} />
+                          Details
+                          <Icon name={advancedOpen ? 'chevronDown' : 'chevronRight'} size={12} />
+                        </button>
+                      </div>
                     </div>
                   )}
                 />
@@ -493,13 +505,24 @@ function readableModelLabel(id: string): string {
 function providerModelSourceLabel(
   providerDef: typeof PROVIDER_DEFS[string],
   diagnostics: ProviderDiagnosticInfo | undefined,
+  loading: boolean,
   visibleCount: number
 ): string {
+  if (loading && !diagnostics) return 'Checking models'
   if (diagnostics?.models.status === 'available' && typeof diagnostics.models.count === 'number') {
-    return `${diagnostics.models.count} live model${diagnostics.models.count === 1 ? '' : 's'}`
+    return `${diagnostics.models.count} from ${providerModelSourceName(providerDef.id)}`
   }
-  if (visibleCount > 0) return `${visibleCount} visible model${visibleCount === 1 ? '' : 's'}`
+  if (visibleCount > 0) return `${visibleCount} configured`
   return `${providerDef.models.length} bundled model${providerDef.models.length === 1 ? '' : 's'}`
+}
+
+function providerModelSourceName(providerId: string): string {
+  if (providerId === 'copilot') return 'Copilot SDK'
+  if (providerId === 'cursor') return 'Cursor CLI'
+  if (providerId === 'codex') return 'Codex catalog'
+  if (providerId === 'claude') return 'Claude catalog'
+  if (providerId === 'antigravity') return 'Antigravity catalog'
+  return 'provider'
 }
 
 function ProviderCompactHeader({
@@ -556,14 +579,18 @@ function ProviderCompactHeader({
 function ModelSourceSummary({
   providerDef,
   diagnostics,
+  loading,
   visibleCount
 }: {
   providerDef: typeof PROVIDER_DEFS[string]
   diagnostics?: ProviderDiagnosticInfo
+  loading: boolean
   visibleCount: number
 }): JSX.Element {
   const source = diagnostics?.models.status === 'available'
     ? 'live'
+    : loading && !diagnostics
+      ? 'checking'
     : visibleCount > 0
       ? 'configured'
       : 'bundled'
@@ -573,7 +600,7 @@ function ModelSourceSummary({
       data-testid="provider-model-source-summary"
       data-model-source={source}
     >
-      <span>{providerModelSourceLabel(providerDef, diagnostics, visibleCount)}</span>
+      <span>{providerModelSourceLabel(providerDef, diagnostics, loading, visibleCount)}</span>
       <span>{source}</span>
     </div>
   )
@@ -3129,23 +3156,25 @@ function ModelListManager({
         <div className="provider-model-list-collapsed">
           <div className="provider-model-list-preview">
             {visibleIds.length > 0 ? (
-              visibleIds.slice(0, 4).map((id) => {
+              visibleIds.slice(0, 5).map((id, index) => {
                 const meta = providerDef.models.find((m) => m.id === id)
                 return (
                   <span
                     key={id}
                     className="provider-model-chip"
+                    title={id}
                   >
-                    {meta?.label ?? id}
+                    <span className="provider-model-chip-index">{index + 1}</span>
+                    <span className="provider-model-chip-label">{meta?.label ?? id}</span>
                   </span>
                 )
               })
             ) : (
               <span className="provider-model-list-muted">Catalog defaults</span>
             )}
-            {visibleIds.length > 4 && (
+            {visibleIds.length > 5 && (
               <span className="provider-model-list-overflow-count">
-                +{visibleIds.length - 4}
+                +{visibleIds.length - 5}
               </span>
             )}
           </div>

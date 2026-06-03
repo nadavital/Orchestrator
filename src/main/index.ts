@@ -986,7 +986,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 diagnosticsSection instanceof HTMLElement &&
                 diagnosticsSection.classList.contains('settings-page-section') &&
                 providerControlSurfaces.length === 1 &&
-                providerControlSurfaceText.includes('Default model') &&
+                providerControlSurfaceText.includes('Default') &&
                 providerControlSurfaceText.includes('Permissions') &&
                 providerControlSurfaceText.includes('Models') &&
                 providerControlSurfaceText.includes('Details') &&
