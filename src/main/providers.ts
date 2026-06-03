@@ -163,6 +163,17 @@ export function providerSpawnEnv(providerId?: string): NodeJS.ProcessEnv {
   }
 }
 
+export function providerSdkSpawnEnv(providerId: string, binary?: string | null): NodeJS.ProcessEnv {
+  const env = providerSpawnEnv(providerId)
+  if (providerId === 'copilot' && binary) {
+    return {
+      ...env,
+      COPILOT_CLI_PATH: binary
+    }
+  }
+  return env
+}
+
 export async function validateProviderAuthSecret(providerId: string): Promise<ProviderAuthValidationResult> {
   if (providerId !== 'cursor') {
     return {
@@ -1537,7 +1548,10 @@ async function providerSpecificDiagnosticsAsync(
   fallbackModels: ProviderDiagnosticInfo['models']
 ): Promise<Pick<ProviderDiagnosticInfo, 'auth' | 'models'>> {
   if (providerId === 'copilot') {
-    return copilotSdkDiagnostics(fallbackAuth, fallbackModels)
+    if (!binary) {
+      return { auth: fallbackAuth, models: fallbackModels }
+    }
+    return copilotSdkDiagnostics(binary, fallbackAuth, fallbackModels)
   }
 
   if (!binary || providerId !== 'cursor') {
@@ -1566,6 +1580,7 @@ async function providerSpecificDiagnosticsAsync(
 }
 
 async function copilotSdkDiagnostics(
+  binary: string,
   fallbackAuth: ProviderDiagnosticInfo['auth'],
   fallbackModels: ProviderDiagnosticInfo['models']
 ): Promise<Pick<ProviderDiagnosticInfo, 'auth' | 'models'>> {
@@ -1592,7 +1607,7 @@ async function copilotSdkDiagnostics(
 
     client = new sdk.CopilotClient({
       workingDirectory: process.cwd(),
-      env: providerSpawnEnv('copilot'),
+      env: providerSdkSpawnEnv('copilot', binary),
       logLevel: 'error'
     })
 

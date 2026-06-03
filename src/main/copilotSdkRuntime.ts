@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from 'uuid'
 import type { AgentNode, RunEvent, RunRequest, Session, UsageSummary } from '../types'
 import type { ProviderAdapter } from './providers'
-import { providerSpawnEnv, stringifyContent } from './providers'
+import { providerSdkSpawnEnv, resolveProviderBinary, stringifyContent } from './providers'
 import { recordProviderRuntimeDebugEvent, updateProviderRuntimeConnection } from './providerRuntimeDiagnostics'
 
 type CopilotSdk = typeof import('@github/copilot-sdk')
@@ -114,9 +114,10 @@ export class CopilotSdkRuntimeManager {
     try {
       const sdk = await importCopilotSdk()
       const workDir = options.session.workDir || options.request.cwd
+      const binary = resolveProviderBinary(options.provider)
       const client = new sdk.CopilotClient({
         workingDirectory: workDir,
-        env: providerSpawnEnv('copilot'),
+        env: providerSdkSpawnEnv('copilot', binary),
         logLevel: 'error'
       })
       active.client = client

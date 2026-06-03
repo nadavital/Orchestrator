@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import type { RunEvent, RunRequest } from '../../types'
 import { AGENT_THREAD_ADAPTER_CONTRACTS, PROVIDER_DEFS, deriveAgentNodes, deriveAgentThreadGraph, derivePlanStatesFromMessages, getDefaultPermissionMode, getPrimaryPermissionModes, getProviderPermissionPresets, parseClaudeAgentsOutput, permissionRequestDetail } from '../../types'
-import { buildProviderCommandForRuntime, claudeMcpServerNames, codexRuntimePolicyConfig, getProviderDiagnostics, getProviderDiagnosticsAsync, getProviderRuntimeInfo, providerAuthFailureMessage, PROVIDERS, providerSpawnEnv, resolveProviderBinary, resolveProviderPermissionRuntimeContext, runProviderCommandSurface, runProviderCommandSurfaceAsync } from '../providers'
+import { buildProviderCommandForRuntime, claudeMcpServerNames, codexRuntimePolicyConfig, getProviderDiagnostics, getProviderDiagnosticsAsync, getProviderRuntimeInfo, providerAuthFailureMessage, PROVIDERS, providerSdkSpawnEnv, providerSpawnEnv, resolveProviderBinary, resolveProviderPermissionRuntimeContext, runProviderCommandSurface, runProviderCommandSurfaceAsync } from '../providers'
 import { eventsToMessages } from '../runEvents'
 
 const ABSTRACT_CAPABILITY_KEYS = [
@@ -299,6 +299,15 @@ test('provider spawn env keeps desktop CLI directories available to provider hel
     process.env.HOME = originalHome
     rmSync(tmpRoot, { recursive: true, force: true })
   }
+})
+
+test('provider sdk spawn env pins Copilot to the real CLI binary', () => {
+  const env = providerSdkSpawnEnv('copilot', '/usr/local/bin/copilot')
+  assert.equal(env.COPILOT_CLI_PATH, '/usr/local/bin/copilot')
+  assert.equal(env.TERM, 'xterm-256color')
+
+  const claudeEnv = providerSdkSpawnEnv('claude', '/usr/local/bin/claude')
+  assert.equal(claudeEnv.COPILOT_CLI_PATH, undefined)
 })
 
 test('provider spawn env merges generic env overrides from provider settings', () => {
