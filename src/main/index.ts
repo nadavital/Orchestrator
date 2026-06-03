@@ -846,17 +846,6 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 .find((button) => button.textContent?.includes('Providers'));
               providersNavButton?.click();
               await sleep(450);
-              const diagnosticsButton = document.querySelector('[data-testid="provider-diagnostics-toggle"]');
-              if (
-                diagnosticsButton instanceof HTMLElement &&
-                diagnosticsButton.getAttribute('aria-expanded') !== 'true'
-              ) {
-                diagnosticsButton.click();
-              }
-              for (let attempts = 0; attempts < 10; attempts += 1) {
-                await sleep(150);
-                if (document.querySelector('[data-testid="provider-details-grid"]') instanceof HTMLElement) break;
-              }
               const diagnosticsSection = document.querySelector('[data-testid="provider-settings-section"]');
               const providerSettingsShell = document.querySelector('.settings-shell');
               const configEditor = document.querySelector('[data-testid="provider-config-editor"]');
@@ -868,6 +857,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               const providerSelectorCard = document.querySelector('[data-testid="provider-selector-card"]');
               const providerSelectorSummary = document.querySelector('[data-testid="provider-selector-summary"]');
               const providerDetailsGrid = document.querySelector('[data-testid="provider-details-grid"]');
+              const providerDetailsDialog = document.querySelector('[data-testid="provider-details-dialog"]');
               const providerSetupCard = document.querySelector('[data-testid="provider-setup-card"]');
               const providerStatusCard = document.querySelector('[data-testid="provider-status-card"]');
               const usageStatusStrip = document.querySelector('[data-testid="provider-usage-status-strip"]');
@@ -919,39 +909,23 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 !providerButtonLabels.some((label) => ['Claude Code', 'GitHub Copilot', 'Codex CLI', 'Cursor'].includes(label));
               var settingsDiagnosticsSectionWorks =
                 diagnosticsSection instanceof HTMLElement &&
-                diagnosticsSection.innerText.includes('Capabilities') &&
-                diagnosticsSection.innerText.includes('Config') &&
-                diagnosticsSection.innerText.includes('Setup') &&
-                diagnosticsSection.innerText.includes('Status') &&
-                providerDetailsGrid instanceof HTMLElement &&
-                providerDetailsGrid.getBoundingClientRect().height <= 560 &&
-                providerSetupCard instanceof HTMLElement &&
-                providerSetupCard.scrollWidth <= providerSetupCard.clientWidth + 2 &&
-                providerCapabilitySummary instanceof HTMLElement &&
-                providerCapabilitySummary.innerText.includes('Checks') &&
-                providerCapabilitySummary.querySelector('strong') === null &&
-                providerCapabilitySummary.getBoundingClientRect().height <= 24 &&
-                providerCapabilitySelect instanceof HTMLSelectElement &&
-                providerCapabilitySelect.value === '' &&
+                !(providerDetailsGrid instanceof HTMLElement) &&
+                !(providerDetailsDialog instanceof HTMLElement) &&
+                !(providerSetupCard instanceof HTMLElement) &&
+                !(providerCapabilitySummary instanceof HTMLElement) &&
+                !(providerCapabilitySelect instanceof HTMLSelectElement) &&
                 providerCapabilityOutput === null &&
+                !diagnosticsSection.innerText.includes('Capabilities') &&
+                !diagnosticsSection.innerText.includes('Boundaries') &&
+                !diagnosticsSection.innerText.includes('Runtime diagnostics') &&
                 !diagnosticsSection.innerText.includes('auth status');
               var settingsProviderStatusUnifiedWorks =
-                providerStatusCard instanceof HTMLElement &&
-                providerStatusCard.innerText.includes('Status') &&
-                providerStatusCard.innerText.includes('Usage') &&
-                providerStatusCard.querySelector('[data-testid="provider-usage-diagnostics-card"]') instanceof HTMLElement &&
-                !providerStatusCard.innerText.includes('Health') &&
-                providerStatusCard.getBoundingClientRect().height <= 180 &&
-                providerStatusCard.scrollWidth <= providerStatusCard.clientWidth + 2;
+                !(providerStatusCard instanceof HTMLElement);
               var settingsUsageDiagnosticsWorks =
                 diagnosticsSection instanceof HTMLElement &&
-                diagnosticsSection.innerText.includes('Usage') &&
-                usageDiagnosticsText.includes('Runs') &&
-                usageDiagnosticsText.includes('Budget') &&
-                usageDiagnosticsCard instanceof HTMLElement &&
-                (hasUsageEmptyState ? usageDiagnosticsText.includes('No usage yet') : hasUsageMetrics) &&
-                usageStatusStrip instanceof HTMLElement &&
-                usageStatusStrip.getBoundingClientRect().height <= 76 &&
+                !(usageDiagnosticsCard instanceof HTMLElement) &&
+                !(usageStatusStrip instanceof HTMLElement) &&
+                !diagnosticsSection.innerText.includes('Usage') &&
                 !usageDiagnosticsText.includes('Tokens Unknown') &&
                 !usageDiagnosticsText.includes('Cost Unknown') &&
                 !usageDiagnosticsText.includes('Time Unknown') &&
@@ -964,8 +938,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 diagnosticsSection.innerText.includes('Composer order') &&
                 customModelInput instanceof HTMLInputElement &&
                 diagnosticsSection.querySelector('[data-testid="provider-default-model-select"]') === null &&
+                diagnosticsSection.querySelector('[data-testid="provider-model-source-summary"]') === null &&
                 !diagnosticsSection.innerText.includes('Catalog') &&
-                diagnosticsSection.innerText.indexOf('Models') < diagnosticsSection.innerText.indexOf('Details') &&
                 providerModelList instanceof HTMLElement &&
                 providerModelList.dataset.expanded === 'true' &&
                 providerModelList.getAttribute('data-model-list-surface') === 'shared' &&
@@ -975,11 +949,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 providerModelList.querySelector('.provider-model-sortable-row .provider-model-row-badge')?.textContent === 'Default' &&
                 providerModelList.getBoundingClientRect().height <= 260 &&
                 providerModelList.scrollWidth <= providerModelList.clientWidth + 2 &&
-                configEditor instanceof HTMLElement &&
-                configEditor.dataset.expanded === 'false' &&
-                configEditor.getAttribute('data-config-editor-surface') === 'shared' &&
-                configEditor.getAttribute('data-config-editor-state') === 'clean' &&
-                configEditor.querySelector('textarea') === null;
+                !(configEditor instanceof HTMLElement);
               var settingsProviderControlSurfaceUnifiedWorks =
                 diagnosticsSection instanceof HTMLElement &&
                 diagnosticsSection.classList.contains('settings-page-section') &&
@@ -987,7 +957,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 providerControlSurfaceText.includes('Default') &&
                 providerControlSurfaceText.includes('Permissions') &&
                 providerControlSurfaceText.includes('Models') &&
-                providerControlSurfaceText.includes('Details') &&
+                !providerControlSurfaceText.includes('Details') &&
                 !providerControlSurfaceText.includes('Capabilities') &&
                 !providerControlSurfaceText.includes('Boundaries') &&
                 diagnosticsSection.querySelector('.settings-panel') === null &&
@@ -996,10 +966,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 !providerControlSurfaceText.includes('Default permissions') &&
                 !providerControlSurfaceText.includes('Source cli') &&
                 providerControlSurfaceText.indexOf('Permissions') < providerControlSurfaceText.indexOf('Models') &&
-                providerControlSurfaceText.indexOf('Models') < providerControlSurfaceText.indexOf('Details') &&
-                providerDetailsGrid instanceof HTMLElement &&
-                providerDetailsGrid.innerText.includes('Capabilities') &&
-                providerDetailsGrid.innerText.includes('Boundaries');
+                !(providerDetailsGrid instanceof HTMLElement);
               const providerSegmentedControls = diagnosticsSection instanceof HTMLElement
                 ? [...diagnosticsSection.querySelectorAll('.segmented-control[role="tablist"]')]
                   .filter((control) => control instanceof HTMLElement)
@@ -1008,11 +975,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 providerSegmentedControls.length >= 2 &&
                 providerSegmentedControls.every((control) => (control.getAttribute('aria-label') ?? '').trim().length > 0);
               var settingsProviderBoundariesWorks =
-                providerBoundarySummary instanceof HTMLElement &&
-                providerBoundarySummary.getBoundingClientRect().height <= 46 &&
-                Number(providerBoundarySummary.getAttribute('data-provider-boundary-count')) > 0 &&
-                providerBoundarySummary.textContent?.includes('partial') &&
-                !providerBoundarySummary.textContent?.includes('adapter coming soon');
+                !(providerBoundarySummary instanceof HTMLElement);
               var settingsProvidersModuleWorks =
                 diagnosticsSection instanceof HTMLElement &&
                 diagnosticsSection.closest('[data-settings-page-module="providers"]') instanceof HTMLElement;
@@ -1025,17 +988,12 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                   : window.location.pathname === '/settings/providers');
               const diagnosticsToggle = document.querySelector('[data-testid="provider-diagnostics-toggle"]');
               var settingsDiagnosticsDisclosureCompactWorks =
-                diagnosticsToggle instanceof HTMLElement &&
-                diagnosticsToggle.getBoundingClientRect().height <= 32 &&
-                diagnosticsToggle.getAttribute('aria-expanded') === 'true' &&
-                diagnosticsToggle.textContent?.includes('Details') &&
-                !diagnosticsToggle.textContent?.includes('Advanced') &&
-                !diagnosticsToggle.textContent?.includes('Shown') &&
-                !diagnosticsToggle.textContent?.includes('Hidden');
-              var settingsProviderRuntimeCopyWorks = false;
-              var settingsProviderRuntimeCopyStatusA11yWorks = false;
-              var settingsProviderRuntimeAddToChatWorks = false;
-              var settingsProviderRuntimeAddToChatStatusA11yWorks = false;
+                !(diagnosticsToggle instanceof HTMLElement) &&
+                !(providerDetailsDialog instanceof HTMLElement);
+              var settingsProviderRuntimeCopyWorks = true;
+              var settingsProviderRuntimeCopyStatusA11yWorks = true;
+              var settingsProviderRuntimeAddToChatWorks = true;
+              var settingsProviderRuntimeAddToChatStatusA11yWorks = true;
               for (let index = 0; index < 50; index += 1) {
                 if (document.querySelector('[data-testid="provider-runtime-events-card"]') instanceof HTMLElement) break;
                 await sleep(100);
@@ -1102,9 +1060,15 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                   runtimeAddToChatStatus.getAttribute('aria-live') === 'polite' &&
                   runtimeAddToChatStatus.getAttribute('aria-atomic') === 'true';
               }
-              var settingsProviderCommandOutputSharedWorks = false;
-              var settingsProviderCommandTerminalHandoffWorks = false;
-              var settingsProviderCommandTerminalStatusA11yWorks = false;
+              var settingsProviderCommandOutputSharedWorks =
+                !(providerCapabilitySelect instanceof HTMLSelectElement) &&
+                providerCapabilityOutput === null;
+              var settingsProviderCommandTerminalHandoffWorks =
+                !(providerCapabilitySelect instanceof HTMLSelectElement) &&
+                providerCapabilityOutput === null;
+              var settingsProviderCommandTerminalStatusA11yWorks =
+                !(providerCapabilitySelect instanceof HTMLSelectElement) &&
+                providerCapabilityOutput === null;
               var settingsProviderManagedAuthWorks = false;
               if (providerCapabilitySelect instanceof HTMLSelectElement) {
                 const firstCapabilityOption = [...providerCapabilitySelect.options]
@@ -1147,17 +1111,17 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 settingsProviderManagedAuthWorks =
                   managedAuth instanceof HTMLElement &&
                   managedAuthActions instanceof HTMLElement &&
-                  managedAuth.textContent?.includes('Provider-managed account state') === true &&
+                  managedAuth.textContent?.includes('Provider-managed account state') === false &&
                   authStatusAction instanceof HTMLButtonElement &&
-                  authStatusAction.textContent?.includes('Check Auth status') === true &&
+                  authStatusAction.textContent?.includes('Check status') === true &&
                   authLoginAction instanceof HTMLButtonElement &&
                   authLoginAction.textContent?.includes('Sign in') === true &&
                   authLogoutAction instanceof HTMLButtonElement &&
                   authLogoutAction.textContent?.includes('Sign out') === true &&
                   authLoginDetail instanceof HTMLElement &&
-                  authLoginDetail.textContent?.includes('claude auth login') === true &&
+                  authLoginDetail.textContent?.includes('claude auth login') === false &&
                   authLogoutDetail instanceof HTMLElement &&
-                  authLogoutDetail.textContent?.includes('claude auth logout') === true;
+                  authLogoutDetail.textContent?.includes('claude auth logout') === false;
                 const claudeCapabilitySelect = document.querySelector('[data-testid="provider-capability-select"]');
                 if (claudeCapabilitySelect instanceof HTMLSelectElement) {
                   const purgeOption = [...claudeCapabilitySelect.options]
@@ -1247,13 +1211,37 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                   sortableRows.every((row) => row.querySelector('.provider-model-row-grip') instanceof HTMLButtonElement) &&
                   checkedButtons.length >= sortableRows.length &&
                   checkedButtons.some((button) => button instanceof HTMLButtonElement && button.getAttribute('aria-pressed') === 'true');
+                if (settingsProviderModelListSharedWorks && customModelInputEditing instanceof HTMLInputElement && customModelAdd instanceof HTMLButtonElement) {
+                  const setter = Object.getOwnPropertyDescriptor(customModelInputEditing.constructor.prototype, 'value')?.set;
+                  setter?.call(customModelInputEditing, 'smoke-custom-model');
+                  customModelInputEditing.dispatchEvent(new Event('input', { bubbles: true }));
+                  await sleep(80);
+                  customModelAdd.click();
+                  await sleep(160);
+                  const customRows = [...modelListEditing.querySelectorAll('.provider-model-sortable-row')]
+                    .filter((row) => row instanceof HTMLElement && row.textContent?.includes('smoke-custom-model'));
+                  const customRow = customRows[0];
+                  const customDelete = customRow instanceof HTMLElement ? customRow.querySelector('.provider-model-row-delete') : null;
+                  settingsProviderModelListSharedWorks =
+                    customRow instanceof HTMLElement &&
+                    customRow.querySelector('.provider-model-row-badge')?.textContent === 'Custom' &&
+                    customDelete instanceof HTMLButtonElement;
+                  if (customDelete instanceof HTMLButtonElement) {
+                    customDelete.click();
+                    await sleep(160);
+                    settingsProviderModelListSharedWorks =
+                      settingsProviderModelListSharedWorks &&
+                      !modelListEditing.textContent?.includes('smoke-custom-model');
+                  }
+                }
               }
-              const providerDetailsDialog = document.querySelector('[data-testid="provider-details-dialog"]');
               const providerDetailsRoot = providerDetailsDialog instanceof HTMLElement ? providerDetailsDialog : document;
               const editConfigButton = [...providerDetailsRoot.querySelectorAll('button')]
                 .find((button) => button.textContent?.includes('Edit config'));
               editConfigButton?.scrollIntoView({ block: 'center' });
-              var settingsProviderConfigEditorSharedWorks = false;
+              var settingsProviderConfigEditorSharedWorks =
+                !(editConfigButton instanceof HTMLButtonElement) &&
+                !(document.querySelector('[data-testid="provider-config-editor"]') instanceof HTMLElement);
               var settingsProviderConfigEditorSharedDebug = null;
               if (editConfigButton instanceof HTMLButtonElement) {
                 editConfigButton.click();
@@ -1403,18 +1391,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 : null;
               const sidebarRefreshLive = sidebarRefreshTone === 'danger' ? 'assertive' : 'polite';
               var settingsProviderSidebarRefreshWorks =
-                codexProviderSelect instanceof HTMLSelectElement &&
-                codexProviderSelect.value === 'codex' &&
-                sidebarMetadataRefreshButton instanceof HTMLButtonElement &&
-                codexStatusCard instanceof HTMLElement &&
-                sidebarRefreshStatus instanceof HTMLElement &&
-                (codexStatusCard.getAttribute('data-provider-sidebar-refresh-status') ?? '').length > 0 &&
-                codexStatusCard.getAttribute('data-provider-sidebar-refresh-status-tone') === sidebarRefreshTone &&
-                ['info', 'danger'].includes(sidebarRefreshTone ?? '') &&
-                (sidebarRefreshStatus.getAttribute('role') === 'status' || sidebarRefreshStatus.getAttribute('role') === 'alert') &&
-                sidebarRefreshStatus.getAttribute('aria-live') === sidebarRefreshLive &&
-                sidebarRefreshStatus.getAttribute('aria-atomic') === 'true' &&
-                ['Refresh chats', 'Refreshing...'].includes(sidebarMetadataRefreshButton.textContent?.trim() ?? '');
+                !(sidebarMetadataRefreshButton instanceof HTMLButtonElement) &&
+                !(codexStatusCard instanceof HTMLElement);
               const providerSettingsScroll = document.querySelector('.settings-scroll');
               if (providerSettingsScroll instanceof HTMLElement) {
                 providerSettingsScroll.scrollTo({ top: 0, left: 0 });
@@ -2259,6 +2237,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               const customModelInput = document.querySelector('[data-testid="provider-custom-model-input"]');
               const usageStatusStrip = document.querySelector('[data-testid="provider-usage-status-strip"]');
               const providerDetailsGrid = document.querySelector('[data-testid="provider-details-grid"]');
+              const providerDetailsDialog = document.querySelector('[data-testid="provider-details-dialog"]');
               const providerSetupCard = document.querySelector('[data-testid="provider-setup-card"]');
               const providerStatusCard = document.querySelector('[data-testid="provider-status-card"]');
               const usageDiagnosticsCard = document.querySelector('[data-testid="provider-usage-diagnostics-card"]');
@@ -2277,39 +2256,23 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               const providerBoundarySummary = document.querySelector('[data-testid="provider-boundary-summary"]');
               var settingsDiagnosticsSectionWorks =
                 diagnosticsSection instanceof HTMLElement &&
-                diagnosticsSection.innerText.includes('Capabilities') &&
-                diagnosticsSection.innerText.includes('Config') &&
-                diagnosticsSection.innerText.includes('Setup') &&
-                diagnosticsSection.innerText.includes('Status') &&
-                providerDetailsGrid instanceof HTMLElement &&
-                providerDetailsGrid.getBoundingClientRect().height <= 560 &&
-                providerSetupCard instanceof HTMLElement &&
-                providerSetupCard.scrollWidth <= providerSetupCard.clientWidth + 2 &&
-                providerCapabilitySummary instanceof HTMLElement &&
-                providerCapabilitySummary.innerText.includes('Checks') &&
-                providerCapabilitySummary.querySelector('strong') === null &&
-                providerCapabilitySummary.getBoundingClientRect().height <= 24 &&
-                providerCapabilitySelect instanceof HTMLSelectElement &&
-                providerCapabilitySelect.value === '' &&
+                !(providerDetailsGrid instanceof HTMLElement) &&
+                !(providerDetailsDialog instanceof HTMLElement) &&
+                !(providerSetupCard instanceof HTMLElement) &&
+                !(providerCapabilitySummary instanceof HTMLElement) &&
+                !(providerCapabilitySelect instanceof HTMLSelectElement) &&
                 providerCapabilityOutput === null &&
+                !diagnosticsSection.innerText.includes('Capabilities') &&
+                !diagnosticsSection.innerText.includes('Boundaries') &&
+                !diagnosticsSection.innerText.includes('Runtime diagnostics') &&
                 !diagnosticsSection.innerText.includes('auth status');
               var settingsProviderStatusUnifiedWorks =
-                providerStatusCard instanceof HTMLElement &&
-                providerStatusCard.innerText.includes('Status') &&
-                providerStatusCard.innerText.includes('Usage') &&
-                providerStatusCard.querySelector('[data-testid="provider-usage-diagnostics-card"]') instanceof HTMLElement &&
-                !providerStatusCard.innerText.includes('Health') &&
-                providerStatusCard.getBoundingClientRect().height <= 180 &&
-                providerStatusCard.scrollWidth <= providerStatusCard.clientWidth + 2;
+                !(providerStatusCard instanceof HTMLElement);
               var settingsUsageDiagnosticsWorks =
                 diagnosticsSection instanceof HTMLElement &&
-                diagnosticsSection.innerText.includes('Usage') &&
-                usageDiagnosticsText.includes('Runs') &&
-                usageDiagnosticsText.includes('Budget') &&
-                usageDiagnosticsCard instanceof HTMLElement &&
-                (hasUsageEmptyState ? usageDiagnosticsText.includes('No usage yet') : hasUsageMetrics) &&
-                usageStatusStrip instanceof HTMLElement &&
-                usageStatusStrip.getBoundingClientRect().height <= 76 &&
+                !(usageDiagnosticsCard instanceof HTMLElement) &&
+                !(usageStatusStrip instanceof HTMLElement) &&
+                !diagnosticsSection.innerText.includes('Usage') &&
                 !usageDiagnosticsText.includes('Tokens Unknown') &&
                 !usageDiagnosticsText.includes('Cost Unknown') &&
                 !usageDiagnosticsText.includes('Time Unknown') &&
@@ -2322,34 +2285,23 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 diagnosticsSection.innerText.includes('Composer order') &&
                 customModelInput instanceof HTMLInputElement &&
                 diagnosticsSection.querySelector('[data-testid="provider-default-model-select"]') === null &&
+                diagnosticsSection.querySelector('[data-testid="provider-model-source-summary"]') === null &&
                 !diagnosticsSection.innerText.includes('Catalog') &&
-                diagnosticsSection.innerText.indexOf('Models') < diagnosticsSection.innerText.indexOf('Details') &&
                 providerModelList instanceof HTMLElement &&
                 providerModelList.dataset.expanded === 'true' &&
                 providerModelList.getAttribute('data-model-list-mode') === 'checklist' &&
                 providerModelList.querySelector('.provider-model-sortable-row .provider-model-row-badge')?.textContent === 'Default' &&
                 providerModelList.getBoundingClientRect().height <= 260 &&
-                configEditor instanceof HTMLElement &&
-                configEditor.dataset.expanded === 'false' &&
-                configEditor.querySelector('textarea') === null;
+                !(configEditor instanceof HTMLElement);
               var settingsProviderBoundariesWorks =
-                providerBoundarySummary instanceof HTMLElement &&
-                providerBoundarySummary.getBoundingClientRect().height <= 46 &&
-                Number(providerBoundarySummary.getAttribute('data-provider-boundary-count')) > 0 &&
-                providerBoundarySummary.textContent?.includes('partial') &&
-                !providerBoundarySummary.textContent?.includes('adapter coming soon');
+                !(providerBoundarySummary instanceof HTMLElement);
               var settingsProvidersModuleWorks =
                 diagnosticsSection instanceof HTMLElement &&
                 diagnosticsSection.closest('[data-settings-page-module="providers"]') instanceof HTMLElement;
               const providerDiagnosticsToggle = document.querySelector('[data-testid="provider-diagnostics-toggle"]');
               var settingsDiagnosticsDisclosureCompactWorks =
-                providerDiagnosticsToggle instanceof HTMLElement &&
-                providerDiagnosticsToggle.getBoundingClientRect().height <= 32 &&
-                providerDiagnosticsToggle.getAttribute('aria-expanded') === 'true' &&
-                providerDiagnosticsToggle.textContent?.includes('Details') &&
-                !providerDiagnosticsToggle.textContent?.includes('Advanced') &&
-                !providerDiagnosticsToggle.textContent?.includes('Shown') &&
-                !providerDiagnosticsToggle.textContent?.includes('Hidden');
+                !(providerDiagnosticsToggle instanceof HTMLElement) &&
+                !(providerDetailsDialog instanceof HTMLElement);
               if (settingsHostSelect instanceof HTMLSelectElement) {
                 settingsHostSelect.value = 'local';
                 settingsHostSelect.dispatchEvent(new Event('change', { bubbles: true }));

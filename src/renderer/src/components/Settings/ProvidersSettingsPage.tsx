@@ -58,7 +58,7 @@ function SettingsSectionHeading({ title, description }: { title: string; descrip
 
 export default function ProvidersSettingsPage({
   defaultProvider, sessions, defaultEfforts, defaultPermissionModes, providerModels,
-  providerRuntime, providerPermissionContexts, providerDiagnostics, diagnosticsLoading, providerAvailability, selectedProviderId, defaultAdvancedOpen = false, onSetSelectedProvider, onSetDefaultProvider, onSetDefaultEffort, onSetDefaultPermissionMode, onSetProviderModels, onSetProviderPermissionContexts, onLoadProviderDiagnostics
+  providerRuntime, providerPermissionContexts, providerDiagnostics, providerAvailability, selectedProviderId, onSetSelectedProvider, onSetDefaultProvider, onSetDefaultEffort, onSetDefaultPermissionMode, onSetProviderModels, onSetProviderPermissionContexts, onLoadProviderDiagnostics
 }: {
   defaultProvider: string
   sessions: SessionListItem[]
@@ -68,10 +68,8 @@ export default function ProvidersSettingsPage({
   providerRuntime: Record<string, ProviderRuntimeInfo>
   providerPermissionContexts: Record<string, ProviderPermissionRuntimeContext>
   providerDiagnostics: Record<string, ProviderDiagnosticInfo>
-  diagnosticsLoading: Record<string, boolean>
   providerAvailability: Record<string, boolean>
   selectedProviderId: string
-  defaultAdvancedOpen?: boolean
   onSetSelectedProvider: (id: string) => void
   onSetDefaultProvider: (id: string) => void
   onSetDefaultEffort: (providerId: string, effortId: string) => void
@@ -97,23 +95,11 @@ export default function ProvidersSettingsPage({
     : permissionModes[0]?.id ?? currentPermissionMode
   const visibleIds = visibleModels.map((m) => m.id)
   const runtime = providerRuntime[selectedId]
-  const loadingDiagnostics = diagnosticsLoading[selectedId] === true
-  const [advancedOpen, setAdvancedOpen] = useState(defaultAdvancedOpen)
   const settingsCommandSurfaces = visibleSettingsCommandSurfaces(selectedId, runtime?.registry.commandSurfaces ?? [])
   const authCommandSurfaces = visibleProviderAuthCommandSurfaces(selectedId, settingsCommandSurfaces)
-  const usageSnapshot = summarizeProviderUsage(sessions, selectedId)
-  const diagnosticSummary = [
-    providerReadinessLabel(installed, diagnostics),
-    `${usageSnapshot.sessionCount} chat${usageSnapshot.sessionCount === 1 ? '' : 's'}`,
-    diagnostics ? `${diagnostics.probes.filter((probe) => probe.status === 'ok').length}/${diagnostics.probes.length} checks` : 'Checks pending'
-  ]
-  const [sidebarSyncLoading, setSidebarSyncLoading] = useState(false)
-  const [sidebarSyncResult, setSidebarSyncResult] = useState<ProviderSidebarSyncResult | null>(null)
   const [permissionContextLoading, setPermissionContextLoading] = useState(false)
   const [permissionContextRefreshStatus, setPermissionContextRefreshStatus] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
   const permissionContextCwd = sessions.find((session) => session.provider === selectedId)?.workDir ?? sessions[0]?.workDir
-  const detailsDialogTitleId = useId()
-  const detailsDialogDescriptionId = useId()
 
   const loadPermissionContext = useCallback(async (options: { announce?: boolean } = {}): Promise<void> => {
     setPermissionContextLoading(true)
@@ -143,23 +129,8 @@ export default function ProvidersSettingsPage({
   }, [onLoadProviderDiagnostics, selectedId])
 
   useEffect(() => {
-    if (advancedOpen) onLoadProviderDiagnostics(selectedId)
-  }, [advancedOpen, onLoadProviderDiagnostics, selectedId])
-
-  useEffect(() => {
-    setSidebarSyncLoading(false)
-    setSidebarSyncResult(null)
     setPermissionContextRefreshStatus(null)
   }, [selectedId])
-
-  useEffect(() => {
-    if (!advancedOpen) return undefined
-    const handleKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') setAdvancedOpen(false)
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [advancedOpen])
 
   useEffect(() => {
     let alive = true
@@ -173,24 +144,6 @@ export default function ProvidersSettingsPage({
 
   const handleVisibleModelsChange = (ids: string[]): void => {
     onSetProviderModels(selectedId, ids)
-  }
-
-  const refreshSidebarMetadata = async (): Promise<void> => {
-    const cwd = sessions.find((session) => session.provider === selectedId)?.workDir ?? sessions[0]?.workDir
-    setSidebarSyncLoading(true)
-    setSidebarSyncResult(null)
-    try {
-      setSidebarSyncResult(await window.api.providers.refreshSidebarMetadata(selectedId, cwd))
-    } catch (error) {
-      setSidebarSyncResult({
-        ok: false,
-        providerId: selectedId,
-        changed: 0,
-        error: errorText(error)
-      })
-    } finally {
-      setSidebarSyncLoading(false)
-    }
   }
 
   return (
@@ -265,29 +218,37 @@ export default function ProvidersSettingsPage({
                           refreshStatus={permissionContextRefreshStatus}
                           onRefresh={() => { void loadPermissionContext({ announce: true }) }}
                         />
-                        {providerDef.permissionModes.find((mode) => mode.id === permissionPickerMode)?.desc && (
-                          <InlineMutedText>
-                            {providerDef.permissionModes.find((mode) => mode.id === permissionPickerMode)?.desc}
-                          </InlineMutedText>
-                        )}
                       </div>
                     )}
                   />
                 )}
 
-                {authCommandSurfaces.length > 0 && (
+                {providerDef.id === 'claude' && (
+                  <SettingsRow
+                    label="Endpoint"
+                    className="provider-settings-row provider-settings-row-stacked"
+                    control={<ClaudeEndpointField color={providerDef.color} />}
+                  />
+                )}
+
+                {(providerDef.id === 'cursor' || authCommandSurfaces.length > 0) && (
                   <SettingsRow
                     label="Auth"
                     className="provider-settings-row provider-settings-row-stacked"
                     control={(
-                      <ProviderManagedAuthActions
-                        providerId={providerDef.id}
-                        color={providerDef.color}
-                        surfaces={authCommandSurfaces}
-                        sessions={sessions}
-                        authStatus={diagnostics?.auth.status}
-                        onAuthFlowSettled={() => onLoadProviderDiagnostics(providerDef.id, { force: true })}
-                      />
+                      <div className="provider-auth-stack">
+                        {providerDef.id === 'cursor' && <CursorAuthField color={providerDef.color} />}
+                        {authCommandSurfaces.length > 0 && (
+                          <ProviderManagedAuthActions
+                            providerId={providerDef.id}
+                            color={providerDef.color}
+                            surfaces={authCommandSurfaces}
+                            sessions={sessions}
+                            authStatus={diagnostics?.auth.status}
+                            onAuthFlowSettled={() => onLoadProviderDiagnostics(providerDef.id, { force: true })}
+                          />
+                        )}
+                      </div>
                     )}
                   />
                 )}
@@ -302,31 +263,12 @@ export default function ProvidersSettingsPage({
                           <div className="provider-model-row-copy">
                             <div className="provider-model-inline-label">Composer order</div>
                           </div>
-                          <ModelSourceSummary
-                            providerDef={modelCatalogProviderDef}
-                            diagnostics={diagnostics}
-                            loading={loadingDiagnostics}
-                            visibleCount={visibleIds.length}
-                          />
                         </div>
                         <ModelListManager
                           providerDef={modelCatalogProviderDef}
                           visibleIds={visibleIds}
                           onChange={handleVisibleModelsChange}
                         />
-                      </div>
-                      <div className="provider-model-actions-row">
-                        <button
-                          className="provider-details-toggle"
-                          data-testid="provider-diagnostics-toggle"
-                          aria-expanded={advancedOpen}
-                          aria-label={advancedOpen ? 'Hide provider details' : 'Show provider details'}
-                          onClick={() => setAdvancedOpen((open) => !open)}
-                        >
-                          <Icon name="wrench" size={13} />
-                          Details
-                          <Icon name={advancedOpen ? 'chevronDown' : 'chevronRight'} size={12} />
-                        </button>
                       </div>
                     </div>
                   )}
@@ -336,91 +278,6 @@ export default function ProvidersSettingsPage({
             </SettingsGroupContent>
           </SettingsContentGroup>
 
-          {advancedOpen && (
-            <div
-              className="provider-details-dialog-backdrop"
-              role="presentation"
-              onMouseDown={(event) => {
-                if (event.target === event.currentTarget) setAdvancedOpen(false)
-              }}
-            >
-              <div
-                className="provider-details-dialog provider-diagnostics-group"
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby={detailsDialogTitleId}
-                aria-describedby={detailsDialogDescriptionId}
-                data-testid="provider-details-dialog"
-              >
-                <div className="provider-details-panel">
-                  <div className="provider-details-panel-header">
-                    <div className="provider-details-panel-copy">
-                      <div id={detailsDialogTitleId} className="provider-details-panel-title">Provider details</div>
-                      <div id={detailsDialogDescriptionId} className="provider-details-panel-description">Runtime diagnostics, capability checks, and setup commands for {providerDef.name}.</div>
-                    </div>
-                    <div className="provider-details-panel-actions">
-                      <div className="provider-details-panel-summary" aria-label={`${providerDef.name} diagnostics summary`}>
-                        {diagnosticSummary.map((item) => (
-                          <span key={item}>{item}</span>
-                        ))}
-                      </div>
-                      <button
-                        type="button"
-                        className="provider-details-dialog-close"
-                        aria-label="Close provider details"
-                        onClick={() => setAdvancedOpen(false)}
-                      >
-                        <Icon name="close" size={14} />
-                      </button>
-                    </div>
-                  </div>
-                  <div className="provider-details-grid" data-testid="provider-details-grid">
-                    <ProviderDetailCard wide>
-                      <ProviderStatusDetails
-                        providerId={selectedId}
-                        diagnostics={diagnostics}
-                        loadingDiagnostics={loadingDiagnostics}
-                        usage={usageSnapshot}
-                        color={providerDef.color}
-                        sidebarSyncResult={sidebarSyncResult}
-                        sidebarSyncLoading={sidebarSyncLoading}
-                        onRefreshSidebarMetadata={selectedId === 'codex' ? refreshSidebarMetadata : undefined}
-                      />
-                    </ProviderDetailCard>
-                    {diagnostics && diagnostics.probes.length > 0 && (
-                      <ProviderDetailCard title="Checks">
-                        <ProviderProbeGrid diagnostics={diagnostics} color={providerDef.color} />
-                      </ProviderDetailCard>
-                    )}
-                    {settingsCommandSurfaces.length > 0 && (
-                      <ProviderDetailCard title="Capabilities" wide>
-                        <ProviderCommandSurfaces
-                          providerId={selectedId}
-                          color={providerDef.color}
-                          surfaces={settingsCommandSurfaces}
-                          sessions={sessions}
-                        />
-                      </ProviderDetailCard>
-                    )}
-                    {runtime?.registry.gaps.length ? (
-                      <ProviderDetailCard title="Boundaries">
-                        <ProviderBoundarySummary gaps={runtime.registry.gaps} color={providerDef.color} />
-                      </ProviderDetailCard>
-                    ) : null}
-                    <ProviderDetailCard title="Setup">
-                      <ProviderSetupDetails
-                        providerDef={providerDef}
-                        authCommandSurfaces={authCommandSurfaces}
-                        sessions={sessions}
-                        authStatus={diagnostics?.auth.status}
-                        onAuthFlowSettled={() => onLoadProviderDiagnostics(providerDef.id, { force: true })}
-                      />
-                    </ProviderDetailCard>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
           </div>
         </SettingsContentLayout>
@@ -458,6 +315,14 @@ const PROVIDER_AUTH_COMMAND_SURFACE_IDS = new Set([
 
 function supportsProviderManagedAuthFlow(providerId: string, surface: ProviderCommandSurface): boolean {
   return providerId === 'copilot' && surface.id === 'copilot-login'
+}
+
+function providerAuthActionLabel(surface: ProviderCommandSurface): string {
+  const haystack = `${surface.id} ${surface.label}`.toLowerCase()
+  if (haystack.includes('logout') || haystack.includes('sign out')) return 'Sign out'
+  if (haystack.includes('login') || haystack.includes('sign in')) return 'Sign in'
+  if (haystack.includes('status') || haystack.includes('account')) return 'Check status'
+  return surface.label
 }
 
 function providerReadinessLabel(installed: boolean, diagnostics?: ProviderDiagnosticInfo): string {
@@ -551,9 +416,8 @@ function ProviderCompactHeader({
         onSelect={onSelect}
         onSetDefault={onSetDefault}
       />
-      <div className="provider-compact-header-actions">
-        <span className="provider-compact-runtime">SDK/runtime defaults</span>
-        {!isDefault && (
+      {!isDefault && (
+        <div className="provider-compact-header-actions">
           <button
             onClick={onSetDefault}
             disabled={!installed}
@@ -561,8 +425,8 @@ function ProviderCompactHeader({
           >
             Set default
           </button>
-        )}
-      </div>
+        </div>
+      )}
       {!installed && <InstallCommand cmd={providerDef.installCmd} />}
     </div>
   )
@@ -1184,9 +1048,6 @@ function ProviderManagedAuthActions({
 
   return (
     <div data-testid="provider-managed-auth-actions" style={{ display: 'grid', gap: 8, minWidth: 0 }}>
-      <div className="provider-managed-auth-note">
-        Provider-managed account state. Orchestrator displays device codes and tracks completion when available.
-      </div>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
         {surfaces.map((surface) => {
           const runnable = surface.quota === 'none' && !surface.mutatesState
@@ -1194,6 +1055,7 @@ function ProviderManagedAuthActions({
           const waitingForBrowserAuth = managedAuthFlow && authFlows[surface.id]?.status === 'started'
           const signedIn = managedAuthFlow && (authFlows[surface.id]?.status === 'completed' || authStatus === 'ok')
           const busy = loading[surface.id] === true
+          const actionLabel = providerAuthActionLabel(surface)
           return (
             <button
               key={surface.id}
@@ -1210,7 +1072,7 @@ function ProviderManagedAuthActions({
               }}
               style={{ '--provider-accent': color } as CSSProperties}
             >
-              {busy ? (managedAuthFlow ? 'Starting' : 'Checking') : signedIn ? 'Signed in' : waitingForBrowserAuth ? 'Waiting for browser' : runnable ? `Check ${surface.label}` : surface.label}
+              {busy ? (managedAuthFlow ? 'Starting' : 'Checking') : signedIn ? 'Signed in' : waitingForBrowserAuth ? 'Waiting for browser' : actionLabel}
             </button>
           )
         })}
@@ -1227,14 +1089,6 @@ function ProviderManagedAuthActions({
             data-testid={`provider-managed-auth-detail-${surface.id}`}
             style={{ display: 'grid', gap: 4, minWidth: 0 }}
           >
-            {!runnable && !managedAuthFlow && (
-              <code className="provider-command-output-command">{providerSurfaceTerminalCommand(providerId, surface)}</code>
-            )}
-            {surface.note && (
-              <div style={{ color: 'var(--color-text-muted)', fontSize: 11, lineHeight: 1.35 }}>
-                {surface.note}
-              </div>
-            )}
             {result && (
               <div
                 style={{
@@ -3052,18 +2906,20 @@ function ModelListManager({
             <div className="provider-model-list-stack">
               {visibleIds.map((id, index) => {
                 const meta = providerDef.models.find((m) => m.id === id)
+                const isCustom = !catalogIds.includes(id)
                 return (
                   <SortableModelRow
                     key={id}
                     id={id}
                     label={meta?.label ?? readableModelLabel(id)}
                     modelId={id}
-                  index={index + 1}
-                  checked
-                  isDefault={index === 0}
-                  disabled={!catalogIds.includes(id)}
-                  onToggle={() => toggleModel(id)}
-                />
+                    index={index + 1}
+                    checked
+                    isDefault={index === 0}
+                    isCustom={isCustom}
+                    onToggle={() => toggleModel(id)}
+                    onDelete={isCustom ? () => remove(id) : undefined}
+                  />
                 )
               })}
               {visibleIds.length === 0 && (
@@ -3114,8 +2970,8 @@ function ModelListManager({
 
 // ─── Sortable model row ────────────────────────────────────────────────────────
 
-function SortableModelRow({ id, label, modelId, index, checked, disabled, isDefault, onToggle }: {
-  id: string; label: string; modelId: string; index: number; checked: boolean; disabled?: boolean; isDefault?: boolean; onToggle: () => void
+function SortableModelRow({ id, label, modelId, index, checked, isCustom, isDefault, onToggle, onDelete }: {
+  id: string; label: string; modelId: string; index: number; checked: boolean; isCustom?: boolean; isDefault?: boolean; onToggle: () => void; onDelete?: () => void
 }): JSX.Element {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
   return (
@@ -3150,7 +3006,17 @@ function SortableModelRow({ id, label, modelId, index, checked, disabled, isDefa
       <span className="provider-model-row-label">{label}</span>
       <span className="provider-model-row-id">{modelId}</span>
       {isDefault && <span className="provider-model-row-badge">Default</span>}
-      {disabled && <span className="provider-model-row-badge">Custom</span>}
+      {isCustom && <span className="provider-model-row-badge">Custom</span>}
+      {onDelete && (
+        <button
+          type="button"
+          aria-label={`Delete custom model ${label}`}
+          className="provider-model-row-delete"
+          onClick={onDelete}
+        >
+          <Icon name="trash" size={12} />
+        </button>
+      )}
     </div>
   )
 }

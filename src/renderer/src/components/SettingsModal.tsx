@@ -764,7 +764,6 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
                   providerRuntime={providerRuntime}
                   providerPermissionContexts={providerPermissionContexts}
                   providerDiagnostics={providerDiagnostics}
-                  diagnosticsLoading={diagnosticsLoading}
                   providerAvailability={providerAvailability}
                   selectedProviderId={selectedSettingsProviderId}
                   onSetSelectedProvider={setSelectedSettingsProviderId}

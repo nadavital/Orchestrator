@@ -13417,39 +13417,10 @@
     gap: 2px;
   }
 
-  .provider-model-actions-row {
-    display: flex;
-    justify-content: flex-end;
-  }
-
-  .provider-model-source-summary {
-    display: inline-flex;
-    min-height: 22px;
-    flex: 0 0 auto;
-    align-items: center;
-    gap: 5px;
-    color: var(--text-tertiary);
-    font-size: 10.5px;
-    font-weight: 600;
-    line-height: 1;
-    white-space: nowrap;
-  }
-
-  .provider-model-source-summary span:last-child {
-    border: 1px solid color-mix(in srgb, var(--border-subtle) 18%, transparent);
-    border-radius: 999px;
-    color: var(--text-secondary);
-    padding: 2px 6px;
-    text-transform: capitalize;
-  }
-
-  .provider-managed-auth-note {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-    white-space: nowrap;
+  .provider-auth-stack {
+    display: grid;
+    min-width: 0;
+    gap: 8px;
   }
 
   .provider-model-list {
@@ -13600,6 +13571,7 @@
 
   .provider-model-row-grip,
   .provider-model-row-check,
+  .provider-model-row-delete,
   .provider-model-row-grip-placeholder {
     display: inline-flex;
     width: 20px;
@@ -13631,6 +13603,11 @@
     background: color-mix(in srgb, var(--provider-color, var(--accent)) 12%, var(--surface-bg));
   }
 
+  .provider-model-row-delete {
+    color: var(--text-tertiary);
+    cursor: pointer;
+  }
+
   .provider-model-row-grip {
     cursor: grab;
   }
@@ -13638,7 +13615,9 @@
   .provider-model-row-grip:hover,
   .provider-model-row-grip:focus-visible,
   .provider-model-row-check:hover,
-  .provider-model-row-check:focus-visible {
+  .provider-model-row-check:focus-visible,
+  .provider-model-row-delete:hover,
+  .provider-model-row-delete:focus-visible {
     background: var(--control-bg-hover);
     color: var(--text-primary);
     outline: none;
