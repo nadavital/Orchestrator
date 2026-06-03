@@ -1101,7 +1101,7 @@ const providerRegistries: Record<string, ProviderCapabilityRegistry> = {
       probe('help', 'Help', ['--help'], 'help')
     ],
     commandSurfaces: [
-      commandSurface('copilot-login', 'Sign in', 'runtime', ['login'], 'interactive', 'none', true, 'settings', { featureId: 'sdk-status', note: 'Starts GitHub Copilot OAuth device flow; Orchestrator opens the browser and displays the device code. The SDK can also use an existing GitHub/Copilot login when available.' })
+      commandSurface('copilot-login', 'Sign in', 'runtime', ['login'], 'interactive', 'none', true, 'settings', { featureId: 'sdk-status', note: 'Starts GitHub Copilot OAuth device flow; Orchestrator displays the device code and tracks completion. The SDK can also use an existing GitHub/Copilot login when available.' })
     ],
     slashCommands: [
       slashCommand('/review', 'Start a Copilot code review task', 'sdk', 'sdk', 'sdk-command', { featureId: 'code-review' }),

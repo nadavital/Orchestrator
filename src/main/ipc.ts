@@ -32,6 +32,7 @@ import { deleteProviderAuthSecret, getProviderAuthSecretStatus, setProviderAuthS
 import { setBrowserSecurityPolicy } from './browserSecurityPolicy'
 import { registerBrowserClientToolIpc } from './browserClientTools'
 import { EDITOR_OPEN_TARGETS, editorCliTargets, editorFileUrl, editorOpenTarget, findExecutableCommand, normalizePreferredOpenTarget, type EditorOpenTarget } from './editorOpen'
+import { safeWindowSend } from './safeWebContents'
 type FilePreviewResult =
   | { kind: 'text'; size: number; text: string; truncated: boolean }
   | { kind: 'markdown'; size: number; text: string; truncated: boolean }
@@ -2766,6 +2767,12 @@ function openProjectDirectoryDialogOptions(): OpenDialogOptions {
 
 const providerAuthProcesses = new Map<string, ChildProcess>()
 
+function emitProviderAuthFlowUpdate(result: ProviderAuthFlowResult): void {
+  for (const win of BrowserWindow.getAllWindows()) {
+    safeWindowSend(win, 'providers:authFlowUpdate', result)
+  }
+}
+
 function compactProviderAuthOutput(text: string): string {
   const lines = text
     .split(/\r?\n/)
@@ -2847,12 +2854,11 @@ async function startProviderAuthFlow(providerId: string, surfaceId: string): Pro
       const { url, code } = parseCopilotDeviceAuth(output)
       if (url && code) {
         clearTimeout(timeout)
-        void shell.openExternal(url)
         finish({
           providerId,
           surfaceId,
           status: 'started',
-          message: 'Opened GitHub sign-in in your browser. Enter this code when GitHub asks for the app code.',
+          message: 'GitHub sign-in is waiting in your browser. Enter this code when GitHub asks for the app code.',
           url,
           code
         })
@@ -2865,27 +2871,29 @@ async function startProviderAuthFlow(providerId: string, surfaceId: string): Pro
       clearTimeout(timeout)
       clearTimeout(cleanupTimer)
       providerAuthProcesses.delete(processKey)
-      finish({
+      const result: ProviderAuthFlowResult = {
         providerId,
         surfaceId,
         status: 'error',
         message: error.message
-      })
+      }
+      if (settled) emitProviderAuthFlowUpdate(result)
+      else finish(result)
     })
     child.once('exit', (code, signal) => {
       clearTimeout(timeout)
       clearTimeout(cleanupTimer)
       providerAuthProcesses.delete(processKey)
-      if (!settled) {
-        finish({
-          providerId,
-          surfaceId,
-          status: code === 0 ? 'completed' : 'error',
-          message: code === 0
-            ? 'GitHub Copilot sign-in completed.'
-            : `GitHub Copilot sign-in exited${code === null ? '' : ` with code ${code}`}${signal ? ` (${signal})` : ''}. ${compactProviderAuthOutput(output)}`
-        })
+      const result: ProviderAuthFlowResult = {
+        providerId,
+        surfaceId,
+        status: code === 0 ? 'completed' : 'error',
+        message: code === 0
+          ? 'GitHub Copilot sign-in completed.'
+          : `GitHub Copilot sign-in exited${code === null ? '' : ` with code ${code}`}${signal ? ` (${signal})` : ''}. ${compactProviderAuthOutput(output)}`
       }
+      if (settled) emitProviderAuthFlowUpdate(result)
+      else finish(result)
     })
   })
 }

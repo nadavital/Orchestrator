@@ -386,6 +386,11 @@ const api = {
       ipcRenderer.invoke('providers:runCommandSurface', providerId, surfaceId),
     startAuthFlow: (providerId: string, surfaceId: string): Promise<ProviderAuthFlowResult> =>
       ipcRenderer.invoke('providers:startAuthFlow', providerId, surfaceId),
+    onAuthFlowUpdate: (cb: (result: ProviderAuthFlowResult) => void): (() => void) => {
+      const handler = (_: Electron.IpcRendererEvent, result: ProviderAuthFlowResult): void => cb(result)
+      ipcRenderer.on('providers:authFlowUpdate', handler)
+      return () => ipcRenderer.off('providers:authFlowUpdate', handler)
+    },
     refreshSidebarMetadata: (providerId: string, cwd?: string): Promise<ProviderSidebarSyncResult> =>
       ipcRenderer.invoke('providers:refreshSidebarMetadata', providerId, cwd),
     getPermissionContext: (providerId: string, cwd?: string): Promise<ProviderPermissionRuntimeContext> =>

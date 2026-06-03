@@ -319,6 +319,7 @@ declare global {
         validateAuthSecret: (providerId: string) => Promise<ProviderAuthValidationResult>
         runCommandSurface: (providerId: string, surfaceId: string) => Promise<ProviderCommandSurfaceResult>
         startAuthFlow: (providerId: string, surfaceId: string) => Promise<ProviderAuthFlowResult>
+        onAuthFlowUpdate: (cb: (result: ProviderAuthFlowResult) => void) => () => void
         refreshSidebarMetadata: (providerId: string, cwd?: string) => Promise<ProviderSidebarSyncResult>
         getPermissionContext: (providerId: string, cwd?: string) => Promise<ProviderPermissionRuntimeContext>
         listResources: (providerId?: string, cwd?: string) => Promise<Record<string, ProviderResourceSnapshot>>

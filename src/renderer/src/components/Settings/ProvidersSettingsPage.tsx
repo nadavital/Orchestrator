@@ -982,6 +982,13 @@ function ProviderManagedAuthActions({
   const [loading, setLoading] = useState<Record<string, boolean>>({})
   const { terminalStatus, insertSurfaceInTerminal } = useProviderCommandTerminalHandoff(providerId, sessions)
 
+  useEffect(() => {
+    return window.api.providers.onAuthFlowUpdate((result) => {
+      if (result.providerId !== providerId) return
+      setAuthFlows((current) => ({ ...current, [result.surfaceId]: result }))
+    })
+  }, [providerId])
+
   const runSurface = async (surface: ProviderCommandSurface): Promise<void> => {
     if (surface.quota !== 'none' || surface.mutatesState) return
     setLoading((current) => ({ ...current, [surface.id]: true }))
@@ -1016,7 +1023,7 @@ function ProviderManagedAuthActions({
   return (
     <div data-testid="provider-managed-auth-actions" style={{ display: 'grid', gap: 8, minWidth: 0 }}>
       <div style={{ color: 'var(--color-text-muted)', fontSize: 11, lineHeight: 1.35 }}>
-        Provider-managed account state. Orchestrator opens browser/device-code flows when available.
+        Provider-managed account state. Orchestrator displays device codes and tracks completion when available.
       </div>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
         {surfaces.map((surface) => {
