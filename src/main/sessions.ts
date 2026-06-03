@@ -6,7 +6,7 @@ import { readFileSync } from 'fs'
 import { performance } from 'perf_hooks'
 import { promisify } from 'util'
 import type { AgentThreadOpenRequest, AgentThreadOpenResult, Attachment, AutomationPermissionSnapshot, CodexReviewStartRequest, Session, SessionForkMode, SessionForkOptions, SessionListItem, ChatMessage, TextMessage, ProviderRuntimeKind, ProviderSidebarSyncResult, ReviewMetadata, RunEvent, RunRequest, SessionStatus, SideQuestionMessage, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary, UserInputAnswerPayload, WorktreeInventoryItem } from '../types'
-import { PROVIDER_DEFS, applyAutomationPermissionSnapshot, finalizeInterruptedMessages, getDefaultPermissionMode } from '../types'
+import { PROVIDER_DEFS, applyAutomationPermissionSnapshot, finalizeInterruptedMessages, getConfigurableModels, getDefaultPermissionMode, normalizeProviderModelOrder } from '../types'
 import { gitManager } from './git'
 import { buildProviderCommandForRuntime, getProvider, PROVIDERS, providerSpawnEnv, resolveProviderBinary, resolveProviderCommand, runCodexAppServerCommandSurfaceRaw } from './providers'
 import type { ProviderAdapter } from './providers'
@@ -861,9 +861,11 @@ export const sessionManager = {
     const defaultProvider = settingsStore.get('defaultProvider', 'claude') as string
     const providerDef = PROVIDER_DEFS[defaultProvider] ?? PROVIDER_DEFS.claude
     const storedModels = settingsStore.get('defaultModels', {}) as Record<string, string>
+    const storedProviderModels = settingsStore.get('providerModels', {}) as Record<string, string[]>
     const storedEfforts = settingsStore.get('defaultEfforts', {}) as Record<string, string>
     const storedPermissionModes = settingsStore.get('defaultPermissionModes', {}) as Record<string, string>
-    const defaultModel = storedModels[providerDef.id] ?? providerDef.models[0]?.id ?? ''
+    const orderedModels = normalizeProviderModelOrder(providerDef, storedProviderModels[providerDef.id] ?? [])
+    const defaultModel = orderedModels[0] ?? storedModels[providerDef.id] ?? getConfigurableModels(providerDef)[0]?.id ?? ''
     const defaultEffort = storedEfforts[providerDef.id] ?? providerDef.effortLevels[0]?.id ?? 'normal'
     const defaultPermissionMode = getDefaultPermissionMode(providerDef, storedPermissionModes[providerDef.id])
 

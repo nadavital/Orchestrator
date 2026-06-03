@@ -286,7 +286,6 @@ export const PROVIDER_DEFS: Record<string, ProviderDef> = {
       { id: 'auto', label: 'Auto' },
       { id: 'composer-2.5', label: 'Composer 2.5',
         cursorConfig: { fastModelId: 'composer-2.5-fast' } },
-      { id: 'composer-2.5-fast', label: 'Composer 2.5 Fast' },
       { id: 'composer-2', label: 'Composer 2',
         cursorConfig: { fastModelId: 'composer-2-fast' } },
       { id: 'claude-opus-4-7', label: 'Claude Opus 4.7',
@@ -576,15 +575,50 @@ export function getDangerPermissionModes(providerDef: ProviderDef): ProviderPerm
   return providerDef.permissionModes.filter((mode) => mode.intent === 'bypass')
 }
 
+export function fastBaseModelIdForProviderModel(
+  providerDef: ProviderDef,
+  modelId: string
+): string | null {
+  for (const model of providerDef.models) {
+    const cfg = model.cursorConfig
+    if (!cfg) continue
+    if (cfg.fastModelId === modelId) return model.id
+    if (cfg.effortLevels?.some((level) => level.fastModelId === modelId)) return model.id
+  }
+  return null
+}
+
+export function isFastVariantProviderModel(providerDef: ProviderDef, modelId: string): boolean {
+  return fastBaseModelIdForProviderModel(providerDef, modelId) !== null
+}
+
+export function getConfigurableModels(providerDef: ProviderDef): ProviderModelDef[] {
+  return providerDef.models.filter((model) => !isFastVariantProviderModel(providerDef, model.id))
+}
+
+export function normalizeProviderModelOrder(
+  providerDef: ProviderDef,
+  modelIds: string[]
+): string[] {
+  const normalized: string[] = []
+  for (const id of modelIds) {
+    const modelId = fastBaseModelIdForProviderModel(providerDef, id) ?? id
+    if (isFastVariantProviderModel(providerDef, modelId)) continue
+    if (!normalized.includes(modelId)) normalized.push(modelId)
+  }
+  return normalized
+}
+
 export function getVisibleModels(
   providerDef: ProviderDef,
   providerModels: Record<string, string[]>
 ): ProviderModelDef[] {
   const stored = providerModels[providerDef.id]
   if (stored && stored.length > 0) {
-    return stored.map((id) => providerDef.models.find((m) => m.id === id) ?? { id, label: id })
+    return normalizeProviderModelOrder(providerDef, stored)
+      .map((id) => providerDef.models.find((m) => m.id === id) ?? { id, label: id })
   }
-  return providerDef.models.slice(0, DEFAULT_VISIBLE_COUNT)
+  return getConfigurableModels(providerDef).slice(0, DEFAULT_VISIBLE_COUNT)
 }
 
 export type SessionEffort = string

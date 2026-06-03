@@ -960,11 +960,11 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 !diagnosticsSection.innerText.includes('No turns');
               var settingsProviderModelsCollapsedWorks =
                 diagnosticsSection instanceof HTMLElement &&
-                diagnosticsSection.innerText.includes('Default') &&
                 diagnosticsSection.innerText.includes('Models') &&
+                diagnosticsSection.innerText.includes('Composer order') &&
                 customModelInput instanceof HTMLInputElement &&
+                diagnosticsSection.querySelector('[data-testid="provider-default-model-select"]') === null &&
                 !diagnosticsSection.innerText.includes('Catalog') &&
-                diagnosticsSection.innerText.indexOf('Default') < diagnosticsSection.innerText.indexOf('Models') &&
                 diagnosticsSection.innerText.indexOf('Models') < diagnosticsSection.innerText.indexOf('Details') &&
                 providerModelList instanceof HTMLElement &&
                 providerModelList.dataset.expanded === 'true' &&
@@ -972,6 +972,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 providerModelList.getAttribute('data-model-list-mode') === 'checklist' &&
                 providerModelList.querySelector('.provider-model-row-check') instanceof HTMLButtonElement &&
                 providerModelList.querySelector('.provider-model-row-grip') instanceof HTMLButtonElement &&
+                providerModelList.querySelector('.provider-model-sortable-row .provider-model-row-badge')?.textContent === 'Default' &&
                 providerModelList.getBoundingClientRect().height <= 260 &&
                 providerModelList.scrollWidth <= providerModelList.clientWidth + 2 &&
                 configEditor instanceof HTMLElement &&
@@ -2317,15 +2318,16 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 !diagnosticsSection.innerText.includes('No turns');
               var settingsProviderModelsCollapsedWorks =
                 diagnosticsSection instanceof HTMLElement &&
-                diagnosticsSection.innerText.includes('Default') &&
                 diagnosticsSection.innerText.includes('Models') &&
+                diagnosticsSection.innerText.includes('Composer order') &&
                 customModelInput instanceof HTMLInputElement &&
+                diagnosticsSection.querySelector('[data-testid="provider-default-model-select"]') === null &&
                 !diagnosticsSection.innerText.includes('Catalog') &&
-                diagnosticsSection.innerText.indexOf('Default') < diagnosticsSection.innerText.indexOf('Models') &&
                 diagnosticsSection.innerText.indexOf('Models') < diagnosticsSection.innerText.indexOf('Details') &&
                 providerModelList instanceof HTMLElement &&
                 providerModelList.dataset.expanded === 'true' &&
                 providerModelList.getAttribute('data-model-list-mode') === 'checklist' &&
+                providerModelList.querySelector('.provider-model-sortable-row .provider-model-row-badge')?.textContent === 'Default' &&
                 providerModelList.getBoundingClientRect().height <= 260 &&
                 configEditor instanceof HTMLElement &&
                 configEditor.dataset.expanded === 'false' &&

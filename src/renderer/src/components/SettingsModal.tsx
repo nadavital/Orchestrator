@@ -7,7 +7,9 @@ import {
 } from '../types'
 import {
   PROVIDER_DEFS,
+  getConfigurableModels,
   normalizeSettingsHostId,
+  normalizeProviderModelOrder,
   normalizeSettingsSectionForHostKind,
   settingsHostAdapterState,
   settingsHostOptionsFromSessions,
@@ -252,16 +254,6 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
     const next = { ...defaultModels, [providerId]: modelId }
     setDefaultModels(next)
     window.api.settings.set('defaultModels', next)
-    const currentVisibleModels = providerModels[providerId] ?? []
-    const catalogModels = PROVIDER_DEFS[providerId]?.models.map((model) => model.id) ?? []
-    const shouldPersistVisibleModels = currentVisibleModels.length > 0 || !catalogModels.includes(modelId)
-    if (shouldPersistVisibleModels && !currentVisibleModels.includes(modelId)) {
-      const baseModels = currentVisibleModels.length > 0 ? currentVisibleModels : catalogModels
-      const nextProviderModels = { ...providerModels, [providerId]: [modelId, ...baseModels.filter((id) => id !== modelId)] }
-      setProviderModels(nextProviderModels)
-      storeSetProviderModels(nextProviderModels)
-      window.api.settings.set('providerModels', nextProviderModels)
-    }
   }
 
   const saveDefaultEffort = (providerId: string, effortId: string): void => {
@@ -277,10 +269,16 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
   }
 
   const saveProviderModels = (providerId: string, models: string[]): void => {
-    const next = { ...providerModels, [providerId]: models }
+    const providerDef = PROVIDER_DEFS[providerId]
+    const normalizedModels = providerDef ? normalizeProviderModelOrder(providerDef, models) : models
+    const next = { ...providerModels, [providerId]: normalizedModels }
     setProviderModels(next)
     storeSetProviderModels(next)
     window.api.settings.set('providerModels', next)
+    const firstModel = normalizedModels[0] ?? (providerDef ? getConfigurableModels(providerDef)[0]?.id : undefined)
+    if (firstModel) {
+      saveDefaultModel(providerId, firstModel)
+    }
   }
 
   const savePreferredEditor = async (value: PreferredEditor): Promise<void> => {
@@ -760,7 +758,6 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
                 <ProvidersSettingsPage
                   defaultProvider={defaultProvider}
                   sessions={sessions}
-                  defaultModels={defaultModels}
                   defaultEfforts={defaultEfforts}
                   defaultPermissionModes={defaultPermissionModes}
                   providerModels={providerModels}
@@ -772,7 +769,6 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
                   selectedProviderId={selectedSettingsProviderId}
                   onSetSelectedProvider={setSelectedSettingsProviderId}
                   onSetDefaultProvider={saveDefaultProvider}
-                  onSetDefaultModel={saveDefaultModel}
                   onSetDefaultEffort={saveDefaultEffort}
                   onSetDefaultPermissionMode={saveDefaultPermissionMode}
                   onSetProviderModels={saveProviderModels}

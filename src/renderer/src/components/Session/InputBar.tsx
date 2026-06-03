@@ -2,7 +2,7 @@ import { memo, useState, useRef, useEffect } from 'react'
 import type { Ref, RefObject } from 'react'
 import type { Attachment, GitRefOption, Project, ProviderModelDef, ProviderPermissionMode, ProviderPermissionRuntimeContext, ProviderRuntimeInfo, ProviderSlashCommand, ResolvedExecutionPolicy, Session, WorktreeInventoryItem } from '../../types'
 import type { SlashPaletteCommand } from '../../types'
-import { PROVIDER_DEFS, canStopSession, expandSlashCommandPrompt, getComposerSendState, getDefaultPermissionMode, getVisibleModels, sessionRouteUrlForLocation } from '../../types'
+import { PROVIDER_DEFS, canStopSession, expandSlashCommandPrompt, fastBaseModelIdForProviderModel, getComposerSendState, getDefaultPermissionMode, getVisibleModels, sessionRouteUrlForLocation } from '../../types'
 import { defaultUI, hasComposerDraft, sideChatContextSnapshot, useSessionStore } from '../../store/sessions'
 import { useProjectStore } from '../../store/projects'
 import SlashCommandPalette, { getSlashQuery } from './SlashCommandPalette'
@@ -257,7 +257,9 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   }, [session.id, setComposerAttachments])
 
   const provider = PROVIDER_DEFS[session.provider ?? 'claude'] ?? PROVIDER_DEFS.claude
-  const model = session.model || provider.models[0]?.id || ''
+  const rawModel = session.model || provider.models[0]?.id || ''
+  const fastBaseModelId = provider.id === 'cursor' ? fastBaseModelIdForProviderModel(provider, rawModel) : null
+  const model = fastBaseModelId ?? rawModel
   const visibleModelChoices = getVisibleModelsWithCurrent(provider, providerModels, model)
   const visibleProviderChoices = Object.values(PROVIDER_DEFS)
     .filter((opt) => providerAvailability[opt.id] !== false || opt.id === provider.id)
@@ -316,7 +318,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   const hasFast = !!(cursorEfLevel?.fastModelId || (cursorCfg && cursorEffortLevels.length === 0 && cursorCfg.fastModelId))
   const hasThinking = !!cursorCfg?.supportsThinking
   const useThinking = session.useThinking ?? false
-  const useFast = session.useFast ?? false
+  const useFast = (session.useFast ?? false) || Boolean(fastBaseModelId)
 
   const update = (patch: {
     provider?: string
@@ -1230,8 +1232,8 @@ function InputBar({ session, isNew }: Props): JSX.Element {
         <>
           <ComposerMenuBack title="Speed" onBack={() => setAgentMenuPane('main')} />
           <ComposerMenuSection>
-            <ComposerMenuRow active={!useFast} onClick={() => { update({ useFast: false }); closeAgentMenu() }}>Standard</ComposerMenuRow>
-            <ComposerMenuRow active={useFast} onClick={() => { update({ useFast: true }); closeAgentMenu() }}>Fast</ComposerMenuRow>
+            <ComposerMenuRow active={!useFast} onClick={() => { update({ model, useFast: false }); closeAgentMenu() }}>Standard</ComposerMenuRow>
+            <ComposerMenuRow active={useFast} onClick={() => { update({ model, useFast: true }); closeAgentMenu() }}>Fast</ComposerMenuRow>
           </ComposerMenuSection>
         </>
       )

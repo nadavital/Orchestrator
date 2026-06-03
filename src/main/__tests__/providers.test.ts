@@ -4,7 +4,7 @@ import { chmodSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import type { RunEvent, RunRequest } from '../../types'
-import { AGENT_THREAD_ADAPTER_CONTRACTS, PROVIDER_DEFS, deriveAgentNodes, deriveAgentThreadGraph, derivePlanStatesFromMessages, getDefaultPermissionMode, getPrimaryPermissionModes, getProviderPermissionPresets, parseClaudeAgentsOutput, permissionRequestDetail } from '../../types'
+import { AGENT_THREAD_ADAPTER_CONTRACTS, PROVIDER_DEFS, deriveAgentNodes, deriveAgentThreadGraph, derivePlanStatesFromMessages, fastBaseModelIdForProviderModel, getDefaultPermissionMode, getPrimaryPermissionModes, getProviderPermissionPresets, getVisibleModels, normalizeProviderModelOrder, parseClaudeAgentsOutput, permissionRequestDetail } from '../../types'
 import { buildProviderCommandForRuntime, claudeMcpServerNames, codexRuntimePolicyConfig, getProviderDiagnostics, getProviderDiagnosticsAsync, getProviderRuntimeInfo, providerAuthFailureMessage, PROVIDERS, providerSdkSpawnEnv, providerSpawnEnv, resolveProviderBinary, resolveProviderPermissionRuntimeContext, runProviderCommandSurface, runProviderCommandSurfaceAsync } from '../providers'
 import { eventsToMessages } from '../runEvents'
 
@@ -82,6 +82,18 @@ test('every provider definition has an adapter and runtime info', () => {
     assert.ok(PROVIDERS[providerId], `Missing adapter for ${providerId}`)
     assert.ok(runtimeInfo[providerId], `Missing runtime info for ${providerId}`)
   }
+})
+
+test('cursor fast models are represented as speed toggles instead of duplicate models', () => {
+  const cursor = PROVIDER_DEFS.cursor
+  const visibleDefaults = getVisibleModels(cursor, {})
+  assert.equal(visibleDefaults.some((model) => model.id === 'composer-2.5-fast'), false)
+  assert.equal(visibleDefaults.some((model) => model.id === 'composer-2.5'), true)
+  assert.equal(fastBaseModelIdForProviderModel(cursor, 'composer-2.5-fast'), 'composer-2.5')
+  assert.deepEqual(
+    normalizeProviderModelOrder(cursor, ['composer-2.5-fast', 'composer-2.5', 'composer-2-fast', 'auto']),
+    ['composer-2.5', 'composer-2', 'auto']
+  )
 })
 
 test('runtime info exposes the same abstract capability matrix for every provider', () => {

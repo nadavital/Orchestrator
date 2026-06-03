@@ -10,7 +10,9 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import {
   PROVIDER_DEFS,
+  fastBaseModelIdForProviderModel,
   getDefaultPermissionMode,
+  getConfigurableModels,
   getVisibleModels,
   type PermissionExecutionContract,
   type ProviderCapabilityGap,
@@ -55,12 +57,11 @@ function SettingsSectionHeading({ title, description }: { title: string; descrip
 // ─── Providers section ────────────────────────────────────────────────────────
 
 export default function ProvidersSettingsPage({
-  defaultProvider, sessions, defaultModels, defaultEfforts, defaultPermissionModes, providerModels,
-  providerRuntime, providerPermissionContexts, providerDiagnostics, diagnosticsLoading, providerAvailability, selectedProviderId, defaultAdvancedOpen = false, onSetSelectedProvider, onSetDefaultProvider, onSetDefaultModel, onSetDefaultEffort, onSetDefaultPermissionMode, onSetProviderModels, onSetProviderPermissionContexts, onLoadProviderDiagnostics
+  defaultProvider, sessions, defaultEfforts, defaultPermissionModes, providerModels,
+  providerRuntime, providerPermissionContexts, providerDiagnostics, diagnosticsLoading, providerAvailability, selectedProviderId, defaultAdvancedOpen = false, onSetSelectedProvider, onSetDefaultProvider, onSetDefaultEffort, onSetDefaultPermissionMode, onSetProviderModels, onSetProviderPermissionContexts, onLoadProviderDiagnostics
 }: {
   defaultProvider: string
   sessions: SessionListItem[]
-  defaultModels: Record<string, string>
   defaultEfforts: Record<string, string>
   defaultPermissionModes: Record<string, string>
   providerModels: Record<string, string[]>
@@ -73,7 +74,6 @@ export default function ProvidersSettingsPage({
   defaultAdvancedOpen?: boolean
   onSetSelectedProvider: (id: string) => void
   onSetDefaultProvider: (id: string) => void
-  onSetDefaultModel: (providerId: string, modelId: string) => void
   onSetDefaultEffort: (providerId: string, effortId: string) => void
   onSetDefaultPermissionMode: (providerId: string, modeId: string) => void
   onSetProviderModels: (providerId: string, models: string[]) => void
@@ -86,7 +86,6 @@ export default function ProvidersSettingsPage({
   const installed = providerAvailability[selectedId] !== false
   const diagnostics = providerDiagnostics[selectedId]
   const modelCatalogProviderDef = providerDefWithDiagnosticModels(providerDef, diagnostics)
-  const currentModel = defaultModels[selectedId] ?? modelCatalogProviderDef.models[0]?.id ?? ''
   const currentEffort = defaultEfforts[selectedId] ?? providerDef.effortLevels[0]?.id ?? ''
   const permissionContext = providerPermissionContexts[selectedId]
   const contextDefaultPermissionMode = permissionContext?.providerId === selectedId ? permissionContext.defaultPolicy : undefined
@@ -108,7 +107,6 @@ export default function ProvidersSettingsPage({
     `${usageSnapshot.sessionCount} chat${usageSnapshot.sessionCount === 1 ? '' : 's'}`,
     diagnostics ? `${diagnostics.probes.filter((probe) => probe.status === 'ok').length}/${diagnostics.probes.length} checks` : 'Checks pending'
   ]
-  const modelForPicker = currentModel
   const [sidebarSyncLoading, setSidebarSyncLoading] = useState(false)
   const [sidebarSyncResult, setSidebarSyncResult] = useState<ProviderSidebarSyncResult | null>(null)
   const [permissionContextLoading, setPermissionContextLoading] = useState(false)
@@ -175,7 +173,6 @@ export default function ProvidersSettingsPage({
 
   const handleVisibleModelsChange = (ids: string[]): void => {
     onSetProviderModels(selectedId, ids)
-    if (ids.length > 0 && !ids.includes(currentModel)) onSetDefaultModel(selectedId, ids[0])
   }
 
   const refreshSidebarMetadata = async (): Promise<void> => {
@@ -300,21 +297,10 @@ export default function ProvidersSettingsPage({
                   className="provider-settings-row provider-settings-row-stacked"
                   control={(
                     <div className="provider-models-row">
-                      <div className="provider-model-default-row">
-                        <div className="provider-model-row-copy">
-                          <div className="provider-model-inline-label">Default</div>
-                        </div>
-                        <DefaultModelPicker
-                          providerDef={modelCatalogProviderDef}
-                          models={visibleModels}
-                          currentModel={modelForPicker}
-                          onSetModel={(id) => onSetDefaultModel(selectedId, id)}
-                        />
-                      </div>
                       <div className="provider-model-list-block">
                         <div className="provider-model-list-header">
                           <div className="provider-model-row-copy">
-                            <div className="provider-model-inline-label">Composer</div>
+                            <div className="provider-model-inline-label">Composer order</div>
                           </div>
                           <ModelSourceSummary
                             providerDef={modelCatalogProviderDef}
@@ -490,9 +476,15 @@ function providerDefWithDiagnosticModels(
   const ids = diagnostics?.models.status === 'available' ? diagnostics.models.ids ?? [] : []
   if (ids.length === 0) return providerDef
   const knownModels = new Map(providerDef.models.map((model) => [model.id, model]))
+  const models = ids
+    .map((id) => {
+      const baseId = fastBaseModelIdForProviderModel(providerDef, id)
+      return knownModels.get(baseId ?? id) ?? { id, label: readableModelLabel(id) }
+    })
+    .filter((model, index, all) => all.findIndex((candidate) => candidate.id === model.id) === index)
   return {
     ...providerDef,
-    models: ids.map((id) => knownModels.get(id) ?? { id, label: readableModelLabel(id) })
+    models
   }
 }
 
@@ -2632,91 +2624,6 @@ function ProviderConfigStatus({
   )
 }
 
-// ─── Default model picker ─────────────────────────────────────────────────────
-
-function DefaultModelPicker({
-  providerDef, models, currentModel, onSetModel
-}: {
-  providerDef: typeof PROVIDER_DEFS[string]
-  models: typeof PROVIDER_DEFS[string]['models']
-  currentModel: string
-  onSetModel: (id: string) => void
-}): JSX.Element {
-  const isPreset = models.some((m) => m.id === currentModel)
-  const [customInput, setCustomInput] = useState(isPreset ? '' : currentModel)
-  const [customOpen, setCustomOpen] = useState(!isPreset)
-
-  useEffect(() => {
-    const nextIsPreset = models.some((m) => m.id === currentModel)
-    setCustomInput(nextIsPreset ? '' : currentModel)
-    setCustomOpen(!nextIsPreset)
-  }, [providerDef.id, currentModel, models])
-
-  const applyCustom = (): void => {
-    const trimmed = customInput.trim()
-    if (trimmed) onSetModel(trimmed)
-    else setCustomOpen(false)
-  }
-
-  return (
-    <div className="provider-default-model-picker">
-      <div className="provider-default-model-select-row">
-        <select
-          className="settings-select provider-default-model-select"
-          value={isPreset ? currentModel : '__custom__'}
-          aria-label={`${providerDef.name} default model`}
-          data-testid="provider-default-model-select"
-          onChange={(event) => {
-            if (event.target.value === '__custom__') {
-              setCustomOpen(true)
-              return
-            }
-            onSetModel(event.target.value)
-            setCustomInput('')
-            setCustomOpen(false)
-          }}
-        >
-          {models.map((m) => (
-            <option key={m.id} value={m.id}>{m.label}</option>
-          ))}
-          <option value="__custom__">Custom model...</option>
-        </select>
-        {isPreset && !customOpen && (
-          <button
-            type="button"
-            data-testid="provider-custom-model-toggle"
-            className="provider-default-model-custom-toggle"
-            onClick={() => setCustomOpen(true)}
-          >
-            Custom
-          </button>
-        )}
-      </div>
-
-      {customOpen && (
-        <div
-          className="provider-default-model-custom"
-          data-active={!isPreset && currentModel ? 'true' : 'false'}
-          style={{ '--provider-color': providerDef.color } as CSSProperties}
-        >
-          <input
-            data-testid="provider-custom-model-input"
-            value={customInput}
-            onChange={(e) => setCustomInput(e.target.value)}
-            onBlur={applyCustom}
-            onKeyDown={(e) => { if (e.key === 'Enter') applyCustom() }}
-            placeholder="Custom model ID..."
-            className="provider-default-model-custom-input"
-          />
-          {!isPreset && currentModel && (
-            <Icon name="check" size={12} />
-          )}
-        </div>
-      )}
-    </div>
-  )
-}
-
 function ProviderDiagnosticsCard({
   diagnostics,
   color
@@ -3092,8 +2999,9 @@ function ModelListManager({
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   )
   const visibleSet = new Set(visibleIds)
-  const catalogIds = providerDef.models.map((model) => model.id)
-  const uncheckedModels = providerDef.models.filter((model) => !visibleSet.has(model.id))
+  const configurableModels = getConfigurableModels(providerDef)
+  const catalogIds = configurableModels.map((model) => model.id)
+  const uncheckedModels = configurableModels.filter((model) => !visibleSet.has(model.id))
 
   const handleDragEnd = (event: DragEndEvent): void => {
     const { active, over } = event
@@ -3150,11 +3058,12 @@ function ModelListManager({
                     id={id}
                     label={meta?.label ?? readableModelLabel(id)}
                     modelId={id}
-                    index={index + 1}
-                    checked
-                    disabled={!catalogIds.includes(id)}
-                    onToggle={() => toggleModel(id)}
-                  />
+                  index={index + 1}
+                  checked
+                  isDefault={index === 0}
+                  disabled={!catalogIds.includes(id)}
+                  onToggle={() => toggleModel(id)}
+                />
                 )
               })}
               {visibleIds.length === 0 && (
@@ -3205,8 +3114,8 @@ function ModelListManager({
 
 // ─── Sortable model row ────────────────────────────────────────────────────────
 
-function SortableModelRow({ id, label, modelId, index, checked, disabled, onToggle }: {
-  id: string; label: string; modelId: string; index: number; checked: boolean; disabled?: boolean; onToggle: () => void
+function SortableModelRow({ id, label, modelId, index, checked, disabled, isDefault, onToggle }: {
+  id: string; label: string; modelId: string; index: number; checked: boolean; disabled?: boolean; isDefault?: boolean; onToggle: () => void
 }): JSX.Element {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
   return (
@@ -3240,6 +3149,7 @@ function SortableModelRow({ id, label, modelId, index, checked, disabled, onTogg
       <span className="provider-model-row-index">{index}</span>
       <span className="provider-model-row-label">{label}</span>
       <span className="provider-model-row-id">{modelId}</span>
+      {isDefault && <span className="provider-model-row-badge">Default</span>}
       {disabled && <span className="provider-model-row-badge">Custom</span>}
     </div>
   )
