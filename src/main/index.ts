@@ -861,7 +861,6 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               const providerSettingsShell = document.querySelector('.settings-shell');
               const configEditor = document.querySelector('[data-testid="provider-config-editor"]');
               const providerModelList = document.querySelector('[data-testid="provider-model-list"]');
-              const customModelToggle = document.querySelector('[data-testid="provider-custom-model-toggle"]');
               const customModelInput = document.querySelector('[data-testid="provider-custom-model-input"]');
               const providerSelects = diagnosticsSection instanceof HTMLElement
                 ? [...diagnosticsSection.querySelectorAll('select')]
@@ -963,19 +962,17 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 diagnosticsSection instanceof HTMLElement &&
                 diagnosticsSection.innerText.includes('Default') &&
                 diagnosticsSection.innerText.includes('Models') &&
-                customModelToggle instanceof HTMLElement &&
-                customModelInput === null &&
-                diagnosticsSection.innerText.includes('Edit model list') &&
+                customModelInput instanceof HTMLInputElement &&
                 !diagnosticsSection.innerText.includes('Catalog') &&
                 diagnosticsSection.innerText.indexOf('Default') < diagnosticsSection.innerText.indexOf('Models') &&
                 diagnosticsSection.innerText.indexOf('Models') < diagnosticsSection.innerText.indexOf('Details') &&
                 providerModelList instanceof HTMLElement &&
-                providerModelList.dataset.expanded === 'false' &&
+                providerModelList.dataset.expanded === 'true' &&
                 providerModelList.getAttribute('data-model-list-surface') === 'shared' &&
-                providerModelList.getAttribute('data-model-list-mode') === 'collapsed' &&
-                providerModelListPreview instanceof HTMLElement &&
-                providerModelListEditAction instanceof HTMLButtonElement &&
-                providerModelList.getBoundingClientRect().height <= 76 &&
+                providerModelList.getAttribute('data-model-list-mode') === 'checklist' &&
+                providerModelList.querySelector('.provider-model-row-check') instanceof HTMLButtonElement &&
+                providerModelList.querySelector('.provider-model-row-grip') instanceof HTMLButtonElement &&
+                providerModelList.getBoundingClientRect().height <= 260 &&
                 providerModelList.scrollWidth <= providerModelList.clientWidth + 2 &&
                 configEditor instanceof HTMLElement &&
                 configEditor.dataset.expanded === 'false' &&
@@ -1222,42 +1219,24 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                   }
                 }
               }
-              const editModelListButton = [...document.querySelectorAll('button')]
-                .find((button) => button.textContent?.includes('Edit model list'));
-              editModelListButton?.scrollIntoView({ block: 'center' });
-              var settingsProviderCatalogLabelCalm = false;
+              const modelListEditing = document.querySelector('[data-testid="provider-model-list"]');
+              modelListEditing?.scrollIntoView({ block: 'center' });
+              var settingsProviderCatalogLabelCalm = true;
               var settingsProviderModelListSharedWorks = false;
-              if (editModelListButton instanceof HTMLButtonElement) {
-                editModelListButton.click();
-                await sleep(160);
-                const catalogLabel = document.querySelector('[data-testid="provider-model-catalog-label"]');
-                const modelListEditing = document.querySelector('[data-testid="provider-model-list"]');
-                const catalogGrid = modelListEditing?.querySelector('.provider-model-catalog-grid');
-                const catalogChips = modelListEditing instanceof HTMLElement
-                  ? [...modelListEditing.querySelectorAll('.provider-model-catalog-chip')]
-                  : [];
+              if (modelListEditing instanceof HTMLElement) {
                 const customModelRow = modelListEditing?.querySelector('.provider-model-custom-row');
                 const customModelInputEditing = modelListEditing?.querySelector('.provider-model-custom-input');
                 const customModelAdd = modelListEditing?.querySelector('.provider-model-custom-add');
                 const sortableRows = modelListEditing instanceof HTMLElement
                   ? [...modelListEditing.querySelectorAll('.provider-model-sortable-row')]
                   : [];
-                const catalogText = catalogLabel?.textContent?.trim() ?? '';
-                settingsProviderCatalogLabelCalm =
-                  catalogLabel instanceof HTMLElement &&
-                  catalogText === 'Catalog' &&
-                  catalogText !== catalogText.toUpperCase() &&
-                  getComputedStyle(catalogLabel).textTransform !== 'uppercase';
+                const checkedButtons = [...modelListEditing.querySelectorAll('.provider-model-row-check')];
                 settingsProviderModelListSharedWorks =
                   settingsProviderCatalogLabelCalm &&
                   modelListEditing instanceof HTMLElement &&
                   modelListEditing.getAttribute('data-model-list-surface') === 'shared' &&
-                  modelListEditing.getAttribute('data-model-list-mode') === 'editing' &&
+                  modelListEditing.getAttribute('data-model-list-mode') === 'checklist' &&
                   modelListEditing.scrollWidth <= modelListEditing.clientWidth + 2 &&
-                  catalogGrid instanceof HTMLElement &&
-                  catalogChips.length >= 2 &&
-                  catalogChips.every((chip) => chip instanceof HTMLElement && chip.getBoundingClientRect().height <= 28) &&
-                  catalogChips.some((chip) => chip instanceof HTMLElement && chip.getAttribute('data-selected') === 'true' && chip.querySelector('svg') instanceof SVGElement) &&
                   customModelRow instanceof HTMLElement &&
                   customModelInputEditing instanceof HTMLInputElement &&
                   customModelAdd instanceof HTMLButtonElement &&
@@ -1265,13 +1244,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                   sortableRows.length >= 1 &&
                   sortableRows.every((row) => row instanceof HTMLElement && row.scrollWidth <= row.clientWidth + 2) &&
                   sortableRows.every((row) => row.querySelector('.provider-model-row-grip') instanceof HTMLButtonElement) &&
-                  sortableRows.every((row) => row.querySelector('.provider-model-row-remove') instanceof HTMLButtonElement);
-                const doneModelListButton = [...document.querySelectorAll('button')]
-                  .find((button) => button.textContent?.trim() === 'Done');
-                if (doneModelListButton instanceof HTMLButtonElement) {
-                  doneModelListButton.click();
-                  await sleep(100);
-                }
+                  checkedButtons.length >= sortableRows.length &&
+                  checkedButtons.some((button) => button instanceof HTMLButtonElement && button.getAttribute('aria-pressed') === 'true');
               }
               const providerDetailsDialog = document.querySelector('[data-testid="provider-details-dialog"]');
               const providerDetailsRoot = providerDetailsDialog instanceof HTMLElement ? providerDetailsDialog : document;
@@ -2281,7 +2255,6 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               const diagnosticsSection = document.querySelector('[data-testid="provider-settings-section"]');
               const configEditor = document.querySelector('[data-testid="provider-config-editor"]');
               const providerModelList = document.querySelector('[data-testid="provider-model-list"]');
-              const customModelToggle = document.querySelector('[data-testid="provider-custom-model-toggle"]');
               const customModelInput = document.querySelector('[data-testid="provider-custom-model-input"]');
               const usageStatusStrip = document.querySelector('[data-testid="provider-usage-status-strip"]');
               const providerDetailsGrid = document.querySelector('[data-testid="provider-details-grid"]');
@@ -2346,15 +2319,14 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 diagnosticsSection instanceof HTMLElement &&
                 diagnosticsSection.innerText.includes('Default') &&
                 diagnosticsSection.innerText.includes('Models') &&
-                customModelToggle instanceof HTMLElement &&
-                customModelInput === null &&
-                diagnosticsSection.innerText.includes('Edit model list') &&
+                customModelInput instanceof HTMLInputElement &&
                 !diagnosticsSection.innerText.includes('Catalog') &&
                 diagnosticsSection.innerText.indexOf('Default') < diagnosticsSection.innerText.indexOf('Models') &&
                 diagnosticsSection.innerText.indexOf('Models') < diagnosticsSection.innerText.indexOf('Details') &&
                 providerModelList instanceof HTMLElement &&
-                providerModelList.dataset.expanded === 'false' &&
-                providerModelList.getBoundingClientRect().height <= 76 &&
+                providerModelList.dataset.expanded === 'true' &&
+                providerModelList.getAttribute('data-model-list-mode') === 'checklist' &&
+                providerModelList.getBoundingClientRect().height <= 260 &&
                 configEditor instanceof HTMLElement &&
                 configEditor.dataset.expanded === 'false' &&
                 configEditor.querySelector('textarea') === null;

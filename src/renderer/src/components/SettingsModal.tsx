@@ -238,6 +238,11 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
       })
   }, [diagnosticsLoading, providerDiagnostics])
 
+  useEffect(() => {
+    if (effectiveSection !== 'providers') return
+    Object.keys(PROVIDER_DEFS).forEach((providerId) => loadProviderDiagnostics(providerId))
+  }, [effectiveSection, loadProviderDiagnostics])
+
   const saveDefaultProvider = (id: string): void => {
     setDefaultProvider(id)
     window.api.settings.set('defaultProvider', id)

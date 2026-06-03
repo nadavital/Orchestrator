@@ -519,9 +519,9 @@ function providerModelSourceLabel(
 function providerModelSourceName(providerId: string): string {
   if (providerId === 'copilot') return 'Copilot SDK'
   if (providerId === 'cursor') return 'Cursor CLI'
-  if (providerId === 'codex') return 'Codex catalog'
-  if (providerId === 'claude') return 'Claude catalog'
-  if (providerId === 'antigravity') return 'Antigravity catalog'
+  if (providerId === 'codex') return 'Codex app-server'
+  if (providerId === 'claude') return 'Anthropic SDK'
+  if (providerId === 'antigravity') return 'Antigravity SDK'
   return 'provider'
 }
 
@@ -3087,11 +3087,13 @@ function ModelListManager({
   onChange: (ids: string[]) => void
 }): JSX.Element {
   const [customInput, setCustomInput] = useState('')
-  const [editing, setEditing] = useState(visibleIds.length === 0)
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   )
+  const visibleSet = new Set(visibleIds)
+  const catalogIds = providerDef.models.map((model) => model.id)
+  const uncheckedModels = providerDef.models.filter((model) => !visibleSet.has(model.id))
 
   const handleDragEnd = (event: DragEndEvent): void => {
     const { active, over } = event
@@ -3119,137 +3121,92 @@ function ModelListManager({
     }
   }
 
+  const toggleModel = (id: string): void => {
+    if (visibleIds.includes(id)) {
+      onChange(visibleIds.filter((modelId) => modelId !== id))
+      return
+    }
+    onChange([...visibleIds, id])
+  }
+
   return (
     <div
       data-testid="provider-model-list"
-      data-expanded={editing ? 'true' : 'false'}
+      data-expanded="true"
       data-model-list-surface="shared"
-      data-model-list-mode={editing ? 'editing' : 'collapsed'}
+      data-model-list-mode="checklist"
       className="provider-model-list"
       style={{ '--provider-color': providerDef.color } as CSSProperties}
     >
-      {editing ? (
+      <div className="provider-model-checklist-body">
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={visibleIds} strategy={verticalListSortingStrategy}>
             <div className="provider-model-list-stack">
-              {visibleIds.map((id) => {
+              {visibleIds.map((id, index) => {
                 const meta = providerDef.models.find((m) => m.id === id)
                 return (
                   <SortableModelRow
                     key={id}
                     id={id}
-                    label={meta?.label ?? id}
+                    label={meta?.label ?? readableModelLabel(id)}
                     modelId={id}
-                    onRemove={() => remove(id)}
+                    index={index + 1}
+                    checked
+                    disabled={!catalogIds.includes(id)}
+                    onToggle={() => toggleModel(id)}
                   />
                 )
               })}
               {visibleIds.length === 0 && (
                 <div className="provider-model-list-empty">
-                  No models selected. The catalog defaults are used.
+                  Composer uses the provider catalog order.
                 </div>
               )}
             </div>
           </SortableContext>
         </DndContext>
-      ) : (
-        <div className="provider-model-list-collapsed">
-          <div className="provider-model-list-preview">
-            {visibleIds.length > 0 ? (
-              visibleIds.slice(0, 5).map((id, index) => {
-                const meta = providerDef.models.find((m) => m.id === id)
-                return (
-                  <span
-                    key={id}
-                    className="provider-model-chip"
-                    title={id}
-                  >
-                    <span className="provider-model-chip-index">{index + 1}</span>
-                    <span className="provider-model-chip-label">{meta?.label ?? id}</span>
-                  </span>
-                )
-              })
-            ) : (
-              <span className="provider-model-list-muted">Catalog defaults</span>
-            )}
-            {visibleIds.length > 5 && (
-              <span className="provider-model-list-overflow-count">
-                +{visibleIds.length - 5}
-              </span>
-            )}
-          </div>
-          <button
-            className="provider-model-list-edit"
-            onClick={() => setEditing(true)}
-          >
-            Edit model list
-          </button>
-        </div>
-      )}
 
-      {editing && (
+        {uncheckedModels.length > 0 && (
+          <div className="provider-model-list-stack provider-model-list-stack-secondary">
+            {uncheckedModels.map((model) => (
+              <StaticModelChecklistRow
+                key={model.id}
+                label={model.label}
+                modelId={model.id}
+                checked={false}
+                onToggle={() => addCatalog(model.id)}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="provider-model-custom-row">
+        <input
+          value={customInput}
+          onChange={(e) => setCustomInput(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') addCustom() }}
+          placeholder="Custom model ID"
+          data-testid="provider-custom-model-input"
+          className="provider-model-custom-input"
+        />
         <button
-          className="provider-model-list-edit"
-          onClick={() => setEditing(false)}
+          type="button"
+          onClick={addCustom}
+          disabled={!customInput.trim()}
+          className="settings-action-button provider-model-custom-add"
         >
-          Done
+          Add
         </button>
-      )}
-
-      {/* Catalog toggle chips */}
-      {editing && providerDef.models.length > 0 && (
-        <div className="provider-model-catalog">
-          <div data-testid="provider-model-catalog-label" className="provider-model-catalog-label">
-            Catalog
-          </div>
-          <div className="provider-model-catalog-grid">
-            {providerDef.models.map((m) => {
-              const included = visibleIds.includes(m.id)
-              return (
-                <button
-                  type="button"
-                  key={m.id}
-                  onClick={() => addCatalog(m.id)}
-                  className="provider-model-catalog-chip"
-                  data-selected={included ? 'true' : 'false'}
-                >
-                  {included && <Icon name="check" size={11} />}
-                  <span>{m.label}</span>
-                </button>
-              )
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Custom model ID input */}
-      {editing && (
-        <div className="provider-model-custom-row">
-          <input
-            value={customInput}
-            onChange={(e) => setCustomInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') addCustom() }}
-            placeholder="Custom model ID"
-            className="provider-model-custom-input"
-          />
-          <button
-            type="button"
-            onClick={addCustom}
-            disabled={!customInput.trim()}
-            className="settings-action-button provider-model-custom-add"
-          >
-            Add
-          </button>
-        </div>
-      )}
+      </div>
     </div>
   )
 }
 
 // ─── Sortable model row ────────────────────────────────────────────────────────
 
-function SortableModelRow({ id, label, modelId, onRemove }: {
-  id: string; label: string; modelId: string; onRemove: () => void
+function SortableModelRow({ id, label, modelId, index, checked, disabled, onToggle }: {
+  id: string; label: string; modelId: string; index: number; checked: boolean; disabled?: boolean; onToggle: () => void
 }): JSX.Element {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
   return (
@@ -3271,16 +3228,41 @@ function SortableModelRow({ id, label, modelId, onRemove }: {
       >
         <Icon name="menu" size={13} />
       </button>
-      <span className="provider-model-row-label">{label}</span>
-      <span className="provider-model-row-id">{modelId}</span>
       <button
         type="button"
-        aria-label={`Remove ${label}`}
-        onClick={onRemove}
-        className="provider-model-row-remove"
+        aria-label={`${checked ? 'Hide' : 'Show'} ${label}`}
+        aria-pressed={checked}
+        onClick={onToggle}
+        className="provider-model-row-check"
       >
-        <Icon name="close" size={13} />
+        {checked && <Icon name="check" size={12} />}
       </button>
+      <span className="provider-model-row-index">{index}</span>
+      <span className="provider-model-row-label">{label}</span>
+      <span className="provider-model-row-id">{modelId}</span>
+      {disabled && <span className="provider-model-row-badge">Custom</span>}
+    </div>
+  )
+}
+
+function StaticModelChecklistRow({ label, modelId, checked, onToggle }: {
+  label: string; modelId: string; checked: boolean; onToggle: () => void
+}): JSX.Element {
+  return (
+    <div className="provider-model-sortable-row provider-model-static-row" data-checked={checked ? 'true' : 'false'}>
+      <span className="provider-model-row-grip-placeholder" />
+      <button
+        type="button"
+        aria-label={`${checked ? 'Hide' : 'Show'} ${label}`}
+        aria-pressed={checked}
+        onClick={onToggle}
+        className="provider-model-row-check"
+      >
+        {checked && <Icon name="check" size={12} />}
+      </button>
+      <span className="provider-model-row-index" />
+      <span className="provider-model-row-label">{label}</span>
+      <span className="provider-model-row-id">{modelId}</span>
     </div>
   )
 }

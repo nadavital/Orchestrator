@@ -1551,11 +1551,29 @@ async function providerSpecificDiagnosticsAsync(
   fallbackAuth: ProviderDiagnosticInfo['auth'],
   fallbackModels: ProviderDiagnosticInfo['models']
 ): Promise<Pick<ProviderDiagnosticInfo, 'auth' | 'models'>> {
+  if (providerId === 'claude') {
+    return claudeSdkDiagnostics(binary, fallbackAuth, fallbackModels)
+  }
+
+  if (providerId === 'codex') {
+    if (!binary) {
+      return { auth: fallbackAuth, models: fallbackModels }
+    }
+    return codexAppServerDiagnostics(binary, fallbackAuth, fallbackModels)
+  }
+
   if (providerId === 'copilot') {
     if (!binary) {
       return { auth: fallbackAuth, models: fallbackModels }
     }
     return copilotSdkDiagnostics(binary, fallbackAuth, fallbackModels)
+  }
+
+  if (providerId === 'antigravity') {
+    if (!binary) {
+      return { auth: fallbackAuth, models: fallbackModels }
+    }
+    return antigravitySdkDiagnostics(binary, fallbackAuth, fallbackModels)
   }
 
   if (!binary || providerId !== 'cursor') {
@@ -1585,6 +1603,161 @@ async function providerSpecificDiagnosticsAsync(
     : fallbackModels
 
   return { auth, models }
+}
+
+function uniqueModelIds(ids: string[]): string[] {
+  return [...new Set(ids.map((id) => id.trim()).filter(Boolean))]
+}
+
+function modelIdsFromUnknown(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return uniqueModelIds(value.flatMap((item) => modelIdsFromUnknown(item)))
+  }
+  const record = asRecord(value)
+  if (!record) return []
+  const directId = typeof record.id === 'string'
+    ? record.id
+    : typeof record.model === 'string'
+      ? record.model
+      : typeof record.name === 'string' && /^[-./:_a-z0-9]+$/i.test(record.name)
+        ? record.name
+        : null
+  const nested = [
+    record.models,
+    record.items,
+    record.data,
+    record.results,
+    record.availableModels
+  ].flatMap((candidate) => modelIdsFromUnknown(candidate))
+  return uniqueModelIds([directId, ...nested].filter((id): id is string => Boolean(id)))
+}
+
+async function claudeSdkDiagnostics(
+  binary: string | null,
+  fallbackAuth: ProviderDiagnosticInfo['auth'],
+  fallbackModels: ProviderDiagnosticInfo['models']
+): Promise<Pick<ProviderDiagnosticInfo, 'auth' | 'models'>> {
+  const authProbe = binary ? await probeCommandFullAsync(binary, ['auth', 'status']) : null
+  const authFromCli: ProviderDiagnosticInfo['auth'] = authProbe?.ok
+    ? { status: 'ok', message: authProbe.output.trim().split('\n')[0] || 'Claude account is signed in.' }
+    : fallbackAuth
+  const env = providerSdkSpawnEnv('claude', binary)
+  const apiKey = env.ANTHROPIC_API_KEY
+  if (!apiKey) {
+    return { auth: authFromCli, models: fallbackModels }
+  }
+
+  try {
+    const sdk = await importEsm('@anthropic-ai/sdk') as {
+      default?: new (options: { apiKey: string; baseURL?: string }) => {
+        models: { list: (params?: { limit?: number }) => Promise<unknown> }
+      }
+      Anthropic?: new (options: { apiKey: string; baseURL?: string }) => {
+        models: { list: (params?: { limit?: number }) => Promise<unknown> }
+      }
+    }
+    const Anthropic = sdk.default ?? sdk.Anthropic
+    if (!Anthropic) {
+      return {
+        auth: authFromCli,
+        models: fallbackModels
+      }
+    }
+    const client = new Anthropic({
+      apiKey,
+      ...(env.ANTHROPIC_BASE_URL ? { baseURL: env.ANTHROPIC_BASE_URL } : {})
+    })
+    const result = await client.models.list({ limit: 100 })
+    const modelIds = modelIdsFromUnknown(result)
+    return {
+      auth: {
+        status: 'ok',
+        message: 'Anthropic SDK authenticated with ANTHROPIC_API_KEY.'
+      },
+      models: modelIds.length > 0
+        ? {
+            status: 'available',
+            count: modelIds.length,
+            message: `${modelIds.length} models reported by the Anthropic SDK for this API account.`,
+            ids: modelIds
+          }
+        : fallbackModels
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    const authFailure = providerAuthFailureMessage(message)
+    return {
+      auth: authFailure ? { status: 'error', message: authFailure } : authFromCli,
+      models: fallbackModels
+    }
+  }
+}
+
+async function codexAppServerDiagnostics(
+  binary: string,
+  fallbackAuth: ProviderDiagnosticInfo['auth'],
+  fallbackModels: ProviderDiagnosticInfo['models']
+): Promise<Pick<ProviderDiagnosticInfo, 'auth' | 'models'>> {
+  const provider = getProvider('codex')
+  try {
+    const [modelsResult, authResult] = await Promise.all([
+      runCodexAppServerSingleRequest(provider, binary, { method: 'model/list', params: { limit: 100, includeHidden: true } }),
+      runCodexAppServerSingleRequest(provider, binary, { method: 'account/read', params: { refreshToken: false } })
+    ])
+    const modelIds = modelIdsFromUnknown(modelsResult)
+    return {
+      auth: {
+        status: 'ok',
+        message: authResult ? 'Codex app-server account is available.' : 'Codex app-server responded.'
+      },
+      models: modelIds.length > 0
+        ? {
+            status: 'available',
+            count: modelIds.length,
+            message: `${modelIds.length} models reported by Codex app-server.`,
+            ids: modelIds
+          }
+        : fallbackModels
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    const authFailure = providerAuthFailureMessage(message)
+    return {
+      auth: authFailure ? { status: 'error', message: authFailure } : fallbackAuth,
+      models: fallbackModels
+    }
+  }
+}
+
+async function antigravitySdkDiagnostics(
+  binary: string,
+  fallbackAuth: ProviderDiagnosticInfo['auth'],
+  fallbackModels: ProviderDiagnosticInfo['models']
+): Promise<Pick<ProviderDiagnosticInfo, 'auth' | 'models'>> {
+  const result = await probeCommandFullAsync(binary, [antigravitySdkBridgePath(), '--list-models'])
+  if (!result.ok) {
+    const authFailure = providerAuthFailureMessage(result.output)
+    return {
+      auth: authFailure ? { status: 'error', message: authFailure } : fallbackAuth,
+      models: fallbackModels
+    }
+  }
+  const parsed = parseJsonLine(result.output.trim().split('\n').find((line) => line.trim().startsWith('{')) ?? '')
+  const modelIds = modelIdsFromUnknown(parsed)
+  return {
+    auth: {
+      status: 'ok',
+      message: 'Google Antigravity SDK import/model probe succeeded.'
+    },
+    models: modelIds.length > 0
+      ? {
+          status: 'available',
+          count: modelIds.length,
+          message: `${modelIds.length} models reported by the Google Antigravity SDK.`,
+          ids: modelIds
+        }
+      : fallbackModels
+  }
 }
 
 async function copilotSdkDiagnostics(

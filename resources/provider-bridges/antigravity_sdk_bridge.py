@@ -39,6 +39,104 @@ def dump_model(value: Any) -> Any:
     return value
 
 
+def collect_model_ids(value: Any) -> list[str]:
+    payload = dump_model(value)
+    found: list[str] = []
+
+    def walk(item: Any) -> None:
+        if item is None:
+            return
+        if isinstance(item, str):
+            if item and all(ch.isalnum() or ch in "-_./:" for ch in item):
+                found.append(item)
+            return
+        if isinstance(item, dict):
+            for key in ("id", "model", "name"):
+                maybe_id = item.get(key)
+                if isinstance(maybe_id, str):
+                    walk(maybe_id)
+                    break
+            for key in ("models", "items", "data", "results", "available_models"):
+                if key in item:
+                    walk(item[key])
+            return
+        if isinstance(item, (list, tuple, set)):
+            for child in item:
+                walk(child)
+            return
+        for attr in ("id", "model", "name"):
+            if hasattr(item, attr):
+                maybe_id = getattr(item, attr)
+                if isinstance(maybe_id, str):
+                    walk(maybe_id)
+                    return
+        for attr in ("models", "items", "data", "results", "available_models"):
+            if hasattr(item, attr):
+                walk(getattr(item, attr))
+
+    walk(payload)
+    unique: list[str] = []
+    for model_id in found:
+        if model_id not in unique:
+            unique.append(model_id)
+    return unique
+
+
+async def maybe_await(value: Any) -> Any:
+    if hasattr(value, "__await__"):
+        return await value
+    return value
+
+
+async def list_models() -> int:
+    try:
+        import google.antigravity as antigravity
+    except Exception as exc:
+        emit({
+            "type": "run.failed",
+            "content": (
+                "Google Antigravity SDK import failed. Install Python >=3.10 and "
+                "`python -m pip install google-antigravity`. "
+                f"{type(exc).__name__}: {exc}"
+            ),
+        })
+        return 1
+
+    candidates: list[Any] = []
+    for name in ("list_models", "list_available_models", "get_models"):
+        candidates.append(getattr(antigravity, name, None))
+    models_namespace = getattr(antigravity, "models", None)
+    if models_namespace is not None:
+        for name in ("list", "list_models", "all", "available"):
+            candidates.append(getattr(models_namespace, name, None))
+
+    errors: list[str] = []
+    for candidate in candidates:
+        if candidate is None:
+            continue
+        try:
+            value = candidate() if callable(candidate) else candidate
+            model_ids = collect_model_ids(await maybe_await(value))
+            if model_ids:
+                emit({
+                    "type": "models.list",
+                    "models": [{"id": model_id} for model_id in model_ids],
+                })
+                return 0
+        except Exception as exc:
+            errors.append(f"{getattr(candidate, '__name__', type(candidate).__name__)}: {type(exc).__name__}: {exc}")
+
+    emit({
+        "type": "run.failed",
+        "content": (
+            "Google Antigravity SDK is installed, but this version does not expose "
+            "a model-list API through the bridge. "
+            + ("; ".join(errors[:3]) if errors else "")
+        ).strip(),
+    })
+    return 1
+
+
 def usage_payload(usage: Any) -> dict[str, Any] | None:
     if usage is None:
         return None
@@ -159,8 +257,9 @@ async def run(args: argparse.Namespace) -> int:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run an Antigravity SDK turn for Orchestrator.")
-    parser.add_argument("--prompt", required=True)
-    parser.add_argument("--cwd", required=True)
+    parser.add_argument("--list-models", action="store_true")
+    parser.add_argument("--prompt")
+    parser.add_argument("--cwd")
     parser.add_argument("--model")
     parser.add_argument("--conversation-id")
     parser.add_argument("--execution-policy", default="default")
@@ -171,4 +270,10 @@ def parse_args() -> argparse.Namespace:
 
 
 if __name__ == "__main__":
-    sys.exit(asyncio.run(run(parse_args())))
+    parsed_args = parse_args()
+    if parsed_args.list_models:
+        sys.exit(asyncio.run(list_models()))
+    if not parsed_args.prompt or not parsed_args.cwd:
+        print("--prompt and --cwd are required unless --list-models is used.", file=sys.stderr)
+        sys.exit(2)
+    sys.exit(asyncio.run(run(parsed_args)))
