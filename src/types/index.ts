@@ -945,6 +945,15 @@ export interface ProviderCommandSurfaceResult {
   output: string
 }
 
+export interface ProviderAuthFlowResult {
+  providerId: string
+  surfaceId: string
+  status: 'started' | 'completed' | 'error' | 'unsupported'
+  message: string
+  url?: string
+  code?: string
+}
+
 export interface ProviderSidebarSyncResult {
   ok: boolean
   providerId: string

@@ -16,6 +16,7 @@ import {
   getVisibleModels,
   type PermissionExecutionContract,
   type ProviderCapabilityGap,
+  type ProviderAuthFlowResult,
   type ProviderAuthSecretStatus,
   type ProviderPermissionPreset,
   type ProviderPermissionRuntimeContext,
@@ -453,6 +454,10 @@ const PROVIDER_AUTH_COMMAND_SURFACE_IDS = new Set([
   'codex-logout',
   'copilot-login'
 ])
+
+function supportsProviderManagedAuthFlow(providerId: string, surface: ProviderCommandSurface): boolean {
+  return providerId === 'copilot' && surface.id === 'copilot-login'
+}
 
 function ProviderDetailCard({
   title,
@@ -973,6 +978,7 @@ function ProviderManagedAuthActions({
   sessions: SessionListItem[]
 }): JSX.Element {
   const [results, setResults] = useState<Record<string, ProviderCommandSurfaceResult>>({})
+  const [authFlows, setAuthFlows] = useState<Record<string, ProviderAuthFlowResult>>({})
   const [loading, setLoading] = useState<Record<string, boolean>>({})
   const { terminalStatus, insertSurfaceInTerminal } = useProviderCommandTerminalHandoff(providerId, sessions)
 
@@ -987,14 +993,35 @@ function ProviderManagedAuthActions({
     }
   }
 
+  const startAuthFlow = async (surface: ProviderCommandSurface): Promise<void> => {
+    setLoading((current) => ({ ...current, [surface.id]: true }))
+    try {
+      const result = await window.api.providers.startAuthFlow(providerId, surface.id)
+      setAuthFlows((current) => ({ ...current, [surface.id]: result }))
+    } catch (error) {
+      setAuthFlows((current) => ({
+        ...current,
+        [surface.id]: {
+          providerId,
+          surfaceId: surface.id,
+          status: 'error',
+          message: errorText(error)
+        }
+      }))
+    } finally {
+      setLoading((current) => ({ ...current, [surface.id]: false }))
+    }
+  }
+
   return (
     <div data-testid="provider-managed-auth-actions" style={{ display: 'grid', gap: 8, minWidth: 0 }}>
       <div style={{ color: 'var(--color-text-muted)', fontSize: 11, lineHeight: 1.35 }}>
-        Provider-managed account state. Orchestrator opens explicit terminal flows for sign-in changes.
+        Provider-managed account state. Orchestrator opens browser/device-code flows when available.
       </div>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
         {surfaces.map((surface) => {
           const runnable = surface.quota === 'none' && !surface.mutatesState
+          const managedAuthFlow = supportsProviderManagedAuthFlow(providerId, surface)
           const busy = loading[surface.id] === true
           return (
             <button
@@ -1003,22 +1030,25 @@ function ProviderManagedAuthActions({
               className="provider-command-output-action"
               data-testid={`provider-managed-auth-action-${surface.id}`}
               data-runnable="true"
-              disabled={busy || (!runnable && sessions.length === 0)}
-              aria-label={`${runnable ? 'Check' : 'Open terminal for'} ${surface.label}`}
+              disabled={busy || (!runnable && !managedAuthFlow && sessions.length === 0)}
+              aria-label={`${managedAuthFlow ? 'Start' : runnable ? 'Check' : 'Open terminal for'} ${surface.label}`}
               onClick={() => {
-                if (runnable) void runSurface(surface)
+                if (managedAuthFlow) void startAuthFlow(surface)
+                else if (runnable) void runSurface(surface)
                 else void insertSurfaceInTerminal(surface)
               }}
               style={{ '--provider-accent': color } as CSSProperties}
             >
-              {busy ? 'Checking' : runnable ? `Check ${surface.label}` : surface.label}
+              {busy ? (managedAuthFlow ? 'Starting' : 'Checking') : runnable ? `Check ${surface.label}` : surface.label}
             </button>
           )
         })}
       </div>
       {surfaces.map((surface) => {
         const runnable = surface.quota === 'none' && !surface.mutatesState
+        const managedAuthFlow = supportsProviderManagedAuthFlow(providerId, surface)
         const result = results[surface.id]
+        const authFlow = authFlows[surface.id]
         const status = terminalStatus?.surfaceId === surface.id ? terminalStatus : null
         return (
           <div
@@ -1026,7 +1056,7 @@ function ProviderManagedAuthActions({
             data-testid={`provider-managed-auth-detail-${surface.id}`}
             style={{ display: 'grid', gap: 4, minWidth: 0 }}
           >
-            {!runnable && (
+            {!runnable && !managedAuthFlow && (
               <code className="provider-command-output-command">{providerSurfaceTerminalCommand(providerId, surface)}</code>
             )}
             {surface.note && (
@@ -1043,6 +1073,49 @@ function ProviderManagedAuthActions({
                 }}
               >
                 {result.status}: {compactProviderCommandOutput(result.output)}
+              </div>
+            )}
+            {authFlow && (
+              <div
+                role={authFlow.status === 'error' ? 'alert' : 'status'}
+                aria-live={authFlow.status === 'error' ? 'assertive' : 'polite'}
+                data-testid={`provider-managed-auth-flow-${surface.id}`}
+                style={{ display: 'grid', gap: 6, minWidth: 0 }}
+              >
+                <div
+                  style={{
+                    color: authFlow.status === 'error' ? 'var(--color-red)' : authFlow.status === 'unsupported' ? 'var(--color-text-muted)' : 'var(--color-green)',
+                    fontSize: 11,
+                    lineHeight: 1.35
+                  }}
+                >
+                  {authFlow.message}
+                </div>
+                {authFlow.code && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', minWidth: 0 }}>
+                    <code className="provider-command-output-command" data-testid={`provider-managed-auth-code-${surface.id}`}>
+                      {authFlow.code}
+                    </code>
+                    <button
+                      type="button"
+                      className="provider-command-output-action"
+                      onClick={() => void writeClipboardText(authFlow.code ?? '')}
+                      style={{ '--provider-accent': color } as CSSProperties}
+                    >
+                      Copy code
+                    </button>
+                  </div>
+                )}
+                {authFlow.url && (
+                  <button
+                    type="button"
+                    className="provider-command-output-action"
+                    onClick={() => void window.api.browser.openExternal(authFlow.url ?? '')}
+                    style={{ '--provider-accent': color, justifySelf: 'start' } as CSSProperties}
+                  >
+                    Open GitHub sign-in
+                  </button>
+                )}
               </div>
             )}
             {status && (
