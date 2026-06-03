@@ -1029,6 +1029,7 @@ function ProviderManagedAuthActions({
     try {
       const result = await window.api.providers.startAuthFlow(providerId, surface.id)
       setAuthFlows((current) => ({ ...current, [surface.id]: result }))
+      if (result.status === 'completed' || result.status === 'error') onAuthFlowSettled?.()
     } catch (error) {
       setAuthFlows((current) => ({
         ...current,

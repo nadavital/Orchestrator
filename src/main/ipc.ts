@@ -2802,6 +2802,16 @@ async function startProviderAuthFlow(providerId: string, surfaceId: string): Pro
     }
   }
 
+  const currentDiagnostics = await getProviderDiagnosticsAsync(providerId).catch(() => null)
+  if (currentDiagnostics?.[providerId]?.auth.status === 'ok') {
+    return {
+      providerId,
+      surfaceId,
+      status: 'completed',
+      message: 'GitHub Copilot is already signed in.'
+    }
+  }
+
   const provider = PROVIDERS[providerId]
   const binary = provider ? resolveProviderBinary(provider) : null
   if (!provider || !binary) {
