@@ -2,7 +2,7 @@ import { memo, useState, useRef, useEffect } from 'react'
 import type { Ref, RefObject } from 'react'
 import type { Attachment, GitRefOption, Project, ProviderModelDef, ProviderPermissionMode, ProviderPermissionRuntimeContext, ProviderRuntimeInfo, ProviderSlashCommand, ResolvedExecutionPolicy, Session, WorktreeInventoryItem } from '../../types'
 import type { SlashPaletteCommand } from '../../types'
-import { PROVIDER_DEFS, canStopSession, expandSlashCommandPrompt, fastBaseModelIdForProviderModel, getComposerSendState, getDefaultPermissionMode, getVisibleModels, sessionRouteUrlForLocation } from '../../types'
+import { PROVIDER_DEFS, canStopSession, canSwitchSessionProvider, expandSlashCommandPrompt, fastBaseModelIdForProviderModel, getComposerSendState, getDefaultPermissionMode, getVisibleModels, sessionRouteUrlForLocation } from '../../types'
 import { defaultUI, hasComposerDraft, sideChatContextSnapshot, useSessionStore } from '../../store/sessions'
 import { useProjectStore } from '../../store/projects'
 import SlashCommandPalette, { getSlashQuery } from './SlashCommandPalette'
@@ -257,10 +257,13 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   }, [session.id, setComposerAttachments])
 
   const provider = PROVIDER_DEFS[session.provider ?? 'claude'] ?? PROVIDER_DEFS.claude
-  const rawModel = session.model || provider.models[0]?.id || ''
+  const configuredModelChoices = getVisibleModels(provider, providerModels)
+  const configuredDefaultModel = configuredModelChoices[0]?.id ?? provider.models[0]?.id ?? ''
+  const rawModel = session.model || configuredDefaultModel
   const fastBaseModelId = provider.id === 'cursor' ? fastBaseModelIdForProviderModel(provider, rawModel) : null
   const model = fastBaseModelId ?? rawModel
   const visibleModelChoices = getVisibleModelsWithCurrent(provider, providerModels, model)
+  const canSwitchProvider = isNew && canSwitchSessionProvider(session)
   const visibleProviderChoices = Object.values(PROVIDER_DEFS)
     .filter((opt) => providerAvailability[opt.id] !== false || opt.id === provider.id)
     .sort((a, b) => {
@@ -354,11 +357,13 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   }
 
   const switchProvider = (providerId: string): void => {
+    if (!canSwitchProvider) return
     const newDef = PROVIDER_DEFS[providerId]
     if (!newDef) return
+    const orderedModels = getVisibleModels(newDef, providerModels)
     update({
       provider: providerId,
-      model: newDef.models[0]?.id ?? '',
+      model: orderedModels[0]?.id ?? newDef.models[0]?.id ?? '',
       effort: newDef.effortLevels[0]?.id ?? '',
       agentName: null,
       permissionMode: getDefaultPermissionMode(newDef),
@@ -385,6 +390,16 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     }
     update({ model: modelId })
   }
+
+  const previousConfiguredDefaultModelRef = useRef(configuredDefaultModel)
+  useEffect(() => {
+    const previousDefault = previousConfiguredDefaultModelRef.current
+    previousConfiguredDefaultModelRef.current = configuredDefaultModel
+    if (!canSwitchProvider || !configuredDefaultModel) return
+    if (!session.model || (previousDefault && session.model === previousDefault && previousDefault !== configuredDefaultModel)) {
+      update({ model: configuredDefaultModel })
+    }
+  }, [canSwitchProvider, configuredDefaultModel, session.model])
 
   const openAgentMenu = (): void => {
     setAgentMenuPane('main')
@@ -1139,11 +1154,11 @@ function InputBar({ session, isNew }: Props): JSX.Element {
                 <ComposerMenuRow
                   key={opt.id}
                   active={provider.id === opt.id}
-                  disabled={!available}
+                  disabled={!canSwitchProvider || !available}
                   leading={<ProviderIcon providerId={opt.id} size={15} color={available ? opt.color : 'var(--color-text-muted)'} />}
-                  detail={!available ? 'Not installed' : undefined}
+                  detail={!canSwitchProvider ? 'Fixed for this chat' : !available ? 'Not installed' : undefined}
                   onClick={() => {
-                    if (!available) return
+                    if (!canSwitchProvider || !available) return
                     switchProvider(opt.id)
                     closeAgentMenu()
                   }}
@@ -1245,7 +1260,8 @@ function InputBar({ session, isNew }: Props): JSX.Element {
           <ComposerMenuRow
             active={false}
             leading={<ProviderIcon providerId={provider.id} size={15} color={provider.color} />}
-            detail={provider.name}
+            disabled={!canSwitchProvider}
+            detail={canSwitchProvider ? provider.name : 'Fixed for this chat'}
             trailing={submenuChevron}
             onClick={() => setAgentMenuPane('provider')}
           >

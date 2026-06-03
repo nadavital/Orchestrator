@@ -13503,6 +13503,54 @@
     color: white;
   }
 
+  .provider-byok-field {
+    display: grid;
+    gap: 8px;
+  }
+
+  .provider-byok-toggle {
+    display: inline-flex;
+    min-width: 0;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-primary);
+    font-size: 12px;
+    font-weight: 650;
+  }
+
+  .provider-byok-toggle input {
+    margin: 0;
+    accent-color: var(--provider-color, var(--accent));
+  }
+
+  .provider-byok-grid {
+    display: grid;
+    min-width: 0;
+    grid-template-columns: minmax(160px, 210px) minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .provider-byok-select {
+    min-width: 0;
+    border: 1px solid var(--border-subtle);
+    border-radius: 7px;
+    background: var(--control-bg);
+    color: var(--text-primary);
+    font-size: 11px;
+    font-weight: 650;
+    outline: none;
+    padding: 7px 10px;
+  }
+
+  .provider-byok-select:focus-visible {
+    border-color: color-mix(in srgb, var(--provider-color, var(--accent)) 46%, var(--border-strong));
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--provider-color, var(--accent)) 14%, transparent);
+  }
+
+  .provider-byok-save-collapsed {
+    justify-self: start;
+  }
+
   .provider-model-list {
     display: flex;
     min-width: 0;
@@ -13579,6 +13627,10 @@
     .provider-endpoint-row {
       flex-direction: column;
       align-items: stretch;
+    }
+
+    .provider-byok-grid {
+      grid-template-columns: minmax(0, 1fr);
     }
 
     .provider-model-default-row {

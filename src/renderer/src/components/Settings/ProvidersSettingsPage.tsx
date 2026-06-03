@@ -49,7 +49,7 @@ import {
 
 export default function ProvidersSettingsPage({
   defaultProvider, sessions, defaultEfforts, defaultPermissionModes, providerModels,
-  providerRuntime, providerPermissionContexts, providerDiagnostics, providerAvailability, selectedProviderId, onSetDefaultProvider, onSetDefaultEffort, onSetDefaultPermissionMode, onSetProviderModels, onSetProviderPermissionContexts, onLoadProviderDiagnostics
+  providerRuntime, providerPermissionContexts, providerDiagnostics, providerAvailability, selectedProviderId, copilotByokProvider, onSetDefaultProvider, onSetDefaultEffort, onSetDefaultPermissionMode, onSetProviderModels, onSetProviderPermissionContexts, onSetCopilotByokProvider, onLoadProviderDiagnostics
 }: {
   defaultProvider: string
   sessions: SessionListItem[]
@@ -61,11 +61,13 @@ export default function ProvidersSettingsPage({
   providerDiagnostics: Record<string, ProviderDiagnosticInfo>
   providerAvailability: Record<string, boolean>
   selectedProviderId: string
+  copilotByokProvider: CopilotByokProviderSettings
   onSetDefaultProvider: (id: string) => void
   onSetDefaultEffort: (providerId: string, effortId: string) => void
   onSetDefaultPermissionMode: (providerId: string, modeId: string) => void
   onSetProviderModels: (providerId: string, models: string[]) => void
   onSetProviderPermissionContexts: Dispatch<SetStateAction<Record<string, ProviderPermissionRuntimeContext>>>
+  onSetCopilotByokProvider: (settings: CopilotByokProviderSettings) => void
   onLoadProviderDiagnostics: (providerId: string, options?: { force?: boolean }) => void
 }): JSX.Element {
   const selectedId = PROVIDER_DEFS[selectedProviderId] ? selectedProviderId : defaultProvider
@@ -209,6 +211,20 @@ export default function ProvidersSettingsPage({
                     label="Endpoint"
                     className="provider-settings-row provider-settings-row-stacked"
                     control={<ProviderEndpointField providerId={providerDef.id} color={providerDef.color} />}
+                  />
+                )}
+
+                {providerDef.id === 'copilot' && (
+                  <SettingsRow
+                    label="Custom provider"
+                    className="provider-settings-row provider-settings-row-stacked"
+                    control={(
+                      <CopilotByokProviderField
+                        color={providerDef.color}
+                        value={copilotByokProvider}
+                        onChange={onSetCopilotByokProvider}
+                      />
+                    )}
                   />
                 )}
 
@@ -2953,14 +2969,23 @@ function StaticModelChecklistRow({ label, modelId, checked, onToggle }: {
 // ─── Provider endpoint field ──────────────────────────────────────────────────
 
 type ProviderEndpointConfig = {
-  envKey: string
+  kind: 'json-env' | 'codex-openai-base-url'
+  envKey?: string
   configPath: (home: string) => string
   placeholder: string
+}
+
+export type CopilotByokProviderSettings = {
+  enabled: boolean
+  type: 'openai' | 'azure' | 'anthropic'
+  baseUrl: string
+  apiKeyEnvKey: string
 }
 
 function providerEndpointConfig(providerId: string): ProviderEndpointConfig | null {
   if (providerId === 'claude') {
     return {
+      kind: 'json-env',
       envKey: 'ANTHROPIC_BASE_URL',
       configPath: (home) => `${home}/.claude/settings.json`,
       placeholder: 'https://api.anthropic.com (default)'
@@ -2968,9 +2993,17 @@ function providerEndpointConfig(providerId: string): ProviderEndpointConfig | nu
   }
   if (providerId === 'cursor') {
     return {
+      kind: 'json-env',
       envKey: 'CURSOR_API_BASE_URL',
       configPath: (home) => `${home}/.cursor/cli-config.json`,
       placeholder: 'Provider default'
+    }
+  }
+  if (providerId === 'codex') {
+    return {
+      kind: 'codex-openai-base-url',
+      configPath: (home) => `${home}/.codex/config.toml`,
+      placeholder: 'https://api.openai.com/v1 (default)'
     }
   }
   return null
@@ -2991,10 +3024,7 @@ function ProviderEndpointField({ providerId, color }: { providerId: string; colo
       pathRef.current = config.configPath(home)
       const content = await window.api.fs.readFile(pathRef.current)
       if (content) {
-        try {
-          const parsed = JSON.parse(content)
-          setEndpoint(parsed.env?.[config.envKey] ?? '')
-        } catch { /* leave empty */ }
+        setEndpoint(readEndpointFromConfig(content, config))
       }
     }
     load()
@@ -3004,13 +3034,7 @@ function ProviderEndpointField({ providerId, color }: { providerId: string; colo
     if (!config) return
     setSaving(true)
     const content = await window.api.fs.readFile(pathRef.current)
-    let parsed: Record<string, unknown> = {}
-    try { parsed = JSON.parse(content ?? '{}') } catch { /* start fresh */ }
-    const env = { ...(parsed.env as Record<string, string> ?? {}) }
-    if (endpoint.trim()) env[config.envKey] = endpoint.trim()
-    else delete env[config.envKey]
-    parsed.env = env
-    await window.api.fs.writeFile(pathRef.current, JSON.stringify(parsed, null, 2))
+    await window.api.fs.writeFile(pathRef.current, writeEndpointToConfig(content ?? '', config, endpoint.trim()))
     setSaving(false)
     setDirty(false)
     setSaved(true)
@@ -3041,6 +3065,146 @@ function ProviderEndpointField({ providerId, color }: { providerId: string; colo
       </div>
     </div>
   )
+}
+
+function readEndpointFromConfig(content: string, config: ProviderEndpointConfig): string {
+  if (config.kind === 'json-env') {
+    try {
+      const parsed = JSON.parse(content)
+      return config.envKey ? parsed.env?.[config.envKey] ?? '' : ''
+    } catch {
+      return ''
+    }
+  }
+  const match = content.match(/^openai_base_url\s*=\s*(['"])(.*?)\1\s*$/m)
+  return match?.[2] ?? ''
+}
+
+function writeEndpointToConfig(content: string, config: ProviderEndpointConfig, endpoint: string): string {
+  if (config.kind === 'json-env') {
+    let parsed: Record<string, unknown> = {}
+    try { parsed = JSON.parse(content || '{}') } catch { /* start fresh */ }
+    const env = { ...(parsed.env as Record<string, string> ?? {}) }
+    if (config.envKey && endpoint) env[config.envKey] = endpoint
+    else if (config.envKey) delete env[config.envKey]
+    parsed.env = env
+    return JSON.stringify(parsed, null, 2)
+  }
+
+  const linePattern = /^openai_base_url\s*=\s*(['"]).*?\1\s*$/m
+  if (!endpoint) return content.replace(linePattern, '').replace(/\n{3,}/g, '\n\n').trimStart()
+  const nextLine = `openai_base_url = ${JSON.stringify(endpoint)}`
+  if (linePattern.test(content)) return content.replace(linePattern, nextLine)
+  return content.trim() ? `${nextLine}\n${content}` : `${nextLine}\n`
+}
+
+function CopilotByokProviderField({
+  color,
+  value,
+  onChange
+}: {
+  color: string
+  value: CopilotByokProviderSettings
+  onChange: (settings: CopilotByokProviderSettings) => void
+}): JSX.Element {
+  const [draft, setDraft] = useState<CopilotByokProviderSettings>(normalizeCopilotByokSettings(value))
+  const [saved, setSaved] = useState(false)
+  useEffect(() => {
+    setDraft(normalizeCopilotByokSettings(value))
+  }, [value])
+
+  const updateDraft = (patch: Partial<CopilotByokProviderSettings>): void => {
+    setDraft((current) => normalizeCopilotByokSettings({ ...current, ...patch }))
+    setSaved(false)
+  }
+
+  const save = (): void => {
+    const normalized = normalizeCopilotByokSettings(draft)
+    onChange(normalized)
+    setSaved(true)
+    window.setTimeout(() => setSaved(false), 1800)
+  }
+
+  return (
+    <div className="provider-endpoint-field provider-byok-field">
+      <label className="provider-byok-toggle">
+        <input
+          type="checkbox"
+          checked={draft.enabled}
+          onChange={(event) => updateDraft({ enabled: event.target.checked })}
+        />
+        <span>Use BYOK provider</span>
+      </label>
+      {draft.enabled && (
+        <>
+          <div className="provider-byok-grid">
+            <select
+              aria-label="Copilot BYOK provider type"
+              value={draft.type}
+              onChange={(event) => updateDraft({ type: normalizeCopilotByokType(event.target.value) })}
+              className="provider-byok-select"
+              style={{ '--provider-color': color } as CSSProperties}
+            >
+              <option value="openai">OpenAI compatible</option>
+              <option value="azure">Azure OpenAI</option>
+              <option value="anthropic">Anthropic</option>
+            </select>
+            <input
+              value={draft.apiKeyEnvKey}
+              onChange={(event) => updateDraft({ apiKeyEnvKey: event.target.value })}
+              placeholder="API key env var"
+              className="provider-endpoint-input"
+              style={{ '--provider-color': color } as CSSProperties}
+            />
+          </div>
+          <div className="provider-endpoint-row">
+            <input
+              value={draft.baseUrl}
+              onChange={(event) => updateDraft({ baseUrl: event.target.value })}
+              placeholder={draft.type === 'azure' ? 'https://resource.openai.azure.com' : 'https://api.openai.com/v1'}
+              className="provider-endpoint-input"
+              style={{ '--provider-color': color } as CSSProperties}
+            />
+            <button
+              type="button"
+              onClick={save}
+              className="provider-endpoint-save"
+              data-dirty="true"
+              data-saved={saved ? 'true' : 'false'}
+              style={{ '--provider-color': color } as CSSProperties}
+            >
+              {saved ? 'Saved' : 'Save'}
+            </button>
+          </div>
+        </>
+      )}
+      {!draft.enabled && (
+        <button
+          type="button"
+          onClick={save}
+          className="provider-endpoint-save provider-byok-save-collapsed"
+          data-dirty="true"
+          data-saved={saved ? 'true' : 'false'}
+          style={{ '--provider-color': color } as CSSProperties}
+        >
+          {saved ? 'Saved' : 'Save'}
+        </button>
+      )}
+    </div>
+  )
+}
+
+function normalizeCopilotByokSettings(value: Partial<CopilotByokProviderSettings> | null | undefined): CopilotByokProviderSettings {
+  return {
+    enabled: value?.enabled === true,
+    type: normalizeCopilotByokType(value?.type),
+    baseUrl: typeof value?.baseUrl === 'string' ? value.baseUrl : '',
+    apiKeyEnvKey: typeof value?.apiKeyEnvKey === 'string' && value.apiKeyEnvKey.trim() ? value.apiKeyEnvKey.trim() : 'OPENAI_API_KEY'
+  }
+}
+
+function normalizeCopilotByokType(value: unknown): CopilotByokProviderSettings['type'] {
+  return value === 'azure' || value === 'anthropic' ? value : 'openai'
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

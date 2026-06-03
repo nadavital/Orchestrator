@@ -1128,6 +1128,14 @@ export interface RunRequest {
   providerContext?: ProviderRunContext
   attachments?: Attachment[]
   codexReviewStart?: CodexReviewStartRequest
+  copilotByokProvider?: CopilotByokProviderRunSettings
+}
+
+export interface CopilotByokProviderRunSettings {
+  enabled: boolean
+  type: 'openai' | 'azure' | 'anthropic'
+  baseUrl: string
+  apiKeyEnvKey: string
 }
 
 export type CodexReviewDelivery = 'inline' | 'detached'
@@ -1539,6 +1547,12 @@ export interface Session {
   providerPinnedThreadKey?: string | null
   providerProjectless?: boolean
   providerProjectlessThreadId?: string | null
+}
+
+export function canSwitchSessionProvider(
+  session: Pick<Session, 'messages' | 'providerSessionId' | 'claudeSessionId'>
+): boolean {
+  return session.messages.length === 0 && !session.providerSessionId && !session.claudeSessionId
 }
 
 export type SidebarThreadKind = 'local' | 'remote' | 'worktree' | 'pending-worktree'

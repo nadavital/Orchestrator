@@ -28,7 +28,7 @@ import DataControlsSettingsPage from './Settings/DataControlsSettingsPage'
 import GeneralSettingsPage from './Settings/GeneralSettingsPage'
 import PetsSettingsPage from './Settings/PetsSettingsPage'
 import PersonalizationSettingsPage from './Settings/PersonalizationSettingsPage'
-import ProvidersSettingsPage from './Settings/ProvidersSettingsPage'
+import ProvidersSettingsPage, { type CopilotByokProviderSettings } from './Settings/ProvidersSettingsPage'
 import ShortcutsSettingsPage from './Settings/ShortcutsSettingsPage'
 import WorktreesSettingsPage from './Settings/WorktreesSettingsPage'
 import {
@@ -92,6 +92,12 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
   const [defaultEfforts, setDefaultEfforts] = useState<Record<string, string>>({})
   const [defaultPermissionModes, setDefaultPermissionModes] = useState<Record<string, string>>({})
   const [providerModels, setProviderModels] = useState<Record<string, string[]>>({})
+  const [copilotByokProvider, setCopilotByokProvider] = useState<CopilotByokProviderSettings>({
+    enabled: false,
+    type: 'openai',
+    baseUrl: '',
+    apiKeyEnvKey: 'OPENAI_API_KEY'
+  })
   const [providerRuntime, setProviderRuntime] = useState<Record<string, ProviderRuntimeInfo>>({})
   const [providerPermissionContexts, setProviderPermissionContexts] = useState<Record<string, ProviderPermissionRuntimeContext>>({})
   const [providerDiagnostics, setProviderDiagnostics] = useState<Record<string, ProviderDiagnosticInfo>>({})
@@ -157,6 +163,7 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
       setDefaultEfforts((rec.defaultEfforts as Record<string, string>) ?? {})
       setDefaultPermissionModes((rec.defaultPermissionModes as Record<string, string>) ?? {})
       setProviderModels((rec.providerModels as Record<string, string[]>) ?? {})
+      setCopilotByokProvider(normalizeCopilotByokProviderSettings(rec.copilotByokProvider as Partial<CopilotByokProviderSettings> | undefined))
       setPreferredEditor(normalizePreferredEditor(rec.preferredEditor))
       setComposerEnterBehavior(normalizeComposerEnterBehavior(rec.composerEnterBehavior))
       setAppearance((rec.appearance as Appearance) ?? 'mist')
@@ -279,6 +286,12 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
     if (firstModel) {
       saveDefaultModel(providerId, firstModel)
     }
+  }
+
+  const saveCopilotByokProvider = (settings: CopilotByokProviderSettings): void => {
+    const normalized = normalizeCopilotByokProviderSettings(settings)
+    setCopilotByokProvider(normalized)
+    window.api.settings.set('copilotByokProvider', normalized)
   }
 
   const savePreferredEditor = async (value: PreferredEditor): Promise<void> => {
@@ -766,11 +779,13 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
                   providerDiagnostics={providerDiagnostics}
                   providerAvailability={providerAvailability}
                   selectedProviderId={selectedSettingsProviderId}
+                  copilotByokProvider={copilotByokProvider}
                   onSetDefaultProvider={saveDefaultProvider}
                   onSetDefaultEffort={saveDefaultEffort}
                   onSetDefaultPermissionMode={saveDefaultPermissionMode}
                   onSetProviderModels={saveProviderModels}
                   onSetProviderPermissionContexts={setProviderPermissionContexts}
+                  onSetCopilotByokProvider={saveCopilotByokProvider}
                   onLoadProviderDiagnostics={loadProviderDiagnostics}
                 />
               )}
@@ -872,6 +887,15 @@ function normalizePreferredEditor(value: unknown): PreferredEditor {
 
 function normalizeComposerEnterBehavior(value: unknown): ComposerEnterBehavior {
   return value === 'newline' ? 'newline' : 'send'
+}
+
+function normalizeCopilotByokProviderSettings(value: Partial<CopilotByokProviderSettings> | null | undefined): CopilotByokProviderSettings {
+  return {
+    enabled: value?.enabled === true,
+    type: value?.type === 'azure' || value?.type === 'anthropic' ? value.type : 'openai',
+    baseUrl: typeof value?.baseUrl === 'string' ? value.baseUrl : '',
+    apiKeyEnvKey: typeof value?.apiKeyEnvKey === 'string' && value.apiKeyEnvKey.trim() ? value.apiKeyEnvKey.trim() : 'OPENAI_API_KEY'
+  }
 }
 
 function normalizeChromeTheme(value: unknown, fallback: ChromeTheme): ChromeTheme {

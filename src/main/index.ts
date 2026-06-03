@@ -7823,7 +7823,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             var composerActiveThreadProviderChoices =
               composerActiveThreadSettings &&
               providerMenuRow instanceof HTMLButtonElement &&
-              agentMenuRowText(providerMenuRow).includes('Claude Code');
+              providerMenuRow.disabled === true &&
+              agentMenuRowText(providerMenuRow).includes('Fixed for this chat');
             var composerActiveThreadCustomModelVisible =
               composerActiveThreadSettings &&
               modelMenuRow instanceof HTMLButtonElement &&
@@ -7899,24 +7900,30 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 button.textContent?.includes('Codex') === true &&
                 !button.disabled
               );
-            if (activeThreadCodexProviderChoice instanceof HTMLButtonElement) {
-              activeThreadCodexProviderChoice.click();
+            composerActiveThreadProviderSwitch =
+              composerActiveThreadProviderChoices &&
+              !(activeThreadCodexProviderChoice instanceof HTMLButtonElement);
+            if (activeSettingsSessionForCustomModel) {
+              const providerLockBaselineSessions = await window.api.sessions.list();
+              const providerLockBaseline = providerLockBaselineSessions.find((candidate) => candidate.id === activeSettingsSessionForCustomModel.id);
+              await window.api.sessions.updateSettings(activeSettingsSessionForCustomModel.id, {
+                provider: 'codex',
+                model: 'gpt-5.5',
+                effort: 'low',
+                runtime: 'app-server',
+                permissionMode: 'default'
+              });
               await sleep(180);
               for (let index = 0; index < 10; index += 1) {
-                const switchedAgentButton = document.querySelector('[data-testid="composer-agent-menu"]');
-                composerActiveThreadProviderSwitch =
-                  switchedAgentButton instanceof HTMLElement &&
-                  switchedAgentButton.textContent?.includes('GPT') === true;
                 const switchedSessions = await window.api.sessions.list();
-                const switchedSession = switchedSessions.find((candidate) => candidate.name === 'Active settings smoke');
+                const switchedSession = switchedSessions.find((candidate) => candidate.id === activeSettingsSessionForCustomModel.id);
                 composerActiveThreadProviderSwitchPersisted =
-                  switchedSession?.provider === 'codex' &&
-                  switchedSession?.runtime === 'app-server' &&
-                  typeof switchedSession?.model === 'string' &&
-                  switchedSession.model.includes('gpt');
+                  switchedSession?.provider === providerLockBaseline?.provider &&
+                  switchedSession?.runtime === providerLockBaseline?.runtime &&
+                  switchedSession?.model === providerLockBaseline?.model;
                 composerActiveThreadProviderSwitchPolicyPersisted =
-                  switchedSession?.permissionMode === 'default' &&
-                  switchedSession?.effort === 'low';
+                  switchedSession?.permissionMode === providerLockBaseline?.permissionMode &&
+                  switchedSession?.effort === providerLockBaseline?.effort;
                 if (composerActiveThreadProviderSwitch && composerActiveThreadProviderSwitchPersisted) break;
                 await sleep(80);
               }

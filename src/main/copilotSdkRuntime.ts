@@ -235,8 +235,27 @@ function copilotSdkBaseConfig(sdk: CopilotSdk, request: RunRequest, session: Ses
   if (request.executionPolicy === 'yolo' || request.executionPolicy === 'bypassPermissions') {
     config.onPermissionRequest = sdk.approveAll
   }
+  const byokProvider = copilotSdkByokProviderConfig(request)
+  if (byokProvider) {
+    ;(config as SessionConfig & { provider?: typeof byokProvider }).provider = byokProvider
+  }
   if (request.allowedTools?.length) config.availableTools = request.allowedTools
   return config
+}
+
+function copilotSdkByokProviderConfig(request: RunRequest): { type: 'openai' | 'azure' | 'anthropic'; baseUrl: string; apiKey?: string } | null {
+  const settings = request.copilotByokProvider
+  if (!settings) return null
+  const baseUrl = typeof settings.baseUrl === 'string' ? settings.baseUrl.trim() : ''
+  if (!settings.enabled || !baseUrl) return null
+  const type = settings.type === 'azure' || settings.type === 'anthropic' ? settings.type : 'openai'
+  const apiKeyEnvKey = typeof settings.apiKeyEnvKey === 'string' ? settings.apiKeyEnvKey.trim() : ''
+  const apiKey = apiKeyEnvKey ? process.env[apiKeyEnvKey]?.trim() : ''
+  return {
+    type,
+    baseUrl,
+    ...(apiKey ? { apiKey } : {})
+  }
 }
 
 export function copilotSdkMessageOptions(request: RunRequest): MessageOptions {

@@ -6,7 +6,7 @@ import { readFileSync } from 'fs'
 import { performance } from 'perf_hooks'
 import { promisify } from 'util'
 import type { AgentThreadOpenRequest, AgentThreadOpenResult, Attachment, AutomationPermissionSnapshot, CodexReviewStartRequest, Session, SessionForkMode, SessionForkOptions, SessionListItem, ChatMessage, TextMessage, ProviderRuntimeKind, ProviderSidebarSyncResult, ReviewMetadata, RunEvent, RunRequest, SessionStatus, SideQuestionMessage, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary, UserInputAnswerPayload, WorktreeInventoryItem } from '../types'
-import { PROVIDER_DEFS, applyAutomationPermissionSnapshot, finalizeInterruptedMessages, getConfigurableModels, getDefaultPermissionMode, normalizeProviderModelOrder } from '../types'
+import { PROVIDER_DEFS, applyAutomationPermissionSnapshot, canSwitchSessionProvider, finalizeInterruptedMessages, getConfigurableModels, getDefaultPermissionMode, normalizeProviderModelOrder } from '../types'
 import { gitManager } from './git'
 import { buildProviderCommandForRuntime, getProvider, PROVIDERS, providerSpawnEnv, resolveProviderBinary, resolveProviderCommand, runCodexAppServerCommandSurfaceRaw } from './providers'
 import type { ProviderAdapter } from './providers'
@@ -232,6 +232,14 @@ function send(channel: string, ...args: unknown[]): void {
 function requestFromSession(session: Session, prompt: string): RunRequest {
   const providerId = session.provider ?? 'claude'
   const preparedPrompt = claudeAgentThreadPromptForRequest(session, prompt)
+  const copilotByokProvider = providerId === 'copilot'
+    ? settingsStore.get('copilotByokProvider', {
+        enabled: false,
+        type: 'openai',
+        baseUrl: '',
+        apiKeyEnvKey: 'OPENAI_API_KEY'
+      }) as RunRequest['copilotByokProvider']
+    : undefined
   return {
     prompt: preparedPrompt,
     cwd: session.workDir,
@@ -246,7 +254,8 @@ function requestFromSession(session: Session, prompt: string): RunRequest {
     additionalDirs: session.additionalDirs ?? [],
     runtime: sessionRuntimeForProvider(providerId, session.runtime),
     useThinking: session.useThinking,
-    useFast: session.useFast
+    useFast: session.useFast,
+    ...(copilotByokProvider ? { copilotByokProvider } : {})
   }
 }
 
@@ -1887,10 +1896,13 @@ export const sessionManager = {
     const s = sessions.find((s) => s.id === id)
     if (s) {
       const normalizedPatch: typeof patch & { runtime?: ProviderRuntimeKind } = { ...patch }
-      if (patch.provider) {
-        normalizedPatch.runtime = defaultRuntimeForProvider(patch.provider)
+      if (patch.provider && patch.provider !== s.provider && !canSwitchSessionProvider(s)) {
+        return
+      }
+      if (normalizedPatch.provider) {
+        normalizedPatch.runtime = defaultRuntimeForProvider(normalizedPatch.provider)
         if (!patch.permissionMode) {
-          const providerDef = PROVIDER_DEFS[patch.provider] ?? PROVIDER_DEFS.claude
+          const providerDef = PROVIDER_DEFS[normalizedPatch.provider] ?? PROVIDER_DEFS.claude
           const storedPermissionModes = settingsStore.get('defaultPermissionModes', {}) as Record<string, string>
           normalizedPatch.permissionMode = getDefaultPermissionMode(providerDef, storedPermissionModes[providerDef.id])
         }

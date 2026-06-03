@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { canStopSession, finalizeInterruptedMessages, getComposerSendState, type ChatMessage } from '../../types'
+import { canStopSession, canSwitchSessionProvider, finalizeInterruptedMessages, getComposerSendState, type ChatMessage } from '../../types'
 
 test('composer queues a message while a session is running', () => {
   assert.deepEqual(
@@ -29,6 +29,22 @@ test('composer normal send does not mark idle sessions as queued', () => {
     getComposerSendState({ text: 'hello', status: 'idle', canUsePermission: true }),
     { canSend: true, willQueue: false }
   )
+})
+
+test('provider switching is only allowed before a provider conversation exists', () => {
+  assert.equal(canSwitchSessionProvider({ messages: [], providerSessionId: null }), true)
+  assert.equal(canSwitchSessionProvider({
+    providerSessionId: null,
+    messages: [{
+      id: 'user-1',
+      role: 'user',
+      type: 'text',
+      content: 'hello',
+      timestamp: 1
+    }]
+  }), false)
+  assert.equal(canSwitchSessionProvider({ messages: [], providerSessionId: 'provider-thread-1' }), false)
+  assert.equal(canSwitchSessionProvider({ messages: [], providerSessionId: null, claudeSessionId: 'claude-thread-1' }), false)
 })
 
 test('interrupted runs settle streaming and queued text messages', () => {

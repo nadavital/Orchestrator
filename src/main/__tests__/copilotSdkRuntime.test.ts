@@ -49,6 +49,32 @@ test('copilot sdk config uses subscription auth by default and yolo only for exp
   assert.equal(bypass.onPermissionRequest, approveAll)
 })
 
+test('copilot sdk config can opt into BYOK provider settings from the run request', () => {
+  const previous = process.env.COPILOT_SDK_TEST_KEY
+  process.env.COPILOT_SDK_TEST_KEY = 'test-secret'
+  try {
+    const sdk = { approveAll: () => ({ kind: 'approved' as const }) } as unknown as typeof import('@github/copilot-sdk')
+    const config = copilotSdkSessionConfig(sdk, request({
+      copilotByokProvider: {
+        enabled: true,
+        type: 'openai',
+        baseUrl: 'https://llm.example.test/v1',
+        apiKeyEnvKey: 'COPILOT_SDK_TEST_KEY'
+      }
+    }), session()) as import('@github/copilot-sdk').SessionConfig & {
+      provider?: { type: string; baseUrl: string; apiKey?: string }
+    }
+    assert.deepEqual(config.provider, {
+      type: 'openai',
+      baseUrl: 'https://llm.example.test/v1',
+      apiKey: 'test-secret'
+    })
+  } finally {
+    if (previous === undefined) delete process.env.COPILOT_SDK_TEST_KEY
+    else process.env.COPILOT_SDK_TEST_KEY = previous
+  }
+})
+
 test('copilot sdk message options map local file attachments', () => {
   const options = copilotSdkMessageOptions(request({
     attachments: [{ id: 'a1', kind: 'local_file', path: '/tmp/project/README.md', name: 'README.md' }]
