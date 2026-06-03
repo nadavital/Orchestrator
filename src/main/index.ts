@@ -986,7 +986,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 diagnosticsSection instanceof HTMLElement &&
                 diagnosticsSection.classList.contains('settings-page-section') &&
                 providerControlSurfaces.length === 1 &&
-                providerControlSurfaceText.includes('Default') &&
+                providerControlSurfaceText.includes('Default model') &&
                 providerControlSurfaceText.includes('Permissions') &&
                 providerControlSurfaceText.includes('Models') &&
                 providerControlSurfaceText.includes('Details') &&
@@ -994,10 +994,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 !providerControlSurfaceText.includes('Boundaries') &&
                 diagnosticsSection.querySelector('.settings-panel') === null &&
                 diagnosticsSection.querySelector('.compact-setting') === null &&
-                permissionExecutionContract instanceof HTMLElement &&
-                permissionExecutionContract.getBoundingClientRect().height <= 28 &&
-                permissionExecutionContract.textContent?.includes('Source') &&
-                providerControlSurfaceText.indexOf('Default') < providerControlSurfaceText.indexOf('Models') &&
+                (permissionExecutionContract === null || permissionExecutionContract.getBoundingClientRect().height <= 28) &&
+                !providerControlSurfaceText.includes('Default permissions') &&
+                !providerControlSurfaceText.includes('Source cli') &&
+                providerControlSurfaceText.indexOf('Permissions') < providerControlSurfaceText.indexOf('Models') &&
                 providerControlSurfaceText.indexOf('Models') < providerControlSurfaceText.indexOf('Details') &&
                 providerDetailsGrid instanceof HTMLElement &&
                 providerDetailsGrid.innerText.includes('Capabilities') &&
@@ -1406,6 +1406,11 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                   status.getAttribute('aria-live') === 'polite' &&
                   status.getAttribute('aria-atomic') === 'true' &&
                   status.textContent?.includes('Permission config') === true;
+              } else {
+                settingsProviderPermissionRefreshWorks =
+                  permissionRuntimeContext === null &&
+                  providerControlSurfaceText.includes('Permissions') &&
+                  !providerControlSurfaceText.includes('Config fallback loaded');
               }
               const sidebarMetadataRefreshButton = document.querySelector('[data-testid="provider-sidebar-metadata-refresh"]');
               const codexStatusCard = document.querySelector('[data-testid="provider-status-card"]');

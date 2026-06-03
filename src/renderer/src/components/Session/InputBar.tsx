@@ -1,8 +1,8 @@
 import { memo, useState, useRef, useEffect } from 'react'
 import type { Ref, RefObject } from 'react'
-import type { Attachment, GitRefOption, Project, ProviderModelDef, ProviderPermissionPreset, ProviderPermissionRuntimeContext, ProviderRuntimeInfo, ProviderSlashCommand, ResolvedExecutionPolicy, Session, WorktreeInventoryItem } from '../../types'
+import type { Attachment, GitRefOption, Project, ProviderModelDef, ProviderPermissionMode, ProviderPermissionRuntimeContext, ProviderRuntimeInfo, ProviderSlashCommand, ResolvedExecutionPolicy, Session, WorktreeInventoryItem } from '../../types'
 import type { SlashPaletteCommand } from '../../types'
-import { PROVIDER_DEFS, canStopSession, expandSlashCommandPrompt, getComposerSendState, getDefaultPermissionMode, getProviderPermissionPresetForMode, getProviderPermissionPresets, getVisibleModels, sessionRouteUrlForLocation } from '../../types'
+import { PROVIDER_DEFS, canStopSession, expandSlashCommandPrompt, getComposerSendState, getDefaultPermissionMode, getVisibleModels, sessionRouteUrlForLocation } from '../../types'
 import { defaultUI, hasComposerDraft, sideChatContextSnapshot, useSessionStore } from '../../store/sessions'
 import { useProjectStore } from '../../store/projects'
 import SlashCommandPalette, { getSlashQuery } from './SlashCommandPalette'
@@ -284,8 +284,8 @@ function InputBar({ session, isNew }: Props): JSX.Element {
 
   const modelLabel = provider.models.find((m) => m.id === model)?.label ?? model
   const effortLabel = provider.effortLevels.find((e) => e.id === effort)?.label ?? ''
-  const selectedPermissionPreset = getProviderPermissionPresetForMode(provider, permissionMode)
-  const permLabel = selectedPermissionPreset?.label ?? 'Custom'
+  const selectedPermissionMode = provider.permissionModes.find((mode) => mode.id === permissionMode)
+  const permLabel = selectedPermissionMode?.label ?? 'Custom'
   const permissionControlLabel = compactPermissionLabel(permLabel)
   const contextDisabledPermissionReason = permissionContext?.status === 'ok'
     ? permissionContext.disabledPolicies?.[permissionMode]
@@ -302,7 +302,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     contextDisabledPermissionReason ? `disabled by live config: ${contextDisabledPermissionReason}` : null
   ].filter(Boolean).join('. ')
   const permissionTriggerTitle = permissionTriggerLabel
-  const permissionPresets = filterPermissionPresets(getProviderPermissionPresets(provider), permissionContext, permissionMode)
+  const permissionModes = filterPermissionModes(provider.permissionModes, permissionContext, permissionMode)
   const canUsePermission = resolvedPermission?.support !== 'unsupported' && !contextDisabledPermissionReason
   const composerDropdownOpen = showAgentMenu || showPermMenu || showModeMenu || showProjectMenu
 
@@ -1640,21 +1640,21 @@ function InputBar({ session, isNew }: Props): JSX.Element {
             {showPermMenu && (
               <DropdownPanel onClose={() => setShowPermMenu(false)} style={{ bottom: '100%', marginBottom: 8, left: 0, width: 236 }}>
                 <ComposerMenuSection>
-                  {permissionPresets.map((opt) => (
+                  {permissionModes.map((opt) => (
                     <ComposerMenuRow
                       key={opt.id}
-                      active={permissionMode === opt.modeId}
-                      disabled={Boolean(permissionUnavailableReason(opt.modeId))}
-                      icon={permissionPresetIcon(opt.id)}
-                      detail={permissionUnavailableReason(opt.modeId)}
-                      onClick={() => selectPermissionMode(opt.modeId)}
+                      active={permissionMode === opt.id}
+                      disabled={Boolean(permissionUnavailableReason(opt.id))}
+                      icon={permissionModeIcon(opt)}
+                      detail={permissionUnavailableReason(opt.id) ?? opt.desc}
+                      onClick={() => selectPermissionMode(opt.id)}
                     >
                       {opt.label}
                     </ComposerMenuRow>
                   ))}
-                  {!selectedPermissionPreset && (
+                  {!selectedPermissionMode && (
                     <div style={{ marginTop: 6, padding: '4px 10px', color: 'var(--color-text-muted)', fontSize: 12, lineHeight: 1.35 }}>
-                      A provider-specific permission setting is active. Choose one of these options to return to the standard controls.
+                      This chat is using a provider-specific permission setting that is not in the current mode list.
                     </div>
                   )}
                 </ComposerMenuSection>
@@ -2010,9 +2010,11 @@ function ComposerMenuRow({
   )
 }
 
-function permissionPresetIcon(id: string): IconName {
-  if (id === 'autoReview') return 'shield'
-  if (id === 'fullAccess') return 'shieldAlert'
+function permissionModeIcon(mode: ProviderPermissionMode): IconName {
+  if (mode.intent === 'bypass' || mode.intent === 'fullAccess') return 'shieldAlert'
+  if (mode.intent === 'workspaceSandbox') return 'folder'
+  if (mode.intent === 'plan') return 'plan'
+  if (mode.intent === 'autoEdit') return 'checkCircle'
   return 'hand'
 }
 
@@ -2465,14 +2467,14 @@ function PolicyBadge({
   )
 }
 
-function filterPermissionPresets(
-  presets: ProviderPermissionPreset[],
+function filterPermissionModes(
+  modes: ProviderPermissionMode[],
   context: ProviderPermissionRuntimeContext | null,
   selectedPolicy: string
-): ProviderPermissionPreset[] {
-  if (!context || context.status !== 'ok' || !context.visiblePolicies || context.visiblePolicies.length === 0) return presets
+): ProviderPermissionMode[] {
+  if (!context || context.status !== 'ok' || !context.visiblePolicies || context.visiblePolicies.length === 0) return modes
   const visible = new Set(context.visiblePolicies)
-  return presets.filter((preset) => visible.has(preset.modeId) || preset.modeId === selectedPolicy)
+  return modes.filter((mode) => visible.has(mode.id) || mode.id === selectedPolicy)
 }
 
 function shallowEqualArray<T>(a?: T[], b?: T[]): boolean {

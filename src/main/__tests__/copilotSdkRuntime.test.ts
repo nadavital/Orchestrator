@@ -179,6 +179,55 @@ test('copilot sdk final assistant message completes an existing stream', () => {
   assert.equal(streamedMessageIds.has('message-2'), false)
 })
 
+test('copilot sdk streaming normalizes accumulated partial chunks', () => {
+  const streamedMessageIds = new Set<string>()
+  const streamBuffers = new Map()
+  assert.deepEqual(
+    normalizeCopilotSdkEvent({
+      type: 'assistant.message_delta',
+      id: 'event-9',
+      parentId: null,
+      timestamp: '2026-06-02T00:00:08.000Z',
+      ephemeral: true,
+      data: { messageId: 'message-3', deltaContent: 'GitHubCop' }
+    } as import('@github/copilot-sdk').SessionEvent, 'copilot-session-1', { streamedMessageIds, streamBuffers }),
+    [{ type: 'assistant.text.delta', streamId: 'message-3', content: 'GitHubCop' }]
+  )
+  assert.deepEqual(
+    normalizeCopilotSdkEvent({
+      type: 'assistant.message_delta',
+      id: 'event-10',
+      parentId: 'event-9',
+      timestamp: '2026-06-02T00:00:09.000Z',
+      ephemeral: true,
+      data: { messageId: 'message-3', deltaContent: 'ilot CLI.' }
+    } as import('@github/copilot-sdk').SessionEvent, 'copilot-session-1', { streamedMessageIds, streamBuffers }),
+    [{ type: 'assistant.text.delta', streamId: 'message-3', content: 'GitHub Copilot.', replace: true }]
+  )
+  assert.deepEqual(
+    normalizeCopilotSdkEvent({
+      type: 'assistant.message_delta',
+      id: 'event-11',
+      parentId: 'event-10',
+      timestamp: '2026-06-02T00:00:10.000Z',
+      ephemeral: true,
+      data: { messageId: 'message-3', deltaContent: 'How' }
+    } as import('@github/copilot-sdk').SessionEvent, 'copilot-session-1', { streamedMessageIds, streamBuffers }),
+    [{ type: 'assistant.text.delta', streamId: 'message-3', content: ' How' }]
+  )
+  assert.deepEqual(
+    normalizeCopilotSdkEvent({
+      type: 'assistant.message_delta',
+      id: 'event-12',
+      parentId: 'event-11',
+      timestamp: '2026-06-02T00:00:11.000Z',
+      ephemeral: true,
+      data: { messageId: 'message-3', deltaContent: 'can' }
+    } as import('@github/copilot-sdk').SessionEvent, 'copilot-session-1', { streamedMessageIds, streamBuffers }),
+    [{ type: 'assistant.text.delta', streamId: 'message-3', content: ' can' }]
+  )
+})
+
 test('copilot sdk usage and task completion do not end a turn before final message', () => {
   const streamedMessageIds = new Set<string>()
   const pendingUsage = {}

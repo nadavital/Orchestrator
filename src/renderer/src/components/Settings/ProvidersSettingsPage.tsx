@@ -11,14 +11,12 @@ import { CSS } from '@dnd-kit/utilities'
 import {
   PROVIDER_DEFS,
   getDefaultPermissionMode,
-  getProviderPermissionPresetForMode,
-  getProviderPermissionPresets,
   getVisibleModels,
   type PermissionExecutionContract,
   type ProviderCapabilityGap,
   type ProviderAuthFlowResult,
   type ProviderAuthSecretStatus,
-  type ProviderPermissionPreset,
+  type ProviderPermissionMode,
   type ProviderPermissionRuntimeContext,
   type ProviderCommandSurface,
   type ProviderCommandSurfaceResult,
@@ -94,9 +92,10 @@ export default function ProvidersSettingsPage({
   const contextDefaultPermissionMode = permissionContext?.providerId === selectedId ? permissionContext.defaultPolicy : undefined
   const currentPermissionMode = getDefaultPermissionMode(providerDef, defaultPermissionModes[selectedId] ?? contextDefaultPermissionMode)
   const visibleModels = getVisibleModels(modelCatalogProviderDef, providerModels)
-  const permissionPresets = filterPermissionPresets(getProviderPermissionPresets(providerDef), permissionContext, currentPermissionMode)
-  const selectedPermissionPreset = getProviderPermissionPresetForMode(providerDef, currentPermissionMode)
-  const permissionPickerMode = selectedPermissionPreset?.modeId ?? permissionPresets[0]?.modeId ?? currentPermissionMode
+  const permissionModes = filterPermissionModes(providerDef.permissionModes, permissionContext, currentPermissionMode)
+  const permissionPickerMode = permissionModes.some((mode) => mode.id === currentPermissionMode)
+    ? currentPermissionMode
+    : permissionModes[0]?.id ?? currentPermissionMode
   const visibleIds = visibleModels.map((m) => m.id)
   const runtime = providerRuntime[selectedId]
   const loadingDiagnostics = diagnosticsLoading[selectedId] === true
@@ -109,9 +108,7 @@ export default function ProvidersSettingsPage({
     `${usageSnapshot.sessionCount} chat${usageSnapshot.sessionCount === 1 ? '' : 's'}`,
     diagnostics ? `${diagnostics.probes.filter((probe) => probe.status === 'ok').length}/${diagnostics.probes.length} checks` : 'Checks pending'
   ]
-  const modelForPicker = visibleIds.includes(currentModel)
-    ? currentModel
-    : visibleModels[0]?.id ?? currentModel
+  const modelForPicker = currentModel
   const [sidebarSyncLoading, setSidebarSyncLoading] = useState(false)
   const [sidebarSyncResult, setSidebarSyncResult] = useState<ProviderSidebarSyncResult | null>(null)
   const [permissionContextLoading, setPermissionContextLoading] = useState(false)
@@ -230,19 +227,6 @@ export default function ProvidersSettingsPage({
                       onSetDefault={() => onSetDefaultProvider(selectedId)}
                     />
 
-                <SettingsRow
-                  label="Default"
-                  className="provider-settings-row"
-                  control={(
-                    <DefaultModelPicker
-                      providerDef={modelCatalogProviderDef}
-                      models={visibleModels}
-                      currentModel={modelForPicker}
-                      onSetModel={(id) => onSetDefaultModel(selectedId, id)}
-                    />
-                  )}
-                />
-
                 {providerDef.supportsEffort && providerDef.effortLevels.length > 0 && (
                   <SettingsRow
                     label="Thinking"
@@ -259,14 +243,14 @@ export default function ProvidersSettingsPage({
                   />
                 )}
 
-                {permissionPresets.length > 0 && (
+                {permissionModes.length > 0 && (
                   <SettingsRow
                     label="Permissions"
                     className="provider-settings-row provider-settings-row-stacked"
                     control={(
                       <div className="provider-settings-row-stack">
                         <SegmentedControl
-                          items={permissionPresets.map((preset) => ({ id: preset.modeId, label: preset.label }))}
+                          items={permissionModes.map((mode) => ({ id: mode.id, label: mode.label }))}
                           value={permissionPickerMode}
                           color={providerDef.color}
                           ariaLabel={`${providerDef.name} permission mode`}
@@ -280,9 +264,9 @@ export default function ProvidersSettingsPage({
                           refreshStatus={permissionContextRefreshStatus}
                           onRefresh={() => { void loadPermissionContext({ announce: true }) }}
                         />
-                        {!selectedPermissionPreset && (
+                        {providerDef.permissionModes.find((mode) => mode.id === permissionPickerMode)?.desc && (
                           <InlineMutedText>
-                            A provider-specific default is active. Choose one of these options to use the standard permission controls.
+                            {providerDef.permissionModes.find((mode) => mode.id === permissionPickerMode)?.desc}
                           </InlineMutedText>
                         )}
                       </div>
@@ -312,16 +296,29 @@ export default function ProvidersSettingsPage({
                   className="provider-settings-row provider-settings-row-stacked"
                   control={(
                     <div className="provider-models-row">
-                      <ModelSourceSummary
-                        providerDef={modelCatalogProviderDef}
-                        diagnostics={diagnostics}
-                        visibleCount={visibleIds.length}
-                      />
-                      <ModelListManager
-                        providerDef={modelCatalogProviderDef}
-                        visibleIds={visibleIds}
-                        onChange={handleVisibleModelsChange}
-                      />
+                      <div className="provider-model-default-block">
+                        <div className="provider-model-inline-label">Default model</div>
+                        <DefaultModelPicker
+                          providerDef={modelCatalogProviderDef}
+                          models={visibleModels}
+                          currentModel={modelForPicker}
+                          onSetModel={(id) => onSetDefaultModel(selectedId, id)}
+                        />
+                      </div>
+                      <div className="provider-model-list-block">
+                        <div className="provider-model-list-meta">
+                          <ModelSourceSummary
+                            providerDef={modelCatalogProviderDef}
+                            diagnostics={diagnostics}
+                            visibleCount={visibleIds.length}
+                          />
+                        </div>
+                        <ModelListManager
+                          providerDef={modelCatalogProviderDef}
+                          visibleIds={visibleIds}
+                          onChange={handleVisibleModelsChange}
+                        />
+                      </div>
                       <button
                         className="provider-details-toggle"
                         data-testid="provider-diagnostics-toggle"
@@ -719,11 +716,13 @@ function ProviderPermissionContract({
   refreshStatus: { text: string; tone: 'info' | 'danger' } | null
   onRefresh: () => void
 }): JSX.Element | null {
-  if (!policy?.execution && (!context || context.source === 'static')) return null
+  const showRuntimeContext = context && context.source !== 'static'
+  const showUnsupportedPolicy = policy?.support === 'unsupported'
+  if (!showRuntimeContext && !showUnsupportedPolicy) return null
   const chips = policy?.execution ? permissionExecutionLabels(policy.execution) : []
   return (
     <div>
-      {chips.length > 0 && (
+      {showUnsupportedPolicy && chips.length > 0 && (
         <div
           className="provider-permission-contract"
           data-testid="settings-permission-execution-contract"
@@ -741,7 +740,7 @@ function ProviderPermissionContract({
           ))}
         </div>
       )}
-      {context && (
+      {showRuntimeContext && context && (
         <>
           <div
             className="provider-permission-runtime-context"
@@ -794,14 +793,14 @@ function permissionExecutionLabels(execution: PermissionExecutionContract): Arra
   ].filter((chip): chip is { label: string; value: string; strong?: boolean } => Boolean(chip))
 }
 
-function filterPermissionPresets(
-  presets: ProviderPermissionPreset[],
+function filterPermissionModes(
+  modes: ProviderPermissionMode[],
   context: ProviderPermissionRuntimeContext | undefined,
   selectedPolicy: string
-): ProviderPermissionPreset[] {
-  if (!context || context.status !== 'ok' || !context.visiblePolicies || context.visiblePolicies.length === 0) return presets
+): ProviderPermissionMode[] {
+  if (!context || context.status !== 'ok' || !context.visiblePolicies || context.visiblePolicies.length === 0) return modes
   const visible = new Set(context.visiblePolicies)
-  return presets.filter((preset) => visible.has(preset.modeId) || preset.modeId === selectedPolicy)
+  return modes.filter((mode) => visible.has(mode.id) || mode.id === selectedPolicy)
 }
 
 function ProviderRuntimeEventsCard({

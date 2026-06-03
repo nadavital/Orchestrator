@@ -1843,7 +1843,7 @@ export const sessionManager = {
           id: event.streamId,
           role: 'assistant',
           type: 'text',
-          content: `${existing?.type === 'text' ? existing.content : ''}${event.content}`,
+          content: event.replace ? event.content : `${existing?.type === 'text' ? existing.content : ''}${event.content}`,
           timestamp: existing?.timestamp ?? Date.now(),
           isStreaming: true
         })

@@ -1221,7 +1221,7 @@ export type RunEvent =
   | { type: 'session.started'; providerSessionId: string }
   | { type: 'assistant.text'; content: string }
   | { type: 'assistant.status'; content: string }
-  | { type: 'assistant.text.delta'; streamId: string; content: string }
+  | { type: 'assistant.text.delta'; streamId: string; content: string; replace?: boolean }
   | { type: 'assistant.text.completed'; streamId: string; content?: string }
   | {
     type: 'diff.updated'

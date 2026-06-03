@@ -13375,8 +13375,35 @@
     gap: 12px;
   }
 
-  .provider-models-row > [data-testid='provider-model-list'] {
+  .provider-model-default-block,
+  .provider-model-list-block {
+    display: grid;
+    min-width: 0;
+    gap: 6px;
+  }
+
+  .provider-model-default-block {
+    flex: 0 1 280px;
+  }
+
+  .provider-model-list-block {
     flex: 1 1 auto;
+  }
+
+  .provider-model-list-block > [data-testid='provider-model-list'] {
+    flex: 1 1 auto;
+  }
+
+  .provider-model-inline-label,
+  .provider-model-list-meta {
+    min-height: 18px;
+  }
+
+  .provider-model-inline-label {
+    color: var(--text-tertiary);
+    font-size: 10.5px;
+    font-weight: 650;
+    letter-spacing: 0;
   }
 
   .provider-model-source-summary {

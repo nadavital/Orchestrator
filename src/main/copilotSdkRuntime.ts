@@ -35,6 +35,7 @@ interface ActiveCopilotSdkRun {
   client?: CopilotClient
   session?: CopilotSession
   streamedMessageIds: Set<string>
+  streamBuffers: Map<string, CopilotStreamBuffer>
   pendingUsage: { current?: UsageSummary }
   stopped: boolean
   completed: boolean
@@ -43,6 +44,11 @@ interface ActiveCopilotSdkRun {
   providerId: string
   onParsedEvents: (events: RunEvent[]) => void
   onExit: () => void
+}
+
+interface CopilotStreamBuffer {
+  raw: string
+  normalized: string
 }
 
 export class CopilotSdkRuntimeManager {
@@ -59,6 +65,7 @@ export class CopilotSdkRuntimeManager {
 
     this.activeRuns.set(options.sessionId, {
       streamedMessageIds: new Set(),
+      streamBuffers: new Map(),
       pendingUsage: {},
       stopped: false,
       completed: false,
@@ -141,6 +148,7 @@ export class CopilotSdkRuntimeManager {
         options.onRawData(raw)
         const events = normalizeCopilotSdkEvent(event, session.sessionId, {
           streamedMessageIds: active.streamedMessageIds,
+          streamBuffers: active.streamBuffers,
           pendingUsage: active.pendingUsage
         })
         if (events.some((item) => item.type === 'run.completed' || item.type === 'run.failed')) active.completed = true
@@ -244,7 +252,11 @@ export function copilotSdkMessageOptions(request: RunRequest): MessageOptions {
 export function normalizeCopilotSdkEvent(
   event: SessionEvent,
   providerSessionId?: string,
-  options: { streamedMessageIds?: Set<string>; pendingUsage?: { current?: UsageSummary } } = {}
+  options: {
+    streamedMessageIds?: Set<string>
+    streamBuffers?: Map<string, CopilotStreamBuffer>
+    pendingUsage?: { current?: UsageSummary }
+  } = {}
 ): RunEvent[] {
   const events: RunEvent[] = []
   const data = asRecord(event.data)
@@ -268,16 +280,18 @@ export function normalizeCopilotSdkEvent(
     const streamId = stringValue(data?.messageId) ?? eventId
     options.streamedMessageIds?.add(streamId)
     if (content && event.agentId) events.push({ type: 'agent.text.delta', agentId: event.agentId, streamId, content })
-    else if (content) events.push({ type: 'assistant.text.delta', streamId, content: sanitizeCopilotAssistantText(content) })
+    else if (content) events.push(copilotAssistantDeltaEvent(streamId, content, options.streamBuffers))
   } else if (event.type === 'assistant.message') {
     const messageId = stringValue(data?.messageId)
     const content = sanitizeCopilotAssistantText(stringValue(data?.content) ?? '')
     if (event.agentId && messageId && options.streamedMessageIds?.has(messageId)) {
       events.push({ type: 'agent.text.completed', agentId: event.agentId, streamId: messageId })
       options.streamedMessageIds.delete(messageId)
+      options.streamBuffers?.delete(messageId)
     } else if (messageId && options.streamedMessageIds?.has(messageId)) {
       events.push({ type: 'assistant.text.completed', streamId: messageId, content })
       options.streamedMessageIds.delete(messageId)
+      options.streamBuffers?.delete(messageId)
     } else if (content) {
       events.push({ type: 'assistant.text', content })
     }
@@ -361,6 +375,22 @@ function sanitizeCopilotAssistantText(content: string): string {
     .replace(/([.!?])(?=[A-Z])/g, '$1 ')
     .replace(/\bHowcan(?=[A-Z])/g, 'How can ')
     .replace(/\bHowcan\b/g, 'How can')
+}
+
+function copilotAssistantDeltaEvent(
+  streamId: string,
+  rawDelta: string,
+  buffers?: Map<string, CopilotStreamBuffer>
+): Extract<RunEvent, { type: 'assistant.text.delta' }> {
+  if (!buffers) return { type: 'assistant.text.delta', streamId, content: sanitizeCopilotAssistantText(rawDelta) }
+  const previous = buffers.get(streamId) ?? { raw: '', normalized: '' }
+  const nextRaw = `${previous.raw}${rawDelta}`
+  const nextNormalized = sanitizeCopilotAssistantText(nextRaw)
+  buffers.set(streamId, { raw: nextRaw, normalized: nextNormalized })
+  if (nextNormalized.startsWith(previous.normalized)) {
+    return { type: 'assistant.text.delta', streamId, content: nextNormalized.slice(previous.normalized.length) }
+  }
+  return { type: 'assistant.text.delta', streamId, content: nextNormalized, replace: true }
 }
 
 function copilotAgentNode(status: AgentNode['status'], event: SessionEvent, sessionId: string): AgentNode {

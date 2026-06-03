@@ -6,6 +6,7 @@ import {
   type PreferredOpenTarget,
 } from '../types'
 import {
+  PROVIDER_DEFS,
   normalizeSettingsHostId,
   normalizeSettingsSectionForHostKind,
   settingsHostAdapterState,
@@ -246,6 +247,16 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
     const next = { ...defaultModels, [providerId]: modelId }
     setDefaultModels(next)
     window.api.settings.set('defaultModels', next)
+    const currentVisibleModels = providerModels[providerId] ?? []
+    const catalogModels = PROVIDER_DEFS[providerId]?.models.map((model) => model.id) ?? []
+    const shouldPersistVisibleModels = currentVisibleModels.length > 0 || !catalogModels.includes(modelId)
+    if (shouldPersistVisibleModels && !currentVisibleModels.includes(modelId)) {
+      const baseModels = currentVisibleModels.length > 0 ? currentVisibleModels : catalogModels
+      const nextProviderModels = { ...providerModels, [providerId]: [modelId, ...baseModels.filter((id) => id !== modelId)] }
+      setProviderModels(nextProviderModels)
+      storeSetProviderModels(nextProviderModels)
+      window.api.settings.set('providerModels', nextProviderModels)
+    }
   }
 
   const saveDefaultEffort = (providerId: string, effortId: string): void => {
