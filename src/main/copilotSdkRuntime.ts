@@ -292,10 +292,10 @@ export function normalizeCopilotSdkEvent(
     events.push({ type: 'run.completed', usage: options.pendingUsage?.current })
     if (options.pendingUsage) options.pendingUsage.current = undefined
   } else if (event.type === 'session.task_complete') {
-    const content = stringValue(data?.message, data?.summary, data?.description)
-    if (content) events.push({ type: 'assistant.status', content })
+    // The SDK uses this as a lifecycle signal; rendering its text creates noisy
+    // status cards in the transcript before the final assistant message arrives.
   } else if (event.type === 'assistant.message_delta') {
-    const content = stringValue(data?.deltaContent)
+    const content = deltaStringValue(data?.deltaContent)
     const streamId = stringValue(data?.messageId) ?? eventId
     options.streamedMessageIds?.add(streamId)
     if (content && event.agentId) events.push({ type: 'agent.text.delta', agentId: event.agentId, streamId, content })
@@ -325,7 +325,10 @@ export function normalizeCopilotSdkEvent(
         toolInput: asRecord(rec.arguments) ?? {}
       })
     }
-  } else if (event.type === 'assistant.reasoning' || event.type === 'assistant.reasoning_delta') {
+  } else if (event.type === 'assistant.reasoning_delta') {
+    // Keep incremental reasoning out of the user transcript. The raw event log
+    // still preserves it for diagnostics.
+  } else if (event.type === 'assistant.reasoning') {
     const content = stringValue(data?.content, data?.deltaContent)
     if (content) events.push({ type: 'assistant.status', content })
   } else if (event.type === 'assistant.usage') {
@@ -391,7 +394,8 @@ function sanitizeCopilotAssistantText(content: string): string {
     .replace(/\bGitHubCopilot\s+CLI\b/g, 'GitHub Copilot')
     .replace(/\bGitHub Copilot\s+CLI\b/g, 'GitHub Copilot')
     .replace(/\bGitHubCopilot\b/g, 'GitHub Copilot')
-    .replace(/([.!?])(?=[A-Z])/g, '$1 ')
+    .replace(/([.!?])(?=\S)/g, '$1 ')
+    .replace(/([,:;])(?=[A-Za-z])/g, '$1 ')
     .replace(/\bHowcan(?=[A-Z])/g, 'How can ')
     .replace(/\bHowcan\b/g, 'How can')
 }
@@ -481,6 +485,10 @@ function stringValue(...values: unknown[]): string | undefined {
     if (typeof value === 'string' && value.trim()) return value.trim()
   }
   return undefined
+}
+
+function deltaStringValue(value: unknown): string | undefined {
+  return typeof value === 'string' && value.length > 0 ? value : undefined
 }
 
 function numberValue(...values: unknown[]): number | undefined {

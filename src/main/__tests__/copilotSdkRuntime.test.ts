@@ -254,6 +254,68 @@ test('copilot sdk streaming normalizes accumulated partial chunks', () => {
   )
 })
 
+test('copilot sdk streaming preserves whitespace-only boundaries between chunks', () => {
+  const streamedMessageIds = new Set<string>()
+  const streamBuffers = new Map()
+  assert.deepEqual(
+    normalizeCopilotSdkEvent({
+      type: 'assistant.message_delta',
+      id: 'event-space-1',
+      parentId: null,
+      timestamp: '2026-06-02T00:00:08.000Z',
+      ephemeral: true,
+      data: { messageId: 'message-space', deltaContent: "Here's one" }
+    } as import('@github/copilot-sdk').SessionEvent, 'copilot-session-1', { streamedMessageIds, streamBuffers }),
+    [{ type: 'assistant.text.delta', streamId: 'message-space', content: "Here's one" }]
+  )
+  assert.deepEqual(
+    normalizeCopilotSdkEvent({
+      type: 'assistant.message_delta',
+      id: 'event-space-2',
+      parentId: 'event-space-1',
+      timestamp: '2026-06-02T00:00:09.000Z',
+      ephemeral: true,
+      data: { messageId: 'message-space', deltaContent: ' for you:\n\n---\nFew things' }
+    } as import('@github/copilot-sdk').SessionEvent, 'copilot-session-1', { streamedMessageIds, streamBuffers }),
+    [{ type: 'assistant.text.delta', streamId: 'message-space', content: ' for you:\n\n---\nFew things' }]
+  )
+  assert.deepEqual(
+    normalizeCopilotSdkEvent({
+      type: 'assistant.message_delta',
+      id: 'event-space-3',
+      parentId: 'event-space-2',
+      timestamp: '2026-06-02T00:00:10.000Z',
+      ephemeral: true,
+      data: { messageId: 'message-space', deltaContent: ' in software' }
+    } as import('@github/copilot-sdk').SessionEvent, 'copilot-session-1', { streamedMessageIds, streamBuffers }),
+    [{ type: 'assistant.text.delta', streamId: 'message-space', content: ' in software' }]
+  )
+})
+
+test('copilot sdk reasoning and task-complete text stay out of the transcript', () => {
+  assert.deepEqual(
+    normalizeCopilotSdkEvent({
+      type: 'assistant.reasoning_delta',
+      id: 'event-reasoning-1',
+      parentId: null,
+      timestamp: '2026-06-02T00:00:08.000Z',
+      ephemeral: true,
+      data: { reasoningId: 'reasoning-1', deltaContent: "Sure, I'll write a fun paragraph." }
+    } as import('@github/copilot-sdk').SessionEvent, 'copilot-session-1'),
+    []
+  )
+  assert.deepEqual(
+    normalizeCopilotSdkEvent({
+      type: 'session.task_complete',
+      id: 'event-task-complete-1',
+      parentId: 'event-reasoning-1',
+      timestamp: '2026-06-02T00:00:09.000Z',
+      data: { message: 'Copilot SDK usage updated.' }
+    } as unknown as import('@github/copilot-sdk').SessionEvent, 'copilot-session-1'),
+    []
+  )
+})
+
 test('copilot sdk usage and task completion do not end a turn before final message', () => {
   const streamedMessageIds = new Set<string>()
   const pendingUsage = {}
