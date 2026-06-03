@@ -2842,6 +2842,7 @@ async function startProviderAuthFlow(providerId: string, surfaceId: string): Pro
     }, 10 * 60 * 1000)
 
     const inspectOutput = (chunk: Buffer | string): void => {
+      if (settled) return
       output += chunk.toString()
       const { url, code } = parseCopilotDeviceAuth(output)
       if (url && code) {

@@ -1022,6 +1022,7 @@ function ProviderManagedAuthActions({
         {surfaces.map((surface) => {
           const runnable = surface.quota === 'none' && !surface.mutatesState
           const managedAuthFlow = supportsProviderManagedAuthFlow(providerId, surface)
+          const waitingForBrowserAuth = managedAuthFlow && authFlows[surface.id]?.status === 'started'
           const busy = loading[surface.id] === true
           return (
             <button
@@ -1030,7 +1031,7 @@ function ProviderManagedAuthActions({
               className="provider-command-output-action"
               data-testid={`provider-managed-auth-action-${surface.id}`}
               data-runnable="true"
-              disabled={busy || (!runnable && !managedAuthFlow && sessions.length === 0)}
+              disabled={busy || waitingForBrowserAuth || (!runnable && !managedAuthFlow && sessions.length === 0)}
               aria-label={`${managedAuthFlow ? 'Start' : runnable ? 'Check' : 'Open terminal for'} ${surface.label}`}
               onClick={() => {
                 if (managedAuthFlow) void startAuthFlow(surface)
@@ -1039,7 +1040,7 @@ function ProviderManagedAuthActions({
               }}
               style={{ '--provider-accent': color } as CSSProperties}
             >
-              {busy ? (managedAuthFlow ? 'Starting' : 'Checking') : runnable ? `Check ${surface.label}` : surface.label}
+              {busy ? (managedAuthFlow ? 'Starting' : 'Checking') : waitingForBrowserAuth ? 'Waiting for browser' : runnable ? `Check ${surface.label}` : surface.label}
             </button>
           )
         })}
