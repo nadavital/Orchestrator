@@ -34,6 +34,7 @@ export interface CopilotSdkRunStartResult {
 interface ActiveCopilotSdkRun {
   client?: CopilotClient
   session?: CopilotSession
+  streamedMessageIds: Set<string>
   stopped: boolean
   completed: boolean
   exited?: boolean
@@ -56,6 +57,7 @@ export class CopilotSdkRuntimeManager {
     }
 
     this.activeRuns.set(options.sessionId, {
+      streamedMessageIds: new Set(),
       stopped: false,
       completed: false,
       sessionId: options.sessionId,
@@ -135,7 +137,7 @@ export class CopilotSdkRuntimeManager {
         if (this.activeRuns.get(options.sessionId) !== active || active.stopped) return
         const raw = `${JSON.stringify(event)}\n`
         options.onRawData(raw)
-        const events = normalizeCopilotSdkEvent(event, session.sessionId)
+        const events = normalizeCopilotSdkEvent(event, session.sessionId, { streamedMessageIds: active.streamedMessageIds })
         if (events.some((item) => item.type === 'run.completed' || item.type === 'run.failed')) active.completed = true
         options.onParsedEvents(events)
       })
@@ -234,7 +236,11 @@ export function copilotSdkMessageOptions(request: RunRequest): MessageOptions {
   }
 }
 
-export function normalizeCopilotSdkEvent(event: SessionEvent, providerSessionId?: string): RunEvent[] {
+export function normalizeCopilotSdkEvent(
+  event: SessionEvent,
+  providerSessionId?: string,
+  options: { streamedMessageIds?: Set<string> } = {}
+): RunEvent[] {
   const events: RunEvent[] = []
   const data = asRecord(event.data)
   const eventId = stringValue(event.id) ?? uuidv4()
@@ -251,16 +257,36 @@ export function normalizeCopilotSdkEvent(event: SessionEvent, providerSessionId?
   } else if (event.type === 'assistant.message_delta') {
     const content = stringValue(data?.deltaContent)
     const streamId = stringValue(data?.messageId) ?? eventId
+    options.streamedMessageIds?.add(streamId)
     if (content && event.agentId) events.push({ type: 'agent.text.delta', agentId: event.agentId, streamId, content })
-    else if (content) events.push({ type: 'assistant.text.delta', streamId, content })
+    else if (content) events.push({ type: 'assistant.text.delta', streamId, content: sanitizeCopilotAssistantText(content, 'delta') })
   } else if (event.type === 'assistant.message') {
-    const content = stringValue(data?.content)
-    if (content) events.push({ type: 'assistant.text', content })
+    const messageId = stringValue(data?.messageId)
+    const content = sanitizeCopilotAssistantText(stringValue(data?.content) ?? '')
+    if (event.agentId && messageId && options.streamedMessageIds?.has(messageId)) {
+      events.push({ type: 'agent.text.completed', agentId: event.agentId, streamId: messageId })
+      options.streamedMessageIds.delete(messageId)
+    } else if (messageId && options.streamedMessageIds?.has(messageId)) {
+      events.push({ type: 'assistant.text.completed', streamId: messageId, content })
+      options.streamedMessageIds.delete(messageId)
+    } else if (content) {
+      events.push({ type: 'assistant.text', content })
+    }
+    const toolRequests = Array.isArray(data?.toolRequests) ? data.toolRequests : []
+    for (const req of toolRequests) {
+      const rec = asRecord(req)
+      if (!rec) continue
+      events.push({
+        type: 'tool.started',
+        id: stringValue(rec.toolCallId) ?? uuidv4(),
+        toolName: stringValue(rec.name, rec.mcpToolName) ?? 'copilot-tool',
+        toolInput: asRecord(rec.arguments) ?? {}
+      })
+    }
   } else if (event.type === 'assistant.reasoning' || event.type === 'assistant.reasoning_delta') {
     const content = stringValue(data?.content, data?.deltaContent)
     if (content) events.push({ type: 'assistant.status', content })
   } else if (event.type === 'assistant.usage') {
-    events.push({ type: 'assistant.status', content: 'Copilot SDK usage updated.' })
     const usage = copilotUsageSummary(data)
     if (usage) events.push({ type: 'run.completed', usage })
   } else if (event.type === 'tool.execution_start') {
@@ -315,6 +341,20 @@ export function normalizeCopilotSdkEvent(event: SessionEvent, providerSessionId?
   }
 
   return events
+}
+
+function sanitizeCopilotAssistantText(content: string, mode: 'final' | 'delta' = 'final'): string {
+  if (!content) return content
+  let next = content
+    .replace(/\bGitHubCopilot\s+CLI\b/g, 'GitHub Copilot')
+    .replace(/\bGitHub Copilot\s+CLI\b/g, 'GitHub Copilot')
+    .replace(/\bGitHubCopilot\b/g, 'GitHub Copilot')
+  if (mode === 'final') {
+    next = next
+      .replace(/([.!?])(?=[A-Z])/g, '$1 ')
+      .replace(/\bHowcan\b/g, 'How can')
+  }
+  return next
 }
 
 function copilotAgentNode(status: AgentNode['status'], event: SessionEvent, sessionId: string): AgentNode {

@@ -129,4 +129,41 @@ test('copilot sdk events normalize core thread, text, tools, prompts, usage, and
     data: { model: 'gpt-5.5', inputTokens: 10, outputTokens: 5, cacheReadTokens: 2, cost: 0.01, duration: 250 }
   } as unknown as import('@github/copilot-sdk').SessionEvent, 'copilot-session-1')
   assert.deepEqual(usage.at(-1), { type: 'run.completed', usage: { inputTokens: 10, outputTokens: 5, cacheReadInputTokens: 2, totalTokens: 17, totalCostUsd: 0.01, durationMs: 250 } })
+  assert.equal(usage.some((event) => event.type === 'assistant.status' && event.content === 'Copilot SDK usage updated.'), false)
+})
+
+test('copilot sdk final assistant message completes an existing stream', () => {
+  const streamedMessageIds = new Set<string>()
+  assert.deepEqual(
+    normalizeCopilotSdkEvent({
+      type: 'assistant.message_delta',
+      id: 'event-7',
+      parentId: null,
+      timestamp: '2026-06-02T00:00:06.000Z',
+      ephemeral: true,
+      data: { messageId: 'message-2', deltaContent: 'Hello! I am GitHubCopilot CLI.Howcan' }
+    } as import('@github/copilot-sdk').SessionEvent, 'copilot-session-1', { streamedMessageIds }),
+    [{ type: 'assistant.text.delta', streamId: 'message-2', content: 'Hello! I am GitHub Copilot.Howcan' }]
+  )
+
+  assert.deepEqual(
+    normalizeCopilotSdkEvent({
+      type: 'assistant.message',
+      id: 'event-8',
+      parentId: 'event-7',
+      timestamp: '2026-06-02T00:00:07.000Z',
+      data: {
+        messageId: 'message-2',
+        content: 'Hello! I am GitHubCopilot CLI.Howcan I help?',
+        toolRequests: [
+          { toolCallId: 'tool-2', name: 'read_file', arguments: { path: 'README.md' } }
+        ]
+      }
+    } as unknown as import('@github/copilot-sdk').SessionEvent, 'copilot-session-1', { streamedMessageIds }),
+    [
+      { type: 'assistant.text.completed', streamId: 'message-2', content: 'Hello! I am GitHub Copilot. How can I help?' },
+      { type: 'tool.started', id: 'tool-2', toolName: 'read_file', toolInput: { path: 'README.md' } }
+    ]
+  )
+  assert.equal(streamedMessageIds.has('message-2'), false)
 })

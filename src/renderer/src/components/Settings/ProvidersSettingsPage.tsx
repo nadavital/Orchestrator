@@ -84,25 +84,26 @@ export default function ProvidersSettingsPage({
   const [selectedId, setSelectedId] = useState(defaultProvider)
   const providerDef = PROVIDER_DEFS[selectedId] ?? PROVIDER_DEFS.claude
   const installed = providerAvailability[selectedId] !== false
-  const currentModel = defaultModels[selectedId] ?? providerDef.models[0]?.id ?? ''
+  const diagnostics = providerDiagnostics[selectedId]
+  const modelCatalogProviderDef = providerDefWithDiagnosticModels(providerDef, diagnostics)
+  const currentModel = defaultModels[selectedId] ?? modelCatalogProviderDef.models[0]?.id ?? ''
   const currentEffort = defaultEfforts[selectedId] ?? providerDef.effortLevels[0]?.id ?? ''
   const permissionContext = providerPermissionContexts[selectedId]
   const contextDefaultPermissionMode = permissionContext?.providerId === selectedId ? permissionContext.defaultPolicy : undefined
   const currentPermissionMode = getDefaultPermissionMode(providerDef, defaultPermissionModes[selectedId] ?? contextDefaultPermissionMode)
-  const visibleModels = getVisibleModels(providerDef, providerModels)
+  const visibleModels = getVisibleModels(modelCatalogProviderDef, providerModels)
   const permissionPresets = filterPermissionPresets(getProviderPermissionPresets(providerDef), permissionContext, currentPermissionMode)
   const selectedPermissionPreset = getProviderPermissionPresetForMode(providerDef, currentPermissionMode)
   const permissionPickerMode = selectedPermissionPreset?.modeId ?? permissionPresets[0]?.modeId ?? currentPermissionMode
   const visibleIds = visibleModels.map((m) => m.id)
   const runtime = providerRuntime[selectedId]
-  const diagnostics = providerDiagnostics[selectedId]
   const loadingDiagnostics = diagnosticsLoading[selectedId] === true
   const [advancedOpen, setAdvancedOpen] = useState(defaultAdvancedOpen)
   const settingsCommandSurfaces = visibleSettingsCommandSurfaces(selectedId, runtime?.registry.commandSurfaces ?? [])
   const authCommandSurfaces = visibleProviderAuthCommandSurfaces(selectedId, settingsCommandSurfaces)
   const usageSnapshot = summarizeProviderUsage(sessions, selectedId)
   const diagnosticSummary = [
-    installed ? 'Installed' : 'Unavailable',
+    providerReadinessLabel(installed, diagnostics),
     `${usageSnapshot.sessionCount} chat${usageSnapshot.sessionCount === 1 ? '' : 's'}`,
     diagnostics ? `${diagnostics.probes.filter((probe) => probe.status === 'ok').length}/${diagnostics.probes.length} checks` : 'Checks pending'
   ]
@@ -120,7 +121,7 @@ export default function ProvidersSettingsPage({
   const loadPermissionContext = useCallback(async (options: { announce?: boolean } = {}): Promise<void> => {
     setPermissionContextLoading(true)
     if (options.announce) {
-      setPermissionContextRefreshStatus({ text: 'Refreshing permission config', tone: 'info' })
+      setPermissionContextRefreshStatus({ text: 'Refreshing permissions', tone: 'info' })
     }
     try {
       const context = await window.api.providers.getPermissionContext(selectedId, permissionContextCwd)
@@ -201,7 +202,15 @@ export default function ProvidersSettingsPage({
           dataTestId="settings-content-layout-providers"
         >
           <div className="provider-settings-stack">
-        <div key={selectedId}>
+            <ProviderSidebar
+              providers={providerList}
+              selectedId={selectedId}
+              defaultProvider={defaultProvider}
+              availability={providerAvailability}
+              diagnostics={providerDiagnostics}
+              onSelect={setSelectedId}
+            />
+        <div key={selectedId} className="provider-settings-main">
           <SettingsContentGroup
             className="provider-settings-content-group"
             rootAttrs={{
@@ -210,27 +219,21 @@ export default function ProvidersSettingsPage({
             }}
           >
             <SettingsSectionHeading
-              title="Defaults"
-              description="Choose the provider, model, reasoning, permissions, and visible model list."
+              title={providerDef.name}
+              description={providerReadinessLabel(installed, diagnostics)}
             />
             <SettingsGroupContent>
               <SettingsSurface className="provider-settings-control-surface">
-                <SettingsRow
-                  label="Provider"
-                  className="provider-settings-row provider-settings-row-stacked provider-provider-row"
-                  control={(
-                    <ProviderDropdown
-                      providers={providerList}
-                      selectedId={selectedId}
-                      providerId={selectedId}
-                      color={providerDef.color}
-                      installed={installed}
-                      isDefault={defaultProvider === selectedId}
-                      installCmd={providerDef.installCmd}
-                      onSelect={setSelectedId}
-                      onSetDefault={() => onSetDefaultProvider(selectedId)}
-                    />
-                  )}
+                <ProviderCompactHeader
+                  providers={providerList}
+                  providerDef={providerDef}
+                  selectedId={selectedId}
+                  installed={installed}
+                  isDefault={defaultProvider === selectedId}
+                  installCmd={providerDef.installCmd}
+                  color={providerDef.color}
+                  onSelect={setSelectedId}
+                  onSetDefault={() => onSetDefaultProvider(selectedId)}
                 />
 
                 <SettingsRow
@@ -238,7 +241,7 @@ export default function ProvidersSettingsPage({
                   className="provider-settings-row"
                   control={(
                     <DefaultModelPicker
-                      providerDef={providerDef}
+                      providerDef={modelCatalogProviderDef}
                       models={visibleModels}
                       currentModel={modelForPicker}
                       onSetModel={(id) => onSetDefaultModel(selectedId, id)}
@@ -315,8 +318,13 @@ export default function ProvidersSettingsPage({
                   className="provider-settings-row provider-settings-row-stacked"
                   control={(
                     <div className="provider-models-row">
+                      <ModelSourceSummary
+                        providerDef={modelCatalogProviderDef}
+                        diagnostics={diagnostics}
+                        visibleCount={visibleIds.length}
+                      />
                       <ModelListManager
-                        providerDef={providerDef}
+                        providerDef={modelCatalogProviderDef}
                         visibleIds={visibleIds}
                         onChange={handleVisibleModelsChange}
                       />
@@ -461,6 +469,173 @@ const PROVIDER_AUTH_COMMAND_SURFACE_IDS = new Set([
 
 function supportsProviderManagedAuthFlow(providerId: string, surface: ProviderCommandSurface): boolean {
   return providerId === 'copilot' && surface.id === 'copilot-login'
+}
+
+function providerReadinessLabel(installed: boolean, diagnostics?: ProviderDiagnosticInfo): string {
+  if (!installed) return 'Unavailable'
+  if (diagnostics?.auth.status === 'ok') return 'Signed in'
+  if (diagnostics?.auth.status === 'error') return 'Needs sign in'
+  if (diagnostics?.binary.status === 'found') return 'Installed'
+  if (diagnostics?.binary.status === 'missing') return 'CLI missing'
+  return 'Installed'
+}
+
+function providerDefWithDiagnosticModels(
+  providerDef: typeof PROVIDER_DEFS[string],
+  diagnostics: ProviderDiagnosticInfo | undefined
+): typeof PROVIDER_DEFS[string] {
+  const ids = diagnostics?.models.status === 'available' ? diagnostics.models.ids ?? [] : []
+  if (ids.length === 0) return providerDef
+  const knownModels = new Map(providerDef.models.map((model) => [model.id, model]))
+  return {
+    ...providerDef,
+    models: ids.map((id) => knownModels.get(id) ?? { id, label: readableModelLabel(id) })
+  }
+}
+
+function readableModelLabel(id: string): string {
+  return id
+    .replace(/[-_]+/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase())
+}
+
+function providerModelSourceLabel(
+  providerDef: typeof PROVIDER_DEFS[string],
+  diagnostics: ProviderDiagnosticInfo | undefined,
+  visibleCount: number
+): string {
+  if (diagnostics?.models.status === 'available' && typeof diagnostics.models.count === 'number') {
+    return `${diagnostics.models.count} live model${diagnostics.models.count === 1 ? '' : 's'}`
+  }
+  if (visibleCount > 0) return `${visibleCount} visible model${visibleCount === 1 ? '' : 's'}`
+  return `${providerDef.models.length} bundled model${providerDef.models.length === 1 ? '' : 's'}`
+}
+
+function ProviderSidebar({
+  providers,
+  selectedId,
+  defaultProvider,
+  availability,
+  diagnostics,
+  onSelect
+}: {
+  providers: Array<typeof PROVIDER_DEFS[string]>
+  selectedId: string
+  defaultProvider: string
+  availability: Record<string, boolean>
+  diagnostics: Record<string, ProviderDiagnosticInfo>
+  onSelect: (id: string) => void
+}): JSX.Element {
+  return (
+    <aside className="provider-sidebar" aria-label="Providers">
+      <div className="provider-sidebar-title">Providers</div>
+      <div className="provider-sidebar-list">
+        {providers.map((provider) => {
+          const selected = provider.id === selectedId
+          const status = providerReadinessLabel(availability[provider.id] !== false, diagnostics[provider.id])
+          return (
+            <button
+              key={provider.id}
+              type="button"
+              className="provider-sidebar-item"
+              data-selected={selected ? 'true' : 'false'}
+              data-testid={`provider-sidebar-item-${provider.id}`}
+              onClick={() => onSelect(provider.id)}
+              style={{ '--provider-color': provider.color } as CSSProperties}
+            >
+              <span className="provider-sidebar-icon">
+                <ProviderIcon providerId={provider.id} size={15} color={provider.color} />
+              </span>
+              <span className="provider-sidebar-copy">
+                <span className="provider-sidebar-name">
+                  {provider.name}
+                  {provider.id === defaultProvider && <span className="provider-sidebar-default">Default</span>}
+                </span>
+                <span className="provider-sidebar-status">{status}</span>
+              </span>
+            </button>
+          )
+        })}
+      </div>
+    </aside>
+  )
+}
+
+function ProviderCompactHeader({
+  providers,
+  providerDef,
+  selectedId,
+  installed,
+  isDefault,
+  installCmd,
+  color,
+  onSelect,
+  onSetDefault
+}: {
+  providers: Array<typeof PROVIDER_DEFS[string]>
+  providerDef: typeof PROVIDER_DEFS[string]
+  selectedId: string
+  installed: boolean
+  isDefault: boolean
+  installCmd: string
+  color: string
+  onSelect: (id: string) => void
+  onSetDefault: () => void
+}): JSX.Element {
+  return (
+    <div className="provider-compact-header">
+      <ProviderDropdown
+        providers={providers}
+        selectedId={selectedId}
+        providerId={selectedId}
+        color={color}
+        installed={installed}
+        isDefault={isDefault}
+        installCmd={installCmd}
+        onSelect={onSelect}
+        onSetDefault={onSetDefault}
+      />
+      <div className="provider-compact-header-actions">
+        <span className="provider-compact-runtime">SDK/runtime defaults</span>
+        {!isDefault && (
+          <button
+            onClick={onSetDefault}
+            disabled={!installed}
+            className="settings-action-button provider-compact-default-action"
+          >
+            Set default
+          </button>
+        )}
+      </div>
+      {!installed && <InstallCommand cmd={providerDef.installCmd} />}
+    </div>
+  )
+}
+
+function ModelSourceSummary({
+  providerDef,
+  diagnostics,
+  visibleCount
+}: {
+  providerDef: typeof PROVIDER_DEFS[string]
+  diagnostics?: ProviderDiagnosticInfo
+  visibleCount: number
+}): JSX.Element {
+  const source = diagnostics?.models.status === 'available'
+    ? 'live'
+    : visibleCount > 0
+      ? 'configured'
+      : 'bundled'
+  return (
+    <div
+      className="provider-model-source-summary"
+      data-testid="provider-model-source-summary"
+      data-model-source={source}
+    >
+      <span>{providerModelSourceLabel(providerDef, diagnostics, visibleCount)}</span>
+      <span>{source}</span>
+    </div>
+  )
 }
 
 function ProviderDetailCard({
@@ -1047,7 +1222,7 @@ function ProviderManagedAuthActions({
 
   return (
     <div data-testid="provider-managed-auth-actions" style={{ display: 'grid', gap: 8, minWidth: 0 }}>
-      <div style={{ color: 'var(--color-text-muted)', fontSize: 11, lineHeight: 1.35 }}>
+      <div className="provider-managed-auth-note">
         Provider-managed account state. Orchestrator displays device codes and tracks completion when available.
       </div>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>

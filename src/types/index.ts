@@ -924,6 +924,7 @@ export interface ProviderDiagnosticInfo {
     status: 'configured' | 'available' | 'empty' | 'unknown'
     count: number
     message: string
+    ids?: string[]
   }
   usage: {
     status: 'available' | 'unavailable' | 'unknown'
@@ -1221,7 +1222,7 @@ export type RunEvent =
   | { type: 'assistant.text'; content: string }
   | { type: 'assistant.status'; content: string }
   | { type: 'assistant.text.delta'; streamId: string; content: string }
-  | { type: 'assistant.text.completed'; streamId: string }
+  | { type: 'assistant.text.completed'; streamId: string; content?: string }
   | {
     type: 'diff.updated'
     content: string

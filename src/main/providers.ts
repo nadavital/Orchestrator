@@ -1502,7 +1502,7 @@ function usageStatus(providerId: string): ProviderDiagnosticInfo['usage'] {
   const messages: Record<string, string> = {
     claude: 'Claude Code CLI does not expose local quota usage through the current adapter.',
     codex: 'Codex CLI usage is not exposed through a local non-run probe yet.',
-    copilot: 'GitHub Copilot CLI usage/quota is not exposed by the current prompt adapter.',
+    copilot: 'GitHub Copilot usage/quota is not exposed by the SDK runtime yet.',
     cursor: 'Cursor Agent usage/quota is not exposed by the local CLI probe yet.',
     antigravity: 'Antigravity SDK usage is exposed after a run, but no local non-run quota probe is available yet.'
   }
@@ -1530,11 +1530,15 @@ function providerSpecificDiagnostics(
   const modelLines = modelsProbe.ok
     ? modelsProbe.output.split('\n').filter((line) => /^[^\s].+ - .+/.test(line))
     : []
-  const models: ProviderDiagnosticInfo['models'] = modelsProbe.ok && modelLines.length > 0
+  const modelIds = modelLines
+    .map((line) => line.split(' - ')[0]?.trim())
+    .filter((id): id is string => Boolean(id))
+  const models: ProviderDiagnosticInfo['models'] = modelsProbe.ok && modelIds.length > 0
     ? {
         status: 'available',
-        count: modelLines.length,
-        message: `${modelLines.length} models reported by Cursor Agent for this account.`
+        count: modelIds.length,
+        message: `${modelIds.length} models reported by Cursor Agent for this account.`,
+        ids: modelIds
       }
     : fallbackModels
 
@@ -1568,11 +1572,15 @@ async function providerSpecificDiagnosticsAsync(
   const modelLines = modelsProbe.ok
     ? modelsProbe.output.split('\n').filter((line) => /^[^\s].+ - .+/.test(line))
     : []
-  const models: ProviderDiagnosticInfo['models'] = modelsProbe.ok && modelLines.length > 0
+  const modelIds = modelLines
+    .map((line) => line.split(' - ')[0]?.trim())
+    .filter((id): id is string => Boolean(id))
+  const models: ProviderDiagnosticInfo['models'] = modelsProbe.ok && modelIds.length > 0
     ? {
         status: 'available',
-        count: modelLines.length,
-        message: `${modelLines.length} models reported by Cursor Agent for this account.`
+        count: modelIds.length,
+        message: `${modelIds.length} models reported by Cursor Agent for this account.`,
+        ids: modelIds
       }
     : fallbackModels
 
@@ -1633,7 +1641,10 @@ async function copilotSdkDiagnostics(
 
         const models = await client?.listModels()
         const sessions = await client?.listSessions({ cwd: process.cwd() })
-        const modelCount = Array.isArray(models) ? models.length : 0
+        const modelIds = Array.isArray(models)
+          ? models.map((model) => model.id).filter((id): id is string => Boolean(id))
+          : []
+        const modelCount = modelIds.length
         const sessionCount = Array.isArray(sessions) ? sessions.length : 0
         return {
           auth: {
@@ -1644,7 +1655,8 @@ async function copilotSdkDiagnostics(
             ? {
                 status: 'available',
                 count: modelCount,
-                message: `${modelCount} models reported by GitHub Copilot SDK for this account.`
+                message: `${modelCount} models reported by GitHub Copilot SDK for this account.`,
+                ids: modelIds
               }
             : fallbackModels
         } satisfies Pick<ProviderDiagnosticInfo, 'auth' | 'models'>

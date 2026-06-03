@@ -1850,7 +1850,11 @@ export const sessionManager = {
       } else if (event.type === 'assistant.text.completed') {
         const existing = this.get(sessionId)?.messages.find((message) => message.id === event.streamId && message.type === 'text')
         if (existing?.type === 'text') {
-          this.upsertMessage(sessionId, { ...existing, isStreaming: false })
+          this.upsertMessage(sessionId, {
+            ...existing,
+            content: typeof event.content === 'string' ? event.content : existing.content,
+            isStreaming: false
+          })
         }
       }
     }
