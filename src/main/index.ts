@@ -25475,6 +25475,26 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
                 .find((button) => buttonLabel(button) === label);
             const rowFor = (name) => [...document.querySelectorAll('[data-testid="session-row"]')]
               .find((row) => row.textContent?.includes(name));
+            const openRowActions = async (row) => {
+              if (!(row instanceof HTMLElement)) return null;
+              document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+              await sleep(40);
+              const rect = row.getBoundingClientRect();
+              row.dispatchEvent(new MouseEvent('contextmenu', {
+                bubbles: true,
+                cancelable: true,
+                button: 2,
+                buttons: 2,
+                clientX: rect.right - 10,
+                clientY: rect.top + Math.min(18, Math.max(8, rect.height / 2))
+              }));
+              for (let index = 0; index < 20; index += 1) {
+                const menu = document.querySelector('.orchestrator-menu-surface');
+                if (menu instanceof HTMLElement) return menu;
+                await sleep(25);
+              }
+              return null;
+            };
             const sessionRowForId = (id) => id
               ? document.querySelector('[data-testid="session-row"][data-session-id="' + CSS.escape(id) + '"]')
               : null;
@@ -25856,21 +25876,28 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
             let singleHoverSurfaceWorks = false;
             let tooltipSurfaceReadable = false;
             let tooltipDismissesOnViewportChange = false;
-            const normalActionsButton = normalRow?.querySelector('[aria-label="Chat actions"], [title="Chat actions"]');
-            if (normalActionsButton instanceof HTMLElement) {
-              const actionRect = normalActionsButton.getBoundingClientRect();
-              normalActionsButton.dispatchEvent(new PointerEvent('pointermove', {
+            const normalArchiveButton = normalRow?.querySelector('[data-testid="session-archive-button"], [aria-label="Archive chat"], [title="Archive chat"]');
+            const normalChatActionsButton = normalRow?.querySelector('[aria-label="Chat actions"], [title="Chat actions"]');
+            const sidebarArchiveHoverActionWorks =
+              normalArchiveButton instanceof HTMLButtonElement &&
+              !(normalChatActionsButton instanceof HTMLElement);
+            if (normalArchiveButton instanceof HTMLElement) {
+              const actionRect = normalArchiveButton.getBoundingClientRect();
+              normalArchiveButton.dispatchEvent(new PointerEvent('pointermove', {
                 bubbles: true,
                 pointerType: 'mouse',
                 clientX: actionRect.left + 8,
                 clientY: actionRect.top + 8
               }));
-              normalActionsButton.focus({ preventScroll: true });
+              normalArchiveButton.focus({ preventScroll: true });
               await sleep(920);
               const visibleTooltips = [...document.querySelectorAll('.orchestrator-tooltip[data-visible="true"]')];
               const visibleHoverCards = [...document.querySelectorAll('[data-testid="session-hover-card"]')];
               const visibleTooltip = visibleTooltips[0];
-              tooltipSurfaceReadable = visibleTooltip instanceof HTMLElement && hoverSurfaceReadable(visibleTooltip);
+              tooltipSurfaceReadable =
+                visibleTooltip instanceof HTMLElement &&
+                visibleTooltip.textContent?.includes('Archive chat') === true &&
+                hoverSurfaceReadable(visibleTooltip);
               const tooltipPortalWorks =
                 visibleTooltip instanceof HTMLElement &&
                 visibleTooltip.parentElement === document.body;
@@ -25882,8 +25909,8 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               await sleep(80);
               tooltipDismissesOnViewportChange =
                 document.querySelectorAll('.orchestrator-tooltip[data-visible="true"]').length === 0;
-              normalActionsButton.blur();
-              normalActionsButton.dispatchEvent(new MouseEvent('mouseout', { bubbles: true }));
+              normalArchiveButton.blur();
+              normalArchiveButton.dispatchEvent(new MouseEvent('mouseout', { bubbles: true }));
               await sleep(80);
             }
             const sidebar = document.querySelector('[data-testid="app-sidebar"]');
@@ -26190,18 +26217,12 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
             let sidebarActionMenuTriggerStateWorks = false;
             let sidebarActionMenuSharedSectionsWorks = false;
             if (normalRow instanceof HTMLElement) {
-              const actionsButton = normalActionsButton ?? normalRow.querySelector('[aria-label="Chat actions"], [title="Chat actions"]');
-              const controlledMenuId = actionsButton instanceof HTMLElement
-                ? actionsButton.getAttribute('aria-controls') ?? ''
-                : '';
+              const menuSurface = await openRowActions(normalRow);
+              const controlledMenuId = menuSurface instanceof HTMLElement ? menuSurface.id : '';
               const actionMenuClosedState =
-                actionsButton instanceof HTMLButtonElement &&
-                actionsButton.getAttribute('aria-haspopup') === 'menu' &&
+                sidebarArchiveHoverActionWorks &&
                 controlledMenuId.startsWith('session-actions-menu-') &&
-                actionsButton.getAttribute('aria-expanded') === 'false';
-              if (actionsButton instanceof HTMLElement) actionsButton.click();
-              await sleep(120);
-              const menuSurface = document.querySelector('.orchestrator-menu-surface');
+                !document.querySelector('[data-testid="session-row"] [aria-label="Chat actions"], [data-testid="session-row"] [title="Chat actions"]');
               const controlledMenu = controlledMenuId ? document.getElementById(controlledMenuId) : null;
               const menuRows = [...document.querySelectorAll('.orchestrator-menu-surface [role="menuitem"]')]
                 .filter((item) => item instanceof HTMLElement);
@@ -26224,8 +26245,6 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
                 );
               sidebarActionMenuTriggerStateWorks =
                 actionMenuClosedState &&
-                actionsButton instanceof HTMLButtonElement &&
-                actionsButton.getAttribute('aria-expanded') === 'true' &&
                 controlledMenu instanceof HTMLElement &&
                 controlledMenu === menuSurface &&
                 controlledMenu.querySelector('[role="menu"]') instanceof HTMLElement;
@@ -26252,11 +26271,7 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
                   copiedThreadLink.includes('/threads/') &&
                   (expectedSessionId.length === 0 || copiedThreadLink.endsWith('/threads/' + encodeURIComponent(expectedSessionId))) &&
                   clipboardThreadLink === copiedThreadLink;
-                const reopenedActionsButton = normalRow.querySelector('[aria-label="Chat actions"], [title="Chat actions"]');
-                if (reopenedActionsButton instanceof HTMLElement) {
-                  reopenedActionsButton.click();
-                  await sleep(120);
-                }
+                await openRowActions(normalRow);
               }
               const copyDeeplinkMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
                 .find((item) => item.textContent?.includes('Copy deeplink'));
@@ -26268,11 +26283,7 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
                 actionCopyDeeplinkWorks =
                   copiedDeeplink.startsWith('orchestrator://threads/') &&
                   (expectedSessionId.length === 0 || copiedDeeplink.endsWith(encodeURIComponent(expectedSessionId)));
-                const reopenedActionsButton = normalRow.querySelector('[aria-label="Chat actions"], [title="Chat actions"]');
-                if (reopenedActionsButton instanceof HTMLElement) {
-                  reopenedActionsButton.click();
-                  await sleep(120);
-                }
+                await openRowActions(normalRow);
               }
               const copyMarkdownMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
                 .find((item) => item.textContent?.includes('Copy as Markdown'));
@@ -26285,11 +26296,7 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
                   copiedMarkdown.includes('Working directory:') &&
                   copiedMarkdown.includes('## Assistant') &&
                   copiedMarkdown.includes('Sidebar normal idle fixture message.');
-                const reopenedActionsButton = normalRow.querySelector('[aria-label="Chat actions"], [title="Chat actions"]');
-                if (reopenedActionsButton instanceof HTMLElement) {
-                  reopenedActionsButton.click();
-                  await sleep(120);
-                }
+                await openRowActions(normalRow);
               }
               const markUnreadMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
                 .find((item) => item.textContent?.includes('Mark as unread'));
@@ -26297,22 +26304,14 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
                 markUnreadMenuItem.click();
                 await sleep(120);
                 actionMarkUnreadWorks = Boolean(normalRow.querySelector('[data-testid="session-status-dot"]'));
-                const reopenedActionsButton = normalRow.querySelector('[aria-label="Chat actions"], [title="Chat actions"]');
-                if (reopenedActionsButton instanceof HTMLElement) {
-                  reopenedActionsButton.click();
-                  await sleep(120);
-                }
+                await openRowActions(normalRow);
                 const markReadMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
                   .find((item) => item.textContent?.includes('Mark as read'));
                 if (markReadMenuItem instanceof HTMLElement) {
                   markReadMenuItem.click();
                   await sleep(120);
                   actionMarkUnreadWorks = actionMarkUnreadWorks && !normalRow.querySelector('[data-testid="session-status-dot"]');
-                  const renameActionsButton = normalRow.querySelector('[aria-label="Chat actions"], [title="Chat actions"]');
-                  if (renameActionsButton instanceof HTMLElement) {
-                    renameActionsButton.click();
-                    await sleep(120);
-                  }
+                  await openRowActions(normalRow);
                 }
               }
               const renameMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
@@ -26330,10 +26329,8 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
             }
             const freshRunningRow = rowFor('Sidebar running');
             if (freshRunningRow instanceof HTMLElement) {
-              const runningActionsButton = freshRunningRow.querySelector('[aria-label="Chat actions"], [title="Chat actions"]');
-              if (runningActionsButton instanceof HTMLElement) {
-                runningActionsButton.click();
-                await sleep(120);
+              const runningActionsMenu = await openRowActions(freshRunningRow);
+              if (runningActionsMenu instanceof HTMLElement) {
                 const stopChatMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
                   .find((item) => item.textContent?.includes('Stop chat'));
                 if (stopChatMenuItem instanceof HTMLElement) {
@@ -26363,10 +26360,8 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
                 Boolean(seededRunningMetadata.querySelector('.session-automation-status-spinner'));
             }
             if (automationRow instanceof HTMLElement) {
-              const automationActionsButton = automationRow.querySelector('[aria-label="Chat actions"], [title="Chat actions"]');
-              if (automationActionsButton instanceof HTMLElement) {
-                automationActionsButton.click();
-                await sleep(120);
+              const automationActionsMenu = await openRowActions(automationRow);
+              if (automationActionsMenu instanceof HTMLElement) {
                 const addAutomationMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
                   .find((item) => item.textContent?.includes('Add automation'));
                 if (addAutomationMenuItem instanceof HTMLElement) {
@@ -26427,10 +26422,8 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
             }
             const editAutomationRow = rowFor('Sidebar renamed by smoke') ?? rowFor('Sidebar normal idle');
             if (editAutomationRow instanceof HTMLElement) {
-              const editAutomationActionsButton = editAutomationRow.querySelector('[aria-label="Chat actions"], [title="Chat actions"]');
-              if (editAutomationActionsButton instanceof HTMLElement) {
-                editAutomationActionsButton.click();
-                await sleep(120);
+              const editAutomationActionsMenu = await openRowActions(editAutomationRow);
+              if (editAutomationActionsMenu instanceof HTMLElement) {
                 const editAutomationMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
                   .find((item) => item.textContent?.includes('Edit automation'));
                 if (editAutomationMenuItem instanceof HTMLElement) {
@@ -26495,10 +26488,8 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
             const automationLifecycleRow = rowFor('Sidebar renamed by smoke') ?? rowFor('Sidebar normal idle');
             if (automationLifecycleRow instanceof HTMLElement) {
               const expectedSessionId = ${JSON.stringify(normalSession?.id ?? '')};
-              const lifecycleActionsButton = automationLifecycleRow.querySelector('[aria-label="Chat actions"], [title="Chat actions"]');
-              if (lifecycleActionsButton instanceof HTMLElement) {
-                lifecycleActionsButton.click();
-                await sleep(120);
+              const lifecycleActionsMenu = await openRowActions(automationLifecycleRow);
+              if (lifecycleActionsMenu instanceof HTMLElement) {
                 const pausedRunNowMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
                   .find((item) => item.textContent?.includes('Run automation now'));
                 const resumeAutomationMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
@@ -26531,10 +26522,8 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
                   }
                 }
               }
-              const pauseActionsButton = automationLifecycleRow.querySelector('[aria-label="Chat actions"], [title="Chat actions"]');
-              if (pauseActionsButton instanceof HTMLElement) {
-                pauseActionsButton.click();
-                await sleep(120);
+              const pauseActionsMenu = await openRowActions(automationLifecycleRow);
+              if (pauseActionsMenu instanceof HTMLElement) {
                 const activeRunNowMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
                   .find((item) => item.textContent?.includes('Run automation now'));
                 actionRunAutomationVisible =
@@ -26559,10 +26548,8 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
                     automationRecords[0]?.status === 'PAUSED';
                 }
               }
-              const deleteActionsButton = automationLifecycleRow.querySelector('[aria-label="Chat actions"], [title="Chat actions"]');
-              if (deleteActionsButton instanceof HTMLElement) {
-                deleteActionsButton.click();
-                await sleep(120);
+              const deleteActionsMenu = await openRowActions(automationLifecycleRow);
+              if (deleteActionsMenu instanceof HTMLElement) {
                 const deleteAutomationMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
                   .find((item) => item.textContent?.includes('Delete automation'));
                 if (deleteAutomationMenuItem instanceof HTMLElement) {
@@ -27286,10 +27273,8 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
             const originalForkSourceRow = sessionRowForId(${JSON.stringify(normalSession?.id ?? '')});
             const forkSourceRow = originalForkSourceRow ?? rowFor('Sidebar renamed by smoke') ?? rowFor('Sidebar normal idle');
             if (forkSourceRow instanceof HTMLElement) {
-              const forkActionsButton = forkSourceRow.querySelector('[aria-label="Chat actions"], [title="Chat actions"]');
-              if (forkActionsButton instanceof HTMLElement) {
-                forkActionsButton.click();
-                await sleep(120);
+              const forkActionsMenu = await openRowActions(forkSourceRow);
+              if (forkActionsMenu instanceof HTMLElement) {
                 const forkLocalMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
                   .find((item) => item.textContent?.includes('Fork into local'));
                 if (forkLocalMenuItem instanceof HTMLElement) {
@@ -27306,10 +27291,8 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
             }
             const worktreeForkSourceRow = sessionRowForId(${JSON.stringify(normalSession?.id ?? '')}) ?? rowFor('Sidebar renamed by smoke') ?? rowFor('Sidebar normal idle');
             if (worktreeForkSourceRow instanceof HTMLElement) {
-              const worktreeForkActionsButton = worktreeForkSourceRow.querySelector('[aria-label="Chat actions"], [title="Chat actions"]');
-              if (worktreeForkActionsButton instanceof HTMLElement) {
-                worktreeForkActionsButton.click();
-                await sleep(120);
+              const worktreeForkActionsMenu = await openRowActions(worktreeForkSourceRow);
+              if (worktreeForkActionsMenu instanceof HTMLElement) {
                 const forkWorktreeMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
                   .find((item) => item.textContent?.includes('Fork into new worktree'));
                 if (forkWorktreeMenuItem instanceof HTMLElement) {
@@ -27347,10 +27330,8 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
             }
             const failedWorktreeRow = rowFor('Sidebar failed worktree');
             if (failedWorktreeRow instanceof HTMLElement) {
-              const failedWorktreeActionsButton = failedWorktreeRow.querySelector('[aria-label="Chat actions"], [title="Chat actions"]');
-              if (failedWorktreeActionsButton instanceof HTMLElement) {
-                failedWorktreeActionsButton.click();
-                await sleep(120);
+              const failedWorktreeActionsMenu = await openRowActions(failedWorktreeRow);
+              if (failedWorktreeActionsMenu instanceof HTMLElement) {
                 const retryWorktreeMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
                   .find((item) => item.textContent?.includes('Retry worktree creation'));
                 const archiveFailedWorktreeMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
@@ -27387,10 +27368,8 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
             }
             const openWindowRow = rowFor('Sidebar renamed by smoke') ?? rowFor('Sidebar normal idle');
             if (openWindowRow instanceof HTMLElement) {
-              const openWindowActionsButton = openWindowRow.querySelector('[aria-label="Chat actions"], [title="Chat actions"]');
-              if (openWindowActionsButton instanceof HTMLElement) {
-                openWindowActionsButton.click();
-                await sleep(120);
+              const openWindowActionsMenu = await openRowActions(openWindowRow);
+              if (openWindowActionsMenu instanceof HTMLElement) {
                 const openInNewWindowMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
                   .find((item) => item.textContent?.includes('Open in new window'));
                 if (openInNewWindowMenuItem instanceof HTMLElement) {
@@ -27723,6 +27702,7 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               sidebarLabelColorMetadataWorks,
               sidebarPinnedRowsTextFirst,
               sidebarPinActionsConsolidated,
+              sidebarArchiveHoverActionWorks,
               sidebarActionMenuChromeCalm,
               sidebarActionMenuTriggerStateWorks,
               sidebarActionMenuSharedSectionsWorks,

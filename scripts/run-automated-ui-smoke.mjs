@@ -2102,6 +2102,7 @@ child.on('exit', async (code) => {
         sidebarLabelColorMetadata: result.sidebarLabelColorMetadataWorks === true,
         sidebarPinnedRowsTextFirst: result.sidebarPinnedRowsTextFirst === true,
         sidebarPinActionsConsolidated: result.sidebarPinActionsConsolidated === true,
+        sidebarArchiveHoverAction: result.sidebarArchiveHoverActionWorks === true,
         sidebarActionMenuChromeCalm: result.sidebarActionMenuChromeCalm === true,
         sidebarActionMenuTriggerState: result.sidebarActionMenuTriggerStateWorks === true,
         sidebarActionMenuSharedSections: result.sidebarActionMenuSharedSectionsWorks === true,
