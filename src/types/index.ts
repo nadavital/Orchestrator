@@ -104,6 +104,15 @@ export interface ProviderModelDef {
   id: string
   label: string
   cursorConfig?: CursorModelConfig
+  serviceTiers?: Array<string | { id: string; label?: string; name?: string }>
+  additionalSpeedTiers?: string[]
+}
+
+export interface ProviderFastModeDef {
+  kind: 'effort' | 'serviceTier' | 'requestSpeed'
+  fastEffort?: string
+  fastTier?: string
+  speed?: 'fast'
 }
 
 export interface ProviderAgentDef {
@@ -141,6 +150,7 @@ export interface ProviderDef {
   models: ProviderModelDef[]
   supportsEffort: boolean
   effortLevels: Array<{ id: string; label: string }>
+  fastMode?: ProviderFastModeDef
   supportsResume: boolean
   defaultPermissionMode?: string
   permissionModes: ProviderPermissionMode[]
@@ -183,6 +193,7 @@ export const PROVIDER_DEFS: Record<string, ProviderDef> = {
       { id: 'high', label: 'High' },
       { id: 'max', label: 'Max' }
     ],
+    fastMode: { kind: 'effort', fastEffort: 'low' },
     supportsResume: true,
     defaultPermissionMode: 'auto',
     permissionModes: [
@@ -265,6 +276,7 @@ export const PROVIDER_DEFS: Record<string, ProviderDef> = {
       { id: 'high', label: 'High' },
       { id: 'xhigh', label: 'X-High' }
     ],
+    fastMode: { kind: 'effort', fastEffort: 'low' },
     supportsResume: true,
     permissionModes: [
       { id: 'default', label: 'Ask', desc: 'Ask when requested', intent: 'ask' },
@@ -614,6 +626,47 @@ export function fastVariantModelIdForProviderModel(
   const suffixFastId = `${baseId}-fast`
   if (providerDef.models.some((candidate) => candidate.id === suffixFastId)) return suffixFastId
   return null
+}
+
+function modelHasFastSpeedTier(model?: ProviderModelDef): boolean {
+  if (!model) return false
+  if (model.additionalSpeedTiers?.includes('fast')) return true
+  return model.serviceTiers?.some((tier) => {
+    if (typeof tier === 'string') return tier === 'fast' || tier === 'priority'
+    return tier.id === 'fast' || tier.id === 'priority'
+  }) ?? false
+}
+
+export function fastEffortForProviderRequest(
+  providerDef: ProviderDef,
+  requestedEffort?: string,
+  useFast?: boolean
+): string | undefined {
+  if (!useFast || providerDef.fastMode?.kind !== 'effort') return requestedEffort
+  const fastEffort = providerDef.fastMode.fastEffort
+  if (!fastEffort) return requestedEffort
+  if (!providerDef.effortLevels.some((level) => level.id === fastEffort)) return requestedEffort
+  return fastEffort
+}
+
+export function supportsFastModeForProviderModel(
+  providerDef: ProviderDef,
+  modelId: string,
+  effortId?: string
+): boolean {
+  const baseId = fastBaseModelIdForProviderModel(providerDef, modelId) ?? modelId
+  if (fastVariantModelIdForProviderModel(providerDef, baseId, effortId)) return true
+  const model = providerDef.models.find((candidate) => candidate.id === baseId)
+  if (modelHasFastSpeedTier(model)) return true
+  if (!providerDef.fastMode) return false
+  if (providerDef.fastMode.kind === 'effort') {
+    const fastEffort = providerDef.fastMode.fastEffort
+    return Boolean(fastEffort && providerDef.effortLevels.some((level) => level.id === fastEffort))
+  }
+  if (providerDef.fastMode.kind === 'serviceTier') {
+    return modelHasFastSpeedTier(model) || Boolean(providerDef.fastMode.fastTier)
+  }
+  return providerDef.fastMode.kind === 'requestSpeed' && providerDef.fastMode.speed === 'fast'
 }
 
 export function getConfigurableModels(providerDef: ProviderDef): ProviderModelDef[] {

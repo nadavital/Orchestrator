@@ -2,7 +2,7 @@ import { memo, useState, useRef, useEffect } from 'react'
 import type { Ref, RefObject } from 'react'
 import type { Attachment, GitRefOption, Project, ProviderModelDef, ProviderPermissionMode, ProviderPermissionRuntimeContext, ProviderRuntimeInfo, ProviderSlashCommand, ResolvedExecutionPolicy, Session, WorktreeInventoryItem } from '../../types'
 import type { SlashPaletteCommand } from '../../types'
-import { PROVIDER_DEFS, canStopSession, canSwitchSessionProvider, expandSlashCommandPrompt, fastBaseModelIdForProviderModel, fastVariantModelIdForProviderModel, getComposerSendState, getDefaultPermissionMode, getVisibleModels, sessionRouteUrlForLocation } from '../../types'
+import { PROVIDER_DEFS, canStopSession, canSwitchSessionProvider, expandSlashCommandPrompt, fastBaseModelIdForProviderModel, fastEffortForProviderRequest, getComposerSendState, getDefaultPermissionMode, getVisibleModels, sessionRouteUrlForLocation, supportsFastModeForProviderModel } from '../../types'
 import { defaultUI, hasComposerDraft, sideChatContextSnapshot, useSessionStore } from '../../store/sessions'
 import { useProjectStore } from '../../store/projects'
 import SlashCommandPalette, { getSlashQuery } from './SlashCommandPalette'
@@ -324,8 +324,8 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   const cursorEffortLevels = cursorCfg?.effortLevels ?? []
   const cursorEffort = session.effort || cursorCfg?.defaultEffort || cursorEffortLevels[0]?.id || ''
   const cursorEfLevel = cursorEffortLevels.find((l) => l.id === cursorEffort)
-  const fastVariantModelId = fastVariantModelIdForProviderModel(provider, model, cursorEffort || effort)
-  const hasFast = Boolean(fastVariantModelId)
+  const hasFast = supportsFastModeForProviderModel(provider, model, cursorEffort || effort)
+  const fastEffort = fastEffortForProviderRequest(provider, effort, true)
   const hasThinking = !!cursorCfg?.supportsThinking
   const useThinking = session.useThinking ?? false
   const useFast = (session.useFast ?? false) || Boolean(fastBaseModelId)
@@ -1261,12 +1261,15 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     }
 
     if (agentMenuPane === 'cursorSpeed') {
+      const fastPatch = provider.fastMode?.kind === 'effort' && fastEffort
+        ? { model, effort: fastEffort, useFast: true }
+        : { model, useFast: true }
       return (
         <>
           <ComposerMenuBack title="Speed" onBack={() => setAgentMenuPane('main')} />
           <ComposerMenuSection>
             <ComposerMenuRow active={!useFast} onClick={() => { update({ model, useFast: false }); closeAgentMenu() }}>Standard</ComposerMenuRow>
-            <ComposerMenuRow active={useFast} onClick={() => { update({ model, useFast: true }); closeAgentMenu() }}>Fast</ComposerMenuRow>
+            <ComposerMenuRow active={useFast} onClick={() => { update(fastPatch); closeAgentMenu() }}>Fast</ComposerMenuRow>
           </ComposerMenuSection>
         </>
       )

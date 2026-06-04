@@ -4,7 +4,7 @@ import { chmodSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import type { RunEvent, RunRequest } from '../../types'
-import { AGENT_THREAD_ADAPTER_CONTRACTS, PROVIDER_DEFS, deriveAgentNodes, deriveAgentThreadGraph, derivePlanStatesFromMessages, fastBaseModelIdForProviderModel, fastVariantModelIdForProviderModel, getDefaultPermissionMode, getPrimaryPermissionModes, getProviderPermissionPresets, getVisibleModels, normalizeProviderModelOrder, parseClaudeAgentsOutput, permissionRequestDetail } from '../../types'
+import { AGENT_THREAD_ADAPTER_CONTRACTS, PROVIDER_DEFS, deriveAgentNodes, deriveAgentThreadGraph, derivePlanStatesFromMessages, fastBaseModelIdForProviderModel, fastEffortForProviderRequest, fastVariantModelIdForProviderModel, getDefaultPermissionMode, getPrimaryPermissionModes, getProviderPermissionPresets, getVisibleModels, normalizeProviderModelOrder, parseClaudeAgentsOutput, permissionRequestDetail, supportsFastModeForProviderModel } from '../../types'
 import { buildProviderCommandForRuntime, claudeMcpServerNames, codexRuntimePolicyConfig, getProviderDiagnostics, getProviderDiagnosticsAsync, getProviderRuntimeInfo, providerAuthFailureMessage, PROVIDERS, providerSdkSpawnEnv, providerSpawnEnv, resolveProviderBinary, resolveProviderPermissionRuntimeContext, runProviderCommandSurface, runProviderCommandSurfaceAsync } from '../providers'
 import { eventsToMessages } from '../runEvents'
 
@@ -101,10 +101,41 @@ test('suffix fast models are represented as speed toggles instead of duplicate m
   const copilot = PROVIDER_DEFS.copilot
   assert.equal(fastBaseModelIdForProviderModel(copilot, 'claude-opus-4.6-fast'), 'claude-opus-4.6')
   assert.equal(fastVariantModelIdForProviderModel(copilot, 'claude-opus-4.6'), 'claude-opus-4.6-fast')
+  assert.equal(supportsFastModeForProviderModel(copilot, 'claude-opus-4.6'), true)
   assert.deepEqual(
     normalizeProviderModelOrder(copilot, ['claude-opus-4.6-fast', 'claude-opus-4.6', 'gpt-5.5']),
     ['claude-opus-4.6', 'gpt-5.5']
   )
+})
+
+test('provider fast modes do not require duplicate fast model ids', () => {
+  const claude = PROVIDER_DEFS.claude
+  const codex = PROVIDER_DEFS.codex
+
+  assert.equal(fastVariantModelIdForProviderModel(claude, 'claude-sonnet-4-6'), null)
+  assert.equal(supportsFastModeForProviderModel(claude, 'claude-sonnet-4-6'), true)
+  assert.equal(fastEffortForProviderRequest(claude, 'high', true), 'low')
+  assert.equal(fastEffortForProviderRequest(claude, 'high', false), 'high')
+
+  assert.equal(fastVariantModelIdForProviderModel(codex, 'gpt-5.3-codex'), null)
+  assert.equal(supportsFastModeForProviderModel(codex, 'gpt-5.3-codex'), true)
+  assert.equal(fastEffortForProviderRequest(codex, 'xhigh', true), 'low')
+})
+
+test('provider fast modes can be driven by model speed metadata', () => {
+  const provider = {
+    ...PROVIDER_DEFS.codex,
+    fastMode: undefined,
+    models: [
+      { id: 'tiered-model', label: 'Tiered Model', serviceTiers: [{ id: 'standard' }, { id: 'fast' }] },
+      { id: 'speed-model', label: 'Speed Model', additionalSpeedTiers: ['fast'] },
+      { id: 'plain-model', label: 'Plain Model' }
+    ]
+  }
+
+  assert.equal(supportsFastModeForProviderModel(provider, 'tiered-model'), true)
+  assert.equal(supportsFastModeForProviderModel(provider, 'speed-model'), true)
+  assert.equal(supportsFastModeForProviderModel(provider, 'plain-model'), false)
 })
 
 test('runtime info exposes the same abstract capability matrix for every provider', () => {
