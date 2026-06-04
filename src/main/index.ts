@@ -26081,7 +26081,7 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               chatsHeader.querySelector('.sidebar-projectless-chat-mark') === null &&
               chatsHeader.querySelector('.sidebar-list-row-label')?.textContent?.trim() === 'Chats' &&
               chatsHeader.querySelector('.sidebar-list-row-content') instanceof HTMLElement &&
-              chatsHeader.querySelector('.sidebar-list-row-detail') instanceof HTMLElement;
+              !(chatsHeader.querySelector('.sidebar-list-row-detail') instanceof HTMLElement);
             const emptyProjectNewChatRows = [...document.querySelectorAll('[data-testid="project-empty-new-chat"]')]
               .filter((row) => row instanceof HTMLElement);
             const emptyProjectNewChatCompact =

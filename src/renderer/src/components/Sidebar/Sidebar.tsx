@@ -1270,7 +1270,6 @@ function SidebarProjectlessChatsGroup({
             </span>
           </span>
         )}
-        detail={`${sessions.length}`}
         trailing={(
           <span className="surface-row-secondary">
             <IconButton
