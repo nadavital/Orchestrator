@@ -61,6 +61,7 @@ const captureViewOptions = [
   { flag: '--transcript-user-input', view: 'transcript-user-input', surface: 'Transcript', scope: 'User-input request cards' },
   { flag: '--transcript-permission', view: 'transcript-permission', surface: 'Transcript', scope: 'Permission request cards' },
   { flag: '--transcript-tool-failure', view: 'transcript-tool-failure', surface: 'Transcript', scope: 'Tool failure rendering' },
+  { flag: '--copilot-transcript', view: 'copilot-transcript', surface: 'Transcript', scope: 'Copilot SDK transcript, tools, approvals, and agent threads' },
   { flag: '--transcript-stress', view: 'transcript-stress', surface: 'Transcript', scope: 'Large transcript stress behavior' },
   { flag: '--streaming-drag', view: 'streaming-drag', surface: 'Transcript', scope: 'Streaming while dragging' },
   { flag: '--streaming-typing', view: 'streaming-typing', surface: 'Transcript', scope: 'Streaming while typing' },
@@ -1878,6 +1879,23 @@ child.on('exit', async (code) => {
         transcriptToolFailureRecovery: result.transcriptToolFailureRecovery === true,
         transcriptToolFailureRetry: result.transcriptToolFailureRetry === true,
         transcriptToolFailureRetryA11y: result.transcriptToolFailureRetryA11y === true
+      }
+    : captureView === 'copilot-transcript'
+    ? {
+        isolatedProfile: result.profile?.isIsolated === true,
+        copilotSessionIdentity: result.copilotSessionIdentity === true,
+        copilotStreamingVisible: result.copilotStreamingVisible === true,
+        copilotStreamingWhitespace: result.copilotStreamingWhitespace === true,
+        copilotStreamingFinalized: result.copilotStreamingFinalized === true,
+        copilotNoStatusNoise: result.copilotNoStatusNoise === true,
+        copilotToolActivity: result.copilotToolActivity === true,
+        copilotToolResult: result.copilotToolResult === true,
+        copilotPermissionCard: result.copilotPermissionCard === true,
+        copilotUserInputCard: result.copilotUserInputCard === true,
+        copilotComposerProviderLocked: result.copilotComposerProviderLocked === true,
+        copilotAgentThreads: result.copilotAgentThreads === true,
+        copilotEventInspector: result.copilotEventInspector === true,
+        copilotUsageSummary: result.copilotUsageSummary === true
       }
     : captureView === 'transcript-stress'
     ? {

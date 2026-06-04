@@ -8,7 +8,7 @@ import { electronApp, is } from '@electron-toolkit/utils'
 import { configureAppProfile, getAppProfile } from './appProfile'
 import { browserSecurityPolicyAllows } from './browserSecurityPolicy'
 import { settingsStore } from './settings'
-import { parseOrchestratorDeepLink, type ChatMessage, type OrchestratorDeepLinkNavigation, type Session as OrchestratorSession } from '../types'
+import { parseOrchestratorDeepLink, type ChatMessage, type OrchestratorDeepLinkNavigation, type RunEvent, type Session as OrchestratorSession } from '../types'
 import { APP_COMMANDS, commandShortcuts, shortcutSequenceToAccelerator } from '../types/appCommands'
 import type { AppCommandAvailability, AppMenuCommand, AppMenuCommandState, ShortcutOverrides, StableAppCommand } from '../types/appCommands'
 import { safeWindowSend } from './safeWebContents'
@@ -601,6 +601,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
   }
   if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-tool-failure') {
     runAutomatedTranscriptToolFailureSmoke(win, outputPath, screenshotPath)
+    return
+  }
+  if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'copilot-transcript') {
+    runAutomatedCopilotTranscriptSmoke(win, outputPath, screenshotPath)
     return
   }
   if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'pet-overlay') {
@@ -30690,6 +30694,172 @@ function runAutomatedTranscriptToolFailureSmoke(win: BrowserWindow, outputPath: 
   })
 }
 
+function runAutomatedCopilotTranscriptSmoke(win: BrowserWindow, outputPath: string, screenshotPath?: string): void {
+  win.webContents.once('did-finish-load', () => {
+    setTimeout(async () => {
+      try {
+        win.setMinimumSize(760, 640)
+        win.setSize(1180, 760)
+        const profile = getAppProfile()
+        const session = sessionManager.list().find((candidate) => candidate.name === 'Copilot transcript smoke')
+        if (!session) {
+          writeFileSync(outputPath, JSON.stringify({ ok: true, result: { profile, copilotSessionIdentity: false }, screenshotPath }, null, 2))
+          app.quit()
+          return
+        }
+
+        win.webContents.send('pet:navigate', session.id)
+        await new Promise((resolve) => setTimeout(resolve, 320))
+        sessionManager.updateStatus(session.id, 'running')
+        sessionManager.applyRunEvents(session.id, copilotTranscriptSmokeStreamingEvents())
+        await new Promise((resolve) => setTimeout(resolve, 360))
+
+        const interim = await win.webContents.executeJavaScript(`
+          (async () => {
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            for (let index = 0; index < 80; index += 1) {
+              if (document.body.innerText.includes("Here's one for you:")) break;
+              await sleep(50);
+            }
+            const text = document.body.innerText;
+            const streamingCursor = document.querySelector('[data-testid="streaming-cursor"]');
+            const activeSession = await window.api.sessions.get(${JSON.stringify(session.id)});
+            const messageStreaming = activeSession?.messages?.some((message) =>
+              message.id === 'copilot-transcript-stream' &&
+              message.type === 'text' &&
+              message.isStreaming === true
+            ) === true;
+            return {
+              copilotStreamingVisible:
+                (streamingCursor instanceof HTMLElement || messageStreaming || text.includes("Here's one for you:")) &&
+                text.includes("Here's one for you:"),
+              copilotStreamingWhitespace:
+                text.includes("Here's one for you:") &&
+                text.includes('Few things in software') &&
+                /Adding features gets the glory/i.test(text) &&
+                !text.includes('onefor') &&
+                !text.includes('thingsin') &&
+                !text.includes('featuresgets')
+            };
+          })()
+        `)
+
+        sessionManager.applyRunEvents(session.id, copilotTranscriptSmokeActivityEvents(session.workDir))
+        await new Promise((resolve) => setTimeout(resolve, 180))
+        sessionManager.applyRunEvents(session.id, copilotTranscriptSmokeFinalEvents())
+        await new Promise((resolve) => setTimeout(resolve, 420))
+
+        const result = await win.webContents.executeJavaScript(`
+          (async () => {
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            for (let index = 0; index < 80; index += 1) {
+              if (document.body.innerText.includes('Workspace read complete.')) break;
+              await sleep(50);
+            }
+            const scroller = document.querySelector('[data-testid="transcript-scroll"]');
+            if (scroller instanceof HTMLElement) {
+              scroller.scrollTop = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+              scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
+              await sleep(120);
+            }
+            const text = document.body.innerText;
+            const toolSummary = document.querySelector('[data-testid="tool-activity-summary"]');
+            const toolTrigger = toolSummary?.querySelector('.motion-disclosure-trigger');
+            if (toolTrigger instanceof HTMLElement && toolTrigger.getAttribute('aria-expanded') !== 'true') {
+              toolTrigger.click();
+              await sleep(160);
+            }
+            const agentButton = document.querySelector('[data-testid="composer-agent-menu"]');
+            if (agentButton instanceof HTMLButtonElement) {
+              agentButton.click();
+              await sleep(160);
+            }
+            const composerMenuText = document.body.innerText;
+            if (agentButton instanceof HTMLButtonElement) {
+              agentButton.click();
+              await sleep(100);
+            }
+            const sidePanelToggle = document.querySelector('[data-testid="titlebar-toggle-sidebar"]');
+            if (sidePanelToggle instanceof HTMLButtonElement) {
+              sidePanelToggle.click();
+              await sleep(180);
+            }
+            const agentsAction = document.querySelector('[data-testid="workbench-new-tab-action-agents"]');
+            if (agentsAction instanceof HTMLButtonElement) {
+              agentsAction.click();
+              await sleep(220);
+            }
+            const rightPanel = document.querySelector('[data-testid="session-right-panel"]');
+            const finalToolSummary = document.querySelector('[data-testid="tool-activity-summary"]');
+            const permissionCard = document.querySelector('[data-testid="chat-permission-card"]');
+            const userInputCard = document.querySelector('[data-testid="chat-user-input-card"]');
+            const agentRows = [...document.querySelectorAll('[data-testid="agent-thread-row"]')];
+            const agentTimeline = document.querySelector('[data-testid="agent-selected-timeline-list"]');
+            const timelineEvents = [...document.querySelectorAll('[data-testid="agent-selected-timeline-event"]')];
+            const activeSession = await window.api.sessions.get(${JSON.stringify(session.id)});
+            const finalText = document.body.innerText;
+            return {
+              copilotSessionIdentity:
+                finalText.includes('GitHub Copilot') &&
+                finalText.includes('Claude Sonnet 4.6'),
+              copilotStreamingFinalized:
+                finalText.includes("Here's one for you:") &&
+                finalText.includes('Few things in software') &&
+                !(document.querySelector('[data-testid="streaming-cursor"]') instanceof HTMLElement),
+              copilotNoStatusNoise:
+                !finalText.includes('Copilot SDK usage updated') &&
+                !finalText.includes('Status Sure') &&
+                !finalText.includes("Status , I'll write"),
+              copilotToolActivity:
+                finalToolSummary instanceof HTMLElement &&
+                Number(finalToolSummary.getAttribute('data-tool-activity-row-count') ?? '0') >= 1 &&
+                ((finalToolSummary.textContent ?? '').includes('Received 1 result') || finalText.includes('Received 1 result')),
+              copilotToolResult:
+                finalToolSummary instanceof HTMLElement &&
+                (finalToolSummary.textContent ?? '').includes('1 actions'),
+              copilotPermissionCard:
+                (permissionCard instanceof HTMLElement || finalText.includes('Command Approval')) &&
+                finalText.includes('git status --short') &&
+                (finalText.includes('Permission required') || finalText.includes('Handled')),
+              copilotUserInputCard:
+                (userInputCard instanceof HTMLElement || finalText.includes('Which branch should Copilot inspect next?')) &&
+                finalText.includes('main') &&
+                finalText.includes('feature') &&
+                (finalText.includes('Answer required') || finalText.includes('Answered')),
+              copilotComposerProviderLocked:
+                composerMenuText.includes('Provider') &&
+                composerMenuText.includes('Fixed for this chat'),
+              copilotAgentThreads:
+                rightPanel instanceof HTMLElement &&
+                rightPanel.getAttribute('data-right-panel-open') === 'true' &&
+                rightPanel.getAttribute('data-right-panel-active-tab') === 'agents' &&
+                agentRows.some((row) => row.textContent?.includes('Copilot workspace scout')),
+              copilotEventInspector:
+                agentTimeline instanceof HTMLElement &&
+                timelineEvents.length >= 3 &&
+                finalText.includes('Read README and summarize workspace shape.'),
+              copilotUsageSummary:
+                activeSession?.usageSummary?.inputTokens === 1200 &&
+                activeSession?.usageSummary?.outputTokens === 240 &&
+                activeSession?.status === 'idle'
+            };
+          })()
+        `)
+
+        if (screenshotPath) {
+          const image = await win.webContents.capturePage()
+          writeFileSync(screenshotPath, image.toPNG())
+        }
+        writeFileSync(outputPath, JSON.stringify({ ok: true, result: { profile, ...interim, ...result }, screenshotPath }, null, 2))
+        app.quit()
+      } catch (error) {
+        writeFileSync(outputPath, JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2))
+        app.quit()
+      }
+    }, 700)
+  })
+}
+
 function runAutomatedPetOverlaySmoke(win: BrowserWindow, outputPath: string, screenshotPath?: string): void {
   win.webContents.once('did-finish-load', () => {
     setTimeout(async () => {
@@ -32707,6 +32877,9 @@ async function bootstrapAutomatedUiSmokeState(): Promise<void> {
   } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-tool-failure') {
     seedAutomatedTranscriptToolFailureSmokeSession(session.id)
     pendingNavigation = { kind: 'session', sessionId: session.id }
+  } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'copilot-transcript') {
+    seedAutomatedCopilotTranscriptSmokeSession(session.id)
+    pendingNavigation = { kind: 'session', sessionId: session.id }
   } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'session-switch') {
     const { one } = await seedAutomatedSessionSwitchSmokeSessions(project.id, project.rootPath)
     automatedInitialRendererHash = `/threads/${encodeURIComponent(one.id)}`
@@ -33875,6 +34048,173 @@ function seedAutomatedTranscriptToolFailureSmokeSession(sessionId: string): void
       latestMessageAt: baseTime + 3
     })
   }
+}
+
+function seedAutomatedCopilotTranscriptSmokeSession(sessionId: string): void {
+  const session = sessionManager.get(sessionId)
+  if (!session) return
+
+  const baseTime = Date.now()
+  const promptContent = 'COPILOT_TRANSCRIPT_SMOKE render streaming, tool calls, approvals, user input, usage, and agent threads.'
+  const messages: ChatMessage[] = [
+    {
+      id: 'copilot-transcript-user',
+      role: 'user',
+      type: 'text',
+      content: promptContent,
+      timestamp: baseTime
+    }
+  ]
+
+  sessionManager.save({
+    ...session,
+    name: 'Copilot transcript smoke',
+    status: 'idle',
+    provider: 'copilot',
+    runtime: 'sdk',
+    model: 'claude-sonnet-4.6',
+    effort: 'low',
+    permissionMode: 'tools',
+    allowedTools: ['read_file'],
+    disallowedTools: [],
+    providerSessionId: null,
+    claudeSessionId: null,
+    messages,
+    messageCount: messages.length,
+    messagesLoaded: true,
+    previewText: promptContent,
+    createdAt: baseTime,
+    latestMessageAt: baseTime
+  })
+}
+
+function copilotTranscriptSmokeStreamingEvents(): RunEvent[] {
+  return [
+    {
+      type: 'session.started',
+      providerSessionId: 'copilot-transcript-provider-session'
+    },
+    {
+      type: 'assistant.text.delta',
+      streamId: 'copilot-transcript-stream',
+      content: "Here's one"
+    },
+    {
+      type: 'assistant.text.delta',
+      streamId: 'copilot-transcript-stream',
+      content: ' for you:\n\n---\nFew things'
+    },
+    {
+      type: 'assistant.text.delta',
+      streamId: 'copilot-transcript-stream',
+      content: ' in software engineering are as satisfying as deleting code. Adding features gets the glory, but removing tangled legacy logic keeps a project breathing.'
+    }
+  ]
+}
+
+function copilotTranscriptSmokeActivityEvents(workDir: string): RunEvent[] {
+  return [
+    {
+      type: 'tool.started',
+      id: 'copilot-transcript-tool-read',
+      toolName: 'read_file',
+      toolInput: {
+        path: 'README.md',
+        cwd: workDir
+      }
+    },
+    {
+      type: 'permission.requested',
+      content: 'Allow shell command?',
+      denials: [{
+        tool_name: 'shell',
+        tool_use_id: 'copilot-transcript-permission-shell',
+        tool_input: {
+          command: 'git status --short',
+          cwd: workDir
+        }
+      }]
+    },
+    {
+      type: 'user_input.requested',
+      content: 'Which branch should Copilot inspect next?',
+      questions: [{
+        id: 'copilot-transcript-branch',
+        header: 'Branch',
+        question: 'Which branch should Copilot inspect next?',
+        options: [
+          { label: 'main', description: 'Inspect the default integration branch.' },
+          { label: 'feature', description: 'Inspect the current feature branch.' }
+        ]
+      }]
+    },
+    {
+      type: 'agent.started',
+      agent: {
+        id: 'copilot-transcript-agent',
+        providerId: 'copilot',
+        providerAgentId: 'copilot-sdk-agent-1',
+        sessionId: 'copilot-transcript-provider-session',
+        name: 'Copilot workspace scout',
+        role: 'Repository inspector',
+        status: 'running',
+        model: 'claude-sonnet-4.6',
+        startedAt: Date.now(),
+        summary: 'Read README and summarize workspace shape.'
+      }
+    },
+    {
+      type: 'agent.text.delta',
+      agentId: 'copilot-transcript-agent',
+      streamId: 'copilot-transcript-agent-stream',
+      content: 'Read README and summarize workspace shape.'
+    }
+  ]
+}
+
+function copilotTranscriptSmokeFinalEvents(): RunEvent[] {
+  return [
+    {
+      type: 'tool.completed',
+      id: 'copilot-transcript-tool-read-result',
+      toolUseId: 'copilot-transcript-tool-read',
+      content: 'Workspace read complete.',
+      isError: false
+    },
+    {
+      type: 'assistant.text.completed',
+      streamId: 'copilot-transcript-stream'
+    },
+    {
+      type: 'agent.text.completed',
+      agentId: 'copilot-transcript-agent',
+      streamId: 'copilot-transcript-agent-stream'
+    },
+    {
+      type: 'agent.completed',
+      agent: {
+        id: 'copilot-transcript-agent',
+        providerId: 'copilot',
+        providerAgentId: 'copilot-sdk-agent-1',
+        sessionId: 'copilot-transcript-provider-session',
+        name: 'Copilot workspace scout',
+        role: 'Repository inspector',
+        status: 'completed',
+        model: 'claude-sonnet-4.6',
+        startedAt: Date.now() - 1000,
+        completedAt: Date.now(),
+        summary: 'Read README and summarize workspace shape.'
+      }
+    },
+    {
+      type: 'run.completed',
+      usage: {
+        inputTokens: 1200,
+        outputTokens: 240,
+        totalTokens: 1440
+      }
+    }
+  ]
 }
 
 async function seedAutomatedSidebarSmokeSessions(projectId: string, workDir: string): Promise<void> {
