@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
-  type ProviderPermissionRuntimeContext,
   type ProviderDiagnosticInfo,
   type ProviderRuntimeInfo,
   type PreferredOpenTarget,
@@ -58,8 +57,8 @@ const SETTINGS_SEARCH_ITEMS: Array<{
   { section: 'general', label: 'Composer', description: 'Enter behavior and send shortcut', keywords: 'composer enter send newline message input command control', anchor: 'general-composer' },
   { section: 'appearance', label: 'Appearance', description: 'Theme, density, color, and fonts', keywords: 'theme accent density font motion chrome code sidebar transparency tint' },
   { section: 'providers', label: 'Provider picker', description: 'Default provider and runtime readiness', keywords: 'provider picker default provider runtime ready install claude codex openai cursor copilot', anchor: 'provider-picker' },
-  { section: 'providers', label: 'Provider defaults', description: 'Default model, reasoning, permissions, and model list', keywords: 'models model reasoning thinking permission permissions mode default visible list provider agent', anchor: 'provider-defaults' },
-  { section: 'providers', label: 'Providers', description: 'Default provider, models, permissions, and diagnostics', keywords: 'model agent permission diagnostics runtime codex claude openai' },
+  { section: 'providers', label: 'Provider defaults', description: 'Default provider, reasoning, accounts, and model order', keywords: 'models model reasoning thinking default visible list provider agent account auth', anchor: 'provider-defaults' },
+  { section: 'providers', label: 'Providers', description: 'Default provider, accounts, models, and diagnostics', keywords: 'model agent account auth diagnostics runtime codex claude openai' },
   { section: 'worktrees', label: 'Worktree create', description: 'Project, base ref, and branch controls', keywords: 'worktree worktrees create project base ref branch isolated workspace fork', anchor: 'worktrees-create' },
   { section: 'worktrees', label: 'Worktrees', description: 'Managed isolated workspaces', keywords: 'git branch fork workspace isolated cleanup' },
   { section: 'shortcuts', label: 'Shortcut bindings', description: 'Search, edit, clear, and reset keyboard shortcuts', keywords: 'shortcut shortcuts keybinding keybindings keyboard command commands hotkey hotkeys edit clear reset capture binding bindings', anchor: 'shortcut-bindings' },
@@ -90,7 +89,6 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
   const [defaultProvider, setDefaultProvider] = useState('claude')
   const [defaultModels, setDefaultModels] = useState<Record<string, string>>({})
   const [defaultEfforts, setDefaultEfforts] = useState<Record<string, string>>({})
-  const [defaultPermissionModes, setDefaultPermissionModes] = useState<Record<string, string>>({})
   const [providerModels, setProviderModels] = useState<Record<string, string[]>>({})
   const [copilotByokProvider, setCopilotByokProvider] = useState<CopilotByokProviderSettings>({
     enabled: false,
@@ -99,7 +97,6 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
     apiKeyEnvKey: 'OPENAI_API_KEY'
   })
   const [providerRuntime, setProviderRuntime] = useState<Record<string, ProviderRuntimeInfo>>({})
-  const [providerPermissionContexts, setProviderPermissionContexts] = useState<Record<string, ProviderPermissionRuntimeContext>>({})
   const [providerDiagnostics, setProviderDiagnostics] = useState<Record<string, ProviderDiagnosticInfo>>({})
   const [diagnosticsLoading, setDiagnosticsLoading] = useState<Record<string, boolean>>({})
   const [preferredEditor, setPreferredEditor] = useState<PreferredEditor>('system')
@@ -161,7 +158,6 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
       setDefaultProvider((rec.defaultProvider as string) ?? 'claude')
       setDefaultModels((rec.defaultModels as Record<string, string>) ?? {})
       setDefaultEfforts((rec.defaultEfforts as Record<string, string>) ?? {})
-      setDefaultPermissionModes((rec.defaultPermissionModes as Record<string, string>) ?? {})
       setProviderModels((rec.providerModels as Record<string, string[]>) ?? {})
       setCopilotByokProvider(normalizeCopilotByokProviderSettings(rec.copilotByokProvider as Partial<CopilotByokProviderSettings> | undefined))
       setPreferredEditor(normalizePreferredEditor(rec.preferredEditor))
@@ -267,12 +263,6 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
     const next = { ...defaultEfforts, [providerId]: effortId }
     setDefaultEfforts(next)
     window.api.settings.set('defaultEfforts', next)
-  }
-
-  const saveDefaultPermissionMode = (providerId: string, modeId: string): void => {
-    const next = { ...defaultPermissionModes, [providerId]: modeId }
-    setDefaultPermissionModes(next)
-    window.api.settings.set('defaultPermissionModes', next)
   }
 
   const saveProviderModels = (providerId: string, models: string[]): void => {
@@ -772,19 +762,15 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
                   defaultProvider={defaultProvider}
                   sessions={sessions}
                   defaultEfforts={defaultEfforts}
-                  defaultPermissionModes={defaultPermissionModes}
                   providerModels={providerModels}
                   providerRuntime={providerRuntime}
-                  providerPermissionContexts={providerPermissionContexts}
                   providerDiagnostics={providerDiagnostics}
                   providerAvailability={providerAvailability}
                   selectedProviderId={selectedSettingsProviderId}
                   copilotByokProvider={copilotByokProvider}
                   onSetDefaultProvider={saveDefaultProvider}
                   onSetDefaultEffort={saveDefaultEffort}
-                  onSetDefaultPermissionMode={saveDefaultPermissionMode}
                   onSetProviderModels={saveProviderModels}
-                  onSetProviderPermissionContexts={setProviderPermissionContexts}
                   onSetCopilotByokProvider={saveCopilotByokProvider}
                   onLoadProviderDiagnostics={loadProviderDiagnostics}
                 />

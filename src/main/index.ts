@@ -966,7 +966,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 diagnosticsSection.classList.contains('settings-page-section') &&
                 providerControlSurfaces.length === 1 &&
                 providerControlSurfaceText.includes('Default') &&
-                providerControlSurfaceText.includes('Permissions') &&
+                !providerControlSurfaceText.includes('Permissions') &&
                 providerControlSurfaceText.includes('Models') &&
                 !providerControlSurfaceText.includes('Details') &&
                 !providerControlSurfaceText.includes('Capabilities') &&
@@ -976,14 +976,13 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 (permissionExecutionContract === null || permissionExecutionContract.getBoundingClientRect().height <= 28) &&
                 !providerControlSurfaceText.includes('Default permissions') &&
                 !providerControlSurfaceText.includes('Source cli') &&
-                providerControlSurfaceText.indexOf('Permissions') < providerControlSurfaceText.indexOf('Models') &&
                 !(providerDetailsGrid instanceof HTMLElement);
               const providerSegmentedControls = diagnosticsSection instanceof HTMLElement
                 ? [...diagnosticsSection.querySelectorAll('.segmented-control[role="tablist"]')]
                   .filter((control) => control instanceof HTMLElement)
                 : [];
               var settingsProviderSegmentedControlLabelsWorks =
-                providerSegmentedControls.length >= 2 &&
+                providerSegmentedControls.length >= 1 &&
                 providerSegmentedControls.every((control) => (control.getAttribute('aria-label') ?? '').trim().length > 0);
               var settingsProviderBoundariesWorks =
                 !(providerBoundarySummary instanceof HTMLElement);
@@ -1267,41 +1266,16 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 codexProviderSelect.dispatchEvent(new Event('change', { bubbles: true }));
                 await sleep(220);
               }
-              var settingsProviderPermissionRefreshWorks = false;
-              for (let index = 0; index < 12; index += 1) {
-                if (document.querySelector('[data-testid="settings-permission-runtime-refresh"]') instanceof HTMLButtonElement) break;
-                await sleep(100);
-              }
               const permissionRuntimeContext = document.querySelector('[data-testid="settings-permission-runtime-context"]');
-              let permissionRuntimeRefresh = document.querySelector('[data-testid="settings-permission-runtime-refresh"]');
-              for (let index = 0; permissionRuntimeRefresh instanceof HTMLButtonElement && permissionRuntimeRefresh.disabled && index < 20; index += 1) {
-                await sleep(100);
-                permissionRuntimeRefresh = document.querySelector('[data-testid="settings-permission-runtime-refresh"]');
-              }
-              if (permissionRuntimeRefresh instanceof HTMLButtonElement) {
-                permissionRuntimeRefresh.click();
-                for (let index = 0; index < 12; index += 1) {
-                  const status = document.querySelector('[data-testid="settings-permission-runtime-refresh-status"]');
-                  if (status instanceof HTMLElement && status.textContent?.includes('Permission config') === true) break;
-                  await sleep(100);
-                }
-                const status = document.querySelector('[data-testid="settings-permission-runtime-refresh-status"]');
-                settingsProviderPermissionRefreshWorks =
-                  permissionRuntimeContext instanceof HTMLElement &&
-                  permissionRuntimeContext.getAttribute('data-permission-context-source') !== null &&
-                  permissionRuntimeContext.getAttribute('data-permission-context-status') !== null &&
-                  permissionRuntimeRefresh.disabled === false &&
-                  status instanceof HTMLElement &&
-                  status.getAttribute('role') === 'status' &&
-                  status.getAttribute('aria-live') === 'polite' &&
-                  status.getAttribute('aria-atomic') === 'true' &&
-                  status.textContent?.includes('Permission config') === true;
-              } else {
-                settingsProviderPermissionRefreshWorks =
-                  permissionRuntimeContext === null &&
-                  providerControlSurfaceText.includes('Permissions') &&
-                  !providerControlSurfaceText.includes('Config fallback loaded');
-              }
+              const permissionRuntimeRefresh = document.querySelector('[data-testid="settings-permission-runtime-refresh"]');
+              const permissionRuntimeRefreshStatus = document.querySelector('[data-testid="settings-permission-runtime-refresh-status"]');
+              var settingsProviderPermissionControlsRemovedWorks =
+                permissionRuntimeContext === null &&
+                permissionRuntimeRefresh === null &&
+                permissionRuntimeRefreshStatus === null &&
+                !providerControlSurfaceText.includes('Permissions') &&
+                !providerControlSurfaceText.includes('Default permissions') &&
+                !providerControlSurfaceText.includes('Config fallback loaded');
               const sidebarMetadataRefreshButton = document.querySelector('[data-testid="provider-sidebar-metadata-refresh"]');
               const codexStatusCard = document.querySelector('[data-testid="provider-status-card"]');
               let sidebarRefreshStatus = null;
@@ -7472,12 +7446,12 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               sendStatusPermissionMenu instanceof HTMLElement &&
               (sendStatusPermissionMenu.textContent?.includes('Permissions') === true ||
                 sendStatusPermissionMenu.textContent?.includes('Default') === true ||
-                sendStatusPermissionMenu.textContent?.includes('Auto review') === true) &&
+                sendStatusPermissionMenu.textContent?.includes('Auto review') === true ||
+                sendStatusPermissionMenu.textContent?.includes('Ask first') === true ||
+                sendStatusPermissionMenu.textContent?.includes('Tools') === true ||
+                sendStatusPermissionMenu.textContent?.includes('Auto') === true) &&
               [...sendStatusPermissionMenu.querySelectorAll('button')]
-                .some((button) =>
-                  button.textContent?.includes('Default permissions') ||
-                  button.textContent?.trim() === 'Default'
-                );
+                .some((button) => !button.disabled && (button.textContent?.trim().length ?? 0) > 0);
             const sendStatusPermissionActiveElement = document.activeElement;
             var composerSendStatusActionFocusesPermissions =
               composerSendStatusActionOpensPermissions &&
@@ -7486,10 +7460,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               sendStatusPermissionMenu.contains(sendStatusPermissionActiveElement);
             const defaultPermissionButton = sendStatusPermissionMenu instanceof HTMLElement
               ? [...sendStatusPermissionMenu.querySelectorAll('button')]
-                  .find((button) =>
-                    button.textContent?.includes('Default permissions') ||
-                    button.textContent?.trim() === 'Default'
-                  )
+                  .find((button) => !button.disabled && (button.textContent?.trim().length ?? 0) > 0)
               : null;
             if (defaultPermissionButton instanceof HTMLButtonElement) {
               defaultPermissionButton.click();
@@ -7656,7 +7627,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               slashPermissionsMenu instanceof HTMLElement &&
               (slashPermissionsMenu.textContent?.includes('Permissions') === true ||
                 slashPermissionsMenu.textContent?.includes('Default') === true ||
-                slashPermissionsMenu.textContent?.includes('Auto review') === true) &&
+                slashPermissionsMenu.textContent?.includes('Auto review') === true ||
+                slashPermissionsMenu.textContent?.includes('Ask first') === true ||
+                slashPermissionsMenu.textContent?.includes('Tools') === true ||
+                slashPermissionsMenu.textContent?.includes('Auto') === true) &&
               textareaValue() === '';
             var composerSlashPermissionsFocusesMenu =
               slashPermissionsMenu instanceof HTMLElement &&
@@ -9075,7 +9049,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             settingsProviderCommandTerminalStatusA11yWorks: typeof settingsProviderCommandTerminalStatusA11yWorks === 'boolean' ? settingsProviderCommandTerminalStatusA11yWorks : null,
             settingsProviderInstallCommandCopyWorks: typeof settingsProviderInstallCommandCopyWorks === 'boolean' ? settingsProviderInstallCommandCopyWorks : null,
             settingsProviderInstallCommandStatusA11yWorks: typeof settingsProviderInstallCommandStatusA11yWorks === 'boolean' ? settingsProviderInstallCommandStatusA11yWorks : null,
-            settingsProviderPermissionRefreshWorks: typeof settingsProviderPermissionRefreshWorks === 'boolean' ? settingsProviderPermissionRefreshWorks : null,
+            settingsProviderPermissionControlsRemovedWorks: typeof settingsProviderPermissionControlsRemovedWorks === 'boolean' ? settingsProviderPermissionControlsRemovedWorks : null,
             settingsProviderRuntimeCopyWorks: typeof settingsProviderRuntimeCopyWorks === 'boolean' ? settingsProviderRuntimeCopyWorks : null,
             settingsProviderRuntimeCopyStatusA11yWorks: typeof settingsProviderRuntimeCopyStatusA11yWorks === 'boolean' ? settingsProviderRuntimeCopyStatusA11yWorks : null,
             settingsProviderRuntimeAddToChatWorks: typeof settingsProviderRuntimeAddToChatWorks === 'boolean' ? settingsProviderRuntimeAddToChatWorks : null,

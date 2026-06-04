@@ -94,6 +94,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   const [runtimeInfo, setRuntimeInfo] = useState<Record<string, ProviderRuntimeInfo>>({})
   const [permissionContext, setPermissionContext] = useState<ProviderPermissionRuntimeContext | null>(null)
   const [extensionCommands, setExtensionCommands] = useState<ProviderSlashCommand[]>([])
+  const [defaultPermissionModes, setDefaultPermissionModes] = useState<Record<string, string>>({})
   const [isSavingPastedFiles, setIsSavingPastedFiles] = useState(false)
   const [dragActive, setDragActive] = useState(false)
   const [attachmentStatus, setAttachmentStatus] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
@@ -167,15 +168,20 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     let alive = true
     window.api.settings.get()
       .then((settings) => {
-        if (alive) setComposerEnterBehavior(normalizeComposerEnterBehavior(settings.composerEnterBehavior))
+        if (!alive) return
+        setComposerEnterBehavior(normalizeComposerEnterBehavior(settings.composerEnterBehavior))
+        setDefaultPermissionModes((settings.defaultPermissionModes as Record<string, string> | undefined) ?? {})
       })
       .catch(() => {
         if (alive) setComposerEnterBehavior('send')
       })
     const onSettingsUpdated = (event: Event): void => {
-      const detail = (event as CustomEvent<{ composerEnterBehavior?: unknown }>).detail
+      const detail = (event as CustomEvent<{ composerEnterBehavior?: unknown; defaultPermissionModes?: unknown }>).detail
       if ('composerEnterBehavior' in (detail ?? {})) {
         setComposerEnterBehavior(normalizeComposerEnterBehavior(detail?.composerEnterBehavior))
+      }
+      if ('defaultPermissionModes' in (detail ?? {}) && detail?.defaultPermissionModes && typeof detail.defaultPermissionModes === 'object') {
+        setDefaultPermissionModes(detail.defaultPermissionModes as Record<string, string>)
       }
     }
     window.addEventListener('orchestrator:settings-updated', onSettingsUpdated)
@@ -273,7 +279,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     })
   const effort = session.effort ?? provider.effortLevels[0]?.id ?? ''
   const contextDefaultPermissionMode = permissionContext?.providerId === provider.id ? permissionContext.defaultPolicy : undefined
-  const defaultPermissionMode = contextDefaultPermissionMode ?? getDefaultPermissionMode(provider)
+  const defaultPermissionMode = getDefaultPermissionMode(provider, defaultPermissionModes[provider.id] ?? contextDefaultPermissionMode)
   const permissionMode = session.permissionMode ?? defaultPermissionMode
   const effectiveMode = isNew ? useWorktree : session.useWorktree
   const providerRuntime = runtimeInfo[provider.id]
@@ -366,7 +372,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
       model: orderedModels[0]?.id ?? newDef.models[0]?.id ?? '',
       effort: newDef.effortLevels[0]?.id ?? '',
       agentName: null,
-      permissionMode: getDefaultPermissionMode(newDef),
+      permissionMode: getDefaultPermissionMode(newDef, defaultPermissionModes[providerId]),
       useThinking: false,
       useFast: false
     })
@@ -425,6 +431,17 @@ function InputBar({ session, isNew }: Props): JSX.Element {
 
   const selectPermissionMode = (modeId: string): void => {
     update({ permissionMode: modeId })
+    const nextPermissionModes = { ...defaultPermissionModes, [provider.id]: modeId }
+    setDefaultPermissionModes(nextPermissionModes)
+    void window.api.settings.set('defaultPermissionModes', nextPermissionModes)
+      .then(() => {
+        window.dispatchEvent(new CustomEvent('orchestrator:settings-updated', {
+          detail: { defaultPermissionModes: nextPermissionModes }
+        }))
+      })
+      .catch((error) => {
+        setRunActionStatus({ text: `Permission preference save failed: ${errorText(error)}`, tone: 'danger' })
+      })
     setShowPermMenu(false)
   }
 

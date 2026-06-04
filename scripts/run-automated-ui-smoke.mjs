@@ -3320,7 +3320,7 @@ child.on('exit', async (code) => {
         settingsProviderCommandTerminalStatusA11y: captureView !== 'settings-providers' || result.settingsProviderCommandTerminalStatusA11yWorks === true,
         settingsProviderInstallCommandCopy: captureView !== 'settings-providers' || result.settingsProviderInstallCommandCopyWorks === true,
         settingsProviderInstallCommandStatusA11y: captureView !== 'settings-providers' || result.settingsProviderInstallCommandStatusA11yWorks === true,
-        settingsProviderPermissionRefresh: captureView !== 'settings-providers' || result.settingsProviderPermissionRefreshWorks === true,
+        settingsProviderPermissionControlsRemoved: captureView !== 'settings-providers' || result.settingsProviderPermissionControlsRemovedWorks === true,
         settingsProviderRuntimeCopy: captureView !== 'settings-providers' || result.settingsProviderRuntimeCopyWorks === true,
         settingsProviderRuntimeCopyStatusA11y: captureView !== 'settings-providers' || result.settingsProviderRuntimeCopyStatusA11yWorks === true,
         settingsProviderRuntimeAddToChat: captureView !== 'settings-providers' || result.settingsProviderRuntimeAddToChatWorks === true,

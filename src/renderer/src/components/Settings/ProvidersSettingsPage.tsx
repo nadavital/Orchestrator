@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type Dispatch, type ReactNode, type SetStateAction } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import {
   DndContext, closestCenter, type DragEndEvent,
   KeyboardSensor, PointerSensor, useSensor, useSensors
@@ -11,15 +11,11 @@ import { CSS } from '@dnd-kit/utilities'
 import {
   PROVIDER_DEFS,
   fastBaseModelIdForProviderModel,
-  getDefaultPermissionMode,
   getConfigurableModels,
   getVisibleModels,
-  type PermissionExecutionContract,
   type ProviderCapabilityGap,
   type ProviderAuthFlowResult,
   type ProviderAuthSecretStatus,
-  type ProviderPermissionMode,
-  type ProviderPermissionRuntimeContext,
   type ProviderCommandSurface,
   type ProviderCommandSurfaceResult,
   type ProviderDiagnosticInfo,
@@ -27,7 +23,6 @@ import {
   type ProviderRuntimeDebugEvent,
   type ProviderRuntimeInfo,
   type ProviderSidebarSyncResult,
-  type ResolvedExecutionPolicy,
   type SessionListItem,
   type UsageSummary
 } from '../../types'
@@ -48,25 +43,21 @@ import {
 // ─── Providers section ────────────────────────────────────────────────────────
 
 export default function ProvidersSettingsPage({
-  defaultProvider, sessions, defaultEfforts, defaultPermissionModes, providerModels,
-  providerRuntime, providerPermissionContexts, providerDiagnostics, providerAvailability, selectedProviderId, copilotByokProvider, onSetDefaultProvider, onSetDefaultEffort, onSetDefaultPermissionMode, onSetProviderModels, onSetProviderPermissionContexts, onSetCopilotByokProvider, onLoadProviderDiagnostics
+  defaultProvider, sessions, defaultEfforts, providerModels,
+  providerRuntime, providerDiagnostics, providerAvailability, selectedProviderId, copilotByokProvider, onSetDefaultProvider, onSetDefaultEffort, onSetProviderModels, onSetCopilotByokProvider, onLoadProviderDiagnostics
 }: {
   defaultProvider: string
   sessions: SessionListItem[]
   defaultEfforts: Record<string, string>
-  defaultPermissionModes: Record<string, string>
   providerModels: Record<string, string[]>
   providerRuntime: Record<string, ProviderRuntimeInfo>
-  providerPermissionContexts: Record<string, ProviderPermissionRuntimeContext>
   providerDiagnostics: Record<string, ProviderDiagnosticInfo>
   providerAvailability: Record<string, boolean>
   selectedProviderId: string
   copilotByokProvider: CopilotByokProviderSettings
   onSetDefaultProvider: (id: string) => void
   onSetDefaultEffort: (providerId: string, effortId: string) => void
-  onSetDefaultPermissionMode: (providerId: string, modeId: string) => void
   onSetProviderModels: (providerId: string, models: string[]) => void
-  onSetProviderPermissionContexts: Dispatch<SetStateAction<Record<string, ProviderPermissionRuntimeContext>>>
   onSetCopilotByokProvider: (settings: CopilotByokProviderSettings) => void
   onLoadProviderDiagnostics: (providerId: string, options?: { force?: boolean }) => void
 }): JSX.Element {
@@ -76,63 +67,16 @@ export default function ProvidersSettingsPage({
   const diagnostics = providerDiagnostics[selectedId]
   const modelCatalogProviderDef = providerDefWithDiagnosticModels(providerDef, diagnostics)
   const currentEffort = defaultEfforts[selectedId] ?? providerDef.effortLevels[0]?.id ?? ''
-  const permissionContext = providerPermissionContexts[selectedId]
-  const contextDefaultPermissionMode = permissionContext?.providerId === selectedId ? permissionContext.defaultPolicy : undefined
-  const currentPermissionMode = getDefaultPermissionMode(providerDef, defaultPermissionModes[selectedId] ?? contextDefaultPermissionMode)
   const visibleModels = getVisibleModels(modelCatalogProviderDef, providerModels)
-  const permissionModes = filterPermissionModes(providerDef.permissionModes, permissionContext, currentPermissionMode)
-  const permissionPickerMode = permissionModes.some((mode) => mode.id === currentPermissionMode)
-    ? currentPermissionMode
-    : permissionModes[0]?.id ?? currentPermissionMode
   const visibleIds = visibleModels.map((m) => m.id)
   const runtime = providerRuntime[selectedId]
   const settingsCommandSurfaces = visibleSettingsCommandSurfaces(selectedId, runtime?.registry.commandSurfaces ?? [])
   const authCommandSurfaces = visibleProviderAuthCommandSurfaces(selectedId, settingsCommandSurfaces)
   const endpointConfig = providerEndpointConfig(selectedId)
-  const [permissionContextLoading, setPermissionContextLoading] = useState(false)
-  const [permissionContextRefreshStatus, setPermissionContextRefreshStatus] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
-  const permissionContextCwd = sessions.find((session) => session.provider === selectedId)?.workDir ?? sessions[0]?.workDir
-
-  const loadPermissionContext = useCallback(async (options: { announce?: boolean } = {}): Promise<void> => {
-    setPermissionContextLoading(true)
-    if (options.announce) {
-      setPermissionContextRefreshStatus({ text: 'Refreshing permissions', tone: 'info' })
-    }
-    try {
-      const context = await window.api.providers.getPermissionContext(selectedId, permissionContextCwd)
-      onSetProviderPermissionContexts((current) => ({ ...current, [selectedId]: context }))
-      if (options.announce) {
-        setPermissionContextRefreshStatus({
-          text: context.status === 'ok' ? 'Permission config refreshed' : 'Permission config fallback refreshed',
-          tone: 'info'
-        })
-      }
-    } catch {
-      if (options.announce) {
-        setPermissionContextRefreshStatus({ text: 'Permission config refresh failed', tone: 'danger' })
-      }
-    } finally {
-      setPermissionContextLoading(false)
-    }
-  }, [onSetProviderPermissionContexts, permissionContextCwd, selectedId])
 
   useEffect(() => {
     onLoadProviderDiagnostics(selectedId)
   }, [onLoadProviderDiagnostics, selectedId])
-
-  useEffect(() => {
-    setPermissionContextRefreshStatus(null)
-  }, [selectedId])
-
-  useEffect(() => {
-    let alive = true
-    loadPermissionContext()
-      .catch(() => undefined)
-      .finally(() => {
-        if (!alive) setPermissionContextLoading(false)
-      })
-    return () => { alive = false }
-  }, [loadPermissionContext])
 
   const handleVisibleModelsChange = (ids: string[]): void => {
     onSetProviderModels(selectedId, ids)
@@ -176,32 +120,6 @@ export default function ProvidersSettingsPage({
                         ariaLabel={`${providerDef.name} thinking level`}
                         onChange={(id) => onSetDefaultEffort(selectedId, id)}
                       />
-                    )}
-                  />
-                )}
-
-                {permissionModes.length > 0 && (
-                  <SettingsRow
-                    label="Permissions"
-                    className="provider-settings-row provider-settings-row-stacked"
-                    control={(
-                      <div className="provider-settings-row-stack">
-                        <SegmentedControl
-                          items={permissionModes.map((mode) => ({ id: mode.id, label: mode.label }))}
-                          value={permissionPickerMode}
-                          color={providerDef.color}
-                          ariaLabel={`${providerDef.name} permission mode`}
-                          onChange={(id) => onSetDefaultPermissionMode(selectedId, id)}
-                        />
-                        <ProviderPermissionContract
-                          policy={runtime?.policies[permissionPickerMode]}
-                          context={permissionContext}
-                          color={providerDef.color}
-                          refreshing={permissionContextLoading}
-                          refreshStatus={permissionContextRefreshStatus}
-                          onRefresh={() => { void loadPermissionContext({ announce: true }) }}
-                        />
-                      </div>
                     )}
                   />
                 )}
@@ -505,108 +423,6 @@ function sidebarSyncStatusState(
   if (loading) return { text: 'Refreshing chats', tone: 'info' }
   if (!result) return null
   return { text: sidebarSyncStatusText(result), tone: result.ok ? 'info' : 'danger' }
-}
-
-function ProviderPermissionContract({
-  policy,
-  context,
-  color,
-  refreshing,
-  refreshStatus,
-  onRefresh
-}: {
-  policy?: ResolvedExecutionPolicy
-  context?: ProviderPermissionRuntimeContext
-  color: string
-  refreshing: boolean
-  refreshStatus: { text: string; tone: 'info' | 'danger' } | null
-  onRefresh: () => void
-}): JSX.Element | null {
-  const showRuntimeContext = context && context.source !== 'static'
-  const showUnsupportedPolicy = policy?.support === 'unsupported'
-  if (!showRuntimeContext && !showUnsupportedPolicy) return null
-  const chips = policy?.execution ? permissionExecutionLabels(policy.execution) : []
-  return (
-    <div>
-      {showUnsupportedPolicy && chips.length > 0 && (
-        <div
-          className="provider-permission-contract"
-          data-testid="settings-permission-execution-contract"
-        >
-          {chips.map((chip) => (
-            <span
-              key={`${chip.label}:${chip.value}`}
-              className="provider-permission-chip"
-              data-strong={chip.strong ? 'true' : 'false'}
-              title={`${chip.label}: ${chip.value}`}
-              style={{ '--provider-color': color } as CSSProperties}
-            >
-              {chip.label} {chip.value}
-            </span>
-          ))}
-        </div>
-      )}
-      {showRuntimeContext && context && (
-        <>
-          <div
-            className="provider-permission-runtime-context"
-            data-testid="settings-permission-runtime-context"
-            data-permission-context-refreshing={refreshing ? 'true' : 'false'}
-            data-permission-context-source={context.source}
-            data-permission-context-status={context.status}
-            title={context.cwd ? `${context.summary ?? ''} ${context.cwd}` : context.summary}
-          >
-            <span>{context.status === 'ok' ? 'Live config loaded' : 'Config fallback loaded'}</span>
-            <button
-              type="button"
-              className="provider-details-inline-action"
-              data-testid="settings-permission-runtime-refresh"
-              aria-label="Refresh provider permission config"
-              disabled={refreshing}
-              onClick={onRefresh}
-            >
-              <Icon name="refresh" size={11} />
-              {refreshing ? 'Refreshing' : 'Refresh'}
-            </button>
-          </div>
-          {refreshStatus && (
-            <div
-              className="provider-permission-refresh-status"
-              data-testid="settings-permission-runtime-refresh-status"
-              data-tone={refreshStatus.tone}
-              role={refreshStatus.tone === 'danger' ? 'alert' : 'status'}
-              aria-live={refreshStatus.tone === 'danger' ? 'assertive' : 'polite'}
-              aria-atomic="true"
-              style={{ '--provider-color': color } as CSSProperties}
-            >
-              {refreshStatus.text}
-            </div>
-          )}
-        </>
-      )}
-    </div>
-  )
-}
-
-function permissionExecutionLabels(execution: PermissionExecutionContract): Array<{ label: string; value: string; strong?: boolean }> {
-  return [
-    execution.nativeMode ? { label: 'Mode', value: execution.nativeMode, strong: true } : null,
-    execution.approvalPolicy ? { label: 'Approval', value: execution.approvalPolicy, strong: true } : null,
-    execution.approvalsReviewer && execution.approvalsReviewer !== 'user' ? { label: 'Reviewer', value: execution.approvalsReviewer } : null,
-    execution.sandboxMode ? { label: 'Sandbox', value: execution.sandboxMode } : null,
-    execution.toolPolicy ? { label: 'Tools', value: execution.toolPolicy } : null,
-    execution.configSource ? { label: 'Source', value: execution.configSource } : null
-  ].filter((chip): chip is { label: string; value: string; strong?: boolean } => Boolean(chip))
-}
-
-function filterPermissionModes(
-  modes: ProviderPermissionMode[],
-  context: ProviderPermissionRuntimeContext | undefined,
-  selectedPolicy: string
-): ProviderPermissionMode[] {
-  if (!context || context.status !== 'ok' || !context.visiblePolicies || context.visiblePolicies.length === 0) return modes
-  const visible = new Set(context.visiblePolicies)
-  return modes.filter((mode) => visible.has(mode.id) || mode.id === selectedPolicy)
 }
 
 function ProviderRuntimeEventsCard({
