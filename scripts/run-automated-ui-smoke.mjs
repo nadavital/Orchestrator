@@ -62,6 +62,7 @@ const captureViewOptions = [
   { flag: '--transcript-permission', view: 'transcript-permission', surface: 'Transcript', scope: 'Permission request cards' },
   { flag: '--transcript-tool-failure', view: 'transcript-tool-failure', surface: 'Transcript', scope: 'Tool failure rendering' },
   { flag: '--copilot-transcript', view: 'copilot-transcript', surface: 'Transcript', scope: 'Copilot SDK transcript, tools, approvals, and agent threads' },
+  { flag: '--copilot-live-transcript', view: 'copilot-live-transcript', surface: 'Transcript', scope: 'Live Copilot SDK transcript and tool rendering; uses provider quota' },
   { flag: '--transcript-stress', view: 'transcript-stress', surface: 'Transcript', scope: 'Large transcript stress behavior' },
   { flag: '--streaming-drag', view: 'streaming-drag', surface: 'Transcript', scope: 'Streaming while dragging' },
   { flag: '--streaming-typing', view: 'streaming-typing', surface: 'Transcript', scope: 'Streaming while typing' },
@@ -1896,6 +1897,18 @@ child.on('exit', async (code) => {
         copilotAgentThreads: result.copilotAgentThreads === true,
         copilotEventInspector: result.copilotEventInspector === true,
         copilotUsageSummary: result.copilotUsageSummary === true
+      }
+    : captureView === 'copilot-live-transcript'
+    ? {
+        isolatedProfile: result.profile?.isIsolated === true,
+        copilotLiveSessionIdentity: result.copilotLiveSessionIdentity === true,
+        copilotLiveRunStarted: result.copilotLiveRunStarted === true,
+        copilotLiveAssistantText: result.copilotLiveAssistantText === true,
+        copilotLiveToolActivity: result.copilotLiveToolActivity === true,
+        copilotLiveToolNoErrors: result.copilotLiveToolNoErrors === true,
+        copilotLiveNoStatusNoise: result.copilotLiveNoStatusNoise === true,
+        copilotLiveCompleted: result.copilotLiveCompleted === true,
+        copilotLiveAgentSurface: result.copilotLiveAgentSurface === true
       }
     : captureView === 'transcript-stress'
     ? {

@@ -35,6 +35,7 @@ interface ActiveCopilotSdkRun {
   client?: CopilotClient
   session?: CopilotSession
   streamedMessageIds: Set<string>
+  startedToolUseIds: Set<string>
   streamBuffers: Map<string, CopilotStreamBuffer>
   pendingUsage: { current?: UsageSummary }
   stopped: boolean
@@ -65,6 +66,7 @@ export class CopilotSdkRuntimeManager {
 
     this.activeRuns.set(options.sessionId, {
       streamedMessageIds: new Set(),
+      startedToolUseIds: new Set(),
       streamBuffers: new Map(),
       pendingUsage: {},
       stopped: false,
@@ -148,6 +150,7 @@ export class CopilotSdkRuntimeManager {
         options.onRawData(raw)
         const events = normalizeCopilotSdkEvent(event, session.sessionId, {
           streamedMessageIds: active.streamedMessageIds,
+          startedToolUseIds: active.startedToolUseIds,
           streamBuffers: active.streamBuffers,
           pendingUsage: active.pendingUsage
         })
@@ -232,7 +235,7 @@ function copilotSdkBaseConfig(sdk: CopilotSdk, request: RunRequest, session: Ses
     enableSessionStore: true
   }
 
-  if (request.executionPolicy === 'yolo' || request.executionPolicy === 'bypassPermissions') {
+  if (copilotSdkAutoApprovesPermissions(request.executionPolicy)) {
     config.onPermissionRequest = sdk.approveAll
   }
   const byokProvider = copilotSdkByokProviderConfig(request)
@@ -241,6 +244,15 @@ function copilotSdkBaseConfig(sdk: CopilotSdk, request: RunRequest, session: Ses
   }
   if (request.allowedTools?.length) config.availableTools = request.allowedTools
   return config
+}
+
+function copilotSdkAutoApprovesPermissions(policy: RunRequest['executionPolicy']): boolean {
+  return policy === 'allowEdits' ||
+    policy === 'tools' ||
+    policy === 'auto' ||
+    policy === 'fullAccess' ||
+    policy === 'yolo' ||
+    policy === 'bypassPermissions'
 }
 
 function copilotSdkByokProviderConfig(request: RunRequest): { type: 'openai' | 'azure' | 'anthropic'; baseUrl: string; apiKey?: string } | null {
@@ -273,6 +285,7 @@ export function normalizeCopilotSdkEvent(
   providerSessionId?: string,
   options: {
     streamedMessageIds?: Set<string>
+    startedToolUseIds?: Set<string>
     streamBuffers?: Map<string, CopilotStreamBuffer>
     pendingUsage?: { current?: UsageSummary }
   } = {}
@@ -318,12 +331,12 @@ export function normalizeCopilotSdkEvent(
     for (const req of toolRequests) {
       const rec = asRecord(req)
       if (!rec) continue
-      events.push({
+      pushCopilotToolStarted(events, {
         type: 'tool.started',
         id: stringValue(rec.toolCallId) ?? uuidv4(),
         toolName: stringValue(rec.name, rec.mcpToolName) ?? 'copilot-tool',
         toolInput: asRecord(rec.arguments) ?? {}
-      })
+      }, options.startedToolUseIds)
     }
   } else if (event.type === 'assistant.reasoning_delta') {
     // Keep incremental reasoning out of the user transcript. The raw event log
@@ -335,12 +348,12 @@ export function normalizeCopilotSdkEvent(
     const usage = copilotUsageSummary(data)
     if (usage && options.pendingUsage) options.pendingUsage.current = usage
   } else if (event.type === 'tool.execution_start') {
-    events.push({
+    pushCopilotToolStarted(events, {
       type: 'tool.started',
       id: stringValue(data?.toolCallId) ?? eventId,
       toolName: stringValue(data?.toolName, data?.mcpToolName) ?? 'copilot-tool',
       toolInput: asRecord(data?.arguments) ?? {}
-    })
+    }, options.startedToolUseIds)
   } else if (event.type === 'tool.execution_complete') {
     events.push({
       type: 'tool.completed',
@@ -386,6 +399,18 @@ export function normalizeCopilotSdkEvent(
   }
 
   return events
+}
+
+function pushCopilotToolStarted(
+  events: RunEvent[],
+  event: Extract<RunEvent, { type: 'tool.started' }>,
+  startedToolUseIds?: Set<string>
+): void {
+  if (startedToolUseIds) {
+    if (startedToolUseIds.has(event.id)) return
+    startedToolUseIds.add(event.id)
+  }
+  events.push(event)
 }
 
 function sanitizeCopilotAssistantText(content: string): string {

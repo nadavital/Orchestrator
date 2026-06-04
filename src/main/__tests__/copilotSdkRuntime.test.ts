@@ -36,7 +36,7 @@ function session(patch: Partial<Session> = {}): Session {
   }
 }
 
-test('copilot sdk config uses subscription auth by default and yolo only for explicit bypass', () => {
+test('copilot sdk config uses subscription auth and maps tool-enabled policies to permission approval', () => {
   const approveAll = () => ({ kind: 'approved' as const })
   const sdk = { approveAll } as unknown as typeof import('@github/copilot-sdk')
   const normal = copilotSdkSessionConfig(sdk, request(), session())
@@ -44,6 +44,12 @@ test('copilot sdk config uses subscription auth by default and yolo only for exp
   assert.equal(normal.streaming, true)
   assert.equal(normal.enableConfigDiscovery, true)
   assert.equal(normal.onPermissionRequest, undefined)
+
+  const tools = copilotSdkSessionConfig(sdk, request({ executionPolicy: 'allowEdits' }), session())
+  assert.equal(tools.onPermissionRequest, approveAll)
+
+  const legacyTools = copilotSdkSessionConfig(sdk, request({ executionPolicy: 'tools' }), session())
+  assert.equal(legacyTools.onPermissionRequest, approveAll)
 
   const bypass = copilotSdkSessionConfig(sdk, request({ executionPolicy: 'yolo' }), session())
   assert.equal(bypass.onPermissionRequest, approveAll)
@@ -203,6 +209,40 @@ test('copilot sdk final assistant message completes an existing stream', () => {
     ]
   )
   assert.equal(streamedMessageIds.has('message-2'), false)
+})
+
+test('copilot sdk dedupes assistant tool requests repeated by execution start events', () => {
+  const startedToolUseIds = new Set<string>()
+  assert.deepEqual(
+    normalizeCopilotSdkEvent({
+      type: 'assistant.message',
+      id: 'event-tool-message',
+      parentId: null,
+      timestamp: '2026-06-02T00:00:07.000Z',
+      data: {
+        messageId: 'message-tools',
+        content: 'I will read the file.',
+        toolRequests: [
+          { toolCallId: 'tool-duplicate', name: 'view', arguments: { path: 'SMOKE.md' } }
+        ]
+      }
+    } as unknown as import('@github/copilot-sdk').SessionEvent, 'copilot-session-1', { startedToolUseIds }),
+    [
+      { type: 'assistant.text', content: 'I will read the file.' },
+      { type: 'tool.started', id: 'tool-duplicate', toolName: 'view', toolInput: { path: 'SMOKE.md' } }
+    ]
+  )
+
+  assert.deepEqual(
+    normalizeCopilotSdkEvent({
+      type: 'tool.execution_start',
+      id: 'event-tool-start',
+      parentId: 'event-tool-message',
+      timestamp: '2026-06-02T00:00:08.000Z',
+      data: { toolCallId: 'tool-duplicate', toolName: 'view', arguments: { path: 'SMOKE.md' } }
+    } as unknown as import('@github/copilot-sdk').SessionEvent, 'copilot-session-1', { startedToolUseIds }),
+    []
+  )
 })
 
 test('copilot sdk streaming normalizes accumulated partial chunks', () => {

@@ -607,6 +607,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
     runAutomatedCopilotTranscriptSmoke(win, outputPath, screenshotPath)
     return
   }
+  if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'copilot-live-transcript') {
+    runAutomatedCopilotLiveTranscriptSmoke(win, outputPath, screenshotPath)
+    return
+  }
   if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'pet-overlay') {
     runAutomatedPetOverlaySmoke(win, outputPath, screenshotPath)
     return
@@ -30860,6 +30864,124 @@ function runAutomatedCopilotTranscriptSmoke(win: BrowserWindow, outputPath: stri
   })
 }
 
+function runAutomatedCopilotLiveTranscriptSmoke(win: BrowserWindow, outputPath: string, screenshotPath?: string): void {
+  win.webContents.once('did-finish-load', () => {
+    setTimeout(async () => {
+      try {
+        win.setMinimumSize(760, 640)
+        win.setSize(1180, 760)
+        const profile = getAppProfile()
+        const session = sessionManager.list().find((candidate) => candidate.name === 'Copilot live transcript smoke')
+        if (!session) {
+          writeFileSync(outputPath, JSON.stringify({ ok: true, result: { profile, copilotLiveSessionIdentity: false }, screenshotPath }, null, 2))
+          app.quit()
+          return
+        }
+
+        win.webContents.send('pet:navigate', session.id)
+        await new Promise((resolve) => setTimeout(resolve, 360))
+        const completed = await new Promise<{ ok: boolean; error?: string | null }>((resolve) => {
+          const started = sessionManager.sendMessage(
+            session.id,
+            [
+              'You are running a tiny Orchestrator live Copilot UI smoke test.',
+              'Read SMOKE.md if it is available.',
+              'Do not edit files.',
+              'Reply with a short sentence that includes ORCHESTRATOR_LIVE_OK.'
+            ].join(' '),
+            false,
+            [],
+            {
+              onProviderRunComplete: (result) => resolve(result)
+            }
+          )
+          started.then((didStart) => {
+            if (!didStart) resolve({ ok: false, error: 'Copilot live run did not start.' })
+          }).catch((error) => resolve({ ok: false, error: error instanceof Error ? error.message : String(error) }))
+          setTimeout(() => resolve({ ok: false, error: 'Copilot live UI smoke timed out.' }), 90_000)
+        })
+        await new Promise((resolve) => setTimeout(resolve, 650))
+
+        const result = await win.webContents.executeJavaScript(`
+          (async () => {
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            for (let index = 0; index < 80; index += 1) {
+              if (document.body.innerText.includes('ORCHESTRATOR_LIVE_OK')) break;
+              await sleep(100);
+            }
+            const scroller = document.querySelector('[data-testid="transcript-scroll"]');
+            if (scroller instanceof HTMLElement) {
+              scroller.scrollTop = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+              scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
+              await sleep(160);
+            }
+            const text = document.body.innerText;
+            const toolSummary = document.querySelector('[data-testid="tool-activity-summary"]');
+            const toolTrigger = toolSummary?.querySelector('.motion-disclosure-trigger');
+            if (toolTrigger instanceof HTMLElement && toolTrigger.getAttribute('aria-expanded') !== 'true') {
+              toolTrigger.click();
+              await sleep(180);
+            }
+            const toolBody = document.querySelector('[data-testid="tool-activity-body"]');
+            const sidePanelToggle = document.querySelector('[data-testid="titlebar-toggle-sidebar"]');
+            if (sidePanelToggle instanceof HTMLButtonElement) {
+              sidePanelToggle.click();
+              await sleep(180);
+            }
+            const agentsAction = document.querySelector('[data-testid="workbench-new-tab-action-agents"]');
+            if (agentsAction instanceof HTMLButtonElement) {
+              agentsAction.click();
+              await sleep(220);
+            }
+            const rightPanel = document.querySelector('[data-testid="session-right-panel"]');
+            const activeSession = await window.api.sessions.get(${JSON.stringify(session.id)});
+            return {
+              copilotLiveSessionIdentity:
+                text.includes('GitHub Copilot') &&
+                text.includes('GPT-5 Mini'),
+              copilotLiveRunStarted:
+                Boolean(activeSession?.providerSessionId),
+              copilotLiveAssistantText:
+                text.includes('ORCHESTRATOR_LIVE_OK'),
+              copilotLiveToolActivity:
+                toolSummary instanceof HTMLElement &&
+                Number(toolSummary.getAttribute('data-tool-activity-row-count') ?? '0') >= 1,
+              copilotLiveToolNoErrors:
+                toolSummary instanceof HTMLElement &&
+                toolSummary.getAttribute('data-tool-activity-has-errors') === 'false',
+              copilotLiveNoStatusNoise:
+                !text.includes('Copilot SDK usage updated') &&
+                !text.includes('Status Sure') &&
+                !text.includes("Status , I'll write"),
+              copilotLiveCompleted:
+                ${JSON.stringify(completed.ok)} === true &&
+                activeSession?.status === 'idle',
+              copilotLiveAgentSurface:
+                rightPanel instanceof HTMLElement &&
+                rightPanel.getAttribute('data-right-panel-open') === 'true' &&
+                rightPanel.getAttribute('data-right-panel-active-tab') === 'agents',
+              completedError: ${JSON.stringify(completed.error ?? '')},
+              toolSummaryText: toolSummary instanceof HTMLElement ? toolSummary.textContent : '',
+              toolBodyText: toolBody instanceof HTMLElement ? toolBody.textContent : '',
+              bodyText: text.slice(-2400)
+            };
+          })()
+        `)
+
+        if (screenshotPath) {
+          const image = await win.webContents.capturePage()
+          writeFileSync(screenshotPath, image.toPNG())
+        }
+        writeFileSync(outputPath, JSON.stringify({ ok: true, result: { profile, ...result }, screenshotPath }, null, 2))
+        app.quit()
+      } catch (error) {
+        writeFileSync(outputPath, JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2))
+        app.quit()
+      }
+    }, 700)
+  })
+}
+
 function runAutomatedPetOverlaySmoke(win: BrowserWindow, outputPath: string, screenshotPath?: string): void {
   win.webContents.once('did-finish-load', () => {
     setTimeout(async () => {
@@ -32880,6 +33002,9 @@ async function bootstrapAutomatedUiSmokeState(): Promise<void> {
   } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'copilot-transcript') {
     seedAutomatedCopilotTranscriptSmokeSession(session.id)
     pendingNavigation = { kind: 'session', sessionId: session.id }
+  } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'copilot-live-transcript') {
+    seedAutomatedCopilotLiveTranscriptSmokeSession(session.id)
+    pendingNavigation = { kind: 'session', sessionId: session.id }
   } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'session-switch') {
     const { one } = await seedAutomatedSessionSwitchSmokeSessions(project.id, project.rootPath)
     automatedInitialRendererHash = `/threads/${encodeURIComponent(one.id)}`
@@ -34074,7 +34199,7 @@ function seedAutomatedCopilotTranscriptSmokeSession(sessionId: string): void {
     runtime: 'sdk',
     model: 'claude-sonnet-4.6',
     effort: 'low',
-    permissionMode: 'tools',
+    permissionMode: 'allowEdits',
     allowedTools: ['read_file'],
     disallowedTools: [],
     providerSessionId: null,
@@ -34083,6 +34208,43 @@ function seedAutomatedCopilotTranscriptSmokeSession(sessionId: string): void {
     messageCount: messages.length,
     messagesLoaded: true,
     previewText: promptContent,
+    createdAt: baseTime,
+    latestMessageAt: baseTime
+  })
+}
+
+function seedAutomatedCopilotLiveTranscriptSmokeSession(sessionId: string): void {
+  const session = sessionManager.get(sessionId)
+  if (!session) return
+
+  const baseTime = Date.now()
+  writeFileSync(
+    join(session.workDir, 'SMOKE.md'),
+    [
+      '# Orchestrator Live Copilot Smoke',
+      '',
+      'This file exists so the live Copilot SDK run can exercise a safe read/view tool.',
+      'The expected response marker is ORCHESTRATOR_LIVE_OK.'
+    ].join('\n')
+  )
+
+  sessionManager.save({
+    ...session,
+    name: 'Copilot live transcript smoke',
+    status: 'idle',
+    provider: 'copilot',
+    runtime: 'sdk',
+    model: 'gpt-5-mini',
+    effort: 'low',
+    permissionMode: 'allowEdits',
+    allowedTools: [],
+    disallowedTools: [],
+    providerSessionId: null,
+    claudeSessionId: null,
+    messages: [],
+    messageCount: 0,
+    messagesLoaded: true,
+    previewText: '',
     createdAt: baseTime,
     latestMessageAt: baseTime
   })
