@@ -43,6 +43,7 @@ test('copilot sdk config uses subscription auth and maps tool-enabled policies t
   assert.equal(normal.workingDirectory, '/tmp/project')
   assert.equal(normal.streaming, true)
   assert.equal(normal.enableConfigDiscovery, true)
+  assert.equal(normal.reasoningEffort, 'medium')
   assert.equal(normal.onPermissionRequest, undefined)
 
   const tools = copilotSdkSessionConfig(sdk, request({ executionPolicy: 'allowEdits' }), session())
@@ -53,6 +54,15 @@ test('copilot sdk config uses subscription auth and maps tool-enabled policies t
 
   const bypass = copilotSdkSessionConfig(sdk, request({ executionPolicy: 'yolo' }), session())
   assert.equal(bypass.onPermissionRequest, approveAll)
+})
+
+test('copilot sdk config omits reasoning effort for the auto model', () => {
+  const sdk = { approveAll: () => ({ kind: 'approved' as const }) } as unknown as typeof import('@github/copilot-sdk')
+  const config = copilotSdkSessionConfig(sdk, request({ model: 'auto', effort: 'high' }), session({ model: 'auto', effort: 'high' }))
+  assert.equal(config.model, 'auto')
+  assert.equal('reasoningEffort' in config, false)
+  const casedConfig = copilotSdkSessionConfig(sdk, request({ model: 'Auto', effort: 'high' }), session({ model: 'Auto', effort: 'high' }))
+  assert.equal('reasoningEffort' in casedConfig, false)
 })
 
 test('copilot sdk config can opt into BYOK provider settings from the run request', () => {

@@ -225,7 +225,6 @@ function copilotSdkBaseConfig(sdk: CopilotSdk, request: RunRequest, session: Ses
   const config: SessionConfig = {
     clientName: 'Orchestrator',
     model: request.model,
-    reasoningEffort: copilotSdkReasoningEffort(request.effort),
     workingDirectory: session.workDir || request.cwd,
     streaming: true,
     includeSubAgentStreamingEvents: true,
@@ -234,6 +233,8 @@ function copilotSdkBaseConfig(sdk: CopilotSdk, request: RunRequest, session: Ses
     enableSkills: true,
     enableSessionStore: true
   }
+  const reasoningEffort = copilotSdkReasoningEffort(request.model, request.effort)
+  if (reasoningEffort) config.reasoningEffort = reasoningEffort
 
   if (copilotSdkAutoApprovesPermissions(request.executionPolicy)) {
     config.onPermissionRequest = sdk.approveAll
@@ -494,7 +495,8 @@ function copilotPermissionContent(data: Record<string, unknown> | null): string 
   return stringValue(prompt?.intention, request?.intention, prompt?.fullCommandText, request?.fullCommandText, prompt?.toolName, request?.toolName)
 }
 
-function copilotSdkReasoningEffort(effort: string | undefined): SessionConfig['reasoningEffort'] {
+function copilotSdkReasoningEffort(model: string | undefined, effort: string | undefined): SessionConfig['reasoningEffort'] {
+  if (!model || model.toLowerCase() === 'auto') return undefined
   if (effort === 'low' || effort === 'medium' || effort === 'high') return effort
   return undefined
 }
