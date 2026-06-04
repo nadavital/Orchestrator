@@ -18,7 +18,7 @@ Evidence sources:
 
 ## Summary
 
-Codex uses a mature Floating UI tooltip primitive with collision handling, active-tooltip coordination, skip-delay handoff, focus-visible semantics, overflow-only mode, and zoom-aware portal placement. Orchestrator uses a hand-rolled fixed-position tooltip, then corrects its position after render. Orchestrator also applies global hover scale to `motion-icon-button`, including shell/titlebar/panel controls.
+Codex uses a mature Floating UI tooltip primitive with collision handling, active-tooltip coordination, skip-delay handoff, focus-visible semantics, overflow-only mode, and zoom-aware portal placement. The original Orchestrator spike found a hand-rolled fixed-position tooltip that corrected its position after render and applied global hover scale to `motion-icon-button`, including shell/titlebar/panel controls.
 
 That difference explains most of the observed weirdness:
 
@@ -27,6 +27,36 @@ That difference explains most of the observed weirdness:
 - Orchestrator top-edge placement only checks `rect.top < 38`, not collision with traffic lights, titlebar chrome, visual viewport, zoom, or side-panel bounds.
 - Orchestrator tooltip exit uses transform transitions in the document body portal, so stale chips can visibly animate across unrelated chrome when the anchor disappears.
 - Orchestrator scales icon buttons on hover, which moves the target while the tooltip is being scheduled and positioned.
+
+## Current Implementation Status
+
+Updated: 2026-06-04
+
+The main local hover-chip parity work is now implemented and verified. Treat the original phase plan below as historical context, not as an open TODO list.
+
+Completed:
+
+- Shared `Tooltip` now uses delayed first hover, a 300ms skip-delay handoff between tooltip targets, and a single active-tooltip coordinator.
+- Keyboard focus opens custom tooltips only for `:focus-visible`.
+- Tooltip positioning renders hidden first, measures, then publishes fixed coordinates, so the first visible frame is stable.
+- Tooltip placement is clamped within the viewport and smoke-checked against a top-left traffic-light safe area.
+- Tooltip CSS now uses opacity-only motion instead of visible transform travel across shell chrome.
+- Global `.motion-icon-button` hover/active scale was removed for shell icon controls.
+- Focused smoke coverage now checks header, sidebar, and right-panel tooltip bounds and calm motion.
+
+Verified in this branch:
+
+- `npm run build`
+- `git diff --check`
+- `npm run smoke:ui:auto -- --header`
+- `npm run smoke:ui:auto -- --sidebar`
+- `npm run smoke:ui:auto -- --right-panel`
+
+Still real:
+
+- Sidebar hover cards and richer interactive hover surfaces are coordinated with tooltips, but they do not yet share one Floating UI-style positioning primitive. Move them only if a concrete hover-card bug recurs.
+- Exact live Codex pixel/timing proof is still blocked by live capture limitations. Use manual side-by-side evidence or a working nonblank ScreenCaptureKit route before reopening pixel-level hover parity.
+- If installing locally, rebuild the packaged app with `npm run pack:mac` before `npm run install:mac`; the installer copies `dist/mac-arm64/Orchestrator.app`.
 
 ## Concrete Differences
 

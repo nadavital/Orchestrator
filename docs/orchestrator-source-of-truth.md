@@ -1,6 +1,6 @@
 # Orchestrator Source Of Truth
 
-Last updated: 2026-05-30
+Last updated: 2026-06-04
 
 This is the canonical execution plan for Orchestrator. Every long-running implementation pass should start here, update this file as work lands, and treat the older docs in `docs/` as supporting research or historical evidence.
 
@@ -10,6 +10,8 @@ For provider-specific implementation work, use `docs/provider-integration-runboo
 
 Recent side-panel parity checkpoint:
 
+- Current TODO cleanup checkpoint: `docs/current-todo-audit.md` is the short current triage entrypoint. The 2026-06-04 audit found no active source-code `TODO`/`FIXME`/`XXX`/`HACK` markers outside fixture strings, marked the hover-chip parity plan and sidebar Chats/header cleanup as completed, and kept the real remaining work in provider/live proof, provider settings cleanup, composer/provider consistency, live Codex UI proof, Browser runtime signals, hosted Review/provider proof, and Phase 2 renderer fidelity.
+- Hover-chip parity checkpoint: the 2026-06-04 pass implemented the local tooltip fixes from `docs/codex-hover-chip-parity-spike.md`: delayed first hover, skip-delay handoff, one active tooltip, focus-visible keyboard semantics, hidden-first measurement, viewport clamping, opacity-only motion, no shell icon hover scale, and focused header/sidebar/right-panel smoke coverage. Reopen hover work only with concrete hover-card evidence or live Codex pixel/timing proof.
 - Live Codex UI capture route audit: the remaining `live-codex-ui` rows still need nonblank visual evidence, but the available local capture routes are currently exhausted. `screencapture` can enumerate a Codex window but returns black pixels, Computer Use refuses `com.openai.codex`, Chronicle is not fresh, the older CoreGraphics window-image API is unavailable on the current macOS SDK, and a temporary ScreenCaptureKit prototype failed from this process (`SCStreamErrorDomain -3811` for window capture; no capturable displays for display capture). Treat live-Codex pixel/timing proof as waiting on manual side-by-side evidence or a ScreenCaptureKit route from a process/session with working screen-capture permission, not another local UI polish pass.
 - Detailed Phase 1 status: use `pnpm run smoke:ui:phase1:status -- --markdown --details` for a human-readable daily-use/parity checkpoint that includes proof artifact statuses plus each remaining live/provider/Phase 2 gap. Use the plain status command for scripts and the detailed Markdown form for deciding what work is actually worth doing next.
 - Local-vs-external readiness split: the comparison and Phase 1 status reports now print explicit local implementation gap and external/deferred gap counts. Current local implementation gaps are zero; remaining work should not become local UI polish unless fresh dogfood, a new comparison row, or a provider contract creates an implementation-owned gap.
