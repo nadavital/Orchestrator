@@ -2,7 +2,7 @@ import { memo, useState, useRef, useEffect } from 'react'
 import type { Ref, RefObject } from 'react'
 import type { Attachment, GitRefOption, Project, ProviderModelDef, ProviderPermissionMode, ProviderPermissionRuntimeContext, ProviderRuntimeInfo, ProviderSlashCommand, ResolvedExecutionPolicy, Session, WorktreeInventoryItem } from '../../types'
 import type { SlashPaletteCommand } from '../../types'
-import { PROVIDER_DEFS, canStopSession, canSwitchSessionProvider, expandSlashCommandPrompt, fastBaseModelIdForProviderModel, getComposerSendState, getDefaultPermissionMode, getVisibleModels, sessionRouteUrlForLocation } from '../../types'
+import { PROVIDER_DEFS, canStopSession, canSwitchSessionProvider, expandSlashCommandPrompt, fastBaseModelIdForProviderModel, fastVariantModelIdForProviderModel, getComposerSendState, getDefaultPermissionMode, getVisibleModels, sessionRouteUrlForLocation } from '../../types'
 import { defaultUI, hasComposerDraft, sideChatContextSnapshot, useSessionStore } from '../../store/sessions'
 import { useProjectStore } from '../../store/projects'
 import SlashCommandPalette, { getSlashQuery } from './SlashCommandPalette'
@@ -266,7 +266,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   const configuredModelChoices = getVisibleModels(provider, providerModels)
   const configuredDefaultModel = configuredModelChoices[0]?.id ?? provider.models[0]?.id ?? ''
   const rawModel = session.model || configuredDefaultModel
-  const fastBaseModelId = provider.id === 'cursor' ? fastBaseModelIdForProviderModel(provider, rawModel) : null
+  const fastBaseModelId = fastBaseModelIdForProviderModel(provider, rawModel)
   const model = fastBaseModelId ?? rawModel
   const visibleModelChoices = getVisibleModelsWithCurrent(provider, providerModels, model)
   const canSwitchProvider = isNew && canSwitchSessionProvider(session)
@@ -317,14 +317,15 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   const canUsePermission = resolvedPermission?.support !== 'unsupported' && !contextDisabledPermissionReason
   const composerDropdownOpen = showAgentMenu || showPermMenu || showModeMenu || showProjectMenu
 
-  // Cursor per-model effort/thinking/fast config
-  const cursorCfg = provider.id === 'cursor'
-    ? PROVIDER_DEFS.cursor.models.find((m) => m.id === model)?.cursorConfig
-    : undefined
+  // Provider per-model variant config. Cursor currently exposes the richest
+  // effort/thinking matrix, but fast variants are useful across providers.
+  const modelVariantCfg = provider.models.find((m) => m.id === model)?.cursorConfig
+  const cursorCfg = provider.id === 'cursor' ? modelVariantCfg : undefined
   const cursorEffortLevels = cursorCfg?.effortLevels ?? []
   const cursorEffort = session.effort || cursorCfg?.defaultEffort || cursorEffortLevels[0]?.id || ''
   const cursorEfLevel = cursorEffortLevels.find((l) => l.id === cursorEffort)
-  const hasFast = !!(cursorEfLevel?.fastModelId || (cursorCfg && cursorEffortLevels.length === 0 && cursorCfg.fastModelId))
+  const fastVariantModelId = fastVariantModelIdForProviderModel(provider, model, cursorEffort || effort)
+  const hasFast = Boolean(fastVariantModelId)
   const hasThinking = !!cursorCfg?.supportsThinking
   const useThinking = session.useThinking ?? false
   const useFast = (session.useFast ?? false) || Boolean(fastBaseModelId)
@@ -394,7 +395,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
       switchCursorModel(modelId)
       return
     }
-    update({ model: modelId })
+    update({ model: modelId, useFast: false })
   }
 
   const previousConfiguredDefaultModelRef = useRef(configuredDefaultModel)
@@ -1147,7 +1148,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     showEffortInTrigger ? effortLabel : null,
     provider.id === 'cursor' && cursorEffortLevels.length > 0 && cursorEfLevel ? cursorEfLevel.label : null,
     provider.id === 'cursor' && useThinking ? 'Think' : null,
-    provider.id === 'cursor' && useFast ? 'Fast' : null,
+    hasFast && useFast ? 'Fast' : null,
   ].filter(Boolean).join(' · ')
   const agentTriggerTitle = [
     provider.name,
@@ -1155,7 +1156,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     provider.supportsEffort && effortLabel ? effortLabel : null,
     provider.id === 'cursor' && cursorEffortLevels.length > 0 && cursorEfLevel ? cursorEfLevel.label : null,
     provider.id === 'cursor' && useThinking ? 'Thinking on' : null,
-    provider.id === 'cursor' && useFast ? 'Fast mode' : null,
+    hasFast && useFast ? 'Fast mode' : null,
   ].filter(Boolean).join(' · ')
   const agentTriggerLabel = agentLabel || provider.name
   const submenuChevron = <Icon name="chevronRight" size={16} />
@@ -1322,7 +1323,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
               Thinking
             </ComposerMenuRow>
           )}
-          {provider.id === 'cursor' && hasFast && (
+          {hasFast && (
             <ComposerMenuRow
               active={false}
               detail={useFast ? 'Fast' : 'Standard'}

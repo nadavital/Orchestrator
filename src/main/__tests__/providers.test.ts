@@ -4,7 +4,7 @@ import { chmodSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import type { RunEvent, RunRequest } from '../../types'
-import { AGENT_THREAD_ADAPTER_CONTRACTS, PROVIDER_DEFS, deriveAgentNodes, deriveAgentThreadGraph, derivePlanStatesFromMessages, fastBaseModelIdForProviderModel, getDefaultPermissionMode, getPrimaryPermissionModes, getProviderPermissionPresets, getVisibleModels, normalizeProviderModelOrder, parseClaudeAgentsOutput, permissionRequestDetail } from '../../types'
+import { AGENT_THREAD_ADAPTER_CONTRACTS, PROVIDER_DEFS, deriveAgentNodes, deriveAgentThreadGraph, derivePlanStatesFromMessages, fastBaseModelIdForProviderModel, fastVariantModelIdForProviderModel, getDefaultPermissionMode, getPrimaryPermissionModes, getProviderPermissionPresets, getVisibleModels, normalizeProviderModelOrder, parseClaudeAgentsOutput, permissionRequestDetail } from '../../types'
 import { buildProviderCommandForRuntime, claudeMcpServerNames, codexRuntimePolicyConfig, getProviderDiagnostics, getProviderDiagnosticsAsync, getProviderRuntimeInfo, providerAuthFailureMessage, PROVIDERS, providerSdkSpawnEnv, providerSpawnEnv, resolveProviderBinary, resolveProviderPermissionRuntimeContext, runProviderCommandSurface, runProviderCommandSurfaceAsync } from '../providers'
 import { eventsToMessages } from '../runEvents'
 
@@ -90,9 +90,20 @@ test('cursor fast models are represented as speed toggles instead of duplicate m
   assert.equal(visibleDefaults.some((model) => model.id === 'composer-2.5-fast'), false)
   assert.equal(visibleDefaults.some((model) => model.id === 'composer-2.5'), true)
   assert.equal(fastBaseModelIdForProviderModel(cursor, 'composer-2.5-fast'), 'composer-2.5')
+  assert.equal(fastVariantModelIdForProviderModel(cursor, 'composer-2.5'), 'composer-2.5-fast')
   assert.deepEqual(
     normalizeProviderModelOrder(cursor, ['composer-2.5-fast', 'composer-2.5', 'composer-2-fast', 'auto']),
     ['composer-2.5', 'composer-2', 'auto']
+  )
+})
+
+test('suffix fast models are represented as speed toggles instead of duplicate models', () => {
+  const copilot = PROVIDER_DEFS.copilot
+  assert.equal(fastBaseModelIdForProviderModel(copilot, 'claude-opus-4.6-fast'), 'claude-opus-4.6')
+  assert.equal(fastVariantModelIdForProviderModel(copilot, 'claude-opus-4.6'), 'claude-opus-4.6-fast')
+  assert.deepEqual(
+    normalizeProviderModelOrder(copilot, ['claude-opus-4.6-fast', 'claude-opus-4.6', 'gpt-5.5']),
+    ['claude-opus-4.6', 'gpt-5.5']
   )
 })
 

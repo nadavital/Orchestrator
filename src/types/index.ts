@@ -585,11 +585,35 @@ export function fastBaseModelIdForProviderModel(
     if (cfg.fastModelId === modelId) return model.id
     if (cfg.effortLevels?.some((level) => level.fastModelId === modelId)) return model.id
   }
+  if (modelId.endsWith('-fast')) {
+    const baseId = modelId.slice(0, -'-fast'.length)
+    if (providerDef.models.some((model) => model.id === baseId)) return baseId
+  }
   return null
 }
 
 export function isFastVariantProviderModel(providerDef: ProviderDef, modelId: string): boolean {
   return fastBaseModelIdForProviderModel(providerDef, modelId) !== null
+}
+
+export function fastVariantModelIdForProviderModel(
+  providerDef: ProviderDef,
+  modelId: string,
+  effortId?: string
+): string | null {
+  const baseId = fastBaseModelIdForProviderModel(providerDef, modelId) ?? modelId
+  const model = providerDef.models.find((candidate) => candidate.id === baseId)
+  const cfg = model?.cursorConfig
+  if (cfg?.effortLevels && cfg.effortLevels.length > 0) {
+    const level = cfg.effortLevels.find((candidate) => candidate.id === effortId) ??
+      cfg.effortLevels.find((candidate) => candidate.id === cfg.defaultEffort) ??
+      cfg.effortLevels[0]
+    if (level?.fastModelId) return level.fastModelId
+  }
+  if (cfg?.fastModelId) return cfg.fastModelId
+  const suffixFastId = `${baseId}-fast`
+  if (providerDef.models.some((candidate) => candidate.id === suffixFastId)) return suffixFastId
+  return null
 }
 
 export function getConfigurableModels(providerDef: ProviderDef): ProviderModelDef[] {

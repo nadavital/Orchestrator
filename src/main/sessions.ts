@@ -6,7 +6,7 @@ import { readFileSync } from 'fs'
 import { performance } from 'perf_hooks'
 import { promisify } from 'util'
 import type { AgentThreadOpenRequest, AgentThreadOpenResult, Attachment, AutomationPermissionSnapshot, CodexReviewStartRequest, Session, SessionForkMode, SessionForkOptions, SessionListItem, ChatMessage, TextMessage, ProviderRuntimeKind, ProviderSidebarSyncResult, ReviewMetadata, RunEvent, RunRequest, SessionStatus, SideQuestionMessage, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary, UserInputAnswerPayload, WorktreeInventoryItem } from '../types'
-import { PROVIDER_DEFS, applyAutomationPermissionSnapshot, canSwitchSessionProvider, finalizeInterruptedMessages, getConfigurableModels, getDefaultPermissionMode, normalizeProviderModelOrder } from '../types'
+import { PROVIDER_DEFS, applyAutomationPermissionSnapshot, canSwitchSessionProvider, fastBaseModelIdForProviderModel, fastVariantModelIdForProviderModel, finalizeInterruptedMessages, getConfigurableModels, getDefaultPermissionMode, normalizeProviderModelOrder } from '../types'
 import { gitManager } from './git'
 import { buildProviderCommandForRuntime, getProvider, PROVIDERS, providerSpawnEnv, resolveProviderBinary, resolveProviderCommand, runCodexAppServerCommandSurfaceRaw } from './providers'
 import type { ProviderAdapter } from './providers'
@@ -231,6 +231,16 @@ function send(channel: string, ...args: unknown[]): void {
 
 function requestFromSession(session: Session, prompt: string): RunRequest {
   const providerId = session.provider ?? 'claude'
+  const providerDef = PROVIDER_DEFS[providerId] ?? PROVIDER_DEFS.claude
+  const rawModel = session.model
+  const fastBaseModelId = rawModel ? fastBaseModelIdForProviderModel(providerDef, rawModel) : null
+  const baseModel = fastBaseModelId ?? rawModel
+  const useFast = Boolean(session.useFast || fastBaseModelId)
+  const requestModel = providerId === 'cursor' || !baseModel
+    ? baseModel
+    : useFast
+      ? fastVariantModelIdForProviderModel(providerDef, baseModel, session.effort) ?? baseModel
+      : baseModel
   const preparedPrompt = claudeAgentThreadPromptForRequest(session, prompt)
   const copilotByokProvider = providerId === 'copilot'
     ? settingsStore.get('copilotByokProvider', {
@@ -243,7 +253,7 @@ function requestFromSession(session: Session, prompt: string): RunRequest {
   return {
     prompt: preparedPrompt,
     cwd: session.workDir,
-    model: session.model,
+    model: requestModel,
     effort: session.effort,
     agentName: session.agentName ?? null,
     providerSessionId: session.providerSessionId ?? session.claudeSessionId ?? null,
@@ -254,7 +264,7 @@ function requestFromSession(session: Session, prompt: string): RunRequest {
     additionalDirs: session.additionalDirs ?? [],
     runtime: sessionRuntimeForProvider(providerId, session.runtime),
     useThinking: session.useThinking,
-    useFast: session.useFast,
+    useFast,
     ...(copilotByokProvider ? { copilotByokProvider } : {})
   }
 }
