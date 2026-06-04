@@ -8147,17 +8147,18 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             workbenchPanelInactiveTabs.every((tab) => (tab.getAttribute('aria-label') ?? '').trim().length > 0) &&
             workbenchPanelInactiveTabs.every((tab) => tab.getBoundingClientRect().width >= 44);
           let workbenchPanelInactiveTabTooltipWorks = false;
+          let workbenchPanelInactiveTabTooltipMotionCalmWorks = false;
           const inactiveBrowserTab = workbenchPanelInactiveTabs.find((tab) => tab.getAttribute('aria-label') === 'Browser') ?? workbenchPanelInactiveTabs[0];
           if (inactiveBrowserTab instanceof HTMLElement) {
             const expectedTooltip = inactiveBrowserTab.getAttribute('aria-label') ?? '';
             const inactiveTabRect = inactiveBrowserTab.getBoundingClientRect();
-            inactiveBrowserTab.dispatchEvent(new MouseEvent('mouseover', {
+            inactiveBrowserTab.dispatchEvent(new PointerEvent('pointerover', {
               bubbles: true,
+              pointerType: 'mouse',
               clientX: inactiveTabRect.left + inactiveTabRect.width / 2,
               clientY: inactiveTabRect.top + inactiveTabRect.height / 2
             }));
-            inactiveBrowserTab.focus({ preventScroll: true });
-            await sleep(360);
+            await sleep(780);
             const visibleTooltips = [...document.querySelectorAll('.orchestrator-tooltip[data-visible="true"]')];
             const visibleTooltip = visibleTooltips
               .find((tooltip) => tooltip.textContent?.trim() === expectedTooltip);
@@ -8184,8 +8185,13 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               visibleTooltip instanceof HTMLElement &&
               visibleTooltip.parentElement === document.body &&
               tooltipReadable;
+            workbenchPanelInactiveTabTooltipMotionCalmWorks =
+              visibleTooltip instanceof HTMLElement &&
+              tooltipStyle !== null &&
+              visibleTooltip.getAttribute('data-measuring') === 'false' &&
+              tooltipStyle.transform === 'none';
             inactiveBrowserTab.blur();
-            inactiveBrowserTab.dispatchEvent(new MouseEvent('mouseout', { bubbles: true }));
+            inactiveBrowserTab.dispatchEvent(new PointerEvent('pointerout', { bubbles: true, pointerType: 'mouse' }));
             await sleep(80);
           }
           const diffToolbar = document.querySelector('[data-testid="diff-panel-toolbar"]');
@@ -8628,6 +8634,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 (element.getAttribute('data-tooltip-label') ?? '').trim().length > 0;
             });
           let headerLongTooltipBoundedWorks = false;
+          let headerTooltipTrafficLightSafeWorks = false;
+          let headerTooltipMotionCalmWorks = false;
           const profileBadge = document.querySelector('[data-testid="profile-badge"]');
           const profileBadgeRect = profileBadge instanceof HTMLElement ? profileBadge.getBoundingClientRect() : null;
           const profileBadgeCompactWorks =
@@ -8659,17 +8667,18 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             profileBadgeRect.width <= 26 &&
             profileBadgeRect.height <= 26;
           if (profileBadge instanceof HTMLElement) {
-            profileBadge.dispatchEvent(new MouseEvent('mouseover', {
+            profileBadge.dispatchEvent(new PointerEvent('pointerover', {
               bubbles: true,
+              pointerType: 'mouse',
               clientX: profileBadgeRect.left + profileBadgeRect.width / 2,
               clientY: profileBadgeRect.top + profileBadgeRect.height / 2
             }));
-            profileBadge.focus({ preventScroll: true });
-            await sleep(360);
+            await sleep(780);
             const visibleTooltips = [...document.querySelectorAll('.orchestrator-tooltip[data-visible="true"]')];
             const visibleTooltip = visibleTooltips
               .find((tooltip) => tooltip.textContent?.trim() === 'Profile: ' + profile.displayName);
             const tooltipRect = visibleTooltip instanceof HTMLElement ? visibleTooltip.getBoundingClientRect() : null;
+            const tooltipStyle = visibleTooltip instanceof HTMLElement ? getComputedStyle(visibleTooltip) : null;
             const tooltipText = visibleTooltip instanceof HTMLElement ? visibleTooltip.textContent?.trim() ?? '' : '';
             headerLongTooltipBoundedWorks =
               visibleTooltips.length === 1 &&
@@ -8683,8 +8692,16 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               tooltipRect.right <= window.innerWidth - 7 &&
               tooltipRect.bottom <= window.innerHeight - 7 &&
               visibleTooltip.scrollWidth <= visibleTooltip.clientWidth + 2;
+            headerTooltipTrafficLightSafeWorks =
+              tooltipRect !== null &&
+              (tooltipRect.right <= 0 || tooltipRect.left >= 92 || tooltipRect.bottom <= 0 || tooltipRect.top >= 42);
+            headerTooltipMotionCalmWorks =
+              visibleTooltip instanceof HTMLElement &&
+              tooltipStyle !== null &&
+              visibleTooltip.getAttribute('data-measuring') === 'false' &&
+              tooltipStyle.transform === 'none';
             profileBadge.blur();
-            profileBadge.dispatchEvent(new MouseEvent('mouseout', { bubbles: true }));
+            profileBadge.dispatchEvent(new PointerEvent('pointerout', { bubbles: true, pointerType: 'mouse' }));
             await sleep(80);
           }
           const buttons = [...document.querySelectorAll('button')].map((button) => ({
@@ -8756,6 +8773,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             headerIdentityWorks,
             headerNativeTooltipsWork,
             headerLongTooltipBoundedWorks,
+            headerTooltipTrafficLightSafeWorks,
+            headerTooltipMotionCalmWorks,
             titlebarSidebarToggleWorks: typeof titlebarSidebarToggleWorks === 'boolean' ? titlebarSidebarToggleWorks : null,
             customTooltipNativeTitlesAbsent,
             customTooltipNativeTitleLeaks,
@@ -8783,6 +8802,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             workbenchPanelTabCloseStartEdgeDebug,
             workbenchPanelInactiveTabsCompactWorks,
             workbenchPanelInactiveTabTooltipWorks,
+            workbenchPanelInactiveTabTooltipMotionCalmWorks,
             diffToolbarCompactWorks,
             reviewToolbarHeaderRowWorks,
             reviewToolbarPrimaryOrderWorks,
@@ -9621,6 +9641,46 @@ function runAutomatedFocusedSurfaceSmoke(
                 terminalPanelClosedInertWorks = closedPanelIsInert(document.querySelector('[data-motion-panel="bottom"]'));
               }
               headerClosedPanelInertWorks = rightPanelClosedInertWorks && terminalPanelClosedInertWorks;
+              let headerLongTooltipBoundedWorks = false;
+              let headerTooltipTrafficLightSafeWorks = false;
+              let headerTooltipMotionCalmWorks = false;
+              if (profileBadge instanceof HTMLElement && profileBadgeRect !== null) {
+                profileBadge.dispatchEvent(new PointerEvent('pointerover', {
+                  bubbles: true,
+                  pointerType: 'mouse',
+                  clientX: profileBadgeRect.left + profileBadgeRect.width / 2,
+                  clientY: profileBadgeRect.top + profileBadgeRect.height / 2
+                }));
+                await sleep(780);
+                const visibleTooltips = [...document.querySelectorAll('.orchestrator-tooltip[data-visible="true"]')];
+                const visibleTooltip = visibleTooltips
+                  .find((tooltip) => tooltip.textContent?.trim() === 'Profile: ' + profile.displayName);
+                const tooltipRect = visibleTooltip instanceof HTMLElement ? visibleTooltip.getBoundingClientRect() : null;
+                const tooltipStyle = visibleTooltip instanceof HTMLElement ? getComputedStyle(visibleTooltip) : null;
+                const tooltipText = visibleTooltip instanceof HTMLElement ? visibleTooltip.textContent?.trim() ?? '' : '';
+                headerLongTooltipBoundedWorks =
+                  visibleTooltips.length === 1 &&
+                  visibleTooltip instanceof HTMLElement &&
+                  !tooltipText.includes(profile.userDataDir) &&
+                  !tooltipText.includes('/') &&
+                  visibleTooltip.parentElement === document.body &&
+                  tooltipRect !== null &&
+                  tooltipRect.left >= 7 &&
+                  tooltipRect.top >= 7 &&
+                  tooltipRect.right <= window.innerWidth - 7 &&
+                  tooltipRect.bottom <= window.innerHeight - 7 &&
+                  visibleTooltip.scrollWidth <= visibleTooltip.clientWidth + 2;
+                headerTooltipTrafficLightSafeWorks =
+                  tooltipRect !== null &&
+                  (tooltipRect.right <= 0 || tooltipRect.left >= 92 || tooltipRect.bottom <= 0 || tooltipRect.top >= 42);
+                headerTooltipMotionCalmWorks =
+                  visibleTooltip instanceof HTMLElement &&
+                  tooltipStyle !== null &&
+                  visibleTooltip.getAttribute('data-measuring') === 'false' &&
+                  tooltipStyle.transform === 'none';
+                profileBadge.dispatchEvent(new PointerEvent('pointerout', { bubbles: true, pointerType: 'mouse' }));
+                await sleep(80);
+              }
               const headerTooltipIds = ['active-session-title', 'session-header-metadata', 'profile-badge'];
               if (document.querySelector('[data-testid="session-header-pinned"]')) headerTooltipIds.push('session-header-pinned');
               return {
@@ -9653,6 +9713,9 @@ function runAutomatedFocusedSurfaceSmoke(
                     element.getAttribute('data-native-title-free') === 'true' &&
                     (element.getAttribute('data-tooltip-label') ?? '').trim().length > 0;
                 }),
+                headerLongTooltipBoundedWorks,
+                headerTooltipTrafficLightSafeWorks,
+                headerTooltipMotionCalmWorks,
                 headerActions,
                 titlebarSidebarToggleWorks:
                   titlebarToggleSidebar instanceof HTMLButtonElement &&
@@ -11196,6 +11259,8 @@ function runAutomatedFocusedSurfaceSmoke(
               let workbenchPanelTabOverflowControllerWorks = false;
               let workbenchPanelTabCodexWidthCapWorks = false;
               let workbenchPanelTabCodexMetricsWorks = false;
+              let workbenchPanelInactiveTabTooltipWorks = false;
+              let workbenchPanelInactiveTabTooltipMotionCalmWorks = false;
               let workbenchPanelTabReadableSeparationWorks = false;
               let workbenchPanelTabReadableSeparationDebug = {};
               let workbenchPanelActiveTabVisibleAfterResizeWorks = false;
@@ -11305,6 +11370,47 @@ function runAutomatedFocusedSurfaceSmoke(
                 workbenchPanelTabCodexWidthCapWorks =
                   tabWidthCapWorks &&
                   workbenchPanelTabOverflowControllerWorks;
+                const inactiveTooltipTab = tabButtons.find((button) => button.getAttribute('data-active') !== 'true');
+                if (inactiveTooltipTab instanceof HTMLElement) {
+                  const expectedTooltip =
+                    inactiveTooltipTab.getAttribute('aria-label') ??
+                    inactiveTooltipTab.getAttribute('data-tooltip-label') ??
+                    inactiveTooltipTab.textContent?.trim() ??
+                    '';
+                  const inactiveTabRect = inactiveTooltipTab.getBoundingClientRect();
+                  inactiveTooltipTab.dispatchEvent(new PointerEvent('pointerover', {
+                    bubbles: true,
+                    pointerType: 'mouse',
+                    clientX: inactiveTabRect.left + inactiveTabRect.width / 2,
+                    clientY: inactiveTabRect.top + inactiveTabRect.height / 2
+                  }));
+                  await sleep(1000);
+                  const visibleTooltips = [...document.querySelectorAll('.orchestrator-tooltip[data-visible="true"]')];
+                  const visibleTooltip = visibleTooltips
+                    .find((tooltip) => tooltip.textContent?.trim() === expectedTooltip);
+                  const tooltipRect = visibleTooltip instanceof HTMLElement ? visibleTooltip.getBoundingClientRect() : null;
+                  const tooltipStyle = visibleTooltip instanceof HTMLElement ? getComputedStyle(visibleTooltip) : null;
+                  const tooltipReadable =
+                    tooltipRect !== null &&
+                    tooltipStyle !== null &&
+                    tooltipRect.width >= 20 &&
+                    tooltipRect.height >= 10 &&
+                    Number.parseFloat(tooltipStyle.opacity || '1') >= 0.8 &&
+                    tooltipStyle.visibility !== 'hidden';
+                  workbenchPanelInactiveTabTooltipWorks =
+                    expectedTooltip.length > 0 &&
+                    visibleTooltips.length === 1 &&
+                    visibleTooltip instanceof HTMLElement &&
+                    visibleTooltip.parentElement === document.body &&
+                    tooltipReadable;
+                  workbenchPanelInactiveTabTooltipMotionCalmWorks =
+                    visibleTooltip instanceof HTMLElement &&
+                    tooltipStyle !== null &&
+                    visibleTooltip.getAttribute('data-measuring') === 'false' &&
+                    tooltipStyle.transform === 'none';
+                  inactiveTooltipTab.dispatchEvent(new PointerEvent('pointerout', { bubbles: true, pointerType: 'mouse' }));
+                  await sleep(160);
+                }
                 const closableTabs = tabButtons.filter((tab) => tab.getAttribute('data-closable') === 'true');
                 const closeButtons = closableTabs
                   .map((tab) => ({
@@ -12453,6 +12559,8 @@ function runAutomatedFocusedSurfaceSmoke(
                 workbenchPanelTabOverflowControllerWorks,
                 workbenchPanelTabCodexWidthCapWorks,
                 workbenchPanelTabCodexMetricsWorks,
+                workbenchPanelInactiveTabTooltipWorks,
+                workbenchPanelInactiveTabTooltipMotionCalmWorks,
                 workbenchPanelTabReadableSeparationWorks,
                 workbenchPanelTabReadableSeparationDebug,
                 workbenchPanelActiveTabVisibleAfterResizeWorks,
@@ -25888,6 +25996,7 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
             }
             let singleHoverSurfaceWorks = false;
             let tooltipSurfaceReadable = false;
+            let tooltipMotionCalmWorks = false;
             let tooltipDismissesOnViewportChange = false;
             const normalArchiveButton = normalRow?.querySelector('[data-testid="session-archive-button"], [aria-label="Archive chat"], [title="Archive chat"]');
             const normalChatActionsButton = normalRow?.querySelector('[aria-label="Chat actions"], [title="Chat actions"]');
@@ -25896,13 +26005,12 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               !(normalChatActionsButton instanceof HTMLElement);
             if (normalArchiveButton instanceof HTMLElement) {
               const actionRect = normalArchiveButton.getBoundingClientRect();
-              normalArchiveButton.dispatchEvent(new PointerEvent('pointermove', {
+              normalArchiveButton.dispatchEvent(new PointerEvent('pointerover', {
                 bubbles: true,
                 pointerType: 'mouse',
                 clientX: actionRect.left + 8,
                 clientY: actionRect.top + 8
               }));
-              normalArchiveButton.focus({ preventScroll: true });
               await sleep(920);
               const visibleTooltips = [...document.querySelectorAll('.orchestrator-tooltip[data-visible="true"]')];
               const visibleHoverCards = [...document.querySelectorAll('[data-testid="session-hover-card"]')];
@@ -25914,6 +26022,12 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               const tooltipPortalWorks =
                 visibleTooltip instanceof HTMLElement &&
                 visibleTooltip.parentElement === document.body;
+              const tooltipStyle = visibleTooltip instanceof HTMLElement ? getComputedStyle(visibleTooltip) : null;
+              tooltipMotionCalmWorks =
+                visibleTooltip instanceof HTMLElement &&
+                tooltipStyle !== null &&
+                visibleTooltip.getAttribute('data-measuring') === 'false' &&
+                tooltipStyle.transform === 'none';
               singleHoverSurfaceWorks =
                 visibleTooltips.length === 1 &&
                 visibleHoverCards.length === 0 &&
@@ -25923,7 +26037,7 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               tooltipDismissesOnViewportChange =
                 document.querySelectorAll('.orchestrator-tooltip[data-visible="true"]').length === 0;
               normalArchiveButton.blur();
-              normalArchiveButton.dispatchEvent(new MouseEvent('mouseout', { bubbles: true }));
+              normalArchiveButton.dispatchEvent(new PointerEvent('pointerout', { bubbles: true, pointerType: 'mouse' }));
               await sleep(80);
             }
             const sidebar = document.querySelector('[data-testid="app-sidebar"]');
@@ -27683,6 +27797,7 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               renameDialogSharedLayoutWorks,
               renameDialogInputFocused,
               tooltipSurfaceReadable,
+              tooltipMotionCalmWorks,
               singleHoverSurfaceWorks,
               tooltipDismissesOnViewportChange,
               customTooltipNativeTitlesAbsent: customTooltipNativeTitleLeaks.length === 0,

@@ -2363,13 +2363,11 @@
   }
 
   .motion-button:hover,
-  .motion-icon-button:hover,
   .toolbar-button:hover {
     transform: scale(var(--motion-scale-edge-hover));
   }
 
   .motion-button:active,
-  .motion-icon-button:active,
   .toolbar-button:active,
   .motion-edge-button:active {
     transform: scale(var(--motion-scale-tap-soft));
@@ -15080,18 +15078,16 @@
     line-height: 1.25;
     opacity: 0;
     padding: 6px 7.5px;
-    transform: translate(-50%, -100%) translateY(-3px);
     visibility: hidden;
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
     transition:
       opacity var(--motion-duration-edge) var(--motion-ease-standard),
-      transform var(--motion-duration-edge) var(--motion-ease-standard),
       visibility 0s linear var(--motion-duration-edge);
   }
 
-  .orchestrator-tooltip[data-placement='bottom'] {
-    transform: translate(-50%, 3px);
+  .orchestrator-tooltip[data-measuring='true'] {
+    transition: none;
   }
 
   .orchestrator-tooltip-anchor {
@@ -15103,13 +15099,8 @@
 
   .orchestrator-tooltip[data-visible='true'] {
     opacity: 1;
-    transform: translate(-50%, -100%);
     visibility: visible;
     transition-delay: 0s;
-  }
-
-  .orchestrator-tooltip[data-visible='true'][data-placement='bottom'] {
-    transform: translate(-50%, 0);
   }
 
   @media (prefers-reduced-motion: reduce) {

@@ -32,6 +32,13 @@ function appShellPanelEaseOut(progress: number): number {
 
 const hoverSurfaceOpenEvent = 'orchestrator:hover-surface-open'
 const tooltipHoverDelayMs = 700
+const tooltipSkipDelayMs = 300
+const tooltipViewportPadding = 8
+const tooltipAnchorGap = 7
+
+let activeTooltipId: string | null = null
+let tooltipSkipDelayUntil = 0
+let tooltipSkipDelayTimer: number | null = null
 
 function cssEscape(value: string): string {
   if (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') return CSS.escape(value)
@@ -107,6 +114,30 @@ function recordAppShellPanelMetric(
 
 export function announceHoverSurfaceOpen(id: string): void {
   window.dispatchEvent(new CustomEvent(hoverSurfaceOpenEvent, { detail: { id } }))
+}
+
+function markTooltipHandoffOpen(id: string): void {
+  activeTooltipId = id
+  if (tooltipSkipDelayTimer !== null) {
+    window.clearTimeout(tooltipSkipDelayTimer)
+    tooltipSkipDelayTimer = null
+  }
+  announceHoverSurfaceOpen(id)
+}
+
+function markTooltipHandoffClosed(id: string): void {
+  if (activeTooltipId !== id) return
+  activeTooltipId = null
+  tooltipSkipDelayUntil = Date.now() + tooltipSkipDelayMs
+  if (tooltipSkipDelayTimer !== null) window.clearTimeout(tooltipSkipDelayTimer)
+  tooltipSkipDelayTimer = window.setTimeout(() => {
+    tooltipSkipDelayTimer = null
+    if (Date.now() >= tooltipSkipDelayUntil) tooltipSkipDelayUntil = 0
+  }, tooltipSkipDelayMs)
+}
+
+function tooltipDelayForNextOpen(): number {
+  return Date.now() < tooltipSkipDelayUntil ? 0 : tooltipHoverDelayMs
 }
 
 export function useExclusiveHoverSurface(id: string, onClose: () => void): void {
@@ -535,13 +566,67 @@ export function WorkbenchSearchField({
   )
 }
 
+type TooltipPlacement = 'top' | 'bottom'
+type TooltipPosition = { left: number; top: number; placement: TooltipPlacement }
+
+function clampTooltipValue(value: number, min: number, max: number): number {
+  if (max < min) return min
+  return Math.min(Math.max(value, min), max)
+}
+
+function getTooltipViewport(): { left: number; top: number; right: number; bottom: number } {
+  const visualViewport = window.visualViewport
+  const left = visualViewport?.offsetLeft ?? 0
+  const top = visualViewport?.offsetTop ?? 0
+  const width = visualViewport?.width ?? window.innerWidth
+  const height = visualViewport?.height ?? window.innerHeight
+  return {
+    left,
+    top,
+    right: left + width,
+    bottom: top + height,
+  }
+}
+
+function computeTooltipPosition(anchorRect: DOMRect, tooltipRect: DOMRect): TooltipPosition {
+  const viewport = getTooltipViewport()
+  const minLeft = viewport.left + tooltipViewportPadding
+  const maxLeft = viewport.right - tooltipViewportPadding - tooltipRect.width
+  const availableAbove = anchorRect.top - viewport.top - tooltipViewportPadding
+  const availableBelow = viewport.bottom - anchorRect.bottom - tooltipViewportPadding
+  const placement: TooltipPlacement = availableAbove >= tooltipRect.height + tooltipAnchorGap || availableAbove >= availableBelow
+    ? 'top'
+    : 'bottom'
+  const preferredLeft = anchorRect.left + anchorRect.width / 2 - tooltipRect.width / 2
+  const left = clampTooltipValue(preferredLeft, minLeft, maxLeft)
+  const rawTop = placement === 'top'
+    ? anchorRect.top - tooltipAnchorGap - tooltipRect.height
+    : anchorRect.bottom + tooltipAnchorGap
+  const top = clampTooltipValue(
+    rawTop,
+    viewport.top + tooltipViewportPadding,
+    viewport.bottom - tooltipViewportPadding - tooltipRect.height
+  )
+  return { left, top, placement }
+}
+
+function isFocusVisible(element: Element): boolean {
+  try {
+    return element.matches(':focus-visible')
+  } catch {
+    return false
+  }
+}
+
 export function Tooltip({ label, children, disabled = false }: { label: string; children: ReactNode; disabled?: boolean }): JSX.Element {
   const idRef = useRef(`tooltip-${Math.random().toString(36).slice(2)}`)
   const anchorRef = useRef<HTMLSpanElement | null>(null)
   const tooltipRef = useRef<HTMLSpanElement | null>(null)
   const showTimeoutRef = useRef<number | null>(null)
+  const hideTimeoutRef = useRef<number | null>(null)
   const [visible, setVisible] = useState(false)
-  const [position, setPosition] = useState<{ left: number; top: number; placement: 'top' | 'bottom' } | null>(null)
+  const [rendered, setRendered] = useState(false)
+  const [position, setPosition] = useState<TooltipPosition | null>(null)
 
   const clearShowTimeout = (): void => {
     if (showTimeoutRef.current === null) return
@@ -549,61 +634,74 @@ export function Tooltip({ label, children, disabled = false }: { label: string; 
     showTimeoutRef.current = null
   }
 
+  const clearHideTimeout = (): void => {
+    if (hideTimeoutRef.current === null) return
+    window.clearTimeout(hideTimeoutRef.current)
+    hideTimeoutRef.current = null
+  }
+
   const showNow = (): void => {
     if (disabled || !label) return
     clearShowTimeout()
-    const rect = anchorRef.current?.getBoundingClientRect()
-    if (!rect) return
-    const left = Math.min(Math.max(rect.left + rect.width / 2, 8), window.innerWidth - 8)
-    const placement = rect.top < 38 ? 'bottom' : 'top'
-    const top = placement === 'bottom'
-      ? Math.min(rect.bottom + 7, window.innerHeight - 28)
-      : Math.max(rect.top - 7, 8)
-    announceHoverSurfaceOpen(idRef.current)
-    setPosition({ left, top, placement })
-    setVisible(true)
+    clearHideTimeout()
+    if (!anchorRef.current) return
+    markTooltipHandoffOpen(idRef.current)
+    setVisible(false)
+    setPosition(null)
+    setRendered(true)
   }
 
   const scheduleShow = (): void => {
     if (disabled || !label) return
     clearShowTimeout()
+    clearHideTimeout()
+    const delay = tooltipDelayForNextOpen()
+    if (delay === 0) {
+      showNow()
+      return
+    }
     showTimeoutRef.current = window.setTimeout(() => {
       showTimeoutRef.current = null
       showNow()
-    }, tooltipHoverDelayMs)
+    }, delay)
   }
 
   const hide = (): void => {
     clearShowTimeout()
+    clearHideTimeout()
     setVisible(false)
-    setPosition(null)
+    hideTimeoutRef.current = window.setTimeout(() => {
+      hideTimeoutRef.current = null
+      setRendered(false)
+      setPosition(null)
+    }, 60)
+    markTooltipHandoffClosed(idRef.current)
   }
   useExclusiveHoverSurface(idRef.current, hide)
 
-  useEffect(() => () => clearShowTimeout(), [])
+  useEffect(() => () => {
+    clearShowTimeout()
+    clearHideTimeout()
+    markTooltipHandoffClosed(idRef.current)
+  }, [])
 
   useEffect(() => {
     if (disabled || !label) hide()
   }, [disabled, label])
 
   useLayoutEffect(() => {
-    if (!visible || !position) return
-    const rect = tooltipRef.current?.getBoundingClientRect()
-    if (!rect) return
-    const nextLeft = Math.min(
-      Math.max(position.left, 8 + rect.width / 2),
-      window.innerWidth - 8 - rect.width / 2
-    )
-    const nextTop = position.placement === 'bottom'
-      ? Math.min(Math.max(position.top, 8), window.innerHeight - 8 - rect.height)
-      : Math.min(Math.max(position.top, 8 + rect.height), window.innerHeight - 8)
-    if (Math.abs(nextLeft - position.left) > 0.5 || Math.abs(nextTop - position.top) > 0.5) {
-      setPosition({ ...position, left: nextLeft, top: nextTop })
-    }
-  }, [label, position, visible])
+    if (!rendered || position) return
+    const anchorRect = anchorRef.current?.getBoundingClientRect()
+    const tooltipRect = tooltipRef.current?.getBoundingClientRect()
+    if (!anchorRect || !tooltipRect || tooltipRect.width <= 0 || tooltipRect.height <= 0) return
+    setPosition(computeTooltipPosition(anchorRect, tooltipRect))
+    window.requestAnimationFrame(() => {
+      setVisible(true)
+    })
+  }, [label, position, rendered])
 
   useEffect(() => {
-    if (!visible) return
+    if (!rendered) return
     const hideForViewportChange = (): void => hide()
     const hideForGlobalDismiss = (event: Event): void => {
       const target = event.target
@@ -625,7 +723,7 @@ export function Tooltip({ label, children, disabled = false }: { label: string; 
       window.removeEventListener('resize', hideForViewportChange)
       window.removeEventListener('blur', hideForViewportChange)
     }
-  }, [visible])
+  }, [rendered])
 
   return (
     <span
@@ -634,27 +732,25 @@ export function Tooltip({ label, children, disabled = false }: { label: string; 
       onPointerEnter={(event) => {
         if (!disabled && event.pointerType !== 'touch') scheduleShow()
       }}
-      onPointerMove={(event) => {
-        if (!disabled && event.pointerType !== 'touch') scheduleShow()
-      }}
       onMouseEnter={disabled ? undefined : scheduleShow}
-      onMouseMove={disabled ? undefined : scheduleShow}
-      onMouseOver={disabled ? undefined : showNow}
       onPointerLeave={hide}
       onMouseLeave={hide}
-      onFocus={disabled ? undefined : showNow}
+      onFocus={(event) => {
+        if (!disabled && isFocusVisible(event.currentTarget)) showNow()
+      }}
       onBlur={hide}
       onMouseDownCapture={hide}
       onContextMenu={hide}
     >
       {children}
-      {!disabled && label && createPortal(
+      {!disabled && label && rendered && createPortal(
         <span
           ref={tooltipRef}
           className="orchestrator-tooltip"
           role="tooltip"
           data-visible={visible && position ? 'true' : 'false'}
           data-placement={position?.placement ?? 'top'}
+          data-measuring={position ? 'false' : 'true'}
           style={{
             left: position?.left ?? 0,
             top: position?.top ?? 0
