@@ -1262,18 +1262,20 @@ function SidebarProjectlessChatsGroup({
         className="group project-section-row cursor-pointer select-none"
         size="section"
         onClick={onToggle}
-        leading={(
-          <span className="motion-chevron shrink-0" style={{ color: 'var(--text-tertiary)', transform: collapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}>
-            <IconChevron />
+        label={(
+          <span className="inline-flex min-w-0 items-center gap-1">
+            <span>Chats</span>
+            <span className="motion-chevron shrink-0" style={{ color: 'var(--text-tertiary)', transform: collapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}>
+              <IconChevron />
+            </span>
           </span>
         )}
-        label="Chats"
         detail={`${sessions.length}`}
         trailing={(
           <span className="surface-row-secondary">
             <IconButton
               icon={creating ? 'refresh' : 'plus'}
-              label={creating ? 'Creating chat' : 'New independent chat'}
+              label={creating ? 'Creating chat' : 'New chat'}
               disabled={creating}
               size="sm"
               dataTestId="sidebar-projectless-new-chat"
