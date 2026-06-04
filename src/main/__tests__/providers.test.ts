@@ -4,7 +4,7 @@ import { chmodSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import type { RunEvent, RunRequest } from '../../types'
-import { AGENT_THREAD_ADAPTER_CONTRACTS, PROVIDER_DEFS, deriveAgentNodes, deriveAgentThreadGraph, derivePlanStatesFromMessages, fastBaseModelIdForProviderModel, fastEffortForProviderRequest, fastVariantModelIdForProviderModel, getDefaultPermissionMode, getPrimaryPermissionModes, getProviderPermissionPresets, getVisibleModels, normalizeProviderModelOrder, parseClaudeAgentsOutput, permissionRequestDetail, supportsFastModeForProviderModel } from '../../types'
+import { AGENT_THREAD_ADAPTER_CONTRACTS, PROVIDER_DEFS, deriveAgentNodes, deriveAgentThreadGraph, derivePlanStatesFromMessages, fastBaseModelIdForProviderModel, fastVariantModelIdForProviderModel, getDefaultPermissionMode, getPrimaryPermissionModes, getProviderPermissionPresets, getVisibleModels, normalizeProviderModelOrder, parseClaudeAgentsOutput, permissionRequestDetail, supportsFastModeForProviderModel } from '../../types'
 import { buildProviderCommandForRuntime, claudeMcpServerNames, codexRuntimePolicyConfig, getProviderDiagnostics, getProviderDiagnosticsAsync, getProviderRuntimeInfo, providerAuthFailureMessage, PROVIDERS, providerSdkSpawnEnv, providerSpawnEnv, resolveProviderBinary, resolveProviderPermissionRuntimeContext, runProviderCommandSurface, runProviderCommandSurfaceAsync } from '../providers'
 import { eventsToMessages } from '../runEvents'
 
@@ -108,24 +108,20 @@ test('suffix fast models are represented as speed toggles instead of duplicate m
   )
 })
 
-test('provider fast modes do not require duplicate fast model ids', () => {
+test('provider fast modes are only shown for real fast variants or speed metadata', () => {
   const claude = PROVIDER_DEFS.claude
   const codex = PROVIDER_DEFS.codex
 
   assert.equal(fastVariantModelIdForProviderModel(claude, 'claude-sonnet-4-6'), null)
-  assert.equal(supportsFastModeForProviderModel(claude, 'claude-sonnet-4-6'), true)
-  assert.equal(fastEffortForProviderRequest(claude, 'high', true), 'low')
-  assert.equal(fastEffortForProviderRequest(claude, 'high', false), 'high')
+  assert.equal(supportsFastModeForProviderModel(claude, 'claude-sonnet-4-6'), false)
 
   assert.equal(fastVariantModelIdForProviderModel(codex, 'gpt-5.3-codex'), null)
-  assert.equal(supportsFastModeForProviderModel(codex, 'gpt-5.3-codex'), true)
-  assert.equal(fastEffortForProviderRequest(codex, 'xhigh', true), 'low')
+  assert.equal(supportsFastModeForProviderModel(codex, 'gpt-5.3-codex'), false)
 })
 
 test('provider fast modes can be driven by model speed metadata', () => {
   const provider = {
     ...PROVIDER_DEFS.codex,
-    fastMode: undefined,
     models: [
       { id: 'tiered-model', label: 'Tiered Model', serviceTiers: [{ id: 'standard' }, { id: 'fast' }] },
       { id: 'speed-model', label: 'Speed Model', additionalSpeedTiers: ['fast'] },
