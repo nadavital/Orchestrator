@@ -161,6 +161,7 @@ export default function Sidebar({
   const [draggedSectionKey, setDraggedSectionKey] = useState<`custom:${string}` | null>(null)
   const [activeSectionDropTarget, setActiveSectionDropTarget] = useState<string | null>(null)
   const [isAddingProject, setIsAddingProject] = useState(false)
+  const [isCreatingProjectlessChat, setIsCreatingProjectlessChat] = useState(false)
   const [addProjectStatus, setAddProjectStatus] = useState<ProjectOpenStatus | null>(null)
   const [addProjectError, setAddProjectError] = useState<string | null>(null)
   const settingsHostOptions = useMemo(() => settingsHostOptionsFromSessions(sessions), [sessions])
@@ -341,6 +342,41 @@ export default function Sidebar({
     } finally {
       setIsAddingProject(false)
       setAddProjectStatus(null)
+    }
+  }
+
+  const handleNewProjectlessChat = async (): Promise<void> => {
+    if (isCreatingProjectlessChat) return
+    setIsCreatingProjectlessChat(true)
+    try {
+      const sessionState = useSessionStore.getState()
+      const projectState = useProjectStore.getState()
+      const active = sessionState.sessions.find((session) => session.id === sessionState.activeSessionId)
+      const activeProject = active ? projectState.projects.find((project) => project.id === active.projectId) : null
+      const fallbackProject = projectState.projects.at(-1)
+      const workDir = active?.workDir ?? activeProject?.rootPath ?? fallbackProject?.rootPath ?? await window.api.fs.resolveHome()
+      const repoRoot = active?.repoRoot ?? activeProject?.rootPath ?? fallbackProject?.rootPath ?? workDir
+
+      if (active && (active.messageCount ?? active.messages.length) === 0 && active.status !== 'running' && !hasComposerDraft(sessionState.uiState[active.id])) {
+        await window.api.sessions.remove(active.id)
+        if (active.projectId) await window.api.projects.removeSession(active.projectId, active.id)
+        sessionState.removeSession(active.id)
+        if (active.projectId) projectState.removeSessionFromProject(active.projectId, active.id)
+      }
+
+      const session = await window.api.sessions.create({
+        projectId: '',
+        workDir,
+        useWorktree: false,
+        repoRoot
+      })
+      sessionState.addSession(session)
+      sessionState.setActiveSession(session.id)
+      setShowCapabilities(false)
+      setShowSettings(false)
+      if (projectlessChatsCollapsed) toggleProjectlessChatsCollapsed()
+    } finally {
+      setIsCreatingProjectlessChat(false)
     }
   }
 
@@ -772,15 +808,17 @@ export default function Sidebar({
   )
 
   const renderProjectlessChatsSection = (): JSX.Element | null => {
-    if (viewMode === 'chronological' || viewMode === 'connections' || projectlessSessions.length === 0) return null
+    if (viewMode === 'chronological' || viewMode === 'connections') return null
 
     return (
       <SidebarProjectlessChatsGroup
         key="projectless"
         sessions={projectlessSessions}
         collapsed={projectlessChatsCollapsed}
+        creating={isCreatingProjectlessChat}
         projectlessChatsFirst={projectlessChatsFirst}
         onToggle={toggleProjectlessChatsCollapsed}
+        onNewChat={handleNewProjectlessChat}
         renderSession={renderDraggableSession}
       />
     )
@@ -1197,14 +1235,18 @@ function SidebarConnectionGroup({
 function SidebarProjectlessChatsGroup({
   sessions,
   collapsed,
+  creating,
   projectlessChatsFirst,
   onToggle,
+  onNewChat,
   renderSession
 }: {
   sessions: Session[]
   collapsed: boolean
+  creating: boolean
   projectlessChatsFirst: boolean
   onToggle: () => void
+  onNewChat: () => void | Promise<void>
   renderSession?: (session: Session) => ReactNode
 }): JSX.Element {
   return (
@@ -1227,6 +1269,21 @@ function SidebarProjectlessChatsGroup({
         )}
         label="Chats"
         detail={`${sessions.length}`}
+        trailing={(
+          <span className="surface-row-secondary">
+            <IconButton
+              icon={creating ? 'refresh' : 'plus'}
+              label={creating ? 'Creating chat' : 'New independent chat'}
+              disabled={creating}
+              size="sm"
+              dataTestId="sidebar-projectless-new-chat"
+              onClick={(event) => {
+                event.stopPropagation()
+                void onNewChat()
+              }}
+            />
+          </span>
+        )}
       />
       {!collapsed && (
         <div className="space-y-1">

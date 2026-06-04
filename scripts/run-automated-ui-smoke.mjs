@@ -2050,6 +2050,7 @@ child.on('exit', async (code) => {
         sidebarPinnedDragReorder: result.sidebarPinnedDragReorderWorks === true,
         sidebarProviderPinnedOrderPreserved: result.sidebarProviderPinnedOrderPreservedWorks === true,
         sidebarProjectlessChats: result.sidebarProjectlessChatsWorks === true,
+        sidebarProjectlessNewChat: result.sidebarProjectlessNewChatWorks === true,
         sidebarProjectlessChatsFirstPreference: result.sidebarProjectlessChatsFirstPreferenceWorks === true,
         providerProjectlessMetadata: result.providerProjectlessMetadataWorks === true,
         providerWorktreeMetadata: result.providerWorktreeMetadataWorks === true,

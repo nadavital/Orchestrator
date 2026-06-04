@@ -25678,6 +25678,7 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               }
             }
             let sidebarProjectlessChatsWorks = false;
+            let sidebarProjectlessNewChatWorks = false;
             let sidebarProjectlessChatsFirstPreferenceWorks = false;
             let providerProjectlessMetadataWorks = false;
             let providerWorktreeMetadataWorks = false;
@@ -25767,8 +25768,20 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               const projectlessExpandedVisible =
                 rowFor('Sidebar projectless chat') instanceof HTMLElement &&
                 rowFor('Sidebar remote projectless codex') instanceof HTMLElement;
+              const projectlessNewChatButton = collapseProjectlessHeader.querySelector('[data-testid="sidebar-projectless-new-chat"]');
+              if (projectlessNewChatButton instanceof HTMLButtonElement) {
+                projectlessNewChatButton.click();
+                await sleep(360);
+                const activeProjectlessShell = document.querySelector('[data-testid="sidebar-projectless-chats-section"] .session-row-shell [data-testid="session-row"][data-active="true"]')?.closest('.session-row-shell');
+                const activeProjectlessTitle = activeProjectlessShell?.querySelector('[data-thread-title]');
+                sidebarProjectlessNewChatWorks =
+                  activeProjectlessShell instanceof HTMLElement &&
+                  activeProjectlessShell.getAttribute('data-sidebar-projectless') === 'true' &&
+                  activeProjectlessTitle instanceof HTMLElement &&
+                  activeProjectlessTitle.getAttribute('data-thread-title') === 'New Chat';
+              }
               sidebarProjectlessChatsWorks =
-                projectlessSection.getAttribute('data-sidebar-projectless-session-count') === '2' &&
+                Number(projectlessSection.getAttribute('data-sidebar-projectless-session-count') ?? '0') >= 2 &&
                 projectlessSectionSharesProjectScroll &&
                 projectlessRowScoped &&
                 remoteProjectlessRowScoped &&
@@ -27636,6 +27649,7 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               sidebarPinnedDragReorderWorks,
               sidebarProviderPinnedOrderPreservedWorks,
               sidebarProjectlessChatsWorks,
+              sidebarProjectlessNewChatWorks,
               sidebarProjectlessChatsFirstPreferenceWorks,
               providerProjectlessMetadataWorks,
               providerWorktreeMetadataWorks,
