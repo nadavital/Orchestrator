@@ -343,8 +343,9 @@ export function normalizeCopilotSdkEvent(
     // Keep incremental reasoning out of the user transcript. The raw event log
     // still preserves it for diagnostics.
   } else if (event.type === 'assistant.reasoning') {
-    const content = stringValue(data?.content, data?.deltaContent)
-    if (content) events.push({ type: 'assistant.status', content })
+    // Keep finalized reasoning out of the user transcript too. Copilot can send
+    // rationale such as "The user wants me to..." after the final answer, and
+    // rendering it as assistant.status creates a noisy Status card.
   } else if (event.type === 'assistant.usage') {
     const usage = copilotUsageSummary(data)
     if (usage && options.pendingUsage) options.pendingUsage.current = usage

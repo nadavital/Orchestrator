@@ -30766,6 +30766,7 @@ function runAutomatedCopilotTranscriptSmoke(win: BrowserWindow, outputPath: stri
                 !(document.querySelector('[data-testid="streaming-cursor"]') instanceof HTMLElement),
               copilotNoStatusNoise:
                 !finalText.includes('Copilot SDK usage updated') &&
+                !finalText.includes('The user wants me to respond in a paragraph') &&
                 !finalText.includes('Status Sure') &&
                 !finalText.includes("Status , I'll write"),
               copilotToolActivity:
@@ -30905,6 +30906,7 @@ function runAutomatedCopilotLiveTranscriptSmoke(win: BrowserWindow, outputPath: 
                 toolSummary.getAttribute('data-tool-activity-has-errors') === 'false',
               copilotLiveNoStatusNoise:
                 !text.includes('Copilot SDK usage updated') &&
+                !text.includes('The user wants me to respond in a paragraph') &&
                 !text.includes('Status Sure') &&
                 !text.includes("Status , I'll write"),
               copilotLiveCompleted:
@@ -34321,6 +34323,10 @@ function copilotTranscriptSmokeFinalEvents(): RunEvent[] {
         completedAt: Date.now(),
         summary: 'Read README and summarize workspace shape.'
       }
+    },
+    {
+      type: 'assistant.status',
+      content: 'The user wants me to respond in a paragraph about whatever topic I choose.'
     },
     {
       type: 'run.completed',

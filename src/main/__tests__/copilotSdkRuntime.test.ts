@@ -356,6 +356,17 @@ test('copilot sdk reasoning and task-complete text stay out of the transcript', 
   )
   assert.deepEqual(
     normalizeCopilotSdkEvent({
+      type: 'assistant.reasoning',
+      id: 'event-reasoning-2',
+      parentId: 'event-reasoning-1',
+      timestamp: '2026-06-02T00:00:08.500Z',
+      ephemeral: false,
+      data: { reasoningId: 'reasoning-1', content: 'The user wants me to respond in a paragraph about whatever topic I choose.' }
+    } as import('@github/copilot-sdk').SessionEvent, 'copilot-session-1'),
+    []
+  )
+  assert.deepEqual(
+    normalizeCopilotSdkEvent({
       type: 'session.task_complete',
       id: 'event-task-complete-1',
       parentId: 'event-reasoning-1',
