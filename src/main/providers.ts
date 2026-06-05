@@ -21,6 +21,7 @@ import type {
   ProviderCommandSurfaceResult,
   ProviderDiagnosticInfo,
   ProviderFeature,
+  ProviderModelDef,
   ProviderPermissionRuntimeContext,
   ProviderProbeDefinition,
   ProviderProbeResult,
@@ -1533,12 +1534,14 @@ function providerSpecificDiagnostics(
   const modelIds = modelLines
     .map((line) => line.split(' - ')[0]?.trim())
     .filter((id): id is string => Boolean(id))
+  const modelItems = modelIds.map((id) => ({ id, label: id }))
   const models: ProviderDiagnosticInfo['models'] = modelsProbe.ok && modelIds.length > 0
     ? {
         status: 'available',
         count: modelIds.length,
         message: `${modelIds.length} models reported by Cursor Agent for this account.`,
-        ids: modelIds
+        ids: modelIds,
+        items: modelItems
       }
     : fallbackModels
 
@@ -1593,12 +1596,14 @@ async function providerSpecificDiagnosticsAsync(
   const modelIds = modelLines
     .map((line) => line.split(' - ')[0]?.trim())
     .filter((id): id is string => Boolean(id))
+  const modelItems = modelIds.map((id) => ({ id, label: id }))
   const models: ProviderDiagnosticInfo['models'] = modelsProbe.ok && modelIds.length > 0
     ? {
         status: 'available',
         count: modelIds.length,
         message: `${modelIds.length} models reported by Cursor Agent for this account.`,
-        ids: modelIds
+        ids: modelIds,
+        items: modelItems
       }
     : fallbackModels
 
@@ -1607,6 +1612,64 @@ async function providerSpecificDiagnosticsAsync(
 
 function uniqueModelIds(ids: string[]): string[] {
   return [...new Set(ids.map((id) => id.trim()).filter(Boolean))]
+}
+
+function serviceTiersFromUnknown(value: unknown): ProviderModelDef['serviceTiers'] | undefined {
+  if (!Array.isArray(value)) return undefined
+  const tiers = value.flatMap((entry): NonNullable<ProviderModelDef['serviceTiers']> => {
+    if (typeof entry === 'string' && entry.trim()) return [entry.trim()]
+    const record = asRecord(entry)
+    const id = stringValue(record?.id, record?.name, record?.tier)
+    if (!id) return []
+    const label = stringValue(record?.label, record?.displayName, record?.name)
+    return [{ id, ...(label ? { label } : {}) }]
+  })
+  return tiers.length > 0 ? tiers : undefined
+}
+
+function providerModelDefsFromUnknown(value: unknown): ProviderModelDef[] {
+  const models: ProviderModelDef[] = []
+  const visit = (candidate: unknown): void => {
+    if (Array.isArray(candidate)) {
+      candidate.forEach(visit)
+      return
+    }
+    const record = asRecord(candidate)
+    if (!record) return
+    const id = typeof record.id === 'string'
+      ? record.id
+      : typeof record.model === 'string'
+        ? record.model
+        : typeof record.name === 'string' && /^[-./:_a-z0-9]+$/i.test(record.name)
+          ? record.name
+          : null
+    if (id) {
+      const label = stringValue(record.displayName, record.label, record.name) ?? id
+      const additionalSpeedTiers = stringArrayValue(record.additionalSpeedTiers, record.speedTiers)
+      const serviceTiers = serviceTiersFromUnknown(record.serviceTiers)
+      models.push({
+        id,
+        label,
+        ...(additionalSpeedTiers.length > 0 ? { additionalSpeedTiers } : {}),
+        ...(serviceTiers ? { serviceTiers } : {}),
+        ...(typeof record.hidden === 'boolean' ? { hidden: record.hidden } : {})
+      })
+    }
+    ;[
+      record.data,
+      record.items,
+      record.models,
+      record.results,
+      record.available_models,
+      record.availableModels
+    ].forEach(visit)
+  }
+  visit(value)
+  const deduped = new Map<string, ProviderModelDef>()
+  for (const model of models) {
+    if (!deduped.has(model.id)) deduped.set(model.id, model)
+  }
+  return [...deduped.values()]
 }
 
 function modelIdsFromUnknown(value: unknown): string[] {
@@ -1668,7 +1731,8 @@ async function claudeSdkDiagnostics(
       ...(env.ANTHROPIC_BASE_URL ? { baseURL: env.ANTHROPIC_BASE_URL } : {})
     })
     const result = await client.models.list({ limit: 100 })
-    const modelIds = modelIdsFromUnknown(result)
+    const modelItems = providerModelDefsFromUnknown(result)
+    const modelIds = modelItems.length > 0 ? modelItems.map((model) => model.id) : modelIdsFromUnknown(result)
     return {
       auth: {
         status: 'ok',
@@ -1679,7 +1743,8 @@ async function claudeSdkDiagnostics(
             status: 'available',
             count: modelIds.length,
             message: `${modelIds.length} models reported by the Anthropic SDK for this API account.`,
-            ids: modelIds
+            ids: modelIds,
+            ...(modelItems.length > 0 ? { items: modelItems } : {})
           }
         : fallbackModels
     }
@@ -1704,7 +1769,9 @@ async function codexAppServerDiagnostics(
       runCodexAppServerSingleRequest(provider, binary, { method: 'model/list', params: { limit: 100, includeHidden: true } }),
       runCodexAppServerSingleRequest(provider, binary, { method: 'account/read', params: { refreshToken: false } })
     ])
-    const modelIds = modelIdsFromUnknown(modelsResult)
+    const modelItems = providerModelDefsFromUnknown(modelsResult)
+    const visibleModelItems = modelItems.filter((model) => !model.hidden)
+    const modelIds = visibleModelItems.length > 0 ? visibleModelItems.map((model) => model.id) : modelIdsFromUnknown(modelsResult)
     return {
       auth: {
         status: 'ok',
@@ -1715,7 +1782,8 @@ async function codexAppServerDiagnostics(
             status: 'available',
             count: modelIds.length,
             message: `${modelIds.length} models reported by Codex app-server.`,
-            ids: modelIds
+            ids: modelIds,
+            ...(modelItems.length > 0 ? { items: modelItems } : {})
           }
         : fallbackModels
     }
@@ -1743,7 +1811,8 @@ async function antigravitySdkDiagnostics(
     }
   }
   const parsed = parseJsonLine(result.output.trim().split('\n').find((line) => line.trim().startsWith('{')) ?? '')
-  const modelIds = modelIdsFromUnknown(parsed)
+  const modelItems = providerModelDefsFromUnknown(parsed)
+  const modelIds = modelItems.length > 0 ? modelItems.map((model) => model.id) : modelIdsFromUnknown(parsed)
   return {
     auth: {
       status: 'ok',
@@ -1754,7 +1823,8 @@ async function antigravitySdkDiagnostics(
           status: 'available',
           count: modelIds.length,
           message: `${modelIds.length} models reported by the Google Antigravity SDK.`,
-          ids: modelIds
+          ids: modelIds,
+          ...(modelItems.length > 0 ? { items: modelItems } : {})
         }
       : fallbackModels
   }
@@ -1814,9 +1884,12 @@ async function copilotSdkDiagnostics(
 
         const models = await client?.listModels()
         const sessions = await client?.listSessions({ cwd: process.cwd() })
-        const modelIds = Array.isArray(models)
-          ? models.map((model) => model.id).filter((id): id is string => Boolean(id))
-          : []
+        const modelItems = providerModelDefsFromUnknown(models)
+        const modelIds = modelItems.length > 0
+          ? modelItems.map((model) => model.id)
+          : Array.isArray(models)
+            ? models.map((model) => model.id).filter((id): id is string => Boolean(id))
+            : []
         const modelCount = modelIds.length
         const sessionCount = Array.isArray(sessions) ? sessions.length : 0
         return {
@@ -1829,7 +1902,8 @@ async function copilotSdkDiagnostics(
                 status: 'available',
                 count: modelCount,
                 message: `${modelCount} models reported by GitHub Copilot SDK for this account.`,
-                ids: modelIds
+                ids: modelIds,
+                ...(modelItems.length > 0 ? { items: modelItems } : {})
               }
             : fallbackModels
         } satisfies Pick<ProviderDiagnosticInfo, 'auth' | 'models'>

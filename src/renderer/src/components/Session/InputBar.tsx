@@ -2,7 +2,7 @@ import { memo, useState, useRef, useEffect } from 'react'
 import type { Ref, RefObject } from 'react'
 import type { Attachment, GitRefOption, Project, ProviderModelDef, ProviderPermissionMode, ProviderPermissionRuntimeContext, ProviderRuntimeInfo, ProviderSlashCommand, ResolvedExecutionPolicy, Session, WorktreeInventoryItem } from '../../types'
 import type { SlashPaletteCommand } from '../../types'
-import { PROVIDER_DEFS, canStopSession, canSwitchSessionProvider, expandSlashCommandPrompt, fastBaseModelIdForProviderModel, getComposerSendState, getDefaultPermissionMode, getVisibleModels, sessionRouteUrlForLocation, supportsFastModeForProviderModel } from '../../types'
+import { PROVIDER_DEFS, canStopSession, canSwitchSessionProvider, expandSlashCommandPrompt, fastBaseModelIdForProviderModel, getComposerSendState, getDefaultPermissionMode, getVisibleModels, mergeProviderModelCatalog, sessionRouteUrlForLocation, supportsFastModeForProviderModel } from '../../types'
 import { defaultUI, hasComposerDraft, sideChatContextSnapshot, useSessionStore } from '../../store/sessions'
 import { useProjectStore } from '../../store/projects'
 import SlashCommandPalette, { getSlashQuery } from './SlashCommandPalette'
@@ -54,6 +54,7 @@ function normalizeComposerEnterBehavior(value: unknown): ComposerEnterBehavior {
 function InputBar({ session, isNew }: Props): JSX.Element {
   const providerAvailability = useSessionStore((state) => state.providerAvailability)
   const providerModels = useSessionStore((state) => state.providerModels)
+  const providerModelCatalog = useSessionStore((state) => state.providerModelCatalog)
   const currentUi = useSessionStore((state) => state.uiState[session.id] ?? defaultUI)
   const setComposerDraft = useSessionStore((state) => state.setComposerDraft)
   const setComposerAttachments = useSessionStore((state) => state.setComposerAttachments)
@@ -262,7 +263,8 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     return () => window.removeEventListener('orchestrator:add-composer-attachment', onAddComposerAttachment)
   }, [session.id, setComposerAttachments])
 
-  const provider = PROVIDER_DEFS[session.provider ?? 'claude'] ?? PROVIDER_DEFS.claude
+  const baseProvider = PROVIDER_DEFS[session.provider ?? 'claude'] ?? PROVIDER_DEFS.claude
+  const provider = mergeProviderModelCatalog(baseProvider, providerModelCatalog[baseProvider.id])
   const configuredModelChoices = getVisibleModels(provider, providerModels)
   const configuredDefaultModel = configuredModelChoices[0]?.id ?? provider.models[0]?.id ?? ''
   const rawModel = session.model || configuredDefaultModel

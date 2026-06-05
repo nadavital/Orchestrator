@@ -106,6 +106,7 @@ export interface ProviderModelDef {
   cursorConfig?: CursorModelConfig
   serviceTiers?: Array<string | { id: string; label?: string; name?: string }>
   additionalSpeedTiers?: string[]
+  hidden?: boolean
 }
 
 export interface ProviderAgentDef {
@@ -639,7 +640,32 @@ export function supportsFastModeForProviderModel(
 }
 
 export function getConfigurableModels(providerDef: ProviderDef): ProviderModelDef[] {
-  return providerDef.models.filter((model) => !isFastVariantProviderModel(providerDef, model.id))
+  return providerDef.models.filter((model) => !model.hidden && !isFastVariantProviderModel(providerDef, model.id))
+}
+
+export function mergeProviderModelCatalog(
+  providerDef: ProviderDef,
+  catalog: ProviderModelDef[] | undefined
+): ProviderDef {
+  if (!catalog || catalog.length === 0) return providerDef
+  const knownModels = new Map(providerDef.models.map((model) => [model.id, model]))
+  const models: ProviderModelDef[] = []
+  const seen = new Set<string>()
+  for (const incoming of catalog) {
+    const rawId = incoming.id.trim()
+    if (!rawId) continue
+    const baseId = fastBaseModelIdForProviderModel(providerDef, rawId) ?? rawId
+    if (seen.has(baseId)) continue
+    seen.add(baseId)
+    const known = knownModels.get(baseId)
+    models.push({
+      ...known,
+      ...incoming,
+      id: baseId,
+      label: known?.label || incoming.label || rawId
+    })
+  }
+  return models.length > 0 ? { ...providerDef, models } : providerDef
 }
 
 export function normalizeProviderModelOrder(
@@ -663,6 +689,7 @@ export function getVisibleModels(
   if (stored && stored.length > 0) {
     return normalizeProviderModelOrder(providerDef, stored)
       .map((id) => providerDef.models.find((m) => m.id === id) ?? { id, label: id })
+      .filter((model) => !model.hidden)
   }
   return getConfigurableModels(providerDef).slice(0, DEFAULT_VISIBLE_COUNT)
 }
@@ -1005,6 +1032,7 @@ export interface ProviderDiagnosticInfo {
     count: number
     message: string
     ids?: string[]
+    items?: ProviderModelDef[]
   }
   usage: {
     status: 'available' | 'unavailable' | 'unknown'
@@ -1171,6 +1199,7 @@ export interface RunRequest {
   runtime?: ProviderRuntimeKind
   useThinking?: boolean
   useFast?: boolean
+  serviceTier?: string | null
   providerContext?: ProviderRunContext
   attachments?: Attachment[]
   codexReviewStart?: CodexReviewStartRequest

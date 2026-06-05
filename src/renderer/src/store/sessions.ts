@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Attachment, Session, SessionListItem, ChatMessage, SessionEffort, SessionPermissionMode, SessionRunEventRecord, SideQuestionMessage, TranscriptPage } from '../types'
+import type { Attachment, Session, SessionListItem, ChatMessage, ProviderModelDef, SessionEffort, SessionPermissionMode, SessionRunEventRecord, SideQuestionMessage, TranscriptPage } from '../types'
 import { closePanelTab, DEFAULT_BROWSER_USE_POLICY, filePanelTabId, movePanelTabByDirection, nextPinOrder, parseFilePanelTabId, reorderPinnedSessions, resetPanelTabSet, resolvePanelTabTransferAvailability, transferPanelTab, upsertPanelTab } from '../types'
 import type { SettingsSectionId } from '../../../types'
 
@@ -240,6 +240,7 @@ interface SessionState {
   uiState: Record<string, SessionUIState>
   providerAvailability: Record<string, boolean>
   providerModels: Record<string, string[]>
+  providerModelCatalog: Record<string, ProviderModelDef[]>
   showSettings: boolean
   showCapabilities: boolean
   settingsSection: SettingsSection
@@ -318,6 +319,7 @@ interface SessionState {
   addComposerPromptHistory: (id: string, prompt: string) => void
   setProviderAvailability: (availability: Record<string, boolean>) => void
   setProviderModels: (v: Record<string, string[]>) => void
+  mergeProviderModelCatalog: (v: Record<string, ProviderModelDef[]>) => void
   setShowSettings: (v: boolean) => void
   setShowCapabilities: (v: boolean) => void
   setSettingsSection: (section: SettingsSection) => void
@@ -429,6 +431,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   uiState: {},
   providerAvailability: {},
   providerModels: {},
+  providerModelCatalog: {},
   showSettings: false,
   showCapabilities: false,
   settingsSection: 'general',
@@ -1541,6 +1544,11 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   setProviderAvailability: (availability) => set({ providerAvailability: availability }),
 
   setProviderModels: (v) => set({ providerModels: v }),
+
+  mergeProviderModelCatalog: (v) =>
+    set((s) => ({
+      providerModelCatalog: { ...s.providerModelCatalog, ...v }
+    })),
 
   setShowSettings: (v) => set((s) => ({ showSettings: v, showCapabilities: v ? false : s.showCapabilities })),
   setShowCapabilities: (v) => set((s) => ({ showCapabilities: v, showSettings: v ? false : s.showSettings })),

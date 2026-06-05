@@ -292,7 +292,7 @@ class CodexAppServerSession implements CodexAppServerRun {
           sessionStartSource: 'startup'
         }
 
-    this.record(`Codex app-server ${method} request: model=${String(threadConfig.model ?? '')}, effort=${String(configFromRequest(request).model_reasoning_effort ?? '')}.`, {
+    this.record(`Codex app-server ${method} request: model=${String(threadConfig.model ?? '')}, effort=${String(configFromRequest(request).model_reasoning_effort ?? '')}, serviceTier=${String(threadConfig.serviceTier ?? '')}.`, {
       method,
       hostId: request.providerSessionId ?? undefined,
       severity: 'debug',
@@ -362,7 +362,7 @@ class CodexAppServerSession implements CodexAppServerRun {
   private startTurn(threadId: string): void {
     const request = this.options.request
     const turnConfig = turnConfigFromRequest(request)
-    this.record(`Codex app-server turn/start request: model=${String(turnConfig.model ?? '')}, effort=${String(turnConfig.effort ?? '')}.`, {
+    this.record(`Codex app-server turn/start request: model=${String(turnConfig.model ?? '')}, effort=${String(turnConfig.effort ?? '')}, serviceTier=${String(turnConfig.serviceTier ?? '')}.`, {
       method: 'turn/start',
       hostId: threadId,
       severity: 'debug',
@@ -779,6 +779,7 @@ function threadConfigFromRequest(request: RunRequest): JsonObject {
     approvalPolicy: policy.approvalPolicy,
     approvalsReviewer: policy.approvalsReviewer,
     sandbox: policy.sandboxMode,
+    ...(request.serviceTier ? { serviceTier: request.serviceTier } : {}),
     config: configFromRequest(request),
     serviceName: 'orchestrator',
     personality: 'friendly'
@@ -791,7 +792,8 @@ function turnConfigFromRequest(request: RunRequest): JsonObject {
     model: request.model || 'gpt-5.4',
     effort: codexEffort(request.effort),
     approvalPolicy: policy.approvalPolicy,
-    approvalsReviewer: policy.approvalsReviewer
+    approvalsReviewer: policy.approvalsReviewer,
+    ...(request.serviceTier ? { serviceTier: request.serviceTier } : {})
   }
 }
 

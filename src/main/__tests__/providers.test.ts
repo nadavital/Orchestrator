@@ -4,7 +4,7 @@ import { chmodSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import type { RunEvent, RunRequest } from '../../types'
-import { AGENT_THREAD_ADAPTER_CONTRACTS, PROVIDER_DEFS, deriveAgentNodes, deriveAgentThreadGraph, derivePlanStatesFromMessages, fastBaseModelIdForProviderModel, fastVariantModelIdForProviderModel, getDefaultPermissionMode, getPrimaryPermissionModes, getProviderPermissionPresets, getVisibleModels, normalizeProviderModelOrder, parseClaudeAgentsOutput, permissionRequestDetail, supportsFastModeForProviderModel } from '../../types'
+import { AGENT_THREAD_ADAPTER_CONTRACTS, PROVIDER_DEFS, deriveAgentNodes, deriveAgentThreadGraph, derivePlanStatesFromMessages, fastBaseModelIdForProviderModel, fastVariantModelIdForProviderModel, getDefaultPermissionMode, getPrimaryPermissionModes, getProviderPermissionPresets, getVisibleModels, mergeProviderModelCatalog, normalizeProviderModelOrder, parseClaudeAgentsOutput, permissionRequestDetail, supportsFastModeForProviderModel } from '../../types'
 import { buildProviderCommandForRuntime, claudeMcpServerNames, codexRuntimePolicyConfig, getProviderDiagnostics, getProviderDiagnosticsAsync, getProviderRuntimeInfo, providerAuthFailureMessage, PROVIDERS, providerSdkSpawnEnv, providerSpawnEnv, resolveProviderBinary, resolveProviderPermissionRuntimeContext, runProviderCommandSurface, runProviderCommandSurfaceAsync } from '../providers'
 import { eventsToMessages } from '../runEvents'
 
@@ -132,6 +132,21 @@ test('provider fast modes can be driven by model speed metadata', () => {
   assert.equal(supportsFastModeForProviderModel(provider, 'tiered-model'), true)
   assert.equal(supportsFastModeForProviderModel(provider, 'speed-model'), true)
   assert.equal(supportsFastModeForProviderModel(provider, 'plain-model'), false)
+})
+
+test('live provider model catalogs drive fast mode without exposing hidden models', () => {
+  const provider = mergeProviderModelCatalog(PROVIDER_DEFS.codex, [
+    { id: 'gpt-5.5', label: 'GPT-5.5', additionalSpeedTiers: ['fast'] },
+    { id: 'gpt-5.3-codex', label: 'GPT-5.3 Codex', additionalSpeedTiers: [] },
+    { id: 'codex-auto-review', label: 'Codex Auto Review', hidden: true }
+  ])
+
+  assert.equal(supportsFastModeForProviderModel(provider, 'gpt-5.5'), true)
+  assert.equal(supportsFastModeForProviderModel(provider, 'gpt-5.3-codex'), false)
+  assert.deepEqual(
+    getVisibleModels(provider, { codex: ['gpt-5.5', 'codex-auto-review', 'gpt-5.3-codex'] }).map((model) => model.id),
+    ['gpt-5.5', 'gpt-5.3-codex']
+  )
 })
 
 test('runtime info exposes the same abstract capability matrix for every provider', () => {

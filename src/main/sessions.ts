@@ -265,6 +265,7 @@ function requestFromSession(session: Session, prompt: string): RunRequest {
     runtime: sessionRuntimeForProvider(providerId, session.runtime),
     useThinking: session.useThinking,
     useFast,
+    serviceTier: providerId === 'codex' && useFast ? 'fast' : null,
     ...(copilotByokProvider ? { copilotByokProvider } : {})
   }
 }

@@ -13,6 +13,7 @@ import {
   fastBaseModelIdForProviderModel,
   getConfigurableModels,
   getVisibleModels,
+  mergeProviderModelCatalog,
   type ProviderCapabilityGap,
   type ProviderAuthFlowResult,
   type ProviderAuthSecretStatus,
@@ -244,6 +245,8 @@ function providerDefWithDiagnosticModels(
   providerDef: typeof PROVIDER_DEFS[string],
   diagnostics: ProviderDiagnosticInfo | undefined
 ): typeof PROVIDER_DEFS[string] {
+  const items = diagnostics?.models.status === 'available' ? diagnostics.models.items ?? [] : []
+  if (items.length > 0) return mergeProviderModelCatalog(providerDef, items)
   const ids = diagnostics?.models.status === 'available' ? diagnostics.models.ids ?? [] : []
   if (ids.length === 0) return providerDef
   const knownModels = new Map(providerDef.models.map((model) => [model.id, model]))

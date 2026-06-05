@@ -80,7 +80,7 @@ interface Props {
 }
 
 export default function SettingsPage({ section, onClose }: Props): JSX.Element {
-  const { providerAvailability, sessions, setProviderModels: storeSetProviderModels } = useSessionStore()
+  const { providerAvailability, sessions, setProviderModels: storeSetProviderModels, mergeProviderModelCatalog } = useSessionStore()
   const selectedSettingsHostId = useSessionStore((state) => state.settingsHostId)
   const selectedSettingsProviderId = useSessionStore((state) => state.selectedSettingsProviderId)
   const setSelectedSettingsHostId = useSessionStore((state) => state.setSettingsHostId)
@@ -237,11 +237,19 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
     if (!options.force && (providerDiagnostics[providerId] || diagnosticsLoading[providerId])) return
     setDiagnosticsLoading((current) => ({ ...current, [providerId]: true }))
     window.api.providers.getDiagnostics(providerId)
-      .then((next) => setProviderDiagnostics((current) => ({ ...current, ...next })))
+      .then((next) => {
+        setProviderDiagnostics((current) => ({ ...current, ...next }))
+        const catalogUpdates = Object.fromEntries(
+          Object.entries(next)
+            .filter(([, diagnostics]) => diagnostics.models.items && diagnostics.models.items.length > 0)
+            .map(([id, diagnostics]) => [id, diagnostics.models.items ?? []])
+        )
+        if (Object.keys(catalogUpdates).length > 0) mergeProviderModelCatalog(catalogUpdates)
+      })
       .finally(() => {
         setDiagnosticsLoading((current) => ({ ...current, [providerId]: false }))
       })
-  }, [diagnosticsLoading, providerDiagnostics])
+  }, [diagnosticsLoading, mergeProviderModelCatalog, providerDiagnostics])
 
   useEffect(() => {
     if (effectiveSection !== 'providers') return
