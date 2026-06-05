@@ -36,17 +36,59 @@ function session(patch: Partial<Session> = {}): Session {
   }
 }
 
-test('copilot sdk config uses subscription auth by default and yolo only for explicit bypass', () => {
+test('copilot sdk config uses subscription auth and maps tool-enabled policies to permission approval', () => {
   const approveAll = () => ({ kind: 'approved' as const })
   const sdk = { approveAll } as unknown as typeof import('@github/copilot-sdk')
   const normal = copilotSdkSessionConfig(sdk, request(), session())
   assert.equal(normal.workingDirectory, '/tmp/project')
   assert.equal(normal.streaming, true)
   assert.equal(normal.enableConfigDiscovery, true)
+  assert.equal(normal.reasoningEffort, 'medium')
   assert.equal(normal.onPermissionRequest, undefined)
+
+  const tools = copilotSdkSessionConfig(sdk, request({ executionPolicy: 'allowEdits' }), session())
+  assert.equal(tools.onPermissionRequest, approveAll)
+
+  const legacyTools = copilotSdkSessionConfig(sdk, request({ executionPolicy: 'tools' }), session())
+  assert.equal(legacyTools.onPermissionRequest, approveAll)
 
   const bypass = copilotSdkSessionConfig(sdk, request({ executionPolicy: 'yolo' }), session())
   assert.equal(bypass.onPermissionRequest, approveAll)
+})
+
+test('copilot sdk config omits reasoning effort for the auto model', () => {
+  const sdk = { approveAll: () => ({ kind: 'approved' as const }) } as unknown as typeof import('@github/copilot-sdk')
+  const config = copilotSdkSessionConfig(sdk, request({ model: 'auto', effort: 'high' }), session({ model: 'auto', effort: 'high' }))
+  assert.equal(config.model, 'auto')
+  assert.equal('reasoningEffort' in config, false)
+  const casedConfig = copilotSdkSessionConfig(sdk, request({ model: 'Auto', effort: 'high' }), session({ model: 'Auto', effort: 'high' }))
+  assert.equal('reasoningEffort' in casedConfig, false)
+})
+
+test('copilot sdk config can opt into BYOK provider settings from the run request', () => {
+  const previous = process.env.COPILOT_SDK_TEST_KEY
+  process.env.COPILOT_SDK_TEST_KEY = 'test-secret'
+  try {
+    const sdk = { approveAll: () => ({ kind: 'approved' as const }) } as unknown as typeof import('@github/copilot-sdk')
+    const config = copilotSdkSessionConfig(sdk, request({
+      copilotByokProvider: {
+        enabled: true,
+        type: 'openai',
+        baseUrl: 'https://llm.example.test/v1',
+        apiKeyEnvKey: 'COPILOT_SDK_TEST_KEY'
+      }
+    }), session()) as import('@github/copilot-sdk').SessionConfig & {
+      provider?: { type: string; baseUrl: string; apiKey?: string }
+    }
+    assert.deepEqual(config.provider, {
+      type: 'openai',
+      baseUrl: 'https://llm.example.test/v1',
+      apiKey: 'test-secret'
+    })
+  } finally {
+    if (previous === undefined) delete process.env.COPILOT_SDK_TEST_KEY
+    else process.env.COPILOT_SDK_TEST_KEY = previous
+  }
 })
 
 test('copilot sdk message options map local file attachments', () => {
@@ -120,6 +162,7 @@ test('copilot sdk events normalize core thread, text, tools, prompts, usage, and
   assert.equal(subagent[0]?.type, 'agent.started')
   assert.equal(subagent[0]?.type === 'agent.started' ? subagent[0].agent.providerAgentId : undefined, 'agent-1')
 
+  const pendingUsage = {}
   const usage = normalizeCopilotSdkEvent({
     type: 'assistant.usage',
     id: 'event-6',
@@ -127,6 +170,270 @@ test('copilot sdk events normalize core thread, text, tools, prompts, usage, and
     timestamp: '2026-06-02T00:00:05.000Z',
     ephemeral: true,
     data: { model: 'gpt-5.5', inputTokens: 10, outputTokens: 5, cacheReadTokens: 2, cost: 0.01, duration: 250 }
-  } as unknown as import('@github/copilot-sdk').SessionEvent, 'copilot-session-1')
-  assert.deepEqual(usage.at(-1), { type: 'run.completed', usage: { inputTokens: 10, outputTokens: 5, cacheReadInputTokens: 2, totalTokens: 17, totalCostUsd: 0.01, durationMs: 250 } })
+  } as unknown as import('@github/copilot-sdk').SessionEvent, 'copilot-session-1', { pendingUsage })
+  assert.deepEqual(usage, [])
+
+  assert.deepEqual(
+    normalizeCopilotSdkEvent({
+      type: 'session.idle',
+      id: 'event-7',
+      parentId: 'event-6',
+      timestamp: '2026-06-02T00:00:06.000Z',
+      data: {}
+    } as unknown as import('@github/copilot-sdk').SessionEvent, 'copilot-session-1', { pendingUsage }),
+    [{ type: 'run.completed', usage: { inputTokens: 10, outputTokens: 5, cacheReadInputTokens: 2, totalTokens: 17, totalCostUsd: 0.01, durationMs: 250 } }]
+  )
+})
+
+test('copilot sdk final assistant message completes an existing stream', () => {
+  const streamedMessageIds = new Set<string>()
+  assert.deepEqual(
+    normalizeCopilotSdkEvent({
+      type: 'assistant.message_delta',
+      id: 'event-7',
+      parentId: null,
+      timestamp: '2026-06-02T00:00:06.000Z',
+      ephemeral: true,
+      data: { messageId: 'message-2', deltaContent: 'Hello! I am GitHubCopilot CLI.Howcan' }
+    } as import('@github/copilot-sdk').SessionEvent, 'copilot-session-1', { streamedMessageIds }),
+    [{ type: 'assistant.text.delta', streamId: 'message-2', content: 'Hello! I am GitHub Copilot. How can' }]
+  )
+
+  assert.deepEqual(
+    normalizeCopilotSdkEvent({
+      type: 'assistant.message',
+      id: 'event-8',
+      parentId: 'event-7',
+      timestamp: '2026-06-02T00:00:07.000Z',
+      data: {
+        messageId: 'message-2',
+        content: 'Hello! I am GitHubCopilot CLI.Howcan I help?',
+        toolRequests: [
+          { toolCallId: 'tool-2', name: 'read_file', arguments: { path: 'README.md' } }
+        ]
+      }
+    } as unknown as import('@github/copilot-sdk').SessionEvent, 'copilot-session-1', { streamedMessageIds }),
+    [
+      { type: 'assistant.text.completed', streamId: 'message-2', content: 'Hello! I am GitHub Copilot. How can I help?' },
+      { type: 'tool.started', id: 'tool-2', toolName: 'read_file', toolInput: { path: 'README.md' } }
+    ]
+  )
+  assert.equal(streamedMessageIds.has('message-2'), false)
+})
+
+test('copilot sdk dedupes assistant tool requests repeated by execution start events', () => {
+  const startedToolUseIds = new Set<string>()
+  assert.deepEqual(
+    normalizeCopilotSdkEvent({
+      type: 'assistant.message',
+      id: 'event-tool-message',
+      parentId: null,
+      timestamp: '2026-06-02T00:00:07.000Z',
+      data: {
+        messageId: 'message-tools',
+        content: 'I will read the file.',
+        toolRequests: [
+          { toolCallId: 'tool-duplicate', name: 'view', arguments: { path: 'SMOKE.md' } }
+        ]
+      }
+    } as unknown as import('@github/copilot-sdk').SessionEvent, 'copilot-session-1', { startedToolUseIds }),
+    [
+      { type: 'assistant.text', content: 'I will read the file.' },
+      { type: 'tool.started', id: 'tool-duplicate', toolName: 'view', toolInput: { path: 'SMOKE.md' } }
+    ]
+  )
+
+  assert.deepEqual(
+    normalizeCopilotSdkEvent({
+      type: 'tool.execution_start',
+      id: 'event-tool-start',
+      parentId: 'event-tool-message',
+      timestamp: '2026-06-02T00:00:08.000Z',
+      data: { toolCallId: 'tool-duplicate', toolName: 'view', arguments: { path: 'SMOKE.md' } }
+    } as unknown as import('@github/copilot-sdk').SessionEvent, 'copilot-session-1', { startedToolUseIds }),
+    []
+  )
+})
+
+test('copilot sdk streaming normalizes accumulated partial chunks', () => {
+  const streamedMessageIds = new Set<string>()
+  const streamBuffers = new Map()
+  assert.deepEqual(
+    normalizeCopilotSdkEvent({
+      type: 'assistant.message_delta',
+      id: 'event-9',
+      parentId: null,
+      timestamp: '2026-06-02T00:00:08.000Z',
+      ephemeral: true,
+      data: { messageId: 'message-3', deltaContent: 'GitHubCop' }
+    } as import('@github/copilot-sdk').SessionEvent, 'copilot-session-1', { streamedMessageIds, streamBuffers }),
+    [{ type: 'assistant.text.delta', streamId: 'message-3', content: 'GitHubCop' }]
+  )
+  assert.deepEqual(
+    normalizeCopilotSdkEvent({
+      type: 'assistant.message_delta',
+      id: 'event-10',
+      parentId: 'event-9',
+      timestamp: '2026-06-02T00:00:09.000Z',
+      ephemeral: true,
+      data: { messageId: 'message-3', deltaContent: 'ilot CLI.' }
+    } as import('@github/copilot-sdk').SessionEvent, 'copilot-session-1', { streamedMessageIds, streamBuffers }),
+    [{ type: 'assistant.text.delta', streamId: 'message-3', content: 'GitHub Copilot.', replace: true }]
+  )
+  assert.deepEqual(
+    normalizeCopilotSdkEvent({
+      type: 'assistant.message_delta',
+      id: 'event-11',
+      parentId: 'event-10',
+      timestamp: '2026-06-02T00:00:10.000Z',
+      ephemeral: true,
+      data: { messageId: 'message-3', deltaContent: 'How' }
+    } as import('@github/copilot-sdk').SessionEvent, 'copilot-session-1', { streamedMessageIds, streamBuffers }),
+    [{ type: 'assistant.text.delta', streamId: 'message-3', content: ' How' }]
+  )
+  assert.deepEqual(
+    normalizeCopilotSdkEvent({
+      type: 'assistant.message_delta',
+      id: 'event-12',
+      parentId: 'event-11',
+      timestamp: '2026-06-02T00:00:11.000Z',
+      ephemeral: true,
+      data: { messageId: 'message-3', deltaContent: 'can' }
+    } as import('@github/copilot-sdk').SessionEvent, 'copilot-session-1', { streamedMessageIds, streamBuffers }),
+    [{ type: 'assistant.text.delta', streamId: 'message-3', content: ' can' }]
+  )
+})
+
+test('copilot sdk streaming preserves whitespace-only boundaries between chunks', () => {
+  const streamedMessageIds = new Set<string>()
+  const streamBuffers = new Map()
+  assert.deepEqual(
+    normalizeCopilotSdkEvent({
+      type: 'assistant.message_delta',
+      id: 'event-space-1',
+      parentId: null,
+      timestamp: '2026-06-02T00:00:08.000Z',
+      ephemeral: true,
+      data: { messageId: 'message-space', deltaContent: "Here's one" }
+    } as import('@github/copilot-sdk').SessionEvent, 'copilot-session-1', { streamedMessageIds, streamBuffers }),
+    [{ type: 'assistant.text.delta', streamId: 'message-space', content: "Here's one" }]
+  )
+  assert.deepEqual(
+    normalizeCopilotSdkEvent({
+      type: 'assistant.message_delta',
+      id: 'event-space-2',
+      parentId: 'event-space-1',
+      timestamp: '2026-06-02T00:00:09.000Z',
+      ephemeral: true,
+      data: { messageId: 'message-space', deltaContent: ' for you:\n\n---\nFew things' }
+    } as import('@github/copilot-sdk').SessionEvent, 'copilot-session-1', { streamedMessageIds, streamBuffers }),
+    [{ type: 'assistant.text.delta', streamId: 'message-space', content: ' for you:\n\n---\nFew things' }]
+  )
+  assert.deepEqual(
+    normalizeCopilotSdkEvent({
+      type: 'assistant.message_delta',
+      id: 'event-space-3',
+      parentId: 'event-space-2',
+      timestamp: '2026-06-02T00:00:10.000Z',
+      ephemeral: true,
+      data: { messageId: 'message-space', deltaContent: ' in software' }
+    } as import('@github/copilot-sdk').SessionEvent, 'copilot-session-1', { streamedMessageIds, streamBuffers }),
+    [{ type: 'assistant.text.delta', streamId: 'message-space', content: ' in software' }]
+  )
+})
+
+test('copilot sdk reasoning and task-complete text stay out of the transcript', () => {
+  assert.deepEqual(
+    normalizeCopilotSdkEvent({
+      type: 'assistant.reasoning_delta',
+      id: 'event-reasoning-1',
+      parentId: null,
+      timestamp: '2026-06-02T00:00:08.000Z',
+      ephemeral: true,
+      data: { reasoningId: 'reasoning-1', deltaContent: "Sure, I'll write a fun paragraph." }
+    } as import('@github/copilot-sdk').SessionEvent, 'copilot-session-1'),
+    []
+  )
+  assert.deepEqual(
+    normalizeCopilotSdkEvent({
+      type: 'assistant.reasoning',
+      id: 'event-reasoning-2',
+      parentId: 'event-reasoning-1',
+      timestamp: '2026-06-02T00:00:08.500Z',
+      ephemeral: false,
+      data: { reasoningId: 'reasoning-1', content: 'The user wants me to respond in a paragraph about whatever topic I choose.' }
+    } as import('@github/copilot-sdk').SessionEvent, 'copilot-session-1'),
+    []
+  )
+  assert.deepEqual(
+    normalizeCopilotSdkEvent({
+      type: 'session.task_complete',
+      id: 'event-task-complete-1',
+      parentId: 'event-reasoning-1',
+      timestamp: '2026-06-02T00:00:09.000Z',
+      data: { message: 'Copilot SDK usage updated.' }
+    } as unknown as import('@github/copilot-sdk').SessionEvent, 'copilot-session-1'),
+    []
+  )
+})
+
+test('copilot sdk usage and task completion do not end a turn before final message', () => {
+  const streamedMessageIds = new Set<string>()
+  const pendingUsage = {}
+  assert.deepEqual(
+    normalizeCopilotSdkEvent({
+      type: 'assistant.message_delta',
+      id: 'event-9',
+      parentId: null,
+      timestamp: '2026-06-02T00:00:08.000Z',
+      ephemeral: true,
+      data: { messageId: 'message-3', deltaContent: 'Hey' }
+    } as import('@github/copilot-sdk').SessionEvent, 'copilot-session-1', { streamedMessageIds, pendingUsage }),
+    [{ type: 'assistant.text.delta', streamId: 'message-3', content: 'Hey' }]
+  )
+
+  assert.deepEqual(
+    normalizeCopilotSdkEvent({
+      type: 'assistant.usage',
+      id: 'event-10',
+      parentId: 'event-9',
+      timestamp: '2026-06-02T00:00:09.000Z',
+      ephemeral: true,
+      data: { inputTokens: 1, outputTokens: 2, cacheReadTokens: 0, cost: 0, duration: 0 }
+    } as unknown as import('@github/copilot-sdk').SessionEvent, 'copilot-session-1', { streamedMessageIds, pendingUsage }),
+    []
+  )
+
+  assert.deepEqual(
+    normalizeCopilotSdkEvent({
+      type: 'session.task_complete',
+      id: 'event-11',
+      parentId: 'event-10',
+      timestamp: '2026-06-02T00:00:10.000Z',
+      data: {}
+    } as unknown as import('@github/copilot-sdk').SessionEvent, 'copilot-session-1', { streamedMessageIds, pendingUsage }),
+    []
+  )
+
+  assert.deepEqual(
+    normalizeCopilotSdkEvent({
+      type: 'assistant.message',
+      id: 'event-12',
+      parentId: 'event-11',
+      timestamp: '2026-06-02T00:00:11.000Z',
+      data: { messageId: 'message-3', content: 'Hey! How can I help you today?' }
+    } as import('@github/copilot-sdk').SessionEvent, 'copilot-session-1', { streamedMessageIds, pendingUsage }),
+    [{ type: 'assistant.text.completed', streamId: 'message-3', content: 'Hey! How can I help you today?' }]
+  )
+
+  assert.deepEqual(
+    normalizeCopilotSdkEvent({
+      type: 'session.idle',
+      id: 'event-13',
+      parentId: 'event-12',
+      timestamp: '2026-06-02T00:00:12.000Z',
+      data: {}
+    } as unknown as import('@github/copilot-sdk').SessionEvent, 'copilot-session-1', { streamedMessageIds, pendingUsage }),
+    [{ type: 'run.completed', usage: { inputTokens: 1, outputTokens: 2, cacheReadInputTokens: 0, totalTokens: 3, totalCostUsd: 0, durationMs: 0 } }]
+  )
 })

@@ -133,9 +133,13 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
     if (session.messages.length <= renderLimit) return session.messages
     return session.messages.slice(-renderLimit)
   }, [renderLimit, session.messages])
+  const displayedMessages = useMemo(
+    () => transcriptMessagesForDisplay(session.provider, visibleMessages),
+    [session.provider, visibleMessages]
+  )
   const totalMessageCount = session.messageCount ?? session.messages.length
   const hiddenMessageCount = Math.max(0, totalMessageCount - visibleMessages.length)
-  const transcriptItems = useMemo(() => groupTranscriptMessages(visibleMessages), [visibleMessages])
+  const transcriptItems = useMemo(() => groupTranscriptMessages(displayedMessages), [displayedMessages])
   const fileReferenceRoots = useMemo(() => sessionFileReferenceRoots(session), [session])
   const hasStreamingAssistantMessage = useMemo(() => (
     visibleMessages.some((message) => (
@@ -950,7 +954,7 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
           <div
             ref={transcriptListRef}
             data-testid="virtualized-transcript"
-            data-rendered-message-count={visibleMessages.length}
+            data-rendered-message-count={displayedMessages.length}
             data-total-message-count={totalMessageCount}
             data-focused-message-id={focusedMessageId ?? ''}
             className="relative min-w-0"
@@ -1322,6 +1326,28 @@ function findTranscriptElementForMessage(messageId: string): Element | null {
 
 function estimateTranscriptMessagesHeight(messages: ChatMessage[]): number {
   return groupTranscriptMessages(messages).reduce((total, item) => total + estimateTranscriptItemHeight(item), 0)
+}
+
+function transcriptMessagesForDisplay(provider: string, messages: ChatMessage[]): ChatMessage[] {
+  if (provider !== 'copilot') return messages
+  return messages.filter((message) => !isCopilotReasoningStatusLeak(message))
+}
+
+function isCopilotReasoningStatusLeak(message: ChatMessage): boolean {
+  return message.type === 'result' &&
+    message.role === 'system' &&
+    message.subtype === 'status' &&
+    isCopilotReasoningStatusContent(message.content)
+}
+
+function isCopilotReasoningStatusContent(content: string): boolean {
+  const normalized = content.trim().replace(/\s+/g, ' ')
+  if (!normalized) return false
+  return normalized.startsWith('The user wants me ') ||
+    normalized.startsWith('The user asked me ') ||
+    normalized.startsWith('The user is asking ') ||
+    normalized.startsWith("Sure, I'll ") ||
+    normalized.startsWith("Sure! I'll ")
 }
 
 function estimateTranscriptItemHeight(item: TranscriptItem): number {

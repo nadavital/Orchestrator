@@ -104,6 +104,9 @@ export interface ProviderModelDef {
   id: string
   label: string
   cursorConfig?: CursorModelConfig
+  serviceTiers?: Array<string | { id: string; label?: string; name?: string }>
+  additionalSpeedTiers?: string[]
+  hidden?: boolean
 }
 
 export interface ProviderAgentDef {
@@ -286,7 +289,6 @@ export const PROVIDER_DEFS: Record<string, ProviderDef> = {
       { id: 'auto', label: 'Auto' },
       { id: 'composer-2.5', label: 'Composer 2.5',
         cursorConfig: { fastModelId: 'composer-2.5-fast' } },
-      { id: 'composer-2.5-fast', label: 'Composer 2.5 Fast' },
       { id: 'composer-2', label: 'Composer 2',
         cursorConfig: { fastModelId: 'composer-2-fast' } },
       { id: 'claude-opus-4-7', label: 'Claude Opus 4.7',
@@ -576,15 +578,148 @@ export function getDangerPermissionModes(providerDef: ProviderDef): ProviderPerm
   return providerDef.permissionModes.filter((mode) => mode.intent === 'bypass')
 }
 
+export function fastBaseModelIdForProviderModel(
+  providerDef: ProviderDef,
+  modelId: string
+): string | null {
+  for (const model of providerDef.models) {
+    const cfg = model.cursorConfig
+    if (!cfg) continue
+    if (cfg.fastModelId === modelId) return model.id
+    if (cfg.effortLevels?.some((level) => level.fastModelId === modelId)) return model.id
+  }
+  if (modelId.endsWith('-fast')) {
+    const baseId = modelId.slice(0, -'-fast'.length)
+    if (providerDef.models.some((model) => model.id === baseId)) return baseId
+  }
+  return null
+}
+
+export function isFastVariantProviderModel(providerDef: ProviderDef, modelId: string): boolean {
+  return fastBaseModelIdForProviderModel(providerDef, modelId) !== null
+}
+
+export function fastVariantModelIdForProviderModel(
+  providerDef: ProviderDef,
+  modelId: string,
+  effortId?: string
+): string | null {
+  const baseId = fastBaseModelIdForProviderModel(providerDef, modelId) ?? modelId
+  const model = providerDef.models.find((candidate) => candidate.id === baseId)
+  const cfg = model?.cursorConfig
+  if (cfg?.effortLevels && cfg.effortLevels.length > 0) {
+    const level = cfg.effortLevels.find((candidate) => candidate.id === effortId) ??
+      cfg.effortLevels.find((candidate) => candidate.id === cfg.defaultEffort) ??
+      cfg.effortLevels[0]
+    if (level?.fastModelId) return level.fastModelId
+  }
+  if (cfg?.fastModelId) return cfg.fastModelId
+  const suffixFastId = `${baseId}-fast`
+  if (providerDef.models.some((candidate) => candidate.id === suffixFastId)) return suffixFastId
+  return null
+}
+
+function modelHasFastSpeedTier(model?: ProviderModelDef): boolean {
+  if (!model) return false
+  if (model.additionalSpeedTiers?.includes('fast')) return true
+  return model.serviceTiers?.some((tier) => {
+    if (typeof tier === 'string') return tier === 'fast' || tier === 'priority'
+    return tier.id === 'fast' || tier.id === 'priority'
+  }) ?? false
+}
+
+export function supportsFastModeForProviderModel(
+  providerDef: ProviderDef,
+  modelId: string,
+  effortId?: string
+): boolean {
+  const baseId = fastBaseModelIdForProviderModel(providerDef, modelId) ?? modelId
+  if (fastVariantModelIdForProviderModel(providerDef, baseId, effortId)) return true
+  const model = providerDef.models.find((candidate) => candidate.id === baseId)
+  return modelHasFastSpeedTier(model)
+}
+
+export interface ProviderRunModelSelection {
+  baseModel: string | undefined
+  model: string | undefined
+  useFast: boolean
+  fastVariantModelId: string | null
+}
+
+export function resolveProviderRunModelSelection(
+  providerDef: ProviderDef,
+  rawModel: string | undefined,
+  effortId: string | undefined,
+  requestedFast: boolean
+): ProviderRunModelSelection {
+  const fastBaseModelId = rawModel ? fastBaseModelIdForProviderModel(providerDef, rawModel) : null
+  const baseModel = fastBaseModelId ?? rawModel
+  const supportsFast = Boolean(baseModel && supportsFastModeForProviderModel(providerDef, baseModel, effortId))
+  const useFast = (requestedFast || Boolean(fastBaseModelId)) && supportsFast
+  const fastVariantModelId = baseModel && useFast
+    ? fastVariantModelIdForProviderModel(providerDef, baseModel, effortId)
+    : null
+  return {
+    baseModel,
+    model: useFast ? fastVariantModelId ?? baseModel : baseModel,
+    useFast,
+    fastVariantModelId
+  }
+}
+
+export function getConfigurableModels(providerDef: ProviderDef): ProviderModelDef[] {
+  return providerDef.models.filter((model) => !model.hidden && !isFastVariantProviderModel(providerDef, model.id))
+}
+
+export function mergeProviderModelCatalog(
+  providerDef: ProviderDef,
+  catalog: ProviderModelDef[] | undefined
+): ProviderDef {
+  if (!catalog || catalog.length === 0) return providerDef
+  const knownModels = new Map(providerDef.models.map((model) => [model.id, model]))
+  const models: ProviderModelDef[] = []
+  const seen = new Set<string>()
+  for (const incoming of catalog) {
+    const rawId = incoming.id.trim()
+    if (!rawId) continue
+    const baseId = fastBaseModelIdForProviderModel(providerDef, rawId) ?? rawId
+    if (seen.has(baseId)) continue
+    seen.add(baseId)
+    const known = knownModels.get(baseId)
+    models.push({
+      ...known,
+      ...incoming,
+      id: baseId,
+      label: known?.label || incoming.label || rawId
+    })
+  }
+  return models.length > 0 ? { ...providerDef, models } : providerDef
+}
+
+export function normalizeProviderModelOrder(
+  providerDef: ProviderDef,
+  modelIds: string[]
+): string[] {
+  const normalized: string[] = []
+  for (const id of modelIds) {
+    const modelId = fastBaseModelIdForProviderModel(providerDef, id) ?? id
+    if (isFastVariantProviderModel(providerDef, modelId)) continue
+    if (!normalized.includes(modelId)) normalized.push(modelId)
+  }
+  return normalized
+}
+
 export function getVisibleModels(
   providerDef: ProviderDef,
   providerModels: Record<string, string[]>
 ): ProviderModelDef[] {
   const stored = providerModels[providerDef.id]
   if (stored && stored.length > 0) {
-    return stored.map((id) => providerDef.models.find((m) => m.id === id) ?? { id, label: id })
+    return normalizeProviderModelOrder(providerDef, stored)
+      .map((id) => providerDef.models.find((m) => m.id === id) ?? { id, label: id })
+      .filter((model) => !model.hidden)
   }
-  return providerDef.models.slice(0, DEFAULT_VISIBLE_COUNT)
+  return getConfigurableModels(providerDef).slice(0, DEFAULT_VISIBLE_COUNT)
 }
 
 export type SessionEffort = string
@@ -924,6 +1059,8 @@ export interface ProviderDiagnosticInfo {
     status: 'configured' | 'available' | 'empty' | 'unknown'
     count: number
     message: string
+    ids?: string[]
+    items?: ProviderModelDef[]
   }
   usage: {
     status: 'available' | 'unavailable' | 'unknown'
@@ -1090,9 +1227,18 @@ export interface RunRequest {
   runtime?: ProviderRuntimeKind
   useThinking?: boolean
   useFast?: boolean
+  serviceTier?: string | null
   providerContext?: ProviderRunContext
   attachments?: Attachment[]
   codexReviewStart?: CodexReviewStartRequest
+  copilotByokProvider?: CopilotByokProviderRunSettings
+}
+
+export interface CopilotByokProviderRunSettings {
+  enabled: boolean
+  type: 'openai' | 'azure' | 'anthropic'
+  baseUrl: string
+  apiKeyEnvKey: string
 }
 
 export type CodexReviewDelivery = 'inline' | 'detached'
@@ -1220,8 +1366,8 @@ export type RunEvent =
   | { type: 'session.started'; providerSessionId: string }
   | { type: 'assistant.text'; content: string }
   | { type: 'assistant.status'; content: string }
-  | { type: 'assistant.text.delta'; streamId: string; content: string }
-  | { type: 'assistant.text.completed'; streamId: string }
+  | { type: 'assistant.text.delta'; streamId: string; content: string; replace?: boolean }
+  | { type: 'assistant.text.completed'; streamId: string; content?: string }
   | {
     type: 'diff.updated'
     content: string
@@ -1504,6 +1650,12 @@ export interface Session {
   providerPinnedThreadKey?: string | null
   providerProjectless?: boolean
   providerProjectlessThreadId?: string | null
+}
+
+export function canSwitchSessionProvider(
+  session: Pick<Session, 'messages' | 'providerSessionId' | 'claudeSessionId'>
+): boolean {
+  return session.messages.length === 0 && !session.providerSessionId && !session.claudeSessionId
 }
 
 export type SidebarThreadKind = 'local' | 'remote' | 'worktree' | 'pending-worktree'

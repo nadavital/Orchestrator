@@ -238,14 +238,12 @@ function SessionItem({ session }: Props): JSX.Element {
     setMenuPoint({ x: event.clientX, y: event.clientY })
   }
 
-  const openActionsMenu = (event: React.MouseEvent<HTMLButtonElement>): void => {
+  const handleArchiveClick = (event: React.MouseEvent<HTMLButtonElement>): void => {
     event.preventDefault()
     event.stopPropagation()
     hideDetails()
-    const rect = event.currentTarget.getBoundingClientRect()
-    setMenuPoint({
-      x: rect.right - 8,
-      y: rect.bottom + 6
+    void handleRemove().catch((error) => {
+      console.error('Failed to archive chat', error)
     })
   }
 
@@ -441,18 +439,16 @@ function SessionItem({ session }: Props): JSX.Element {
                   <Icon name="pin" size={12} />
                 </button>
               </Tooltip>
-              <Tooltip label="Chat actions">
+              <Tooltip label="Archive chat">
                 <button
                   type="button"
                   className="session-item-action-button"
-                  aria-label="Chat actions"
-                  aria-haspopup="menu"
-                  aria-controls={actionsMenuId}
-                  aria-expanded={menuPoint ? 'true' : 'false'}
+                  aria-label="Archive chat"
+                  data-testid="session-archive-button"
                   data-native-title-free="true"
-                  onClick={openActionsMenu}
+                  onClick={handleArchiveClick}
                 >
-                  <Icon name="ellipsis" size={12} />
+                  <Icon name="archive" size={12} />
                 </button>
               </Tooltip>
             </span>

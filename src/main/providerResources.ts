@@ -273,7 +273,7 @@ function discoverCopilotResources(_cwd: string, homeDir: string): ProviderResour
     makeResource({
       providerId: 'copilot',
       kind: 'mcp_server',
-      source: 'GitHub Copilot CLI',
+      source: 'GitHub Copilot runtime',
       name: 'github',
       description: 'Built-in GitHub MCP server',
       status: 'available',

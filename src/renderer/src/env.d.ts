@@ -10,6 +10,7 @@ export interface AppSettings {
   defaultEfforts: Record<string, string>
   defaultPermissionModes: Record<string, string>
   providerModels: Record<string, string[]>
+  providerModelCatalog: Record<string, ProviderModelDef[]>
   preferredEditor: 'system' | 'vscode' | 'vscode-insiders' | 'cursor' | 'zed'
   composerEnterBehavior: 'send' | 'newline'
   appearance: 'system' | 'mist' | 'graphite' | 'ocean' | 'palenight' | 'high-contrast' | 'dark' | 'light'

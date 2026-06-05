@@ -4,6 +4,7 @@ import { flushSync } from 'react-dom'
 import { useProjectStore } from './store/projects'
 import { hasComposerDraft, sideChatIdFromTabId, terminalTabIdFromTabId, useSessionStore } from './store/sessions'
 import type { SettingsSection } from './store/sessions'
+import type { ProviderModelDef } from './types'
 import Sidebar from './components/Sidebar/Sidebar'
 import SessionPane from './components/Session/SessionPane'
 import SettingsPage from './components/SettingsModal'
@@ -20,7 +21,7 @@ import { markRendererStart, recordRendererMetric } from './performance'
 import { APP_COMMANDS, appMenuCommandForKeyboardEvent, commandShortcuts, formatShortcutSequence } from '../../types/appCommands'
 import type { AppCommandAvailability, AppMenuCommand, ShortcutOverrides, StableAppCommand } from '../../types/appCommands'
 import { browserManagerPatchFromEvents, parseSessionRouteLocation, parseSettingsRouteLocation, resolvePanelBrowserCommandTarget, resolvePanelCloseTarget, resolvePanelFindTarget, resolvePanelNewTabTarget, sessionRouteUrlForLocation, settingsRouteExitUrl, settingsRouteUrlForLocation } from '../../types'
-import type { ChatMessage, PanelFindTarget, ReviewMetadata, SessionRunEventRecord } from '../../types'
+import type { ChatMessage, PanelFindTarget, ReviewMetadata, SessionListItem, SessionRunEventRecord } from '../../types'
 import type { PanelCloseFocusArea } from '../../types'
 
 type ShellFocusArea = PanelCloseFocusArea
@@ -77,6 +78,12 @@ function replaceRouteUrl(url: string): void {
 function pushRouteUrl(url: string): void {
   if (currentUrlMatches(url)) return
   window.history.pushState(window.history.state, '', url)
+}
+
+function newestSessionExcluding(sessions: SessionListItem[], excludedId: string): SessionListItem | undefined {
+  return sessions
+    .filter((session) => session.id !== excludedId)
+    .sort((a, b) => (b.latestMessageAt ?? b.createdAt) - (a.latestMessageAt ?? a.createdAt))[0]
 }
 
 async function sessionRouteNoticeForMissingId(sessionId: string): Promise<SessionRouteNotice> {
@@ -153,6 +160,7 @@ export default function App(): JSX.Element {
   const setHasUnread = useSessionStore((state) => state.setHasUnread)
   const setProviderAvailability = useSessionStore((state) => state.setProviderAvailability)
   const setProviderModels = useSessionStore((state) => state.setProviderModels)
+  const mergeProviderModelCatalog = useSessionStore((state) => state.mergeProviderModelCatalog)
   const setShowSettings = useSessionStore((state) => state.setShowSettings)
   const setShowCapabilities = useSessionStore((state) => state.setShowCapabilities)
   const setSettingsSection = useSessionStore((state) => state.setSettingsSection)
@@ -1246,6 +1254,10 @@ export default function App(): JSX.Element {
       )
       const pm = (s as unknown as Record<string, unknown>).providerModels
       if (pm && typeof pm === 'object') setProviderModels(pm as Record<string, string[]>)
+      const catalog = (s as unknown as Record<string, unknown>).providerModelCatalog
+      if (catalog && typeof catalog === 'object') {
+        mergeProviderModelCatalog(catalog as Record<string, ProviderModelDef[]>)
+      }
     })
     const onShortcutOverridesChanged = (event: Event): void => {
       const custom = event as CustomEvent<ShortcutOverrides>
@@ -1494,9 +1506,26 @@ export default function App(): JSX.Element {
       } else if (event.type === 'needsInput') {
         setShowTerminal(event.id, true)
       } else if (event.type === 'archived') {
-        const archived = useSessionStore.getState().sessions.find((s) => s.id === event.id)
+        const state = useSessionStore.getState()
+        const archived = state.sessions.find((s) => s.id === event.id)
+        const wasActive = state.activeSessionId === event.id
+        const fallback = wasActive ? newestSessionExcluding(state.sessions, event.id) : undefined
         if (archived) removeSessionFromProject(archived.projectId, archived.id)
-        useSessionStore.getState().removeSession(event.id)
+        state.removeSession(event.id)
+        if (wasActive) {
+          sessionRouteNoticeRequestRef.current += 1
+          setSessionRouteNotice(null)
+          setShowAutomations(false)
+          state.setShowSettings(false)
+          state.setShowCapabilities(false)
+          if (fallback) {
+            state.setActiveSession(fallback.id)
+            replaceRouteUrl(sessionRouteUrl(fallback.id))
+          } else {
+            state.setActiveSession(null)
+            replaceRouteUrl('/')
+          }
+        }
       }
     })
 

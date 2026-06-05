@@ -2819,7 +2819,7 @@ async function startProviderAuthFlow(providerId: string, surfaceId: string): Pro
       providerId,
       surfaceId,
       status: 'error',
-      message: 'GitHub Copilot CLI is not available.'
+      message: 'GitHub Copilot runtime is not available.'
     }
   }
 

@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import type { DragEvent as ReactDragEvent, ReactNode } from 'react'
 import type { Project, Session, SidebarConnectionGroupIdentity } from '../../types'
-import { comparePinnedSessions, compareSidebarSessions, isSidebarPinnedSession, isSidebarProjectlessSession, normalizeSettingsHostId, normalizeSettingsSectionForHostKind, settingsHostOptionsFromSessions, settingsNavigationGroupsForHostKind, settingsRouteUrlForLocation, sidebarConnectionGroupIdentity } from '../../types'
+import { PROVIDER_DEFS, comparePinnedSessions, compareSidebarSessions, isSidebarPinnedSession, isSidebarProjectlessSession, normalizeSettingsHostId, normalizeSettingsSectionForHostKind, settingsHostOptionsFromSessions, settingsNavigationGroupsForHostKind, settingsRouteUrlForLocation, sidebarConnectionGroupIdentity } from '../../types'
 import { useProjectStore } from '../../store/projects'
 import type { SidebarCustomSection } from '../../store/sidebar'
 import { sidebarSessionSelectedKey, sidebarSettingsSelectedKey, useSidebarStore } from '../../store/sidebar'
@@ -10,6 +10,7 @@ import ProjectSection from './ProjectSection'
 import SessionItem from './SessionItem'
 import { IconButton, MenuItem, MenuSection, MenuSectionLabel, MenuSurface, SidebarListRow, TextInputDialog } from '../shared/designSystem'
 import type { IconName } from '../shared/Icon'
+import ProviderIcon from '../shared/ProviderIcon'
 import type { SettingsSection } from '../../store/sessions'
 
 const SETTINGS_SECTION_LABELS: Record<SettingsSection, string> = {
@@ -115,8 +116,11 @@ export default function Sidebar({
     showCapabilities,
     settingsSection,
     settingsHostId,
+    selectedSettingsProviderId,
+    providerAvailability,
     setSettingsSection,
     setSettingsHostId,
+    setSelectedSettingsProviderId,
     setShowCapabilities,
     setShowSettings,
     activeSessionId,
@@ -157,6 +161,7 @@ export default function Sidebar({
   const [draggedSectionKey, setDraggedSectionKey] = useState<`custom:${string}` | null>(null)
   const [activeSectionDropTarget, setActiveSectionDropTarget] = useState<string | null>(null)
   const [isAddingProject, setIsAddingProject] = useState(false)
+  const [isCreatingProjectlessChat, setIsCreatingProjectlessChat] = useState(false)
   const [addProjectStatus, setAddProjectStatus] = useState<ProjectOpenStatus | null>(null)
   const [addProjectError, setAddProjectError] = useState<string | null>(null)
   const settingsHostOptions = useMemo(() => settingsHostOptionsFromSessions(sessions), [sessions])
@@ -337,6 +342,41 @@ export default function Sidebar({
     } finally {
       setIsAddingProject(false)
       setAddProjectStatus(null)
+    }
+  }
+
+  const handleNewProjectlessChat = async (): Promise<void> => {
+    if (isCreatingProjectlessChat) return
+    setIsCreatingProjectlessChat(true)
+    try {
+      const sessionState = useSessionStore.getState()
+      const projectState = useProjectStore.getState()
+      const active = sessionState.sessions.find((session) => session.id === sessionState.activeSessionId)
+      const activeProject = active ? projectState.projects.find((project) => project.id === active.projectId) : null
+      const fallbackProject = projectState.projects.at(-1)
+      const workDir = active?.workDir ?? activeProject?.rootPath ?? fallbackProject?.rootPath ?? await window.api.fs.resolveHome()
+      const repoRoot = active?.repoRoot ?? activeProject?.rootPath ?? fallbackProject?.rootPath ?? workDir
+
+      if (active && (active.messageCount ?? active.messages.length) === 0 && active.status !== 'running' && !hasComposerDraft(sessionState.uiState[active.id])) {
+        await window.api.sessions.remove(active.id)
+        if (active.projectId) await window.api.projects.removeSession(active.projectId, active.id)
+        sessionState.removeSession(active.id)
+        if (active.projectId) projectState.removeSessionFromProject(active.projectId, active.id)
+      }
+
+      const session = await window.api.sessions.create({
+        projectId: '',
+        workDir,
+        useWorktree: false,
+        repoRoot
+      })
+      sessionState.addSession(session)
+      sessionState.setActiveSession(session.id)
+      setShowCapabilities(false)
+      setShowSettings(false)
+      if (projectlessChatsCollapsed) toggleProjectlessChatsCollapsed()
+    } finally {
+      setIsCreatingProjectlessChat(false)
     }
   }
 
@@ -768,15 +808,17 @@ export default function Sidebar({
   )
 
   const renderProjectlessChatsSection = (): JSX.Element | null => {
-    if (viewMode === 'chronological' || viewMode === 'connections' || projectlessSessions.length === 0) return null
+    if (viewMode === 'chronological' || viewMode === 'connections') return null
 
     return (
       <SidebarProjectlessChatsGroup
         key="projectless"
         sessions={projectlessSessions}
         collapsed={projectlessChatsCollapsed}
+        creating={isCreatingProjectlessChat}
         projectlessChatsFirst={projectlessChatsFirst}
         onToggle={toggleProjectlessChatsCollapsed}
+        onNewChat={handleNewProjectlessChat}
         renderSession={renderDraggableSession}
       />
     )
@@ -971,18 +1013,54 @@ export default function Sidebar({
                 </div>
                 <div className="settings-nav-group-rows">
                   {group.sections.map((section) => (
-                    <SidebarNavItem
-                      key={section}
-                      icon={SETTINGS_SECTION_ICONS[section]}
-                      label={SETTINGS_SECTION_LABELS[section]}
-                      active={effectiveSettingsSection === section}
-                      sidebarKey={sidebarSettingsSelectedKey(section)}
-                      onClick={() => {
-                        pushSettingsRoute(section, selectedSettingsHost.id)
-                        setSelectedSidebarKey(sidebarSettingsSelectedKey(section))
-                        setSettingsSection(section)
-                      }}
-                    />
+                    <Fragment key={section}>
+                      <SidebarNavItem
+                        icon={SETTINGS_SECTION_ICONS[section]}
+                        label={SETTINGS_SECTION_LABELS[section]}
+                        active={effectiveSettingsSection === section}
+                        sidebarKey={sidebarSettingsSelectedKey(section)}
+                        onClick={() => {
+                          pushSettingsRoute(section, selectedSettingsHost.id)
+                          setSelectedSidebarKey(sidebarSettingsSelectedKey(section))
+                          setSettingsSection(section)
+                        }}
+                      />
+                      {section === 'providers' && effectiveSettingsSection === 'providers' && (
+                        <div
+                          className="settings-provider-nav-children"
+                          data-testid="settings-provider-nav-children"
+                          aria-label="Provider settings"
+                        >
+                          {Object.values(PROVIDER_DEFS).map((provider) => {
+                            const selected = selectedSettingsProviderId === provider.id
+                            const available = providerAvailability[provider.id] !== false
+                            return (
+                              <button
+                                key={provider.id}
+                                type="button"
+                                className="settings-provider-nav-child"
+                                data-testid={`settings-provider-nav-child-${provider.id}`}
+                                data-selected={selected ? 'true' : 'false'}
+                                data-available={available ? 'true' : 'false'}
+                                onClick={() => {
+                                  pushSettingsRoute('providers', selectedSettingsHost.id)
+                                  setSelectedSettingsProviderId(provider.id)
+                                  setSelectedSidebarKey(sidebarSettingsSelectedKey('providers'))
+                                  setSettingsSection('providers')
+                                }}
+                                style={{ '--provider-color': provider.color } as React.CSSProperties}
+                              >
+                                <ProviderIcon providerId={provider.id} size={13} color={provider.color} />
+                                <span className="settings-provider-nav-child-label">{provider.name}</span>
+                                <span className="settings-provider-nav-child-status">
+                                  {available ? 'Installed' : 'Missing'}
+                                </span>
+                              </button>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </Fragment>
                   ))}
                 </div>
               </div>
@@ -1157,14 +1235,18 @@ function SidebarConnectionGroup({
 function SidebarProjectlessChatsGroup({
   sessions,
   collapsed,
+  creating,
   projectlessChatsFirst,
   onToggle,
+  onNewChat,
   renderSession
 }: {
   sessions: Session[]
   collapsed: boolean
+  creating: boolean
   projectlessChatsFirst: boolean
   onToggle: () => void
+  onNewChat: () => void | Promise<void>
   renderSession?: (session: Session) => ReactNode
 }): JSX.Element {
   return (
@@ -1180,13 +1262,29 @@ function SidebarProjectlessChatsGroup({
         className="group project-section-row cursor-pointer select-none"
         size="section"
         onClick={onToggle}
-        leading={(
-          <span className="motion-chevron shrink-0" style={{ color: 'var(--text-tertiary)', transform: collapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}>
-            <IconChevron />
+        label={(
+          <span className="inline-flex min-w-0 items-center gap-1">
+            <span>Chats</span>
+            <span className="motion-chevron shrink-0" style={{ color: 'var(--text-tertiary)', transform: collapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}>
+              <IconChevron />
+            </span>
           </span>
         )}
-        label="Chats"
-        detail={`${sessions.length}`}
+        trailing={(
+          <span className="surface-row-secondary">
+            <IconButton
+              icon={creating ? 'refresh' : 'plus'}
+              label={creating ? 'Creating chat' : 'New chat'}
+              disabled={creating}
+              size="sm"
+              dataTestId="sidebar-projectless-new-chat"
+              onClick={(event) => {
+                event.stopPropagation()
+                void onNewChat()
+              }}
+            />
+          </span>
+        )}
       />
       {!collapsed && (
         <div className="space-y-1">

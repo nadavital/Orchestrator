@@ -5,8 +5,8 @@ import { execFile } from 'child_process'
 import { readFileSync } from 'fs'
 import { performance } from 'perf_hooks'
 import { promisify } from 'util'
-import type { AgentThreadOpenRequest, AgentThreadOpenResult, Attachment, AutomationPermissionSnapshot, CodexReviewStartRequest, Session, SessionForkMode, SessionForkOptions, SessionListItem, ChatMessage, TextMessage, ProviderRuntimeKind, ProviderSidebarSyncResult, ReviewMetadata, RunEvent, RunRequest, SessionStatus, SideQuestionMessage, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary, UserInputAnswerPayload, WorktreeInventoryItem } from '../types'
-import { PROVIDER_DEFS, applyAutomationPermissionSnapshot, finalizeInterruptedMessages, getDefaultPermissionMode } from '../types'
+import type { AgentThreadOpenRequest, AgentThreadOpenResult, Attachment, AutomationPermissionSnapshot, CodexReviewStartRequest, Session, SessionForkMode, SessionForkOptions, SessionListItem, ChatMessage, TextMessage, ProviderModelDef, ProviderRuntimeKind, ProviderSidebarSyncResult, ReviewMetadata, RunEvent, RunRequest, SessionStatus, SideQuestionMessage, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary, UserInputAnswerPayload, WorktreeInventoryItem } from '../types'
+import { PROVIDER_DEFS, applyAutomationPermissionSnapshot, canSwitchSessionProvider, finalizeInterruptedMessages, getConfigurableModels, getDefaultPermissionMode, mergeProviderModelCatalog, normalizeProviderModelOrder, resolveProviderRunModelSelection } from '../types'
 import { gitManager } from './git'
 import { buildProviderCommandForRuntime, getProvider, PROVIDERS, providerSpawnEnv, resolveProviderBinary, resolveProviderCommand, runCodexAppServerCommandSurfaceRaw } from './providers'
 import type { ProviderAdapter } from './providers'
@@ -231,11 +231,30 @@ function send(channel: string, ...args: unknown[]): void {
 
 function requestFromSession(session: Session, prompt: string): RunRequest {
   const providerId = session.provider ?? 'claude'
+  const baseProviderDef = PROVIDER_DEFS[providerId] ?? PROVIDER_DEFS.claude
+  const providerModelCatalog = settingsStore.get('providerModelCatalog', {}) as Record<string, ProviderModelDef[]>
+  const providerDef = mergeProviderModelCatalog(baseProviderDef, providerModelCatalog[providerId])
+  const rawModel = session.model
+  const requestedFast = Boolean(session.useFast)
+  const modelSelection = resolveProviderRunModelSelection(providerDef, rawModel, session.effort, requestedFast)
+  const useFast = modelSelection.useFast
+  const selectedRequestModel = providerId === 'cursor' || !modelSelection.baseModel
+    ? modelSelection.baseModel
+    : modelSelection.model
+  const requestModel = selectedRequestModel ?? ''
   const preparedPrompt = claudeAgentThreadPromptForRequest(session, prompt)
+  const copilotByokProvider = providerId === 'copilot'
+    ? settingsStore.get('copilotByokProvider', {
+        enabled: false,
+        type: 'openai',
+        baseUrl: '',
+        apiKeyEnvKey: 'OPENAI_API_KEY'
+      }) as RunRequest['copilotByokProvider']
+    : undefined
   return {
     prompt: preparedPrompt,
     cwd: session.workDir,
-    model: session.model,
+    model: requestModel,
     effort: session.effort,
     agentName: session.agentName ?? null,
     providerSessionId: session.providerSessionId ?? session.claudeSessionId ?? null,
@@ -246,7 +265,9 @@ function requestFromSession(session: Session, prompt: string): RunRequest {
     additionalDirs: session.additionalDirs ?? [],
     runtime: sessionRuntimeForProvider(providerId, session.runtime),
     useThinking: session.useThinking,
-    useFast: session.useFast
+    useFast,
+    serviceTier: providerId === 'codex' && useFast && !modelSelection.fastVariantModelId ? 'fast' : null,
+    ...(copilotByokProvider ? { copilotByokProvider } : {})
   }
 }
 
@@ -861,9 +882,11 @@ export const sessionManager = {
     const defaultProvider = settingsStore.get('defaultProvider', 'claude') as string
     const providerDef = PROVIDER_DEFS[defaultProvider] ?? PROVIDER_DEFS.claude
     const storedModels = settingsStore.get('defaultModels', {}) as Record<string, string>
+    const storedProviderModels = settingsStore.get('providerModels', {}) as Record<string, string[]>
     const storedEfforts = settingsStore.get('defaultEfforts', {}) as Record<string, string>
     const storedPermissionModes = settingsStore.get('defaultPermissionModes', {}) as Record<string, string>
-    const defaultModel = storedModels[providerDef.id] ?? providerDef.models[0]?.id ?? ''
+    const orderedModels = normalizeProviderModelOrder(providerDef, storedProviderModels[providerDef.id] ?? [])
+    const defaultModel = orderedModels[0] ?? storedModels[providerDef.id] ?? getConfigurableModels(providerDef)[0]?.id ?? ''
     const defaultEffort = storedEfforts[providerDef.id] ?? providerDef.effortLevels[0]?.id ?? 'normal'
     const defaultPermissionMode = getDefaultPermissionMode(providerDef, storedPermissionModes[providerDef.id])
 
@@ -1843,14 +1866,18 @@ export const sessionManager = {
           id: event.streamId,
           role: 'assistant',
           type: 'text',
-          content: `${existing?.type === 'text' ? existing.content : ''}${event.content}`,
+          content: event.replace ? event.content : `${existing?.type === 'text' ? existing.content : ''}${event.content}`,
           timestamp: existing?.timestamp ?? Date.now(),
           isStreaming: true
         })
       } else if (event.type === 'assistant.text.completed') {
         const existing = this.get(sessionId)?.messages.find((message) => message.id === event.streamId && message.type === 'text')
         if (existing?.type === 'text') {
-          this.upsertMessage(sessionId, { ...existing, isStreaming: false })
+          this.upsertMessage(sessionId, {
+            ...existing,
+            content: typeof event.content === 'string' ? event.content : existing.content,
+            isStreaming: false
+          })
         }
       }
     }
@@ -1881,10 +1908,13 @@ export const sessionManager = {
     const s = sessions.find((s) => s.id === id)
     if (s) {
       const normalizedPatch: typeof patch & { runtime?: ProviderRuntimeKind } = { ...patch }
-      if (patch.provider) {
-        normalizedPatch.runtime = defaultRuntimeForProvider(patch.provider)
+      if (patch.provider && patch.provider !== s.provider && !canSwitchSessionProvider(s)) {
+        return
+      }
+      if (normalizedPatch.provider) {
+        normalizedPatch.runtime = defaultRuntimeForProvider(normalizedPatch.provider)
         if (!patch.permissionMode) {
-          const providerDef = PROVIDER_DEFS[patch.provider] ?? PROVIDER_DEFS.claude
+          const providerDef = PROVIDER_DEFS[normalizedPatch.provider] ?? PROVIDER_DEFS.claude
           const storedPermissionModes = settingsStore.get('defaultPermissionModes', {}) as Record<string, string>
           normalizedPatch.permissionMode = getDefaultPermissionMode(providerDef, storedPermissionModes[providerDef.id])
         }

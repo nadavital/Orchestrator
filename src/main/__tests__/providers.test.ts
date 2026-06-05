@@ -4,7 +4,7 @@ import { chmodSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import type { RunEvent, RunRequest } from '../../types'
-import { AGENT_THREAD_ADAPTER_CONTRACTS, PROVIDER_DEFS, deriveAgentNodes, deriveAgentThreadGraph, derivePlanStatesFromMessages, getDefaultPermissionMode, getPrimaryPermissionModes, getProviderPermissionPresets, parseClaudeAgentsOutput, permissionRequestDetail } from '../../types'
+import { AGENT_THREAD_ADAPTER_CONTRACTS, PROVIDER_DEFS, deriveAgentNodes, deriveAgentThreadGraph, derivePlanStatesFromMessages, fastBaseModelIdForProviderModel, fastVariantModelIdForProviderModel, getDefaultPermissionMode, getPrimaryPermissionModes, getProviderPermissionPresets, getVisibleModels, mergeProviderModelCatalog, normalizeProviderModelOrder, parseClaudeAgentsOutput, permissionRequestDetail, resolveProviderRunModelSelection, supportsFastModeForProviderModel } from '../../types'
 import { buildProviderCommandForRuntime, claudeMcpServerNames, codexRuntimePolicyConfig, getProviderDiagnostics, getProviderDiagnosticsAsync, getProviderRuntimeInfo, providerAuthFailureMessage, PROVIDERS, providerSdkSpawnEnv, providerSpawnEnv, resolveProviderBinary, resolveProviderPermissionRuntimeContext, runProviderCommandSurface, runProviderCommandSurfaceAsync } from '../providers'
 import { eventsToMessages } from '../runEvents'
 
@@ -82,6 +82,90 @@ test('every provider definition has an adapter and runtime info', () => {
     assert.ok(PROVIDERS[providerId], `Missing adapter for ${providerId}`)
     assert.ok(runtimeInfo[providerId], `Missing runtime info for ${providerId}`)
   }
+})
+
+test('cursor fast models are represented as speed toggles instead of duplicate models', () => {
+  const cursor = PROVIDER_DEFS.cursor
+  const visibleDefaults = getVisibleModels(cursor, {})
+  assert.equal(visibleDefaults.some((model) => model.id === 'composer-2.5-fast'), false)
+  assert.equal(visibleDefaults.some((model) => model.id === 'composer-2.5'), true)
+  assert.equal(fastBaseModelIdForProviderModel(cursor, 'composer-2.5-fast'), 'composer-2.5')
+  assert.equal(fastVariantModelIdForProviderModel(cursor, 'composer-2.5'), 'composer-2.5-fast')
+  assert.deepEqual(
+    normalizeProviderModelOrder(cursor, ['composer-2.5-fast', 'composer-2.5', 'composer-2-fast', 'auto']),
+    ['composer-2.5', 'composer-2', 'auto']
+  )
+})
+
+test('suffix fast models are represented as speed toggles instead of duplicate models', () => {
+  const copilot = PROVIDER_DEFS.copilot
+  assert.equal(fastBaseModelIdForProviderModel(copilot, 'claude-opus-4.6-fast'), 'claude-opus-4.6')
+  assert.equal(fastVariantModelIdForProviderModel(copilot, 'claude-opus-4.6'), 'claude-opus-4.6-fast')
+  assert.equal(supportsFastModeForProviderModel(copilot, 'claude-opus-4.6'), true)
+  assert.deepEqual(
+    normalizeProviderModelOrder(copilot, ['claude-opus-4.6-fast', 'claude-opus-4.6', 'gpt-5.5']),
+    ['claude-opus-4.6', 'gpt-5.5']
+  )
+})
+
+test('provider fast modes are only shown for real fast variants or speed metadata', () => {
+  const claude = PROVIDER_DEFS.claude
+  const codex = PROVIDER_DEFS.codex
+
+  assert.equal(fastVariantModelIdForProviderModel(claude, 'claude-sonnet-4-6'), null)
+  assert.equal(supportsFastModeForProviderModel(claude, 'claude-sonnet-4-6'), false)
+
+  assert.equal(fastVariantModelIdForProviderModel(codex, 'gpt-5.3-codex'), null)
+  assert.equal(supportsFastModeForProviderModel(codex, 'gpt-5.3-codex'), false)
+})
+
+test('provider fast modes can be driven by model speed metadata', () => {
+  const provider = {
+    ...PROVIDER_DEFS.codex,
+    models: [
+      { id: 'tiered-model', label: 'Tiered Model', serviceTiers: [{ id: 'standard' }, { id: 'fast' }] },
+      { id: 'speed-model', label: 'Speed Model', additionalSpeedTiers: ['fast'] },
+      { id: 'plain-model', label: 'Plain Model' }
+    ]
+  }
+
+  assert.equal(supportsFastModeForProviderModel(provider, 'tiered-model'), true)
+  assert.equal(supportsFastModeForProviderModel(provider, 'speed-model'), true)
+  assert.equal(supportsFastModeForProviderModel(provider, 'plain-model'), false)
+})
+
+test('live provider model catalogs drive fast mode without exposing hidden models', () => {
+  const provider = mergeProviderModelCatalog(PROVIDER_DEFS.codex, [
+    { id: 'gpt-5.5', label: 'GPT-5.5', additionalSpeedTiers: ['fast'] },
+    { id: 'gpt-5.3-codex', label: 'GPT-5.3 Codex', additionalSpeedTiers: [] },
+    { id: 'codex-auto-review', label: 'Codex Auto Review', hidden: true }
+  ])
+
+  assert.equal(supportsFastModeForProviderModel(provider, 'gpt-5.5'), true)
+  assert.equal(supportsFastModeForProviderModel(provider, 'gpt-5.3-codex'), false)
+  assert.deepEqual(
+    getVisibleModels(provider, { codex: ['gpt-5.5', 'codex-auto-review', 'gpt-5.3-codex'] }).map((model) => model.id),
+    ['gpt-5.5', 'gpt-5.3-codex']
+  )
+})
+
+test('provider run model selection ignores stale fast state for non-fast models', () => {
+  const selection = resolveProviderRunModelSelection(PROVIDER_DEFS.codex, 'gpt-5.3-codex', 'high', true)
+
+  assert.equal(selection.model, 'gpt-5.3-codex')
+  assert.equal(selection.useFast, false)
+  assert.equal(selection.fastVariantModelId, null)
+})
+
+test('provider run model selection enables speed-tier fast only from hydrated model metadata', () => {
+  const provider = mergeProviderModelCatalog(PROVIDER_DEFS.codex, [
+    { id: 'gpt-5.5', label: 'GPT-5.5', additionalSpeedTiers: ['fast'] }
+  ])
+  const selection = resolveProviderRunModelSelection(provider, 'gpt-5.5', 'high', true)
+
+  assert.equal(selection.model, 'gpt-5.5')
+  assert.equal(selection.useFast, true)
+  assert.equal(selection.fastVariantModelId, null)
 })
 
 test('runtime info exposes the same abstract capability matrix for every provider', () => {

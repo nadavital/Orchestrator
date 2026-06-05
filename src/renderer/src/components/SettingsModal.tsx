@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
-  type ProviderPermissionRuntimeContext,
   type ProviderDiagnosticInfo,
   type ProviderRuntimeInfo,
   type PreferredOpenTarget,
 } from '../types'
 import {
+  PROVIDER_DEFS,
+  getConfigurableModels,
   normalizeSettingsHostId,
+  normalizeProviderModelOrder,
   normalizeSettingsSectionForHostKind,
   settingsHostAdapterState,
   settingsHostOptionsFromSessions,
@@ -25,7 +27,7 @@ import DataControlsSettingsPage from './Settings/DataControlsSettingsPage'
 import GeneralSettingsPage from './Settings/GeneralSettingsPage'
 import PetsSettingsPage from './Settings/PetsSettingsPage'
 import PersonalizationSettingsPage from './Settings/PersonalizationSettingsPage'
-import ProvidersSettingsPage from './Settings/ProvidersSettingsPage'
+import ProvidersSettingsPage, { type CopilotByokProviderSettings } from './Settings/ProvidersSettingsPage'
 import ShortcutsSettingsPage from './Settings/ShortcutsSettingsPage'
 import WorktreesSettingsPage from './Settings/WorktreesSettingsPage'
 import {
@@ -55,8 +57,8 @@ const SETTINGS_SEARCH_ITEMS: Array<{
   { section: 'general', label: 'Composer', description: 'Enter behavior and send shortcut', keywords: 'composer enter send newline message input command control', anchor: 'general-composer' },
   { section: 'appearance', label: 'Appearance', description: 'Theme, density, color, and fonts', keywords: 'theme accent density font motion chrome code sidebar transparency tint' },
   { section: 'providers', label: 'Provider picker', description: 'Default provider and runtime readiness', keywords: 'provider picker default provider runtime ready install claude codex openai cursor copilot', anchor: 'provider-picker' },
-  { section: 'providers', label: 'Provider defaults', description: 'Default model, reasoning, permissions, and model list', keywords: 'models model reasoning thinking permission permissions mode default visible list provider agent', anchor: 'provider-defaults' },
-  { section: 'providers', label: 'Providers', description: 'Default provider, models, permissions, and diagnostics', keywords: 'model agent permission diagnostics runtime codex claude openai' },
+  { section: 'providers', label: 'Provider defaults', description: 'Default provider, reasoning, accounts, and model order', keywords: 'models model reasoning thinking default visible list provider agent account auth', anchor: 'provider-defaults' },
+  { section: 'providers', label: 'Providers', description: 'Default provider, accounts, models, and diagnostics', keywords: 'model agent account auth diagnostics runtime codex claude openai' },
   { section: 'worktrees', label: 'Worktree create', description: 'Project, base ref, and branch controls', keywords: 'worktree worktrees create project base ref branch isolated workspace fork', anchor: 'worktrees-create' },
   { section: 'worktrees', label: 'Worktrees', description: 'Managed isolated workspaces', keywords: 'git branch fork workspace isolated cleanup' },
   { section: 'shortcuts', label: 'Shortcut bindings', description: 'Search, edit, clear, and reset keyboard shortcuts', keywords: 'shortcut shortcuts keybinding keybindings keyboard command commands hotkey hotkeys edit clear reset capture binding bindings', anchor: 'shortcut-bindings' },
@@ -78,17 +80,23 @@ interface Props {
 }
 
 export default function SettingsPage({ section, onClose }: Props): JSX.Element {
-  const { providerAvailability, sessions, setProviderModels: storeSetProviderModels } = useSessionStore()
+  const { providerAvailability, sessions, setProviderModels: storeSetProviderModels, mergeProviderModelCatalog } = useSessionStore()
   const selectedSettingsHostId = useSessionStore((state) => state.settingsHostId)
+  const selectedSettingsProviderId = useSessionStore((state) => state.selectedSettingsProviderId)
   const setSelectedSettingsHostId = useSessionStore((state) => state.setSettingsHostId)
+  const setSelectedSettingsProviderId = useSessionStore((state) => state.setSelectedSettingsProviderId)
   const setSettingsSection = useSessionStore((state) => state.setSettingsSection)
   const [defaultProvider, setDefaultProvider] = useState('claude')
   const [defaultModels, setDefaultModels] = useState<Record<string, string>>({})
   const [defaultEfforts, setDefaultEfforts] = useState<Record<string, string>>({})
-  const [defaultPermissionModes, setDefaultPermissionModes] = useState<Record<string, string>>({})
   const [providerModels, setProviderModels] = useState<Record<string, string[]>>({})
+  const [copilotByokProvider, setCopilotByokProvider] = useState<CopilotByokProviderSettings>({
+    enabled: false,
+    type: 'openai',
+    baseUrl: '',
+    apiKeyEnvKey: 'OPENAI_API_KEY'
+  })
   const [providerRuntime, setProviderRuntime] = useState<Record<string, ProviderRuntimeInfo>>({})
-  const [providerPermissionContexts, setProviderPermissionContexts] = useState<Record<string, ProviderPermissionRuntimeContext>>({})
   const [providerDiagnostics, setProviderDiagnostics] = useState<Record<string, ProviderDiagnosticInfo>>({})
   const [diagnosticsLoading, setDiagnosticsLoading] = useState<Record<string, boolean>>({})
   const [preferredEditor, setPreferredEditor] = useState<PreferredEditor>('system')
@@ -150,8 +158,8 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
       setDefaultProvider((rec.defaultProvider as string) ?? 'claude')
       setDefaultModels((rec.defaultModels as Record<string, string>) ?? {})
       setDefaultEfforts((rec.defaultEfforts as Record<string, string>) ?? {})
-      setDefaultPermissionModes((rec.defaultPermissionModes as Record<string, string>) ?? {})
       setProviderModels((rec.providerModels as Record<string, string[]>) ?? {})
+      setCopilotByokProvider(normalizeCopilotByokProviderSettings(rec.copilotByokProvider as Partial<CopilotByokProviderSettings> | undefined))
       setPreferredEditor(normalizePreferredEditor(rec.preferredEditor))
       setComposerEnterBehavior(normalizeComposerEnterBehavior(rec.composerEnterBehavior))
       setAppearance((rec.appearance as Appearance) ?? 'mist')
@@ -229,11 +237,34 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
     if (!options.force && (providerDiagnostics[providerId] || diagnosticsLoading[providerId])) return
     setDiagnosticsLoading((current) => ({ ...current, [providerId]: true }))
     window.api.providers.getDiagnostics(providerId)
-      .then((next) => setProviderDiagnostics((current) => ({ ...current, ...next })))
+      .then((next) => {
+        setProviderDiagnostics((current) => ({ ...current, ...next }))
+        const catalogUpdates = Object.fromEntries(
+          Object.entries(next)
+            .filter(([, diagnostics]) => diagnostics.models.items && diagnostics.models.items.length > 0)
+            .map(([id, diagnostics]) => [id, diagnostics.models.items ?? []])
+        )
+        if (Object.keys(catalogUpdates).length > 0) {
+          mergeProviderModelCatalog(catalogUpdates)
+          window.api.settings.get()
+            .then((settings) => {
+              window.api.settings.set('providerModelCatalog', {
+                ...(settings.providerModelCatalog ?? {}),
+                ...catalogUpdates
+              })
+            })
+            .catch(() => undefined)
+        }
+      })
       .finally(() => {
         setDiagnosticsLoading((current) => ({ ...current, [providerId]: false }))
       })
-  }, [diagnosticsLoading, providerDiagnostics])
+  }, [diagnosticsLoading, mergeProviderModelCatalog, providerDiagnostics])
+
+  useEffect(() => {
+    if (effectiveSection !== 'providers') return
+    Object.keys(PROVIDER_DEFS).forEach((providerId) => loadProviderDiagnostics(providerId))
+  }, [effectiveSection, loadProviderDiagnostics])
 
   const saveDefaultProvider = (id: string): void => {
     setDefaultProvider(id)
@@ -252,17 +283,23 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
     window.api.settings.set('defaultEfforts', next)
   }
 
-  const saveDefaultPermissionMode = (providerId: string, modeId: string): void => {
-    const next = { ...defaultPermissionModes, [providerId]: modeId }
-    setDefaultPermissionModes(next)
-    window.api.settings.set('defaultPermissionModes', next)
-  }
-
   const saveProviderModels = (providerId: string, models: string[]): void => {
-    const next = { ...providerModels, [providerId]: models }
+    const providerDef = PROVIDER_DEFS[providerId]
+    const normalizedModels = providerDef ? normalizeProviderModelOrder(providerDef, models) : models
+    const next = { ...providerModels, [providerId]: normalizedModels }
     setProviderModels(next)
     storeSetProviderModels(next)
     window.api.settings.set('providerModels', next)
+    const firstModel = normalizedModels[0] ?? (providerDef ? getConfigurableModels(providerDef)[0]?.id : undefined)
+    if (firstModel) {
+      saveDefaultModel(providerId, firstModel)
+    }
+  }
+
+  const saveCopilotByokProvider = (settings: CopilotByokProviderSettings): void => {
+    const normalized = normalizeCopilotByokProviderSettings(settings)
+    setCopilotByokProvider(normalized)
+    window.api.settings.set('copilotByokProvider', normalized)
   }
 
   const savePreferredEditor = async (value: PreferredEditor): Promise<void> => {
@@ -742,21 +779,17 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
                 <ProvidersSettingsPage
                   defaultProvider={defaultProvider}
                   sessions={sessions}
-                  defaultModels={defaultModels}
                   defaultEfforts={defaultEfforts}
-                  defaultPermissionModes={defaultPermissionModes}
                   providerModels={providerModels}
                   providerRuntime={providerRuntime}
-                  providerPermissionContexts={providerPermissionContexts}
                   providerDiagnostics={providerDiagnostics}
-                  diagnosticsLoading={diagnosticsLoading}
                   providerAvailability={providerAvailability}
+                  selectedProviderId={selectedSettingsProviderId}
+                  copilotByokProvider={copilotByokProvider}
                   onSetDefaultProvider={saveDefaultProvider}
-                  onSetDefaultModel={saveDefaultModel}
                   onSetDefaultEffort={saveDefaultEffort}
-                  onSetDefaultPermissionMode={saveDefaultPermissionMode}
                   onSetProviderModels={saveProviderModels}
-                  onSetProviderPermissionContexts={setProviderPermissionContexts}
+                  onSetCopilotByokProvider={saveCopilotByokProvider}
                   onLoadProviderDiagnostics={loadProviderDiagnostics}
                 />
               )}
@@ -858,6 +891,15 @@ function normalizePreferredEditor(value: unknown): PreferredEditor {
 
 function normalizeComposerEnterBehavior(value: unknown): ComposerEnterBehavior {
   return value === 'newline' ? 'newline' : 'send'
+}
+
+function normalizeCopilotByokProviderSettings(value: Partial<CopilotByokProviderSettings> | null | undefined): CopilotByokProviderSettings {
+  return {
+    enabled: value?.enabled === true,
+    type: value?.type === 'azure' || value?.type === 'anthropic' ? value.type : 'openai',
+    baseUrl: typeof value?.baseUrl === 'string' ? value.baseUrl : '',
+    apiKeyEnvKey: typeof value?.apiKeyEnvKey === 'string' && value.apiKeyEnvKey.trim() ? value.apiKeyEnvKey.trim() : 'OPENAI_API_KEY'
+  }
 }
 
 function normalizeChromeTheme(value: unknown, fallback: ChromeTheme): ChromeTheme {

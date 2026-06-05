@@ -8,6 +8,7 @@ This checkpoint exists to prevent Phase 1 from drifting into low-value parity po
 
 ## Current Readiness
 
+- 2026-06-04 doc-cleanup note: `npm run smoke:ui:phase1:status -- --markdown --details` is artifact-retention sensitive. In a fresh worktree it can report `Local daily-use ready: no`, `Daily-coding full coverage: no (0 manifests)`, and missing live-proof artifacts simply because the `tmp/` manifests from the earlier proof run are not present. Treat that output as "proof needs to be regenerated in this worktree", not as evidence that the UI regressed. Use `docs/current-todo-audit.md` for the current triage split.
 - Local daily-coding workflows are fixture-ready for the Phase 1 target after the final focused and packaged proof gates passed. The latest aggregate summary considered 21 recent manifests and reported `full.complete=true` across all 17 targets.
 - The full Phase 1 objective is not complete because provider-backed data, non-Codex lifecycle proof, live Codex evidence boundaries, Browser native runtime signals, and Phase 2 renderer fidelity remain outside local fixture proof.
 - The current side-panel comparison has no executable local mismatches in the refreshed 27-capture inventory, but it still reports remaining parity gaps that are mostly live Codex UI proof, provider adapters/proof, runtime signal, and renderer fidelity.

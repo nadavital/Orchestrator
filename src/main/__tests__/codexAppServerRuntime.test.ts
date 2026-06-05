@@ -147,6 +147,8 @@ test('codex app-server runtime starts a thread, starts a turn, and answers nativ
       providerSessionId: null,
       executionPolicy: 'default',
       allowedTools: [],
+      useFast: true,
+      serviceTier: 'fast',
       runtime: 'app-server'
     },
     mode: 'start',
@@ -169,6 +171,7 @@ test('codex app-server runtime starts a thread, starts a turn, and answers nativ
   assert.equal(writes[2].method, 'thread/start')
   assert.equal((writes[2].params as Record<string, unknown>).approvalPolicy, 'on-request')
   assert.equal((writes[2].params as Record<string, unknown>).sandbox, 'workspace-write')
+  assert.equal((writes[2].params as Record<string, unknown>).serviceTier, 'fast')
 
   proc.emitStdout({
     id: writes[2].id,
@@ -177,6 +180,7 @@ test('codex app-server runtime starts a thread, starts a turn, and answers nativ
   writes = writtenJson(proc)
   assert.equal(writes[3].method, 'turn/start')
   assert.equal((writes[3].params as Record<string, unknown>).threadId, 'thread-1')
+  assert.equal((writes[3].params as Record<string, unknown>).serviceTier, 'fast')
   assert.deepEqual((writes[3].params as { input: unknown[] }).input[0], {
     type: 'text',
     text: 'hello codex',

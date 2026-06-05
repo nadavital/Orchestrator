@@ -1,8 +1,8 @@
 import { memo, useState, useRef, useEffect } from 'react'
 import type { Ref, RefObject } from 'react'
-import type { Attachment, GitRefOption, Project, ProviderModelDef, ProviderPermissionPreset, ProviderPermissionRuntimeContext, ProviderRuntimeInfo, ProviderSlashCommand, ResolvedExecutionPolicy, Session, WorktreeInventoryItem } from '../../types'
+import type { Attachment, GitRefOption, Project, ProviderModelDef, ProviderPermissionMode, ProviderPermissionRuntimeContext, ProviderRuntimeInfo, ProviderSlashCommand, ResolvedExecutionPolicy, Session, WorktreeInventoryItem } from '../../types'
 import type { SlashPaletteCommand } from '../../types'
-import { PROVIDER_DEFS, canStopSession, expandSlashCommandPrompt, getComposerSendState, getDefaultPermissionMode, getProviderPermissionPresetForMode, getProviderPermissionPresets, getVisibleModels, sessionRouteUrlForLocation } from '../../types'
+import { PROVIDER_DEFS, canStopSession, canSwitchSessionProvider, expandSlashCommandPrompt, fastBaseModelIdForProviderModel, getComposerSendState, getDefaultPermissionMode, getVisibleModels, mergeProviderModelCatalog, sessionRouteUrlForLocation, supportsFastModeForProviderModel } from '../../types'
 import { defaultUI, hasComposerDraft, sideChatContextSnapshot, useSessionStore } from '../../store/sessions'
 import { useProjectStore } from '../../store/projects'
 import SlashCommandPalette, { getSlashQuery } from './SlashCommandPalette'
@@ -54,6 +54,7 @@ function normalizeComposerEnterBehavior(value: unknown): ComposerEnterBehavior {
 function InputBar({ session, isNew }: Props): JSX.Element {
   const providerAvailability = useSessionStore((state) => state.providerAvailability)
   const providerModels = useSessionStore((state) => state.providerModels)
+  const providerModelCatalog = useSessionStore((state) => state.providerModelCatalog)
   const currentUi = useSessionStore((state) => state.uiState[session.id] ?? defaultUI)
   const setComposerDraft = useSessionStore((state) => state.setComposerDraft)
   const setComposerAttachments = useSessionStore((state) => state.setComposerAttachments)
@@ -94,6 +95,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   const [runtimeInfo, setRuntimeInfo] = useState<Record<string, ProviderRuntimeInfo>>({})
   const [permissionContext, setPermissionContext] = useState<ProviderPermissionRuntimeContext | null>(null)
   const [extensionCommands, setExtensionCommands] = useState<ProviderSlashCommand[]>([])
+  const [defaultPermissionModes, setDefaultPermissionModes] = useState<Record<string, string>>({})
   const [isSavingPastedFiles, setIsSavingPastedFiles] = useState(false)
   const [dragActive, setDragActive] = useState(false)
   const [attachmentStatus, setAttachmentStatus] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
@@ -167,15 +169,20 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     let alive = true
     window.api.settings.get()
       .then((settings) => {
-        if (alive) setComposerEnterBehavior(normalizeComposerEnterBehavior(settings.composerEnterBehavior))
+        if (!alive) return
+        setComposerEnterBehavior(normalizeComposerEnterBehavior(settings.composerEnterBehavior))
+        setDefaultPermissionModes((settings.defaultPermissionModes as Record<string, string> | undefined) ?? {})
       })
       .catch(() => {
         if (alive) setComposerEnterBehavior('send')
       })
     const onSettingsUpdated = (event: Event): void => {
-      const detail = (event as CustomEvent<{ composerEnterBehavior?: unknown }>).detail
+      const detail = (event as CustomEvent<{ composerEnterBehavior?: unknown; defaultPermissionModes?: unknown }>).detail
       if ('composerEnterBehavior' in (detail ?? {})) {
         setComposerEnterBehavior(normalizeComposerEnterBehavior(detail?.composerEnterBehavior))
+      }
+      if ('defaultPermissionModes' in (detail ?? {}) && detail?.defaultPermissionModes && typeof detail.defaultPermissionModes === 'object') {
+        setDefaultPermissionModes(detail.defaultPermissionModes as Record<string, string>)
       }
     }
     window.addEventListener('orchestrator:settings-updated', onSettingsUpdated)
@@ -256,9 +263,15 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     return () => window.removeEventListener('orchestrator:add-composer-attachment', onAddComposerAttachment)
   }, [session.id, setComposerAttachments])
 
-  const provider = PROVIDER_DEFS[session.provider ?? 'claude'] ?? PROVIDER_DEFS.claude
-  const model = session.model || provider.models[0]?.id || ''
+  const baseProvider = PROVIDER_DEFS[session.provider ?? 'claude'] ?? PROVIDER_DEFS.claude
+  const provider = mergeProviderModelCatalog(baseProvider, providerModelCatalog[baseProvider.id])
+  const configuredModelChoices = getVisibleModels(provider, providerModels)
+  const configuredDefaultModel = configuredModelChoices[0]?.id ?? provider.models[0]?.id ?? ''
+  const rawModel = session.model || configuredDefaultModel
+  const fastBaseModelId = fastBaseModelIdForProviderModel(provider, rawModel)
+  const model = fastBaseModelId ?? rawModel
   const visibleModelChoices = getVisibleModelsWithCurrent(provider, providerModels, model)
+  const canSwitchProvider = isNew && canSwitchSessionProvider(session)
   const visibleProviderChoices = Object.values(PROVIDER_DEFS)
     .filter((opt) => providerAvailability[opt.id] !== false || opt.id === provider.id)
     .sort((a, b) => {
@@ -268,7 +281,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     })
   const effort = session.effort ?? provider.effortLevels[0]?.id ?? ''
   const contextDefaultPermissionMode = permissionContext?.providerId === provider.id ? permissionContext.defaultPolicy : undefined
-  const defaultPermissionMode = contextDefaultPermissionMode ?? getDefaultPermissionMode(provider)
+  const defaultPermissionMode = getDefaultPermissionMode(provider, defaultPermissionModes[provider.id] ?? contextDefaultPermissionMode)
   const permissionMode = session.permissionMode ?? defaultPermissionMode
   const effectiveMode = isNew ? useWorktree : session.useWorktree
   const providerRuntime = runtimeInfo[provider.id]
@@ -284,8 +297,8 @@ function InputBar({ session, isNew }: Props): JSX.Element {
 
   const modelLabel = provider.models.find((m) => m.id === model)?.label ?? model
   const effortLabel = provider.effortLevels.find((e) => e.id === effort)?.label ?? ''
-  const selectedPermissionPreset = getProviderPermissionPresetForMode(provider, permissionMode)
-  const permLabel = selectedPermissionPreset?.label ?? 'Custom'
+  const selectedPermissionMode = provider.permissionModes.find((mode) => mode.id === permissionMode)
+  const permLabel = selectedPermissionMode?.label ?? 'Custom'
   const permissionControlLabel = compactPermissionLabel(permLabel)
   const contextDisabledPermissionReason = permissionContext?.status === 'ok'
     ? permissionContext.disabledPolicies?.[permissionMode]
@@ -302,21 +315,22 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     contextDisabledPermissionReason ? `disabled by live config: ${contextDisabledPermissionReason}` : null
   ].filter(Boolean).join('. ')
   const permissionTriggerTitle = permissionTriggerLabel
-  const permissionPresets = filterPermissionPresets(getProviderPermissionPresets(provider), permissionContext, permissionMode)
+  const permissionModes = filterPermissionModes(provider.permissionModes, permissionContext, permissionMode)
   const canUsePermission = resolvedPermission?.support !== 'unsupported' && !contextDisabledPermissionReason
   const composerDropdownOpen = showAgentMenu || showPermMenu || showModeMenu || showProjectMenu
 
-  // Cursor per-model effort/thinking/fast config
-  const cursorCfg = provider.id === 'cursor'
-    ? PROVIDER_DEFS.cursor.models.find((m) => m.id === model)?.cursorConfig
-    : undefined
+  // Provider per-model variant config. Cursor currently exposes the richest
+  // effort/thinking matrix, but fast variants are useful across providers.
+  const modelVariantCfg = provider.models.find((m) => m.id === model)?.cursorConfig
+  const cursorCfg = provider.id === 'cursor' ? modelVariantCfg : undefined
   const cursorEffortLevels = cursorCfg?.effortLevels ?? []
   const cursorEffort = session.effort || cursorCfg?.defaultEffort || cursorEffortLevels[0]?.id || ''
   const cursorEfLevel = cursorEffortLevels.find((l) => l.id === cursorEffort)
-  const hasFast = !!(cursorEfLevel?.fastModelId || (cursorCfg && cursorEffortLevels.length === 0 && cursorCfg.fastModelId))
+  const hasFast = supportsFastModeForProviderModel(provider, model, cursorEffort || effort)
   const hasThinking = !!cursorCfg?.supportsThinking
   const useThinking = session.useThinking ?? false
-  const useFast = session.useFast ?? false
+  const rawUseFast = (session.useFast ?? false) || Boolean(fastBaseModelId)
+  const useFast = hasFast && rawUseFast
 
   const update = (patch: {
     provider?: string
@@ -341,6 +355,10 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     })
   }
 
+  useEffect(() => {
+    if (rawUseFast && !hasFast) update({ useFast: false })
+  }, [rawUseFast, hasFast, session.id, model])
+
   const flushPendingSettingsBeforeSend = async (): Promise<boolean> => {
     try {
       await pendingSettingsUpdateRef.current
@@ -352,14 +370,16 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   }
 
   const switchProvider = (providerId: string): void => {
+    if (!canSwitchProvider) return
     const newDef = PROVIDER_DEFS[providerId]
     if (!newDef) return
+    const orderedModels = getVisibleModels(newDef, providerModels)
     update({
       provider: providerId,
-      model: newDef.models[0]?.id ?? '',
+      model: orderedModels[0]?.id ?? newDef.models[0]?.id ?? '',
       effort: newDef.effortLevels[0]?.id ?? '',
       agentName: null,
-      permissionMode: getDefaultPermissionMode(newDef),
+      permissionMode: getDefaultPermissionMode(newDef, defaultPermissionModes[providerId]),
       useThinking: false,
       useFast: false
     })
@@ -381,8 +401,18 @@ function InputBar({ session, isNew }: Props): JSX.Element {
       switchCursorModel(modelId)
       return
     }
-    update({ model: modelId })
+    update({ model: modelId, useFast: false })
   }
+
+  const previousConfiguredDefaultModelRef = useRef(configuredDefaultModel)
+  useEffect(() => {
+    const previousDefault = previousConfiguredDefaultModelRef.current
+    previousConfiguredDefaultModelRef.current = configuredDefaultModel
+    if (!canSwitchProvider || !configuredDefaultModel) return
+    if (!session.model || (previousDefault && session.model === previousDefault && previousDefault !== configuredDefaultModel)) {
+      update({ model: configuredDefaultModel })
+    }
+  }, [canSwitchProvider, configuredDefaultModel, session.model])
 
   const openAgentMenu = (): void => {
     setAgentMenuPane('main')
@@ -408,6 +438,17 @@ function InputBar({ session, isNew }: Props): JSX.Element {
 
   const selectPermissionMode = (modeId: string): void => {
     update({ permissionMode: modeId })
+    const nextPermissionModes = { ...defaultPermissionModes, [provider.id]: modeId }
+    setDefaultPermissionModes(nextPermissionModes)
+    void window.api.settings.set('defaultPermissionModes', nextPermissionModes)
+      .then(() => {
+        window.dispatchEvent(new CustomEvent('orchestrator:settings-updated', {
+          detail: { defaultPermissionModes: nextPermissionModes }
+        }))
+      })
+      .catch((error) => {
+        setRunActionStatus({ text: `Permission preference save failed: ${errorText(error)}`, tone: 'danger' })
+      })
     setShowPermMenu(false)
   }
 
@@ -1113,7 +1154,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     showEffortInTrigger ? effortLabel : null,
     provider.id === 'cursor' && cursorEffortLevels.length > 0 && cursorEfLevel ? cursorEfLevel.label : null,
     provider.id === 'cursor' && useThinking ? 'Think' : null,
-    provider.id === 'cursor' && useFast ? 'Fast' : null,
+    hasFast && useFast ? 'Fast' : null,
   ].filter(Boolean).join(' · ')
   const agentTriggerTitle = [
     provider.name,
@@ -1121,7 +1162,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     provider.supportsEffort && effortLabel ? effortLabel : null,
     provider.id === 'cursor' && cursorEffortLevels.length > 0 && cursorEfLevel ? cursorEfLevel.label : null,
     provider.id === 'cursor' && useThinking ? 'Thinking on' : null,
-    provider.id === 'cursor' && useFast ? 'Fast mode' : null,
+    hasFast && useFast ? 'Fast mode' : null,
   ].filter(Boolean).join(' · ')
   const agentTriggerLabel = agentLabel || provider.name
   const submenuChevron = <Icon name="chevronRight" size={16} />
@@ -1137,11 +1178,11 @@ function InputBar({ session, isNew }: Props): JSX.Element {
                 <ComposerMenuRow
                   key={opt.id}
                   active={provider.id === opt.id}
-                  disabled={!available}
+                  disabled={!canSwitchProvider || !available}
                   leading={<ProviderIcon providerId={opt.id} size={15} color={available ? opt.color : 'var(--color-text-muted)'} />}
-                  detail={!available ? 'Not installed' : undefined}
+                  detail={!canSwitchProvider ? 'Fixed for this chat' : !available ? 'Not installed' : undefined}
                   onClick={() => {
-                    if (!available) return
+                    if (!canSwitchProvider || !available) return
                     switchProvider(opt.id)
                     closeAgentMenu()
                   }}
@@ -1230,8 +1271,8 @@ function InputBar({ session, isNew }: Props): JSX.Element {
         <>
           <ComposerMenuBack title="Speed" onBack={() => setAgentMenuPane('main')} />
           <ComposerMenuSection>
-            <ComposerMenuRow active={!useFast} onClick={() => { update({ useFast: false }); closeAgentMenu() }}>Standard</ComposerMenuRow>
-            <ComposerMenuRow active={useFast} onClick={() => { update({ useFast: true }); closeAgentMenu() }}>Fast</ComposerMenuRow>
+            <ComposerMenuRow active={!useFast} onClick={() => { update({ model, useFast: false }); closeAgentMenu() }}>Standard</ComposerMenuRow>
+            <ComposerMenuRow active={useFast} onClick={() => { update({ model, useFast: true }); closeAgentMenu() }}>Fast</ComposerMenuRow>
           </ComposerMenuSection>
         </>
       )
@@ -1243,7 +1284,8 @@ function InputBar({ session, isNew }: Props): JSX.Element {
           <ComposerMenuRow
             active={false}
             leading={<ProviderIcon providerId={provider.id} size={15} color={provider.color} />}
-            detail={provider.name}
+            disabled={!canSwitchProvider}
+            detail={canSwitchProvider ? provider.name : 'Fixed for this chat'}
             trailing={submenuChevron}
             onClick={() => setAgentMenuPane('provider')}
           >
@@ -1287,7 +1329,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
               Thinking
             </ComposerMenuRow>
           )}
-          {provider.id === 'cursor' && hasFast && (
+          {hasFast && (
             <ComposerMenuRow
               active={false}
               detail={useFast ? 'Fast' : 'Standard'}
@@ -1640,21 +1682,21 @@ function InputBar({ session, isNew }: Props): JSX.Element {
             {showPermMenu && (
               <DropdownPanel onClose={() => setShowPermMenu(false)} style={{ bottom: '100%', marginBottom: 8, left: 0, width: 236 }}>
                 <ComposerMenuSection>
-                  {permissionPresets.map((opt) => (
+                  {permissionModes.map((opt) => (
                     <ComposerMenuRow
                       key={opt.id}
-                      active={permissionMode === opt.modeId}
-                      disabled={Boolean(permissionUnavailableReason(opt.modeId))}
-                      icon={permissionPresetIcon(opt.id)}
-                      detail={permissionUnavailableReason(opt.modeId)}
-                      onClick={() => selectPermissionMode(opt.modeId)}
+                      active={permissionMode === opt.id}
+                      disabled={Boolean(permissionUnavailableReason(opt.id))}
+                      icon={permissionModeIcon(opt)}
+                      detail={permissionUnavailableReason(opt.id) ?? opt.desc}
+                      onClick={() => selectPermissionMode(opt.id)}
                     >
                       {opt.label}
                     </ComposerMenuRow>
                   ))}
-                  {!selectedPermissionPreset && (
+                  {!selectedPermissionMode && (
                     <div style={{ marginTop: 6, padding: '4px 10px', color: 'var(--color-text-muted)', fontSize: 12, lineHeight: 1.35 }}>
-                      A provider-specific permission setting is active. Choose one of these options to return to the standard controls.
+                      This chat is using a provider-specific permission setting that is not in the current mode list.
                     </div>
                   )}
                 </ComposerMenuSection>
@@ -2010,9 +2052,11 @@ function ComposerMenuRow({
   )
 }
 
-function permissionPresetIcon(id: string): IconName {
-  if (id === 'autoReview') return 'shield'
-  if (id === 'fullAccess') return 'shieldAlert'
+function permissionModeIcon(mode: ProviderPermissionMode): IconName {
+  if (mode.intent === 'bypass' || mode.intent === 'fullAccess') return 'shieldAlert'
+  if (mode.intent === 'workspaceSandbox') return 'folder'
+  if (mode.intent === 'plan') return 'plan'
+  if (mode.intent === 'autoEdit') return 'checkCircle'
   return 'hand'
 }
 
@@ -2465,14 +2509,14 @@ function PolicyBadge({
   )
 }
 
-function filterPermissionPresets(
-  presets: ProviderPermissionPreset[],
+function filterPermissionModes(
+  modes: ProviderPermissionMode[],
   context: ProviderPermissionRuntimeContext | null,
   selectedPolicy: string
-): ProviderPermissionPreset[] {
-  if (!context || context.status !== 'ok' || !context.visiblePolicies || context.visiblePolicies.length === 0) return presets
+): ProviderPermissionMode[] {
+  if (!context || context.status !== 'ok' || !context.visiblePolicies || context.visiblePolicies.length === 0) return modes
   const visible = new Set(context.visiblePolicies)
-  return presets.filter((preset) => visible.has(preset.modeId) || preset.modeId === selectedPolicy)
+  return modes.filter((mode) => visible.has(mode.id) || mode.id === selectedPolicy)
 }
 
 function shallowEqualArray<T>(a?: T[], b?: T[]): boolean {

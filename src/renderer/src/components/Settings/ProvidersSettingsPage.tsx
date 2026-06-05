@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useRef, useState, type CSSProperties, type Dispatch, type ReactNode, type SetStateAction } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import {
   DndContext, closestCenter, type DragEndEvent,
   KeyboardSensor, PointerSensor, useSensor, useSensors
@@ -10,16 +10,13 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import {
   PROVIDER_DEFS,
-  getDefaultPermissionMode,
-  getProviderPermissionPresetForMode,
-  getProviderPermissionPresets,
+  fastBaseModelIdForProviderModel,
+  getConfigurableModels,
   getVisibleModels,
-  type PermissionExecutionContract,
+  mergeProviderModelCatalog,
   type ProviderCapabilityGap,
   type ProviderAuthFlowResult,
   type ProviderAuthSecretStatus,
-  type ProviderPermissionPreset,
-  type ProviderPermissionRuntimeContext,
   type ProviderCommandSurface,
   type ProviderCommandSurfaceResult,
   type ProviderDiagnosticInfo,
@@ -27,7 +24,6 @@ import {
   type ProviderRuntimeDebugEvent,
   type ProviderRuntimeInfo,
   type ProviderSidebarSyncResult,
-  type ResolvedExecutionPolicy,
   type SessionListItem,
   type UsageSummary
 } from '../../types'
@@ -45,151 +41,46 @@ import {
   SettingsSurface
 } from '../shared/designSystem'
 
-function SettingsSectionHeading({ title, description }: { title: string; description: string }): JSX.Element {
-  return (
-    <div className="settings-content-heading">
-      <div className="settings-content-title">{title}</div>
-      <div className="settings-content-description">{description}</div>
-    </div>
-  )
-}
-
 // ─── Providers section ────────────────────────────────────────────────────────
 
 export default function ProvidersSettingsPage({
-  defaultProvider, sessions, defaultModels, defaultEfforts, defaultPermissionModes, providerModels,
-  providerRuntime, providerPermissionContexts, providerDiagnostics, diagnosticsLoading, providerAvailability, defaultAdvancedOpen = false, onSetDefaultProvider, onSetDefaultModel, onSetDefaultEffort, onSetDefaultPermissionMode, onSetProviderModels, onSetProviderPermissionContexts, onLoadProviderDiagnostics
+  defaultProvider, sessions, defaultEfforts, providerModels,
+  providerRuntime, providerDiagnostics, providerAvailability, selectedProviderId, copilotByokProvider, onSetDefaultProvider, onSetDefaultEffort, onSetProviderModels, onSetCopilotByokProvider, onLoadProviderDiagnostics
 }: {
   defaultProvider: string
   sessions: SessionListItem[]
-  defaultModels: Record<string, string>
   defaultEfforts: Record<string, string>
-  defaultPermissionModes: Record<string, string>
   providerModels: Record<string, string[]>
   providerRuntime: Record<string, ProviderRuntimeInfo>
-  providerPermissionContexts: Record<string, ProviderPermissionRuntimeContext>
   providerDiagnostics: Record<string, ProviderDiagnosticInfo>
-  diagnosticsLoading: Record<string, boolean>
   providerAvailability: Record<string, boolean>
-  defaultAdvancedOpen?: boolean
+  selectedProviderId: string
+  copilotByokProvider: CopilotByokProviderSettings
   onSetDefaultProvider: (id: string) => void
-  onSetDefaultModel: (providerId: string, modelId: string) => void
   onSetDefaultEffort: (providerId: string, effortId: string) => void
-  onSetDefaultPermissionMode: (providerId: string, modeId: string) => void
   onSetProviderModels: (providerId: string, models: string[]) => void
-  onSetProviderPermissionContexts: Dispatch<SetStateAction<Record<string, ProviderPermissionRuntimeContext>>>
+  onSetCopilotByokProvider: (settings: CopilotByokProviderSettings) => void
   onLoadProviderDiagnostics: (providerId: string, options?: { force?: boolean }) => void
 }): JSX.Element {
-  const providerList = Object.values(PROVIDER_DEFS)
-  const [selectedId, setSelectedId] = useState(defaultProvider)
+  const selectedId = PROVIDER_DEFS[selectedProviderId] ? selectedProviderId : defaultProvider
   const providerDef = PROVIDER_DEFS[selectedId] ?? PROVIDER_DEFS.claude
   const installed = providerAvailability[selectedId] !== false
-  const currentModel = defaultModels[selectedId] ?? providerDef.models[0]?.id ?? ''
+  const diagnostics = providerDiagnostics[selectedId]
+  const modelCatalogProviderDef = providerDefWithDiagnosticModels(providerDef, diagnostics)
   const currentEffort = defaultEfforts[selectedId] ?? providerDef.effortLevels[0]?.id ?? ''
-  const permissionContext = providerPermissionContexts[selectedId]
-  const contextDefaultPermissionMode = permissionContext?.providerId === selectedId ? permissionContext.defaultPolicy : undefined
-  const currentPermissionMode = getDefaultPermissionMode(providerDef, defaultPermissionModes[selectedId] ?? contextDefaultPermissionMode)
-  const visibleModels = getVisibleModels(providerDef, providerModels)
-  const permissionPresets = filterPermissionPresets(getProviderPermissionPresets(providerDef), permissionContext, currentPermissionMode)
-  const selectedPermissionPreset = getProviderPermissionPresetForMode(providerDef, currentPermissionMode)
-  const permissionPickerMode = selectedPermissionPreset?.modeId ?? permissionPresets[0]?.modeId ?? currentPermissionMode
+  const visibleModels = getVisibleModels(modelCatalogProviderDef, providerModels)
   const visibleIds = visibleModels.map((m) => m.id)
   const runtime = providerRuntime[selectedId]
-  const diagnostics = providerDiagnostics[selectedId]
-  const loadingDiagnostics = diagnosticsLoading[selectedId] === true
-  const [advancedOpen, setAdvancedOpen] = useState(defaultAdvancedOpen)
   const settingsCommandSurfaces = visibleSettingsCommandSurfaces(selectedId, runtime?.registry.commandSurfaces ?? [])
   const authCommandSurfaces = visibleProviderAuthCommandSurfaces(selectedId, settingsCommandSurfaces)
-  const usageSnapshot = summarizeProviderUsage(sessions, selectedId)
-  const diagnosticSummary = [
-    installed ? 'Installed' : 'Unavailable',
-    `${usageSnapshot.sessionCount} chat${usageSnapshot.sessionCount === 1 ? '' : 's'}`,
-    diagnostics ? `${diagnostics.probes.filter((probe) => probe.status === 'ok').length}/${diagnostics.probes.length} checks` : 'Checks pending'
-  ]
-  const modelForPicker = visibleIds.includes(currentModel)
-    ? currentModel
-    : visibleModels[0]?.id ?? currentModel
-  const [sidebarSyncLoading, setSidebarSyncLoading] = useState(false)
-  const [sidebarSyncResult, setSidebarSyncResult] = useState<ProviderSidebarSyncResult | null>(null)
-  const [permissionContextLoading, setPermissionContextLoading] = useState(false)
-  const [permissionContextRefreshStatus, setPermissionContextRefreshStatus] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
-  const permissionContextCwd = sessions.find((session) => session.provider === selectedId)?.workDir ?? sessions[0]?.workDir
-  const detailsDialogTitleId = useId()
-  const detailsDialogDescriptionId = useId()
-
-  const loadPermissionContext = useCallback(async (options: { announce?: boolean } = {}): Promise<void> => {
-    setPermissionContextLoading(true)
-    if (options.announce) {
-      setPermissionContextRefreshStatus({ text: 'Refreshing permission config', tone: 'info' })
-    }
-    try {
-      const context = await window.api.providers.getPermissionContext(selectedId, permissionContextCwd)
-      onSetProviderPermissionContexts((current) => ({ ...current, [selectedId]: context }))
-      if (options.announce) {
-        setPermissionContextRefreshStatus({
-          text: context.status === 'ok' ? 'Permission config refreshed' : 'Permission config fallback refreshed',
-          tone: 'info'
-        })
-      }
-    } catch {
-      if (options.announce) {
-        setPermissionContextRefreshStatus({ text: 'Permission config refresh failed', tone: 'danger' })
-      }
-    } finally {
-      setPermissionContextLoading(false)
-    }
-  }, [onSetProviderPermissionContexts, permissionContextCwd, selectedId])
+  const endpointConfig = providerEndpointConfig(selectedId)
 
   useEffect(() => {
-    if (advancedOpen) onLoadProviderDiagnostics(selectedId)
-  }, [advancedOpen, onLoadProviderDiagnostics, selectedId])
-
-  useEffect(() => {
-    setSidebarSyncLoading(false)
-    setSidebarSyncResult(null)
-    setPermissionContextRefreshStatus(null)
-  }, [selectedId])
-
-  useEffect(() => {
-    if (!advancedOpen) return undefined
-    const handleKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') setAdvancedOpen(false)
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [advancedOpen])
-
-  useEffect(() => {
-    let alive = true
-    loadPermissionContext()
-      .catch(() => undefined)
-      .finally(() => {
-        if (!alive) setPermissionContextLoading(false)
-      })
-    return () => { alive = false }
-  }, [loadPermissionContext])
+    onLoadProviderDiagnostics(selectedId)
+  }, [onLoadProviderDiagnostics, selectedId])
 
   const handleVisibleModelsChange = (ids: string[]): void => {
     onSetProviderModels(selectedId, ids)
-    if (ids.length > 0 && !ids.includes(currentModel)) onSetDefaultModel(selectedId, ids[0])
-  }
-
-  const refreshSidebarMetadata = async (): Promise<void> => {
-    const cwd = sessions.find((session) => session.provider === selectedId)?.workDir ?? sessions[0]?.workDir
-    setSidebarSyncLoading(true)
-    setSidebarSyncResult(null)
-    try {
-      setSidebarSyncResult(await window.api.providers.refreshSidebarMetadata(selectedId, cwd))
-    } catch (error) {
-      setSidebarSyncResult({
-        ok: false,
-        providerId: selectedId,
-        changed: 0,
-        error: errorText(error)
-      })
-    } finally {
-      setSidebarSyncLoading(false)
-    }
   }
 
   return (
@@ -197,54 +88,26 @@ export default function ProvidersSettingsPage({
       <SettingsPageSection className="provider-settings-shell" dataTestId="provider-settings-section">
         <SettingsContentLayout
           title="Providers"
-          subtitle="Choose the default agent provider and configure runtime defaults."
+          subtitle="Configure provider accounts and model order."
           dataTestId="settings-content-layout-providers"
         >
           <div className="provider-settings-stack">
-        <div key={selectedId}>
-          <SettingsContentGroup
-            className="provider-settings-content-group"
-            rootAttrs={{
-              tabIndex: -1,
-              'data-settings-search-anchor': 'provider-defaults'
-            }}
-          >
-            <SettingsSectionHeading
-              title="Defaults"
-              description="Choose the provider, model, reasoning, permissions, and visible model list."
-            />
-            <SettingsGroupContent>
-              <SettingsSurface className="provider-settings-control-surface">
-                <SettingsRow
-                  label="Provider"
-                  className="provider-settings-row provider-settings-row-stacked provider-provider-row"
-                  control={(
-                    <ProviderDropdown
-                      providers={providerList}
-                      selectedId={selectedId}
-                      providerId={selectedId}
-                      color={providerDef.color}
+            <div key={selectedId} className="provider-settings-main">
+              <SettingsContentGroup
+                className="provider-settings-content-group"
+                rootAttrs={{
+                  tabIndex: -1,
+                  'data-settings-search-anchor': 'provider-defaults'
+                }}
+              >
+                <SettingsGroupContent>
+                  <SettingsSurface className="provider-settings-control-surface">
+                    <ProviderCompactHeader
+                      providerDef={providerDef}
                       installed={installed}
                       isDefault={defaultProvider === selectedId}
-                      installCmd={providerDef.installCmd}
-                      onSelect={setSelectedId}
                       onSetDefault={() => onSetDefaultProvider(selectedId)}
                     />
-                  )}
-                />
-
-                <SettingsRow
-                  label="Default"
-                  className="provider-settings-row"
-                  control={(
-                    <DefaultModelPicker
-                      providerDef={providerDef}
-                      models={visibleModels}
-                      currentModel={modelForPicker}
-                      onSetModel={(id) => onSetDefaultModel(selectedId, id)}
-                    />
-                  )}
-                />
 
                 {providerDef.supportsEffort && providerDef.effortLevels.length > 0 && (
                   <SettingsRow
@@ -262,50 +125,46 @@ export default function ProvidersSettingsPage({
                   />
                 )}
 
-                {permissionPresets.length > 0 && (
+                {endpointConfig && (
                   <SettingsRow
-                    label="Permissions"
+                    label="Endpoint"
+                    className="provider-settings-row provider-settings-row-stacked"
+                    control={<ProviderEndpointField providerId={providerDef.id} color={providerDef.color} />}
+                  />
+                )}
+
+                {providerDef.id === 'copilot' && (
+                  <SettingsRow
+                    label="Custom provider"
                     className="provider-settings-row provider-settings-row-stacked"
                     control={(
-                      <div className="provider-settings-row-stack">
-                        <SegmentedControl
-                          items={permissionPresets.map((preset) => ({ id: preset.modeId, label: preset.label }))}
-                          value={permissionPickerMode}
-                          color={providerDef.color}
-                          ariaLabel={`${providerDef.name} permission mode`}
-                          onChange={(id) => onSetDefaultPermissionMode(selectedId, id)}
-                        />
-                        <ProviderPermissionContract
-                          policy={runtime?.policies[permissionPickerMode]}
-                          context={permissionContext}
-                          color={providerDef.color}
-                          refreshing={permissionContextLoading}
-                          refreshStatus={permissionContextRefreshStatus}
-                          onRefresh={() => { void loadPermissionContext({ announce: true }) }}
-                        />
-                        {!selectedPermissionPreset && (
-                          <InlineMutedText>
-                            A provider-specific default is active. Choose one of these options to use the standard permission controls.
-                          </InlineMutedText>
-                        )}
-                      </div>
+                      <CopilotByokProviderField
+                        color={providerDef.color}
+                        value={copilotByokProvider}
+                        onChange={onSetCopilotByokProvider}
+                      />
                     )}
                   />
                 )}
 
-                {authCommandSurfaces.length > 0 && (
+                {(providerDef.id === 'cursor' || authCommandSurfaces.length > 0) && (
                   <SettingsRow
                     label="Auth"
                     className="provider-settings-row provider-settings-row-stacked"
                     control={(
-                      <ProviderManagedAuthActions
-                        providerId={providerDef.id}
-                        color={providerDef.color}
-                        surfaces={authCommandSurfaces}
-                        sessions={sessions}
-                        authStatus={diagnostics?.auth.status}
-                        onAuthFlowSettled={() => onLoadProviderDiagnostics(providerDef.id, { force: true })}
-                      />
+                      <div className="provider-auth-stack">
+                        {providerDef.id === 'cursor' && <CursorAuthField color={providerDef.color} />}
+                        {authCommandSurfaces.length > 0 && (
+                          <ProviderManagedAuthActions
+                            providerId={providerDef.id}
+                            color={providerDef.color}
+                            surfaces={authCommandSurfaces}
+                            sessions={sessions}
+                            authStatus={diagnostics?.auth.status}
+                            onAuthFlowSettled={() => onLoadProviderDiagnostics(providerDef.id, { force: true })}
+                          />
+                        )}
+                      </div>
                     )}
                   />
                 )}
@@ -315,22 +174,18 @@ export default function ProvidersSettingsPage({
                   className="provider-settings-row provider-settings-row-stacked"
                   control={(
                     <div className="provider-models-row">
-                      <ModelListManager
-                        providerDef={providerDef}
-                        visibleIds={visibleIds}
-                        onChange={handleVisibleModelsChange}
-                      />
-                      <button
-                        className="provider-details-toggle"
-                        data-testid="provider-diagnostics-toggle"
-                        aria-expanded={advancedOpen}
-                        aria-label={advancedOpen ? 'Hide provider details' : 'Show provider details'}
-                        onClick={() => setAdvancedOpen((open) => !open)}
-                      >
-                        <Icon name="wrench" size={13} />
-                        Details
-                        <Icon name={advancedOpen ? 'chevronDown' : 'chevronRight'} size={12} />
-                      </button>
+                      <div className="provider-model-list-block">
+                        <div className="provider-model-list-header">
+                          <div className="provider-model-row-copy">
+                            <div className="provider-model-inline-label">Composer order</div>
+                          </div>
+                        </div>
+                        <ModelListManager
+                          providerDef={modelCatalogProviderDef}
+                          visibleIds={visibleIds}
+                          onChange={handleVisibleModelsChange}
+                        />
+                      </div>
                     </div>
                   )}
                 />
@@ -339,91 +194,6 @@ export default function ProvidersSettingsPage({
             </SettingsGroupContent>
           </SettingsContentGroup>
 
-          {advancedOpen && (
-            <div
-              className="provider-details-dialog-backdrop"
-              role="presentation"
-              onMouseDown={(event) => {
-                if (event.target === event.currentTarget) setAdvancedOpen(false)
-              }}
-            >
-              <div
-                className="provider-details-dialog provider-diagnostics-group"
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby={detailsDialogTitleId}
-                aria-describedby={detailsDialogDescriptionId}
-                data-testid="provider-details-dialog"
-              >
-                <div className="provider-details-panel">
-                  <div className="provider-details-panel-header">
-                    <div className="provider-details-panel-copy">
-                      <div id={detailsDialogTitleId} className="provider-details-panel-title">Provider details</div>
-                      <div id={detailsDialogDescriptionId} className="provider-details-panel-description">Runtime diagnostics, capability checks, and setup commands for {providerDef.name}.</div>
-                    </div>
-                    <div className="provider-details-panel-actions">
-                      <div className="provider-details-panel-summary" aria-label={`${providerDef.name} diagnostics summary`}>
-                        {diagnosticSummary.map((item) => (
-                          <span key={item}>{item}</span>
-                        ))}
-                      </div>
-                      <button
-                        type="button"
-                        className="provider-details-dialog-close"
-                        aria-label="Close provider details"
-                        onClick={() => setAdvancedOpen(false)}
-                      >
-                        <Icon name="close" size={14} />
-                      </button>
-                    </div>
-                  </div>
-                  <div className="provider-details-grid" data-testid="provider-details-grid">
-                    <ProviderDetailCard wide>
-                      <ProviderStatusDetails
-                        providerId={selectedId}
-                        diagnostics={diagnostics}
-                        loadingDiagnostics={loadingDiagnostics}
-                        usage={usageSnapshot}
-                        color={providerDef.color}
-                        sidebarSyncResult={sidebarSyncResult}
-                        sidebarSyncLoading={sidebarSyncLoading}
-                        onRefreshSidebarMetadata={selectedId === 'codex' ? refreshSidebarMetadata : undefined}
-                      />
-                    </ProviderDetailCard>
-                    {diagnostics && diagnostics.probes.length > 0 && (
-                      <ProviderDetailCard title="Checks">
-                        <ProviderProbeGrid diagnostics={diagnostics} color={providerDef.color} />
-                      </ProviderDetailCard>
-                    )}
-                    {settingsCommandSurfaces.length > 0 && (
-                      <ProviderDetailCard title="Capabilities" wide>
-                        <ProviderCommandSurfaces
-                          providerId={selectedId}
-                          color={providerDef.color}
-                          surfaces={settingsCommandSurfaces}
-                          sessions={sessions}
-                        />
-                      </ProviderDetailCard>
-                    )}
-                    {runtime?.registry.gaps.length ? (
-                      <ProviderDetailCard title="Boundaries">
-                        <ProviderBoundarySummary gaps={runtime.registry.gaps} color={providerDef.color} />
-                      </ProviderDetailCard>
-                    ) : null}
-                    <ProviderDetailCard title="Setup">
-                      <ProviderSetupDetails
-                        providerDef={providerDef}
-                        authCommandSurfaces={authCommandSurfaces}
-                        sessions={sessions}
-                        authStatus={diagnostics?.auth.status}
-                        onAuthFlowSettled={() => onLoadProviderDiagnostics(providerDef.id, { force: true })}
-                      />
-                    </ProviderDetailCard>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
           </div>
         </SettingsContentLayout>
@@ -461,6 +231,79 @@ const PROVIDER_AUTH_COMMAND_SURFACE_IDS = new Set([
 
 function supportsProviderManagedAuthFlow(providerId: string, surface: ProviderCommandSurface): boolean {
   return providerId === 'copilot' && surface.id === 'copilot-login'
+}
+
+function providerAuthActionLabel(surface: ProviderCommandSurface): string {
+  const haystack = `${surface.id} ${surface.label}`.toLowerCase()
+  if (haystack.includes('logout') || haystack.includes('sign out')) return 'Sign out'
+  if (haystack.includes('login') || haystack.includes('sign in')) return 'Sign in'
+  if (haystack.includes('status') || haystack.includes('account')) return 'Check status'
+  return surface.label
+}
+
+function providerDefWithDiagnosticModels(
+  providerDef: typeof PROVIDER_DEFS[string],
+  diagnostics: ProviderDiagnosticInfo | undefined
+): typeof PROVIDER_DEFS[string] {
+  const items = diagnostics?.models.status === 'available' ? diagnostics.models.items ?? [] : []
+  if (items.length > 0) return mergeProviderModelCatalog(providerDef, items)
+  const ids = diagnostics?.models.status === 'available' ? diagnostics.models.ids ?? [] : []
+  if (ids.length === 0) return providerDef
+  const knownModels = new Map(providerDef.models.map((model) => [model.id, model]))
+  const models = ids
+    .map((id) => {
+      const baseId = fastBaseModelIdForProviderModel(providerDef, id)
+      return knownModels.get(baseId ?? id) ?? { id, label: readableModelLabel(id) }
+    })
+    .filter((model, index, all) => all.findIndex((candidate) => candidate.id === model.id) === index)
+  return {
+    ...providerDef,
+    models
+  }
+}
+
+function readableModelLabel(id: string): string {
+  return id
+    .replace(/[-_]+/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase())
+}
+
+function ProviderCompactHeader({
+  providerDef,
+  installed,
+  isDefault,
+  onSetDefault
+}: {
+  providerDef: typeof PROVIDER_DEFS[string]
+  installed: boolean
+  isDefault: boolean
+  onSetDefault: () => void
+}): JSX.Element {
+  return (
+    <div className="provider-compact-header">
+      <div className="provider-compact-identity">
+        <span className="provider-compact-identity-icon" aria-hidden="true">
+          <ProviderIcon providerId={providerDef.id} size={17} color={providerDef.color} />
+        </span>
+        <span className="provider-compact-identity-copy">
+          <span className="provider-compact-identity-name">{providerDef.name}</span>
+          <span className="provider-compact-identity-status">{isDefault ? 'Default · ' : ''}{installed ? 'Installed' : 'Missing'}</span>
+        </span>
+      </div>
+      {!isDefault && (
+        <div className="provider-compact-header-actions">
+          <button
+            onClick={onSetDefault}
+            disabled={!installed}
+            className="settings-action-button provider-compact-default-action"
+          >
+            Set default
+          </button>
+        </div>
+      )}
+      {!installed && <InstallCommand cmd={providerDef.installCmd} />}
+    </div>
+  )
 }
 
 function ProviderDetailCard({
@@ -583,106 +426,6 @@ function sidebarSyncStatusState(
   if (loading) return { text: 'Refreshing chats', tone: 'info' }
   if (!result) return null
   return { text: sidebarSyncStatusText(result), tone: result.ok ? 'info' : 'danger' }
-}
-
-function ProviderPermissionContract({
-  policy,
-  context,
-  color,
-  refreshing,
-  refreshStatus,
-  onRefresh
-}: {
-  policy?: ResolvedExecutionPolicy
-  context?: ProviderPermissionRuntimeContext
-  color: string
-  refreshing: boolean
-  refreshStatus: { text: string; tone: 'info' | 'danger' } | null
-  onRefresh: () => void
-}): JSX.Element | null {
-  if (!policy?.execution && (!context || context.source === 'static')) return null
-  const chips = policy?.execution ? permissionExecutionLabels(policy.execution) : []
-  return (
-    <div>
-      {chips.length > 0 && (
-        <div
-          className="provider-permission-contract"
-          data-testid="settings-permission-execution-contract"
-        >
-          {chips.map((chip) => (
-            <span
-              key={`${chip.label}:${chip.value}`}
-              className="provider-permission-chip"
-              data-strong={chip.strong ? 'true' : 'false'}
-              title={`${chip.label}: ${chip.value}`}
-              style={{ '--provider-color': color } as CSSProperties}
-            >
-              {chip.label} {chip.value}
-            </span>
-          ))}
-        </div>
-      )}
-      {context && (
-        <>
-          <div
-            className="provider-permission-runtime-context"
-            data-testid="settings-permission-runtime-context"
-            data-permission-context-refreshing={refreshing ? 'true' : 'false'}
-            data-permission-context-source={context.source}
-            data-permission-context-status={context.status}
-            title={context.cwd ? `${context.summary ?? ''} ${context.cwd}` : context.summary}
-          >
-            <span>{context.status === 'ok' ? 'Live config loaded' : 'Config fallback loaded'}</span>
-            <button
-              type="button"
-              className="provider-details-inline-action"
-              data-testid="settings-permission-runtime-refresh"
-              aria-label="Refresh provider permission config"
-              disabled={refreshing}
-              onClick={onRefresh}
-            >
-              <Icon name="refresh" size={11} />
-              {refreshing ? 'Refreshing' : 'Refresh'}
-            </button>
-          </div>
-          {refreshStatus && (
-            <div
-              className="provider-permission-refresh-status"
-              data-testid="settings-permission-runtime-refresh-status"
-              data-tone={refreshStatus.tone}
-              role={refreshStatus.tone === 'danger' ? 'alert' : 'status'}
-              aria-live={refreshStatus.tone === 'danger' ? 'assertive' : 'polite'}
-              aria-atomic="true"
-              style={{ '--provider-color': color } as CSSProperties}
-            >
-              {refreshStatus.text}
-            </div>
-          )}
-        </>
-      )}
-    </div>
-  )
-}
-
-function permissionExecutionLabels(execution: PermissionExecutionContract): Array<{ label: string; value: string; strong?: boolean }> {
-  return [
-    execution.nativeMode ? { label: 'Mode', value: execution.nativeMode, strong: true } : null,
-    execution.approvalPolicy ? { label: 'Approval', value: execution.approvalPolicy, strong: true } : null,
-    execution.approvalsReviewer && execution.approvalsReviewer !== 'user' ? { label: 'Reviewer', value: execution.approvalsReviewer } : null,
-    execution.sandboxMode ? { label: 'Sandbox', value: execution.sandboxMode } : null,
-    execution.toolPolicy ? { label: 'Tools', value: execution.toolPolicy } : null,
-    execution.configSource ? { label: 'Source', value: execution.configSource } : null
-  ].filter((chip): chip is { label: string; value: string; strong?: boolean } => Boolean(chip))
-}
-
-function filterPermissionPresets(
-  presets: ProviderPermissionPreset[],
-  context: ProviderPermissionRuntimeContext | undefined,
-  selectedPolicy: string
-): ProviderPermissionPreset[] {
-  if (!context || context.status !== 'ok' || !context.visiblePolicies || context.visiblePolicies.length === 0) return presets
-  const visible = new Set(context.visiblePolicies)
-  return presets.filter((preset) => visible.has(preset.modeId) || preset.modeId === selectedPolicy)
 }
 
 function ProviderRuntimeEventsCard({
@@ -946,7 +689,7 @@ function ProviderSetupDetails({
       {providerDef.id === 'claude' && (
         <div className="provider-setup-row" data-testid="provider-setup-endpoint">
           <div className="provider-setup-label">Endpoint</div>
-          <ClaudeEndpointField color={providerDef.color} />
+          <ProviderEndpointField providerId={providerDef.id} color={providerDef.color} />
         </div>
       )}
       {providerDef.id === 'cursor' && (
@@ -1047,9 +790,6 @@ function ProviderManagedAuthActions({
 
   return (
     <div data-testid="provider-managed-auth-actions" style={{ display: 'grid', gap: 8, minWidth: 0 }}>
-      <div style={{ color: 'var(--color-text-muted)', fontSize: 11, lineHeight: 1.35 }}>
-        Provider-managed account state. Orchestrator displays device codes and tracks completion when available.
-      </div>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
         {surfaces.map((surface) => {
           const runnable = surface.quota === 'none' && !surface.mutatesState
@@ -1057,6 +797,7 @@ function ProviderManagedAuthActions({
           const waitingForBrowserAuth = managedAuthFlow && authFlows[surface.id]?.status === 'started'
           const signedIn = managedAuthFlow && (authFlows[surface.id]?.status === 'completed' || authStatus === 'ok')
           const busy = loading[surface.id] === true
+          const actionLabel = providerAuthActionLabel(surface)
           return (
             <button
               key={surface.id}
@@ -1073,7 +814,7 @@ function ProviderManagedAuthActions({
               }}
               style={{ '--provider-accent': color } as CSSProperties}
             >
-              {busy ? (managedAuthFlow ? 'Starting' : 'Checking') : signedIn ? 'Signed in' : waitingForBrowserAuth ? 'Waiting for browser' : runnable ? `Check ${surface.label}` : surface.label}
+              {busy ? (managedAuthFlow ? 'Starting' : 'Checking') : signedIn ? 'Signed in' : waitingForBrowserAuth ? 'Waiting for browser' : actionLabel}
             </button>
           )
         })}
@@ -1090,14 +831,6 @@ function ProviderManagedAuthActions({
             data-testid={`provider-managed-auth-detail-${surface.id}`}
             style={{ display: 'grid', gap: 4, minWidth: 0 }}
           >
-            {!runnable && !managedAuthFlow && (
-              <code className="provider-command-output-command">{providerSurfaceTerminalCommand(providerId, surface)}</code>
-            )}
-            {surface.note && (
-              <div style={{ color: 'var(--color-text-muted)', fontSize: 11, lineHeight: 1.35 }}>
-                {surface.note}
-              </div>
-            )}
             {result && (
               <div
                 style={{
@@ -2487,91 +2220,6 @@ function ProviderConfigStatus({
   )
 }
 
-// ─── Default model picker ─────────────────────────────────────────────────────
-
-function DefaultModelPicker({
-  providerDef, models, currentModel, onSetModel
-}: {
-  providerDef: typeof PROVIDER_DEFS[string]
-  models: typeof PROVIDER_DEFS[string]['models']
-  currentModel: string
-  onSetModel: (id: string) => void
-}): JSX.Element {
-  const isPreset = models.some((m) => m.id === currentModel)
-  const [customInput, setCustomInput] = useState(isPreset ? '' : currentModel)
-  const [customOpen, setCustomOpen] = useState(!isPreset)
-
-  useEffect(() => {
-    const nextIsPreset = models.some((m) => m.id === currentModel)
-    setCustomInput(nextIsPreset ? '' : currentModel)
-    setCustomOpen(!nextIsPreset)
-  }, [providerDef.id, currentModel, models])
-
-  const applyCustom = (): void => {
-    const trimmed = customInput.trim()
-    if (trimmed) onSetModel(trimmed)
-    else setCustomOpen(false)
-  }
-
-  return (
-    <div className="provider-default-model-picker">
-      <div className="provider-default-model-select-row">
-        <select
-          className="settings-select provider-default-model-select"
-          value={isPreset ? currentModel : '__custom__'}
-          aria-label={`${providerDef.name} default model`}
-          data-testid="provider-default-model-select"
-          onChange={(event) => {
-            if (event.target.value === '__custom__') {
-              setCustomOpen(true)
-              return
-            }
-            onSetModel(event.target.value)
-            setCustomInput('')
-            setCustomOpen(false)
-          }}
-        >
-          {models.map((m) => (
-            <option key={m.id} value={m.id}>{m.label}</option>
-          ))}
-          <option value="__custom__">Custom model...</option>
-        </select>
-        {isPreset && !customOpen && (
-          <button
-            type="button"
-            data-testid="provider-custom-model-toggle"
-            className="provider-default-model-custom-toggle"
-            onClick={() => setCustomOpen(true)}
-          >
-            Custom
-          </button>
-        )}
-      </div>
-
-      {customOpen && (
-        <div
-          className="provider-default-model-custom"
-          data-active={!isPreset && currentModel ? 'true' : 'false'}
-          style={{ '--provider-color': providerDef.color } as CSSProperties}
-        >
-          <input
-            data-testid="provider-custom-model-input"
-            value={customInput}
-            onChange={(e) => setCustomInput(e.target.value)}
-            onBlur={applyCustom}
-            onKeyDown={(e) => { if (e.key === 'Enter') applyCustom() }}
-            placeholder="Custom model ID..."
-            className="provider-default-model-custom-input"
-          />
-          {!isPreset && currentModel && (
-            <Icon name="check" size={12} />
-          )}
-        </div>
-      )}
-    </div>
-  )
-}
-
 function ProviderDiagnosticsCard({
   diagnostics,
   color
@@ -2942,11 +2590,14 @@ function ModelListManager({
   onChange: (ids: string[]) => void
 }): JSX.Element {
   const [customInput, setCustomInput] = useState('')
-  const [editing, setEditing] = useState(visibleIds.length === 0)
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   )
+  const visibleSet = new Set(visibleIds)
+  const configurableModels = getConfigurableModels(providerDef)
+  const catalogIds = configurableModels.map((model) => model.id)
+  const uncheckedModels = configurableModels.filter((model) => !visibleSet.has(model.id))
 
   const handleDragEnd = (event: DragEndEvent): void => {
     const { active, over } = event
@@ -2974,135 +2625,95 @@ function ModelListManager({
     }
   }
 
+  const toggleModel = (id: string): void => {
+    if (visibleIds.includes(id)) {
+      onChange(visibleIds.filter((modelId) => modelId !== id))
+      return
+    }
+    onChange([...visibleIds, id])
+  }
+
   return (
     <div
       data-testid="provider-model-list"
-      data-expanded={editing ? 'true' : 'false'}
+      data-expanded="true"
       data-model-list-surface="shared"
-      data-model-list-mode={editing ? 'editing' : 'collapsed'}
+      data-model-list-mode="checklist"
       className="provider-model-list"
       style={{ '--provider-color': providerDef.color } as CSSProperties}
     >
-      {editing ? (
+      <div className="provider-model-checklist-body">
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={visibleIds} strategy={verticalListSortingStrategy}>
             <div className="provider-model-list-stack">
-              {visibleIds.map((id) => {
+              {visibleIds.map((id, index) => {
                 const meta = providerDef.models.find((m) => m.id === id)
+                const isCustom = !catalogIds.includes(id)
                 return (
                   <SortableModelRow
                     key={id}
                     id={id}
-                    label={meta?.label ?? id}
+                    label={meta?.label ?? readableModelLabel(id)}
                     modelId={id}
-                    onRemove={() => remove(id)}
+                    index={index + 1}
+                    checked
+                    isDefault={index === 0}
+                    isCustom={isCustom}
+                    onToggle={() => toggleModel(id)}
+                    onDelete={isCustom ? () => remove(id) : undefined}
                   />
                 )
               })}
               {visibleIds.length === 0 && (
                 <div className="provider-model-list-empty">
-                  No models selected. The catalog defaults are used.
+                  Composer uses the provider catalog order.
                 </div>
               )}
             </div>
           </SortableContext>
         </DndContext>
-      ) : (
-        <div className="provider-model-list-collapsed">
-          <div className="provider-model-list-preview">
-            {visibleIds.length > 0 ? (
-              visibleIds.slice(0, 4).map((id) => {
-                const meta = providerDef.models.find((m) => m.id === id)
-                return (
-                  <span
-                    key={id}
-                    className="provider-model-chip"
-                  >
-                    {meta?.label ?? id}
-                  </span>
-                )
-              })
-            ) : (
-              <span className="provider-model-list-muted">Catalog defaults</span>
-            )}
-            {visibleIds.length > 4 && (
-              <span className="provider-model-list-overflow-count">
-                +{visibleIds.length - 4}
-              </span>
-            )}
-          </div>
-          <button
-            className="provider-model-list-edit"
-            onClick={() => setEditing(true)}
-          >
-            Edit model list
-          </button>
-        </div>
-      )}
 
-      {editing && (
+        {uncheckedModels.length > 0 && (
+          <div className="provider-model-list-stack provider-model-list-stack-secondary">
+            {uncheckedModels.map((model) => (
+              <StaticModelChecklistRow
+                key={model.id}
+                label={model.label}
+                modelId={model.id}
+                checked={false}
+                onToggle={() => addCatalog(model.id)}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="provider-model-custom-row">
+        <input
+          value={customInput}
+          onChange={(e) => setCustomInput(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') addCustom() }}
+          placeholder="Custom model ID"
+          data-testid="provider-custom-model-input"
+          className="provider-model-custom-input"
+        />
         <button
-          className="provider-model-list-edit"
-          onClick={() => setEditing(false)}
+          type="button"
+          onClick={addCustom}
+          disabled={!customInput.trim()}
+          className="settings-action-button provider-model-custom-add"
         >
-          Done
+          Add
         </button>
-      )}
-
-      {/* Catalog toggle chips */}
-      {editing && providerDef.models.length > 0 && (
-        <div className="provider-model-catalog">
-          <div data-testid="provider-model-catalog-label" className="provider-model-catalog-label">
-            Catalog
-          </div>
-          <div className="provider-model-catalog-grid">
-            {providerDef.models.map((m) => {
-              const included = visibleIds.includes(m.id)
-              return (
-                <button
-                  type="button"
-                  key={m.id}
-                  onClick={() => addCatalog(m.id)}
-                  className="provider-model-catalog-chip"
-                  data-selected={included ? 'true' : 'false'}
-                >
-                  {included && <Icon name="check" size={11} />}
-                  <span>{m.label}</span>
-                </button>
-              )
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Custom model ID input */}
-      {editing && (
-        <div className="provider-model-custom-row">
-          <input
-            value={customInput}
-            onChange={(e) => setCustomInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') addCustom() }}
-            placeholder="Custom model ID"
-            className="provider-model-custom-input"
-          />
-          <button
-            type="button"
-            onClick={addCustom}
-            disabled={!customInput.trim()}
-            className="settings-action-button provider-model-custom-add"
-          >
-            Add
-          </button>
-        </div>
-      )}
+      </div>
     </div>
   )
 }
 
 // ─── Sortable model row ────────────────────────────────────────────────────────
 
-function SortableModelRow({ id, label, modelId, onRemove }: {
-  id: string; label: string; modelId: string; onRemove: () => void
+function SortableModelRow({ id, label, modelId, index, checked, isCustom, isDefault, onToggle, onDelete }: {
+  id: string; label: string; modelId: string; index: number; checked: boolean; isCustom?: boolean; isDefault?: boolean; onToggle: () => void; onDelete?: () => void
 }): JSX.Element {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
   return (
@@ -3124,23 +2735,101 @@ function SortableModelRow({ id, label, modelId, onRemove }: {
       >
         <Icon name="menu" size={13} />
       </button>
-      <span className="provider-model-row-label">{label}</span>
-      <span className="provider-model-row-id">{modelId}</span>
       <button
         type="button"
-        aria-label={`Remove ${label}`}
-        onClick={onRemove}
-        className="provider-model-row-remove"
+        aria-label={`${checked ? 'Hide' : 'Show'} ${label}`}
+        aria-pressed={checked}
+        onClick={onToggle}
+        className="provider-model-row-check"
       >
-        <Icon name="close" size={13} />
+        {checked && <Icon name="check" size={12} />}
       </button>
+      <span className="provider-model-row-index">{index}</span>
+      <span className="provider-model-row-label">{label}</span>
+      <span className="provider-model-row-id">{modelId}</span>
+      {isDefault && <span className="provider-model-row-badge">Default</span>}
+      {isCustom && <span className="provider-model-row-badge">Custom</span>}
+      {onDelete && (
+        <button
+          type="button"
+          aria-label={`Delete custom model ${label}`}
+          className="provider-model-row-delete"
+          onClick={onDelete}
+        >
+          <Icon name="trash" size={12} />
+        </button>
+      )}
     </div>
   )
 }
 
-// ─── Claude endpoint field ────────────────────────────────────────────────────
+function StaticModelChecklistRow({ label, modelId, checked, onToggle }: {
+  label: string; modelId: string; checked: boolean; onToggle: () => void
+}): JSX.Element {
+  return (
+    <div className="provider-model-sortable-row provider-model-static-row" data-checked={checked ? 'true' : 'false'}>
+      <span className="provider-model-row-grip-placeholder" />
+      <button
+        type="button"
+        aria-label={`${checked ? 'Hide' : 'Show'} ${label}`}
+        aria-pressed={checked}
+        onClick={onToggle}
+        className="provider-model-row-check"
+      >
+        {checked && <Icon name="check" size={12} />}
+      </button>
+      <span className="provider-model-row-index" />
+      <span className="provider-model-row-label">{label}</span>
+      <span className="provider-model-row-id">{modelId}</span>
+    </div>
+  )
+}
 
-function ClaudeEndpointField({ color }: { color: string }): JSX.Element {
+// ─── Provider endpoint field ──────────────────────────────────────────────────
+
+type ProviderEndpointConfig = {
+  kind: 'json-env' | 'codex-openai-base-url'
+  envKey?: string
+  configPath: (home: string) => string
+  placeholder: string
+}
+
+export type CopilotByokProviderSettings = {
+  enabled: boolean
+  type: 'openai' | 'azure' | 'anthropic'
+  baseUrl: string
+  apiKeyEnvKey: string
+}
+
+function providerEndpointConfig(providerId: string): ProviderEndpointConfig | null {
+  if (providerId === 'claude') {
+    return {
+      kind: 'json-env',
+      envKey: 'ANTHROPIC_BASE_URL',
+      configPath: (home) => `${home}/.claude/settings.json`,
+      placeholder: 'https://api.anthropic.com (default)'
+    }
+  }
+  if (providerId === 'cursor') {
+    return {
+      kind: 'json-env',
+      envKey: 'CURSOR_API_BASE_URL',
+      configPath: (home) => `${home}/.cursor/cli-config.json`,
+      placeholder: 'Provider default'
+    }
+  }
+  if (providerId === 'codex') {
+    return {
+      kind: 'codex-openai-base-url',
+      configPath: (home) => `${home}/.codex/config.toml`,
+      placeholder: 'https://api.openai.com/v1 (default)'
+    }
+  }
+  return null
+}
+
+function ProviderEndpointField({ providerId, color }: { providerId: string; color: string }): JSX.Element {
+  const config = useMemo(() => providerEndpointConfig(providerId), [providerId])
   const [endpoint, setEndpoint] = useState('')
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -3149,29 +2838,22 @@ function ClaudeEndpointField({ color }: { color: string }): JSX.Element {
 
   useEffect(() => {
     const load = async (): Promise<void> => {
+      if (!config) return
       const home = await window.api.fs.resolveHome()
-      pathRef.current = `${home}/.claude/settings.json`
+      pathRef.current = config.configPath(home)
       const content = await window.api.fs.readFile(pathRef.current)
       if (content) {
-        try {
-          const parsed = JSON.parse(content)
-          setEndpoint(parsed.env?.ANTHROPIC_BASE_URL ?? '')
-        } catch { /* leave empty */ }
+        setEndpoint(readEndpointFromConfig(content, config))
       }
     }
     load()
-  }, [])
+  }, [config])
 
   const save = async (): Promise<void> => {
+    if (!config) return
     setSaving(true)
     const content = await window.api.fs.readFile(pathRef.current)
-    let parsed: Record<string, unknown> = {}
-    try { parsed = JSON.parse(content ?? '{}') } catch { /* start fresh */ }
-    const env = { ...(parsed.env as Record<string, string> ?? {}) }
-    if (endpoint.trim()) env.ANTHROPIC_BASE_URL = endpoint.trim()
-    else delete env.ANTHROPIC_BASE_URL
-    parsed.env = env
-    await window.api.fs.writeFile(pathRef.current, JSON.stringify(parsed, null, 2))
+    await window.api.fs.writeFile(pathRef.current, writeEndpointToConfig(content ?? '', config, endpoint.trim()))
     setSaving(false)
     setDirty(false)
     setSaved(true)
@@ -3179,36 +2861,169 @@ function ClaudeEndpointField({ color }: { color: string }): JSX.Element {
   }
 
   return (
-    <div>
-      <div style={{ display: 'flex', gap: 8 }}>
+    <div className="provider-endpoint-field">
+      <div className="provider-endpoint-row">
         <input
           value={endpoint}
           onChange={(e) => { setEndpoint(e.target.value); setDirty(true); setSaved(false) }}
           onKeyDown={(e) => { if (e.key === 'Enter') save() }}
-          placeholder="https://api.anthropic.com (default)"
-          style={{
-            flex: 1, padding: '7px 10px', borderRadius: 6, fontSize: 11, fontFamily: 'monospace',
-            background: 'var(--color-surface2)',
-            border: `1px solid ${dirty ? color : 'var(--color-border)'}`,
-            color: 'var(--color-text)', outline: 'none'
-          }}
+          placeholder={config?.placeholder ?? 'Provider default'}
+          className="provider-endpoint-input"
+          style={{ '--provider-color': color } as CSSProperties}
         />
         <button
           onClick={save}
           disabled={!dirty || saving}
-          style={{
-            flexShrink: 0, padding: '6px 12px', borderRadius: 6, fontSize: 11, fontWeight: 500,
-            cursor: dirty ? 'pointer' : 'default',
-            background: saved ? 'var(--color-green)' : dirty ? color : 'var(--color-surface2)',
-            border: `1px solid ${dirty ? color : 'var(--color-border)'}`,
-            color: dirty || saved ? '#fff' : 'var(--color-text-muted)'
-          }}
+          className="provider-endpoint-save"
+          data-dirty={dirty ? 'true' : 'false'}
+          data-saved={saved ? 'true' : 'false'}
+          style={{ '--provider-color': color } as CSSProperties}
         >
           {saving ? 'Saving…' : saved ? 'Saved' : 'Save'}
         </button>
       </div>
     </div>
   )
+}
+
+function readEndpointFromConfig(content: string, config: ProviderEndpointConfig): string {
+  if (config.kind === 'json-env') {
+    try {
+      const parsed = JSON.parse(content)
+      return config.envKey ? parsed.env?.[config.envKey] ?? '' : ''
+    } catch {
+      return ''
+    }
+  }
+  const match = content.match(/^openai_base_url\s*=\s*(['"])(.*?)\1\s*$/m)
+  return match?.[2] ?? ''
+}
+
+function writeEndpointToConfig(content: string, config: ProviderEndpointConfig, endpoint: string): string {
+  if (config.kind === 'json-env') {
+    let parsed: Record<string, unknown> = {}
+    try { parsed = JSON.parse(content || '{}') } catch { /* start fresh */ }
+    const env = { ...(parsed.env as Record<string, string> ?? {}) }
+    if (config.envKey && endpoint) env[config.envKey] = endpoint
+    else if (config.envKey) delete env[config.envKey]
+    parsed.env = env
+    return JSON.stringify(parsed, null, 2)
+  }
+
+  const linePattern = /^openai_base_url\s*=\s*(['"]).*?\1\s*$/m
+  if (!endpoint) return content.replace(linePattern, '').replace(/\n{3,}/g, '\n\n').trimStart()
+  const nextLine = `openai_base_url = ${JSON.stringify(endpoint)}`
+  if (linePattern.test(content)) return content.replace(linePattern, nextLine)
+  return content.trim() ? `${nextLine}\n${content}` : `${nextLine}\n`
+}
+
+function CopilotByokProviderField({
+  color,
+  value,
+  onChange
+}: {
+  color: string
+  value: CopilotByokProviderSettings
+  onChange: (settings: CopilotByokProviderSettings) => void
+}): JSX.Element {
+  const [draft, setDraft] = useState<CopilotByokProviderSettings>(normalizeCopilotByokSettings(value))
+  const [saved, setSaved] = useState(false)
+  useEffect(() => {
+    setDraft(normalizeCopilotByokSettings(value))
+  }, [value])
+
+  const updateDraft = (patch: Partial<CopilotByokProviderSettings>): void => {
+    setDraft((current) => normalizeCopilotByokSettings({ ...current, ...patch }))
+    setSaved(false)
+  }
+
+  const save = (): void => {
+    const normalized = normalizeCopilotByokSettings(draft)
+    onChange(normalized)
+    setSaved(true)
+    window.setTimeout(() => setSaved(false), 1800)
+  }
+
+  return (
+    <div className="provider-endpoint-field provider-byok-field">
+      <label className="provider-byok-toggle">
+        <input
+          type="checkbox"
+          checked={draft.enabled}
+          onChange={(event) => updateDraft({ enabled: event.target.checked })}
+        />
+        <span>Use BYOK provider</span>
+      </label>
+      {draft.enabled && (
+        <>
+          <div className="provider-byok-grid">
+            <select
+              aria-label="Copilot BYOK provider type"
+              value={draft.type}
+              onChange={(event) => updateDraft({ type: normalizeCopilotByokType(event.target.value) })}
+              className="provider-byok-select"
+              style={{ '--provider-color': color } as CSSProperties}
+            >
+              <option value="openai">OpenAI compatible</option>
+              <option value="azure">Azure OpenAI</option>
+              <option value="anthropic">Anthropic</option>
+            </select>
+            <input
+              value={draft.apiKeyEnvKey}
+              onChange={(event) => updateDraft({ apiKeyEnvKey: event.target.value })}
+              placeholder="API key env var"
+              className="provider-endpoint-input"
+              style={{ '--provider-color': color } as CSSProperties}
+            />
+          </div>
+          <div className="provider-endpoint-row">
+            <input
+              value={draft.baseUrl}
+              onChange={(event) => updateDraft({ baseUrl: event.target.value })}
+              placeholder={draft.type === 'azure' ? 'https://resource.openai.azure.com' : 'https://api.openai.com/v1'}
+              className="provider-endpoint-input"
+              style={{ '--provider-color': color } as CSSProperties}
+            />
+            <button
+              type="button"
+              onClick={save}
+              className="provider-endpoint-save"
+              data-dirty="true"
+              data-saved={saved ? 'true' : 'false'}
+              style={{ '--provider-color': color } as CSSProperties}
+            >
+              {saved ? 'Saved' : 'Save'}
+            </button>
+          </div>
+        </>
+      )}
+      {!draft.enabled && (
+        <button
+          type="button"
+          onClick={save}
+          className="provider-endpoint-save provider-byok-save-collapsed"
+          data-dirty="true"
+          data-saved={saved ? 'true' : 'false'}
+          style={{ '--provider-color': color } as CSSProperties}
+        >
+          {saved ? 'Saved' : 'Save'}
+        </button>
+      )}
+    </div>
+  )
+}
+
+function normalizeCopilotByokSettings(value: Partial<CopilotByokProviderSettings> | null | undefined): CopilotByokProviderSettings {
+  return {
+    enabled: value?.enabled === true,
+    type: normalizeCopilotByokType(value?.type),
+    baseUrl: typeof value?.baseUrl === 'string' ? value.baseUrl : '',
+    apiKeyEnvKey: typeof value?.apiKeyEnvKey === 'string' && value.apiKeyEnvKey.trim() ? value.apiKeyEnvKey.trim() : 'OPENAI_API_KEY'
+  }
+}
+
+function normalizeCopilotByokType(value: unknown): CopilotByokProviderSettings['type'] {
+  return value === 'azure' || value === 'anthropic' ? value : 'openai'
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

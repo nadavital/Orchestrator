@@ -21,6 +21,7 @@ import type {
   ProviderCommandSurfaceResult,
   ProviderDiagnosticInfo,
   ProviderFeature,
+  ProviderModelDef,
   ProviderPermissionRuntimeContext,
   ProviderProbeDefinition,
   ProviderProbeResult,
@@ -1502,7 +1503,7 @@ function usageStatus(providerId: string): ProviderDiagnosticInfo['usage'] {
   const messages: Record<string, string> = {
     claude: 'Claude Code CLI does not expose local quota usage through the current adapter.',
     codex: 'Codex CLI usage is not exposed through a local non-run probe yet.',
-    copilot: 'GitHub Copilot CLI usage/quota is not exposed by the current prompt adapter.',
+    copilot: 'GitHub Copilot usage/quota is not exposed by the SDK runtime yet.',
     cursor: 'Cursor Agent usage/quota is not exposed by the local CLI probe yet.',
     antigravity: 'Antigravity SDK usage is exposed after a run, but no local non-run quota probe is available yet.'
   }
@@ -1530,11 +1531,17 @@ function providerSpecificDiagnostics(
   const modelLines = modelsProbe.ok
     ? modelsProbe.output.split('\n').filter((line) => /^[^\s].+ - .+/.test(line))
     : []
-  const models: ProviderDiagnosticInfo['models'] = modelsProbe.ok && modelLines.length > 0
+  const modelIds = modelLines
+    .map((line) => line.split(' - ')[0]?.trim())
+    .filter((id): id is string => Boolean(id))
+  const modelItems = modelIds.map((id) => ({ id, label: id }))
+  const models: ProviderDiagnosticInfo['models'] = modelsProbe.ok && modelIds.length > 0
     ? {
         status: 'available',
-        count: modelLines.length,
-        message: `${modelLines.length} models reported by Cursor Agent for this account.`
+        count: modelIds.length,
+        message: `${modelIds.length} models reported by Cursor Agent for this account.`,
+        ids: modelIds,
+        items: modelItems
       }
     : fallbackModels
 
@@ -1547,11 +1554,29 @@ async function providerSpecificDiagnosticsAsync(
   fallbackAuth: ProviderDiagnosticInfo['auth'],
   fallbackModels: ProviderDiagnosticInfo['models']
 ): Promise<Pick<ProviderDiagnosticInfo, 'auth' | 'models'>> {
+  if (providerId === 'claude') {
+    return claudeSdkDiagnostics(binary, fallbackAuth, fallbackModels)
+  }
+
+  if (providerId === 'codex') {
+    if (!binary) {
+      return { auth: fallbackAuth, models: fallbackModels }
+    }
+    return codexAppServerDiagnostics(binary, fallbackAuth, fallbackModels)
+  }
+
   if (providerId === 'copilot') {
     if (!binary) {
       return { auth: fallbackAuth, models: fallbackModels }
     }
     return copilotSdkDiagnostics(binary, fallbackAuth, fallbackModels)
+  }
+
+  if (providerId === 'antigravity') {
+    if (!binary) {
+      return { auth: fallbackAuth, models: fallbackModels }
+    }
+    return antigravitySdkDiagnostics(binary, fallbackAuth, fallbackModels)
   }
 
   if (!binary || providerId !== 'cursor') {
@@ -1568,15 +1593,241 @@ async function providerSpecificDiagnosticsAsync(
   const modelLines = modelsProbe.ok
     ? modelsProbe.output.split('\n').filter((line) => /^[^\s].+ - .+/.test(line))
     : []
-  const models: ProviderDiagnosticInfo['models'] = modelsProbe.ok && modelLines.length > 0
+  const modelIds = modelLines
+    .map((line) => line.split(' - ')[0]?.trim())
+    .filter((id): id is string => Boolean(id))
+  const modelItems = modelIds.map((id) => ({ id, label: id }))
+  const models: ProviderDiagnosticInfo['models'] = modelsProbe.ok && modelIds.length > 0
     ? {
         status: 'available',
-        count: modelLines.length,
-        message: `${modelLines.length} models reported by Cursor Agent for this account.`
+        count: modelIds.length,
+        message: `${modelIds.length} models reported by Cursor Agent for this account.`,
+        ids: modelIds,
+        items: modelItems
       }
     : fallbackModels
 
   return { auth, models }
+}
+
+function uniqueModelIds(ids: string[]): string[] {
+  return [...new Set(ids.map((id) => id.trim()).filter(Boolean))]
+}
+
+function serviceTiersFromUnknown(value: unknown): ProviderModelDef['serviceTiers'] | undefined {
+  if (!Array.isArray(value)) return undefined
+  const tiers = value.flatMap((entry): NonNullable<ProviderModelDef['serviceTiers']> => {
+    if (typeof entry === 'string' && entry.trim()) return [entry.trim()]
+    const record = asRecord(entry)
+    const id = stringValue(record?.id, record?.name, record?.tier)
+    if (!id) return []
+    const label = stringValue(record?.label, record?.displayName, record?.name)
+    return [{ id, ...(label ? { label } : {}) }]
+  })
+  return tiers.length > 0 ? tiers : undefined
+}
+
+function providerModelDefsFromUnknown(value: unknown): ProviderModelDef[] {
+  const models: ProviderModelDef[] = []
+  const visit = (candidate: unknown): void => {
+    if (Array.isArray(candidate)) {
+      candidate.forEach(visit)
+      return
+    }
+    const record = asRecord(candidate)
+    if (!record) return
+    const id = typeof record.id === 'string'
+      ? record.id
+      : typeof record.model === 'string'
+        ? record.model
+        : typeof record.name === 'string' && /^[-./:_a-z0-9]+$/i.test(record.name)
+          ? record.name
+          : null
+    if (id) {
+      const label = stringValue(record.displayName, record.label, record.name) ?? id
+      const additionalSpeedTiers = stringArrayValue(record.additionalSpeedTiers, record.speedTiers)
+      const serviceTiers = serviceTiersFromUnknown(record.serviceTiers)
+      models.push({
+        id,
+        label,
+        ...(additionalSpeedTiers.length > 0 ? { additionalSpeedTiers } : {}),
+        ...(serviceTiers ? { serviceTiers } : {}),
+        ...(typeof record.hidden === 'boolean' ? { hidden: record.hidden } : {})
+      })
+    }
+    ;[
+      record.data,
+      record.items,
+      record.models,
+      record.results,
+      record.available_models,
+      record.availableModels
+    ].forEach(visit)
+  }
+  visit(value)
+  const deduped = new Map<string, ProviderModelDef>()
+  for (const model of models) {
+    if (!deduped.has(model.id)) deduped.set(model.id, model)
+  }
+  return [...deduped.values()]
+}
+
+function modelIdsFromUnknown(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return uniqueModelIds(value.flatMap((item) => modelIdsFromUnknown(item)))
+  }
+  const record = asRecord(value)
+  if (!record) return []
+  const directId = typeof record.id === 'string'
+    ? record.id
+    : typeof record.model === 'string'
+      ? record.model
+      : typeof record.name === 'string' && /^[-./:_a-z0-9]+$/i.test(record.name)
+        ? record.name
+        : null
+  const nested = [
+    record.models,
+    record.items,
+    record.data,
+    record.results,
+    record.availableModels
+  ].flatMap((candidate) => modelIdsFromUnknown(candidate))
+  return uniqueModelIds([directId, ...nested].filter((id): id is string => Boolean(id)))
+}
+
+async function claudeSdkDiagnostics(
+  binary: string | null,
+  fallbackAuth: ProviderDiagnosticInfo['auth'],
+  fallbackModels: ProviderDiagnosticInfo['models']
+): Promise<Pick<ProviderDiagnosticInfo, 'auth' | 'models'>> {
+  const authProbe = binary ? await probeCommandFullAsync(binary, ['auth', 'status']) : null
+  const authFromCli: ProviderDiagnosticInfo['auth'] = authProbe?.ok
+    ? { status: 'ok', message: authProbe.output.trim().split('\n')[0] || 'Claude account is signed in.' }
+    : fallbackAuth
+  const env = providerSdkSpawnEnv('claude', binary)
+  const apiKey = env.ANTHROPIC_API_KEY
+  if (!apiKey) {
+    return { auth: authFromCli, models: fallbackModels }
+  }
+
+  try {
+    const sdk = await importEsm('@anthropic-ai/sdk') as {
+      default?: new (options: { apiKey: string; baseURL?: string }) => {
+        models: { list: (params?: { limit?: number }) => Promise<unknown> }
+      }
+      Anthropic?: new (options: { apiKey: string; baseURL?: string }) => {
+        models: { list: (params?: { limit?: number }) => Promise<unknown> }
+      }
+    }
+    const Anthropic = sdk.default ?? sdk.Anthropic
+    if (!Anthropic) {
+      return {
+        auth: authFromCli,
+        models: fallbackModels
+      }
+    }
+    const client = new Anthropic({
+      apiKey,
+      ...(env.ANTHROPIC_BASE_URL ? { baseURL: env.ANTHROPIC_BASE_URL } : {})
+    })
+    const result = await client.models.list({ limit: 100 })
+    const modelItems = providerModelDefsFromUnknown(result)
+    const modelIds = modelItems.length > 0 ? modelItems.map((model) => model.id) : modelIdsFromUnknown(result)
+    return {
+      auth: {
+        status: 'ok',
+        message: 'Anthropic SDK authenticated with ANTHROPIC_API_KEY.'
+      },
+      models: modelIds.length > 0
+        ? {
+            status: 'available',
+            count: modelIds.length,
+            message: `${modelIds.length} models reported by the Anthropic SDK for this API account.`,
+            ids: modelIds,
+            ...(modelItems.length > 0 ? { items: modelItems } : {})
+          }
+        : fallbackModels
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    const authFailure = providerAuthFailureMessage(message)
+    return {
+      auth: authFailure ? { status: 'error', message: authFailure } : authFromCli,
+      models: fallbackModels
+    }
+  }
+}
+
+async function codexAppServerDiagnostics(
+  binary: string,
+  fallbackAuth: ProviderDiagnosticInfo['auth'],
+  fallbackModels: ProviderDiagnosticInfo['models']
+): Promise<Pick<ProviderDiagnosticInfo, 'auth' | 'models'>> {
+  const provider = getProvider('codex')
+  try {
+    const [modelsResult, authResult] = await Promise.all([
+      runCodexAppServerSingleRequest(provider, binary, { method: 'model/list', params: { limit: 100, includeHidden: true } }),
+      runCodexAppServerSingleRequest(provider, binary, { method: 'account/read', params: { refreshToken: false } })
+    ])
+    const modelItems = providerModelDefsFromUnknown(modelsResult)
+    const visibleModelItems = modelItems.filter((model) => !model.hidden)
+    const modelIds = visibleModelItems.length > 0 ? visibleModelItems.map((model) => model.id) : modelIdsFromUnknown(modelsResult)
+    return {
+      auth: {
+        status: 'ok',
+        message: authResult ? 'Codex app-server account is available.' : 'Codex app-server responded.'
+      },
+      models: modelIds.length > 0
+        ? {
+            status: 'available',
+            count: modelIds.length,
+            message: `${modelIds.length} models reported by Codex app-server.`,
+            ids: modelIds,
+            ...(modelItems.length > 0 ? { items: modelItems } : {})
+          }
+        : fallbackModels
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    const authFailure = providerAuthFailureMessage(message)
+    return {
+      auth: authFailure ? { status: 'error', message: authFailure } : fallbackAuth,
+      models: fallbackModels
+    }
+  }
+}
+
+async function antigravitySdkDiagnostics(
+  binary: string,
+  fallbackAuth: ProviderDiagnosticInfo['auth'],
+  fallbackModels: ProviderDiagnosticInfo['models']
+): Promise<Pick<ProviderDiagnosticInfo, 'auth' | 'models'>> {
+  const result = await probeCommandFullAsync(binary, [antigravitySdkBridgePath(), '--list-models'])
+  if (!result.ok) {
+    const authFailure = providerAuthFailureMessage(result.output)
+    return {
+      auth: authFailure ? { status: 'error', message: authFailure } : fallbackAuth,
+      models: fallbackModels
+    }
+  }
+  const parsed = parseJsonLine(result.output.trim().split('\n').find((line) => line.trim().startsWith('{')) ?? '')
+  const modelItems = providerModelDefsFromUnknown(parsed)
+  const modelIds = modelItems.length > 0 ? modelItems.map((model) => model.id) : modelIdsFromUnknown(parsed)
+  return {
+    auth: {
+      status: 'ok',
+      message: 'Google Antigravity SDK import/model probe succeeded.'
+    },
+    models: modelIds.length > 0
+      ? {
+          status: 'available',
+          count: modelIds.length,
+          message: `${modelIds.length} models reported by the Google Antigravity SDK.`,
+          ids: modelIds,
+          ...(modelItems.length > 0 ? { items: modelItems } : {})
+        }
+      : fallbackModels
+  }
 }
 
 async function copilotSdkDiagnostics(
@@ -1633,7 +1884,13 @@ async function copilotSdkDiagnostics(
 
         const models = await client?.listModels()
         const sessions = await client?.listSessions({ cwd: process.cwd() })
-        const modelCount = Array.isArray(models) ? models.length : 0
+        const modelItems = providerModelDefsFromUnknown(models)
+        const modelIds = modelItems.length > 0
+          ? modelItems.map((model) => model.id)
+          : Array.isArray(models)
+            ? models.map((model) => model.id).filter((id): id is string => Boolean(id))
+            : []
+        const modelCount = modelIds.length
         const sessionCount = Array.isArray(sessions) ? sessions.length : 0
         return {
           auth: {
@@ -1644,7 +1901,9 @@ async function copilotSdkDiagnostics(
             ? {
                 status: 'available',
                 count: modelCount,
-                message: `${modelCount} models reported by GitHub Copilot SDK for this account.`
+                message: `${modelCount} models reported by GitHub Copilot SDK for this account.`,
+                ids: modelIds,
+                ...(modelItems.length > 0 ? { items: modelItems } : {})
               }
             : fallbackModels
         } satisfies Pick<ProviderDiagnosticInfo, 'auth' | 'models'>

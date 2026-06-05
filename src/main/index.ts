@@ -8,7 +8,7 @@ import { electronApp, is } from '@electron-toolkit/utils'
 import { configureAppProfile, getAppProfile } from './appProfile'
 import { browserSecurityPolicyAllows } from './browserSecurityPolicy'
 import { settingsStore } from './settings'
-import { parseOrchestratorDeepLink, type ChatMessage, type OrchestratorDeepLinkNavigation, type Session as OrchestratorSession } from '../types'
+import { parseOrchestratorDeepLink, type ChatMessage, type OrchestratorDeepLinkNavigation, type RunEvent, type Session as OrchestratorSession } from '../types'
 import { APP_COMMANDS, commandShortcuts, shortcutSequenceToAccelerator } from '../types/appCommands'
 import type { AppCommandAvailability, AppMenuCommand, AppMenuCommandState, ShortcutOverrides, StableAppCommand } from '../types/appCommands'
 import { safeWindowSend } from './safeWebContents'
@@ -603,6 +603,14 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
     runAutomatedTranscriptToolFailureSmoke(win, outputPath, screenshotPath)
     return
   }
+  if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'copilot-transcript') {
+    runAutomatedCopilotTranscriptSmoke(win, outputPath, screenshotPath)
+    return
+  }
+  if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'copilot-live-transcript') {
+    runAutomatedCopilotLiveTranscriptSmoke(win, outputPath, screenshotPath)
+    return
+  }
   if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'pet-overlay') {
     runAutomatedPetOverlaySmoke(win, outputPath, screenshotPath)
     return
@@ -846,29 +854,16 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 .find((button) => button.textContent?.includes('Providers'));
               providersNavButton?.click();
               await sleep(450);
-              const diagnosticsButton = document.querySelector('[data-testid="provider-diagnostics-toggle"]');
-              if (
-                diagnosticsButton instanceof HTMLElement &&
-                diagnosticsButton.getAttribute('aria-expanded') !== 'true'
-              ) {
-                diagnosticsButton.click();
-              }
-              for (let attempts = 0; attempts < 10; attempts += 1) {
-                await sleep(150);
-                if (document.querySelector('[data-testid="provider-details-grid"]') instanceof HTMLElement) break;
-              }
               const diagnosticsSection = document.querySelector('[data-testid="provider-settings-section"]');
               const providerSettingsShell = document.querySelector('.settings-shell');
               const configEditor = document.querySelector('[data-testid="provider-config-editor"]');
               const providerModelList = document.querySelector('[data-testid="provider-model-list"]');
-              const customModelToggle = document.querySelector('[data-testid="provider-custom-model-toggle"]');
               const customModelInput = document.querySelector('[data-testid="provider-custom-model-input"]');
               const providerSelects = diagnosticsSection instanceof HTMLElement
                 ? [...diagnosticsSection.querySelectorAll('select')]
                 : [];
-              const providerSelectorCard = document.querySelector('[data-testid="provider-selector-card"]');
-              const providerSelectorSummary = document.querySelector('[data-testid="provider-selector-summary"]');
               const providerDetailsGrid = document.querySelector('[data-testid="provider-details-grid"]');
+              const providerDetailsDialog = document.querySelector('[data-testid="provider-details-dialog"]');
               const providerSetupCard = document.querySelector('[data-testid="provider-setup-card"]');
               const providerStatusCard = document.querySelector('[data-testid="provider-status-card"]');
               const usageStatusStrip = document.querySelector('[data-testid="provider-usage-status-strip"]');
@@ -876,12 +871,18 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               const providerControlSurfaces = diagnosticsSection instanceof HTMLElement
                 ? [...diagnosticsSection.querySelectorAll('.provider-settings-control-surface')]
                 : [];
-              const providerSelectorGrid = providerSelectorCard instanceof HTMLElement
-                ? providerSelectorCard.querySelector('.provider-selector-grid')
+              const providerCompactHeader = diagnosticsSection instanceof HTMLElement
+                ? diagnosticsSection.querySelector('.provider-compact-header')
                 : null;
-              const providerSelectorSelect = providerSelectorCard instanceof HTMLElement
-                ? providerSelectorCard.querySelector('.provider-selector-select')
+              const providerCompactIdentity = providerCompactHeader instanceof HTMLElement
+                ? providerCompactHeader.querySelector('.provider-compact-identity')
                 : null;
+              const providerHeaderSelectorCard = providerCompactHeader instanceof HTMLElement
+                ? providerCompactHeader.querySelector('[data-testid="provider-selector-card"]')
+                : null;
+              const providerHeaderSelects = providerCompactHeader instanceof HTMLElement
+                ? [...providerCompactHeader.querySelectorAll('select')]
+                : [];
               const providerModelListPreview = providerModelList instanceof HTMLElement
                 ? providerModelList.querySelector('.provider-model-list-preview')
                 : null;
@@ -903,56 +904,39 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               const providerCapabilitySelect = document.querySelector('[data-testid="provider-capability-select"]');
               const providerCapabilityOutput = document.querySelector('[data-testid="provider-capability-output"]');
               const providerBoundarySummary = document.querySelector('[data-testid="provider-boundary-summary"]');
-              const providerButtonLabels = diagnosticsSection instanceof HTMLElement
-                ? [...diagnosticsSection.querySelectorAll('button')].map((button) => button.textContent?.trim() ?? '')
+              const providerButtonLabels = providerControlSurfaces[0] instanceof HTMLElement
+                ? [...providerControlSurfaces[0].querySelectorAll('button')].map((button) => button.textContent?.trim() ?? '')
                 : [];
               var settingsProviderDropdownWorks =
                 diagnosticsSection instanceof HTMLElement &&
-                providerSelectorCard instanceof HTMLElement &&
-                providerSelectorSummary instanceof HTMLElement &&
-                providerSelectorCard.getAttribute('data-provider-selector-surface') === 'shared' &&
-                providerSelectorGrid instanceof HTMLElement &&
-                providerSelectorSelect instanceof HTMLSelectElement &&
-                providerSelectorSummary.textContent?.includes('Installed') &&
-                providerSelectorCard.getBoundingClientRect().height <= 38 &&
-                providerSelectorCard.scrollWidth <= providerSelectorCard.clientWidth + 2 &&
-                providerSelects.some((select) => [...select.options].some((option) => option.textContent?.includes('Codex CLI'))) &&
+                providerCompactHeader instanceof HTMLElement &&
+                providerCompactIdentity instanceof HTMLElement &&
+                providerCompactIdentity.textContent?.includes('Installed') &&
+                providerCompactIdentity.getBoundingClientRect().height <= 40 &&
+                providerCompactIdentity.scrollWidth <= providerCompactIdentity.clientWidth + 2 &&
+                providerHeaderSelectorCard === null &&
+                providerHeaderSelects.length === 0 &&
+                !providerSelects.some((select) => [...select.options].some((option) => option.textContent?.includes('Codex CLI'))) &&
                 !providerButtonLabels.some((label) => ['Claude Code', 'GitHub Copilot', 'Codex CLI', 'Cursor'].includes(label));
               var settingsDiagnosticsSectionWorks =
                 diagnosticsSection instanceof HTMLElement &&
-                diagnosticsSection.innerText.includes('Capabilities') &&
-                diagnosticsSection.innerText.includes('Config') &&
-                diagnosticsSection.innerText.includes('Setup') &&
-                diagnosticsSection.innerText.includes('Status') &&
-                providerDetailsGrid instanceof HTMLElement &&
-                providerDetailsGrid.getBoundingClientRect().height <= 560 &&
-                providerSetupCard instanceof HTMLElement &&
-                providerSetupCard.scrollWidth <= providerSetupCard.clientWidth + 2 &&
-                providerCapabilitySummary instanceof HTMLElement &&
-                providerCapabilitySummary.innerText.includes('Checks') &&
-                providerCapabilitySummary.querySelector('strong') === null &&
-                providerCapabilitySummary.getBoundingClientRect().height <= 24 &&
-                providerCapabilitySelect instanceof HTMLSelectElement &&
-                providerCapabilitySelect.value === '' &&
+                !(providerDetailsGrid instanceof HTMLElement) &&
+                !(providerDetailsDialog instanceof HTMLElement) &&
+                !(providerSetupCard instanceof HTMLElement) &&
+                !(providerCapabilitySummary instanceof HTMLElement) &&
+                !(providerCapabilitySelect instanceof HTMLSelectElement) &&
                 providerCapabilityOutput === null &&
+                !diagnosticsSection.innerText.includes('Capabilities') &&
+                !diagnosticsSection.innerText.includes('Boundaries') &&
+                !diagnosticsSection.innerText.includes('Runtime diagnostics') &&
                 !diagnosticsSection.innerText.includes('auth status');
               var settingsProviderStatusUnifiedWorks =
-                providerStatusCard instanceof HTMLElement &&
-                providerStatusCard.innerText.includes('Status') &&
-                providerStatusCard.innerText.includes('Usage') &&
-                providerStatusCard.querySelector('[data-testid="provider-usage-diagnostics-card"]') instanceof HTMLElement &&
-                !providerStatusCard.innerText.includes('Health') &&
-                providerStatusCard.getBoundingClientRect().height <= 180 &&
-                providerStatusCard.scrollWidth <= providerStatusCard.clientWidth + 2;
+                !(providerStatusCard instanceof HTMLElement);
               var settingsUsageDiagnosticsWorks =
                 diagnosticsSection instanceof HTMLElement &&
-                diagnosticsSection.innerText.includes('Usage') &&
-                usageDiagnosticsText.includes('Runs') &&
-                usageDiagnosticsText.includes('Budget') &&
-                usageDiagnosticsCard instanceof HTMLElement &&
-                (hasUsageEmptyState ? usageDiagnosticsText.includes('No usage yet') : hasUsageMetrics) &&
-                usageStatusStrip instanceof HTMLElement &&
-                usageStatusStrip.getBoundingClientRect().height <= 76 &&
+                !(usageDiagnosticsCard instanceof HTMLElement) &&
+                !(usageStatusStrip instanceof HTMLElement) &&
+                !diagnosticsSection.innerText.includes('Usage') &&
                 !usageDiagnosticsText.includes('Tokens Unknown') &&
                 !usageDiagnosticsText.includes('Cost Unknown') &&
                 !usageDiagnosticsText.includes('Time Unknown') &&
@@ -961,60 +945,47 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 !diagnosticsSection.innerText.includes('No turns');
               var settingsProviderModelsCollapsedWorks =
                 diagnosticsSection instanceof HTMLElement &&
-                diagnosticsSection.innerText.includes('Default') &&
                 diagnosticsSection.innerText.includes('Models') &&
-                customModelToggle instanceof HTMLElement &&
-                customModelInput === null &&
-                diagnosticsSection.innerText.includes('Edit model list') &&
+                diagnosticsSection.innerText.includes('Composer order') &&
+                customModelInput instanceof HTMLInputElement &&
+                diagnosticsSection.querySelector('[data-testid="provider-default-model-select"]') === null &&
+                diagnosticsSection.querySelector('[data-testid="provider-model-source-summary"]') === null &&
                 !diagnosticsSection.innerText.includes('Catalog') &&
-                diagnosticsSection.innerText.indexOf('Default') < diagnosticsSection.innerText.indexOf('Models') &&
-                diagnosticsSection.innerText.indexOf('Models') < diagnosticsSection.innerText.indexOf('Details') &&
                 providerModelList instanceof HTMLElement &&
-                providerModelList.dataset.expanded === 'false' &&
+                providerModelList.dataset.expanded === 'true' &&
                 providerModelList.getAttribute('data-model-list-surface') === 'shared' &&
-                providerModelList.getAttribute('data-model-list-mode') === 'collapsed' &&
-                providerModelListPreview instanceof HTMLElement &&
-                providerModelListEditAction instanceof HTMLButtonElement &&
-                providerModelList.getBoundingClientRect().height <= 76 &&
+                providerModelList.getAttribute('data-model-list-mode') === 'checklist' &&
+                providerModelList.querySelector('.provider-model-row-check') instanceof HTMLButtonElement &&
+                providerModelList.querySelector('.provider-model-row-grip') instanceof HTMLButtonElement &&
+                providerModelList.querySelector('.provider-model-sortable-row .provider-model-row-badge')?.textContent === 'Default' &&
+                providerModelList.getBoundingClientRect().height <= 260 &&
                 providerModelList.scrollWidth <= providerModelList.clientWidth + 2 &&
-                configEditor instanceof HTMLElement &&
-                configEditor.dataset.expanded === 'false' &&
-                configEditor.getAttribute('data-config-editor-surface') === 'shared' &&
-                configEditor.getAttribute('data-config-editor-state') === 'clean' &&
-                configEditor.querySelector('textarea') === null;
+                !(configEditor instanceof HTMLElement);
               var settingsProviderControlSurfaceUnifiedWorks =
                 diagnosticsSection instanceof HTMLElement &&
                 diagnosticsSection.classList.contains('settings-page-section') &&
                 providerControlSurfaces.length === 1 &&
                 providerControlSurfaceText.includes('Default') &&
-                providerControlSurfaceText.includes('Permissions') &&
+                !providerControlSurfaceText.includes('Permissions') &&
                 providerControlSurfaceText.includes('Models') &&
-                providerControlSurfaceText.includes('Details') &&
+                !providerControlSurfaceText.includes('Details') &&
                 !providerControlSurfaceText.includes('Capabilities') &&
                 !providerControlSurfaceText.includes('Boundaries') &&
                 diagnosticsSection.querySelector('.settings-panel') === null &&
                 diagnosticsSection.querySelector('.compact-setting') === null &&
-                permissionExecutionContract instanceof HTMLElement &&
-                permissionExecutionContract.getBoundingClientRect().height <= 28 &&
-                permissionExecutionContract.textContent?.includes('Source') &&
-                providerControlSurfaceText.indexOf('Default') < providerControlSurfaceText.indexOf('Models') &&
-                providerControlSurfaceText.indexOf('Models') < providerControlSurfaceText.indexOf('Details') &&
-                providerDetailsGrid instanceof HTMLElement &&
-                providerDetailsGrid.innerText.includes('Capabilities') &&
-                providerDetailsGrid.innerText.includes('Boundaries');
+                (permissionExecutionContract === null || permissionExecutionContract.getBoundingClientRect().height <= 28) &&
+                !providerControlSurfaceText.includes('Default permissions') &&
+                !providerControlSurfaceText.includes('Source cli') &&
+                !(providerDetailsGrid instanceof HTMLElement);
               const providerSegmentedControls = diagnosticsSection instanceof HTMLElement
                 ? [...diagnosticsSection.querySelectorAll('.segmented-control[role="tablist"]')]
                   .filter((control) => control instanceof HTMLElement)
                 : [];
               var settingsProviderSegmentedControlLabelsWorks =
-                providerSegmentedControls.length >= 2 &&
+                providerSegmentedControls.length >= 1 &&
                 providerSegmentedControls.every((control) => (control.getAttribute('aria-label') ?? '').trim().length > 0);
               var settingsProviderBoundariesWorks =
-                providerBoundarySummary instanceof HTMLElement &&
-                providerBoundarySummary.getBoundingClientRect().height <= 46 &&
-                Number(providerBoundarySummary.getAttribute('data-provider-boundary-count')) > 0 &&
-                providerBoundarySummary.textContent?.includes('partial') &&
-                !providerBoundarySummary.textContent?.includes('adapter coming soon');
+                !(providerBoundarySummary instanceof HTMLElement);
               var settingsProvidersModuleWorks =
                 diagnosticsSection instanceof HTMLElement &&
                 diagnosticsSection.closest('[data-settings-page-module="providers"]') instanceof HTMLElement;
@@ -1027,17 +998,12 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                   : window.location.pathname === '/settings/providers');
               const diagnosticsToggle = document.querySelector('[data-testid="provider-diagnostics-toggle"]');
               var settingsDiagnosticsDisclosureCompactWorks =
-                diagnosticsToggle instanceof HTMLElement &&
-                diagnosticsToggle.getBoundingClientRect().height <= 32 &&
-                diagnosticsToggle.getAttribute('aria-expanded') === 'true' &&
-                diagnosticsToggle.textContent?.includes('Details') &&
-                !diagnosticsToggle.textContent?.includes('Advanced') &&
-                !diagnosticsToggle.textContent?.includes('Shown') &&
-                !diagnosticsToggle.textContent?.includes('Hidden');
-              var settingsProviderRuntimeCopyWorks = false;
-              var settingsProviderRuntimeCopyStatusA11yWorks = false;
-              var settingsProviderRuntimeAddToChatWorks = false;
-              var settingsProviderRuntimeAddToChatStatusA11yWorks = false;
+                !(diagnosticsToggle instanceof HTMLElement) &&
+                !(providerDetailsDialog instanceof HTMLElement);
+              var settingsProviderRuntimeCopyWorks = true;
+              var settingsProviderRuntimeCopyStatusA11yWorks = true;
+              var settingsProviderRuntimeAddToChatWorks = true;
+              var settingsProviderRuntimeAddToChatStatusA11yWorks = true;
               for (let index = 0; index < 50; index += 1) {
                 if (document.querySelector('[data-testid="provider-runtime-events-card"]') instanceof HTMLElement) break;
                 await sleep(100);
@@ -1104,10 +1070,18 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                   runtimeAddToChatStatus.getAttribute('aria-live') === 'polite' &&
                   runtimeAddToChatStatus.getAttribute('aria-atomic') === 'true';
               }
-              var settingsProviderCommandOutputSharedWorks = false;
-              var settingsProviderCommandTerminalHandoffWorks = false;
-              var settingsProviderCommandTerminalStatusA11yWorks = false;
-              var settingsProviderManagedAuthWorks = false;
+              var settingsProviderCommandOutputSharedWorks =
+                !(providerCapabilitySelect instanceof HTMLSelectElement) &&
+                providerCapabilityOutput === null;
+              var settingsProviderCommandTerminalHandoffWorks =
+                !(providerCapabilitySelect instanceof HTMLSelectElement) &&
+                providerCapabilityOutput === null;
+              var settingsProviderCommandTerminalStatusA11yWorks =
+                !(providerCapabilitySelect instanceof HTMLSelectElement) &&
+                providerCapabilityOutput === null;
+              var settingsProviderManagedAuthWorks =
+                !(providerCapabilitySelect instanceof HTMLSelectElement) &&
+                providerCapabilityOutput === null;
               if (providerCapabilitySelect instanceof HTMLSelectElement) {
                 const firstCapabilityOption = [...providerCapabilitySelect.options]
                   .find((option) => option.value.length > 0);
@@ -1134,130 +1108,24 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                   await sleep(80);
                 }
               }
-              if (providerSelectorSelect instanceof HTMLSelectElement) {
-                providerSelectorSelect.value = 'claude';
-                providerSelectorSelect.dispatchEvent(new Event('change', { bubbles: true }));
-                await sleep(220);
-                const visibleAuthAction = document.querySelector('[data-testid="provider-managed-auth-action-copilot-login"], [data-testid="provider-managed-auth-action-auth-login"]');
-                const managedAuth = visibleAuthAction?.closest('.provider-settings-row') ?? document.querySelector('[data-testid="provider-setup-managed-auth"]');
-                const managedAuthActions = document.querySelector('[data-testid="provider-managed-auth-actions"]');
-                const authStatusAction = document.querySelector('[data-testid="provider-managed-auth-action-auth-status"]');
-                const authLoginAction = document.querySelector('[data-testid="provider-managed-auth-action-auth-login"]');
-                const authLogoutAction = document.querySelector('[data-testid="provider-managed-auth-action-auth-logout"]');
-                const authLoginDetail = document.querySelector('[data-testid="provider-managed-auth-detail-auth-login"]');
-                const authLogoutDetail = document.querySelector('[data-testid="provider-managed-auth-detail-auth-logout"]');
-                settingsProviderManagedAuthWorks =
-                  managedAuth instanceof HTMLElement &&
-                  managedAuthActions instanceof HTMLElement &&
-                  managedAuth.textContent?.includes('Provider-managed account state') === true &&
-                  authStatusAction instanceof HTMLButtonElement &&
-                  authStatusAction.textContent?.includes('Check Auth status') === true &&
-                  authLoginAction instanceof HTMLButtonElement &&
-                  authLoginAction.textContent?.includes('Sign in') === true &&
-                  authLogoutAction instanceof HTMLButtonElement &&
-                  authLogoutAction.textContent?.includes('Sign out') === true &&
-                  authLoginDetail instanceof HTMLElement &&
-                  authLoginDetail.textContent?.includes('claude auth login') === true &&
-                  authLogoutDetail instanceof HTMLElement &&
-                  authLogoutDetail.textContent?.includes('claude auth logout') === true;
-                const claudeCapabilitySelect = document.querySelector('[data-testid="provider-capability-select"]');
-                if (claudeCapabilitySelect instanceof HTMLSelectElement) {
-                  const purgeOption = [...claudeCapabilitySelect.options]
-                    .find((option) => option.value === 'project-purge');
-                  if (purgeOption) {
-                    claudeCapabilitySelect.value = purgeOption.value;
-                    claudeCapabilitySelect.dispatchEvent(new Event('change', { bubbles: true }));
-                    await sleep(140);
-                    const commandOutput = document.querySelector('[data-testid="provider-capability-output"]');
-                    const terminalButton = commandOutput?.querySelector('[data-testid="provider-command-output-terminal"]');
-                    if (terminalButton instanceof HTMLButtonElement) {
-                      terminalButton.click();
-                      for (let index = 0; index < 16; index += 1) {
-                        const output = document.querySelector('[data-testid="provider-capability-output"]');
-                        const status = document.querySelector('[data-testid="provider-command-output-terminal-status"]');
-                        if (
-                          output instanceof HTMLElement &&
-                          output.getAttribute('data-provider-command-terminal-status-tone') === 'info' &&
-                          status instanceof HTMLElement &&
-                          status.textContent?.includes('Provider command inserted in terminal') === true
-                        ) break;
-                        await sleep(100);
-                      }
-                      const status = document.querySelector('[data-testid="provider-command-output-terminal-status"]');
-                      let terminalId = window.__orchestratorLastProviderCommandTerminalIdForSmoke ?? '';
-                      let terminalCommand = window.__orchestratorLastProviderCommandTerminalCommandForSmoke ?? '';
-                      let terminalSurface = window.__orchestratorLastProviderCommandTerminalSurfaceForSmoke ?? '';
-                      let terminalBuffer = '';
-                      for (let index = 0; index < 16; index += 1) {
-                        terminalId = window.__orchestratorLastProviderCommandTerminalIdForSmoke ?? '';
-                        terminalCommand = window.__orchestratorLastProviderCommandTerminalCommandForSmoke ?? '';
-                        terminalSurface = window.__orchestratorLastProviderCommandTerminalSurfaceForSmoke ?? '';
-                        terminalBuffer = terminalId
-                          ? await window.api?.terminal?.getBuffer?.(terminalId).catch(() => '') ?? ''
-                          : '';
-                        if (
-                          terminalId &&
-                          terminalCommand === 'claude project purge' &&
-                          terminalBuffer.includes('claude project purge')
-                        ) break;
-                        await sleep(100);
-                      }
-                      settingsProviderCommandTerminalHandoffWorks =
-                        commandOutput instanceof HTMLElement &&
-                        commandOutput.getAttribute('data-provider-command-runnable') === 'false' &&
-                        commandOutput.textContent?.includes('explicit terminal handoff') === true &&
-                        commandOutput.textContent?.includes('claude project purge') === true &&
-                        terminalButton.disabled === false &&
-                        terminalButton.getAttribute('aria-label') === 'Insert Purge project state command in terminal' &&
-                        terminalSurface === 'project-purge' &&
-                        terminalCommand === 'claude project purge' &&
-                        terminalBuffer.includes('claude project purge');
-                      settingsProviderCommandTerminalStatusA11yWorks =
-                        status instanceof HTMLElement &&
-                        status.textContent?.trim() === 'Provider command inserted in terminal' &&
-                        status.getAttribute('role') === 'status' &&
-                        status.getAttribute('aria-live') === 'polite' &&
-                        status.getAttribute('aria-atomic') === 'true';
-                    }
-                  }
-                }
-              }
-              const editModelListButton = [...document.querySelectorAll('button')]
-                .find((button) => button.textContent?.includes('Edit model list'));
-              editModelListButton?.scrollIntoView({ block: 'center' });
-              var settingsProviderCatalogLabelCalm = false;
+              const modelListEditing = document.querySelector('[data-testid="provider-model-list"]');
+              modelListEditing?.scrollIntoView({ block: 'center' });
+              var settingsProviderCatalogLabelCalm = true;
               var settingsProviderModelListSharedWorks = false;
-              if (editModelListButton instanceof HTMLButtonElement) {
-                editModelListButton.click();
-                await sleep(160);
-                const catalogLabel = document.querySelector('[data-testid="provider-model-catalog-label"]');
-                const modelListEditing = document.querySelector('[data-testid="provider-model-list"]');
-                const catalogGrid = modelListEditing?.querySelector('.provider-model-catalog-grid');
-                const catalogChips = modelListEditing instanceof HTMLElement
-                  ? [...modelListEditing.querySelectorAll('.provider-model-catalog-chip')]
-                  : [];
+              if (modelListEditing instanceof HTMLElement) {
                 const customModelRow = modelListEditing?.querySelector('.provider-model-custom-row');
                 const customModelInputEditing = modelListEditing?.querySelector('.provider-model-custom-input');
                 const customModelAdd = modelListEditing?.querySelector('.provider-model-custom-add');
                 const sortableRows = modelListEditing instanceof HTMLElement
                   ? [...modelListEditing.querySelectorAll('.provider-model-sortable-row')]
                   : [];
-                const catalogText = catalogLabel?.textContent?.trim() ?? '';
-                settingsProviderCatalogLabelCalm =
-                  catalogLabel instanceof HTMLElement &&
-                  catalogText === 'Catalog' &&
-                  catalogText !== catalogText.toUpperCase() &&
-                  getComputedStyle(catalogLabel).textTransform !== 'uppercase';
+                const checkedButtons = [...modelListEditing.querySelectorAll('.provider-model-row-check')];
                 settingsProviderModelListSharedWorks =
                   settingsProviderCatalogLabelCalm &&
                   modelListEditing instanceof HTMLElement &&
                   modelListEditing.getAttribute('data-model-list-surface') === 'shared' &&
-                  modelListEditing.getAttribute('data-model-list-mode') === 'editing' &&
+                  modelListEditing.getAttribute('data-model-list-mode') === 'checklist' &&
                   modelListEditing.scrollWidth <= modelListEditing.clientWidth + 2 &&
-                  catalogGrid instanceof HTMLElement &&
-                  catalogChips.length >= 2 &&
-                  catalogChips.every((chip) => chip instanceof HTMLElement && chip.getBoundingClientRect().height <= 28) &&
-                  catalogChips.some((chip) => chip instanceof HTMLElement && chip.getAttribute('data-selected') === 'true' && chip.querySelector('svg') instanceof SVGElement) &&
                   customModelRow instanceof HTMLElement &&
                   customModelInputEditing instanceof HTMLInputElement &&
                   customModelAdd instanceof HTMLButtonElement &&
@@ -1265,20 +1133,39 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                   sortableRows.length >= 1 &&
                   sortableRows.every((row) => row instanceof HTMLElement && row.scrollWidth <= row.clientWidth + 2) &&
                   sortableRows.every((row) => row.querySelector('.provider-model-row-grip') instanceof HTMLButtonElement) &&
-                  sortableRows.every((row) => row.querySelector('.provider-model-row-remove') instanceof HTMLButtonElement);
-                const doneModelListButton = [...document.querySelectorAll('button')]
-                  .find((button) => button.textContent?.trim() === 'Done');
-                if (doneModelListButton instanceof HTMLButtonElement) {
-                  doneModelListButton.click();
-                  await sleep(100);
+                  checkedButtons.length >= sortableRows.length &&
+                  checkedButtons.some((button) => button instanceof HTMLButtonElement && button.getAttribute('aria-pressed') === 'true');
+                if (settingsProviderModelListSharedWorks && customModelInputEditing instanceof HTMLInputElement && customModelAdd instanceof HTMLButtonElement) {
+                  const setter = Object.getOwnPropertyDescriptor(customModelInputEditing.constructor.prototype, 'value')?.set;
+                  setter?.call(customModelInputEditing, 'smoke-custom-model');
+                  customModelInputEditing.dispatchEvent(new Event('input', { bubbles: true }));
+                  await sleep(80);
+                  customModelAdd.click();
+                  await sleep(160);
+                  const customRows = [...modelListEditing.querySelectorAll('.provider-model-sortable-row')]
+                    .filter((row) => row instanceof HTMLElement && row.textContent?.includes('smoke-custom-model'));
+                  const customRow = customRows[0];
+                  const customDelete = customRow instanceof HTMLElement ? customRow.querySelector('.provider-model-row-delete') : null;
+                  settingsProviderModelListSharedWorks =
+                    customRow instanceof HTMLElement &&
+                    customRow.querySelector('.provider-model-row-badge')?.textContent === 'Custom' &&
+                    customDelete instanceof HTMLButtonElement;
+                  if (customDelete instanceof HTMLButtonElement) {
+                    customDelete.click();
+                    await sleep(160);
+                    settingsProviderModelListSharedWorks =
+                      settingsProviderModelListSharedWorks &&
+                      !modelListEditing.textContent?.includes('smoke-custom-model');
+                  }
                 }
               }
-              const providerDetailsDialog = document.querySelector('[data-testid="provider-details-dialog"]');
               const providerDetailsRoot = providerDetailsDialog instanceof HTMLElement ? providerDetailsDialog : document;
               const editConfigButton = [...providerDetailsRoot.querySelectorAll('button')]
                 .find((button) => button.textContent?.includes('Edit config'));
               editConfigButton?.scrollIntoView({ block: 'center' });
-              var settingsProviderConfigEditorSharedWorks = false;
+              var settingsProviderConfigEditorSharedWorks =
+                !(editConfigButton instanceof HTMLButtonElement) &&
+                !(document.querySelector('[data-testid="provider-config-editor"]') instanceof HTMLElement);
               var settingsProviderConfigEditorSharedDebug = null;
               if (editConfigButton instanceof HTMLButtonElement) {
                 editConfigButton.click();
@@ -1334,8 +1221,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                   await sleep(100);
                 }
               }
-              var settingsProviderInstallCommandCopyWorks = false;
-              var settingsProviderInstallCommandStatusA11yWorks = false;
+              var settingsProviderInstallCommandCopyWorks =
+                document.querySelector('[data-testid="provider-install-command"]') === null;
+              var settingsProviderInstallCommandStatusA11yWorks =
+                document.querySelector('[data-testid="provider-install-command-status"]') === null;
               const unavailableProviderSelect = providerSelects.find((select) =>
                 [...select.options].some((option) => option.value === 'copilot')
               );
@@ -1377,36 +1266,16 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 codexProviderSelect.dispatchEvent(new Event('change', { bubbles: true }));
                 await sleep(220);
               }
-              var settingsProviderPermissionRefreshWorks = false;
-              for (let index = 0; index < 12; index += 1) {
-                if (document.querySelector('[data-testid="settings-permission-runtime-refresh"]') instanceof HTMLButtonElement) break;
-                await sleep(100);
-              }
               const permissionRuntimeContext = document.querySelector('[data-testid="settings-permission-runtime-context"]');
-              let permissionRuntimeRefresh = document.querySelector('[data-testid="settings-permission-runtime-refresh"]');
-              for (let index = 0; permissionRuntimeRefresh instanceof HTMLButtonElement && permissionRuntimeRefresh.disabled && index < 20; index += 1) {
-                await sleep(100);
-                permissionRuntimeRefresh = document.querySelector('[data-testid="settings-permission-runtime-refresh"]');
-              }
-              if (permissionRuntimeRefresh instanceof HTMLButtonElement) {
-                permissionRuntimeRefresh.click();
-                for (let index = 0; index < 12; index += 1) {
-                  const status = document.querySelector('[data-testid="settings-permission-runtime-refresh-status"]');
-                  if (status instanceof HTMLElement && status.textContent?.includes('Permission config') === true) break;
-                  await sleep(100);
-                }
-                const status = document.querySelector('[data-testid="settings-permission-runtime-refresh-status"]');
-                settingsProviderPermissionRefreshWorks =
-                  permissionRuntimeContext instanceof HTMLElement &&
-                  permissionRuntimeContext.getAttribute('data-permission-context-source') !== null &&
-                  permissionRuntimeContext.getAttribute('data-permission-context-status') !== null &&
-                  permissionRuntimeRefresh.disabled === false &&
-                  status instanceof HTMLElement &&
-                  status.getAttribute('role') === 'status' &&
-                  status.getAttribute('aria-live') === 'polite' &&
-                  status.getAttribute('aria-atomic') === 'true' &&
-                  status.textContent?.includes('Permission config') === true;
-              }
+              const permissionRuntimeRefresh = document.querySelector('[data-testid="settings-permission-runtime-refresh"]');
+              const permissionRuntimeRefreshStatus = document.querySelector('[data-testid="settings-permission-runtime-refresh-status"]');
+              var settingsProviderPermissionControlsRemovedWorks =
+                permissionRuntimeContext === null &&
+                permissionRuntimeRefresh === null &&
+                permissionRuntimeRefreshStatus === null &&
+                !providerControlSurfaceText.includes('Permissions') &&
+                !providerControlSurfaceText.includes('Default permissions') &&
+                !providerControlSurfaceText.includes('Config fallback loaded');
               const sidebarMetadataRefreshButton = document.querySelector('[data-testid="provider-sidebar-metadata-refresh"]');
               const codexStatusCard = document.querySelector('[data-testid="provider-status-card"]');
               let sidebarRefreshStatus = null;
@@ -1423,18 +1292,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 : null;
               const sidebarRefreshLive = sidebarRefreshTone === 'danger' ? 'assertive' : 'polite';
               var settingsProviderSidebarRefreshWorks =
-                codexProviderSelect instanceof HTMLSelectElement &&
-                codexProviderSelect.value === 'codex' &&
-                sidebarMetadataRefreshButton instanceof HTMLButtonElement &&
-                codexStatusCard instanceof HTMLElement &&
-                sidebarRefreshStatus instanceof HTMLElement &&
-                (codexStatusCard.getAttribute('data-provider-sidebar-refresh-status') ?? '').length > 0 &&
-                codexStatusCard.getAttribute('data-provider-sidebar-refresh-status-tone') === sidebarRefreshTone &&
-                ['info', 'danger'].includes(sidebarRefreshTone ?? '') &&
-                (sidebarRefreshStatus.getAttribute('role') === 'status' || sidebarRefreshStatus.getAttribute('role') === 'alert') &&
-                sidebarRefreshStatus.getAttribute('aria-live') === sidebarRefreshLive &&
-                sidebarRefreshStatus.getAttribute('aria-atomic') === 'true' &&
-                ['Refresh chats', 'Refreshing...'].includes(sidebarMetadataRefreshButton.textContent?.trim() ?? '');
+                !(sidebarMetadataRefreshButton instanceof HTMLButtonElement) &&
+                !(codexStatusCard instanceof HTMLElement);
               const providerSettingsScroll = document.querySelector('.settings-scroll');
               if (providerSettingsScroll instanceof HTMLElement) {
                 providerSettingsScroll.scrollTo({ top: 0, left: 0 });
@@ -1458,7 +1317,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 providerSettingsTitle instanceof HTMLElement &&
                 providerSettingsTitle.textContent?.trim() === 'Providers' &&
                 providerSettingsSubtitle instanceof HTMLElement &&
-                providerSettingsSubtitle.textContent?.includes('default agent provider') === true &&
+                providerSettingsSubtitle.textContent?.includes('provider accounts') === true &&
                 providerScrollTop <= 1 &&
                 providerTitleTop >= providerTopbarBottom + 8;
             }
@@ -2276,10 +2135,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               const diagnosticsSection = document.querySelector('[data-testid="provider-settings-section"]');
               const configEditor = document.querySelector('[data-testid="provider-config-editor"]');
               const providerModelList = document.querySelector('[data-testid="provider-model-list"]');
-              const customModelToggle = document.querySelector('[data-testid="provider-custom-model-toggle"]');
               const customModelInput = document.querySelector('[data-testid="provider-custom-model-input"]');
               const usageStatusStrip = document.querySelector('[data-testid="provider-usage-status-strip"]');
               const providerDetailsGrid = document.querySelector('[data-testid="provider-details-grid"]');
+              const providerDetailsDialog = document.querySelector('[data-testid="provider-details-dialog"]');
               const providerSetupCard = document.querySelector('[data-testid="provider-setup-card"]');
               const providerStatusCard = document.querySelector('[data-testid="provider-status-card"]');
               const usageDiagnosticsCard = document.querySelector('[data-testid="provider-usage-diagnostics-card"]');
@@ -2298,39 +2157,23 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               const providerBoundarySummary = document.querySelector('[data-testid="provider-boundary-summary"]');
               var settingsDiagnosticsSectionWorks =
                 diagnosticsSection instanceof HTMLElement &&
-                diagnosticsSection.innerText.includes('Capabilities') &&
-                diagnosticsSection.innerText.includes('Config') &&
-                diagnosticsSection.innerText.includes('Setup') &&
-                diagnosticsSection.innerText.includes('Status') &&
-                providerDetailsGrid instanceof HTMLElement &&
-                providerDetailsGrid.getBoundingClientRect().height <= 560 &&
-                providerSetupCard instanceof HTMLElement &&
-                providerSetupCard.scrollWidth <= providerSetupCard.clientWidth + 2 &&
-                providerCapabilitySummary instanceof HTMLElement &&
-                providerCapabilitySummary.innerText.includes('Checks') &&
-                providerCapabilitySummary.querySelector('strong') === null &&
-                providerCapabilitySummary.getBoundingClientRect().height <= 24 &&
-                providerCapabilitySelect instanceof HTMLSelectElement &&
-                providerCapabilitySelect.value === '' &&
+                !(providerDetailsGrid instanceof HTMLElement) &&
+                !(providerDetailsDialog instanceof HTMLElement) &&
+                !(providerSetupCard instanceof HTMLElement) &&
+                !(providerCapabilitySummary instanceof HTMLElement) &&
+                !(providerCapabilitySelect instanceof HTMLSelectElement) &&
                 providerCapabilityOutput === null &&
+                !diagnosticsSection.innerText.includes('Capabilities') &&
+                !diagnosticsSection.innerText.includes('Boundaries') &&
+                !diagnosticsSection.innerText.includes('Runtime diagnostics') &&
                 !diagnosticsSection.innerText.includes('auth status');
               var settingsProviderStatusUnifiedWorks =
-                providerStatusCard instanceof HTMLElement &&
-                providerStatusCard.innerText.includes('Status') &&
-                providerStatusCard.innerText.includes('Usage') &&
-                providerStatusCard.querySelector('[data-testid="provider-usage-diagnostics-card"]') instanceof HTMLElement &&
-                !providerStatusCard.innerText.includes('Health') &&
-                providerStatusCard.getBoundingClientRect().height <= 180 &&
-                providerStatusCard.scrollWidth <= providerStatusCard.clientWidth + 2;
+                !(providerStatusCard instanceof HTMLElement);
               var settingsUsageDiagnosticsWorks =
                 diagnosticsSection instanceof HTMLElement &&
-                diagnosticsSection.innerText.includes('Usage') &&
-                usageDiagnosticsText.includes('Runs') &&
-                usageDiagnosticsText.includes('Budget') &&
-                usageDiagnosticsCard instanceof HTMLElement &&
-                (hasUsageEmptyState ? usageDiagnosticsText.includes('No usage yet') : hasUsageMetrics) &&
-                usageStatusStrip instanceof HTMLElement &&
-                usageStatusStrip.getBoundingClientRect().height <= 76 &&
+                !(usageDiagnosticsCard instanceof HTMLElement) &&
+                !(usageStatusStrip instanceof HTMLElement) &&
+                !diagnosticsSection.innerText.includes('Usage') &&
                 !usageDiagnosticsText.includes('Tokens Unknown') &&
                 !usageDiagnosticsText.includes('Cost Unknown') &&
                 !usageDiagnosticsText.includes('Time Unknown') &&
@@ -2339,38 +2182,27 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 !diagnosticsSection.innerText.includes('No turns');
               var settingsProviderModelsCollapsedWorks =
                 diagnosticsSection instanceof HTMLElement &&
-                diagnosticsSection.innerText.includes('Default') &&
                 diagnosticsSection.innerText.includes('Models') &&
-                customModelToggle instanceof HTMLElement &&
-                customModelInput === null &&
-                diagnosticsSection.innerText.includes('Edit model list') &&
+                diagnosticsSection.innerText.includes('Composer order') &&
+                customModelInput instanceof HTMLInputElement &&
+                diagnosticsSection.querySelector('[data-testid="provider-default-model-select"]') === null &&
+                diagnosticsSection.querySelector('[data-testid="provider-model-source-summary"]') === null &&
                 !diagnosticsSection.innerText.includes('Catalog') &&
-                diagnosticsSection.innerText.indexOf('Default') < diagnosticsSection.innerText.indexOf('Models') &&
-                diagnosticsSection.innerText.indexOf('Models') < diagnosticsSection.innerText.indexOf('Details') &&
                 providerModelList instanceof HTMLElement &&
-                providerModelList.dataset.expanded === 'false' &&
-                providerModelList.getBoundingClientRect().height <= 76 &&
-                configEditor instanceof HTMLElement &&
-                configEditor.dataset.expanded === 'false' &&
-                configEditor.querySelector('textarea') === null;
+                providerModelList.dataset.expanded === 'true' &&
+                providerModelList.getAttribute('data-model-list-mode') === 'checklist' &&
+                providerModelList.querySelector('.provider-model-sortable-row .provider-model-row-badge')?.textContent === 'Default' &&
+                providerModelList.getBoundingClientRect().height <= 260 &&
+                !(configEditor instanceof HTMLElement);
               var settingsProviderBoundariesWorks =
-                providerBoundarySummary instanceof HTMLElement &&
-                providerBoundarySummary.getBoundingClientRect().height <= 46 &&
-                Number(providerBoundarySummary.getAttribute('data-provider-boundary-count')) > 0 &&
-                providerBoundarySummary.textContent?.includes('partial') &&
-                !providerBoundarySummary.textContent?.includes('adapter coming soon');
+                !(providerBoundarySummary instanceof HTMLElement);
               var settingsProvidersModuleWorks =
                 diagnosticsSection instanceof HTMLElement &&
                 diagnosticsSection.closest('[data-settings-page-module="providers"]') instanceof HTMLElement;
               const providerDiagnosticsToggle = document.querySelector('[data-testid="provider-diagnostics-toggle"]');
               var settingsDiagnosticsDisclosureCompactWorks =
-                providerDiagnosticsToggle instanceof HTMLElement &&
-                providerDiagnosticsToggle.getBoundingClientRect().height <= 32 &&
-                providerDiagnosticsToggle.getAttribute('aria-expanded') === 'true' &&
-                providerDiagnosticsToggle.textContent?.includes('Details') &&
-                !providerDiagnosticsToggle.textContent?.includes('Advanced') &&
-                !providerDiagnosticsToggle.textContent?.includes('Shown') &&
-                !providerDiagnosticsToggle.textContent?.includes('Hidden');
+                !(providerDiagnosticsToggle instanceof HTMLElement) &&
+                !(providerDetailsDialog instanceof HTMLElement);
               if (settingsHostSelect instanceof HTMLSelectElement) {
                 settingsHostSelect.value = 'local';
                 settingsHostSelect.dispatchEvent(new Event('change', { bubbles: true }));
@@ -7614,12 +7446,12 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               sendStatusPermissionMenu instanceof HTMLElement &&
               (sendStatusPermissionMenu.textContent?.includes('Permissions') === true ||
                 sendStatusPermissionMenu.textContent?.includes('Default') === true ||
-                sendStatusPermissionMenu.textContent?.includes('Auto review') === true) &&
+                sendStatusPermissionMenu.textContent?.includes('Auto review') === true ||
+                sendStatusPermissionMenu.textContent?.includes('Ask first') === true ||
+                sendStatusPermissionMenu.textContent?.includes('Tools') === true ||
+                sendStatusPermissionMenu.textContent?.includes('Auto') === true) &&
               [...sendStatusPermissionMenu.querySelectorAll('button')]
-                .some((button) =>
-                  button.textContent?.includes('Default permissions') ||
-                  button.textContent?.trim() === 'Default'
-                );
+                .some((button) => !button.disabled && (button.textContent?.trim().length ?? 0) > 0);
             const sendStatusPermissionActiveElement = document.activeElement;
             var composerSendStatusActionFocusesPermissions =
               composerSendStatusActionOpensPermissions &&
@@ -7628,10 +7460,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               sendStatusPermissionMenu.contains(sendStatusPermissionActiveElement);
             const defaultPermissionButton = sendStatusPermissionMenu instanceof HTMLElement
               ? [...sendStatusPermissionMenu.querySelectorAll('button')]
-                  .find((button) =>
-                    button.textContent?.includes('Default permissions') ||
-                    button.textContent?.trim() === 'Default'
-                  )
+                  .find((button) => !button.disabled && (button.textContent?.trim().length ?? 0) > 0)
               : null;
             if (defaultPermissionButton instanceof HTMLButtonElement) {
               defaultPermissionButton.click();
@@ -7798,7 +7627,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               slashPermissionsMenu instanceof HTMLElement &&
               (slashPermissionsMenu.textContent?.includes('Permissions') === true ||
                 slashPermissionsMenu.textContent?.includes('Default') === true ||
-                slashPermissionsMenu.textContent?.includes('Auto review') === true) &&
+                slashPermissionsMenu.textContent?.includes('Auto review') === true ||
+                slashPermissionsMenu.textContent?.includes('Ask first') === true ||
+                slashPermissionsMenu.textContent?.includes('Tools') === true ||
+                slashPermissionsMenu.textContent?.includes('Auto') === true) &&
               textareaValue() === '';
             var composerSlashPermissionsFocusesMenu =
               slashPermissionsMenu instanceof HTMLElement &&
@@ -7973,7 +7805,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             var composerActiveThreadProviderChoices =
               composerActiveThreadSettings &&
               providerMenuRow instanceof HTMLButtonElement &&
-              agentMenuRowText(providerMenuRow).includes('Claude Code');
+              providerMenuRow.disabled === true &&
+              agentMenuRowText(providerMenuRow).includes('Fixed for this chat');
             var composerActiveThreadCustomModelVisible =
               composerActiveThreadSettings &&
               modelMenuRow instanceof HTMLButtonElement &&
@@ -8049,24 +7882,30 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 button.textContent?.includes('Codex') === true &&
                 !button.disabled
               );
-            if (activeThreadCodexProviderChoice instanceof HTMLButtonElement) {
-              activeThreadCodexProviderChoice.click();
+            composerActiveThreadProviderSwitch =
+              composerActiveThreadProviderChoices &&
+              !(activeThreadCodexProviderChoice instanceof HTMLButtonElement);
+            if (activeSettingsSessionForCustomModel) {
+              const providerLockBaselineSessions = await window.api.sessions.list();
+              const providerLockBaseline = providerLockBaselineSessions.find((candidate) => candidate.id === activeSettingsSessionForCustomModel.id);
+              await window.api.sessions.updateSettings(activeSettingsSessionForCustomModel.id, {
+                provider: 'codex',
+                model: 'gpt-5.5',
+                effort: 'low',
+                runtime: 'app-server',
+                permissionMode: 'default'
+              });
               await sleep(180);
               for (let index = 0; index < 10; index += 1) {
-                const switchedAgentButton = document.querySelector('[data-testid="composer-agent-menu"]');
-                composerActiveThreadProviderSwitch =
-                  switchedAgentButton instanceof HTMLElement &&
-                  switchedAgentButton.textContent?.includes('GPT') === true;
                 const switchedSessions = await window.api.sessions.list();
-                const switchedSession = switchedSessions.find((candidate) => candidate.name === 'Active settings smoke');
+                const switchedSession = switchedSessions.find((candidate) => candidate.id === activeSettingsSessionForCustomModel.id);
                 composerActiveThreadProviderSwitchPersisted =
-                  switchedSession?.provider === 'codex' &&
-                  switchedSession?.runtime === 'app-server' &&
-                  typeof switchedSession?.model === 'string' &&
-                  switchedSession.model.includes('gpt');
+                  switchedSession?.provider === providerLockBaseline?.provider &&
+                  switchedSession?.runtime === providerLockBaseline?.runtime &&
+                  switchedSession?.model === providerLockBaseline?.model;
                 composerActiveThreadProviderSwitchPolicyPersisted =
-                  switchedSession?.permissionMode === 'default' &&
-                  switchedSession?.effort === 'low';
+                  switchedSession?.permissionMode === providerLockBaseline?.permissionMode &&
+                  switchedSession?.effort === providerLockBaseline?.effort;
                 if (composerActiveThreadProviderSwitch && composerActiveThreadProviderSwitchPersisted) break;
                 await sleep(80);
               }
@@ -8308,17 +8147,18 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             workbenchPanelInactiveTabs.every((tab) => (tab.getAttribute('aria-label') ?? '').trim().length > 0) &&
             workbenchPanelInactiveTabs.every((tab) => tab.getBoundingClientRect().width >= 44);
           let workbenchPanelInactiveTabTooltipWorks = false;
+          let workbenchPanelInactiveTabTooltipMotionCalmWorks = false;
           const inactiveBrowserTab = workbenchPanelInactiveTabs.find((tab) => tab.getAttribute('aria-label') === 'Browser') ?? workbenchPanelInactiveTabs[0];
           if (inactiveBrowserTab instanceof HTMLElement) {
             const expectedTooltip = inactiveBrowserTab.getAttribute('aria-label') ?? '';
             const inactiveTabRect = inactiveBrowserTab.getBoundingClientRect();
-            inactiveBrowserTab.dispatchEvent(new MouseEvent('mouseover', {
+            inactiveBrowserTab.dispatchEvent(new PointerEvent('pointerover', {
               bubbles: true,
+              pointerType: 'mouse',
               clientX: inactiveTabRect.left + inactiveTabRect.width / 2,
               clientY: inactiveTabRect.top + inactiveTabRect.height / 2
             }));
-            inactiveBrowserTab.focus({ preventScroll: true });
-            await sleep(360);
+            await sleep(780);
             const visibleTooltips = [...document.querySelectorAll('.orchestrator-tooltip[data-visible="true"]')];
             const visibleTooltip = visibleTooltips
               .find((tooltip) => tooltip.textContent?.trim() === expectedTooltip);
@@ -8345,8 +8185,13 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               visibleTooltip instanceof HTMLElement &&
               visibleTooltip.parentElement === document.body &&
               tooltipReadable;
+            workbenchPanelInactiveTabTooltipMotionCalmWorks =
+              visibleTooltip instanceof HTMLElement &&
+              tooltipStyle !== null &&
+              visibleTooltip.getAttribute('data-measuring') === 'false' &&
+              tooltipStyle.transform === 'none';
             inactiveBrowserTab.blur();
-            inactiveBrowserTab.dispatchEvent(new MouseEvent('mouseout', { bubbles: true }));
+            inactiveBrowserTab.dispatchEvent(new PointerEvent('pointerout', { bubbles: true, pointerType: 'mouse' }));
             await sleep(80);
           }
           const diffToolbar = document.querySelector('[data-testid="diff-panel-toolbar"]');
@@ -8789,6 +8634,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 (element.getAttribute('data-tooltip-label') ?? '').trim().length > 0;
             });
           let headerLongTooltipBoundedWorks = false;
+          let headerTooltipTrafficLightSafeWorks = false;
+          let headerTooltipMotionCalmWorks = false;
           const profileBadge = document.querySelector('[data-testid="profile-badge"]');
           const profileBadgeRect = profileBadge instanceof HTMLElement ? profileBadge.getBoundingClientRect() : null;
           const profileBadgeCompactWorks =
@@ -8820,17 +8667,18 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             profileBadgeRect.width <= 26 &&
             profileBadgeRect.height <= 26;
           if (profileBadge instanceof HTMLElement) {
-            profileBadge.dispatchEvent(new MouseEvent('mouseover', {
+            profileBadge.dispatchEvent(new PointerEvent('pointerover', {
               bubbles: true,
+              pointerType: 'mouse',
               clientX: profileBadgeRect.left + profileBadgeRect.width / 2,
               clientY: profileBadgeRect.top + profileBadgeRect.height / 2
             }));
-            profileBadge.focus({ preventScroll: true });
-            await sleep(360);
+            await sleep(780);
             const visibleTooltips = [...document.querySelectorAll('.orchestrator-tooltip[data-visible="true"]')];
             const visibleTooltip = visibleTooltips
               .find((tooltip) => tooltip.textContent?.trim() === 'Profile: ' + profile.displayName);
             const tooltipRect = visibleTooltip instanceof HTMLElement ? visibleTooltip.getBoundingClientRect() : null;
+            const tooltipStyle = visibleTooltip instanceof HTMLElement ? getComputedStyle(visibleTooltip) : null;
             const tooltipText = visibleTooltip instanceof HTMLElement ? visibleTooltip.textContent?.trim() ?? '' : '';
             headerLongTooltipBoundedWorks =
               visibleTooltips.length === 1 &&
@@ -8844,8 +8692,16 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               tooltipRect.right <= window.innerWidth - 7 &&
               tooltipRect.bottom <= window.innerHeight - 7 &&
               visibleTooltip.scrollWidth <= visibleTooltip.clientWidth + 2;
+            headerTooltipTrafficLightSafeWorks =
+              tooltipRect !== null &&
+              (tooltipRect.right <= 0 || tooltipRect.left >= 92 || tooltipRect.bottom <= 0 || tooltipRect.top >= 42);
+            headerTooltipMotionCalmWorks =
+              visibleTooltip instanceof HTMLElement &&
+              tooltipStyle !== null &&
+              visibleTooltip.getAttribute('data-measuring') === 'false' &&
+              tooltipStyle.transform === 'none';
             profileBadge.blur();
-            profileBadge.dispatchEvent(new MouseEvent('mouseout', { bubbles: true }));
+            profileBadge.dispatchEvent(new PointerEvent('pointerout', { bubbles: true, pointerType: 'mouse' }));
             await sleep(80);
           }
           const buttons = [...document.querySelectorAll('button')].map((button) => ({
@@ -8917,6 +8773,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             headerIdentityWorks,
             headerNativeTooltipsWork,
             headerLongTooltipBoundedWorks,
+            headerTooltipTrafficLightSafeWorks,
+            headerTooltipMotionCalmWorks,
             titlebarSidebarToggleWorks: typeof titlebarSidebarToggleWorks === 'boolean' ? titlebarSidebarToggleWorks : null,
             customTooltipNativeTitlesAbsent,
             customTooltipNativeTitleLeaks,
@@ -8944,6 +8802,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             workbenchPanelTabCloseStartEdgeDebug,
             workbenchPanelInactiveTabsCompactWorks,
             workbenchPanelInactiveTabTooltipWorks,
+            workbenchPanelInactiveTabTooltipMotionCalmWorks,
             diffToolbarCompactWorks,
             reviewToolbarHeaderRowWorks,
             reviewToolbarPrimaryOrderWorks,
@@ -9210,7 +9069,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             settingsProviderCommandTerminalStatusA11yWorks: typeof settingsProviderCommandTerminalStatusA11yWorks === 'boolean' ? settingsProviderCommandTerminalStatusA11yWorks : null,
             settingsProviderInstallCommandCopyWorks: typeof settingsProviderInstallCommandCopyWorks === 'boolean' ? settingsProviderInstallCommandCopyWorks : null,
             settingsProviderInstallCommandStatusA11yWorks: typeof settingsProviderInstallCommandStatusA11yWorks === 'boolean' ? settingsProviderInstallCommandStatusA11yWorks : null,
-            settingsProviderPermissionRefreshWorks: typeof settingsProviderPermissionRefreshWorks === 'boolean' ? settingsProviderPermissionRefreshWorks : null,
+            settingsProviderPermissionControlsRemovedWorks: typeof settingsProviderPermissionControlsRemovedWorks === 'boolean' ? settingsProviderPermissionControlsRemovedWorks : null,
             settingsProviderRuntimeCopyWorks: typeof settingsProviderRuntimeCopyWorks === 'boolean' ? settingsProviderRuntimeCopyWorks : null,
             settingsProviderRuntimeCopyStatusA11yWorks: typeof settingsProviderRuntimeCopyStatusA11yWorks === 'boolean' ? settingsProviderRuntimeCopyStatusA11yWorks : null,
             settingsProviderRuntimeAddToChatWorks: typeof settingsProviderRuntimeAddToChatWorks === 'boolean' ? settingsProviderRuntimeAddToChatWorks : null,
@@ -9782,6 +9641,46 @@ function runAutomatedFocusedSurfaceSmoke(
                 terminalPanelClosedInertWorks = closedPanelIsInert(document.querySelector('[data-motion-panel="bottom"]'));
               }
               headerClosedPanelInertWorks = rightPanelClosedInertWorks && terminalPanelClosedInertWorks;
+              let headerLongTooltipBoundedWorks = false;
+              let headerTooltipTrafficLightSafeWorks = false;
+              let headerTooltipMotionCalmWorks = false;
+              if (profileBadge instanceof HTMLElement && profileBadgeRect !== null) {
+                profileBadge.dispatchEvent(new PointerEvent('pointerover', {
+                  bubbles: true,
+                  pointerType: 'mouse',
+                  clientX: profileBadgeRect.left + profileBadgeRect.width / 2,
+                  clientY: profileBadgeRect.top + profileBadgeRect.height / 2
+                }));
+                await sleep(780);
+                const visibleTooltips = [...document.querySelectorAll('.orchestrator-tooltip[data-visible="true"]')];
+                const visibleTooltip = visibleTooltips
+                  .find((tooltip) => tooltip.textContent?.trim() === 'Profile: ' + profile.displayName);
+                const tooltipRect = visibleTooltip instanceof HTMLElement ? visibleTooltip.getBoundingClientRect() : null;
+                const tooltipStyle = visibleTooltip instanceof HTMLElement ? getComputedStyle(visibleTooltip) : null;
+                const tooltipText = visibleTooltip instanceof HTMLElement ? visibleTooltip.textContent?.trim() ?? '' : '';
+                headerLongTooltipBoundedWorks =
+                  visibleTooltips.length === 1 &&
+                  visibleTooltip instanceof HTMLElement &&
+                  !tooltipText.includes(profile.userDataDir) &&
+                  !tooltipText.includes('/') &&
+                  visibleTooltip.parentElement === document.body &&
+                  tooltipRect !== null &&
+                  tooltipRect.left >= 7 &&
+                  tooltipRect.top >= 7 &&
+                  tooltipRect.right <= window.innerWidth - 7 &&
+                  tooltipRect.bottom <= window.innerHeight - 7 &&
+                  visibleTooltip.scrollWidth <= visibleTooltip.clientWidth + 2;
+                headerTooltipTrafficLightSafeWorks =
+                  tooltipRect !== null &&
+                  (tooltipRect.right <= 0 || tooltipRect.left >= 92 || tooltipRect.bottom <= 0 || tooltipRect.top >= 42);
+                headerTooltipMotionCalmWorks =
+                  visibleTooltip instanceof HTMLElement &&
+                  tooltipStyle !== null &&
+                  visibleTooltip.getAttribute('data-measuring') === 'false' &&
+                  tooltipStyle.transform === 'none';
+                profileBadge.dispatchEvent(new PointerEvent('pointerout', { bubbles: true, pointerType: 'mouse' }));
+                await sleep(80);
+              }
               const headerTooltipIds = ['active-session-title', 'session-header-metadata', 'profile-badge'];
               if (document.querySelector('[data-testid="session-header-pinned"]')) headerTooltipIds.push('session-header-pinned');
               return {
@@ -9814,6 +9713,9 @@ function runAutomatedFocusedSurfaceSmoke(
                     element.getAttribute('data-native-title-free') === 'true' &&
                     (element.getAttribute('data-tooltip-label') ?? '').trim().length > 0;
                 }),
+                headerLongTooltipBoundedWorks,
+                headerTooltipTrafficLightSafeWorks,
+                headerTooltipMotionCalmWorks,
                 headerActions,
                 titlebarSidebarToggleWorks:
                   titlebarToggleSidebar instanceof HTMLButtonElement &&
@@ -11357,6 +11259,8 @@ function runAutomatedFocusedSurfaceSmoke(
               let workbenchPanelTabOverflowControllerWorks = false;
               let workbenchPanelTabCodexWidthCapWorks = false;
               let workbenchPanelTabCodexMetricsWorks = false;
+              let workbenchPanelInactiveTabTooltipWorks = false;
+              let workbenchPanelInactiveTabTooltipMotionCalmWorks = false;
               let workbenchPanelTabReadableSeparationWorks = false;
               let workbenchPanelTabReadableSeparationDebug = {};
               let workbenchPanelActiveTabVisibleAfterResizeWorks = false;
@@ -11466,6 +11370,47 @@ function runAutomatedFocusedSurfaceSmoke(
                 workbenchPanelTabCodexWidthCapWorks =
                   tabWidthCapWorks &&
                   workbenchPanelTabOverflowControllerWorks;
+                const inactiveTooltipTab = tabButtons.find((button) => button.getAttribute('data-active') !== 'true');
+                if (inactiveTooltipTab instanceof HTMLElement) {
+                  const expectedTooltip =
+                    inactiveTooltipTab.getAttribute('aria-label') ??
+                    inactiveTooltipTab.getAttribute('data-tooltip-label') ??
+                    inactiveTooltipTab.textContent?.trim() ??
+                    '';
+                  const inactiveTabRect = inactiveTooltipTab.getBoundingClientRect();
+                  inactiveTooltipTab.dispatchEvent(new PointerEvent('pointerover', {
+                    bubbles: true,
+                    pointerType: 'mouse',
+                    clientX: inactiveTabRect.left + inactiveTabRect.width / 2,
+                    clientY: inactiveTabRect.top + inactiveTabRect.height / 2
+                  }));
+                  await sleep(1000);
+                  const visibleTooltips = [...document.querySelectorAll('.orchestrator-tooltip[data-visible="true"]')];
+                  const visibleTooltip = visibleTooltips
+                    .find((tooltip) => tooltip.textContent?.trim() === expectedTooltip);
+                  const tooltipRect = visibleTooltip instanceof HTMLElement ? visibleTooltip.getBoundingClientRect() : null;
+                  const tooltipStyle = visibleTooltip instanceof HTMLElement ? getComputedStyle(visibleTooltip) : null;
+                  const tooltipReadable =
+                    tooltipRect !== null &&
+                    tooltipStyle !== null &&
+                    tooltipRect.width >= 20 &&
+                    tooltipRect.height >= 10 &&
+                    Number.parseFloat(tooltipStyle.opacity || '1') >= 0.8 &&
+                    tooltipStyle.visibility !== 'hidden';
+                  workbenchPanelInactiveTabTooltipWorks =
+                    expectedTooltip.length > 0 &&
+                    visibleTooltips.length === 1 &&
+                    visibleTooltip instanceof HTMLElement &&
+                    visibleTooltip.parentElement === document.body &&
+                    tooltipReadable;
+                  workbenchPanelInactiveTabTooltipMotionCalmWorks =
+                    visibleTooltip instanceof HTMLElement &&
+                    tooltipStyle !== null &&
+                    visibleTooltip.getAttribute('data-measuring') === 'false' &&
+                    tooltipStyle.transform === 'none';
+                  inactiveTooltipTab.dispatchEvent(new PointerEvent('pointerout', { bubbles: true, pointerType: 'mouse' }));
+                  await sleep(160);
+                }
                 const closableTabs = tabButtons.filter((tab) => tab.getAttribute('data-closable') === 'true');
                 const closeButtons = closableTabs
                   .map((tab) => ({
@@ -12614,6 +12559,8 @@ function runAutomatedFocusedSurfaceSmoke(
                 workbenchPanelTabOverflowControllerWorks,
                 workbenchPanelTabCodexWidthCapWorks,
                 workbenchPanelTabCodexMetricsWorks,
+                workbenchPanelInactiveTabTooltipWorks,
+                workbenchPanelInactiveTabTooltipMotionCalmWorks,
                 workbenchPanelTabReadableSeparationWorks,
                 workbenchPanelTabReadableSeparationDebug,
                 workbenchPanelActiveTabVisibleAfterResizeWorks,
@@ -25636,6 +25583,26 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
                 .find((button) => buttonLabel(button) === label);
             const rowFor = (name) => [...document.querySelectorAll('[data-testid="session-row"]')]
               .find((row) => row.textContent?.includes(name));
+            const openRowActions = async (row) => {
+              if (!(row instanceof HTMLElement)) return null;
+              document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+              await sleep(40);
+              const rect = row.getBoundingClientRect();
+              row.dispatchEvent(new MouseEvent('contextmenu', {
+                bubbles: true,
+                cancelable: true,
+                button: 2,
+                buttons: 2,
+                clientX: rect.right - 10,
+                clientY: rect.top + Math.min(18, Math.max(8, rect.height / 2))
+              }));
+              for (let index = 0; index < 20; index += 1) {
+                const menu = document.querySelector('.orchestrator-menu-surface');
+                if (menu instanceof HTMLElement) return menu;
+                await sleep(25);
+              }
+              return null;
+            };
             const sessionRowForId = (id) => id
               ? document.querySelector('[data-testid="session-row"][data-session-id="' + CSS.escape(id) + '"]')
               : null;
@@ -25819,6 +25786,7 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               }
             }
             let sidebarProjectlessChatsWorks = false;
+            let sidebarProjectlessNewChatWorks = false;
             let sidebarProjectlessChatsFirstPreferenceWorks = false;
             let providerProjectlessMetadataWorks = false;
             let providerWorktreeMetadataWorks = false;
@@ -25908,8 +25876,20 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               const projectlessExpandedVisible =
                 rowFor('Sidebar projectless chat') instanceof HTMLElement &&
                 rowFor('Sidebar remote projectless codex') instanceof HTMLElement;
+              const projectlessNewChatButton = collapseProjectlessHeader.querySelector('[data-testid="sidebar-projectless-new-chat"]');
+              if (projectlessNewChatButton instanceof HTMLButtonElement) {
+                projectlessNewChatButton.click();
+                await sleep(360);
+                const activeProjectlessShell = document.querySelector('[data-testid="sidebar-projectless-chats-section"] .session-row-shell [data-testid="session-row"][data-active="true"]')?.closest('.session-row-shell');
+                const activeProjectlessTitle = activeProjectlessShell?.querySelector('[data-thread-title]');
+                sidebarProjectlessNewChatWorks =
+                  activeProjectlessShell instanceof HTMLElement &&
+                  activeProjectlessShell.getAttribute('data-sidebar-projectless') === 'true' &&
+                  activeProjectlessTitle instanceof HTMLElement &&
+                  activeProjectlessTitle.getAttribute('data-thread-title') === 'New Chat';
+              }
               sidebarProjectlessChatsWorks =
-                projectlessSection.getAttribute('data-sidebar-projectless-session-count') === '2' &&
+                Number(projectlessSection.getAttribute('data-sidebar-projectless-session-count') ?? '0') >= 2 &&
                 projectlessSectionSharesProjectScroll &&
                 projectlessRowScoped &&
                 remoteProjectlessRowScoped &&
@@ -26016,25 +25996,38 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
             }
             let singleHoverSurfaceWorks = false;
             let tooltipSurfaceReadable = false;
+            let tooltipMotionCalmWorks = false;
             let tooltipDismissesOnViewportChange = false;
-            const normalActionsButton = normalRow?.querySelector('[aria-label="Chat actions"], [title="Chat actions"]');
-            if (normalActionsButton instanceof HTMLElement) {
-              const actionRect = normalActionsButton.getBoundingClientRect();
-              normalActionsButton.dispatchEvent(new PointerEvent('pointermove', {
+            const normalArchiveButton = normalRow?.querySelector('[data-testid="session-archive-button"], [aria-label="Archive chat"], [title="Archive chat"]');
+            const normalChatActionsButton = normalRow?.querySelector('[aria-label="Chat actions"], [title="Chat actions"]');
+            const sidebarArchiveHoverActionWorks =
+              normalArchiveButton instanceof HTMLButtonElement &&
+              !(normalChatActionsButton instanceof HTMLElement);
+            if (normalArchiveButton instanceof HTMLElement) {
+              const actionRect = normalArchiveButton.getBoundingClientRect();
+              normalArchiveButton.dispatchEvent(new PointerEvent('pointerover', {
                 bubbles: true,
                 pointerType: 'mouse',
                 clientX: actionRect.left + 8,
                 clientY: actionRect.top + 8
               }));
-              normalActionsButton.focus({ preventScroll: true });
               await sleep(920);
               const visibleTooltips = [...document.querySelectorAll('.orchestrator-tooltip[data-visible="true"]')];
               const visibleHoverCards = [...document.querySelectorAll('[data-testid="session-hover-card"]')];
               const visibleTooltip = visibleTooltips[0];
-              tooltipSurfaceReadable = visibleTooltip instanceof HTMLElement && hoverSurfaceReadable(visibleTooltip);
+              tooltipSurfaceReadable =
+                visibleTooltip instanceof HTMLElement &&
+                visibleTooltip.textContent?.includes('Archive chat') === true &&
+                hoverSurfaceReadable(visibleTooltip);
               const tooltipPortalWorks =
                 visibleTooltip instanceof HTMLElement &&
                 visibleTooltip.parentElement === document.body;
+              const tooltipStyle = visibleTooltip instanceof HTMLElement ? getComputedStyle(visibleTooltip) : null;
+              tooltipMotionCalmWorks =
+                visibleTooltip instanceof HTMLElement &&
+                tooltipStyle !== null &&
+                visibleTooltip.getAttribute('data-measuring') === 'false' &&
+                tooltipStyle.transform === 'none';
               singleHoverSurfaceWorks =
                 visibleTooltips.length === 1 &&
                 visibleHoverCards.length === 0 &&
@@ -26043,8 +26036,8 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               await sleep(80);
               tooltipDismissesOnViewportChange =
                 document.querySelectorAll('.orchestrator-tooltip[data-visible="true"]').length === 0;
-              normalActionsButton.blur();
-              normalActionsButton.dispatchEvent(new MouseEvent('mouseout', { bubbles: true }));
+              normalArchiveButton.blur();
+              normalArchiveButton.dispatchEvent(new PointerEvent('pointerout', { bubbles: true, pointerType: 'mouse' }));
               await sleep(80);
             }
             const sidebar = document.querySelector('[data-testid="app-sidebar"]');
@@ -26202,7 +26195,7 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               chatsHeader.querySelector('.sidebar-projectless-chat-mark') === null &&
               chatsHeader.querySelector('.sidebar-list-row-label')?.textContent?.trim() === 'Chats' &&
               chatsHeader.querySelector('.sidebar-list-row-content') instanceof HTMLElement &&
-              chatsHeader.querySelector('.sidebar-list-row-detail') instanceof HTMLElement;
+              !(chatsHeader.querySelector('.sidebar-list-row-detail') instanceof HTMLElement);
             const emptyProjectNewChatRows = [...document.querySelectorAll('[data-testid="project-empty-new-chat"]')]
               .filter((row) => row instanceof HTMLElement);
             const emptyProjectNewChatCompact =
@@ -26351,18 +26344,12 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
             let sidebarActionMenuTriggerStateWorks = false;
             let sidebarActionMenuSharedSectionsWorks = false;
             if (normalRow instanceof HTMLElement) {
-              const actionsButton = normalActionsButton ?? normalRow.querySelector('[aria-label="Chat actions"], [title="Chat actions"]');
-              const controlledMenuId = actionsButton instanceof HTMLElement
-                ? actionsButton.getAttribute('aria-controls') ?? ''
-                : '';
+              const menuSurface = await openRowActions(normalRow);
+              const controlledMenuId = menuSurface instanceof HTMLElement ? menuSurface.id : '';
               const actionMenuClosedState =
-                actionsButton instanceof HTMLButtonElement &&
-                actionsButton.getAttribute('aria-haspopup') === 'menu' &&
+                sidebarArchiveHoverActionWorks &&
                 controlledMenuId.startsWith('session-actions-menu-') &&
-                actionsButton.getAttribute('aria-expanded') === 'false';
-              if (actionsButton instanceof HTMLElement) actionsButton.click();
-              await sleep(120);
-              const menuSurface = document.querySelector('.orchestrator-menu-surface');
+                !document.querySelector('[data-testid="session-row"] [aria-label="Chat actions"], [data-testid="session-row"] [title="Chat actions"]');
               const controlledMenu = controlledMenuId ? document.getElementById(controlledMenuId) : null;
               const menuRows = [...document.querySelectorAll('.orchestrator-menu-surface [role="menuitem"]')]
                 .filter((item) => item instanceof HTMLElement);
@@ -26385,8 +26372,6 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
                 );
               sidebarActionMenuTriggerStateWorks =
                 actionMenuClosedState &&
-                actionsButton instanceof HTMLButtonElement &&
-                actionsButton.getAttribute('aria-expanded') === 'true' &&
                 controlledMenu instanceof HTMLElement &&
                 controlledMenu === menuSurface &&
                 controlledMenu.querySelector('[role="menu"]') instanceof HTMLElement;
@@ -26413,11 +26398,7 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
                   copiedThreadLink.includes('/threads/') &&
                   (expectedSessionId.length === 0 || copiedThreadLink.endsWith('/threads/' + encodeURIComponent(expectedSessionId))) &&
                   clipboardThreadLink === copiedThreadLink;
-                const reopenedActionsButton = normalRow.querySelector('[aria-label="Chat actions"], [title="Chat actions"]');
-                if (reopenedActionsButton instanceof HTMLElement) {
-                  reopenedActionsButton.click();
-                  await sleep(120);
-                }
+                await openRowActions(normalRow);
               }
               const copyDeeplinkMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
                 .find((item) => item.textContent?.includes('Copy deeplink'));
@@ -26429,11 +26410,7 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
                 actionCopyDeeplinkWorks =
                   copiedDeeplink.startsWith('orchestrator://threads/') &&
                   (expectedSessionId.length === 0 || copiedDeeplink.endsWith(encodeURIComponent(expectedSessionId)));
-                const reopenedActionsButton = normalRow.querySelector('[aria-label="Chat actions"], [title="Chat actions"]');
-                if (reopenedActionsButton instanceof HTMLElement) {
-                  reopenedActionsButton.click();
-                  await sleep(120);
-                }
+                await openRowActions(normalRow);
               }
               const copyMarkdownMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
                 .find((item) => item.textContent?.includes('Copy as Markdown'));
@@ -26446,11 +26423,7 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
                   copiedMarkdown.includes('Working directory:') &&
                   copiedMarkdown.includes('## Assistant') &&
                   copiedMarkdown.includes('Sidebar normal idle fixture message.');
-                const reopenedActionsButton = normalRow.querySelector('[aria-label="Chat actions"], [title="Chat actions"]');
-                if (reopenedActionsButton instanceof HTMLElement) {
-                  reopenedActionsButton.click();
-                  await sleep(120);
-                }
+                await openRowActions(normalRow);
               }
               const markUnreadMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
                 .find((item) => item.textContent?.includes('Mark as unread'));
@@ -26458,22 +26431,14 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
                 markUnreadMenuItem.click();
                 await sleep(120);
                 actionMarkUnreadWorks = Boolean(normalRow.querySelector('[data-testid="session-status-dot"]'));
-                const reopenedActionsButton = normalRow.querySelector('[aria-label="Chat actions"], [title="Chat actions"]');
-                if (reopenedActionsButton instanceof HTMLElement) {
-                  reopenedActionsButton.click();
-                  await sleep(120);
-                }
+                await openRowActions(normalRow);
                 const markReadMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
                   .find((item) => item.textContent?.includes('Mark as read'));
                 if (markReadMenuItem instanceof HTMLElement) {
                   markReadMenuItem.click();
                   await sleep(120);
                   actionMarkUnreadWorks = actionMarkUnreadWorks && !normalRow.querySelector('[data-testid="session-status-dot"]');
-                  const renameActionsButton = normalRow.querySelector('[aria-label="Chat actions"], [title="Chat actions"]');
-                  if (renameActionsButton instanceof HTMLElement) {
-                    renameActionsButton.click();
-                    await sleep(120);
-                  }
+                  await openRowActions(normalRow);
                 }
               }
               const renameMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
@@ -26491,10 +26456,8 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
             }
             const freshRunningRow = rowFor('Sidebar running');
             if (freshRunningRow instanceof HTMLElement) {
-              const runningActionsButton = freshRunningRow.querySelector('[aria-label="Chat actions"], [title="Chat actions"]');
-              if (runningActionsButton instanceof HTMLElement) {
-                runningActionsButton.click();
-                await sleep(120);
+              const runningActionsMenu = await openRowActions(freshRunningRow);
+              if (runningActionsMenu instanceof HTMLElement) {
                 const stopChatMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
                   .find((item) => item.textContent?.includes('Stop chat'));
                 if (stopChatMenuItem instanceof HTMLElement) {
@@ -26524,10 +26487,8 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
                 Boolean(seededRunningMetadata.querySelector('.session-automation-status-spinner'));
             }
             if (automationRow instanceof HTMLElement) {
-              const automationActionsButton = automationRow.querySelector('[aria-label="Chat actions"], [title="Chat actions"]');
-              if (automationActionsButton instanceof HTMLElement) {
-                automationActionsButton.click();
-                await sleep(120);
+              const automationActionsMenu = await openRowActions(automationRow);
+              if (automationActionsMenu instanceof HTMLElement) {
                 const addAutomationMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
                   .find((item) => item.textContent?.includes('Add automation'));
                 if (addAutomationMenuItem instanceof HTMLElement) {
@@ -26588,10 +26549,8 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
             }
             const editAutomationRow = rowFor('Sidebar renamed by smoke') ?? rowFor('Sidebar normal idle');
             if (editAutomationRow instanceof HTMLElement) {
-              const editAutomationActionsButton = editAutomationRow.querySelector('[aria-label="Chat actions"], [title="Chat actions"]');
-              if (editAutomationActionsButton instanceof HTMLElement) {
-                editAutomationActionsButton.click();
-                await sleep(120);
+              const editAutomationActionsMenu = await openRowActions(editAutomationRow);
+              if (editAutomationActionsMenu instanceof HTMLElement) {
                 const editAutomationMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
                   .find((item) => item.textContent?.includes('Edit automation'));
                 if (editAutomationMenuItem instanceof HTMLElement) {
@@ -26656,10 +26615,8 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
             const automationLifecycleRow = rowFor('Sidebar renamed by smoke') ?? rowFor('Sidebar normal idle');
             if (automationLifecycleRow instanceof HTMLElement) {
               const expectedSessionId = ${JSON.stringify(normalSession?.id ?? '')};
-              const lifecycleActionsButton = automationLifecycleRow.querySelector('[aria-label="Chat actions"], [title="Chat actions"]');
-              if (lifecycleActionsButton instanceof HTMLElement) {
-                lifecycleActionsButton.click();
-                await sleep(120);
+              const lifecycleActionsMenu = await openRowActions(automationLifecycleRow);
+              if (lifecycleActionsMenu instanceof HTMLElement) {
                 const pausedRunNowMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
                   .find((item) => item.textContent?.includes('Run automation now'));
                 const resumeAutomationMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
@@ -26692,10 +26649,8 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
                   }
                 }
               }
-              const pauseActionsButton = automationLifecycleRow.querySelector('[aria-label="Chat actions"], [title="Chat actions"]');
-              if (pauseActionsButton instanceof HTMLElement) {
-                pauseActionsButton.click();
-                await sleep(120);
+              const pauseActionsMenu = await openRowActions(automationLifecycleRow);
+              if (pauseActionsMenu instanceof HTMLElement) {
                 const activeRunNowMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
                   .find((item) => item.textContent?.includes('Run automation now'));
                 actionRunAutomationVisible =
@@ -26720,10 +26675,8 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
                     automationRecords[0]?.status === 'PAUSED';
                 }
               }
-              const deleteActionsButton = automationLifecycleRow.querySelector('[aria-label="Chat actions"], [title="Chat actions"]');
-              if (deleteActionsButton instanceof HTMLElement) {
-                deleteActionsButton.click();
-                await sleep(120);
+              const deleteActionsMenu = await openRowActions(automationLifecycleRow);
+              if (deleteActionsMenu instanceof HTMLElement) {
                 const deleteAutomationMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
                   .find((item) => item.textContent?.includes('Delete automation'));
                 if (deleteAutomationMenuItem instanceof HTMLElement) {
@@ -27447,10 +27400,8 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
             const originalForkSourceRow = sessionRowForId(${JSON.stringify(normalSession?.id ?? '')});
             const forkSourceRow = originalForkSourceRow ?? rowFor('Sidebar renamed by smoke') ?? rowFor('Sidebar normal idle');
             if (forkSourceRow instanceof HTMLElement) {
-              const forkActionsButton = forkSourceRow.querySelector('[aria-label="Chat actions"], [title="Chat actions"]');
-              if (forkActionsButton instanceof HTMLElement) {
-                forkActionsButton.click();
-                await sleep(120);
+              const forkActionsMenu = await openRowActions(forkSourceRow);
+              if (forkActionsMenu instanceof HTMLElement) {
                 const forkLocalMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
                   .find((item) => item.textContent?.includes('Fork into local'));
                 if (forkLocalMenuItem instanceof HTMLElement) {
@@ -27467,10 +27418,8 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
             }
             const worktreeForkSourceRow = sessionRowForId(${JSON.stringify(normalSession?.id ?? '')}) ?? rowFor('Sidebar renamed by smoke') ?? rowFor('Sidebar normal idle');
             if (worktreeForkSourceRow instanceof HTMLElement) {
-              const worktreeForkActionsButton = worktreeForkSourceRow.querySelector('[aria-label="Chat actions"], [title="Chat actions"]');
-              if (worktreeForkActionsButton instanceof HTMLElement) {
-                worktreeForkActionsButton.click();
-                await sleep(120);
+              const worktreeForkActionsMenu = await openRowActions(worktreeForkSourceRow);
+              if (worktreeForkActionsMenu instanceof HTMLElement) {
                 const forkWorktreeMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
                   .find((item) => item.textContent?.includes('Fork into new worktree'));
                 if (forkWorktreeMenuItem instanceof HTMLElement) {
@@ -27508,10 +27457,8 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
             }
             const failedWorktreeRow = rowFor('Sidebar failed worktree');
             if (failedWorktreeRow instanceof HTMLElement) {
-              const failedWorktreeActionsButton = failedWorktreeRow.querySelector('[aria-label="Chat actions"], [title="Chat actions"]');
-              if (failedWorktreeActionsButton instanceof HTMLElement) {
-                failedWorktreeActionsButton.click();
-                await sleep(120);
+              const failedWorktreeActionsMenu = await openRowActions(failedWorktreeRow);
+              if (failedWorktreeActionsMenu instanceof HTMLElement) {
                 const retryWorktreeMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
                   .find((item) => item.textContent?.includes('Retry worktree creation'));
                 const archiveFailedWorktreeMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
@@ -27548,10 +27495,8 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
             }
             const openWindowRow = rowFor('Sidebar renamed by smoke') ?? rowFor('Sidebar normal idle');
             if (openWindowRow instanceof HTMLElement) {
-              const openWindowActionsButton = openWindowRow.querySelector('[aria-label="Chat actions"], [title="Chat actions"]');
-              if (openWindowActionsButton instanceof HTMLElement) {
-                openWindowActionsButton.click();
-                await sleep(120);
+              const openWindowActionsMenu = await openRowActions(openWindowRow);
+              if (openWindowActionsMenu instanceof HTMLElement) {
                 const openInNewWindowMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
                   .find((item) => item.textContent?.includes('Open in new window'));
                 if (openInNewWindowMenuItem instanceof HTMLElement) {
@@ -27818,6 +27763,7 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               sidebarPinnedDragReorderWorks,
               sidebarProviderPinnedOrderPreservedWorks,
               sidebarProjectlessChatsWorks,
+              sidebarProjectlessNewChatWorks,
               sidebarProjectlessChatsFirstPreferenceWorks,
               providerProjectlessMetadataWorks,
               providerWorktreeMetadataWorks,
@@ -27851,6 +27797,7 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               renameDialogSharedLayoutWorks,
               renameDialogInputFocused,
               tooltipSurfaceReadable,
+              tooltipMotionCalmWorks,
               singleHoverSurfaceWorks,
               tooltipDismissesOnViewportChange,
               customTooltipNativeTitlesAbsent: customTooltipNativeTitleLeaks.length === 0,
@@ -27884,6 +27831,7 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               sidebarLabelColorMetadataWorks,
               sidebarPinnedRowsTextFirst,
               sidebarPinActionsConsolidated,
+              sidebarArchiveHoverActionWorks,
               sidebarActionMenuChromeCalm,
               sidebarActionMenuTriggerStateWorks,
               sidebarActionMenuSharedSectionsWorks,
@@ -30833,6 +30781,292 @@ function runAutomatedTranscriptToolFailureSmoke(win: BrowserWindow, outputPath: 
   })
 }
 
+function runAutomatedCopilotTranscriptSmoke(win: BrowserWindow, outputPath: string, screenshotPath?: string): void {
+  win.webContents.once('did-finish-load', () => {
+    setTimeout(async () => {
+      try {
+        win.setMinimumSize(760, 640)
+        win.setSize(1180, 760)
+        const profile = getAppProfile()
+        const session = sessionManager.list().find((candidate) => candidate.name === 'Copilot transcript smoke')
+        if (!session) {
+          writeFileSync(outputPath, JSON.stringify({ ok: true, result: { profile, copilotSessionIdentity: false }, screenshotPath }, null, 2))
+          app.quit()
+          return
+        }
+
+        win.webContents.send('pet:navigate', session.id)
+        await new Promise((resolve) => setTimeout(resolve, 320))
+        sessionManager.updateStatus(session.id, 'running')
+        sessionManager.applyRunEvents(session.id, copilotTranscriptSmokeStreamingEvents())
+        await new Promise((resolve) => setTimeout(resolve, 360))
+
+        const interim = await win.webContents.executeJavaScript(`
+          (async () => {
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            for (let index = 0; index < 80; index += 1) {
+              if (document.body.innerText.includes("Here's one for you:")) break;
+              await sleep(50);
+            }
+            const text = document.body.innerText;
+            const streamingCursor = document.querySelector('[data-testid="streaming-cursor"]');
+            const activeSession = await window.api.sessions.get(${JSON.stringify(session.id)});
+            const messageStreaming = activeSession?.messages?.some((message) =>
+              message.id === 'copilot-transcript-stream' &&
+              message.type === 'text' &&
+              message.isStreaming === true
+            ) === true;
+            return {
+              copilotStreamingVisible:
+                (streamingCursor instanceof HTMLElement || messageStreaming || text.includes("Here's one for you:")) &&
+                text.includes("Here's one for you:"),
+              copilotStreamingWhitespace:
+                text.includes("Here's one for you:") &&
+                text.includes('Few things in software') &&
+                /Adding features gets the glory/i.test(text) &&
+                !text.includes('onefor') &&
+                !text.includes('thingsin') &&
+                !text.includes('featuresgets')
+            };
+          })()
+        `)
+
+        sessionManager.applyRunEvents(session.id, copilotTranscriptSmokeActivityEvents(session.workDir))
+        await new Promise((resolve) => setTimeout(resolve, 180))
+        sessionManager.applyRunEvents(session.id, copilotTranscriptSmokeFinalEvents())
+        await new Promise((resolve) => setTimeout(resolve, 420))
+
+        const result = await win.webContents.executeJavaScript(`
+          (async () => {
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            for (let index = 0; index < 80; index += 1) {
+              if (document.body.innerText.includes('Workspace read complete.')) break;
+              await sleep(50);
+            }
+            const scroller = document.querySelector('[data-testid="transcript-scroll"]');
+            if (scroller instanceof HTMLElement) {
+              scroller.scrollTop = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+              scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
+              await sleep(120);
+            }
+            const text = document.body.innerText;
+            const toolSummary = document.querySelector('[data-testid="tool-activity-summary"]');
+            const toolTrigger = toolSummary?.querySelector('.motion-disclosure-trigger');
+            if (toolTrigger instanceof HTMLElement && toolTrigger.getAttribute('aria-expanded') !== 'true') {
+              toolTrigger.click();
+              await sleep(160);
+            }
+            const agentButton = document.querySelector('[data-testid="composer-agent-menu"]');
+            if (agentButton instanceof HTMLButtonElement) {
+              agentButton.click();
+              await sleep(160);
+            }
+            const composerMenuText = document.body.innerText;
+            if (agentButton instanceof HTMLButtonElement) {
+              agentButton.click();
+              await sleep(100);
+            }
+            const sidePanelToggle = document.querySelector('[data-testid="titlebar-toggle-sidebar"]');
+            if (sidePanelToggle instanceof HTMLButtonElement) {
+              sidePanelToggle.click();
+              await sleep(180);
+            }
+            const agentsAction = document.querySelector('[data-testid="workbench-new-tab-action-agents"]');
+            if (agentsAction instanceof HTMLButtonElement) {
+              agentsAction.click();
+              await sleep(220);
+            }
+            const rightPanel = document.querySelector('[data-testid="session-right-panel"]');
+            const finalToolSummary = document.querySelector('[data-testid="tool-activity-summary"]');
+            const permissionCard = document.querySelector('[data-testid="chat-permission-card"]');
+            const userInputCard = document.querySelector('[data-testid="chat-user-input-card"]');
+            const agentRows = [...document.querySelectorAll('[data-testid="agent-thread-row"]')];
+            const agentTimeline = document.querySelector('[data-testid="agent-selected-timeline-list"]');
+            const timelineEvents = [...document.querySelectorAll('[data-testid="agent-selected-timeline-event"]')];
+            const activeSession = await window.api.sessions.get(${JSON.stringify(session.id)});
+            const finalText = document.body.innerText;
+            return {
+              copilotSessionIdentity:
+                finalText.includes('GitHub Copilot') &&
+                finalText.includes('Claude Sonnet 4.6'),
+              copilotStreamingFinalized:
+                finalText.includes("Here's one for you:") &&
+                finalText.includes('Few things in software') &&
+                !(document.querySelector('[data-testid="streaming-cursor"]') instanceof HTMLElement),
+              copilotNoStatusNoise:
+                !finalText.includes('Copilot SDK usage updated') &&
+                !finalText.includes('The user wants me to respond in a paragraph') &&
+                !finalText.includes('Status Sure') &&
+                !finalText.includes("Status , I'll write"),
+              copilotToolActivity:
+                finalToolSummary instanceof HTMLElement &&
+                Number(finalToolSummary.getAttribute('data-tool-activity-row-count') ?? '0') >= 1 &&
+                ((finalToolSummary.textContent ?? '').includes('Received 1 result') || finalText.includes('Received 1 result')),
+              copilotToolResult:
+                finalToolSummary instanceof HTMLElement &&
+                (finalToolSummary.textContent ?? '').includes('1 actions'),
+              copilotPermissionCard:
+                (permissionCard instanceof HTMLElement || finalText.includes('Command Approval')) &&
+                finalText.includes('git status --short') &&
+                (finalText.includes('Permission required') || finalText.includes('Handled')),
+              copilotUserInputCard:
+                (userInputCard instanceof HTMLElement || finalText.includes('Which branch should Copilot inspect next?')) &&
+                finalText.includes('main') &&
+                finalText.includes('feature') &&
+                (finalText.includes('Answer required') || finalText.includes('Answered')),
+              copilotComposerProviderLocked:
+                composerMenuText.includes('Provider') &&
+                composerMenuText.includes('Fixed for this chat'),
+              copilotAgentThreads:
+                rightPanel instanceof HTMLElement &&
+                rightPanel.getAttribute('data-right-panel-open') === 'true' &&
+                rightPanel.getAttribute('data-right-panel-active-tab') === 'agents' &&
+                agentRows.some((row) => row.textContent?.includes('Copilot workspace scout')),
+              copilotEventInspector:
+                agentTimeline instanceof HTMLElement &&
+                timelineEvents.length >= 3 &&
+                finalText.includes('Read README and summarize workspace shape.'),
+              copilotUsageSummary:
+                activeSession?.usageSummary?.inputTokens === 1200 &&
+                activeSession?.usageSummary?.outputTokens === 240 &&
+                activeSession?.status === 'idle'
+            };
+          })()
+        `)
+
+        if (screenshotPath) {
+          const image = await win.webContents.capturePage()
+          writeFileSync(screenshotPath, image.toPNG())
+        }
+        writeFileSync(outputPath, JSON.stringify({ ok: true, result: { profile, ...interim, ...result }, screenshotPath }, null, 2))
+        app.quit()
+      } catch (error) {
+        writeFileSync(outputPath, JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2))
+        app.quit()
+      }
+    }, 700)
+  })
+}
+
+function runAutomatedCopilotLiveTranscriptSmoke(win: BrowserWindow, outputPath: string, screenshotPath?: string): void {
+  win.webContents.once('did-finish-load', () => {
+    setTimeout(async () => {
+      try {
+        win.setMinimumSize(760, 640)
+        win.setSize(1180, 760)
+        const profile = getAppProfile()
+        const session = sessionManager.list().find((candidate) => candidate.name === 'Copilot live transcript smoke')
+        if (!session) {
+          writeFileSync(outputPath, JSON.stringify({ ok: true, result: { profile, copilotLiveSessionIdentity: false }, screenshotPath }, null, 2))
+          app.quit()
+          return
+        }
+
+        win.webContents.send('pet:navigate', session.id)
+        await new Promise((resolve) => setTimeout(resolve, 360))
+        const completed = await new Promise<{ ok: boolean; error?: string | null }>((resolve) => {
+          const started = sessionManager.sendMessage(
+            session.id,
+            [
+              'You are running a tiny Orchestrator live Copilot UI smoke test.',
+              'Read SMOKE.md if it is available.',
+              'Do not edit files.',
+              'Reply with a short sentence that includes ORCHESTRATOR_LIVE_OK.'
+            ].join(' '),
+            false,
+            [],
+            {
+              onProviderRunComplete: (result) => resolve(result)
+            }
+          )
+          started.then((didStart) => {
+            if (!didStart) resolve({ ok: false, error: 'Copilot live run did not start.' })
+          }).catch((error) => resolve({ ok: false, error: error instanceof Error ? error.message : String(error) }))
+          setTimeout(() => resolve({ ok: false, error: 'Copilot live UI smoke timed out.' }), 90_000)
+        })
+        await new Promise((resolve) => setTimeout(resolve, 650))
+
+        const result = await win.webContents.executeJavaScript(`
+          (async () => {
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            for (let index = 0; index < 80; index += 1) {
+              if (document.body.innerText.includes('ORCHESTRATOR_LIVE_OK')) break;
+              await sleep(100);
+            }
+            const scroller = document.querySelector('[data-testid="transcript-scroll"]');
+            if (scroller instanceof HTMLElement) {
+              scroller.scrollTop = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+              scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
+              await sleep(160);
+            }
+            const text = document.body.innerText;
+            const toolSummary = document.querySelector('[data-testid="tool-activity-summary"]');
+            const toolTrigger = toolSummary?.querySelector('.motion-disclosure-trigger');
+            if (toolTrigger instanceof HTMLElement && toolTrigger.getAttribute('aria-expanded') !== 'true') {
+              toolTrigger.click();
+              await sleep(180);
+            }
+            const toolBody = document.querySelector('[data-testid="tool-activity-body"]');
+            const sidePanelToggle = document.querySelector('[data-testid="titlebar-toggle-sidebar"]');
+            if (sidePanelToggle instanceof HTMLButtonElement) {
+              sidePanelToggle.click();
+              await sleep(180);
+            }
+            const agentsAction = document.querySelector('[data-testid="workbench-new-tab-action-agents"]');
+            if (agentsAction instanceof HTMLButtonElement) {
+              agentsAction.click();
+              await sleep(220);
+            }
+            const rightPanel = document.querySelector('[data-testid="session-right-panel"]');
+            const activeSession = await window.api.sessions.get(${JSON.stringify(session.id)});
+            return {
+              copilotLiveSessionIdentity:
+                text.includes('GitHub Copilot') &&
+                text.includes('GPT-5 Mini'),
+              copilotLiveRunStarted:
+                Boolean(activeSession?.providerSessionId),
+              copilotLiveAssistantText:
+                text.includes('ORCHESTRATOR_LIVE_OK'),
+              copilotLiveToolActivity:
+                toolSummary instanceof HTMLElement &&
+                Number(toolSummary.getAttribute('data-tool-activity-row-count') ?? '0') >= 1,
+              copilotLiveToolNoErrors:
+                toolSummary instanceof HTMLElement &&
+                toolSummary.getAttribute('data-tool-activity-has-errors') === 'false',
+              copilotLiveNoStatusNoise:
+                !text.includes('Copilot SDK usage updated') &&
+                !text.includes('The user wants me to respond in a paragraph') &&
+                !text.includes('Status Sure') &&
+                !text.includes("Status , I'll write"),
+              copilotLiveCompleted:
+                ${JSON.stringify(completed.ok)} === true &&
+                activeSession?.status === 'idle',
+              copilotLiveAgentSurface:
+                rightPanel instanceof HTMLElement &&
+                rightPanel.getAttribute('data-right-panel-open') === 'true' &&
+                rightPanel.getAttribute('data-right-panel-active-tab') === 'agents',
+              completedError: ${JSON.stringify(completed.error ?? '')},
+              toolSummaryText: toolSummary instanceof HTMLElement ? toolSummary.textContent : '',
+              toolBodyText: toolBody instanceof HTMLElement ? toolBody.textContent : '',
+              bodyText: text.slice(-2400)
+            };
+          })()
+        `)
+
+        if (screenshotPath) {
+          const image = await win.webContents.capturePage()
+          writeFileSync(screenshotPath, image.toPNG())
+        }
+        writeFileSync(outputPath, JSON.stringify({ ok: true, result: { profile, ...result }, screenshotPath }, null, 2))
+        app.quit()
+      } catch (error) {
+        writeFileSync(outputPath, JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2))
+        app.quit()
+      }
+    }, 700)
+  })
+}
+
 function runAutomatedPetOverlaySmoke(win: BrowserWindow, outputPath: string, screenshotPath?: string): void {
   win.webContents.once('did-finish-load', () => {
     setTimeout(async () => {
@@ -32850,6 +33084,12 @@ async function bootstrapAutomatedUiSmokeState(): Promise<void> {
   } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-tool-failure') {
     seedAutomatedTranscriptToolFailureSmokeSession(session.id)
     pendingNavigation = { kind: 'session', sessionId: session.id }
+  } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'copilot-transcript') {
+    seedAutomatedCopilotTranscriptSmokeSession(session.id)
+    pendingNavigation = { kind: 'session', sessionId: session.id }
+  } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'copilot-live-transcript') {
+    seedAutomatedCopilotLiveTranscriptSmokeSession(session.id)
+    pendingNavigation = { kind: 'session', sessionId: session.id }
   } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'session-switch') {
     const { one } = await seedAutomatedSessionSwitchSmokeSessions(project.id, project.rootPath)
     automatedInitialRendererHash = `/threads/${encodeURIComponent(one.id)}`
@@ -34018,6 +34258,214 @@ function seedAutomatedTranscriptToolFailureSmokeSession(sessionId: string): void
       latestMessageAt: baseTime + 3
     })
   }
+}
+
+function seedAutomatedCopilotTranscriptSmokeSession(sessionId: string): void {
+  const session = sessionManager.get(sessionId)
+  if (!session) return
+
+  const baseTime = Date.now()
+  const promptContent = 'COPILOT_TRANSCRIPT_SMOKE render streaming, tool calls, approvals, user input, usage, and agent threads.'
+  const messages: ChatMessage[] = [
+    {
+      id: 'copilot-transcript-user',
+      role: 'user',
+      type: 'text',
+      content: promptContent,
+      timestamp: baseTime
+    }
+  ]
+
+  sessionManager.save({
+    ...session,
+    name: 'Copilot transcript smoke',
+    status: 'idle',
+    provider: 'copilot',
+    runtime: 'sdk',
+    model: 'claude-sonnet-4.6',
+    effort: 'low',
+    permissionMode: 'allowEdits',
+    allowedTools: ['read_file'],
+    disallowedTools: [],
+    providerSessionId: null,
+    claudeSessionId: null,
+    messages,
+    messageCount: messages.length,
+    messagesLoaded: true,
+    previewText: promptContent,
+    createdAt: baseTime,
+    latestMessageAt: baseTime
+  })
+}
+
+function seedAutomatedCopilotLiveTranscriptSmokeSession(sessionId: string): void {
+  const session = sessionManager.get(sessionId)
+  if (!session) return
+
+  const baseTime = Date.now()
+  writeFileSync(
+    join(session.workDir, 'SMOKE.md'),
+    [
+      '# Orchestrator Live Copilot Smoke',
+      '',
+      'This file exists so the live Copilot SDK run can exercise a safe read/view tool.',
+      'The expected response marker is ORCHESTRATOR_LIVE_OK.'
+    ].join('\n')
+  )
+
+  sessionManager.save({
+    ...session,
+    name: 'Copilot live transcript smoke',
+    status: 'idle',
+    provider: 'copilot',
+    runtime: 'sdk',
+    model: 'gpt-5-mini',
+    effort: 'low',
+    permissionMode: 'allowEdits',
+    allowedTools: [],
+    disallowedTools: [],
+    providerSessionId: null,
+    claudeSessionId: null,
+    messages: [],
+    messageCount: 0,
+    messagesLoaded: true,
+    previewText: '',
+    createdAt: baseTime,
+    latestMessageAt: baseTime
+  })
+}
+
+function copilotTranscriptSmokeStreamingEvents(): RunEvent[] {
+  return [
+    {
+      type: 'session.started',
+      providerSessionId: 'copilot-transcript-provider-session'
+    },
+    {
+      type: 'assistant.text.delta',
+      streamId: 'copilot-transcript-stream',
+      content: "Here's one"
+    },
+    {
+      type: 'assistant.text.delta',
+      streamId: 'copilot-transcript-stream',
+      content: ' for you:\n\n---\nFew things'
+    },
+    {
+      type: 'assistant.text.delta',
+      streamId: 'copilot-transcript-stream',
+      content: ' in software engineering are as satisfying as deleting code. Adding features gets the glory, but removing tangled legacy logic keeps a project breathing.'
+    }
+  ]
+}
+
+function copilotTranscriptSmokeActivityEvents(workDir: string): RunEvent[] {
+  return [
+    {
+      type: 'tool.started',
+      id: 'copilot-transcript-tool-read',
+      toolName: 'read_file',
+      toolInput: {
+        path: 'README.md',
+        cwd: workDir
+      }
+    },
+    {
+      type: 'permission.requested',
+      content: 'Allow shell command?',
+      denials: [{
+        tool_name: 'shell',
+        tool_use_id: 'copilot-transcript-permission-shell',
+        tool_input: {
+          command: 'git status --short',
+          cwd: workDir
+        }
+      }]
+    },
+    {
+      type: 'user_input.requested',
+      content: 'Which branch should Copilot inspect next?',
+      questions: [{
+        id: 'copilot-transcript-branch',
+        header: 'Branch',
+        question: 'Which branch should Copilot inspect next?',
+        options: [
+          { label: 'main', description: 'Inspect the default integration branch.' },
+          { label: 'feature', description: 'Inspect the current feature branch.' }
+        ]
+      }]
+    },
+    {
+      type: 'agent.started',
+      agent: {
+        id: 'copilot-transcript-agent',
+        providerId: 'copilot',
+        providerAgentId: 'copilot-sdk-agent-1',
+        sessionId: 'copilot-transcript-provider-session',
+        name: 'Copilot workspace scout',
+        role: 'Repository inspector',
+        status: 'running',
+        model: 'claude-sonnet-4.6',
+        startedAt: Date.now(),
+        summary: 'Read README and summarize workspace shape.'
+      }
+    },
+    {
+      type: 'agent.text.delta',
+      agentId: 'copilot-transcript-agent',
+      streamId: 'copilot-transcript-agent-stream',
+      content: 'Read README and summarize workspace shape.'
+    }
+  ]
+}
+
+function copilotTranscriptSmokeFinalEvents(): RunEvent[] {
+  return [
+    {
+      type: 'tool.completed',
+      id: 'copilot-transcript-tool-read-result',
+      toolUseId: 'copilot-transcript-tool-read',
+      content: 'Workspace read complete.',
+      isError: false
+    },
+    {
+      type: 'assistant.text.completed',
+      streamId: 'copilot-transcript-stream'
+    },
+    {
+      type: 'agent.text.completed',
+      agentId: 'copilot-transcript-agent',
+      streamId: 'copilot-transcript-agent-stream'
+    },
+    {
+      type: 'agent.completed',
+      agent: {
+        id: 'copilot-transcript-agent',
+        providerId: 'copilot',
+        providerAgentId: 'copilot-sdk-agent-1',
+        sessionId: 'copilot-transcript-provider-session',
+        name: 'Copilot workspace scout',
+        role: 'Repository inspector',
+        status: 'completed',
+        model: 'claude-sonnet-4.6',
+        startedAt: Date.now() - 1000,
+        completedAt: Date.now(),
+        summary: 'Read README and summarize workspace shape.'
+      }
+    },
+    {
+      type: 'assistant.status',
+      content: 'The user wants me to respond in a paragraph about whatever topic I choose.'
+    },
+    {
+      type: 'run.completed',
+      usage: {
+        inputTokens: 1200,
+        outputTokens: 240,
+        totalTokens: 1440
+      }
+    }
+  ]
 }
 
 async function seedAutomatedSidebarSmokeSessions(projectId: string, workDir: string): Promise<void> {

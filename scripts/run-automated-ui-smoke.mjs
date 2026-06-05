@@ -61,6 +61,8 @@ const captureViewOptions = [
   { flag: '--transcript-user-input', view: 'transcript-user-input', surface: 'Transcript', scope: 'User-input request cards' },
   { flag: '--transcript-permission', view: 'transcript-permission', surface: 'Transcript', scope: 'Permission request cards' },
   { flag: '--transcript-tool-failure', view: 'transcript-tool-failure', surface: 'Transcript', scope: 'Tool failure rendering' },
+  { flag: '--copilot-transcript', view: 'copilot-transcript', surface: 'Transcript', scope: 'Copilot SDK transcript, tools, approvals, and agent threads' },
+  { flag: '--copilot-live-transcript', view: 'copilot-live-transcript', surface: 'Transcript', scope: 'Live Copilot SDK transcript and tool rendering; uses provider quota' },
   { flag: '--transcript-stress', view: 'transcript-stress', surface: 'Transcript', scope: 'Large transcript stress behavior' },
   { flag: '--streaming-drag', view: 'streaming-drag', surface: 'Transcript', scope: 'Streaming while dragging' },
   { flag: '--streaming-typing', view: 'streaming-typing', surface: 'Transcript', scope: 'Streaming while typing' },
@@ -1879,6 +1881,35 @@ child.on('exit', async (code) => {
         transcriptToolFailureRetry: result.transcriptToolFailureRetry === true,
         transcriptToolFailureRetryA11y: result.transcriptToolFailureRetryA11y === true
       }
+    : captureView === 'copilot-transcript'
+    ? {
+        isolatedProfile: result.profile?.isIsolated === true,
+        copilotSessionIdentity: result.copilotSessionIdentity === true,
+        copilotStreamingVisible: result.copilotStreamingVisible === true,
+        copilotStreamingWhitespace: result.copilotStreamingWhitespace === true,
+        copilotStreamingFinalized: result.copilotStreamingFinalized === true,
+        copilotNoStatusNoise: result.copilotNoStatusNoise === true,
+        copilotToolActivity: result.copilotToolActivity === true,
+        copilotToolResult: result.copilotToolResult === true,
+        copilotPermissionCard: result.copilotPermissionCard === true,
+        copilotUserInputCard: result.copilotUserInputCard === true,
+        copilotComposerProviderLocked: result.copilotComposerProviderLocked === true,
+        copilotAgentThreads: result.copilotAgentThreads === true,
+        copilotEventInspector: result.copilotEventInspector === true,
+        copilotUsageSummary: result.copilotUsageSummary === true
+      }
+    : captureView === 'copilot-live-transcript'
+    ? {
+        isolatedProfile: result.profile?.isIsolated === true,
+        copilotLiveSessionIdentity: result.copilotLiveSessionIdentity === true,
+        copilotLiveRunStarted: result.copilotLiveRunStarted === true,
+        copilotLiveAssistantText: result.copilotLiveAssistantText === true,
+        copilotLiveToolActivity: result.copilotLiveToolActivity === true,
+        copilotLiveToolNoErrors: result.copilotLiveToolNoErrors === true,
+        copilotLiveNoStatusNoise: result.copilotLiveNoStatusNoise === true,
+        copilotLiveCompleted: result.copilotLiveCompleted === true,
+        copilotLiveAgentSurface: result.copilotLiveAgentSurface === true
+      }
     : captureView === 'transcript-stress'
     ? {
         isolatedProfile: result.profile?.isIsolated === true,
@@ -2019,6 +2050,7 @@ child.on('exit', async (code) => {
         sidebarPinnedDragReorder: result.sidebarPinnedDragReorderWorks === true,
         sidebarProviderPinnedOrderPreserved: result.sidebarProviderPinnedOrderPreservedWorks === true,
         sidebarProjectlessChats: result.sidebarProjectlessChatsWorks === true,
+        sidebarProjectlessNewChat: result.sidebarProjectlessNewChatWorks === true,
         sidebarProjectlessChatsFirstPreference: result.sidebarProjectlessChatsFirstPreferenceWorks === true,
         providerProjectlessMetadata: result.providerProjectlessMetadataWorks === true,
         providerWorktreeMetadata: result.providerWorktreeMetadataWorks === true,
@@ -2044,6 +2076,7 @@ child.on('exit', async (code) => {
         renameDialogSharedLayout: result.renameDialogSharedLayoutWorks === true,
         renameDialogInputFocused: result.renameDialogInputFocused === true,
         tooltipSurfaceReadable: result.tooltipSurfaceReadable === true,
+        tooltipMotionCalm: result.tooltipMotionCalmWorks === true,
         singleHoverSurface: result.singleHoverSurfaceWorks === true,
         tooltipDismissesOnViewportChange: result.tooltipDismissesOnViewportChange === true,
         customTooltipNativeTitlesAbsent: result.customTooltipNativeTitlesAbsent === true,
@@ -2071,6 +2104,7 @@ child.on('exit', async (code) => {
         sidebarLabelColorMetadata: result.sidebarLabelColorMetadataWorks === true,
         sidebarPinnedRowsTextFirst: result.sidebarPinnedRowsTextFirst === true,
         sidebarPinActionsConsolidated: result.sidebarPinActionsConsolidated === true,
+        sidebarArchiveHoverAction: result.sidebarArchiveHoverActionWorks === true,
         sidebarActionMenuChromeCalm: result.sidebarActionMenuChromeCalm === true,
         sidebarActionMenuTriggerState: result.sidebarActionMenuTriggerStateWorks === true,
         sidebarActionMenuSharedSections: result.sidebarActionMenuSharedSectionsWorks === true,
@@ -2458,6 +2492,9 @@ child.on('exit', async (code) => {
           profileBadgeCompact: result.profileBadgeCompactWorks === true,
           headerActionChromeCompact: result.headerActionChromeCompactWorks === true,
           headerNativeTooltips: result.headerNativeTooltipsWork === true,
+          headerLongTooltipBounded: result.headerLongTooltipBoundedWorks === true,
+          headerTooltipTrafficLightSafe: result.headerTooltipTrafficLightSafeWorks === true,
+          headerTooltipMotionCalm: result.headerTooltipMotionCalmWorks === true,
           titlebarSidebarToggle: result.titlebarSidebarToggleWorks === true,
           titlebarPanelToggleState: result.titlebarPanelToggleStateWorks === true,
           headerClosedPanelInert: result.headerClosedPanelInertWorks === true,
@@ -2513,6 +2550,8 @@ child.on('exit', async (code) => {
           workbenchPanelTabOverflowController: result.workbenchPanelTabOverflowControllerWorks === true,
           workbenchPanelTabCodexWidthCap: result.workbenchPanelTabCodexWidthCapWorks === true,
           workbenchPanelTabCodexMetrics: result.workbenchPanelTabCodexMetricsWorks === true,
+          workbenchPanelInactiveTabTooltip: result.workbenchPanelInactiveTabTooltipWorks === true,
+          workbenchPanelInactiveTabTooltipMotionCalm: result.workbenchPanelInactiveTabTooltipMotionCalmWorks === true,
           workbenchPanelTabReadableSeparation: result.workbenchPanelTabReadableSeparationWorks === true,
           workbenchPanelActiveTabVisibleAfterResize: result.workbenchPanelActiveTabVisibleAfterResizeWorks === true,
           workbenchPanelOverflowFadeMasksClippedTabs: result.workbenchPanelOverflowFadeMasksClippedTabsWorks === true,
@@ -2946,6 +2985,8 @@ child.on('exit', async (code) => {
         headerIdentity: ['settings', 'settings-providers', 'settings-deeplink', 'resources', 'capabilities', 'pets'].includes(captureView) || result.headerIdentityWorks === true,
         headerNativeTooltips: ['settings', 'settings-providers', 'settings-deeplink', 'resources', 'capabilities', 'pets'].includes(captureView) || result.headerNativeTooltipsWork === true,
         headerLongTooltipBounded: ['settings', 'settings-providers', 'settings-deeplink', 'resources', 'capabilities', 'pets'].includes(captureView) || ['inspector', 'terminal'].includes(captureView) || result.headerLongTooltipBoundedWorks === true,
+        headerTooltipTrafficLightSafe: ['settings', 'settings-providers', 'settings-deeplink', 'resources', 'capabilities', 'pets'].includes(captureView) || ['inspector', 'terminal'].includes(captureView) || result.headerTooltipTrafficLightSafeWorks === true,
+        headerTooltipMotionCalm: ['settings', 'settings-providers', 'settings-deeplink', 'resources', 'capabilities', 'pets'].includes(captureView) || ['inspector', 'terminal'].includes(captureView) || result.headerTooltipMotionCalmWorks === true,
         titlebarSidebarToggle: captureView !== 'inspector' || result.titlebarSidebarToggleWorks === true,
         customTooltipNativeTitlesAbsent: result.customTooltipNativeTitlesAbsent === true,
         nativeTitleFreeControls: result.nativeTitleFreeControlsWork === true,
@@ -2963,6 +3004,7 @@ child.on('exit', async (code) => {
         workbenchPanelTabCodexWidthCap: captureView !== 'inspector' || result.workbenchPanelTabCodexWidthCapWorks === true,
         workbenchPanelInactiveTabsCompact: captureView !== 'inspector' || result.workbenchPanelInactiveTabsCompactWorks === true,
         workbenchPanelInactiveTabTooltip: captureView !== 'inspector' || result.workbenchPanelInactiveTabTooltipWorks === true,
+        workbenchPanelInactiveTabTooltipMotionCalm: captureView !== 'inspector' || result.workbenchPanelInactiveTabTooltipMotionCalmWorks === true,
         workbenchPanelAddControlStable: captureView !== 'inspector' || result.workbenchPanelAddControlStableWorks === true,
         workbenchPanelNewTabPage: captureView !== 'inspector' || result.workbenchPanelNewTabPageWorks === true,
         diffToolbarCompact: captureView !== 'inspector' || result.diffToolbarCompactWorks === true,
@@ -3289,7 +3331,7 @@ child.on('exit', async (code) => {
         settingsProviderCommandTerminalStatusA11y: captureView !== 'settings-providers' || result.settingsProviderCommandTerminalStatusA11yWorks === true,
         settingsProviderInstallCommandCopy: captureView !== 'settings-providers' || result.settingsProviderInstallCommandCopyWorks === true,
         settingsProviderInstallCommandStatusA11y: captureView !== 'settings-providers' || result.settingsProviderInstallCommandStatusA11yWorks === true,
-        settingsProviderPermissionRefresh: captureView !== 'settings-providers' || result.settingsProviderPermissionRefreshWorks === true,
+        settingsProviderPermissionControlsRemoved: captureView !== 'settings-providers' || result.settingsProviderPermissionControlsRemovedWorks === true,
         settingsProviderRuntimeCopy: captureView !== 'settings-providers' || result.settingsProviderRuntimeCopyWorks === true,
         settingsProviderRuntimeCopyStatusA11y: captureView !== 'settings-providers' || result.settingsProviderRuntimeCopyStatusA11yWorks === true,
         settingsProviderRuntimeAddToChat: captureView !== 'settings-providers' || result.settingsProviderRuntimeAddToChatWorks === true,
