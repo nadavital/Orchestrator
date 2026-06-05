@@ -329,7 +329,8 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   const hasFast = supportsFastModeForProviderModel(provider, model, cursorEffort || effort)
   const hasThinking = !!cursorCfg?.supportsThinking
   const useThinking = session.useThinking ?? false
-  const useFast = (session.useFast ?? false) || Boolean(fastBaseModelId)
+  const rawUseFast = (session.useFast ?? false) || Boolean(fastBaseModelId)
+  const useFast = hasFast && rawUseFast
 
   const update = (patch: {
     provider?: string
@@ -353,6 +354,10 @@ function InputBar({ session, isNew }: Props): JSX.Element {
       setRunActionStatus({ text: `Settings update failed: ${errorText(error)}`, tone: 'danger' })
     })
   }
+
+  useEffect(() => {
+    if (rawUseFast && !hasFast) update({ useFast: false })
+  }, [rawUseFast, hasFast, session.id, model])
 
   const flushPendingSettingsBeforeSend = async (): Promise<boolean> => {
     try {

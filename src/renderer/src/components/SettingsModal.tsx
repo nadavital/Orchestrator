@@ -244,7 +244,17 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
             .filter(([, diagnostics]) => diagnostics.models.items && diagnostics.models.items.length > 0)
             .map(([id, diagnostics]) => [id, diagnostics.models.items ?? []])
         )
-        if (Object.keys(catalogUpdates).length > 0) mergeProviderModelCatalog(catalogUpdates)
+        if (Object.keys(catalogUpdates).length > 0) {
+          mergeProviderModelCatalog(catalogUpdates)
+          window.api.settings.get()
+            .then((settings) => {
+              window.api.settings.set('providerModelCatalog', {
+                ...(settings.providerModelCatalog ?? {}),
+                ...catalogUpdates
+              })
+            })
+            .catch(() => undefined)
+        }
       })
       .finally(() => {
         setDiagnosticsLoading((current) => ({ ...current, [providerId]: false }))

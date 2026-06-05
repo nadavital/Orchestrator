@@ -5,8 +5,8 @@ import { execFile } from 'child_process'
 import { readFileSync } from 'fs'
 import { performance } from 'perf_hooks'
 import { promisify } from 'util'
-import type { AgentThreadOpenRequest, AgentThreadOpenResult, Attachment, AutomationPermissionSnapshot, CodexReviewStartRequest, Session, SessionForkMode, SessionForkOptions, SessionListItem, ChatMessage, TextMessage, ProviderRuntimeKind, ProviderSidebarSyncResult, ReviewMetadata, RunEvent, RunRequest, SessionStatus, SideQuestionMessage, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary, UserInputAnswerPayload, WorktreeInventoryItem } from '../types'
-import { PROVIDER_DEFS, applyAutomationPermissionSnapshot, canSwitchSessionProvider, fastBaseModelIdForProviderModel, fastVariantModelIdForProviderModel, finalizeInterruptedMessages, getConfigurableModels, getDefaultPermissionMode, normalizeProviderModelOrder } from '../types'
+import type { AgentThreadOpenRequest, AgentThreadOpenResult, Attachment, AutomationPermissionSnapshot, CodexReviewStartRequest, Session, SessionForkMode, SessionForkOptions, SessionListItem, ChatMessage, TextMessage, ProviderModelDef, ProviderRuntimeKind, ProviderSidebarSyncResult, ReviewMetadata, RunEvent, RunRequest, SessionStatus, SideQuestionMessage, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary, UserInputAnswerPayload, WorktreeInventoryItem } from '../types'
+import { PROVIDER_DEFS, applyAutomationPermissionSnapshot, canSwitchSessionProvider, finalizeInterruptedMessages, getConfigurableModels, getDefaultPermissionMode, mergeProviderModelCatalog, normalizeProviderModelOrder, resolveProviderRunModelSelection } from '../types'
 import { gitManager } from './git'
 import { buildProviderCommandForRuntime, getProvider, PROVIDERS, providerSpawnEnv, resolveProviderBinary, resolveProviderCommand, runCodexAppServerCommandSurfaceRaw } from './providers'
 import type { ProviderAdapter } from './providers'
@@ -231,16 +231,17 @@ function send(channel: string, ...args: unknown[]): void {
 
 function requestFromSession(session: Session, prompt: string): RunRequest {
   const providerId = session.provider ?? 'claude'
-  const providerDef = PROVIDER_DEFS[providerId] ?? PROVIDER_DEFS.claude
+  const baseProviderDef = PROVIDER_DEFS[providerId] ?? PROVIDER_DEFS.claude
+  const providerModelCatalog = settingsStore.get('providerModelCatalog', {}) as Record<string, ProviderModelDef[]>
+  const providerDef = mergeProviderModelCatalog(baseProviderDef, providerModelCatalog[providerId])
   const rawModel = session.model
-  const fastBaseModelId = rawModel ? fastBaseModelIdForProviderModel(providerDef, rawModel) : null
-  const baseModel = fastBaseModelId ?? rawModel
-  const useFast = Boolean(session.useFast || fastBaseModelId)
-  const requestModel = providerId === 'cursor' || !baseModel
-    ? baseModel
-    : useFast
-      ? fastVariantModelIdForProviderModel(providerDef, baseModel, session.effort) ?? baseModel
-      : baseModel
+  const requestedFast = Boolean(session.useFast)
+  const modelSelection = resolveProviderRunModelSelection(providerDef, rawModel, session.effort, requestedFast)
+  const useFast = modelSelection.useFast
+  const selectedRequestModel = providerId === 'cursor' || !modelSelection.baseModel
+    ? modelSelection.baseModel
+    : modelSelection.model
+  const requestModel = selectedRequestModel ?? ''
   const preparedPrompt = claudeAgentThreadPromptForRequest(session, prompt)
   const copilotByokProvider = providerId === 'copilot'
     ? settingsStore.get('copilotByokProvider', {
@@ -265,7 +266,7 @@ function requestFromSession(session: Session, prompt: string): RunRequest {
     runtime: sessionRuntimeForProvider(providerId, session.runtime),
     useThinking: session.useThinking,
     useFast,
-    serviceTier: providerId === 'codex' && useFast ? 'fast' : null,
+    serviceTier: providerId === 'codex' && useFast && !modelSelection.fastVariantModelId ? 'fast' : null,
     ...(copilotByokProvider ? { copilotByokProvider } : {})
   }
 }

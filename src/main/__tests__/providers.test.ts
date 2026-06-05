@@ -4,7 +4,7 @@ import { chmodSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import type { RunEvent, RunRequest } from '../../types'
-import { AGENT_THREAD_ADAPTER_CONTRACTS, PROVIDER_DEFS, deriveAgentNodes, deriveAgentThreadGraph, derivePlanStatesFromMessages, fastBaseModelIdForProviderModel, fastVariantModelIdForProviderModel, getDefaultPermissionMode, getPrimaryPermissionModes, getProviderPermissionPresets, getVisibleModels, mergeProviderModelCatalog, normalizeProviderModelOrder, parseClaudeAgentsOutput, permissionRequestDetail, supportsFastModeForProviderModel } from '../../types'
+import { AGENT_THREAD_ADAPTER_CONTRACTS, PROVIDER_DEFS, deriveAgentNodes, deriveAgentThreadGraph, derivePlanStatesFromMessages, fastBaseModelIdForProviderModel, fastVariantModelIdForProviderModel, getDefaultPermissionMode, getPrimaryPermissionModes, getProviderPermissionPresets, getVisibleModels, mergeProviderModelCatalog, normalizeProviderModelOrder, parseClaudeAgentsOutput, permissionRequestDetail, resolveProviderRunModelSelection, supportsFastModeForProviderModel } from '../../types'
 import { buildProviderCommandForRuntime, claudeMcpServerNames, codexRuntimePolicyConfig, getProviderDiagnostics, getProviderDiagnosticsAsync, getProviderRuntimeInfo, providerAuthFailureMessage, PROVIDERS, providerSdkSpawnEnv, providerSpawnEnv, resolveProviderBinary, resolveProviderPermissionRuntimeContext, runProviderCommandSurface, runProviderCommandSurfaceAsync } from '../providers'
 import { eventsToMessages } from '../runEvents'
 
@@ -147,6 +147,25 @@ test('live provider model catalogs drive fast mode without exposing hidden model
     getVisibleModels(provider, { codex: ['gpt-5.5', 'codex-auto-review', 'gpt-5.3-codex'] }).map((model) => model.id),
     ['gpt-5.5', 'gpt-5.3-codex']
   )
+})
+
+test('provider run model selection ignores stale fast state for non-fast models', () => {
+  const selection = resolveProviderRunModelSelection(PROVIDER_DEFS.codex, 'gpt-5.3-codex', 'high', true)
+
+  assert.equal(selection.model, 'gpt-5.3-codex')
+  assert.equal(selection.useFast, false)
+  assert.equal(selection.fastVariantModelId, null)
+})
+
+test('provider run model selection enables speed-tier fast only from hydrated model metadata', () => {
+  const provider = mergeProviderModelCatalog(PROVIDER_DEFS.codex, [
+    { id: 'gpt-5.5', label: 'GPT-5.5', additionalSpeedTiers: ['fast'] }
+  ])
+  const selection = resolveProviderRunModelSelection(provider, 'gpt-5.5', 'high', true)
+
+  assert.equal(selection.model, 'gpt-5.5')
+  assert.equal(selection.useFast, true)
+  assert.equal(selection.fastVariantModelId, null)
 })
 
 test('runtime info exposes the same abstract capability matrix for every provider', () => {

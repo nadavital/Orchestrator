@@ -639,6 +639,34 @@ export function supportsFastModeForProviderModel(
   return modelHasFastSpeedTier(model)
 }
 
+export interface ProviderRunModelSelection {
+  baseModel: string | undefined
+  model: string | undefined
+  useFast: boolean
+  fastVariantModelId: string | null
+}
+
+export function resolveProviderRunModelSelection(
+  providerDef: ProviderDef,
+  rawModel: string | undefined,
+  effortId: string | undefined,
+  requestedFast: boolean
+): ProviderRunModelSelection {
+  const fastBaseModelId = rawModel ? fastBaseModelIdForProviderModel(providerDef, rawModel) : null
+  const baseModel = fastBaseModelId ?? rawModel
+  const supportsFast = Boolean(baseModel && supportsFastModeForProviderModel(providerDef, baseModel, effortId))
+  const useFast = (requestedFast || Boolean(fastBaseModelId)) && supportsFast
+  const fastVariantModelId = baseModel && useFast
+    ? fastVariantModelIdForProviderModel(providerDef, baseModel, effortId)
+    : null
+  return {
+    baseModel,
+    model: useFast ? fastVariantModelId ?? baseModel : baseModel,
+    useFast,
+    fastVariantModelId
+  }
+}
+
 export function getConfigurableModels(providerDef: ProviderDef): ProviderModelDef[] {
   return providerDef.models.filter((model) => !model.hidden && !isFastVariantProviderModel(providerDef, model.id))
 }

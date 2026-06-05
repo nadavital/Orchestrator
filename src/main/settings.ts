@@ -1,7 +1,7 @@
 import Store from 'electron-store'
 import { migrateLegacyUserData } from './userDataMigration'
 import type { ShortcutOverrides } from '../types/appCommands'
-import type { CopilotByokProviderRunSettings } from '../types'
+import type { CopilotByokProviderRunSettings, ProviderModelDef } from '../types'
 import type { BrowserUsePolicy } from '../types/browserUsePolicy'
 import { DEFAULT_BROWSER_USE_POLICY } from '../types/browserUsePolicy'
 
@@ -13,6 +13,7 @@ interface AppSettings {
   defaultEfforts: Record<string, string>
   defaultPermissionModes: Record<string, string>
   providerModels: Record<string, string[]>
+  providerModelCatalog: Record<string, ProviderModelDef[]>
   copilotByokProvider: CopilotByokProviderSettings
   preferredEditor: 'system' | 'vscode' | 'vscode-insiders' | 'cursor' | 'zed'
   composerEnterBehavior: 'send' | 'newline'
@@ -70,6 +71,7 @@ export const settingsStore = new Store<AppSettings>({
     defaultEfforts: {},
     defaultPermissionModes: {},
     providerModels: {},
+    providerModelCatalog: {},
     copilotByokProvider: {
       enabled: false,
       type: 'openai',

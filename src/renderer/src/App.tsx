@@ -4,6 +4,7 @@ import { flushSync } from 'react-dom'
 import { useProjectStore } from './store/projects'
 import { hasComposerDraft, sideChatIdFromTabId, terminalTabIdFromTabId, useSessionStore } from './store/sessions'
 import type { SettingsSection } from './store/sessions'
+import type { ProviderModelDef } from './types'
 import Sidebar from './components/Sidebar/Sidebar'
 import SessionPane from './components/Session/SessionPane'
 import SettingsPage from './components/SettingsModal'
@@ -159,6 +160,7 @@ export default function App(): JSX.Element {
   const setHasUnread = useSessionStore((state) => state.setHasUnread)
   const setProviderAvailability = useSessionStore((state) => state.setProviderAvailability)
   const setProviderModels = useSessionStore((state) => state.setProviderModels)
+  const mergeProviderModelCatalog = useSessionStore((state) => state.mergeProviderModelCatalog)
   const setShowSettings = useSessionStore((state) => state.setShowSettings)
   const setShowCapabilities = useSessionStore((state) => state.setShowCapabilities)
   const setSettingsSection = useSessionStore((state) => state.setSettingsSection)
@@ -1252,6 +1254,10 @@ export default function App(): JSX.Element {
       )
       const pm = (s as unknown as Record<string, unknown>).providerModels
       if (pm && typeof pm === 'object') setProviderModels(pm as Record<string, string[]>)
+      const catalog = (s as unknown as Record<string, unknown>).providerModelCatalog
+      if (catalog && typeof catalog === 'object') {
+        mergeProviderModelCatalog(catalog as Record<string, ProviderModelDef[]>)
+      }
     })
     const onShortcutOverridesChanged = (event: Event): void => {
       const custom = event as CustomEvent<ShortcutOverrides>
