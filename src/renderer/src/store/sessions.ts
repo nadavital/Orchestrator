@@ -234,6 +234,7 @@ export interface SessionUIState {
 
 interface SessionState {
   sessions: SessionListItem[]
+  streamingMessages: Record<string, Record<string, ChatMessage>>
   activeSessionId: string | null
   rawBuffers: Record<string, string>
   eventBuffers: Record<string, SessionRunEventRecord[]>
@@ -327,6 +328,7 @@ interface SessionState {
   setSelectedSettingsProviderId: (providerId: string) => void
   appendMessages: (id: string, messages: ChatMessage[]) => void
   upsertMessage: (id: string, message: ChatMessage) => void
+  upsertStreamingMessage: (id: string, message: ChatMessage) => void
   removeMessage: (id: string, messageId: string) => void
   appendEvents: (id: string, events: SessionRunEventRecord[]) => void
   appendRaw: (id: string, data: string) => void
@@ -425,6 +427,7 @@ export function hasComposerDraft(ui?: Pick<SessionUIState, 'composerDraft' | 'co
 
 export const useSessionStore = create<SessionState>((set, get) => ({
   sessions: [],
+  streamingMessages: {},
   activeSessionId: null,
   rawBuffers: {},
   eventBuffers: {},
@@ -477,8 +480,10 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       const { [id]: _raw, ...rawBuffers } = s.rawBuffers
       const { [id]: _events, ...eventBuffers } = s.eventBuffers
       const { [id]: _ui, ...uiState } = s.uiState
+      const streamingMessages = omitRecordKey(s.streamingMessages, id)
       return {
         sessions: s.sessions.filter((x) => x.id !== id),
+        streamingMessages,
         activeSessionId: s.activeSessionId === id ? null : s.activeSessionId,
         rawBuffers,
         eventBuffers,
@@ -1575,40 +1580,79 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     })),
 
   upsertMessage: (id, message) =>
-    set((s) => ({
-      sessions: s.sessions.map((x) => {
-        if (x.id !== id) return x
-        const index = x.messages.findIndex((existing) => existing.id === message.id)
-        const messages = index >= 0
-          ? x.messages.map((existing, i) => i === index ? message : existing)
-          : x.messagesLoaded
-            ? [...x.messages, message]
-            : [...x.messages, message].slice(-SESSION_STORE_TAIL_MESSAGES)
-        return {
-          ...x,
-          messages,
-          messageCount: index >= 0 ? (x.messageCount ?? x.messages.length) : (x.messageCount ?? x.messages.length) + 1,
-          previewText: sessionPreviewText(messages, x.name),
-          latestMessageAt: message.timestamp ?? x.latestMessageAt
+    set((s) => {
+      const currentStreaming = s.streamingMessages[id]
+      const nextStreamingForSession = currentStreaming && currentStreaming[message.id]
+        ? omitRecordKey(currentStreaming, message.id)
+        : currentStreaming
+      const nextStreamingMessages = nextStreamingForSession !== currentStreaming
+        ? Object.keys(nextStreamingForSession).length > 0
+          ? { ...s.streamingMessages, [id]: nextStreamingForSession }
+          : omitRecordKey(s.streamingMessages, id)
+        : s.streamingMessages
+      return {
+        streamingMessages: nextStreamingMessages,
+        sessions: s.sessions.map((x) => {
+          if (x.id !== id) return x
+          const index = x.messages.findIndex((existing) => existing.id === message.id)
+          const messages = index >= 0
+            ? x.messages.map((existing, i) => i === index ? message : existing)
+            : x.messagesLoaded
+              ? [...x.messages, message]
+              : [...x.messages, message].slice(-SESSION_STORE_TAIL_MESSAGES)
+          return {
+            ...x,
+            messages,
+            messageCount: index >= 0 ? (x.messageCount ?? x.messages.length) : (x.messageCount ?? x.messages.length) + 1,
+            previewText: sessionPreviewText(messages, x.name),
+            latestMessageAt: message.timestamp ?? x.latestMessageAt
+          }
+        })
+      }
+    }),
+
+  upsertStreamingMessage: (id, message) =>
+    set((s) => {
+      const currentSessionMessages = s.streamingMessages[id] ?? {}
+      if (currentSessionMessages[message.id] === message) return s
+      return {
+        streamingMessages: {
+          ...s.streamingMessages,
+          [id]: {
+            ...currentSessionMessages,
+            [message.id]: message
+          }
         }
-      })
-    })),
+      }
+    }),
 
   removeMessage: (id, messageId) =>
-    set((s) => ({
-      sessions: s.sessions.map((x) => {
-        if (x.id !== id) return x
-        const messages = x.messages.filter((message) => message.id !== messageId)
-        if (messages.length === x.messages.length) return x
-        return {
-          ...x,
-          messages,
-          messageCount: Math.max(0, (x.messageCount ?? x.messages.length) - 1),
-          previewText: sessionPreviewText(messages, x.name),
-          latestMessageAt: messages.at(-1)?.timestamp ?? x.latestMessageAt
-        }
-      })
-    })),
+    set((s) => {
+      const currentStreaming = s.streamingMessages[id]
+      const nextStreamingForSession = currentStreaming && currentStreaming[messageId]
+        ? omitRecordKey(currentStreaming, messageId)
+        : currentStreaming
+      const nextStreamingMessages = nextStreamingForSession !== currentStreaming
+        ? Object.keys(nextStreamingForSession).length > 0
+          ? { ...s.streamingMessages, [id]: nextStreamingForSession }
+          : omitRecordKey(s.streamingMessages, id)
+        : s.streamingMessages
+      return {
+        streamingMessages: nextStreamingMessages,
+        sessions: s.sessions.map((x) => {
+          if (x.id !== id) return x
+          const messages = x.messages.filter((message) => message.id !== messageId)
+          if (messages.length === x.messages.length) return x
+          return {
+            ...x,
+            messages,
+            messageCount: Math.max(0, (x.messageCount ?? x.messages.length) - 1),
+            previewText: sessionPreviewText(messages, x.name),
+            latestMessageAt: messages.at(-1)?.timestamp ?? x.latestMessageAt
+          }
+        })
+      }
+    }),
 
   appendEvents: (id, events) =>
     set((s) => ({
@@ -1889,6 +1933,12 @@ function fullSessionItem(session: Session): SessionListItem {
     previewText: sessionPreviewText(session.messages, session.name),
     latestMessageAt: session.messages.at(-1)?.timestamp ?? session.createdAt
   }
+}
+
+function omitRecordKey<T>(record: Record<string, T>, key: string): Record<string, T> {
+  if (!(key in record)) return record
+  const { [key]: _removed, ...rest } = record
+  return rest
 }
 
 function mergeMessages(first: ChatMessage[], second: ChatMessage[]): ChatMessage[] {

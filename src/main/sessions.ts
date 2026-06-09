@@ -38,12 +38,15 @@ const MAX_ATTACHMENT_CHARS = 80_000
 const SESSION_LIST_TAIL_MESSAGES = 8
 const CODEX_SIDEBAR_REFRESH_AFTER_RUN_DELAY_MS = 750
 const CODEX_SIDEBAR_RECURRING_REFRESH_INTERVAL_MS = 10 * 60 * 1000
+const STREAMING_MESSAGE_UPDATE_SEND_INTERVAL_MS = 80
 
 let codexSidebarRefreshAfterRunTimer: ReturnType<typeof setTimeout> | null = null
 let codexSidebarRecurringRefreshTimer: ReturnType<typeof setInterval> | null = null
 let codexSidebarRecurringRefreshInFlight = false
 let codexSidebarLastRefreshAt: number | null = null
 const smokeSideQuestionFailures = new Set<string>()
+const pendingStreamingMessageUpdates = new Map<string, { id: string; message: ChatMessage }>()
+let pendingStreamingMessageUpdateTimer: ReturnType<typeof setTimeout> | null = null
 
 function normalizeUserInputAnswer(answer: string | UserInputAnswerPayload): UserInputAnswerPayload {
   if (typeof answer === 'string') return { content: answer.trim() }
@@ -227,6 +230,28 @@ function send(channel: string, ...args: unknown[]): void {
   for (const win of BrowserWindow.getAllWindows()) {
     safeWindowSend(win, channel, ...args)
   }
+}
+
+function flushStreamingMessageUpdates(): void {
+  pendingStreamingMessageUpdateTimer = null
+  const updates = [...pendingStreamingMessageUpdates.values()]
+  pendingStreamingMessageUpdates.clear()
+  for (const update of updates) {
+    send('session:messageUpdated', { id: update.id, message: update.message })
+  }
+}
+
+function sendMessageUpdated(id: string, message: ChatMessage): void {
+  const pendingKey = `${id}:${message.id}`
+  if (message.type === 'text' && message.role === 'assistant' && message.isStreaming === true) {
+    pendingStreamingMessageUpdates.set(pendingKey, { id, message })
+    if (!pendingStreamingMessageUpdateTimer) {
+      pendingStreamingMessageUpdateTimer = setTimeout(flushStreamingMessageUpdates, STREAMING_MESSAGE_UPDATE_SEND_INTERVAL_MS)
+    }
+    return
+  }
+  pendingStreamingMessageUpdates.delete(pendingKey)
+  send('session:messageUpdated', { id, message })
 }
 
 function requestFromSession(session: Session, prompt: string): RunRequest {
@@ -500,7 +525,7 @@ function markLatestPermissionDecision(
       const next = { ...message, permissionDecision: decision }
       session.messages[index] = next
       store.set('sessions', sessions)
-      send('session:messageUpdated', { id: sessionId, message: next })
+      sendMessageUpdated(sessionId, next)
       return
     }
   }
@@ -820,7 +845,7 @@ export const sessionManager = {
     for (const update of updates) {
       send('session:status', { id: update.id, status: update.status })
       for (const message of update.messages) {
-        send('session:messageUpdated', { id: update.id, message })
+        sendMessageUpdated(update.id, message)
       }
     }
     return updates.length
@@ -845,7 +870,7 @@ export const sessionManager = {
     if (index >= 0) s.messages[index] = message
     else s.messages.push(message)
     store.set('sessions', sessions)
-    send('session:messageUpdated', { id, message })
+    sendMessageUpdated(id, message)
   },
 
   removeMessage(id: string, messageId: string): boolean {

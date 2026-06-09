@@ -1,5 +1,5 @@
 import { isValidElement, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useCallback } from 'react'
-import type { CSSProperties, ReactNode, RefObject, WheelEvent } from 'react'
+import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent, ReactNode, RefObject, WheelEvent } from 'react'
 import { createPortal } from 'react-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -62,6 +62,9 @@ const USER_MESSAGE_COLLAPSE_MIN_BREAK = 980
 const TRANSCRIPT_RENDER_CHUNK = 40
 const TRANSCRIPT_LAZY_LOAD_TOP_THRESHOLD = 360
 const TRANSCRIPT_VIRTUAL_OVERSCAN = 900
+const TRANSCRIPT_USER_SCROLL_LOCKOUT_MS = 1400
+const TRANSCRIPT_STREAMING_ROW_MEASURE_MS = 120
+const TRANSCRIPT_COMPOSER_CLEARANCE_PX = 24
 const EMPTY_STATE_SUGGESTIONS = [
   {
     label: 'Review this branch',
@@ -100,7 +103,9 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
   const bottomRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const shouldFollowBottomRef = useRef(true)
+  const userScrollLockoutUntilRef = useRef(0)
   const pendingScrollFrameRef = useRef<number | null>(null)
+  const pendingMetricsFrameRef = useRef<number | null>(null)
   const loadingEarlierRef = useRef(false)
   const transcriptListRef = useRef<HTMLDivElement>(null)
   const measuredRowHeightsRef = useRef<Record<string, number>>({})
@@ -119,8 +124,10 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
   const [renderLimit, setRenderLimit] = useState(() => Math.min(session.messages.length, TRANSCRIPT_RENDER_CHUNK))
   const [scrollMetrics, setScrollMetrics] = useState({ top: 0, height: 0, listOffsetTop: 0 })
   const [rowMeasurementVersion, setRowMeasurementVersion] = useState(0)
+  const [composerReserveHeight, setComposerReserveHeight] = useState(0)
   const [transcriptActionStatus, setTranscriptActionStatus] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
   const [focusedMessageId, setFocusedMessageId] = useState<string | null>(null)
+  const streamingMessages = useSessionStore((state) => state.streamingMessages[session.id])
 
   useEffect(() => {
     const globals = window as typeof window & { __orchestratorChatViewCommitCount?: number }
@@ -129,10 +136,14 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
     }
   })
 
+  const effectiveMessages = useMemo(
+    () => applyStreamingMessageOverlays(session.messages, streamingMessages),
+    [session.messages, streamingMessages]
+  )
   const visibleMessages = useMemo(() => {
-    if (session.messages.length <= renderLimit) return session.messages
-    return session.messages.slice(-renderLimit)
-  }, [renderLimit, session.messages])
+    if (effectiveMessages.length <= renderLimit) return effectiveMessages
+    return effectiveMessages.slice(-renderLimit)
+  }, [effectiveMessages, renderLimit])
   const displayedMessages = useMemo(
     () => transcriptMessagesForDisplay(session.provider, visibleMessages),
     [session.provider, visibleMessages]
@@ -149,27 +160,27 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
     ))
   ), [visibleMessages])
   const showThinkingIndicator = isActiveSessionStatus(session.status) || hasStreamingAssistantMessage
-  const lastMessage = session.messages[session.messages.length - 1]
+  const lastMessage = effectiveMessages[effectiveMessages.length - 1]
   const lastTextLength = lastMessage?.type === 'text' ? lastMessage.content.length : 0
   const lastAssistantText = useMemo(() => {
-    for (let index = session.messages.length - 1; index >= 0; index -= 1) {
-      const message = session.messages[index]
+    for (let index = effectiveMessages.length - 1; index >= 0; index -= 1) {
+      const message = effectiveMessages[index]
       if (message.type === 'text' && message.role === 'assistant' && message.content.trim()) return message
     }
     return null
-  }, [session.messages])
+  }, [effectiveMessages])
   const lastAssistantTextId = lastAssistantText?.id ?? null
   const lastUnansweredUserTextId = useMemo(() => {
     if (isActiveSessionStatus(session.status)) return null
-    for (let index = session.messages.length - 1; index >= 0; index -= 1) {
-      const message = session.messages[index]
+    for (let index = effectiveMessages.length - 1; index >= 0; index -= 1) {
+      const message = effectiveMessages[index]
       if (message.type === 'text' && message.role === 'assistant' && message.content.trim()) return null
       if (message.type === 'text' && message.role === 'user' && message.content.trim() && !message.queueState) return message.id
     }
     return null
-  }, [session.messages, session.status])
+  }, [effectiveMessages, session.status])
   const canRegenerateLastAssistant = !isActiveSessionStatus(session.status) && hasRetryableUserMessage(session)
-  const loadedHiddenCount = Math.max(0, session.messages.length - visibleMessages.length)
+  const loadedHiddenCount = Math.max(0, effectiveMessages.length - visibleMessages.length)
   const unloadedBeforeCount = Math.max(0, totalMessageCount - session.messages.length)
   const virtualWindow = useMemo(() => buildVirtualTranscriptWindow(
     transcriptItems,
@@ -283,6 +294,14 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
     ))
   }, [])
 
+  const scheduleScrollMetricsUpdate = useCallback(() => {
+    if (pendingMetricsFrameRef.current !== null) return
+    pendingMetricsFrameRef.current = window.requestAnimationFrame(() => {
+      pendingMetricsFrameRef.current = null
+      updateScrollMetrics()
+    })
+  }, [updateScrollMetrics])
+
   const focusTranscriptMessage = useCallback((messageId: string, statusText: string): void => {
     setRenderLimit((current) => Math.max(current, session.messages.length))
     setFocusedMessageId(messageId)
@@ -307,11 +326,11 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
     updateScrollMetrics()
     const scroller = scrollContainerRef.current
     if (!scroller) return
-    const observer = new ResizeObserver(updateScrollMetrics)
+    const observer = new ResizeObserver(scheduleScrollMetricsUpdate)
     observer.observe(scroller)
     if (transcriptListRef.current) observer.observe(transcriptListRef.current)
     return () => observer.disconnect()
-  }, [session.id, updateScrollMetrics])
+  }, [scheduleScrollMetricsUpdate, session.id, updateScrollMetrics])
 
   useEffect(() => {
     let cancelled = false
@@ -328,20 +347,37 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
     setShowJumpToLatest((current) => current === shouldShowJumpButton ? current : shouldShowJumpButton)
   }, [])
 
-  const stopFollowingBottom = useCallback(() => {
+  const clearUserScrollLockout = useCallback(() => {
+    userScrollLockoutUntilRef.current = 0
+  }, [])
+
+  const stopFollowingBottom = useCallback((lockout = false) => {
     if (pendingScrollFrameRef.current !== null) {
       window.cancelAnimationFrame(pendingScrollFrameRef.current)
       pendingScrollFrameRef.current = null
     }
+    if (lockout) userScrollLockoutUntilRef.current = performance.now() + TRANSCRIPT_USER_SCROLL_LOCKOUT_MS
     setFollowingBottom(false)
   }, [setFollowingBottom])
 
   const handleWheel = useCallback((event: WheelEvent<HTMLDivElement>) => {
-    if (event.deltaY < 0) stopFollowingBottom()
+    if (event.deltaY !== 0 || event.deltaX !== 0) stopFollowingBottom(true)
   }, [stopFollowingBottom])
 
   const handleTouchStart = useCallback(() => {
-    stopFollowingBottom()
+    stopFollowingBottom(true)
+  }, [stopFollowingBottom])
+
+  const handlePointerDown = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect()
+    const scrollbarHitArea = rect.right - 18
+    if (event.clientX >= scrollbarHitArea) stopFollowingBottom(true)
+  }, [stopFollowingBottom])
+
+  const handleTranscriptKeyDown = useCallback((event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(event.key)) {
+      stopFollowingBottom(true)
+    }
   }, [stopFollowingBottom])
 
   const readVisiblePrependAnchor = useCallback((): TranscriptPrependAnchor | null => {
@@ -406,6 +442,7 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
 
   const scrollToBottom = useCallback((force = false) => {
     if (force) {
+      clearUserScrollLockout()
       const scroller = scrollContainerRef.current
       if (scroller) scroller.scrollTop = scroller.scrollHeight
       setFollowingBottom(true)
@@ -418,6 +455,7 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
     pendingScrollFrameRef.current = window.requestAnimationFrame(() => {
       pendingScrollFrameRef.current = null
       if (!force && !shouldFollowBottomRef.current) return
+      if (!force && performance.now() < userScrollLockoutUntilRef.current) return
       const scroller = scrollContainerRef.current
       if (scroller) {
         scroller.scrollTop = scroller.scrollHeight
@@ -426,29 +464,27 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
         bottomRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' })
       }
     })
-  }, [setFollowingBottom, updateScrollMetrics])
+  }, [clearUserScrollLockout, setFollowingBottom, updateScrollMetrics])
 
   useEffect(() => {
     const onComposerReserveChanged = (event: Event): void => {
       const detail = (event as CustomEvent<{ sessionId?: string; height?: number }>).detail
       if (detail?.sessionId !== session.id) return
-      updateScrollMetrics()
+      const nextHeight = Number.isFinite(detail.height) ? Math.max(0, Math.ceil(detail.height ?? 0)) : 0
+      setComposerReserveHeight((current) => current === nextHeight ? current : nextHeight)
+      scheduleScrollMetricsUpdate()
       if (shouldFollowBottomRef.current) scrollToBottom()
     }
     window.addEventListener('orchestrator:composer-reserve-changed', onComposerReserveChanged)
     return () => window.removeEventListener('orchestrator:composer-reserve-changed', onComposerReserveChanged)
-  }, [scrollToBottom, session.id, updateScrollMetrics])
+  }, [scheduleScrollMetricsUpdate, scrollToBottom, session.id])
 
   const handleVirtualRowHeight = useCallback((id: string, height: number) => {
     const previous = measuredRowHeightsRef.current[id]
     if (previous && Math.abs(previous - height) < 1) return
-    measuredRowHeightsRef.current = {
-      ...measuredRowHeightsRef.current,
-      [id]: height
-    }
+    measuredRowHeightsRef.current[id] = height
     setRowMeasurementVersion((version) => version + 1)
-    updateScrollMetrics()
-  }, [updateScrollMetrics])
+  }, [])
 
   const schedulePrependScrollCompensation = useCallback((anchor: TranscriptPrependAnchor | null, estimatedHeight: number) => {
     if (!anchor || estimatedHeight <= 0) return
@@ -534,14 +570,16 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
   const handleScroll = useCallback(() => {
     const scroller = scrollContainerRef.current
     if (!scroller) return
-    updateScrollMetrics()
+    scheduleScrollMetricsUpdate()
     const distanceFromBottom = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight
-    setFollowingBottom(distanceFromBottom <= FOLLOW_BOTTOM_THRESHOLD)
+    const isAtBottom = distanceFromBottom <= FOLLOW_BOTTOM_THRESHOLD
+    if (isAtBottom) clearUserScrollLockout()
+    setFollowingBottom(isAtBottom && performance.now() >= userScrollLockoutUntilRef.current)
     if (hiddenMessageCount > 0 && scroller.scrollTop <= TRANSCRIPT_LAZY_LOAD_TOP_THRESHOLD) {
       const anchor = readVisiblePrependAnchor()
       void handleLoadEarlier('auto', anchor)
     }
-  }, [handleLoadEarlier, hiddenMessageCount, readVisiblePrependAnchor, setFollowingBottom, updateScrollMetrics])
+  }, [clearUserScrollLockout, handleLoadEarlier, hiddenMessageCount, readVisiblePrependAnchor, scheduleScrollMetricsUpdate, setFollowingBottom])
 
   useEffect(() => {
     setFollowingBottom(true)
@@ -705,6 +743,9 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
     return () => {
       if (pendingScrollFrameRef.current !== null) {
         window.cancelAnimationFrame(pendingScrollFrameRef.current)
+      }
+      if (pendingMetricsFrameRef.current !== null) {
+        window.cancelAnimationFrame(pendingMetricsFrameRef.current)
       }
     }
   }, [])
@@ -896,13 +937,16 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
         onScroll={handleScroll}
         onWheel={handleWheel}
         onTouchStart={handleTouchStart}
+        onPointerDown={handlePointerDown}
+        onKeyDown={handleTranscriptKeyDown}
         className="h-full min-w-0 overflow-y-auto overflow-x-hidden px-4 pt-5"
         data-composer-reserve-aware="true"
+        data-transcript-composer-reserve-height={composerReserveHeight}
         data-active-transcript-read-synced={readSyncedSessionId === session.id ? 'true' : 'false'}
         style={{
           userSelect: 'text',
-          paddingBottom: 'calc(var(--composer-reserve-height, 0px) + 24px)',
-          scrollPaddingBlockEnd: 'var(--composer-reserve-height, 0px)'
+          paddingBottom: TRANSCRIPT_COMPOSER_CLEARANCE_PX,
+          scrollPaddingBlockEnd: composerReserveHeight + TRANSCRIPT_COMPOSER_CLEARANCE_PX
         }}
       >
         <div
@@ -969,6 +1013,7 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
                   key={id}
                   id={id}
                   messageIds={transcriptItemMessageIds(item)}
+                  streaming={item.type === 'message' && item.message.type === 'text' && item.message.isStreaming === true}
                   onHeight={handleVirtualRowHeight}
                 >
                   {item.type === 'tool_group'
@@ -996,12 +1041,19 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
           </div>
           {showThinkingIndicator && <ThinkingIndicator streaming={hasStreamingAssistantMessage} />}
           <div ref={bottomRef} />
+          <div
+            aria-hidden="true"
+            data-testid="transcript-composer-reserve-spacer"
+            className="shrink-0"
+            style={{ height: composerReserveHeight + TRANSCRIPT_COMPOSER_CLEARANCE_PX }}
+          />
         </div>
       </div>
       {showJumpToLatest && (
         <LatestActivityButton
           onClick={() => scrollToBottom(true)}
           working={showThinkingIndicator}
+          bottomOffset={composerReserveHeight + 16}
         />
       )}
     </div>
@@ -1333,6 +1385,21 @@ function transcriptMessagesForDisplay(provider: string, messages: ChatMessage[])
   return messages.filter((message) => !isCopilotReasoningStatusLeak(message))
 }
 
+function applyStreamingMessageOverlays(
+  messages: ChatMessage[],
+  streamingMessages?: Record<string, ChatMessage>
+): ChatMessage[] {
+  if (!streamingMessages || Object.keys(streamingMessages).length === 0) return messages
+  let changed = false
+  const nextMessages = messages.map((message) => {
+    const streamingMessage = streamingMessages[message.id]
+    if (!streamingMessage) return message
+    changed = true
+    return streamingMessage
+  })
+  return changed ? nextMessages : messages
+}
+
 function isCopilotReasoningStatusLeak(message: ChatMessage): boolean {
   return message.type === 'result' &&
     message.role === 'system' &&
@@ -1368,28 +1435,58 @@ function estimateTranscriptItemHeight(item: TranscriptItem): number {
 function MeasuredTranscriptRow({
   id,
   messageIds,
+  streaming,
   onHeight,
   children
 }: {
   id: string
   messageIds: string[]
+  streaming: boolean
   onHeight: (id: string, height: number) => void
   children: ReactNode
 }): JSX.Element {
   const rowRef = useRef<HTMLDivElement>(null)
+  const lastMeasuredAtRef = useRef(0)
+  const pendingMeasureRef = useRef<number | null>(null)
 
   useLayoutEffect(() => {
     const row = rowRef.current
     if (!row) return
-    const measure = (): void => {
+    const commitMeasure = (): void => {
+      pendingMeasureRef.current = null
+      lastMeasuredAtRef.current = performance.now()
       const height = row.getBoundingClientRect().height
       if (height > 0) onHeight(id, height)
+    }
+    const measure = (): void => {
+      if (!streaming) {
+        commitMeasure()
+        return
+      }
+      const elapsed = performance.now() - lastMeasuredAtRef.current
+      if (elapsed >= TRANSCRIPT_STREAMING_ROW_MEASURE_MS) {
+        if (pendingMeasureRef.current !== null) {
+          window.clearTimeout(pendingMeasureRef.current)
+          pendingMeasureRef.current = null
+        }
+        commitMeasure()
+        return
+      }
+      if (pendingMeasureRef.current === null) {
+        pendingMeasureRef.current = window.setTimeout(commitMeasure, TRANSCRIPT_STREAMING_ROW_MEASURE_MS - elapsed)
+      }
     }
     measure()
     const observer = new ResizeObserver(measure)
     observer.observe(row)
-    return () => observer.disconnect()
-  }, [id, onHeight])
+    return () => {
+      observer.disconnect()
+      if (pendingMeasureRef.current !== null) {
+        window.clearTimeout(pendingMeasureRef.current)
+        pendingMeasureRef.current = null
+      }
+    }
+  }, [id, onHeight, streaming])
 
   return (
     <div
@@ -2119,6 +2216,8 @@ function MessageRow({
           >
             <MarkdownSurface user={isUser}>
               {shouldCollapseUserMessage && !isUserMessageExpanded ? (
+                <div style={{ whiteSpace: 'pre-wrap' }}>{displayContent}</div>
+              ) : msg.isStreaming ? (
                 <div style={{ whiteSpace: 'pre-wrap' }}>{displayContent}</div>
               ) : (
                 <ReactMarkdown
@@ -4412,10 +4511,12 @@ function ThinkingIndicator({ streaming }: { streaming: boolean }): JSX.Element {
 
 function LatestActivityButton({
   onClick,
-  working
+  working,
+  bottomOffset
 }: {
   onClick: () => void
   working: boolean
+  bottomOffset: number
 }): JSX.Element {
   const label = working ? 'Jump to latest activity' : 'Jump to latest'
   return (
@@ -4426,6 +4527,7 @@ function LatestActivityButton({
       data-jump-to-latest-working={working ? 'true' : 'false'}
       onClick={onClick}
       className="transcript-latest-button"
+      style={{ bottom: bottomOffset }}
     >
       {working ? (
         <span className="transcript-working-dots" aria-hidden="true">

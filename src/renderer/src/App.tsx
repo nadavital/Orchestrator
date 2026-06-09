@@ -1,6 +1,7 @@
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
+import { startTransition, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import type { MouseEvent as ReactMouseEvent, RefObject } from 'react'
 import { flushSync } from 'react-dom'
+import { useShallow } from 'zustand/react/shallow'
 import { useProjectStore } from './store/projects'
 import { hasComposerDraft, sideChatIdFromTabId, terminalTabIdFromTabId, useSessionStore } from './store/sessions'
 import type { SettingsSection } from './store/sessions'
@@ -26,6 +27,8 @@ import type { PanelCloseFocusArea } from '../../types'
 
 type ShellFocusArea = PanelCloseFocusArea
 type ThreadFindDomain = 'conversation' | 'diff'
+const STREAMING_MESSAGE_RENDER_INTERVAL_MS = 80
+const EMPTY_SESSION_LIST: SessionListItem[] = []
 type ThreadFindStatus = {
   totalMatches: number
   activeMatch: number
@@ -130,10 +133,17 @@ export default function App(): JSX.Element {
   const removeSessionFromProject = useProjectStore((state) => state.removeSessionFromProject)
   const sessionCount = useSessionStore((state) => state.sessions.length)
   const activeSessionId = useSessionStore((state) => state.activeSessionId)
-  const activeSessionUi = useSessionStore((state) => {
+  const activeMenuUi = useSessionStore(useShallow((state) => {
     const id = state.activeSessionId
-    return id ? state.uiState[id] : undefined
-  })
+    const ui = id ? state.uiState[id] : undefined
+    return {
+      rightPanelOpen: ui?.rightPanel?.open ?? false,
+      rightPanelActiveTabId: ui?.rightPanel?.activeTabId ?? null,
+      showTerminal: ui?.showTerminal ?? false,
+      bottomPanelActiveTabId: ui?.terminalPanel?.activeTabId ?? null,
+      bottomPanelTabCount: ui?.terminalPanel?.tabs.length ?? 0
+    }
+  }))
   const activeSessionName = useSessionStore((state) => {
     const id = state.activeSessionId
     return id ? state.sessions.find((session) => session.id === id)?.name ?? null : null
@@ -152,6 +162,7 @@ export default function App(): JSX.Element {
   const updateSettings = useSessionStore((state) => state.updateSettings)
   const appendMessages = useSessionStore((state) => state.appendMessages)
   const upsertMessage = useSessionStore((state) => state.upsertMessage)
+  const upsertStreamingMessage = useSessionStore((state) => state.upsertStreamingMessage)
   const removeMessage = useSessionStore((state) => state.removeMessage)
   const appendEvents = useSessionStore((state) => state.appendEvents)
   const appendRaw = useSessionStore((state) => state.appendRaw)
@@ -169,16 +180,54 @@ export default function App(): JSX.Element {
   const showCapabilities = useSessionStore((state) => state.showCapabilities)
   const settingsSection = useSessionStore((state) => state.settingsSection)
   const settingsHostId = useSessionStore((state) => state.settingsHostId)
-  const sessions = useSessionStore((state) => state.sessions)
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
   const [renamingActiveChat, setRenamingActiveChat] = useState(false)
   const [showAutomations, setShowAutomations] = useState(false)
+  const automationSessions = useSessionStore(
+    useCallback((state) => showAutomations ? state.sessions : EMPTY_SESSION_LIST, [showAutomations])
+  )
   const [shellFocusArea, setShellFocusArea] = useState<ShellFocusArea>('main')
   const [shortcutOverrides, setShortcutOverrides] = useState<ShortcutOverrides>({})
   const [threadFindVisible, setThreadFindVisible] = useState(false)
   const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState(() => (
     window.localStorage.getItem(LEFT_SIDEBAR_COLLAPSED_KEY) === 'true'
   ))
+  const pendingStreamingMessageUpsertsRef = useRef(new Map<string, { sessionId: string; message: ChatMessage }>())
+  const streamingMessageTimerRef = useRef<number | null>(null)
+
+  const flushStreamingMessageUpserts = useCallback((): void => {
+    streamingMessageTimerRef.current = null
+    const pending = [...pendingStreamingMessageUpsertsRef.current.values()]
+    pendingStreamingMessageUpsertsRef.current.clear()
+    startTransition(() => {
+      for (const item of pending) {
+        upsertStreamingMessage(item.sessionId, item.message)
+      }
+    })
+  }, [upsertStreamingMessage])
+
+  const scheduleMessageUpsert = useCallback((sessionId: string, message: ChatMessage): void => {
+    const pendingKey = `${sessionId}:${message.id}`
+    if (message.type === 'text' && message.role === 'assistant' && message.isStreaming === true) {
+      pendingStreamingMessageUpsertsRef.current.set(pendingKey, { sessionId, message })
+      if (streamingMessageTimerRef.current === null) {
+        streamingMessageTimerRef.current = window.setTimeout(flushStreamingMessageUpserts, STREAMING_MESSAGE_RENDER_INTERVAL_MS)
+      }
+      return
+    }
+    pendingStreamingMessageUpsertsRef.current.delete(pendingKey)
+    upsertMessage(sessionId, message)
+  }, [flushStreamingMessageUpserts, upsertMessage])
+
+  useEffect(() => {
+    return () => {
+      if (streamingMessageTimerRef.current !== null) {
+        window.clearTimeout(streamingMessageTimerRef.current)
+        streamingMessageTimerRef.current = null
+      }
+      pendingStreamingMessageUpsertsRef.current.clear()
+    }
+  }, [])
   const [threadFindDomain, setThreadFindDomain] = useState<ThreadFindDomain>('conversation')
   const [threadFindQuery, setThreadFindQuery] = useState('')
   const [threadFindStatus, setThreadFindStatus] = useState<Record<ThreadFindDomain, ThreadFindStatus>>({
@@ -788,6 +837,14 @@ export default function App(): JSX.Element {
     setShowCapabilities(false)
     setShowAutomations(true)
   }, [setShowCapabilities, setShowSettings])
+
+  const closeSidebarAutomations = useCallback((): void => {
+    setShowAutomations(false)
+  }, [])
+
+  const toggleLeftSidebar = useCallback((): void => {
+    setLeftSidebarCollapsed((collapsed) => !collapsed)
+  }, [])
 
   const canCloseActivePanelTab = useCallback((): boolean => {
     const { activeSessionId, uiState } = useSessionStore.getState()
@@ -1485,7 +1542,7 @@ export default function App(): JSX.Element {
       } else if (event.type === 'messages') {
         appendMessages(event.id, event.messages)
       } else if (event.type === 'messageUpdated') {
-        upsertMessage(event.id, event.message)
+        scheduleMessageUpsert(event.id, event.message)
       } else if (event.type === 'messageRemoved') {
         removeMessage(event.id, event.messageId)
       } else if (event.type === 'events') {
@@ -1609,7 +1666,7 @@ export default function App(): JSX.Element {
     void window.api.app.setMenuCommandAvailability(currentMenuCommandAvailability())
   }, [
     activeSessionId,
-    activeSessionUi,
+    activeMenuUi,
     currentMenuCommandAvailability,
     isDesignSystemPreview,
     sessionCount,
@@ -1683,10 +1740,10 @@ export default function App(): JSX.Element {
         onSearch={openSidebarSearch}
         onOpenPlugins={openSidebarPlugins}
         onOpenAutomations={openSidebarAutomations}
-        onCloseAutomations={() => setShowAutomations(false)}
+        onCloseAutomations={closeSidebarAutomations}
         isAutomationsOpen={showAutomations}
         isCollapsed={leftSidebarCollapsed}
-        onToggleSidebar={() => setLeftSidebarCollapsed((collapsed) => !collapsed)}
+        onToggleSidebar={toggleLeftSidebar}
       />
       <section
         className="content-shell main-surface flex-1 flex flex-col min-w-0 min-h-0"
@@ -1694,7 +1751,7 @@ export default function App(): JSX.Element {
       >
         {showAutomations ? (
           <MotionView viewKey="automations" className="flex flex-col overflow-hidden">
-            <AutomationsStandalonePage sessions={sessions} onClose={() => setShowAutomations(false)} />
+            <AutomationsStandalonePage sessions={automationSessions} onClose={() => setShowAutomations(false)} />
           </MotionView>
         ) : showSettings ? (
           <MotionView viewKey={`settings:${settingsSection}`} className="flex flex-col overflow-hidden">

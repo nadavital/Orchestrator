@@ -1,5 +1,6 @@
-import { Fragment, useEffect, useMemo, useState } from 'react'
+import { Fragment, memo, useEffect, useMemo, useState } from 'react'
 import type { DragEvent as ReactDragEvent, ReactNode } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import type { Project, Session, SidebarConnectionGroupIdentity } from '../../types'
 import { PROVIDER_DEFS, comparePinnedSessions, compareSidebarSessions, isSidebarPinnedSession, isSidebarProjectlessSession, normalizeSettingsHostId, normalizeSettingsSectionForHostKind, settingsHostOptionsFromSessions, settingsNavigationGroupsForHostKind, settingsRouteUrlForLocation, sidebarConnectionGroupIdentity } from '../../types'
 import { useProjectStore } from '../../store/projects'
@@ -97,7 +98,7 @@ interface SidebarProps {
   onToggleSidebar?: () => void
 }
 
-export default function Sidebar({
+function Sidebar({
   onNewChat,
   onSearch,
   onOpenPlugins,
@@ -107,6 +108,10 @@ export default function Sidebar({
   isCollapsed = false,
   onToggleSidebar
 }: SidebarProps): JSX.Element {
+  const globals = window as typeof window & { __orchestratorSidebarCommitCount?: number }
+  if (typeof globals.__orchestratorSidebarCommitCount === 'number') {
+    globals.__orchestratorSidebarCommitCount += 1
+  }
   const { projects, addProject, addSessionToProject, removeSessionFromProject } = useProjectStore()
   const {
     sessions,
@@ -126,7 +131,25 @@ export default function Sidebar({
     activeSessionId,
     setActiveSession,
     reorderPinned
-  } = useSessionStore()
+  } = useSessionStore(useShallow((state) => ({
+    sessions: state.sessions,
+    addSession: state.addSession,
+    removeSession: state.removeSession,
+    showSettings: state.showSettings,
+    showCapabilities: state.showCapabilities,
+    settingsSection: state.settingsSection,
+    settingsHostId: state.settingsHostId,
+    selectedSettingsProviderId: state.selectedSettingsProviderId,
+    providerAvailability: state.providerAvailability,
+    setSettingsSection: state.setSettingsSection,
+    setSettingsHostId: state.setSettingsHostId,
+    setSelectedSettingsProviderId: state.setSelectedSettingsProviderId,
+    setShowCapabilities: state.setShowCapabilities,
+    setShowSettings: state.setShowSettings,
+    activeSessionId: state.activeSessionId,
+    setActiveSession: state.setActiveSession,
+    reorderPinned: state.reorderPinned
+  })))
   const viewMode = useSidebarStore((state) => state.viewMode)
   const setViewMode = useSidebarStore((state) => state.setViewMode)
   const sortMode = useSidebarStore((state) => state.sortMode)
@@ -1326,3 +1349,5 @@ function SidebarNavItem({
     />
   )
 }
+
+export default memo(Sidebar)

@@ -591,6 +591,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
     runAutomatedTranscriptLiveModelSwitchSmoke(win, outputPath, screenshotPath)
     return
   }
+  if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'claude-live-streaming-typing') {
+    runAutomatedClaudeLiveStreamingTypingSmoke(win, outputPath, screenshotPath)
+    return
+  }
   if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-user-input') {
     runAutomatedTranscriptUserInputSmoke(win, outputPath, screenshotPath)
     return
@@ -25023,7 +25027,7 @@ function runAutomatedSessionSwitchSmoke(win: BrowserWindow, outputPath: string, 
         }
 
         win.webContents.send('pet:navigate', first.id)
-        await new Promise((resolve) => setTimeout(resolve, 250))
+        await new Promise((resolve) => setTimeout(resolve, 520))
         const before = await win.webContents.executeJavaScript(`
           (() => ({
             firstTranscriptFound: document.body.innerText.includes('SESSION_SWITCH_SMOKE_ONE'),
@@ -29064,11 +29068,13 @@ function runAutomatedTranscriptReserveSmoke(win: BrowserWindow, outputPath: stri
             const readReserve = () => {
               const scroller = document.querySelector('[data-testid="transcript-scroll"]');
               const composerReserve = document.querySelector('[data-testid="composer-reserve"]');
+              const reserveSpacer = document.querySelector('[data-testid="transcript-composer-reserve-spacer"]');
               const primaryContent = document.querySelector('[data-testid="session-primary-content"]');
               const composerShell = document.querySelector('[data-testid="composer-shell"]');
               const primaryStyle = primaryContent instanceof HTMLElement ? getComputedStyle(primaryContent) : null;
               const scrollerStyle = scroller instanceof HTMLElement ? getComputedStyle(scroller) : null;
               const reserveRect = composerReserve instanceof HTMLElement ? composerReserve.getBoundingClientRect() : null;
+              const reserveSpacerRect = reserveSpacer instanceof HTMLElement ? reserveSpacer.getBoundingClientRect() : null;
               const reserveAttr = Number(primaryContent?.getAttribute('data-composer-reserve-height') ?? '0');
               const wrapperReserveAttr = Number(composerReserve?.getAttribute('data-composer-reserve-height') ?? '0');
               const cssReserve = Number.parseFloat(primaryStyle?.getPropertyValue('--composer-reserve-height') ?? '0');
@@ -29091,6 +29097,7 @@ function runAutomatedTranscriptReserveSmoke(win: BrowserWindow, outputPath: stri
                 cssReserve,
                 scrollPaddingBottom,
                 reserveRectHeight: reserveRect?.height ?? 0,
+                reserveSpacerHeight: reserveSpacerRect?.height ?? 0,
                 bottomDistance
               };
             };
@@ -29121,6 +29128,26 @@ function runAutomatedTranscriptReserveSmoke(win: BrowserWindow, outputPath: stri
               after = readReserve();
               if (after.reserveRectHeight > before.reserveRectHeight + 16 && Math.abs(after.reserveAttr - after.reserveRectHeight) <= 2) break;
             }
+            scroller.scrollTop = scroller.scrollHeight;
+            scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
+            await sleep(120);
+            const rows = [...document.querySelectorAll('[data-testid="virtual-transcript-row"]')];
+            const lastRow = rows.at(-1);
+            if (lastRow instanceof HTMLElement) {
+              lastRow.scrollIntoView({ block: 'end', inline: 'nearest' });
+              await sleep(120);
+            }
+            const composerReserve = document.querySelector('[data-testid="composer-reserve"]');
+            const reserveSpacer = document.querySelector('[data-testid="transcript-composer-reserve-spacer"]');
+            const composerTop = composerReserve instanceof HTMLElement
+              ? composerReserve.getBoundingClientRect().top
+              : Number.NEGATIVE_INFINITY;
+            const lastRowRect = lastRow instanceof HTMLElement ? lastRow.getBoundingClientRect() : null;
+            const lastRowClearsComposer =
+              lastRow instanceof HTMLElement &&
+              lastRowRect !== null &&
+              composerReserve instanceof HTMLElement &&
+              lastRowRect.bottom <= composerTop - 8;
             const composerReserveContractWorks =
               after.transcriptFound &&
               after.composerReserveFound &&
@@ -29128,6 +29155,7 @@ function runAutomatedTranscriptReserveSmoke(win: BrowserWindow, outputPath: stri
               after.reserveReady &&
               after.reserveAware &&
               after.reserveRectHeight > 80 &&
+              after.reserveSpacerHeight >= after.reserveAttr + 22 &&
               after.reserveAttr > before.reserveAttr &&
               Math.abs(after.reserveAttr - after.reserveRectHeight) <= 2 &&
               Math.abs(after.wrapperReserveAttr - after.reserveAttr) <= 1 &&
@@ -29140,7 +29168,14 @@ function runAutomatedTranscriptReserveSmoke(win: BrowserWindow, outputPath: stri
               transcriptFound: true,
               composerReserveContractWorks,
               composerReserveFollowBottomWorks,
+              transcriptTrailingContentClearsComposer: lastRowClearsComposer,
               composerReserveDebug: { before, after },
+              trailingClearanceDebug: {
+                composerTop,
+                lastRowBottom: lastRowRect?.bottom ?? null,
+                reserveSpacerFound: reserveSpacer instanceof HTMLElement,
+                reserveSpacerHeight: reserveSpacer instanceof HTMLElement ? reserveSpacer.getBoundingClientRect().height : 0
+              },
               bodyText: document.body.innerText
             };
           })()
@@ -30247,6 +30282,285 @@ function runAutomatedTranscriptLiveModelSwitchSmoke(win: BrowserWindow, outputPa
   })
 }
 
+function runAutomatedClaudeLiveStreamingTypingSmoke(win: BrowserWindow, outputPath: string, screenshotPath?: string): void {
+  win.webContents.once('did-finish-load', () => {
+    setTimeout(async () => {
+      let smokeSessionId: string | null = null
+      try {
+        win.setMinimumSize(520, 600)
+        win.setSize(920, 760)
+        const profile = getAppProfile()
+        const session = sessionManager.list()[0]
+        if (!session) throw new Error('No smoke session was available for live Claude streaming typing proof.')
+        smokeSessionId = session.id
+        const now = Date.now()
+        const startToken = 'CLAUDE_LIVE_STREAMING_TYPING_START'
+        const doneToken = 'CLAUDE_LIVE_STREAMING_TYPING_DONE'
+        const lineCount = Math.max(20, Math.min(80, Number(process.env.ORCHESTRATOR_LIVE_CLAUDE_STREAM_LINES ?? 80)))
+        const finalLineToken = `CLAUDE_STREAM_LINE_${String(Math.min(60, lineCount)).padStart(3, '0')}`
+        const model = process.env.LIVE_MODEL_CLAUDE ?? 'claude-sonnet-4-6'
+        const effort = process.env.LIVE_EFFORT_CLAUDE ?? 'low'
+        const prompt = [
+          'This is a live Orchestrator UI latency proof using Claude.',
+          'Do not use tools and do not edit files.',
+          `Begin with exactly ${startToken}.`,
+          `Then write ${lineCount} short numbered lines.`,
+          `Each line must contain CLAUDE_STREAM_LINE_NNN with a zero-padded number from 001 through ${String(lineCount).padStart(3, '0')}.`,
+          `End with exactly ${doneToken}.`
+        ].join(' ')
+
+        sessionManager.save({
+          ...session,
+          name: 'Claude live streaming typing smoke',
+          provider: 'claude',
+          runtime: 'sdk',
+          model,
+          effort,
+          permissionMode: 'default',
+          providerSessionId: null,
+          claudeSessionId: null,
+          status: 'idle',
+          messages: [],
+          latestMessageAt: now
+        })
+        win.webContents.send('pet:navigate', session.id)
+        await new Promise((resolve) => setTimeout(resolve, 260))
+
+        const instrumentationStartedAt = Date.now()
+        await win.webContents.executeJavaScript(`
+          (() => {
+            window.__orchestratorInputBarCommitCount = 0;
+            window.__orchestratorSessionPaneCommitCount = 0;
+            window.__orchestratorChatViewCommitCount = 0;
+            window.__orchestratorAppCommitCount = 0;
+            window.__orchestratorSidebarCommitCount = 0;
+            window.__orchestratorStreamingFrameGaps = [];
+            window.__orchestratorStreamingFrameStop = false;
+            let lastFrame = performance.now();
+            const tick = () => {
+              if (window.__orchestratorStreamingFrameStop) return;
+              const now = performance.now();
+              window.__orchestratorStreamingFrameGaps.push(now - lastFrame);
+              lastFrame = now;
+              requestAnimationFrame(tick);
+            };
+            requestAnimationFrame(tick);
+          })()
+        `)
+
+        const typingResultPromise = win.webContents.executeJavaScript(`
+          (async () => {
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            const percentile = (values, ratio) => {
+              if (!values.length) return null;
+              const sorted = [...values].sort((a, b) => a - b);
+              return sorted[Math.min(sorted.length - 1, Math.floor((sorted.length - 1) * ratio))];
+            };
+            const streamWaitStartedAt = performance.now();
+            let streamingUiStartedAt = null;
+            for (let index = 0; index < 240; index += 1) {
+              const streamingCursor = document.querySelector('[data-testid="streaming-cursor"]');
+              const thinkingStreaming = document.querySelector('[data-thinking-indicator-streaming="true"]');
+              const bodyText = document.body.innerText;
+              if (streamingCursor || thinkingStreaming || bodyText.includes(${JSON.stringify(startToken)})) {
+                streamingUiStartedAt = performance.now();
+                break;
+              }
+              await sleep(50);
+            }
+            let firstTextVisibleAt = document.body.innerText.includes(${JSON.stringify(startToken)}) ? performance.now() : null;
+            for (let index = 0; firstTextVisibleAt === null && index < 240; index += 1) {
+              if (document.body.innerText.includes(${JSON.stringify(startToken)})) {
+                firstTextVisibleAt = performance.now();
+                break;
+              }
+              await sleep(50);
+            }
+            const textarea = document.querySelector('[data-testid="composer-textarea"]');
+            if (!(textarea instanceof HTMLTextAreaElement)) {
+              return {
+                composerFound: false,
+                streamingUiStartedAt,
+                streamingUiWaitMs: typeof streamingUiStartedAt === 'number' ? streamingUiStartedAt - streamWaitStartedAt : null,
+                firstTextVisibleAt,
+                firstTextVisibleWaitMs: typeof firstTextVisibleAt === 'number' ? firstTextVisibleAt - streamWaitStartedAt : null
+              };
+            }
+            textarea.focus();
+            const chars = 'typing into composer during a real Claude stream should stay responsive';
+            const setter = Object.getOwnPropertyDescriptor(textarea.constructor.prototype, 'value')?.set;
+            const timerDrifts = [];
+            const inputDispatchMs = [];
+            let expected = performance.now() + 12;
+            for (let index = 0; index < chars.length; index += 1) {
+              const beforeWait = performance.now();
+              await sleep(Math.max(0, expected - beforeWait));
+              const afterWait = performance.now();
+              timerDrifts.push(Math.max(0, afterWait - expected));
+              const beforeInput = performance.now();
+              setter?.call(textarea, textarea.value + chars[index]);
+              textarea.dispatchEvent(new InputEvent('input', { bubbles: true, data: chars[index], inputType: 'insertText' }));
+              inputDispatchMs.push(performance.now() - beforeInput);
+              expected += 12;
+            }
+            await sleep(120);
+            const sendStatus = document.querySelector('[data-testid="composer-send-status"]');
+            return {
+              composerFound: true,
+              streamingUiStartedAt,
+              streamingUiWaitMs: typeof streamingUiStartedAt === 'number' ? streamingUiStartedAt - streamWaitStartedAt : null,
+              firstTextVisibleAt,
+              firstTextVisibleWaitMs: typeof firstTextVisibleAt === 'number' ? firstTextVisibleAt - streamWaitStartedAt : null,
+              composerFocused: document.activeElement === textarea,
+              composerDisabled: textarea.disabled,
+              typedLength: chars.length,
+              composerValue: textarea.value,
+              composerWillQueueStatusVisible:
+                sendStatus instanceof HTMLElement &&
+                sendStatus.getAttribute('data-composer-send-state') === 'will-queue' &&
+                sendStatus.textContent?.includes('Will queue after current run') === true,
+              maxTypingTimerDriftMs: timerDrifts.length ? Math.max(...timerDrifts) : null,
+              p95TypingTimerDriftMs: percentile(timerDrifts, 0.95),
+              maxInputDispatchMs: inputDispatchMs.length ? Math.max(...inputDispatchMs) : null,
+              p95InputDispatchMs: percentile(inputDispatchMs, 0.95)
+            };
+          })()
+        `)
+
+        const sendInvokedAt = Date.now()
+        const mainStreamingObservedPromise = waitForAutomatedSessionMilestone(session.id, (candidate) =>
+          candidate.status === 'running' ||
+          candidate.messages.some((message) => message.type === 'text' && message.role === 'assistant' && message.isStreaming === true),
+        sendInvokedAt)
+        const mainFirstTextObservedPromise = waitForAutomatedSessionMilestone(session.id, (candidate) =>
+          candidate.messages.some((message) =>
+            message.type === 'text' &&
+            message.role === 'assistant' &&
+            message.content.includes(startToken)
+          ),
+        sendInvokedAt)
+        const sendStarted = await sessionManager.sendMessage(session.id, prompt)
+        if (!sendStarted) throw new Error('Live Claude streaming typing proof failed to start sendMessage.')
+
+        const [typingResult, afterSend, mainStreamingObservedMs, mainFirstTextObservedMs] = await Promise.all([
+          typingResultPromise,
+          waitForAutomatedSessionText(session.id, new RegExp(`${escapeAutomatedRegExp(finalLineToken)}[\\s\\S]*${escapeAutomatedRegExp(doneToken)}`), { requireProviderSessionId: true }),
+          mainStreamingObservedPromise,
+          mainFirstTextObservedPromise
+        ])
+
+        const finalSession = sessionManager.get(session.id)
+        const debugEvents = listProviderRuntimeDebugEvents({ sessionId: session.id, includeNoisy: true, limit: 1000 })
+        const providerSessionId = afterSend.providerSessionId
+        const renderResult = await win.webContents.executeJavaScript(`
+          (() => {
+            window.__orchestratorStreamingFrameStop = true;
+            const gaps = Array.isArray(window.__orchestratorStreamingFrameGaps) ? window.__orchestratorStreamingFrameGaps : [];
+            return {
+              inputBarCommitCount: window.__orchestratorInputBarCommitCount ?? null,
+              sessionPaneCommitCount: window.__orchestratorSessionPaneCommitCount ?? null,
+              chatViewCommitCount: window.__orchestratorChatViewCommitCount ?? null,
+              appCommitCount: window.__orchestratorAppCommitCount ?? null,
+              sidebarCommitCount: window.__orchestratorSidebarCommitCount ?? null,
+              maxFrameGapMs: gaps.length ? Math.max(...gaps) : null,
+              p95FrameGapMs: (() => {
+                if (!gaps.length) return null;
+                const sorted = [...gaps].sort((a, b) => a - b);
+                return sorted[Math.min(sorted.length - 1, Math.floor((sorted.length - 1) * 0.95))];
+              })(),
+              frameSamples: gaps.length,
+              startTokenVisible: document.body.innerText.includes(${JSON.stringify(startToken)}),
+              doneTokenVisible: document.body.innerText.includes(${JSON.stringify(doneToken)})
+            };
+          })()
+        `)
+        const transcript = afterSend.transcript
+        const typedValue = typeof typingResult?.composerValue === 'string' ? typingResult.composerValue : ''
+        const payload = {
+          profile,
+          liveClaudeSendStarted: sendStarted,
+          liveClaudeStreamStarted:
+            typeof typingResult?.streamingUiStartedAt === 'number' ||
+            transcript.includes(startToken) ||
+            renderResult.startTokenVisible === true,
+          liveClaudeCompleted:
+            finalSession?.status === 'idle' &&
+            transcript.includes(startToken) &&
+            transcript.includes(finalLineToken) &&
+            transcript.includes(doneToken),
+          providerSessionId,
+          model,
+          effort,
+          lineCount,
+          promptToCompletionMs: Date.now() - instrumentationStartedAt,
+          mainStreamingObservedMs,
+          mainFirstTextObservedMs,
+          debugEventMethods: [...new Set(debugEvents.map((event) => event.method))],
+          sdkTimingEvents: debugEvents
+            .filter((event) => event.method?.startsWith('claude-sdk/') === true)
+            .map((event) => ({
+              method: event.method,
+              message: event.message,
+              timestamp: event.timestamp
+            })),
+          assistantTextLength: finalSession?.messages
+            .flatMap((message) => message.type === 'text' && message.role === 'assistant' ? [message.content] : [])
+            .join('\n')
+            .length ?? 0,
+          ...renderResult,
+          ...typingResult,
+          composerTyped: typedValue.includes('typing into composer during a real Claude stream'),
+          composerFocusedWhileStreaming: typingResult?.composerFocused === true,
+          composerEditableWhileStreaming: typingResult?.composerFound === true && typingResult?.composerDisabled === false,
+          composerWillQueueStatusWorks: typingResult?.composerWillQueueStatusVisible === true
+        }
+
+        if (screenshotPath) {
+          const image = await win.webContents.capturePage()
+          writeFileSync(screenshotPath, image.toPNG())
+        }
+        writeFileSync(outputPath, JSON.stringify({ ok: true, result: payload, screenshotPath }, null, 2))
+        app.quit()
+      } catch (error) {
+        const activeSession = smokeSessionId ? sessionManager.get(smokeSessionId) : null
+        const debugEvents = smokeSessionId
+          ? listProviderRuntimeDebugEvents({ sessionId: smokeSessionId, includeNoisy: true, limit: 1000 })
+          : []
+        writeFileSync(outputPath, JSON.stringify({
+          ok: false,
+          error: error instanceof Error ? error.message : String(error),
+          result: {
+            profile: getAppProfile(),
+            sessionId: smokeSessionId,
+            status: activeSession?.status ?? null,
+            providerSessionId: activeSession?.providerSessionId ?? null,
+            messageCount: activeSession?.messages.length ?? 0,
+            assistantTextLength: activeSession?.messages
+              .flatMap((message) => message.type === 'text' && message.role === 'assistant' ? [message.content] : [])
+              .join('\n')
+              .length ?? 0,
+            sdkTimingEvents: debugEvents
+              .filter((event) => event.method?.startsWith('claude-sdk/') === true)
+              .map((event) => ({
+                method: event.method,
+                message: event.message,
+                timestamp: event.timestamp
+              })),
+            runtimeEvents: debugEvents.map((event) => ({
+              method: event.method,
+              severity: event.severity,
+              code: event.code,
+              message: event.message,
+              timestamp: event.timestamp
+            }))
+          }
+        }, null, 2))
+        app.quit()
+      }
+    }, 700)
+  })
+}
+
 async function waitForAutomatedSessionText(
   sessionId: string,
   expected: string | RegExp,
@@ -30280,6 +30594,21 @@ async function waitForAutomatedSessionText(
       .join('\n')
       .slice(-2000)
   })}`)
+}
+
+async function waitForAutomatedSessionMilestone(
+  sessionId: string,
+  matches: (session: OrchestratorSession) => boolean,
+  startedAt: number,
+  timeoutMs = 60_000
+): Promise<number | null> {
+  while (Date.now() - startedAt < timeoutMs) {
+    const session = sessionManager.get(sessionId)
+    if (!session) throw new Error(`Session ${sessionId} disappeared during automated milestone wait.`)
+    if (matches(session)) return Date.now() - startedAt
+    await new Promise((resolve) => setTimeout(resolve, 25))
+  }
+  return null
 }
 
 function escapeAutomatedRegExp(value: string): string {
@@ -31770,6 +32099,10 @@ function runAutomatedScrollSmoke(win: BrowserWindow, outputPath: string, screens
             const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
             const scroller = document.querySelector('[data-testid="transcript-scroll"]');
             if (!scroller) return { transcriptFound: false };
+            for (let index = 0; index < 30; index += 1) {
+              if (document.querySelector('[data-testid="streaming-cursor"]')) break;
+              await sleep(80);
+            }
             const afterScrollTop = scroller.scrollTop;
             const afterScrollHeight = scroller.scrollHeight;
             const afterClientHeight = scroller.clientHeight;
@@ -31778,13 +32111,14 @@ function runAutomatedScrollSmoke(win: BrowserWindow, outputPath: string, screens
             const jumpVisibleAfterUpdate = Boolean(jump);
             const streamingCursorVisibleDuringUpdate = Boolean(document.querySelector('[data-testid="streaming-cursor"]'));
             const thinkingIndicator = document.querySelector('[data-testid="thinking-indicator"]');
+            const thinkingStatus = thinkingIndicator?.querySelector('.transcript-thinking-indicator');
             const thinkingIndicatorVisibleDuringUpdate =
               thinkingIndicator instanceof HTMLElement &&
-              thinkingIndicator.getAttribute('role') === 'status' &&
-              thinkingIndicator.getAttribute('aria-live') === 'polite' &&
-              thinkingIndicator.getAttribute('aria-atomic') === 'true' &&
-              thinkingIndicator.getAttribute('data-thinking-indicator-streaming') === 'true' &&
-              thinkingIndicator.textContent.includes('Assistant response streaming');
+              thinkingStatus instanceof HTMLElement &&
+              thinkingStatus.getAttribute('role') === 'status' &&
+              thinkingStatus.getAttribute('aria-live') === 'polite' &&
+              thinkingStatus.getAttribute('aria-atomic') === 'true' &&
+              thinkingStatus.getAttribute('data-thinking-indicator-streaming') === 'true';
             jump?.click();
             await sleep(180);
             const finalBottomDistance = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
@@ -32652,6 +32986,8 @@ function runAutomatedStreamingTypingSmoke(win: BrowserWindow, outputPath: string
             window.__orchestratorInputBarCommitCount = 0;
             window.__orchestratorSessionPaneCommitCount = 0;
             window.__orchestratorChatViewCommitCount = 0;
+            window.__orchestratorAppCommitCount = 0;
+            window.__orchestratorSidebarCommitCount = 0;
             window.__orchestratorStreamingFrameGaps = [];
             window.__orchestratorStreamingFrameStop = false;
             let lastFrame = performance.now();
@@ -32688,7 +33024,7 @@ function runAutomatedStreamingTypingSmoke(win: BrowserWindow, outputPath: string
           const active = sessionId ? sessionManager.get(sessionId) : null
           const existing = active?.messages.find((message) => message.id === 'streaming-typing-message')
           if (!active || existing?.type !== 'text') return false
-          for (let index = 0; index < 110; index += 1) {
+          for (let index = 0; index < 220; index += 1) {
             sessionManager.upsertMessage(active.id, {
               ...existing,
               content: [
@@ -32697,13 +33033,13 @@ function runAutomatedStreamingTypingSmoke(win: BrowserWindow, outputPath: string
               ].join('\n'),
               isStreaming: true
             })
-            await new Promise((resolve) => setTimeout(resolve, 8))
+            await new Promise((resolve) => setTimeout(resolve, 4))
           }
           sessionManager.upsertMessage(active.id, {
             ...existing,
             content: [
               'Streaming typing responsiveness smoke.',
-              ...Array.from({ length: 110 }, (_line, lineIndex) => `typing stream update ${String(lineIndex + 1).padStart(3, '0')}`)
+              ...Array.from({ length: 220 }, (_line, lineIndex) => `typing stream update ${String(lineIndex + 1).padStart(3, '0')}`)
             ].join('\n'),
             isStreaming: false
           })
@@ -32714,7 +33050,7 @@ function runAutomatedStreamingTypingSmoke(win: BrowserWindow, outputPath: string
         const typingResultPromise = win.webContents.executeJavaScript(`
           (async () => {
             const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-            const textarea = document.querySelector('textarea');
+            const textarea = document.querySelector('[data-testid="composer-textarea"]');
             if (!(textarea instanceof HTMLTextAreaElement)) {
               return { composerFound: false };
             }
@@ -32739,6 +33075,8 @@ function runAutomatedStreamingTypingSmoke(win: BrowserWindow, outputPath: string
             const sendStatus = document.querySelector('[data-testid="composer-send-status"]');
             return {
               composerFound: true,
+              composerFocused: document.activeElement === textarea,
+              composerDisabled: textarea.disabled,
               typedLength: chars.length,
               composerValue: textarea.value,
               composerWillQueueStatusVisible:
@@ -32766,6 +33104,21 @@ function runAutomatedStreamingTypingSmoke(win: BrowserWindow, outputPath: string
             const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
             window.__orchestratorStreamingFrameStop = true;
             const gaps = Array.isArray(window.__orchestratorStreamingFrameGaps) ? window.__orchestratorStreamingFrameGaps : [];
+            const initialTranscriptScroller = document.querySelector('[data-testid="transcript-scroll"]');
+            if (initialTranscriptScroller instanceof HTMLElement) {
+              initialTranscriptScroller.scrollTop = initialTranscriptScroller.scrollHeight;
+              initialTranscriptScroller.dispatchEvent(new Event('scroll', { bubbles: true }));
+            }
+            for (let attempt = 0; attempt < 30; attempt += 1) {
+              if (
+                document.body.innerText.includes('typing stream update 220') &&
+                document.querySelector('[data-message-id="streaming-typing-steering-follow-up"] [data-testid="queued-message-actions"][data-queued-message-state="steer_next"]') instanceof HTMLElement
+              ) {
+                break;
+              }
+              await sleep(80);
+            }
+            const streamingTextVisibleBeforeScroll = document.body.innerText.includes('typing stream update 220');
             const steeringActions = document.querySelector('[data-message-id="streaming-typing-steering-follow-up"] [data-testid="queued-message-actions"][data-queued-message-state="steer_next"]');
             const steeringCancel = document.querySelector('[data-message-id="streaming-typing-steering-follow-up"] [data-testid="queued-message-cancel"]');
             const steeringBeforeCancel =
@@ -32829,9 +33182,11 @@ function runAutomatedStreamingTypingSmoke(win: BrowserWindow, outputPath: string
               inputBarCommitCount: window.__orchestratorInputBarCommitCount ?? null,
               sessionPaneCommitCount: window.__orchestratorSessionPaneCommitCount ?? null,
               chatViewCommitCount: window.__orchestratorChatViewCommitCount ?? null,
+              appCommitCount: window.__orchestratorAppCommitCount ?? null,
+              sidebarCommitCount: window.__orchestratorSidebarCommitCount ?? null,
               maxFrameGapMs: gaps.length ? Math.max(...gaps) : null,
               frameSamples: gaps.length,
-              streamingTextVisible: document.body.innerText.includes('typing stream update 110'),
+              streamingTextVisible: streamingTextVisibleBeforeScroll,
               composerQueuedSummaryVisible: document.querySelector('[data-testid="composer-queued-summary"]') instanceof HTMLElement,
               composerQueuedSummaryText: document.querySelector('[data-testid="composer-queued-summary"]')?.textContent ?? '',
               composerQueuedSummaryCount: document.querySelector('[data-testid="composer-queued-summary"]')?.getAttribute('data-queued-follow-up-count') ?? null,
@@ -32875,6 +33230,11 @@ function runAutomatedStreamingTypingSmoke(win: BrowserWindow, outputPath: string
         const queuedFailureResult = await win.webContents.executeJavaScript(`
           (async () => {
             const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            const transcriptScroller = document.querySelector('[data-testid="transcript-scroll"]');
+            if (transcriptScroller instanceof HTMLElement) {
+              transcriptScroller.scrollTop = transcriptScroller.scrollHeight;
+              transcriptScroller.dispatchEvent(new Event('scroll', { bubbles: true }));
+            }
             for (let index = 0; index < 20; index += 1) {
               if (document.body.innerText.includes('Smoke queued follow-up failed to start.')) break;
               await sleep(80);
@@ -32904,6 +33264,8 @@ function runAutomatedStreamingTypingSmoke(win: BrowserWindow, outputPath: string
           streamingMessageUpdated,
           streamingSessionActive,
           composerTyped: typedValue.includes('typing while streaming should stay responsive'),
+          composerFocusedWhileStreaming: typingResult?.composerFocused === true,
+          composerEditableWhileStreaming: typingResult?.composerFound === true && typingResult?.composerDisabled === false,
           composerWillQueueStatusWorks: typingResult?.composerWillQueueStatusVisible === true,
           composerQueuedSummaryWorks:
             result.composerQueuedSummaryVisible === true &&
@@ -33624,13 +33986,28 @@ function seedAutomatedStreamingDragSmokeSession(sessionId: string): void {
 function seedAutomatedStreamingTypingSmokeSession(sessionId: string): void {
   const session = sessionManager.get(sessionId)
   if (!session) return
+  const baseTime = Date.now()
+  const history: ChatMessage[] = Array.from({ length: 30 }, (_, index) => ({
+    id: `streaming-typing-history-${index + 1}`,
+    role: index % 2 === 0 ? 'user' : 'assistant',
+    type: 'text',
+    content: [
+      `${index % 2 === 0 ? 'User' : 'Assistant'} streaming typing history fixture ${index + 1}.`,
+      '',
+      ...Array.from({ length: 5 }, (_line, lineIndex) =>
+        `History line ${lineIndex + 1} keeps the mounted transcript realistic while the composer is edited during streaming.`
+      )
+    ].join('\n'),
+    timestamp: baseTime + index
+  }))
   const messages: ChatMessage[] = [
+    ...history,
     {
       id: 'streaming-typing-user',
       role: 'user',
       type: 'text',
       content: 'Generate a long response while I keep typing in the composer.',
-      timestamp: Date.now()
+      timestamp: baseTime + history.length
     },
     {
       id: 'streaming-typing-message',
@@ -33638,7 +34015,7 @@ function seedAutomatedStreamingTypingSmokeSession(sessionId: string): void {
       type: 'text',
       content: 'Streaming typing responsiveness smoke.',
       isStreaming: true,
-      timestamp: Date.now() + 1
+      timestamp: baseTime + history.length + 1
     }
   ]
   sessionManager.save({

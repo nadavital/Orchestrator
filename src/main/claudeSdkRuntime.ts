@@ -18,6 +18,7 @@ type PermissionMode = NonNullable<SdkOptions['permissionMode']>
 
 const importEsm = new Function('specifier', 'return import(specifier)') as (specifier: string) => Promise<unknown>
 const requireForResolution = new Function('return typeof require === "function" ? require : undefined')() as NodeRequire | undefined
+let claudeAgentSdkImportPromise: Promise<ClaudeAgentSdk> | null = null
 
 interface ResolveClaudeSdkExecutablePathOptions {
   platform?: NodeJS.Platform
@@ -126,9 +127,29 @@ export class ClaudeSdkRuntimeManager {
   }
 
   private async run(options: StartClaudeSdkRunOptions, abortController: AbortController): Promise<void> {
+    const runStartedAt = performance.now()
+    let firstMessageRecorded = false
+    let firstAssistantTextRecorded = false
+    const elapsedMs = () => Math.round(performance.now() - runStartedAt)
     try {
       const sdk = await importClaudeAgentSdk()
+      recordProviderRuntimeDebugEvent({
+        providerId: options.provider.id,
+        runtime: 'sdk',
+        sessionId: options.sessionId,
+        method: 'claude-sdk/import',
+        noisy: true,
+        message: `Claude SDK imported after ${elapsedMs()}ms.`
+      })
       const sdkOptions = buildSdkOptions(sdk, { ...options, hostToolBridge: this.hostToolBridge }, abortController)
+      recordProviderRuntimeDebugEvent({
+        providerId: options.provider.id,
+        runtime: 'sdk',
+        sessionId: options.sessionId,
+        method: 'claude-sdk/options',
+        noisy: true,
+        message: `Claude SDK options built after ${elapsedMs()}ms.`
+      })
       updateProviderRuntimeConnection({
         providerId: options.provider.id,
         runtime: 'sdk',
@@ -138,11 +159,46 @@ export class ClaudeSdkRuntimeManager {
         message: 'Started Claude SDK runtime.'
       })
 
+      recordProviderRuntimeDebugEvent({
+        providerId: options.provider.id,
+        runtime: 'sdk',
+        sessionId: options.sessionId,
+        method: 'claude-sdk/query-start',
+        noisy: true,
+        message: `Claude SDK query started after ${elapsedMs()}ms.`
+      })
       for await (const message of sdk.query({ prompt: claudeSdkPromptForRequest(options.request), options: sdkOptions })) {
         if (this.activeRuns.get(options.sessionId)?.abortController !== abortController) return
+        if (!firstMessageRecorded) {
+          firstMessageRecorded = true
+          recordProviderRuntimeDebugEvent({
+            providerId: options.provider.id,
+            runtime: 'sdk',
+            sessionId: options.sessionId,
+            method: 'claude-sdk/first-message',
+            noisy: true,
+            message: `Claude SDK first raw message after ${elapsedMs()}ms.`
+          })
+        }
         const raw = `${JSON.stringify(message)}\n`
         options.onRawData(raw)
-        options.onParsedEvents(normalizeClaudeMessageObject(message as Record<string, unknown>, options.provider.id))
+        const parsedEvents = normalizeClaudeMessageObject(message as Record<string, unknown>, options.provider.id)
+        if (!firstAssistantTextRecorded && parsedEvents.some((event) =>
+          (event.type === 'assistant.text.delta' || event.type === 'assistant.text') &&
+          typeof event.content === 'string' &&
+          event.content.length > 0
+        )) {
+          firstAssistantTextRecorded = true
+          recordProviderRuntimeDebugEvent({
+            providerId: options.provider.id,
+            runtime: 'sdk',
+            sessionId: options.sessionId,
+            method: 'claude-sdk/first-assistant-text',
+            noisy: true,
+            message: `Claude SDK first assistant text after ${elapsedMs()}ms.`
+          })
+        }
+        options.onParsedEvents(parsedEvents)
       }
     } catch (error) {
       if (!abortController.signal.aborted) {
@@ -168,6 +224,14 @@ export class ClaudeSdkRuntimeManager {
         sessionId: options.sessionId,
         status: abortController.signal.aborted ? 'stopped' : 'disconnected',
         message: abortController.signal.aborted ? 'Claude SDK runtime stopped.' : 'Claude SDK runtime exited.'
+      })
+      recordProviderRuntimeDebugEvent({
+        providerId: options.provider.id,
+        runtime: 'sdk',
+        sessionId: options.sessionId,
+        method: 'claude-sdk/exit',
+        noisy: true,
+        message: `Claude SDK runtime exited after ${elapsedMs()}ms.`
       })
       options.onExit()
     }
@@ -264,7 +328,8 @@ export async function runClaudeSdkOneShot(options: RunClaudeSdkOneShotOptions): 
 }
 
 async function importClaudeAgentSdk(): Promise<ClaudeAgentSdk> {
-  return await importEsm('@anthropic-ai/claude-agent-sdk') as ClaudeAgentSdk
+  claudeAgentSdkImportPromise ??= importEsm('@anthropic-ai/claude-agent-sdk') as Promise<ClaudeAgentSdk>
+  return await claudeAgentSdkImportPromise
 }
 
 export function claudeSdkAgentTeamsEnabled(

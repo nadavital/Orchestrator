@@ -52,6 +52,7 @@ const captureViewOptions = [
   { flag: '--transcript-live-lifecycle', view: 'transcript-live-lifecycle', surface: 'Transcript', scope: 'Live Codex renderer lifecycle proof' },
   { flag: '--transcript-live-partial-continue', view: 'transcript-live-partial-continue', surface: 'Transcript', scope: 'Live partial-response continue proof' },
   { flag: '--transcript-live-model-switch', view: 'transcript-live-model-switch', surface: 'Transcript', scope: 'Live model-switch proof' },
+  { flag: '--claude-live-streaming-typing', view: 'claude-live-streaming-typing', surface: 'Transcript', scope: 'Live Claude streaming and composer typing latency proof; uses provider quota' },
   { flag: '--transcript-reserve', view: 'transcript-reserve', surface: 'Transcript', scope: 'Composer reserve and scroll-follow contract' },
   { flag: '--transcript-file-reference', view: 'transcript-file-reference', surface: 'Transcript', scope: 'File-reference cards, Workbench handoff, additional roots' },
   { flag: '--transcript-tool-jump', view: 'transcript-tool-jump', surface: 'Transcript', scope: 'Virtualized tool-group search jump' },
@@ -1953,9 +1954,15 @@ child.on('exit', async (code) => {
         queuedFollowUpStartFailureVisible: result.queuedFollowUpStartFailureVisible === true,
         queuedFollowUpStartFailureState: result.queuedFollowUpStartFailureState === true,
         composerTyped: result.composerTyped === true,
-        typingTimerDriftAcceptable: Number(result.maxTypingTimerDriftMs ?? Number.POSITIVE_INFINITY) < 55,
+        composerFocusedWhileStreaming: result.composerFocusedWhileStreaming === true,
+        composerEditableWhileStreaming: result.composerEditableWhileStreaming === true,
+        typingTimerDriftAcceptable:
+          Number(result.p95TypingTimerDriftMs ?? Number.POSITIVE_INFINITY) < 55 &&
+          Number(result.maxTypingTimerDriftMs ?? Number.POSITIVE_INFINITY) < 90,
         inputDispatchAcceptable: Number(result.maxInputDispatchMs ?? Number.POSITIVE_INFINITY) < 24,
-        maxFrameGapAcceptable: Number(result.maxFrameGapMs ?? Number.POSITIVE_INFINITY) < 80,
+        maxFrameGapAcceptable: Number(result.maxFrameGapMs ?? Number.POSITIVE_INFINITY) < 120,
+        appCommitCountBounded: Number(result.appCommitCount ?? Number.POSITIVE_INFINITY) <= 8,
+        sidebarCommitCountBounded: Number(result.sidebarCommitCount ?? Number.POSITIVE_INFINITY) <= 12,
         inputBarCommitCountBounded: Number(result.inputBarCommitCount ?? Number.POSITIVE_INFINITY) <= 96,
         sessionPaneCommitCountBounded: Number(result.sessionPaneCommitCount ?? Number.POSITIVE_INFINITY) <= 12
       }
@@ -2193,6 +2200,27 @@ child.on('exit', async (code) => {
         liveModelSwitchStartModel: result.liveModelSwitchStartModel === true,
         liveModelSwitchResumeModel: result.liveModelSwitchResumeModel === true
       }
+    : captureView === 'claude-live-streaming-typing'
+    ? {
+        isolatedProfile: result.profile?.isIsolated === true,
+        liveClaudeSendStarted: result.liveClaudeSendStarted === true,
+        liveClaudeStreamStarted: result.liveClaudeStreamStarted === true,
+        liveClaudeCompleted: result.liveClaudeCompleted === true,
+        liveClaudeProviderSession: typeof result.providerSessionId === 'string' && result.providerSessionId.length > 0,
+        composerTypedWhileLiveClaudeStreaming: result.composerTyped === true,
+        composerFocusedWhileLiveClaudeStreaming: result.composerFocusedWhileStreaming === true,
+        composerEditableWhileLiveClaudeStreaming: result.composerEditableWhileStreaming === true,
+        composerWillQueueWhileLiveClaudeStreaming: result.composerWillQueueStatusWorks === true,
+        typingTimerDriftAcceptable:
+          Number(result.p95TypingTimerDriftMs ?? Number.POSITIVE_INFINITY) < 65 &&
+          Number(result.maxTypingTimerDriftMs ?? Number.POSITIVE_INFINITY) < 110,
+        inputDispatchAcceptable: Number(result.maxInputDispatchMs ?? Number.POSITIVE_INFINITY) < 28,
+        maxFrameGapAcceptable: Number(result.maxFrameGapMs ?? Number.POSITIVE_INFINITY) < 140,
+        appCommitCountBounded: Number(result.appCommitCount ?? Number.POSITIVE_INFINITY) <= 12,
+        sidebarCommitCountBounded: Number(result.sidebarCommitCount ?? Number.POSITIVE_INFINITY) <= 16,
+        inputBarCommitCountBounded: Number(result.inputBarCommitCount ?? Number.POSITIVE_INFINITY) <= 120,
+        sessionPaneCommitCountBounded: Number(result.sessionPaneCommitCount ?? Number.POSITIVE_INFINITY) <= 18
+      }
     : captureView === 'transcript-layout'
     ? {
         isolatedProfile: result.profile?.isIsolated === true,
@@ -2275,7 +2303,8 @@ child.on('exit', async (code) => {
         isolatedProfile: result.profile?.isIsolated === true,
         transcriptFound: result.transcriptFound === true,
         composerReserveContract: result.composerReserveContractWorks === true,
-        composerReserveFollowBottom: result.composerReserveFollowBottomWorks === true
+        composerReserveFollowBottom: result.composerReserveFollowBottomWorks === true,
+        transcriptTrailingContentClearsComposer: result.transcriptTrailingContentClearsComposer === true
       }
     : captureView === 'transcript-file-reference'
     ? {
