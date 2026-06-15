@@ -934,6 +934,20 @@ export const sessionManager = {
   },
 
   upsertMessage(id: string, message: ChatMessage): void {
+    if (message.type === 'text' && message.role === 'assistant' && message.isStreaming === true) {
+      const key = streamingMessageKey(id, message.id)
+      const activeRecord = activeStreamingMessages.get(key)
+      const now = Date.now()
+      if (activeRecord && now - activeRecord.lastPersistedAt < STREAMING_MESSAGE_PERSIST_INTERVAL_MS) {
+        activeStreamingMessages.set(key, { id, message, lastPersistedAt: activeRecord.lastPersistedAt })
+        sendMessageUpdated(id, message)
+        return
+      }
+      activeStreamingMessages.set(key, { id, message, lastPersistedAt: now })
+    } else {
+      clearActiveStreamingMessage(id, message.id)
+    }
+
     const sessions = store.get('sessions', [])
     const s = sessions.find((s) => s.id === id)
     if (!s) return
@@ -1979,10 +1993,8 @@ export const sessionManager = {
         }
         const now = Date.now()
         if (!activeRecord) {
-          activeStreamingMessages.set(key, { id: sessionId, message, lastPersistedAt: now })
           this.upsertMessage(sessionId, message)
         } else if (now - activeRecord.lastPersistedAt >= STREAMING_MESSAGE_PERSIST_INTERVAL_MS) {
-          activeStreamingMessages.set(key, { id: sessionId, message, lastPersistedAt: now })
           this.upsertMessage(sessionId, message)
         } else {
           activeStreamingMessages.set(key, { id: sessionId, message, lastPersistedAt: activeRecord.lastPersistedAt })
