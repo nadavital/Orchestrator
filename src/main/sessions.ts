@@ -79,6 +79,18 @@ interface PendingFollowUp {
 interface SendMessageOptions {
   permissionSnapshot?: AutomationPermissionSnapshot | null
   onProviderRunComplete?: (result: { ok: boolean; error?: string | null }) => void
+  editFromMessageId?: string
+}
+
+interface MessageEditSnapshot {
+  messages: ChatMessage[]
+  providerSessionId: string | null
+  claudeSessionId?: string | null
+  providerThreadSource?: Session['providerThreadSource']
+  providerProjectless?: boolean
+  providerProjectlessThreadId?: string | null
+  previewText?: string
+  latestMessageAt?: number
 }
 
 interface CodexReviewStartResult {
@@ -977,6 +989,76 @@ export const sessionManager = {
     return true
   },
 
+  removeMessagesFrom(id: string, messageId: string): boolean {
+    const sessions = store.get('sessions', [])
+    const s = sessions.find((session) => session.id === id)
+    if (!s) return false
+    const index = s.messages.findIndex((message) => message.id === messageId)
+    if (index < 0) return false
+
+    const removedMessages = s.messages.slice(index)
+    for (const message of removedMessages) {
+      clearActiveStreamingMessage(id, message.id)
+      removePendingFollowUp(id, message.id)
+    }
+    s.messages = s.messages.slice(0, index)
+    s.providerSessionId = null
+    s.claudeSessionId = null
+    s.providerThreadSource = undefined
+    s.providerProjectless = undefined
+    s.providerProjectlessThreadId = null
+    s.previewText = sessionPreviewText(s.messages, s.name)
+    s.latestMessageAt = s.messages.at(-1)?.timestamp ?? s.createdAt
+    setSessionsStore(sessions, 'remove-messages-from', { sessionId: id, removedMessages: removedMessages.length })
+    for (const message of removedMessages) send('session:messageRemoved', { id, messageId: message.id })
+    send('session:updated', {
+      id,
+      providerSessionId: null,
+      claudeSessionId: null,
+      providerThreadSource: undefined,
+      providerProjectless: undefined,
+      providerProjectlessThreadId: null,
+      previewText: s.previewText,
+      latestMessageAt: s.latestMessageAt,
+      messageCount: s.messages.length,
+      messagesLoaded: true
+    })
+    return true
+  },
+
+  restoreMessages(id: string, snapshot: MessageEditSnapshot): boolean {
+    if (snapshot.messages.length === 0) return false
+    const sessions = store.get('sessions', [])
+    const s = sessions.find((session) => session.id === id)
+    if (!s) return false
+    const existingIds = new Set(s.messages.map((message) => message.id))
+    const messages = snapshot.messages.filter((message) => !existingIds.has(message.id))
+    if (messages.length === 0) return false
+    s.messages = [...s.messages, ...messages]
+    s.providerSessionId = snapshot.providerSessionId
+    s.claudeSessionId = snapshot.claudeSessionId
+    s.providerThreadSource = snapshot.providerThreadSource
+    s.providerProjectless = snapshot.providerProjectless
+    s.providerProjectlessThreadId = snapshot.providerProjectlessThreadId
+    s.previewText = snapshot.previewText ?? sessionPreviewText(s.messages, s.name)
+    s.latestMessageAt = snapshot.latestMessageAt ?? s.messages.at(-1)?.timestamp ?? s.createdAt
+    setSessionsStore(sessions, 'restore-messages', { sessionId: id, messages: messages.length })
+    send('session:messages', { id, messages })
+    send('session:updated', {
+      id,
+      providerSessionId: s.providerSessionId,
+      claudeSessionId: s.claudeSessionId,
+      providerThreadSource: s.providerThreadSource,
+      providerProjectless: s.providerProjectless,
+      providerProjectlessThreadId: s.providerProjectlessThreadId,
+      previewText: s.previewText,
+      latestMessageAt: s.latestMessageAt,
+      messageCount: s.messages.length,
+      messagesLoaded: true
+    })
+    return true
+  },
+
   async create(opts: {
     projectId: string
     workDir: string
@@ -1616,7 +1698,26 @@ export const sessionManager = {
   async sendMessage(sessionId: string, prompt: string, useWorktree?: boolean, attachments: Attachment[] = [], options: SendMessageOptions = {}): Promise<boolean> {
     const session = this.get(sessionId)
     if (!session) throw new Error(`Session ${sessionId} not found`)
-    const activeProviderId = session.provider ?? 'claude'
+    if (options.editFromMessageId && providerRuntime.hasActiveRun(sessionId)) return false
+    const editIndex = options.editFromMessageId
+      ? session.messages.findIndex((message) => message.id === options.editFromMessageId)
+      : -1
+    const editSnapshot: MessageEditSnapshot | null = editIndex >= 0
+      ? {
+          messages: session.messages.slice(editIndex),
+          providerSessionId: session.providerSessionId,
+          claudeSessionId: session.claudeSessionId,
+          providerThreadSource: session.providerThreadSource,
+          providerProjectless: session.providerProjectless,
+          providerProjectlessThreadId: session.providerProjectlessThreadId,
+          previewText: session.previewText,
+          latestMessageAt: session.latestMessageAt
+        }
+      : null
+    if (options.editFromMessageId && !this.removeMessagesFrom(sessionId, options.editFromMessageId)) return false
+    const editableSession = options.editFromMessageId ? this.get(sessionId) : session
+    if (!editableSession) throw new Error(`Session ${sessionId} not found`)
+    const activeProviderId = editableSession.provider ?? 'claude'
     const effectivePrompt = promptWithPersonalization(promptWithLocalAttachments(prompt, attachments))
     const runtimeAttachments = activeProviderId === 'codex' ? attachments : claudeResourceAttachmentSpecs(attachments)
     const simulateSendStartFailure =
@@ -1624,7 +1725,7 @@ export const sessionManager = {
       process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'composer' &&
       prompt === 'SEND_PROVIDER_FALSE_SMOKE'
     if (providerRuntime.hasActiveRun(sessionId)) {
-      if (session.runtime === 'interactive' && session.status === 'idle') {
+      if (editableSession.runtime === 'interactive' && editableSession.status === 'idle') {
         const userMsg: ChatMessage = {
           id: uuidv4(),
           role: 'user',
@@ -1655,7 +1756,7 @@ export const sessionManager = {
     }
 
     // Lazy worktree creation on first message if requested
-    if (useWorktree !== undefined && session.messages.length === 0) {
+    if (useWorktree !== undefined && editableSession.messages.length === 0) {
       const sessions = store.get('sessions', [])
       const s = sessions.find((s) => s.id === sessionId)
       if (s) {
@@ -1710,6 +1811,7 @@ export const sessionManager = {
         : await this.startProviderRun(sessionId, currentSession, provider, runRequest, mode, options.onProviderRunComplete)
       if (!started) {
         this.removeMessage(sessionId, userMessageId)
+        if (editSnapshot) this.restoreMessages(sessionId, editSnapshot)
         if (previousName && shouldAutoName) this.updateName(sessionId, previousName)
         if (simulateSendStartFailure) {
           const message = 'Provider runtime failed to start.'
@@ -1729,6 +1831,7 @@ export const sessionManager = {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       this.removeMessage(sessionId, userMessageId)
+      if (editSnapshot) this.restoreMessages(sessionId, editSnapshot)
       if (previousName && shouldAutoName) this.updateName(sessionId, previousName)
       this.appendMessage(sessionId, [{
         id: uuidv4(),

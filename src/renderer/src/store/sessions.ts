@@ -230,6 +230,20 @@ export interface SessionUIState {
   browserWorkbench?: BrowserWorkbenchState
   terminalPanel?: TerminalPanelState
   rightPanel?: RightPanelState
+  transcript?: TranscriptUIState
+}
+
+export interface TranscriptUIState {
+  expandedTurnIds?: string[]
+  scrollRestore?: TranscriptScrollRestoreState
+}
+
+export interface TranscriptScrollRestoreState {
+  messageId?: string
+  messageTop?: number
+  scrollTop: number
+  distanceFromBottomPx: number
+  updatedAt: number
 }
 
 interface SessionState {
@@ -318,6 +332,7 @@ interface SessionState {
   setComposerDraft: (id: string, draft: string) => void
   setComposerAttachments: (id: string, attachments: Attachment[] | ((current: Attachment[]) => Attachment[])) => void
   addComposerPromptHistory: (id: string, prompt: string) => void
+  updateTranscriptUI: (id: string, update: Partial<TranscriptUIState> | ((current: TranscriptUIState) => TranscriptUIState)) => void
   setProviderAvailability: (availability: Record<string, boolean>) => void
   setProviderModels: (v: Record<string, string[]>) => void
   mergeProviderModelCatalog: (v: Record<string, ProviderModelDef[]>) => void
@@ -369,6 +384,9 @@ export const defaultUI: SessionUIState = {
     fullWidth: false,
     activeTabId: null,
     tabs: []
+  },
+  transcript: {
+    expandedTurnIds: []
   }
 }
 
@@ -1541,6 +1559,24 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           [id]: {
             ...current,
             composerPromptHistory: nextHistory
+          }
+        }
+      }
+    }),
+
+  updateTranscriptUI: (id, update) =>
+    set((s) => {
+      const current = s.uiState[id] ?? defaultUI
+      const currentTranscript = current.transcript ?? {}
+      const nextTranscript = typeof update === 'function'
+        ? update(currentTranscript)
+        : { ...currentTranscript, ...update }
+      return {
+        uiState: {
+          ...s.uiState,
+          [id]: {
+            ...current,
+            transcript: nextTranscript
           }
         }
       }

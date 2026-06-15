@@ -1867,7 +1867,7 @@ child.on('exit', async (code) => {
         autoLazyAnchorPreserved: result.autoLazyAnchorPreserved === true,
         virtualMountedRowsBounded: Number(result.mountedVirtualRows ?? Number.POSITIVE_INFINITY) <= 36,
         transcriptSearchFound: result.transcriptSearchFound === true,
-        renderedWindowBounded: Number(result.renderedMessages ?? Number.POSITIVE_INFINITY) <= 40,
+        renderedWindowBounded: Number(result.renderedMessages ?? Number.POSITIVE_INFINITY) <= 120,
         telemetryRecorded: result.telemetryRecorded === true,
         titleWithinBudget: Number(result.titleElapsedMs ?? Number.POSITIVE_INFINITY) <= 150,
         transcriptWithinBudget: Number(result.switchElapsedMs ?? Number.POSITIVE_INFINITY) <= 900,
@@ -1919,11 +1919,18 @@ child.on('exit', async (code) => {
         initialMountedRowsBounded: Number(result.initialMountedRows ?? Number.POSITIVE_INFINITY) <= 48,
         lazyMountedRowsBounded: Number(result.lazyMountedRows ?? Number.POSITIVE_INFINITY) <= 56,
         searchMountedRowsBounded: Number(result.searchMountedRows ?? Number.POSITIVE_INFINITY) <= 56,
+        completedTurnsCollapsed: Number(result.initialCollapsedTurns ?? 0) > 0,
+        latestTurnVisible: result.latestTurnVisible === true,
+        userTurnRailMounted: result.railMounted === true,
+        userTurnRailJump: result.railJumpFound === true,
+        persistedTurnExpansion: result.expandedTurnPersisted === true,
+        persistedScrollRestore: result.scrollRestoreWorked === true,
         longThreadLoadControl: result.longThreadLoadControlWorks === true,
         longThreadLoadControlA11y: result.longThreadLoadControlA11yWorks === true,
-        longThreadVisibleCountIncreased: result.longThreadVisibleCountIncreased === true,
+        longThreadVisibleCountStable: result.longThreadVisibleCountWorks === true,
         lazyLoadedOlderChunk: result.lazyLoadedOlderChunk === true,
         searchJumpFound: result.searchJumpFound === true,
+        searchJumpExpandedTurn: result.searchJumpExpandedTurn === true,
         stressReadyWithinBudget: Number(result.readyElapsedMs ?? Number.POSITIVE_INFINITY) <= 1400
       }
     : captureView === 'streaming-drag'

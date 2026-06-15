@@ -491,6 +491,10 @@ test('resolved permission policies expose GUI metadata for adaptive controls', (
   assert.equal(runtimeInfo.cursor.policies.default.execution?.sandboxMode, 'enabled')
   assert.equal(runtimeInfo.cursor.policies.ask.intent, 'ask')
   assert.equal(runtimeInfo.cursor.policies.ask.execution?.sandboxMode, 'read-only')
+  assert.equal(runtimeInfo.cursor.policies.plan.intent, 'ask')
+  assert.equal(runtimeInfo.cursor.policies.plan.execution?.nativeMode, 'plan')
+  assert.equal(runtimeInfo.cursor.policies.allowlist.intent, 'autoEdit')
+  assert.equal(runtimeInfo.cursor.policies.allowlist.execution?.sandboxMode, 'disabled')
 
   assert.equal(runtimeInfo.antigravity.policies.default.intent, 'ask')
   assert.equal(runtimeInfo.antigravity.policies.default.interaction, 'headless')
@@ -639,6 +643,7 @@ test('claude product default permission modes are preserved for SDK mapping', ()
   assert.equal(PROVIDERS.claude.resolveExecutionPolicy('auto').execution?.nativeMode, 'auto')
   assert.equal(PROVIDERS.claude.resolveExecutionPolicy('acceptEdits').execution?.nativeMode, 'acceptEdits')
   assert.equal(PROVIDERS.claude.resolveExecutionPolicy('bypassPermissions').execution?.nativeMode, 'bypassPermissions')
+  assert.equal(getDefaultPermissionMode(PROVIDER_DEFS.cursor), 'allowlist')
 })
 
 test('product permission presets expose simple provider-aware controls', () => {
@@ -652,7 +657,7 @@ test('product permission presets expose simple provider-aware controls', () => {
     ['fullAccess', 'bypassPermissions']
   ])
   assert.deepEqual(getProviderPermissionPresets(PROVIDER_DEFS.cursor).map((preset) => [preset.id, preset.modeId]), [
-    ['default', 'default'],
+    ['default', 'allowlist'],
     ['fullAccess', 'yolo']
   ])
   assert.deepEqual(getProviderPermissionPresets(PROVIDER_DEFS.copilot).map((preset) => [preset.id, preset.modeId]), [
@@ -1874,6 +1879,34 @@ test('codex permission runtime context maps app-server config requirements to vi
   assert.equal(context.disabledPolicies?.fullAccess, 'Requires sandbox danger-full-access')
 })
 
+test('cursor permission runtime context keeps provider-native default and disables unavailable sandbox', () => {
+  const context = resolveProviderPermissionRuntimeContext('cursor', {
+    cwd: '/tmp/project',
+    cursorSandboxProbe: {
+      ok: false,
+      output: 'Error: Sandbox mode is enabled but not available on this system. Sandbox is unavailable.'
+    }
+  })
+
+  assert.equal(context.status, 'ok')
+  assert.equal(context.source, 'cli')
+  assert.equal(context.defaultPolicy, 'allowlist')
+  assert.deepEqual(context.visiblePolicies, ['ask', 'plan', 'allowlist', 'yolo'])
+  assert.match(context.disabledPolicies?.default ?? '', /sandbox is unavailable/i)
+})
+
+test('cursor permission runtime context leaves sandbox visible when the probe passes', () => {
+  const context = resolveProviderPermissionRuntimeContext('cursor', {
+    cwd: '/tmp/project',
+    cursorSandboxProbe: { ok: true }
+  })
+
+  assert.equal(context.status, 'ok')
+  assert.equal(context.defaultPolicy, 'default')
+  assert.deepEqual(context.visiblePolicies, ['ask', 'plan', 'allowlist', 'default', 'yolo'])
+  assert.equal(context.disabledPolicies, undefined)
+})
+
 test('codex policy supports app-server approvals while exec stays config-driven', () => {
   const resolved = PROVIDERS.codex.resolveExecutionPolicy('default')
   const command = PROVIDERS.codex.buildStartCommand!(request({ executionPolicy: 'default' }))
@@ -1964,6 +1997,27 @@ test('cursor ask policy is explicitly read-only', () => {
   assert.equal(resolved.intent, 'ask')
   assert.equal(command.args[command.args.indexOf('--mode') + 1], 'ask')
   assert.equal(command.args.includes('--force'), false)
+})
+
+test('cursor plan policy uses native read-only planning mode', () => {
+  const resolved = PROVIDERS.cursor.resolveExecutionPolicy('plan')
+  const command = PROVIDERS.cursor.buildStartCommand!(request({ model: 'auto', executionPolicy: 'plan' }))
+
+  assert.equal(resolved.support, 'exact')
+  assert.equal(resolved.intent, 'ask')
+  assert.equal(command.args[command.args.indexOf('--mode') + 1], 'plan')
+  assert.equal(command.args.includes('--force'), false)
+})
+
+test('cursor allowlist policy disables native sandbox without forcing all tools', () => {
+  const resolved = PROVIDERS.cursor.resolveExecutionPolicy('allowlist')
+  const command = PROVIDERS.cursor.buildStartCommand!(request({ model: 'auto', executionPolicy: 'allowlist' }))
+
+  assert.equal(resolved.support, 'exact')
+  assert.equal(resolved.intent, 'autoEdit')
+  assert.equal(command.args[command.args.indexOf('--sandbox') + 1], 'disabled')
+  assert.equal(command.args.includes('--force'), false)
+  assert.equal(command.args.includes('--trust'), true)
 })
 
 test('cursor sandbox policy requests sandbox without forced all-tools mode', () => {

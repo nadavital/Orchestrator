@@ -1684,7 +1684,7 @@ export default function App(): JSX.Element {
     if (!session || session.messagesLoaded || session.messageCount === 0) return
     let cancelled = false
     const startedAt = markRendererStart()
-    window.api.sessions.getTranscriptPage(activeSessionId, { limit: 40 }).then((page) => {
+    window.api.sessions.getTranscriptPage(activeSessionId, { limit: 120 }).then((page) => {
       if (!cancelled && page) {
         mergeTranscriptPage(activeSessionId, page, 'replace')
         recordRendererMetric('transcript.initial-page-ready', startedAt, {

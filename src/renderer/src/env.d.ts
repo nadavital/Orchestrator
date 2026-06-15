@@ -191,7 +191,7 @@ declare global {
         fork: (id: string, mode: SessionForkMode, options?: SessionForkOptions) => Promise<Session>
         retryPendingWorktree: (id: string) => Promise<Session>
         openAgentThread: (request: AgentThreadOpenRequest) => Promise<AgentThreadOpenResult>
-        sendMessage: (sessionId: string, prompt: string, useWorktree?: boolean, attachments?: Attachment[]) => Promise<boolean>
+        sendMessage: (sessionId: string, prompt: string, useWorktree?: boolean, attachments?: Attachment[], options?: { editFromMessageId?: string }) => Promise<boolean>
         startCodexReview: (sessionId: string, request: CodexReviewStartRequest) => Promise<{ ok: boolean; error?: string }>
         retryLastUserMessage: (sessionId: string) => Promise<boolean>
         continueLastTurn: (sessionId: string) => Promise<boolean>

@@ -281,7 +281,16 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     })
   const effort = session.effort ?? provider.effortLevels[0]?.id ?? ''
   const contextDefaultPermissionMode = permissionContext?.providerId === provider.id ? permissionContext.defaultPolicy : undefined
-  const defaultPermissionMode = getDefaultPermissionMode(provider, defaultPermissionModes[provider.id] ?? contextDefaultPermissionMode)
+  const storedDefaultPermissionMode = defaultPermissionModes[provider.id]
+  const storedDefaultDisabled = permissionContext?.providerId === provider.id &&
+    permissionContext.status === 'ok' &&
+    storedDefaultPermissionMode
+    ? Boolean(permissionContext.disabledPolicies?.[storedDefaultPermissionMode])
+    : false
+  const defaultPermissionMode = getDefaultPermissionMode(
+    provider,
+    storedDefaultDisabled ? contextDefaultPermissionMode : (storedDefaultPermissionMode ?? contextDefaultPermissionMode)
+  )
   const permissionMode = session.permissionMode ?? defaultPermissionMode
   const effectiveMode = isNew ? useWorktree : session.useWorktree
   const providerRuntime = runtimeInfo[provider.id]
@@ -358,6 +367,27 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   useEffect(() => {
     if (rawUseFast && !hasFast) update({ useFast: false })
   }, [rawUseFast, hasFast, session.id, model])
+
+  useEffect(() => {
+    if (provider.id !== 'cursor') return
+    if (permissionContext?.providerId !== 'cursor' || permissionContext.status !== 'ok') return
+    if (defaultPermissionModes.cursor) return
+    if (session.permissionMode !== 'allowlist') return
+    if (permissionContext.defaultPolicy !== 'default') return
+    if (session.status !== 'idle' || session.providerSessionId || session.messages.length > 0) return
+    update({ permissionMode: 'default' })
+  }, [
+    provider.id,
+    permissionContext?.providerId,
+    permissionContext?.status,
+    permissionContext?.defaultPolicy,
+    defaultPermissionModes.cursor,
+    session.permissionMode,
+    session.status,
+    session.providerSessionId,
+    session.messages.length,
+    session.id
+  ])
 
   const flushPendingSettingsBeforeSend = async (): Promise<boolean> => {
     try {
@@ -695,7 +725,15 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     setDraftSource(null)
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
     try {
-      const started = await window.api.sessions.sendMessage(session.id, prompt, isNew ? useWorktree : undefined, attachmentsBeforeSend)
+      const started = await window.api.sessions.sendMessage(
+        session.id,
+        prompt,
+        isNew ? useWorktree : undefined,
+        attachmentsBeforeSend,
+        draftSourceBeforeSend?.kind === 'message-edit-draft'
+          ? { editFromMessageId: draftSourceBeforeSend.messageId }
+          : undefined
+      )
       if (!started) {
         restoreDraftAfterFailedSend()
         setRunActionStatus({ text: 'Run failed to start', tone: 'danger' })
@@ -1490,9 +1528,9 @@ function InputBar({ session, isNew }: Props): JSX.Element {
               color: 'var(--text-secondary)'
             }}
           >
-            <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>Editing a copy</span>
+            <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>Editing message</span>
             <span className="min-w-0 flex-1 truncate">
-              Original message stays in the transcript{draftSource.attachmentCount > 0 ? ` with ${draftSource.attachmentCount} ${draftSource.attachmentCount === 1 ? 'attachment' : 'attachments'}` : ''}{draftSource.previousDraft ? '; previous draft saved.' : '.'}
+              Sending replaces this message and the replies after it{draftSource.attachmentCount > 0 ? `, including ${draftSource.attachmentCount} ${draftSource.attachmentCount === 1 ? 'attachment' : 'attachments'}` : ''}{draftSource.previousDraft ? '; previous draft saved.' : '.'}
             </span>
             {draftSource.previousDraft && (
               <button

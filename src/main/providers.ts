@@ -1974,6 +1974,10 @@ type ProviderPermissionContextInput = {
   cwd?: string
   configResult?: ProviderCommandSurfaceResult
   requirementsResult?: ProviderCommandSurfaceResult
+  cursorSandboxProbe?: {
+    ok: boolean
+    output?: string
+  }
 }
 
 export function resolveProviderPermissionRuntimeContext(
@@ -1991,7 +1995,39 @@ export function resolveProviderPermissionRuntimeContext(
     summary: 'Using static provider permission modes.',
     updatedAt: Date.now()
   }
-  if (!providerDef || providerId !== 'codex') return staticContext
+  if (!providerDef) return staticContext
+  if (providerId === 'cursor') {
+    const disabledPolicies = input.cursorSandboxProbe && !input.cursorSandboxProbe.ok
+      ? {
+          default: cursorSandboxUnavailableReason(input.cursorSandboxProbe.output)
+        }
+      : undefined
+    const visiblePolicies = providerDef.permissionModes
+      .map((mode) => mode.id)
+      .filter((policyId) => !disabledPolicies?.[policyId])
+    const defaultPolicy = input.cursorSandboxProbe?.ok && visiblePolicies.includes('default')
+      ? 'default'
+      : visiblePolicies.includes('allowlist')
+        ? 'allowlist'
+        : visiblePolicies.includes(providerDef.defaultPermissionMode ?? '')
+          ? providerDef.defaultPermissionMode
+          : visiblePolicies[0] ?? getProviderStaticDefaultPolicy(providerDef)
+    return {
+      ...staticContext,
+      status: input.cursorSandboxProbe ? 'ok' : 'static',
+      source: input.cursorSandboxProbe ? 'cli' : 'static',
+      defaultPolicy,
+      visiblePolicies,
+      disabledPolicies,
+      summary: input.cursorSandboxProbe
+        ? input.cursorSandboxProbe.ok
+          ? 'Cursor CLI permission modes loaded; native sandbox probe passed.'
+          : `Cursor CLI permission modes loaded; Sandbox is unavailable: ${cursorSandboxUnavailableReason(input.cursorSandboxProbe.output)}`
+        : staticContext.summary,
+      updatedAt: Date.now()
+    }
+  }
+  if (providerId !== 'codex') return staticContext
 
   const configPayload = parseSurfaceJson(input.configResult)
   const requirementsPayload = parseSurfaceJson(input.requirementsResult)
@@ -2100,6 +2136,24 @@ function getProviderStaticDefaultPolicy(providerDef: typeof PROVIDER_DEFS[string
   return providerDef.defaultPermissionMode && providerDef.permissionModes.some((mode) => mode.id === providerDef.defaultPermissionMode)
     ? providerDef.defaultPermissionMode
     : providerDef.permissionModes[0]?.id ?? 'default'
+}
+
+function cursorSandboxUnavailableReason(output?: string): string {
+  const cleaned = String(output ?? '')
+    .replace(/\u001b\[[0-?]*[ -/]*[@-~]/g, '')
+    .replace(/\r/g, '\n')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .slice(-2)
+    .join(' ')
+  if (/sandbox mode is enabled but not available|sandbox is unavailable/i.test(cleaned)) {
+    return "Cursor sandbox is unavailable on this system. Run 'agent sandbox disable' or use Allowlist/Auto."
+  }
+  if (/SecItemCopyMatching/i.test(cleaned)) {
+    return 'Cursor sandbox probe failed while accessing local keychain state in this app process.'
+  }
+  return cleaned || 'Cursor sandbox probe failed on this system.'
 }
 
 function parseSurfaceJson(result?: ProviderCommandSurfaceResult): Record<string, unknown> | undefined {
@@ -4050,6 +4104,46 @@ function cursorPolicy(policyId: string): ResolvedExecutionPolicy {
       }
     })
   }
+  if (policyId === 'allowlist') {
+    return policy(
+      policyId,
+      'exact',
+      ['--sandbox', 'disabled', '--trust'],
+      'Allowlist',
+      'Uses Cursor allow and deny config rules without native sandboxing.',
+      undefined,
+      {
+        intent: 'autoEdit',
+        interaction: 'headless',
+        controls: cursorPermissionControls,
+        execution: {
+          nativeMode: 'allowlist',
+          sandboxMode: 'disabled',
+          configSource: 'cli'
+        }
+      }
+    )
+  }
+  if (policyId === 'plan') {
+    return policy(
+      policyId,
+      'exact',
+      ['--mode', 'plan', '--trust'],
+      'Plan',
+      'Cursor plan mode analyzes and proposes changes without editing.',
+      undefined,
+      {
+        intent: 'ask',
+        interaction: 'headless',
+        controls: cursorPermissionControls,
+        execution: {
+          nativeMode: 'plan',
+          sandboxMode: 'read-only',
+          configSource: 'cli'
+        }
+      }
+    )
+  }
   if (policyId === 'ask') {
     return policy(
       policyId,
@@ -4679,6 +4773,12 @@ async function loadProviderPermissionRuntimeContext(
   providerId: string,
   cwd = process.cwd()
 ): Promise<ProviderPermissionRuntimeContext> {
+  if (providerId === 'cursor') {
+    return resolveProviderPermissionRuntimeContext(providerId, {
+      cwd,
+      cursorSandboxProbe: await probeCursorSandbox(cwd)
+    })
+  }
   if (providerId !== 'codex') return resolveProviderPermissionRuntimeContext(providerId, { cwd })
   const [configResult, requirementsResult] = await Promise.all([
     runProviderCommandSurfaceAsync(providerId, 'appserver-config', cwd),
@@ -4689,6 +4789,23 @@ async function loadProviderPermissionRuntimeContext(
     configResult,
     requirementsResult
   })
+}
+
+async function probeCursorSandbox(cwd: string): Promise<{ ok: boolean; output?: string }> {
+  const binary = resolveProviderBinary(PROVIDERS.cursor)
+  if (!binary) return { ok: false, output: 'Cursor Agent CLI is not available.' }
+  try {
+    await execFileAsync(binary, ['sandbox', 'run', 'true'], {
+      cwd,
+      env: providerSpawnEnv('cursor'),
+      timeout: 8_000,
+      maxBuffer: 128 * 1024
+    })
+    return { ok: true }
+  } catch (error) {
+    const err = error as { stdout?: unknown; stderr?: unknown; message?: string }
+    return { ok: false, output: stringifyCommandError(err) }
+  }
 }
 
 export function getProviderRuntimeInfo(): Record<string, ProviderRuntimeInfo> {

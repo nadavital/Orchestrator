@@ -200,8 +200,8 @@ const api = {
       ipcRenderer.invoke('sessions:retryPendingWorktree', id),
     openAgentThread: (request: AgentThreadOpenRequest): Promise<AgentThreadOpenResult> =>
       ipcRenderer.invoke('sessions:openAgentThread', request),
-    sendMessage: (sessionId: string, prompt: string, useWorktree?: boolean, attachments?: Attachment[]): Promise<boolean> =>
-      ipcRenderer.invoke('sessions:sendMessage', sessionId, prompt, useWorktree, attachments ?? []),
+    sendMessage: (sessionId: string, prompt: string, useWorktree?: boolean, attachments?: Attachment[], options?: { editFromMessageId?: string }): Promise<boolean> =>
+      ipcRenderer.invoke('sessions:sendMessage', sessionId, prompt, useWorktree, attachments ?? [], options),
     startCodexReview: (sessionId: string, request: CodexReviewStartRequest): Promise<{ ok: boolean; error?: string }> =>
       ipcRenderer.invoke('sessions:startCodexReview', sessionId, request),
     retryLastUserMessage: (sessionId: string): Promise<boolean> =>

@@ -36,6 +36,7 @@ import {
 import type { Session, ChatMessage, FileChange, FileReference, OpenPathResult, PermissionRequestDetail, ResultMessage, SessionForkMode, SessionRunEventRecord, ToolResultMessage, ToolUseMessage, UserInputQuestion } from '../../types'
 import type { Attachment } from '../../types'
 import type { TranscriptSearchResult } from '../../types'
+import { buildTranscriptTurnGroups, transcriptTurnIdForMessage, type TranscriptTurnGroup } from '../../../../types/transcriptView'
 import { useSessionStore } from '../../store/sessions'
 import { useProjectStore } from '../../store/projects'
 import { markRendererStart, recordRendererMetric } from '../../performance'
@@ -56,15 +57,19 @@ interface Props {
 const TOOL_SUMMARY_SCROLL_THRESHOLD = 8
 const TOOL_SUMMARY_MAX_HEIGHT = 220
 const TOOL_SUMMARY_COLLAPSED_ESTIMATE = 42
+const TURN_SUMMARY_COLLAPSED_ESTIMATE = 74
 const FOLLOW_BOTTOM_THRESHOLD = 80
 const USER_MESSAGE_COLLAPSE_LENGTH = 1400
 const USER_MESSAGE_COLLAPSE_MIN_BREAK = 980
-const TRANSCRIPT_RENDER_CHUNK = 40
+const TRANSCRIPT_PAGE_CHUNK = 120
 const TRANSCRIPT_LAZY_LOAD_TOP_THRESHOLD = 360
 const TRANSCRIPT_VIRTUAL_OVERSCAN = 900
 const TRANSCRIPT_USER_SCROLL_LOCKOUT_MS = 1400
 const TRANSCRIPT_STREAMING_ROW_MEASURE_MS = 120
 const TRANSCRIPT_COMPOSER_CLEARANCE_PX = 24
+const TRANSCRIPT_NAV_RAIL_MIN_TURNS = 6
+const TRANSCRIPT_MAX_PERSISTED_EXPANDED_TURNS = 80
+const TRANSCRIPT_SCROLL_STATE_THROTTLE_MS = 250
 const EMPTY_STATE_SUGGESTIONS = [
   {
     label: 'Review this branch',
@@ -98,6 +103,8 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
   const setShowSettings = useSessionStore((state) => state.setShowSettings)
   const setShowCapabilities = useSessionStore((state) => state.setShowCapabilities)
   const removeMessage = useSessionStore((state) => state.removeMessage)
+  const transcriptUI = useSessionStore((state) => state.uiState[session.id]?.transcript)
+  const updateTranscriptUI = useSessionStore((state) => state.updateTranscriptUI)
   const addSessionToProject = useProjectStore((state) => state.addSessionToProject)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -111,6 +118,9 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
   const measuredRowHeightsRef = useRef<Record<string, number>>({})
   const prependAnchorRef = useRef<TranscriptPrependAnchor | null>(null)
   const readSyncedSessionRef = useRef<string | null>(null)
+  const expandedTurnIdsRef = useRef<Set<string>>(new Set())
+  const lastScrollStatePersistedAtRef = useRef(0)
+  const restoredSessionIdRef = useRef<string | null>(null)
   const [readSyncedSessionId, setReadSyncedSessionId] = useState<string | null>(null)
   const [showJumpToLatest, setShowJumpToLatest] = useState(false)
   const [preferredEditor, setPreferredEditor] = useState<PreferredEditor>('system')
@@ -121,13 +131,13 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
   const [searching, setSearching] = useState(false)
   const [sharedFindActive, setSharedFindActive] = useState(false)
   const [sharedSearchActiveResultIndex, setSharedSearchActiveResultIndex] = useState(0)
-  const [renderLimit, setRenderLimit] = useState(() => Math.min(session.messages.length, TRANSCRIPT_RENDER_CHUNK))
   const [scrollMetrics, setScrollMetrics] = useState({ top: 0, height: 0, listOffsetTop: 0 })
   const [rowMeasurementVersion, setRowMeasurementVersion] = useState(0)
   const [composerReserveHeight, setComposerReserveHeight] = useState(0)
   const [transcriptActionStatus, setTranscriptActionStatus] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
   const [focusedMessageId, setFocusedMessageId] = useState<string | null>(null)
   const streamingMessages = useSessionStore((state) => state.streamingMessages[session.id])
+  const expandedTurnIds = useMemo(() => new Set(transcriptUI?.expandedTurnIds ?? []), [transcriptUI?.expandedTurnIds])
 
   useEffect(() => {
     const globals = window as typeof window & { __orchestratorChatViewCommitCount?: number }
@@ -140,25 +150,44 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
     () => applyStreamingMessageOverlays(session.messages, streamingMessages),
     [session.messages, streamingMessages]
   )
-  const visibleMessages = useMemo(() => {
-    if (effectiveMessages.length <= renderLimit) return effectiveMessages
-    return effectiveMessages.slice(-renderLimit)
-  }, [effectiveMessages, renderLimit])
   const displayedMessages = useMemo(
-    () => transcriptMessagesForDisplay(session.provider, visibleMessages),
-    [session.provider, visibleMessages]
+    () => transcriptMessagesForDisplay(session.provider, effectiveMessages),
+    [session.provider, effectiveMessages]
   )
   const totalMessageCount = session.messageCount ?? session.messages.length
-  const hiddenMessageCount = Math.max(0, totalMessageCount - visibleMessages.length)
-  const transcriptItems = useMemo(() => groupTranscriptMessages(displayedMessages), [displayedMessages])
+  const unloadedBeforeCount = Math.max(0, totalMessageCount - session.messages.length)
+  const transcriptTurnGroups = useMemo(
+    () => buildTranscriptTurnGroups(displayedMessages),
+    [displayedMessages]
+  )
+  const transcriptItems = useMemo(
+    () => groupTranscriptTurnGroups(transcriptTurnGroups, expandedTurnIds),
+    [expandedTurnIds, transcriptTurnGroups]
+  )
+  const transcriptUserTurnEntries = useMemo(
+    () => transcriptTurnGroups
+      .map((turn) => {
+        const userMessage = turn.messages.find((message) => message.type === 'text' && message.role === 'user')
+        if (!userMessage || userMessage.type !== 'text') return null
+        return {
+          id: turn.id,
+          messageId: userMessage.id,
+          label: turn.summary.userPreview || `Turn ${turn.index + 1}`,
+          index: turn.index,
+          isLatest: turn.isLatest
+        }
+      })
+      .filter((entry): entry is TranscriptUserTurnEntry => entry !== null),
+    [transcriptTurnGroups]
+  )
   const fileReferenceRoots = useMemo(() => sessionFileReferenceRoots(session), [session])
   const hasStreamingAssistantMessage = useMemo(() => (
-    visibleMessages.some((message) => (
+    displayedMessages.some((message) => (
       message.type === 'text' &&
       message.role === 'assistant' &&
       message.isStreaming === true
     ))
-  ), [visibleMessages])
+  ), [displayedMessages])
   const showThinkingIndicator = isActiveSessionStatus(session.status) || hasStreamingAssistantMessage
   const lastMessage = effectiveMessages[effectiveMessages.length - 1]
   const lastTextLength = lastMessage?.type === 'text' ? lastMessage.content.length : 0
@@ -180,8 +209,6 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
     return null
   }, [effectiveMessages, session.status])
   const canRegenerateLastAssistant = !isActiveSessionStatus(session.status) && hasRetryableUserMessage(session)
-  const loadedHiddenCount = Math.max(0, effectiveMessages.length - visibleMessages.length)
-  const unloadedBeforeCount = Math.max(0, totalMessageCount - session.messages.length)
   const virtualWindow = useMemo(() => buildVirtualTranscriptWindow(
     transcriptItems,
     measuredRowHeightsRef.current,
@@ -192,6 +219,29 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
   useEffect(() => {
     loadingEarlierRef.current = loadingEarlier
   }, [loadingEarlier])
+
+  useEffect(() => {
+    expandedTurnIdsRef.current = expandedTurnIds
+  }, [expandedTurnIds])
+
+  const updateExpandedTranscriptTurnIds = useCallback((updater: (current: Set<string>) => Set<string>): void => {
+    updateTranscriptUI(session.id, (current) => {
+      const next = updater(new Set(current.expandedTurnIds ?? []))
+      return {
+        ...current,
+        expandedTurnIds: Array.from(next).slice(-TRANSCRIPT_MAX_PERSISTED_EXPANDED_TURNS)
+      }
+    })
+  }, [session.id, updateTranscriptUI])
+
+  const expandTranscriptTurn = useCallback((turnId: string): void => {
+    updateExpandedTranscriptTurnIds((current) => {
+      if (current.has(turnId)) return current
+      const next = new Set(current)
+      next.add(turnId)
+      return next
+    })
+  }, [updateExpandedTranscriptTurnIds])
 
   useEffect(() => {
     setTranscriptActionStatus(null)
@@ -253,7 +303,7 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
   const editUserMessageFromHere = useCallback(async (messageId: string, content: string, attachments: Attachment[] = []): Promise<void> => {
     const text = content.trim()
     if (!text && attachments.length === 0) return
-    setTranscriptActionStatus({ text: 'Copied message and attachments into composer draft', tone: 'info' })
+    setTranscriptActionStatus({ text: 'Editing this message from the composer', tone: 'info' })
     window.dispatchEvent(new CustomEvent('orchestrator:set-composer-text', {
       detail: {
         sessionId: session.id,
@@ -303,11 +353,20 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
   }, [updateScrollMetrics])
 
   const focusTranscriptMessage = useCallback((messageId: string, statusText: string): void => {
-    setRenderLimit((current) => Math.max(current, session.messages.length))
+    const turnId = transcriptTurnIdForMessage(displayedMessages, messageId)
+    if (turnId) {
+      updateExpandedTranscriptTurnIds((current) => {
+        if (current.has(turnId)) return current
+        const next = new Set(current)
+        next.add(turnId)
+        return next
+      })
+    }
     setFocusedMessageId(messageId)
     setTranscriptActionStatus({ text: statusText, tone: 'info' })
     window.setTimeout(() => {
-      const targetOffset = transcriptItemOffset(messageId, groupTranscriptMessages(session.messages), measuredRowHeightsRef.current)
+      const expandedTurnIds = turnId ? new Set([...Array.from(expandedTurnIdsRef.current), turnId]) : expandedTurnIdsRef.current
+      const targetOffset = transcriptItemOffset(messageId, groupTranscriptMessages(displayedMessages, expandedTurnIds), measuredRowHeightsRef.current)
       const scroller = scrollContainerRef.current
       if (scroller && targetOffset !== null) {
         scroller.scrollTop = Math.max(0, (transcriptListRef.current?.offsetTop ?? 0) + targetOffset - Math.round(scroller.clientHeight * 0.35))
@@ -320,7 +379,7 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
         updateScrollMetrics()
       })
     }, 0)
-  }, [session.messages, updateScrollMetrics])
+  }, [displayedMessages, updateExpandedTranscriptTurnIds, updateScrollMetrics])
 
   useLayoutEffect(() => {
     updateScrollMetrics()
@@ -398,6 +457,25 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
     }
   }, [])
 
+  const persistTranscriptScrollState = useCallback((force = false): void => {
+    const scroller = scrollContainerRef.current
+    if (!scroller) return
+    const now = performance.now()
+    if (!force && now - lastScrollStatePersistedAtRef.current < TRANSCRIPT_SCROLL_STATE_THROTTLE_MS) return
+    lastScrollStatePersistedAtRef.current = now
+    const anchor = readVisiblePrependAnchor()
+    updateTranscriptUI(session.id, (current) => ({
+      ...current,
+      scrollRestore: {
+        messageId: anchor?.messageId,
+        messageTop: anchor?.messageTop,
+        scrollTop: scroller.scrollTop,
+        distanceFromBottomPx: Math.max(0, scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight),
+        updatedAt: Date.now()
+      }
+    }))
+  }, [readVisiblePrependAnchor, session.id, updateTranscriptUI])
+
   const capturePrependAnchor = useCallback((anchor?: TranscriptPrependAnchor | null) => {
     if (prependAnchorRef.current) return
     prependAnchorRef.current = anchor ?? readVisiblePrependAnchor()
@@ -438,7 +516,7 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
       updateScrollMetrics()
     })
     return () => window.cancelAnimationFrame(frame)
-  }, [session.messages.length, renderLimit, transcriptItems, updateScrollMetrics])
+  }, [session.messages.length, transcriptItems, updateScrollMetrics])
 
   const scrollToBottom = useCallback((force = false) => {
     if (force) {
@@ -504,28 +582,6 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
   ) => {
     if (loadingEarlierRef.current) return
     capturePrependAnchor(anchor)
-    if (loadedHiddenCount > 0) {
-      const nextRenderLimit = Math.min(session.messages.length, renderLimit + TRANSCRIPT_RENDER_CHUNK)
-      const previousStart = Math.max(0, session.messages.length - renderLimit)
-      const nextStart = Math.max(0, session.messages.length - nextRenderLimit)
-      const anchorToRestore = prependAnchorRef.current
-      const estimatedPrependedHeight = estimateTranscriptMessagesHeight(session.messages.slice(nextStart, previousStart))
-      if (prependAnchorRef.current) {
-        prependAnchorRef.current.estimatedPrependedHeight = estimatedPrependedHeight
-      }
-      loadingEarlierRef.current = true
-      setRenderLimit(nextRenderLimit)
-      schedulePrependScrollCompensation(anchorToRestore, estimatedPrependedHeight)
-      window.requestAnimationFrame(() => {
-        loadingEarlierRef.current = false
-      })
-      recordRendererMetric('transcript.lazy.render-loaded', markRendererStart(), {
-        sessionId: session.id,
-        source,
-        renderedMessages: Math.min(session.messages.length, renderLimit + TRANSCRIPT_RENDER_CHUNK)
-      })
-      return
-    }
     const beforeMessageId = session.messages[0]?.id
     if (!beforeMessageId || unloadedBeforeCount <= 0) {
       prependAnchorRef.current = null
@@ -535,7 +591,7 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
     setLoadingEarlier(true)
     const startedAt = markRendererStart()
     try {
-      const page = await window.api.sessions.getTranscriptPage(session.id, { beforeMessageId, limit: TRANSCRIPT_RENDER_CHUNK })
+      const page = await window.api.sessions.getTranscriptPage(session.id, { beforeMessageId, limit: TRANSCRIPT_PAGE_CHUNK })
       if (page) {
         const anchorToRestore = prependAnchorRef.current
         const estimatedPrependedHeight = estimateTranscriptMessagesHeight(page.messages)
@@ -543,7 +599,6 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
           prependAnchorRef.current.estimatedPrependedHeight = estimatedPrependedHeight
         }
         useSessionStore.getState().mergeTranscriptPage(session.id, page, 'prepend')
-        setRenderLimit((current) => Math.min(current + page.messages.length, current + TRANSCRIPT_RENDER_CHUNK))
         schedulePrependScrollCompensation(anchorToRestore, estimatedPrependedHeight)
         recordRendererMetric('transcript.page.prepend-ready', startedAt, {
           sessionId: session.id,
@@ -560,8 +615,6 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
     }
   }, [
     capturePrependAnchor,
-    loadedHiddenCount,
-    renderLimit,
     session.id,
     session.messages,
     unloadedBeforeCount
@@ -575,24 +628,52 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
     const isAtBottom = distanceFromBottom <= FOLLOW_BOTTOM_THRESHOLD
     if (isAtBottom) clearUserScrollLockout()
     setFollowingBottom(isAtBottom && performance.now() >= userScrollLockoutUntilRef.current)
-    if (hiddenMessageCount > 0 && scroller.scrollTop <= TRANSCRIPT_LAZY_LOAD_TOP_THRESHOLD) {
+    persistTranscriptScrollState()
+    if (unloadedBeforeCount > 0 && scroller.scrollTop <= TRANSCRIPT_LAZY_LOAD_TOP_THRESHOLD) {
       const anchor = readVisiblePrependAnchor()
       void handleLoadEarlier('auto', anchor)
     }
-  }, [clearUserScrollLockout, handleLoadEarlier, hiddenMessageCount, readVisiblePrependAnchor, scheduleScrollMetricsUpdate, setFollowingBottom])
+  }, [clearUserScrollLockout, handleLoadEarlier, persistTranscriptScrollState, readVisiblePrependAnchor, scheduleScrollMetricsUpdate, setFollowingBottom, unloadedBeforeCount])
 
   useEffect(() => {
     setFollowingBottom(true)
     measuredRowHeightsRef.current = {}
     setRowMeasurementVersion((version) => version + 1)
-    setRenderLimit(Math.min(session.messages.length, TRANSCRIPT_RENDER_CHUNK))
-    scrollToBottom(true)
-  }, [scrollToBottom, session.id, session.messagesLoaded, setFollowingBottom])
+    lastScrollStatePersistedAtRef.current = 0
+    restoredSessionIdRef.current = null
+  }, [session.id, setFollowingBottom])
 
-  useEffect(() => {
-    const firstPageLimit = Math.min(session.messages.length, TRANSCRIPT_RENDER_CHUNK)
-    setRenderLimit((current) => current < firstPageLimit ? firstPageLimit : current)
-  }, [session.id, session.messages.length])
+  useLayoutEffect(() => {
+    if (restoredSessionIdRef.current === session.id) return
+    if (displayedMessages.length === 0 && totalMessageCount > 0) return
+    restoredSessionIdRef.current = session.id
+    const restore = transcriptUI?.scrollRestore
+    const restoreScroll = (): void => {
+      const scroller = scrollContainerRef.current
+      if (!scroller) return
+      if (restore?.messageId) {
+        const targetOffset = transcriptItemOffset(restore.messageId, transcriptItems, measuredRowHeightsRef.current)
+        if (targetOffset !== null) {
+          scroller.scrollTop = Math.max(0, (transcriptListRef.current?.offsetTop ?? 0) + targetOffset - (restore.messageTop ?? 0))
+          updateScrollMetrics()
+          setFollowingBottom(restore.distanceFromBottomPx <= FOLLOW_BOTTOM_THRESHOLD)
+          return
+        }
+      }
+      if (restore) {
+        scroller.scrollTop = Math.max(0, scroller.scrollHeight - scroller.clientHeight - restore.distanceFromBottomPx)
+        updateScrollMetrics()
+        setFollowingBottom(restore.distanceFromBottomPx <= FOLLOW_BOTTOM_THRESHOLD)
+        return
+      }
+      scrollToBottom(true)
+    }
+    const frame = window.requestAnimationFrame(() => {
+      restoreScroll()
+      window.requestAnimationFrame(restoreScroll)
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [displayedMessages.length, scrollToBottom, session.id, setFollowingBottom, totalMessageCount, transcriptItems, transcriptUI?.scrollRestore, updateScrollMetrics])
 
   useEffect(() => {
     if (!shouldFollowBottomRef.current) return
@@ -613,11 +694,11 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
     }
     const pending = perfWindow.__orchestratorSessionSwitchPerf
     if (!pending || pending.sessionId !== session.id || pending.transcriptReadyAt) return
-    if (visibleMessages.length === 0) return
+    if (displayedMessages.length === 0) return
     const transcriptReadyAt = performance.now()
     const result = {
       ...pending,
-      renderedMessages: visibleMessages.length,
+      renderedMessages: displayedMessages.length,
       transcriptReadyAt,
       transcriptReadyMs: transcriptReadyAt - pending.startedAt
     }
@@ -643,10 +724,10 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
         transcriptReadyMs: Math.round(result.transcriptReadyMs)
       })
     }
-  }, [session.id, visibleMessages.length])
+  }, [displayedMessages.length, session.id])
 
   useLayoutEffect(() => {
-    const transcriptReady = totalMessageCount === 0 || visibleMessages.length > 0
+    const transcriptReady = totalMessageCount === 0 || displayedMessages.length > 0
     if (!transcriptReady || readSyncedSessionRef.current === session.id) return
     if (useSessionStore.getState().activeSessionId !== session.id) return
     useSessionStore.getState().setHasUnread(session.id, false)
@@ -655,11 +736,11 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
     window.dispatchEvent(new CustomEvent('orchestrator:active-transcript-visible', {
       detail: {
         sessionId: session.id,
-        renderedMessages: visibleMessages.length,
+        renderedMessages: displayedMessages.length,
         messageCount: totalMessageCount
       }
     }))
-  }, [session.id, totalMessageCount, visibleMessages.length])
+  }, [displayedMessages.length, session.id, totalMessageCount])
 
   useEffect(() => {
     const openSearch = (): void => {
@@ -723,13 +804,12 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
   }, [searchOpen, searchQuery, session.id])
 
   useEffect(() => {
-    if (session.messagesLoaded || session.messageCount === 0 || session.messages.length >= Math.min(totalMessageCount, TRANSCRIPT_RENDER_CHUNK)) return
+    if (session.messagesLoaded || session.messageCount === 0 || session.messages.length >= Math.min(totalMessageCount, TRANSCRIPT_PAGE_CHUNK)) return
     let cancelled = false
     const startedAt = markRendererStart()
-    window.api.sessions.getTranscriptPage(session.id, { limit: TRANSCRIPT_RENDER_CHUNK }).then((page) => {
+    window.api.sessions.getTranscriptPage(session.id, { limit: TRANSCRIPT_PAGE_CHUNK }).then((page) => {
       if (cancelled || !page) return
       useSessionStore.getState().mergeTranscriptPage(session.id, page, 'replace')
-      setRenderLimit(Math.min(page.messages.length, TRANSCRIPT_RENDER_CHUNK))
       recordRendererMetric('transcript.visible-page-ready', startedAt, {
         sessionId: session.id,
         messages: page.messages.length,
@@ -750,20 +830,26 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
     }
   }, [])
 
-  const handleLoadAllLoaded = useCallback(() => {
-    setRenderLimit(session.messages.length)
-  }, [session.messages.length])
-
   const handleJumpToSearchResult = useCallback(async (result: TranscriptSearchResult) => {
     const startedAt = markRendererStart()
     const page = await window.api.sessions.getTranscriptPage(session.id, {
       aroundMessageId: result.messageId,
-      limit: TRANSCRIPT_RENDER_CHUNK
+      limit: TRANSCRIPT_PAGE_CHUNK
     })
     if (!page) return
-    const targetOffset = transcriptItemOffset(result.messageId, groupTranscriptMessages(page.messages), {})
+    const pageMessages = transcriptMessagesForDisplay(session.provider, page.messages)
+    const turnId = transcriptTurnIdForMessage(pageMessages, result.messageId)
+    const expandedTurnIds = turnId ? new Set([...Array.from(expandedTurnIdsRef.current), turnId]) : expandedTurnIdsRef.current
+    const targetOffset = transcriptItemOffset(result.messageId, groupTranscriptMessages(pageMessages, expandedTurnIds), {})
     useSessionStore.getState().mergeTranscriptPage(session.id, page, 'replace')
-    setRenderLimit(page.messages.length)
+    if (turnId) {
+      updateExpandedTranscriptTurnIds((current) => {
+        if (current.has(turnId)) return current
+        const next = new Set(current)
+        next.add(turnId)
+        return next
+      })
+    }
     recordRendererMetric('transcript.search.jump-ready', startedAt, {
       sessionId: session.id,
       messageIndex: result.messageIndex,
@@ -780,7 +866,7 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
         updateScrollMetrics()
       })
     })
-  }, [session.id, updateScrollMetrics])
+  }, [session.id, session.provider, updateExpandedTranscriptTurnIds, updateScrollMetrics])
 
   useEffect(() => {
     if (sharedSearchActiveResultIndex < searchResults.length) return
@@ -956,25 +1042,22 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
             gap: 'var(--transcript-gap, 14px)'
           }}
         >
-          {hiddenMessageCount > 0 && (
+          {unloadedBeforeCount > 0 && (
             <LoadEarlierMessages
-              hiddenCount={hiddenMessageCount}
-              visibleCount={visibleMessages.length}
-              totalCount={totalMessageCount}
-              loadedHiddenCount={loadedHiddenCount}
               unloadedBeforeCount={unloadedBeforeCount}
+              loadedCount={session.messages.length}
+              totalCount={totalMessageCount}
               loading={loadingEarlier}
               onLoad={() => { void handleLoadEarlier('manual') }}
-              onLoadAll={handleLoadAllLoaded}
             />
           )}
-          {hiddenMessageCount === 0 && totalMessageCount > TRANSCRIPT_RENDER_CHUNK && (
+          {unloadedBeforeCount === 0 && totalMessageCount > TRANSCRIPT_PAGE_CHUNK && (
             <TranscriptHistoryStatus
               totalCount={totalMessageCount}
-              visibleCount={visibleMessages.length}
+              visibleCount={displayedMessages.length}
             />
           )}
-          {unloadedBeforeCount > 0 && session.messages.length < Math.min(totalMessageCount, TRANSCRIPT_RENDER_CHUNK) && (
+          {unloadedBeforeCount > 0 && session.messages.length < Math.min(totalMessageCount, TRANSCRIPT_PAGE_CHUNK) && (
             <TranscriptLoadingState />
           )}
           <TranscriptSearch
@@ -1016,25 +1099,32 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
                   streaming={item.type === 'message' && item.message.type === 'text' && item.message.isStreaming === true}
                   onHeight={handleVirtualRowHeight}
                 >
-                  {item.type === 'tool_group'
-                    ? <ToolActivitySummary messages={item.messages} session={session} />
-                    : (
-                      <MessageRow
-                        msg={item.message}
-                        session={session}
-                        isFocused={focusedMessageId === item.message.id}
-                        fileReferenceRoots={fileReferenceRoots}
-                        preferredEditor={preferredEditor}
-                        canCopy={item.message.id === lastAssistantTextId}
-                        canContinue={item.message.id === lastAssistantTextId && !isActiveSessionStatus(session.status) && lastAssistantText?.interrupted === true}
-                        canRegenerate={item.message.id === lastAssistantTextId && canRegenerateLastAssistant}
-                        canRetryUnansweredUserMessage={item.message.id === lastUnansweredUserTextId}
-                        onSteerQueuedMessage={steerQueuedMessage}
-                        onCancelQueuedMessage={cancelQueuedMessage}
-                        onEditUserMessageFromHere={editUserMessageFromHere}
-                        onForkFromMessage={forkFromMessage}
+                  {item.type === 'collapsed_turn'
+                    ? (
+                      <CollapsedTurnRow
+                        turn={item.turn}
+                        onExpand={() => expandTranscriptTurn(item.turn.id)}
                       />
-                    )}
+                    )
+                    : item.type === 'tool_group'
+                      ? <ToolActivitySummary messages={item.messages} session={session} />
+                      : (
+                        <MessageRow
+                          msg={item.message}
+                          session={session}
+                          isFocused={focusedMessageId === item.message.id}
+                          fileReferenceRoots={fileReferenceRoots}
+                          preferredEditor={preferredEditor}
+                          canCopy={item.message.id === lastAssistantTextId}
+                          canContinue={item.message.id === lastAssistantTextId && !isActiveSessionStatus(session.status) && lastAssistantText?.interrupted === true}
+                          canRegenerate={item.message.id === lastAssistantTextId && canRegenerateLastAssistant}
+                          canRetryUnansweredUserMessage={item.message.id === lastUnansweredUserTextId}
+                          onSteerQueuedMessage={steerQueuedMessage}
+                          onCancelQueuedMessage={cancelQueuedMessage}
+                          onEditUserMessageFromHere={editUserMessageFromHere}
+                          onForkFromMessage={forkFromMessage}
+                        />
+                      )}
                 </MeasuredTranscriptRow>
               ))}
             </div>
@@ -1049,6 +1139,13 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
           />
         </div>
       </div>
+      {transcriptUserTurnEntries.length >= TRANSCRIPT_NAV_RAIL_MIN_TURNS && (
+        <TranscriptUserNavigationRail
+          turns={transcriptUserTurnEntries}
+          focusedMessageId={focusedMessageId}
+          onJump={(entry) => focusTranscriptMessage(entry.messageId, `Jumped to turn ${entry.index + 1}`)}
+        />
+      )}
       {showJumpToLatest && (
         <LatestActivityButton
           onClick={() => scrollToBottom(true)}
@@ -1134,47 +1231,162 @@ function TranscriptActionStatus({
   )
 }
 
-function LoadEarlierMessages({
-  hiddenCount,
-  visibleCount,
-  totalCount,
-  loadedHiddenCount,
-  unloadedBeforeCount,
-  loading,
-  onLoad,
-  onLoadAll
+function CollapsedTurnRow({
+  turn,
+  onExpand
 }: {
-  hiddenCount: number
-  visibleCount: number
-  totalCount: number
-  loadedHiddenCount: number
+  turn: TranscriptTurnGroup
+  onExpand: () => void
+}): JSX.Element {
+  const { summary } = turn
+  const detailParts = [
+    `${summary.messageCount.toLocaleString()} messages`,
+    summary.toolCount > 0 ? `${summary.toolCount.toLocaleString()} tool ${summary.toolCount === 1 ? 'event' : 'events'}` : null,
+    summary.noticeCount > 0 ? `${summary.noticeCount.toLocaleString()} ${summary.noticeCount === 1 ? 'notice' : 'notices'}` : null
+  ].filter(Boolean)
+  const primary = summary.userPreview || 'Earlier turn'
+  const secondary = summary.assistantPreview || detailParts.join(' · ')
+  return (
+    <div
+      className="flex justify-center"
+      data-testid="collapsed-transcript-turn"
+      data-transcript-turn-id={turn.id}
+      data-transcript-turn-message-count={summary.messageCount}
+    >
+      <SurfaceRow
+        className="min-w-0 max-w-full items-center gap-3 rounded-lg px-3 py-2 text-xs"
+        dataTestId="collapsed-transcript-turn-row"
+        ariaLabel={`Collapsed transcript turn. ${primary}. ${detailParts.join('. ')}.`}
+        style={{
+          width: 'min(100%, 680px)',
+          background: 'var(--surface-bg)',
+          border: '1px solid var(--border-subtle)',
+          color: 'var(--text-secondary)'
+        }}
+      >
+        <div className="min-w-0 flex-1">
+          <div className="truncate font-medium" style={{ color: 'var(--text-primary)' }}>{primary}</div>
+          <div className="truncate">{secondary}</div>
+        </div>
+        <Button
+          variant="ghost"
+          className="shrink-0 px-2 py-0.5"
+          onClick={onExpand}
+          dataTestId="collapsed-transcript-turn-expand"
+          ariaLabel={`Show collapsed transcript turn: ${primary}`}
+          title={`Show turn: ${primary}`}
+        >
+          Show
+        </Button>
+      </SurfaceRow>
+    </div>
+  )
+}
+
+function TranscriptUserNavigationRail({
+  turns,
+  focusedMessageId,
+  onJump
+}: {
+  turns: TranscriptUserTurnEntry[]
+  focusedMessageId: string | null
+  onJump: (entry: TranscriptUserTurnEntry) => void
+}): JSX.Element {
+  const sampledTurns = sampleTranscriptRailTurns(turns, 32)
+  return (
+    <nav
+      aria-label="User messages"
+      data-testid="transcript-user-navigation-rail"
+      data-transcript-user-turn-count={turns.length}
+      className="pointer-events-none absolute left-3 top-1/2 z-20 hidden -translate-y-1/2 lg:block"
+    >
+      <div
+        className="pointer-events-auto flex max-h-[min(70vh,32rem)] flex-col gap-0.5 overflow-y-auto overscroll-contain py-1 pr-2.5 pl-1"
+        style={{
+          scrollbarWidth: 'none',
+          WebkitMaskImage: 'linear-gradient(to bottom, transparent, #000 2.5rem, #000 calc(100% - 2.5rem), transparent)',
+          maskImage: 'linear-gradient(to bottom, transparent, #000 2.5rem, #000 calc(100% - 2.5rem), transparent)'
+        }}
+      >
+        {sampledTurns.map((entry) => {
+          const active = entry.messageId === focusedMessageId
+          const title = `Jump to user message ${entry.index + 1}: ${entry.label}`
+          return (
+            <button
+              key={entry.id}
+              type="button"
+              data-testid="transcript-user-navigation-rail-item"
+              data-transcript-turn-id={entry.id}
+              data-transcript-message-id={entry.messageId}
+              aria-label={title}
+              title={title}
+              onClick={() => onJump(entry)}
+              className="group/navigation-row flex h-2 w-8 shrink-0 cursor-pointer items-center rounded-sm transition"
+              style={{
+                background: 'transparent'
+              }}
+            >
+              <span
+                aria-hidden="true"
+                className="block h-1.5 rounded-full transition-all group-hover/navigation-row:w-8"
+                style={{
+                  width: active ? 32 : entry.isLatest ? 18 : 12,
+                  background: active
+                    ? 'var(--color-accent)'
+                    : entry.isLatest
+                      ? 'color-mix(in srgb, var(--text-secondary) 70%, transparent)'
+                      : 'color-mix(in srgb, var(--text-secondary) 28%, transparent)'
+                }}
+              />
+            </button>
+          )
+        })}
+      </div>
+    </nav>
+  )
+}
+
+function sampleTranscriptRailTurns(turns: TranscriptUserTurnEntry[], maxItems: number): TranscriptUserTurnEntry[] {
+  if (turns.length <= maxItems) return turns
+  const sampled: TranscriptUserTurnEntry[] = []
+  const lastIndex = turns.length - 1
+  for (let index = 0; index < maxItems; index += 1) {
+    const sourceIndex = Math.round((index / (maxItems - 1)) * lastIndex)
+    const entry = turns[sourceIndex]
+    if (entry && sampled.at(-1)?.id !== entry.id) sampled.push(entry)
+  }
+  return sampled
+}
+
+function LoadEarlierMessages({
+  unloadedBeforeCount,
+  loadedCount,
+  totalCount,
+  loading,
+  onLoad
+}: {
   unloadedBeforeCount: number
+  loadedCount: number
+  totalCount: number
   loading: boolean
   onLoad: () => void
-  onLoadAll: () => void
 }): JSX.Element {
-  const nextBatchCount = Math.min(TRANSCRIPT_RENDER_CHUNK, hiddenCount)
-  const visibleTotalLabel = `${visibleCount.toLocaleString()} of ${totalCount.toLocaleString()} messages shown`
+  const nextBatchCount = Math.min(TRANSCRIPT_PAGE_CHUNK, unloadedBeforeCount)
+  const visibleTotalLabel = `${loadedCount.toLocaleString()} of ${totalCount.toLocaleString()} messages loaded`
   const primaryLabel = loading
     ? 'Loading'
-    : loadedHiddenCount > 0
-      ? `Show ${nextBatchCount.toLocaleString()} earlier`
-      : `Load ${nextBatchCount.toLocaleString()} earlier`
+    : `Load ${nextBatchCount.toLocaleString()} earlier`
   const primaryAriaLabel = loading
     ? `Loading earlier transcript messages. ${visibleTotalLabel}.`
-    : loadedHiddenCount > 0
-      ? `Show ${nextBatchCount.toLocaleString()} earlier loaded transcript messages. ${visibleTotalLabel}.`
-      : `Load ${nextBatchCount.toLocaleString()} earlier transcript messages. ${unloadedBeforeCount.toLocaleString()} earlier messages are not loaded yet. ${visibleTotalLabel}.`
-  const showAllAriaLabel = `Show all ${loadedHiddenCount.toLocaleString()} loaded earlier transcript messages. ${visibleTotalLabel}.`
+    : `Load ${nextBatchCount.toLocaleString()} earlier transcript messages. ${unloadedBeforeCount.toLocaleString()} earlier messages are not loaded yet. ${visibleTotalLabel}.`
   return (
     <div className="flex justify-center">
       <SurfaceRow
         dataTestId="load-earlier-messages"
-        ariaLabel={`Transcript history. ${visibleTotalLabel}. ${hiddenCount.toLocaleString()} earlier messages hidden.`}
-        data-hidden-message-count={hiddenCount}
-        data-loaded-hidden-count={loadedHiddenCount}
+        ariaLabel={`Transcript history. ${visibleTotalLabel}. ${unloadedBeforeCount.toLocaleString()} earlier messages are not loaded yet.`}
+        data-hidden-message-count={unloadedBeforeCount}
         data-unloaded-before-count={unloadedBeforeCount}
-        data-visible-message-count={visibleCount}
+        data-visible-message-count={loadedCount}
         data-total-message-count={totalCount}
         className="items-center gap-2 rounded-full px-3 py-1.5 text-xs"
         style={{
@@ -1195,18 +1407,6 @@ function LoadEarlierMessages({
         >
           {primaryLabel}
         </Button>
-        {loadedHiddenCount > 0 && (
-          <Button
-            variant="ghost"
-            className="px-2 py-0.5"
-            onClick={onLoadAll}
-            dataTestId="load-earlier-messages-show-all"
-            ariaLabel={showAllAriaLabel}
-            title={showAllAriaLabel}
-          >
-            Show all loaded
-          </Button>
-        )}
       </SurfaceRow>
     </div>
   )
@@ -1292,6 +1492,15 @@ function TranscriptSearch({
 type TranscriptItem =
   | { type: 'message'; message: ChatMessage }
   | { type: 'tool_group'; id: string; messages: Array<ToolUseMessage | ToolResultMessage> }
+  | { type: 'collapsed_turn'; turn: TranscriptTurnGroup }
+
+interface TranscriptUserTurnEntry {
+  id: string
+  messageId: string
+  label: string
+  index: number
+  isLatest: boolean
+}
 
 interface VirtualTranscriptWindow {
   totalHeight: number
@@ -1341,13 +1550,15 @@ function buildVirtualTranscriptWindow(
 }
 
 function transcriptItemId(item: TranscriptItem): string {
-  return item.type === 'tool_group' ? item.id : item.message.id
+  if (item.type === 'tool_group') return item.id
+  if (item.type === 'collapsed_turn') return item.turn.id
+  return item.message.id
 }
 
 function transcriptItemMessageIds(item: TranscriptItem): string[] {
-  return item.type === 'tool_group'
-    ? item.messages.map((message) => message.id)
-    : [item.message.id]
+  if (item.type === 'tool_group') return item.messages.map((message) => message.id)
+  if (item.type === 'collapsed_turn') return item.turn.messages.map((message) => message.id)
+  return [item.message.id]
 }
 
 function transcriptItemOffset(
@@ -1420,6 +1631,9 @@ function isCopilotReasoningStatusContent(content: string): boolean {
 function estimateTranscriptItemHeight(item: TranscriptItem): number {
   if (item.type === 'tool_group') {
     return TOOL_SUMMARY_COLLAPSED_ESTIMATE + TRANSCRIPT_VIRTUAL_ROW_GAP
+  }
+  if (item.type === 'collapsed_turn') {
+    return TURN_SUMMARY_COLLAPSED_ESTIMATE + TRANSCRIPT_VIRTUAL_ROW_GAP
   }
   const message = item.message
   if (message.type === 'text') {
@@ -1503,7 +1717,23 @@ function MeasuredTranscriptRow({
   )
 }
 
-function groupTranscriptMessages(messages: ChatMessage[]): TranscriptItem[] {
+function groupTranscriptMessages(messages: ChatMessage[], expandedTurnIds: Set<string> = new Set()): TranscriptItem[] {
+  return groupTranscriptTurnGroups(buildTranscriptTurnGroups(messages), expandedTurnIds)
+}
+
+function groupTranscriptTurnGroups(turns: TranscriptTurnGroup[], expandedTurnIds: Set<string> = new Set()): TranscriptItem[] {
+  const items: TranscriptItem[] = []
+  for (const turn of turns) {
+    if (turn.isCollapsible && !expandedTurnIds.has(turn.id)) {
+      items.push({ type: 'collapsed_turn', turn })
+      continue
+    }
+    items.push(...groupTurnMessages(turn.messages))
+  }
+  return items
+}
+
+function groupTurnMessages(messages: ChatMessage[]): TranscriptItem[] {
   const items: TranscriptItem[] = []
   let pendingTools: Array<ToolUseMessage | ToolResultMessage> = []
 

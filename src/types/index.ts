@@ -442,10 +442,13 @@ export const PROVIDER_DEFS: Record<string, ProviderDef> = {
     supportsEffort: false,
     effortLevels: [],
     supportsResume: true,
+    defaultPermissionMode: 'allowlist',
     permissionModes: [
-      { id: 'default', label: 'Sandbox', desc: 'Edit in Cursor sandbox mode.', intent: 'workspaceSandbox' },
-      { id: 'ask', label: 'Read-only', desc: 'Cursor ask mode does not apply edits.', intent: 'ask' },
-      { id: 'yolo', label: 'Auto', desc: 'Skip prompts', intent: 'bypass' }
+      { id: 'ask', label: 'Read-only', desc: 'Cursor ask mode answers questions without applying edits.', intent: 'ask' },
+      { id: 'plan', label: 'Plan', desc: 'Cursor plan mode analyzes and proposes changes without editing.', intent: 'ask' },
+      { id: 'allowlist', label: 'Allowlist', desc: 'Use Cursor config allow and deny rules without native sandboxing.', intent: 'autoEdit' },
+      { id: 'default', label: 'Sandbox', desc: 'Edit in Cursor sandbox mode when available on this system.', intent: 'workspaceSandbox' },
+      { id: 'yolo', label: 'Auto', desc: 'Force allow commands unless explicitly denied.', intent: 'bypass' }
     ]
   },
   antigravity: {
@@ -499,7 +502,7 @@ const PROVIDER_PERMISSION_PRESET_MODE_IDS: Record<string, Partial<Record<Provide
     fullAccess: 'fullAccess'
   },
   cursor: {
-    default: 'default',
+    default: 'allowlist',
     fullAccess: 'yolo'
   },
   copilot: {
@@ -949,7 +952,7 @@ export interface ProviderPermissionRuntimeContext {
   providerId: string
   cwd?: string
   status: 'static' | 'ok' | 'unavailable' | 'error'
-  source: 'static' | 'app-server'
+  source: 'static' | 'app-server' | 'cli'
   defaultPolicy?: string
   visiblePolicies?: string[]
   disabledPolicies?: Record<string, string>

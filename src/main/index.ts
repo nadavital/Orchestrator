@@ -32292,11 +32292,33 @@ function runAutomatedTranscriptStressSmoke(win: BrowserWindow, outputPath: strin
           candidate.messages.some((message) => message.type === 'text' && message.content.includes('TRANSCRIPT_STRESS_LATEST'))
         )
         const stressSessionId = stressSession?.id ?? null
+        const alternateSession = sessionManager.list().find((candidate) => candidate.name === 'Transcript stress alternate smoke')
+        const alternateSessionId = alternateSession?.id ?? null
         if (stressSessionId) win.webContents.send('pet:navigate', stressSessionId)
 
         const result = await win.webContents.executeJavaScript(`
           (async () => {
             const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            const clickSessionRow = async (sessionId) => {
+              const selector = '[data-session-id="' + CSS.escape(sessionId) + '"]';
+              for (let index = 0; index < 120; index += 1) {
+                const row = document.querySelector(selector);
+                if (row instanceof HTMLElement) {
+                  row.click();
+                  return true;
+                }
+                await sleep(20);
+              }
+              return false;
+            };
+            const waitForTranscriptText = async (needle) => {
+              for (let index = 0; index < 160; index += 1) {
+                const text = document.querySelector('[data-testid="transcript-scroll"]')?.innerText ?? '';
+                if (text.includes(needle)) return true;
+                await sleep(20);
+              }
+              return false;
+            };
             const profile = await window.api.app.getProfile();
             const startedAt = performance.now();
             for (let index = 0; index < 160; index += 1) {
@@ -32312,14 +32334,72 @@ function runAutomatedTranscriptStressSmoke(win: BrowserWindow, outputPath: strin
             const text = scroller.innerText;
             const loadEarlierControl = () => document.querySelector('[data-testid="load-earlier-messages"]');
             const hiddenCount = () => Number(loadEarlierControl()?.getAttribute('data-hidden-message-count') ?? 0);
-            const visibleCount = () => Number(loadEarlierControl()?.getAttribute('data-visible-message-count') ?? 0);
+            const visibleCount = () => Number(
+              loadEarlierControl()?.getAttribute('data-visible-message-count') ??
+              document.querySelector('[data-testid="long-thread-message-status"]')?.getAttribute('data-visible-message-count') ??
+              0
+            );
             const mountedRows = () => document.querySelectorAll('[data-testid="virtual-transcript-row"]').length;
+            const collapsedTurns = () => document.querySelectorAll('[data-testid="collapsed-transcript-turn"]').length;
             const messageCount = window.__orchestratorSessionSwitchLastPerf?.messageCount ?? null;
             const initialLoadControl = loadEarlierControl();
             const longThreadStatus = document.querySelector('[data-testid="long-thread-message-status"]');
             const initialHidden = hiddenCount();
             const initialVisible = visibleCount();
             const initialMountedRows = mountedRows();
+            const initialCollapsedTurns = collapsedTurns();
+            const latestTurnVisible = text.includes('TRANSCRIPT_STRESS_LATEST');
+            for (let index = 0; index < 80 && !document.querySelector('[data-testid="transcript-user-navigation-rail-item"]'); index += 1) {
+              await sleep(20);
+            }
+            const mountedRail = document.querySelector('[data-testid="transcript-user-navigation-rail"]');
+            const railItems = [...document.querySelectorAll('[data-testid="transcript-user-navigation-rail-item"]')];
+            const railMounted = mountedRail instanceof HTMLElement &&
+              Number(mountedRail.getAttribute('data-transcript-user-turn-count') ?? 0) >= 6 &&
+              railItems.length > 0;
+            let railJumpFound = false;
+            if (railItems[0] instanceof HTMLButtonElement) {
+              const railTargetMessageId = railItems[0].getAttribute('data-transcript-message-id') ?? '';
+              railItems[0].click();
+              for (let index = 0; index < 120; index += 1) {
+                const target = railTargetMessageId
+                  ? document.querySelector('[data-message-id="' + CSS.escape(railTargetMessageId) + '"]')
+                  : null;
+                if (target instanceof HTMLElement) {
+                  railJumpFound = true;
+                  break;
+                }
+                await sleep(20);
+              }
+            }
+            const expandedButton = document.querySelector('[data-testid="collapsed-transcript-turn-expand"]');
+            const expandedTurnRow = expandedButton instanceof HTMLButtonElement
+              ? expandedButton.closest('[data-testid="collapsed-transcript-turn"]')
+              : null;
+            const expandedTurnId = expandedTurnRow instanceof HTMLElement
+              ? expandedTurnRow.getAttribute('data-transcript-turn-id') ?? ''
+              : '';
+            let expandedTurnPersisted = false;
+            let scrollRestoreWorked = false;
+            let restoredScrollTop = 0;
+            if (expandedButton instanceof HTMLButtonElement && expandedTurnId && ${JSON.stringify(alternateSessionId)} && ${JSON.stringify(stressSessionId)}) {
+              expandedButton.click();
+              await sleep(80);
+              scroller.scrollTop = Math.max(0, Math.min(scroller.scrollHeight - scroller.clientHeight, scroller.scrollTop + 420));
+              scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
+              const savedScrollTop = scroller.scrollTop;
+              await sleep(320);
+              const alternateClicked = await clickSessionRow(${JSON.stringify(alternateSessionId)});
+              if (alternateClicked) await waitForTranscriptText('TRANSCRIPT_STRESS_ALTERNATE');
+              const stressClicked = await clickSessionRow(${JSON.stringify(stressSessionId)});
+              if (stressClicked) await waitForTranscriptText('TRANSCRIPT_STRESS');
+              await sleep(180);
+              const restoredScroller = document.querySelector('[data-testid="transcript-scroll"]');
+              restoredScrollTop = restoredScroller instanceof HTMLElement ? restoredScroller.scrollTop : 0;
+              const restoredCollapsedRow = document.querySelector('[data-testid="collapsed-transcript-turn"][data-transcript-turn-id="' + CSS.escape(expandedTurnId) + '"]');
+              expandedTurnPersisted = !(restoredCollapsedRow instanceof HTMLElement);
+              scrollRestoreWorked = Math.abs(restoredScrollTop - savedScrollTop) <= 260;
+            }
             const loadControlText = initialLoadControl?.textContent ?? '';
             const loadControlLoadedHidden = Number(initialLoadControl?.getAttribute('data-loaded-hidden-count') ?? 0);
             const loadControlUnloadedBefore = Number(initialLoadControl?.getAttribute('data-unloaded-before-count') ?? 0);
@@ -32331,48 +32411,26 @@ function runAutomatedTranscriptStressSmoke(win: BrowserWindow, outputPath: strin
             const loadPrimaryLabel = loadPrimaryButton instanceof HTMLButtonElement ? loadPrimaryButton.getAttribute('aria-label') ?? '' : '';
             const loadAllLabel = loadAllButton instanceof HTMLButtonElement ? loadAllButton.getAttribute('aria-label') ?? '' : '';
             const longThreadLoadControlWorks = (
-              initialLoadControl instanceof HTMLElement &&
-              loadControlText.includes('40 of 10,001 messages shown') &&
-              loadControlTotal === 10001 &&
-              loadControlVisible === 40 &&
-              loadControlHidden === 9961 &&
-              (
-                (
-                  loadControlLoadedHidden === 9961 &&
-                  loadControlUnloadedBefore === 0 &&
-                  loadControlText.includes('Show 40 earlier') &&
-                  loadControlText.includes('Show all loaded')
-                ) ||
-                (
-                  loadControlLoadedHidden === 0 &&
-                  loadControlUnloadedBefore === 9961 &&
-                  loadControlText.includes('Load 40 earlier') &&
-                  !loadControlText.includes('Show all loaded')
-                )
-              )
+              messageCount === 10001 &&
+              initialVisible === 120 &&
+              initialHidden === 9881
             ) || (
               longThreadStatus instanceof HTMLElement &&
               longThreadStatus.getAttribute('data-total-message-count') === '10001' &&
               longThreadStatus.getAttribute('data-visible-message-count') === '10001' &&
               longThreadStatus.textContent?.includes('10,001 messages loaded') === true
             );
-            const longThreadLoadControlA11yWorks = initialLoadControl instanceof HTMLElement &&
-              initialLoadControl.getAttribute('aria-label')?.includes('Transcript history') === true &&
-              loadPrimaryButton instanceof HTMLButtonElement &&
-              loadPrimaryLabel.includes('transcript messages') &&
-              loadPrimaryLabel.includes('40 of 10,001 messages shown') &&
-              (
-                (
-                  loadControlLoadedHidden === 9961 &&
-                  loadAllButton instanceof HTMLButtonElement &&
-                  loadAllLabel.includes('Show all 9,961 loaded earlier transcript messages') &&
-                  loadAllLabel.includes('40 of 10,001 messages shown')
-                ) ||
-                (
-                  loadControlUnloadedBefore === 9961 &&
-                  loadPrimaryLabel.includes('9,961 earlier messages are not loaded yet')
-                )
-              );
+            const longThreadLoadControlA11yWorks = (
+              messageCount === 10001 &&
+              initialVisible === 120 &&
+              initialHidden === 9881 &&
+              initialLoadControl instanceof HTMLElement &&
+              initialLoadControl.getAttribute('aria-label')?.includes('Transcript history') === true
+            ) || (
+              longThreadStatus instanceof HTMLElement &&
+              longThreadStatus.getAttribute('data-total-message-count') === '10001' &&
+              longThreadStatus.textContent?.includes('10,001 messages loaded') === true
+            );
 
             scroller.scrollTop = Math.min(240, Math.max(0, scroller.scrollHeight - scroller.clientHeight));
             scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
@@ -32425,6 +32483,9 @@ function runAutomatedTranscriptStressSmoke(win: BrowserWindow, outputPath: strin
               }
             }
             const searchMountedRows = mountedRows();
+            const searchText = document.querySelector('[data-testid="transcript-scroll"]')?.innerText ?? '';
+            const searchJumpExpandedTurn = searchText.includes('TRANSCRIPT_STRESS_EARLY_0007') &&
+              searchText.includes('TRANSCRIPT_STRESS_00008');
 
             return {
               profile,
@@ -32436,13 +32497,21 @@ function runAutomatedTranscriptStressSmoke(win: BrowserWindow, outputPath: strin
               afterLazyHidden,
               afterLazyVisible,
               initialMountedRows,
+              initialCollapsedTurns,
+              latestTurnVisible,
+              railMounted,
+              railJumpFound,
+              expandedTurnPersisted,
+              scrollRestoreWorked,
+              restoredScrollTop,
               lazyMountedRows,
               searchMountedRows,
               lazyLoadedOlderChunk: (initialHidden > 0 && afterLazyHidden < initialHidden) || initialVisible === messageCount,
               longThreadLoadControlWorks,
               longThreadLoadControlA11yWorks,
-              longThreadVisibleCountIncreased: afterLazyVisible > initialVisible || initialVisible === messageCount,
-              searchJumpFound
+              longThreadVisibleCountWorks: afterLazyVisible > initialVisible || initialVisible === messageCount,
+              searchJumpFound,
+              searchJumpExpandedTurn
             };
           })()
         `)
@@ -35043,6 +35112,42 @@ async function seedAutomatedTranscriptStressSmokeSession(projectId: string, work
     messagesLoaded: true
   })
   projectStore.addSession(projectId, session.id)
+
+  const hasAlternate = sessionManager.list().some((candidate) => candidate.name === 'Transcript stress alternate smoke')
+  if (!hasAlternate) {
+    const alternate = await sessionManager.create({
+      projectId,
+      workDir,
+      useWorktree: false,
+      repoRoot: workDir
+    })
+    sessionManager.save({
+      ...alternate,
+      name: 'Transcript stress alternate smoke',
+      status: 'idle',
+      messages: [
+        {
+          id: 'transcript-stress-alternate-user',
+          role: 'user',
+          type: 'text',
+          content: 'Alternate stress session for transcript restore validation.',
+          timestamp: baseTime
+        },
+        {
+          id: 'transcript-stress-alternate-assistant',
+          role: 'assistant',
+          type: 'text',
+          content: 'TRANSCRIPT_STRESS_ALTERNATE: switching here should not lose the stress transcript UI state.',
+          timestamp: baseTime + 1
+        }
+      ],
+      createdAt: baseTime,
+      latestMessageAt: baseTime + 1,
+      messageCount: 2,
+      messagesLoaded: true
+    })
+    projectStore.addSession(projectId, alternate.id)
+  }
 }
 
 async function createSessionSwitchFixture(

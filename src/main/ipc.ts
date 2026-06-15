@@ -2993,7 +2993,7 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
     if (result.ok && result.session) projectStore.addSession(result.session.projectId, result.session.id)
     return result
   })
-  ipcMain.handle('sessions:sendMessage', (_, sessionId: string, prompt: string, useWorktree?: boolean, attachments?: Attachment[]) => {
+  ipcMain.handle('sessions:sendMessage', (_, sessionId: string, prompt: string, useWorktree?: boolean, attachments?: Attachment[], options?: { editFromMessageId?: string }) => {
     if (
       process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT &&
       process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'composer' &&
@@ -3033,7 +3033,9 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
     ) {
       return false
     }
-    return sessionManager.sendMessage(sessionId, prompt, useWorktree, attachments ?? [])
+    return sessionManager.sendMessage(sessionId, prompt, useWorktree, attachments ?? [], {
+      editFromMessageId: options?.editFromMessageId
+    })
   })
   ipcMain.handle('sessions:startCodexReview', (_, sessionId: string, request: CodexReviewStartRequest) =>
     sessionManager.startCodexReview(sessionId, request)
