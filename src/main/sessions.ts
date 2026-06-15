@@ -101,6 +101,31 @@ function activeStoredSessions(): Session[] {
   return ensurePinnedOrders(store.get('sessions', [])).filter((session) => !session.archivedAt)
 }
 
+function sessionStoreMessageCount(sessions: Session[]): number {
+  return sessions.reduce((sum, session) => sum + session.messages.length, 0)
+}
+
+function setSessionsStore(
+  sessions: Session[],
+  reason: string,
+  metadata: Record<string, string | number | boolean | null> = {}
+): void {
+  const startedAt = performance.now()
+  store.set('sessions', sessions)
+  recordPerformanceMetric({
+    name: 'sessions.store.set',
+    surface: 'main',
+    startedAt: Date.now() - (performance.now() - startedAt),
+    durationMs: performance.now() - startedAt,
+    metadata: {
+      reason,
+      sessions: sessions.length,
+      messages: sessionStoreMessageCount(sessions),
+      ...metadata
+    }
+  })
+}
+
 function defaultRuntimeForProvider(providerId: string): ProviderRuntimeKind {
   if (providerId === 'codex') return 'app-server'
   if (providerId === 'claude' || providerId === 'copilot') return 'sdk'
@@ -295,7 +320,7 @@ function flushActiveStreamingMessagesToStore(sessionId: string): void {
     else s.messages.push(record.message)
     record.lastPersistedAt = Date.now()
   }
-  store.set('sessions', sessions)
+  setSessionsStore(sessions, 'streaming-flush', { sessionId, streams: records.length })
   for (const record of records) sendMessageUpdated(sessionId, record.message)
 }
 
@@ -764,7 +789,7 @@ export const sessionManager = {
     const session = sessions.find((s) => s.id === sessionId)
     if (!session) return
     await archiveSessionRecord(session, { cleanupWorktree: true })
-    store.set('sessions', sessions)
+    setSessionsStore(sessions, 'archive', { sessionId: session.id })
   },
 
   listWorktrees(): WorktreeInventoryItem[] {
@@ -863,7 +888,7 @@ export const sessionManager = {
     const s = sessions.find((s) => s.id === id)
     if (s) {
       s.status = status
-      store.set('sessions', sessions)
+      setSessionsStore(sessions, 'status', { sessionId: id, status })
       send('session:status', { id, status })
     }
   },
@@ -888,7 +913,7 @@ export const sessionManager = {
 
     if (updates.length === 0) return 0
 
-    store.set('sessions', sessions)
+    setSessionsStore(sessions, 'recover-statuses', { updates: updates.length })
     for (const update of updates) {
       send('session:status', { id: update.id, status: update.status })
       for (const message of update.messages) {
@@ -903,7 +928,7 @@ export const sessionManager = {
     const s = sessions.find((s) => s.id === id)
     if (s) {
       s.messages.push(...messages)
-      store.set('sessions', sessions)
+      setSessionsStore(sessions, 'append-message', { sessionId: id, messages: messages.length })
       send('session:messages', { id, messages })
     }
   },
@@ -916,7 +941,11 @@ export const sessionManager = {
     const index = s.messages.findIndex((candidate) => candidate.id === message.id)
     if (index >= 0) s.messages[index] = message
     else s.messages.push(message)
-    store.set('sessions', sessions)
+    setSessionsStore(sessions, 'upsert-message', {
+      sessionId: id,
+      messageType: message.type,
+      streaming: message.type === 'text' && message.isStreaming === true
+    })
     sendMessageUpdated(id, message)
   },
 
@@ -929,7 +958,7 @@ export const sessionManager = {
     const nextMessages = s.messages.filter((message) => message.id !== messageId)
     if (nextMessages.length === s.messages.length) return false
     s.messages = nextMessages
-    store.set('sessions', sessions)
+    setSessionsStore(sessions, 'remove-message', { sessionId: id })
     send('session:messageRemoved', { id, messageId })
     return true
   },
@@ -1243,7 +1272,7 @@ export const sessionManager = {
       }
       if (changed) {
         existing.latestMessageAt = Math.max(existing.latestMessageAt ?? 0, now)
-        store.set('sessions', sessions)
+        setSessionsStore(sessions, 'open-agent-thread', { sessionId: existing.id, providerId })
         send('session:updated', {
           id: existing.id,
           name: existing.name,
@@ -1625,7 +1654,7 @@ export const sessionManager = {
           s.useWorktree = false
           s.worktreeState = undefined
         }
-        store.set('sessions', sessions)
+        setSessionsStore(sessions, 'worktree-selection', { sessionId, useWorktree: s.useWorktree === true })
         send('session:updated', { id: sessionId, workDir: s.workDir, useWorktree: s.useWorktree, worktreeState: s.worktreeState })
       }
     }
@@ -1884,6 +1913,8 @@ export const sessionManager = {
 
   applyRunEvents(sessionId: string, events: RunEvent[]): void {
     if (events.length === 0) return
+    const applyStartedAt = performance.now()
+    const streamingDeltaCount = events.filter((event) => event.type === 'assistant.text.delta').length
 
     send('session:events', {
       id: sessionId,
@@ -1905,7 +1936,7 @@ export const sessionManager = {
       if (s) {
         s.providerSessionId = decision.providerSessionId
         s.claudeSessionId = decision.claudeSessionId ?? decision.providerSessionId
-        store.set('sessions', sessions)
+        setSessionsStore(sessions, 'provider-session-id', { sessionId })
       }
     }
 
@@ -1928,7 +1959,7 @@ export const sessionManager = {
         for (const event of usageEvents) {
           s.usageSummary = mergeUsageSummary(s.usageSummary, event.usage)
         }
-        store.set('sessions', sessions)
+        setSessionsStore(sessions, 'usage-summary', { sessionId, usageEvents: usageEvents.length })
         send('session:settingsUpdated', { id: sessionId, usageSummary: s.usageSummary })
       }
     }
@@ -1986,6 +2017,22 @@ export const sessionManager = {
 
     if (hasSteerableFollowUp(sessionId) && !hasActiveTool(sessionId)) {
       providerRuntime.interrupt(sessionId)
+    }
+
+    const durationMs = performance.now() - applyStartedAt
+    if (durationMs >= 4 || events.length > 1 || streamingDeltaCount > 1) {
+      recordPerformanceMetric({
+        name: 'session.applyRunEvents',
+        surface: 'main',
+        startedAt: Date.now() - durationMs,
+        durationMs,
+        metadata: {
+          sessionId,
+          events: events.length,
+          streamingDeltas: streamingDeltaCount,
+          activeStreamingMessages: activeStreamingMessages.size
+        }
+      })
     }
   },
 
