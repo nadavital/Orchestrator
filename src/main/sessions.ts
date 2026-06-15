@@ -39,6 +39,7 @@ const SESSION_LIST_TAIL_MESSAGES = 8
 const CODEX_SIDEBAR_REFRESH_AFTER_RUN_DELAY_MS = 750
 const CODEX_SIDEBAR_RECURRING_REFRESH_INTERVAL_MS = 10 * 60 * 1000
 const STREAMING_MESSAGE_UPDATE_SEND_INTERVAL_MS = 80
+const STREAMING_MESSAGE_PERSIST_INTERVAL_MS = 2_000
 
 let codexSidebarRefreshAfterRunTimer: ReturnType<typeof setTimeout> | null = null
 let codexSidebarRecurringRefreshTimer: ReturnType<typeof setInterval> | null = null
@@ -47,6 +48,7 @@ let codexSidebarLastRefreshAt: number | null = null
 const smokeSideQuestionFailures = new Set<string>()
 const pendingStreamingMessageUpdates = new Map<string, { id: string; message: ChatMessage }>()
 let pendingStreamingMessageUpdateTimer: ReturnType<typeof setTimeout> | null = null
+const activeStreamingMessages = new Map<string, { id: string; message: TextMessage; lastPersistedAt: number }>()
 
 function normalizeUserInputAnswer(answer: string | UserInputAnswerPayload): UserInputAnswerPayload {
   if (typeof answer === 'string') return { content: answer.trim() }
@@ -252,6 +254,49 @@ function sendMessageUpdated(id: string, message: ChatMessage): void {
   }
   pendingStreamingMessageUpdates.delete(pendingKey)
   send('session:messageUpdated', { id, message })
+}
+
+function streamingMessageKey(sessionId: string, messageId: string): string {
+  return `${sessionId}:${messageId}`
+}
+
+function activeStreamingRecord(sessionId: string, messageId: string): { id: string; message: TextMessage; lastPersistedAt: number } | undefined {
+  return activeStreamingMessages.get(streamingMessageKey(sessionId, messageId))
+}
+
+function clearActiveStreamingMessage(sessionId: string, messageId: string): void {
+  activeStreamingMessages.delete(streamingMessageKey(sessionId, messageId))
+  pendingStreamingMessageUpdates.delete(streamingMessageKey(sessionId, messageId))
+}
+
+function clearActiveStreamingMessages(sessionId: string): void {
+  for (const key of activeStreamingMessages.keys()) {
+    if (key.startsWith(`${sessionId}:`)) activeStreamingMessages.delete(key)
+  }
+  for (const key of pendingStreamingMessageUpdates.keys()) {
+    if (key.startsWith(`${sessionId}:`)) pendingStreamingMessageUpdates.delete(key)
+  }
+}
+
+function flushActiveStreamingMessagesToStore(sessionId: string): void {
+  const records = [...activeStreamingMessages.values()].filter((record) => record.id === sessionId)
+  if (records.length === 0) return
+
+  const sessions = store.get('sessions', [])
+  const s = sessions.find((session) => session.id === sessionId)
+  if (!s) {
+    clearActiveStreamingMessages(sessionId)
+    return
+  }
+
+  for (const record of records) {
+    const index = s.messages.findIndex((candidate) => candidate.id === record.message.id)
+    if (index >= 0) s.messages[index] = record.message
+    else s.messages.push(record.message)
+    record.lastPersistedAt = Date.now()
+  }
+  store.set('sessions', sessions)
+  for (const record of records) sendMessageUpdated(sessionId, record.message)
 }
 
 function requestFromSession(session: Session, prompt: string): RunRequest {
@@ -591,6 +636,8 @@ function updateToolBoundaryState(sessionId: string, events: RunEvent[]): void {
 }
 
 function clearRuntimeState(sessionId: string): void {
+  flushActiveStreamingMessagesToStore(sessionId)
+  clearActiveStreamingMessages(sessionId)
   pendingFollowUps.delete(sessionId)
   activeToolUseIds.delete(sessionId)
   providerRuntime.cleanupSession(sessionId)
@@ -874,6 +921,7 @@ export const sessionManager = {
   },
 
   removeMessage(id: string, messageId: string): boolean {
+    clearActiveStreamingMessage(id, messageId)
     const sessions = store.get('sessions', [])
     const s = sessions.find((s) => s.id === id)
     if (!s) return false
@@ -1456,6 +1504,7 @@ export const sessionManager = {
         }
       },
       onExit: () => {
+        flushActiveStreamingMessagesToStore(sessionId)
         activeToolUseIds.delete(sessionId)
         const followUp = shiftPendingFollowUp(sessionId)
         if (followUp) {
@@ -1886,21 +1935,46 @@ export const sessionManager = {
 
     for (const event of events) {
       if (event.type === 'assistant.text.delta') {
-        const existing = this.get(sessionId)?.messages.find((message) => message.id === event.streamId && message.type === 'text')
-        this.upsertMessage(sessionId, {
+        const key = streamingMessageKey(sessionId, event.streamId)
+        const activeRecord = activeStreamingMessages.get(key)
+        const existing = activeRecord?.message ?? this.get(sessionId)?.messages.find((message) => message.id === event.streamId && message.type === 'text')
+        const message: TextMessage = {
           id: event.streamId,
           role: 'assistant',
           type: 'text',
           content: event.replace ? event.content : `${existing?.type === 'text' ? existing.content : ''}${event.content}`,
           timestamp: existing?.timestamp ?? Date.now(),
           isStreaming: true
-        })
+        }
+        const now = Date.now()
+        if (!activeRecord) {
+          activeStreamingMessages.set(key, { id: sessionId, message, lastPersistedAt: now })
+          this.upsertMessage(sessionId, message)
+        } else if (now - activeRecord.lastPersistedAt >= STREAMING_MESSAGE_PERSIST_INTERVAL_MS) {
+          activeStreamingMessages.set(key, { id: sessionId, message, lastPersistedAt: now })
+          this.upsertMessage(sessionId, message)
+        } else {
+          activeStreamingMessages.set(key, { id: sessionId, message, lastPersistedAt: activeRecord.lastPersistedAt })
+          sendMessageUpdated(sessionId, message)
+        }
       } else if (event.type === 'assistant.text.completed') {
-        const existing = this.get(sessionId)?.messages.find((message) => message.id === event.streamId && message.type === 'text')
+        const existing = activeStreamingRecord(sessionId, event.streamId)?.message ??
+          this.get(sessionId)?.messages.find((message) => message.id === event.streamId && message.type === 'text')
         if (existing?.type === 'text') {
+          clearActiveStreamingMessage(sessionId, event.streamId)
           this.upsertMessage(sessionId, {
             ...existing,
             content: typeof event.content === 'string' ? event.content : existing.content,
+            isStreaming: false
+          })
+        } else if (typeof event.content === 'string') {
+          clearActiveStreamingMessage(sessionId, event.streamId)
+          this.upsertMessage(sessionId, {
+            id: event.streamId,
+            role: 'assistant',
+            type: 'text',
+            content: event.content,
+            timestamp: Date.now(),
             isStreaming: false
           })
         }
@@ -1954,6 +2028,7 @@ export const sessionManager = {
   },
 
   stop(sessionId: string): void {
+    flushActiveStreamingMessagesToStore(sessionId)
     const session = this.get(sessionId)
     const shouldClearVisibleStatus =
       session?.status === 'running' ||
