@@ -15,10 +15,32 @@ type SdkPrompt = Parameters<ClaudeAgentSdk['query']>[0]['prompt']
 type SdkPromptStream = Extract<SdkPrompt, AsyncIterable<unknown>>
 type SdkUserMessage = Extract<SdkPromptStream extends AsyncIterable<infer T> ? T : never, { type: 'user' }>
 type PermissionMode = NonNullable<SdkOptions['permissionMode']>
+type SettingSource = NonNullable<SdkOptions['settingSources']>[number]
 
 const importEsm = new Function('specifier', 'return import(specifier)') as (specifier: string) => Promise<unknown>
 const requireForResolution = new Function('return typeof require === "function" ? require : undefined')() as NodeRequire | undefined
 let claudeAgentSdkImportPromise: Promise<ClaudeAgentSdk> | null = null
+const CLAUDE_SDK_CLIENT_APP = 'orchestrator/claude-sdk-runtime'
+const CLAUDE_SDK_SETTING_SOURCES: SettingSource[] = ['user', 'project', 'local']
+
+export interface ClaudeSdkRunPolicy {
+  cwd: string
+  clientApp: string
+  permissionMode: PermissionMode
+  allowDangerouslySkipPermissions: boolean
+  includePartialMessages: true
+  includeHookEvents: true
+  forwardSubagentText: true
+  agentProgressSummaries: true
+  persistSession: true
+  settingSources: SettingSource[]
+  thinking: NonNullable<SdkOptions['thinking']>
+  agentTeamsEnabled: boolean
+  model?: string
+  effort?: SdkOptions['effort']
+  maxTurns?: number
+  maxBudgetUsd?: number
+}
 
 interface ResolveClaudeSdkExecutablePathOptions {
   platform?: NodeJS.Platform
@@ -293,20 +315,22 @@ export async function runClaudeSdkOneShot(options: RunClaudeSdkOneShotOptions): 
   approvalBroker.prepareClaudeSdkRun(sessionId, options.request.allowedTools ?? [])
 
   try {
+    const oneShotRequest: RunRequest = {
+      ...options.request,
+      runtime: 'sdk',
+      maxBudgetUsd: options.maxBudgetUsd ?? options.request.maxBudgetUsd
+    }
     const sdkOptions = buildSdkOptions(sdk, {
       sessionId,
       session: options.session,
       provider: options.provider,
-      request: { ...options.request, runtime: 'sdk' },
+      request: oneShotRequest,
       mode: 'start',
       onRawData: (data) => { raw += data },
       onParsedEvents: (parsedEvents) => { events.push(...parsedEvents) },
       onExit: () => {},
       hostToolBridge: options.hostToolBridge ?? browserProviderHostToolBridge()
     }, abortController)
-    if (typeof options.maxBudgetUsd === 'number') {
-      ;(sdkOptions as SdkOptions & { maxBudgetUsd?: number }).maxBudgetUsd = options.maxBudgetUsd
-    }
 
     for await (const message of sdk.query({ prompt: claudeSdkPromptForRequest(options.request), options: sdkOptions })) {
       const line = `${JSON.stringify(message)}\n`
@@ -341,29 +365,88 @@ export function claudeSdkAgentTeamsEnabled(
   return Boolean(providerSessionId && agentId && providerSessionId !== agentId)
 }
 
+export function resolveClaudeSdkRunPolicy(
+  session: Pick<Session, 'workDir' | 'providerProjectlessThreadId'>,
+  request: Pick<RunRequest, 'cwd' | 'model' | 'effort' | 'executionPolicy' | 'providerSessionId' | 'useThinking' | 'maxTurns' | 'maxBudgetUsd'>
+): ClaudeSdkRunPolicy {
+  const permissionMode = claudeSdkPermissionMode(request.executionPolicy)
+  const maxTurns = positiveIntegerOrUndefined(request.maxTurns)
+  const maxBudgetUsd = positiveNumberOrUndefined(request.maxBudgetUsd)
+  return {
+    cwd: session.workDir || request.cwd,
+    clientApp: CLAUDE_SDK_CLIENT_APP,
+    permissionMode,
+    allowDangerouslySkipPermissions: permissionMode === 'bypassPermissions',
+    includePartialMessages: true,
+    includeHookEvents: true,
+    forwardSubagentText: true,
+    agentProgressSummaries: true,
+    persistSession: true,
+    settingSources: [...CLAUDE_SDK_SETTING_SOURCES],
+    thinking: request.useThinking ? { type: 'adaptive' } : { type: 'disabled' },
+    agentTeamsEnabled: claudeSdkAgentTeamsEnabled(session, request),
+    model: request.model || undefined,
+    effort: request.effort && request.effort !== 'normal' ? request.effort as SdkOptions['effort'] : undefined,
+    maxTurns,
+    maxBudgetUsd
+  }
+}
+
+export function claudeSdkRunPolicySummary(policy: ClaudeSdkRunPolicy): Record<string, unknown> {
+  return {
+    cwdSource: policy.cwd ? 'resolved' : 'missing',
+    clientApp: policy.clientApp,
+    permissionMode: policy.permissionMode,
+    includePartialMessages: policy.includePartialMessages,
+    includeHookEvents: policy.includeHookEvents,
+    forwardSubagentText: policy.forwardSubagentText,
+    agentProgressSummaries: policy.agentProgressSummaries,
+    persistSession: policy.persistSession,
+    settingSources: policy.settingSources,
+    thinking: policy.thinking.type,
+    agentTeamsEnabled: policy.agentTeamsEnabled,
+    model: policy.model ?? null,
+    effort: policy.effort ?? null,
+    maxTurns: policy.maxTurns ?? null,
+    maxBudgetUsd: policy.maxBudgetUsd ?? null
+  }
+}
+
 function buildSdkOptions(
   sdk: ClaudeAgentSdk,
   options: ClaudeSdkRunContext,
   abortController: AbortController
 ): SdkOptions {
   const request = options.request
-  const permissionMode = claudeSdkPermissionMode(request.executionPolicy)
-  const agentTeamsEnabled = claudeSdkAgentTeamsEnabled(options.session, request)
+  const policy = resolveClaudeSdkRunPolicy(options.session, request)
+  recordProviderRuntimeDebugEvent({
+    providerId: options.provider.id,
+    runtime: 'sdk',
+    sessionId: options.sessionId,
+    method: 'claude-sdk/policy',
+    message: `Claude SDK run policy: ${JSON.stringify(claudeSdkRunPolicySummary(policy))}`
+  })
   const sdkOptions: SdkOptions = {
     abortController,
-    cwd: options.session.workDir || request.cwd,
+    cwd: policy.cwd,
     env: {
       ...providerSpawnEnv('claude'),
-      CLAUDE_AGENT_SDK_CLIENT_APP: 'orchestrator/claude-sdk-runtime',
-      ...(agentTeamsEnabled ? { CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: '1' } : {})
+      CLAUDE_AGENT_SDK_CLIENT_APP: policy.clientApp,
+      ...(policy.agentTeamsEnabled ? { CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: '1' } : {})
     },
-    includePartialMessages: true,
-    includeHookEvents: true,
-    forwardSubagentText: true,
-    agentProgressSummaries: true,
-    model: request.model || undefined,
-    permissionMode,
-    allowDangerouslySkipPermissions: permissionMode === 'bypassPermissions',
+    includePartialMessages: policy.includePartialMessages,
+    includeHookEvents: policy.includeHookEvents,
+    forwardSubagentText: policy.forwardSubagentText,
+    agentProgressSummaries: policy.agentProgressSummaries,
+    persistSession: policy.persistSession,
+    settingSources: policy.settingSources,
+    thinking: policy.thinking,
+    model: policy.model,
+    effort: policy.effort,
+    maxTurns: policy.maxTurns,
+    maxBudgetUsd: policy.maxBudgetUsd,
+    permissionMode: policy.permissionMode,
+    allowDangerouslySkipPermissions: policy.allowDangerouslySkipPermissions,
     pathToClaudeCodeExecutable: resolveClaudeSdkExecutablePath(),
     allowedTools: request.allowedTools?.length ? request.allowedTools : undefined,
     disallowedTools: request.disallowedTools?.length ? request.disallowedTools : undefined,
@@ -405,10 +488,6 @@ function buildSdkOptions(
     mcpServers: {
       orchestrator: createBrowserSdkMcpServer(sdk, options.sessionId, options.hostToolBridge, options.onParsedEvents)
     }
-  }
-
-  if (request.effort && request.effort !== 'normal') {
-    sdkOptions.effort = request.effort as SdkOptions['effort']
   }
 
   return sdkOptions
@@ -475,6 +554,17 @@ function claudeSdkContentBlockTypeForPath(relativePath: string): 'image' | 'docu
   const lower = relativePath.toLowerCase()
   if (/\.(png|jpe?g|gif|webp)$/.test(lower)) return 'image'
   return 'document'
+}
+
+function positiveIntegerOrUndefined(value: number | undefined): number | undefined {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return undefined
+  const integer = Math.floor(value)
+  return integer > 0 ? integer : undefined
+}
+
+function positiveNumberOrUndefined(value: number | undefined): number | undefined {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return undefined
+  return value
 }
 
 function createBrowserSdkMcpServer(

@@ -1230,6 +1230,8 @@ export interface RunRequest {
   runtime?: ProviderRuntimeKind
   useThinking?: boolean
   useFast?: boolean
+  maxTurns?: number
+  maxBudgetUsd?: number
   serviceTier?: string | null
   providerContext?: ProviderRunContext
   attachments?: Attachment[]

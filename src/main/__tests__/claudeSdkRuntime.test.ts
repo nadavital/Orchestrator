@@ -2,9 +2,30 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { claudeSdkAgentTeamsEnabled, claudeSdkContentBlocksForRequest, claudeSdkPromptForRequest, resolveClaudeSdkExecutablePath } from '../claudeSdkRuntime'
+import { claudeSdkAgentTeamsEnabled, claudeSdkContentBlocksForRequest, claudeSdkPromptForRequest, claudeSdkRunPolicySummary, resolveClaudeSdkExecutablePath, resolveClaudeSdkRunPolicy } from '../claudeSdkRuntime'
 import { normalizeClaudeMessageObject } from '../providers'
-import type { RunEvent } from '../../types'
+import type { RunEvent, RunRequest, Session } from '../../types'
+
+function request(patch: Partial<RunRequest> = {}): RunRequest {
+  return {
+    prompt: 'hello',
+    cwd: '/tmp/orchestrator-request-cwd',
+    model: 'claude-sonnet-4-6',
+    effort: 'normal',
+    providerSessionId: null,
+    executionPolicy: 'default',
+    allowedTools: [],
+    ...patch
+  }
+}
+
+function session(patch: Partial<Session> = {}): Pick<Session, 'workDir' | 'providerProjectlessThreadId'> {
+  return {
+    workDir: '/tmp/orchestrator-session-cwd',
+    providerProjectlessThreadId: null,
+    ...patch
+  }
+}
 
 function normalizeSdkFixture(name: string): RunEvent[] {
   const raw = readFileSync(join(process.cwd(), 'src/main/__fixtures__/providers/claude-sdk', name), 'utf8')
@@ -88,6 +109,59 @@ test('claude sdk enables agent teams only for resumed subagent shells', () => {
     claudeSdkAgentTeamsEnabled({ providerProjectlessThreadId: 'claude-child-session' }, { providerSessionId: 'claude-child-session' }),
     false
   )
+})
+
+test('claude sdk run policy makes streaming and filesystem defaults explicit', () => {
+  const policy = resolveClaudeSdkRunPolicy(session(), request())
+
+  assert.equal(policy.cwd, '/tmp/orchestrator-session-cwd')
+  assert.equal(policy.clientApp, 'orchestrator/claude-sdk-runtime')
+  assert.equal(policy.includePartialMessages, true)
+  assert.equal(policy.includeHookEvents, true)
+  assert.equal(policy.forwardSubagentText, true)
+  assert.equal(policy.agentProgressSummaries, true)
+  assert.equal(policy.persistSession, true)
+  assert.deepEqual(policy.settingSources, ['user', 'project', 'local'])
+  assert.deepEqual(policy.thinking, { type: 'disabled' })
+  assert.equal(policy.permissionMode, 'default')
+  assert.equal(policy.allowDangerouslySkipPermissions, false)
+})
+
+test('claude sdk run policy maps thinking effort limits and bypass safely', () => {
+  const policy = resolveClaudeSdkRunPolicy(
+    session({ workDir: '', providerProjectlessThreadId: 'agent-123' }),
+    request({
+      cwd: '/tmp/fallback-cwd',
+      providerSessionId: 'parent-session',
+      executionPolicy: 'bypassPermissions',
+      useThinking: true,
+      effort: 'high',
+      maxTurns: 3.8,
+      maxBudgetUsd: 0.05
+    })
+  )
+
+  assert.equal(policy.cwd, '/tmp/fallback-cwd')
+  assert.equal(policy.permissionMode, 'bypassPermissions')
+  assert.equal(policy.allowDangerouslySkipPermissions, true)
+  assert.deepEqual(policy.thinking, { type: 'adaptive' })
+  assert.equal(policy.effort, 'high')
+  assert.equal(policy.maxTurns, 3)
+  assert.equal(policy.maxBudgetUsd, 0.05)
+  assert.equal(policy.agentTeamsEnabled, true)
+})
+
+test('claude sdk run policy summary avoids prompt and tool payload data', () => {
+  const summary = claudeSdkRunPolicySummary(resolveClaudeSdkRunPolicy(
+    session(),
+    request({ prompt: 'secret prompt', allowedTools: ['Bash'], maxTurns: -1, maxBudgetUsd: Number.NaN })
+  ))
+
+  assert.equal(summary.thinking, 'disabled')
+  assert.equal(summary.maxTurns, null)
+  assert.equal(summary.maxBudgetUsd, null)
+  assert.equal(Object.values(summary).some((value) => String(value).includes('secret prompt')), false)
+  assert.equal(Object.values(summary).some((value) => String(value).includes('Bash')), false)
 })
 
 test('claude sdk executable resolver prefers packaged app.asar.unpacked binary', () => {
