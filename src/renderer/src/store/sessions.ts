@@ -268,7 +268,7 @@ interface SessionState {
   removeSession: (id: string) => void
   setActiveSession: (id: string | null) => void
   updateStatus: (id: string, status: Session['status']) => void
-  updateName: (id: string, name: string) => void
+  updateName: (id: string, name: string, nameSource?: Session['nameSource']) => void
   updatePinned: (id: string, pinned: boolean, pinOrder?: number) => void
   reorderPinned: (orderedPinnedSessionIds: string[]) => void
   updateSession: (id: string, patch: Partial<Session>) => void
@@ -525,9 +525,9 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       sessions: s.sessions.map((x) => (x.id === id ? { ...x, status } : x))
     })),
 
-  updateName: (id, name) =>
+  updateName: (id, name, nameSource) =>
     set((s) => ({
-      sessions: s.sessions.map((x) => (x.id === id ? { ...x, name } : x))
+      sessions: s.sessions.map((x) => (x.id === id ? { ...x, name, ...(nameSource ? { nameSource } : {}) } : x))
     })),
 
   updatePinned: (id, pinned, pinOrder) =>

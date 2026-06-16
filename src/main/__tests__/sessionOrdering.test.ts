@@ -170,32 +170,45 @@ test('provider pinned thread state applies ordered Codex-style keys without touc
 
 test('codex app-server thread list metadata projects onto matching provider sessions', () => {
   const sessions: ProviderThreadMetadataSession[] = [
-    { id: 'local-session', provider: 'codex', providerSessionId: 'thread-local', createdAt: 10, latestMessageAt: 10 },
-    { id: 'cloud-session', provider: 'codex', providerSessionId: 'thread-cloud', createdAt: 20, latestMessageAt: 20 },
+    { id: 'local-session', provider: 'codex', providerSessionId: 'thread-local', name: 'New Chat', nameSource: 'default', createdAt: 10, latestMessageAt: 10 },
+    {
+      id: 'cloud-session',
+      provider: 'codex',
+      providerSessionId: 'thread-cloud',
+      name: 'please improve providers',
+      messages: [{ type: 'text', role: 'user', content: 'please improve providers' }],
+      createdAt: 20,
+      latestMessageAt: 20
+    },
     { id: 'host-session', provider: 'codex', providerSessionId: 'thread-host', createdAt: 30, latestMessageAt: 30 },
     { id: 'worktree-session', provider: 'codex', providerSessionId: 'thread-worktree', createdAt: 40, latestMessageAt: 40 },
     { id: 'projectless-session', provider: 'codex', providerSessionId: 'thread-projectless', createdAt: 50, latestMessageAt: 50 },
+    { id: 'manual-session', provider: 'codex', providerSessionId: 'thread-manual', name: 'My careful title', nameSource: 'user', createdAt: 55, latestMessageAt: 55 },
     { id: 'claude-session', provider: 'claude', providerSessionId: 'thread-cloud', createdAt: 60, latestMessageAt: 60 }
   ]
 
   const result = {
     data: [
-      { id: 'thread-local', source: 'vscode', preview: 'Local Codex preview', updatedAt: 1779638273 },
-      { id: 'thread-cloud', threadSource: 'cloud', preview: 'Cloud Codex preview', updatedAt: 1779638274000 },
+      { id: 'thread-local', source: 'vscode', preview: 'Local Codex preview', title: 'Local Codex title', updatedAt: 1779638273 },
+      { id: 'thread-cloud', threadSource: 'cloud', preview: 'Cloud Codex preview', title: 'Cloud Codex title', updatedAt: 1779638274000 },
       { id: 'thread-host', threadSource: 'remote-host', hostId: 'remote-mac', hostLabel: 'Remote Mac' },
       { id: 'thread-worktree', threadSource: 'worktree', worktreeRoot: '/tmp/worktree', worktreeSourceRoot: '/repo', worktreeHostId: 'remote-linux', worktreeHostLabel: 'Remote Linux' },
       { id: 'thread-projectless', projectless: true, cwd: '/' },
+      { id: 'thread-manual', title: 'Should not win' },
       { id: 'unmatched-thread', threadSource: 'cloud' }
     ]
   }
 
   const next = applyCodexThreadListMetadata(sessions, result)
 
-  assert.equal(codexThreadListItems(result).length, 6)
+  assert.equal(codexThreadListItems(result).length, 7)
   assert.equal(next.find((session) => session.id === 'local-session')?.previewText, 'Local Codex preview')
+  assert.equal(next.find((session) => session.id === 'local-session')?.name, 'Local Codex title')
+  assert.equal(next.find((session) => session.id === 'local-session')?.nameSource, 'provider')
   assert.equal(next.find((session) => session.id === 'local-session')?.latestMessageAt, 1779638273000)
   assert.equal(next.find((session) => session.id === 'local-session')?.providerThreadSource, 'local')
   assert.equal(next.find((session) => session.id === 'cloud-session')?.providerThreadSource, 'cloud')
+  assert.equal(next.find((session) => session.id === 'cloud-session')?.name, 'Cloud Codex title')
   assert.equal(next.find((session) => session.id === 'cloud-session')?.latestMessageAt, 1779638274000)
   assert.equal(next.find((session) => session.id === 'host-session')?.providerThreadSource, 'remote-host')
   assert.equal(next.find((session) => session.id === 'host-session')?.providerHostId, 'remote-mac')
@@ -206,6 +219,8 @@ test('codex app-server thread list metadata projects onto matching provider sess
   assert.equal(next.find((session) => session.id === 'worktree-session')?.providerWorktreeHostId, 'remote-linux')
   assert.equal(next.find((session) => session.id === 'projectless-session')?.providerProjectless, true)
   assert.equal(next.find((session) => session.id === 'projectless-session')?.providerProjectlessThreadId, 'thread-projectless')
+  assert.equal(next.find((session) => session.id === 'manual-session')?.name, 'My careful title')
+  assert.equal(next.find((session) => session.id === 'manual-session')?.nameSource, 'user')
   assert.equal(next.find((session) => session.id === 'claude-session')?.providerThreadSource, undefined)
 })
 

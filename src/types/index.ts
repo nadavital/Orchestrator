@@ -1367,6 +1367,7 @@ export interface BrowserManagerStatePatch {
 
 export type RunEvent =
   | { type: 'session.started'; providerSessionId: string }
+  | { type: 'session.name.updated'; name: string; providerSessionId?: string }
   | { type: 'assistant.text'; content: string }
   | { type: 'assistant.status'; content: string }
   | { type: 'assistant.text.delta'; streamId: string; content: string; replace?: boolean }
@@ -1530,6 +1531,8 @@ export type SessionStatus =
   | 'provider_error'
   | 'error'
 
+export type SessionNameSource = 'default' | 'first-message' | 'provider' | 'user' | 'system'
+
 export type SessionWorktreeState = 'pending' | 'ready' | 'failed'
 
 export type ReviewCheckStatus = 'passing' | 'failing' | 'pending' | 'skipped' | 'unknown'
@@ -1607,6 +1610,7 @@ export interface ReviewMetadata {
 export interface Session {
   id: string
   name: string
+  nameSource?: SessionNameSource
   pinned?: boolean
   pinOrder?: number
   projectId: string

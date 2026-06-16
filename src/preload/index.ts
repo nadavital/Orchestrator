@@ -123,9 +123,9 @@ export type SessionEvent =
   | { type: 'messageRemoved'; id: string; messageId: string }
   | { type: 'events'; id: string; events: SessionRunEventRecord[] }
   | { type: 'raw'; id: string; data: string }
-  | { type: 'renamed'; id: string; name: string }
+  | { type: 'renamed'; id: string; name: string; nameSource?: Session['nameSource'] }
   | { type: 'pinned'; id: string; pinned: boolean; pinOrder?: number }
-  | { type: 'updated'; id: string; workDir?: string; useWorktree?: boolean; repoRoot?: string; worktreeState?: Session['worktreeState']; status?: Session['status'] }
+  | { type: 'updated'; id: string; name?: string; nameSource?: Session['nameSource']; workDir?: string; useWorktree?: boolean; repoRoot?: string; worktreeState?: Session['worktreeState']; status?: Session['status']; reviewMetadata?: ReviewMetadata }
   | { type: 'settingsUpdated'; id: string; provider?: string; model?: string; effort?: string; permissionMode?: string; runtime?: Session['runtime']; useThinking?: boolean; useFast?: boolean; allowedTools?: string[]; disallowedTools?: string[]; availableTools?: string[]; additionalDirs?: string[]; usageSummary?: UsageSummary }
   | { type: 'needsInput'; id: string }
   | { type: 'archived'; id: string }
@@ -511,11 +511,11 @@ const api = {
       cb({ type: 'events', ...p })
     const onRaw = (_: Electron.IpcRendererEvent, p: { id: string; data: string }): void =>
       cb({ type: 'raw', ...p })
-    const onRenamed = (_: Electron.IpcRendererEvent, p: { id: string; name: string }): void =>
+    const onRenamed = (_: Electron.IpcRendererEvent, p: { id: string; name: string; nameSource?: Session['nameSource'] }): void =>
       cb({ type: 'renamed', ...p })
     const onPinned = (_: Electron.IpcRendererEvent, p: { id: string; pinned: boolean; pinOrder?: number }): void =>
       cb({ type: 'pinned', ...p })
-    const onUpdated = (_: Electron.IpcRendererEvent, p: { id: string; workDir?: string; useWorktree?: boolean; repoRoot?: string; worktreeState?: Session['worktreeState']; status?: Session['status'] }): void =>
+    const onUpdated = (_: Electron.IpcRendererEvent, p: Omit<Extract<SessionEvent, { type: 'updated' }>, 'type'>): void =>
       cb({ type: 'updated', ...p })
     const onSettingsUpdated = (_: Electron.IpcRendererEvent, p: SettingsUpdatedPayload): void =>
       cb({ type: 'settingsUpdated', ...p })

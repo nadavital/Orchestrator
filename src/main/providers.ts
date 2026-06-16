@@ -2399,6 +2399,11 @@ export function normalizeClaudeMessageObject(event: Record<string, unknown>, pro
 
   if (type === 'system' && event.subtype === 'init' && typeof event.session_id === 'string') {
     events.push({ type: 'session.started', providerSessionId: event.session_id })
+    const nameEvent = providerSessionNameEvent(
+      stringValue(event.thread_name, event.threadName, event.title),
+      event.session_id
+    )
+    if (nameEvent) events.push(nameEvent)
   }
 
   if (type === 'permission-mode' && typeof event.sessionId === 'string') {
@@ -2760,6 +2765,14 @@ const copilotProvider: ProviderAdapter = {
     const type = obj.type as string | undefined
     const data = asRecord(obj.data)
 
+    if (type === 'session.title_changed') {
+      const nameEvent = providerSessionNameEvent(
+        stringValue(data?.title, obj.title, obj.name),
+        stringValue(obj.sessionId, obj.session_id)
+      )
+      if (nameEvent) events.push(nameEvent)
+    }
+
     if (
       type === 'user_input.requested' ||
       type === 'elicitation.requested' ||
@@ -2954,7 +2967,15 @@ const antigravityProvider: ProviderAdapter = {
     if (!obj) return []
 
     const type = obj.type as RunEvent['type'] | string | undefined
-    if (type === 'session.started' && typeof obj.providerSessionId === 'string') return [{ type, providerSessionId: obj.providerSessionId }]
+    if (type === 'session.started' && typeof obj.providerSessionId === 'string') {
+      const events: RunEvent[] = [{ type, providerSessionId: obj.providerSessionId }]
+      const nameEvent = providerSessionNameEvent(
+        stringValue(obj.threadName, obj.thread_name, obj.title),
+        obj.providerSessionId
+      )
+      if (nameEvent) events.push(nameEvent)
+      return events
+    }
     if (type === 'assistant.text' && typeof obj.content === 'string') return [{ type, content: obj.content }]
     if (type === 'assistant.status' && typeof obj.content === 'string') return [{ type, content: obj.content }]
     if (type === 'assistant.text.delta' && typeof obj.streamId === 'string' && typeof obj.content === 'string') return [{ type, streamId: obj.streamId, content: obj.content }]
@@ -3794,6 +3815,16 @@ function localServerRouteStateValue(params: Record<string, unknown>): { routes: 
   }
 }
 
+function providerSessionNameEvent(name: string | undefined, providerSessionId?: string | undefined): RunEvent | null {
+  const normalized = name?.replace(/\s+/g, ' ').trim()
+  if (!normalized) return null
+  return {
+    type: 'session.name.updated',
+    name: normalized,
+    ...(providerSessionId ? { providerSessionId } : {})
+  }
+}
+
 function parseCodexAppServerMessage(obj: Record<string, unknown>): RunEvent[] {
   const method = stringValue(obj.method)
   if (!method) return []
@@ -3808,6 +3839,18 @@ function parseCodexAppServerMessage(obj: Record<string, unknown>): RunEvent[] {
     const thread = asRecord(params.thread)
     const threadId = stringValue(thread?.id, params.threadId)
     if (threadId) events.push({ type: 'session.started', providerSessionId: threadId })
+    const nameEvent = providerSessionNameEvent(
+      stringValue(thread?.name, thread?.title, params.name, params.title),
+      threadId
+    )
+    if (nameEvent) events.push(nameEvent)
+  }
+
+  if (method === 'thread/name/updated') {
+    const thread = asRecord(params.thread)
+    const threadId = stringValue(params.threadId, thread?.id)
+    const nameEvent = providerSessionNameEvent(stringValue(params.name, thread?.name, thread?.title), threadId)
+    if (nameEvent) events.push(nameEvent)
   }
 
   if (method === 'turn/completed') {

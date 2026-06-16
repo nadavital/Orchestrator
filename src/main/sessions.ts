@@ -5,7 +5,7 @@ import { execFile } from 'child_process'
 import { readFileSync } from 'fs'
 import { performance } from 'perf_hooks'
 import { promisify } from 'util'
-import type { AgentThreadOpenRequest, AgentThreadOpenResult, Attachment, AutomationPermissionSnapshot, CodexReviewStartRequest, Session, SessionForkMode, SessionForkOptions, SessionListItem, ChatMessage, TextMessage, ResultMessage, ProviderModelDef, ProviderRuntimeKind, ProviderSidebarSyncResult, ReviewMetadata, RunEvent, RunRequest, SessionStatus, SideQuestionMessage, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary, UserInputAnswerPayload, WorktreeInventoryItem } from '../types'
+import type { AgentThreadOpenRequest, AgentThreadOpenResult, Attachment, AutomationPermissionSnapshot, CodexReviewStartRequest, Session, SessionForkMode, SessionForkOptions, SessionListItem, ChatMessage, TextMessage, ResultMessage, ProviderModelDef, ProviderRuntimeKind, ProviderSidebarSyncResult, ReviewMetadata, RunEvent, RunRequest, SessionNameSource, SessionStatus, SideQuestionMessage, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary, UserInputAnswerPayload, WorktreeInventoryItem } from '../types'
 import { PROVIDER_DEFS, applyAutomationPermissionSnapshot, canSwitchSessionProvider, finalizeInterruptedMessages, getConfigurableModels, getDefaultPermissionMode, mergeProviderModelCatalog, normalizeProviderModelOrder, resolveProviderRunModelSelection } from '../types'
 import { gitManager } from './git'
 import { buildProviderCommandForRuntime, getProvider, PROVIDERS, providerSpawnEnv, resolveProviderBinary, resolveProviderCommand, runCodexAppServerCommandSurfaceRaw } from './providers'
@@ -249,6 +249,22 @@ function sessionPreviewText(messages: ChatMessage[], fallback: string): string {
     }
   }
   return ''
+}
+
+function compactSessionName(input: string, maxLength = 60): string {
+  const collapsed = input.replace(/\s+/g, ' ').trim()
+  return collapsed.length > maxLength ? `${collapsed.slice(0, maxLength)}…` : collapsed
+}
+
+function firstUserMessageAutoName(session: Pick<Session, 'messages'>): string | null {
+  const firstUser = session.messages.find((message) => message.type === 'text' && message.role === 'user')
+  return firstUser?.type === 'text' ? compactSessionName(firstUser.content) : null
+}
+
+function canApplyProviderSessionName(session: Pick<Session, 'name' | 'nameSource' | 'messages'>): boolean {
+  if (session.nameSource === 'user' || session.nameSource === 'provider' || session.nameSource === 'system') return false
+  if (session.nameSource === 'default' || session.nameSource === 'first-message') return true
+  return session.name === 'New Chat' || session.name === firstUserMessageAutoName(session)
 }
 
 function sessionListItem(session: Session): SessionListItem {
@@ -1142,6 +1158,7 @@ export const sessionManager = {
     const session: Session = {
       id,
       name: 'New Chat',
+      nameSource: 'default',
       pinned: false,
       projectId: opts.projectId,
       workDir,
@@ -1233,6 +1250,7 @@ export const sessionManager = {
       ...source,
       id,
       name: `Forked: ${source.name}`,
+      nameSource: 'system',
       pinned: false,
       pinOrder: undefined,
       projectId: source.projectId,
@@ -1401,6 +1419,7 @@ export const sessionManager = {
       let changed = false
       if (shouldRefreshAgentThreadTitle(existing.name, title)) {
         existing.name = title
+        existing.nameSource = 'provider'
         changed = true
       }
       const previewText = request.transcript?.trim() || agentThreadPreview(providerId, title, providerAgentId, providerThreadId)
@@ -1423,6 +1442,7 @@ export const sessionManager = {
         send('session:updated', {
           id: existing.id,
           name: existing.name,
+          nameSource: existing.nameSource,
           providerProjectless: existing.providerProjectless,
           providerProjectlessThreadId: existing.providerProjectlessThreadId,
           previewText: existing.previewText,
@@ -1454,6 +1474,7 @@ export const sessionManager = {
       ...source,
       id: uuidv4(),
       name: title,
+      nameSource: 'provider',
       pinned: false,
       pinOrder: undefined,
       provider: providerId,
@@ -1485,16 +1506,32 @@ export const sessionManager = {
     return { ok: true, session, reused: false, resumePrompt }
   },
 
-  updateName(id: string, name: string): void {
+  updateSessionName(id: string, name: string, source: SessionNameSource): boolean {
     const nextName = name.trim()
-    if (!nextName) return
+    if (!nextName) return false
     const sessions = store.get('sessions', [])
     const s = sessions.find((s) => s.id === id)
     if (s) {
+      const changed = s.name !== nextName || s.nameSource !== source
       s.name = nextName
+      s.nameSource = source
       store.set('sessions', sessions)
-      send('session:renamed', { id, name: nextName })
+      if (changed) {
+        send('session:renamed', { id, name: nextName, nameSource: source })
+      }
+      return true
     }
+    return false
+  },
+
+  updateName(id: string, name: string): void {
+    this.updateSessionName(id, name, 'user')
+  },
+
+  updateProviderName(id: string, name: string): boolean {
+    const session = this.get(id)
+    if (!session || !canApplyProviderSessionName(session)) return false
+    return this.updateSessionName(id, name, 'provider')
   },
 
   async updatePinned(id: string, pinned: boolean): Promise<void> {
@@ -1573,6 +1610,8 @@ export const sessionManager = {
     for (const session of changed) {
       send('session:updated', {
         id: session.id,
+        name: session.name,
+        nameSource: session.nameSource,
         providerThreadSource: session.providerThreadSource,
         providerHostId: session.providerHostId,
         providerHostLabel: session.providerHostLabel,
@@ -1829,10 +1868,9 @@ export const sessionManager = {
     const freshSession = this.get(sessionId)
     const shouldAutoName = freshSession && freshSession.messages.filter((m) => m.role === 'user').length === 0
     const previousName = freshSession?.name
+    const previousNameSource = freshSession?.nameSource
     if (freshSession && shouldAutoName) {
-      const collapsed = prompt.replace(/\s+/g, ' ').trim()
-      const autoName = collapsed.length > 60 ? collapsed.slice(0, 60) + '…' : collapsed
-      this.updateName(sessionId, autoName)
+      this.updateSessionName(sessionId, compactSessionName(prompt), 'first-message')
     }
 
     this.updateStatus(sessionId, 'running')
@@ -1863,7 +1901,7 @@ export const sessionManager = {
       if (!started) {
         this.removeMessage(sessionId, userMessageId)
         if (editSnapshot) this.restoreMessages(sessionId, editSnapshot)
-        if (previousName && shouldAutoName) this.updateName(sessionId, previousName)
+        if (previousName && shouldAutoName) this.updateSessionName(sessionId, previousName, previousNameSource ?? 'default')
         if (simulateSendStartFailure) {
           const message = 'Provider runtime failed to start.'
           this.appendMessage(sessionId, [{
@@ -1883,7 +1921,7 @@ export const sessionManager = {
       const message = error instanceof Error ? error.message : String(error)
       this.removeMessage(sessionId, userMessageId)
       if (editSnapshot) this.restoreMessages(sessionId, editSnapshot)
-      if (previousName && shouldAutoName) this.updateName(sessionId, previousName)
+      if (previousName && shouldAutoName) this.updateSessionName(sessionId, previousName, previousNameSource ?? 'default')
       this.appendMessage(sessionId, [{
         id: uuidv4(),
         role: 'system',
@@ -2107,6 +2145,20 @@ export const sessionManager = {
         s.providerSessionId = decision.providerSessionId
         s.claudeSessionId = decision.claudeSessionId ?? decision.providerSessionId
         setSessionsStore(sessions, 'provider-session-id', { sessionId })
+      }
+    }
+
+    const providerNameEvent = [...events].reverse().find((event) => event.type === 'session.name.updated')
+    if (providerNameEvent?.type === 'session.name.updated') {
+      const current = this.get(sessionId)
+      if (
+        current &&
+        canApplyProviderSessionName(current) &&
+        (!providerNameEvent.providerSessionId ||
+          providerNameEvent.providerSessionId === current.providerSessionId ||
+          providerNameEvent.providerSessionId === decision.providerSessionId)
+      ) {
+        this.updateSessionName(sessionId, providerNameEvent.name, 'provider')
       }
     }
 

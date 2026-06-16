@@ -125,9 +125,9 @@ export type SessionEvent =
   | { type: 'messageRemoved'; id: string; messageId: string }
   | { type: 'events'; id: string; events: SessionRunEventRecord[] }
   | { type: 'raw'; id: string; data: string }
-  | { type: 'renamed'; id: string; name: string }
+  | { type: 'renamed'; id: string; name: string; nameSource?: Session['nameSource'] }
   | { type: 'pinned'; id: string; pinned: boolean; pinOrder?: number }
-  | { type: 'updated'; id: string; workDir?: string; useWorktree?: boolean; repoRoot?: string; worktreeState?: Session['worktreeState']; status?: Session['status']; reviewMetadata?: ReviewMetadata }
+  | { type: 'updated'; id: string; name?: string; nameSource?: Session['nameSource']; workDir?: string; useWorktree?: boolean; repoRoot?: string; worktreeState?: Session['worktreeState']; status?: Session['status']; reviewMetadata?: ReviewMetadata }
   | {
       type: 'settingsUpdated'
       id: string

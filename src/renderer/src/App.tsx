@@ -1551,7 +1551,7 @@ export default function App(): JSX.Element {
       } else if (event.type === 'raw') {
         appendRaw(event.id, event.data)
       } else if (event.type === 'renamed') {
-        updateName(event.id, event.name)
+        updateName(event.id, event.name, event.nameSource)
       } else if (event.type === 'pinned') {
         updatePinned(event.id, event.pinned, event.pinOrder)
       } else if (event.type === 'updated') {

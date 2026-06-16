@@ -1316,6 +1316,37 @@ test('codex app-server protocol messages normalize approval and question semanti
   assert.equal(questions[1]?.questions?.[0]?.header, 'deploy')
 })
 
+test('codex app-server protocol messages expose provider thread names', () => {
+  const provider = PROVIDERS.codex
+  const started = provider.parseOutputLine(JSON.stringify({
+    method: 'thread/started',
+    params: {
+      thread: {
+        id: 'codex-title-thread',
+        title: 'Improve Settings Titles'
+      }
+    }
+  }))
+  const renamed = provider.parseOutputLine(JSON.stringify({
+    method: 'thread/name/updated',
+    params: {
+      threadId: 'codex-title-thread',
+      name: 'Improve Provider Naming'
+    }
+  }))
+
+  assert.deepEqual(started.filter((event) => event.type === 'session.name.updated'), [{
+    type: 'session.name.updated',
+    name: 'Improve Settings Titles',
+    providerSessionId: 'codex-title-thread'
+  }])
+  assert.deepEqual(renamed.filter((event) => event.type === 'session.name.updated'), [{
+    type: 'session.name.updated',
+    name: 'Improve Provider Naming',
+    providerSessionId: 'codex-title-thread'
+  }])
+})
+
 test('codex app-server user input preserves other and secret metadata', () => {
   const provider = PROVIDERS.codex
   const events = provider.parseOutputLine(JSON.stringify({
@@ -1748,6 +1779,18 @@ test('copilot fixture normalizes assistant, tool, session, and completion events
   assert.equal(completed.content, 'README.md\nsrc')
   assert.equal(session.providerSessionId, 'copilot-session-123')
   assert.ok(events.some((event) => event.type === 'run.completed'))
+})
+
+test('copilot title change event promotes provider session name', () => {
+  const events = PROVIDERS.copilot.parseOutputLine(JSON.stringify({
+    type: 'session.title_changed',
+    sessionId: 'copilot-session-123',
+    data: { title: 'Investigate Provider Naming' }
+  }))
+  const name = firstEvent(events, 'session.name.updated')
+
+  assert.equal(name.name, 'Investigate Provider Naming')
+  assert.equal(name.providerSessionId, 'copilot-session-123')
 })
 
 test('copilot subagent events normalize into agent activity nodes', () => {

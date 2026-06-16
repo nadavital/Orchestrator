@@ -5,6 +5,8 @@ export interface ProviderThreadMetadataSession {
   provider?: string
   providerSessionId?: string | null
   name?: string
+  nameSource?: 'default' | 'first-message' | 'provider' | 'user' | 'system'
+  messages?: Array<{ type?: string; role?: string; content?: string }>
   workDir?: string
   repoRoot?: string
   previewText?: string
@@ -117,11 +119,14 @@ function providerThreadSessionWithCodexMetadata<T extends ProviderThreadMetadata
     nestedValue(thread, 'pendingWorktree', 'hostLabel')
   ) ?? hostLabel
   const preview = stringValue(thread.preview, thread.previewText, thread.title, nestedValue(thread, 'conversation', 'title'))
+  const providerName = stringValue(thread.title, thread.name, thread.threadName, thread.thread_name, nestedValue(thread, 'conversation', 'title'))
   const latestMessageAt = timestampMs(thread.updatedAt, thread.updated_at, thread.createdAt, thread.created_at)
   const projectless = isCodexProjectlessThread(thread)
+  const canApplyProviderName = providerName && canApplyProviderThreadName(session)
 
   return {
     ...session,
+    ...(canApplyProviderName ? { name: providerName, nameSource: 'provider' as const } : {}),
     providerThreadSource: source ?? session.providerThreadSource,
     providerHostId: source === 'remote-host' ? hostId ?? session.providerHostId : session.providerHostId,
     providerHostLabel: source === 'remote-host' ? hostLabel ?? session.providerHostLabel : session.providerHostLabel,
@@ -142,6 +147,22 @@ function providerThreadSessionWithCodexMetadata<T extends ProviderThreadMetadata
     previewText: preview ?? session.previewText,
     latestMessageAt: latestMessageAt ?? session.latestMessageAt
   }
+}
+
+function canApplyProviderThreadName(session: ProviderThreadMetadataSession): boolean {
+  if (session.nameSource === 'user' || session.nameSource === 'provider' || session.nameSource === 'system') return false
+  if (session.nameSource === 'default' || session.nameSource === 'first-message') return true
+  return session.name === 'New Chat' || session.name === firstUserMessageAutoName(session)
+}
+
+function firstUserMessageAutoName(session: ProviderThreadMetadataSession): string | null {
+  const firstUser = session.messages?.find((message) => message.type === 'text' && message.role === 'user')
+  return typeof firstUser?.content === 'string' ? compactSessionName(firstUser.content) : null
+}
+
+function compactSessionName(input: string, maxLength = 60): string {
+  const collapsed = input.replace(/\s+/g, ' ').trim()
+  return collapsed.length > maxLength ? `${collapsed.slice(0, maxLength)}…` : collapsed
 }
 
 function codexThreadRecordFromListItem(item: unknown): Record<string, unknown> | null {
@@ -240,7 +261,9 @@ function isCodexProjectlessThread(thread: Record<string, unknown>): boolean {
 }
 
 function shallowEqualSessionProjection<T extends ProviderThreadMetadataSession>(a: T, b: T): boolean {
-  return a.providerThreadSource === b.providerThreadSource &&
+  return a.name === b.name &&
+    a.nameSource === b.nameSource &&
+    a.providerThreadSource === b.providerThreadSource &&
     a.providerHostId === b.providerHostId &&
     a.providerHostLabel === b.providerHostLabel &&
     a.providerWorktreeSourceRoot === b.providerWorktreeSourceRoot &&
