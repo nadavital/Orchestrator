@@ -855,7 +855,7 @@ test('claude partial text streams normalize without duplicating finalized assist
   assert.ok(events.some((event) => event.type === 'run.completed'))
 })
 
-test('claude thinking deltas normalize into a separate trace stream', () => {
+test('claude thinking deltas are ignored instead of entering the transcript stream', () => {
   const rawEvents = [
     {
       type: 'stream_event',
@@ -902,13 +902,8 @@ test('claude thinking deltas normalize into a separate trace stream', () => {
     }
   ]
   const events = rawEvents.flatMap((event) => normalizeClaudeMessageObject(event))
-  const deltas = events.filter((event): event is Extract<RunEvent, { type: 'assistant.thinking.delta' }> => event.type === 'assistant.thinking.delta')
-  const completed = firstEvent(events, 'assistant.thinking.completed')
 
-  assert.deepEqual(deltas.map((event) => event.content), ['Checking', ' options'])
-  assert.equal(deltas[0].streamId, 'msg-thinking-1:0')
-  assert.equal(completed.streamId, 'msg-thinking-1:0')
-  assert.equal(events.some((event) => event.type === 'assistant.text.delta' || event.type === 'assistant.text'), false)
+  assert.deepEqual(events, [])
 })
 
 test('claude nested agent text streams into agent transcript state', () => {

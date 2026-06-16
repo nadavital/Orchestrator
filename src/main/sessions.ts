@@ -5,7 +5,7 @@ import { execFile } from 'child_process'
 import { readFileSync } from 'fs'
 import { performance } from 'perf_hooks'
 import { promisify } from 'util'
-import type { AgentThreadOpenRequest, AgentThreadOpenResult, Attachment, AutomationPermissionSnapshot, CodexReviewStartRequest, Session, SessionForkMode, SessionForkOptions, SessionListItem, ChatMessage, TextMessage, ResultMessage, ProviderModelDef, ProviderRuntimeKind, ProviderSidebarSyncResult, ReviewMetadata, RunEvent, RunRequest, SessionNameSource, SessionStatus, SideQuestionMessage, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary, UserInputAnswerPayload, WorktreeInventoryItem } from '../types'
+import type { AgentThreadOpenRequest, AgentThreadOpenResult, Attachment, AutomationPermissionSnapshot, CodexReviewStartRequest, Session, SessionForkMode, SessionForkOptions, SessionListItem, ChatMessage, TextMessage, ProviderModelDef, ProviderRuntimeKind, ProviderSidebarSyncResult, ReviewMetadata, RunEvent, RunRequest, SessionNameSource, SessionStatus, SideQuestionMessage, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary, UserInputAnswerPayload, WorktreeInventoryItem } from '../types'
 import { PROVIDER_DEFS, applyAutomationPermissionSnapshot, canSwitchSessionProvider, finalizeInterruptedMessages, getConfigurableModels, getDefaultPermissionMode, mergeProviderModelCatalog, normalizeProviderModelOrder, resolveProviderRunModelSelection } from '../types'
 import { gitManager } from './git'
 import { buildProviderCommandForRuntime, getProvider, PROVIDERS, providerSpawnEnv, resolveProviderBinary, resolveProviderCommand, runCodexAppServerCommandSurfaceRaw } from './providers'
@@ -298,10 +298,7 @@ function flushStreamingMessageUpdates(): void {
 
 function sendMessageUpdated(id: string, message: ChatMessage): void {
   const pendingKey = `${id}:${message.id}`
-  if (
-    (message.type === 'text' && message.role === 'assistant' && message.isStreaming === true) ||
-    (message.type === 'result' && message.subtype === 'thinking' && message.isStreaming === true)
-  ) {
+  if (message.type === 'text' && message.role === 'assistant' && message.isStreaming === true) {
     pendingStreamingMessageUpdates.set(pendingKey, { id, message })
     if (!pendingStreamingMessageUpdateTimer) {
       pendingStreamingMessageUpdateTimer = setTimeout(flushStreamingMessageUpdates, STREAMING_MESSAGE_UPDATE_SEND_INTERVAL_MS)
@@ -1010,8 +1007,7 @@ export const sessionManager = {
 
   upsertMessage(id: string, message: ChatMessage): void {
     const isStreamingTranscriptMessage =
-      (message.type === 'text' && message.role === 'assistant' && message.isStreaming === true) ||
-      (message.type === 'result' && message.subtype === 'thinking' && message.isStreaming === true)
+      message.type === 'text' && message.role === 'assistant' && message.isStreaming === true
 
     if (isStreamingTranscriptMessage) {
       const key = streamingMessageKey(id, message.id)
@@ -2120,9 +2116,7 @@ export const sessionManager = {
   applyRunEvents(sessionId: string, events: RunEvent[]): void {
     if (events.length === 0) return
     const applyStartedAt = performance.now()
-    const streamingDeltaCount = events.filter((event) =>
-      event.type === 'assistant.text.delta' || event.type === 'assistant.thinking.delta'
-    ).length
+    const streamingDeltaCount = events.filter((event) => event.type === 'assistant.text.delta').length
 
     send('session:events', {
       id: sessionId,
@@ -2232,55 +2226,6 @@ export const sessionManager = {
             role: 'assistant',
             type: 'text',
             content: event.content,
-            timestamp: Date.now(),
-            isStreaming: false
-          })
-        }
-      } else if (event.type === 'assistant.thinking.delta') {
-        const key = streamingMessageKey(sessionId, event.streamId)
-        const activeRecord = activeStreamingMessages.get(key)
-        const activeMessage = activeRecord?.message
-        const existing = activeMessage?.type === 'result'
-          ? activeMessage
-          : this.get(sessionId)?.messages.find((message) => message.id === event.streamId && message.type === 'result')
-        const message: ResultMessage = {
-          id: event.streamId,
-          role: 'system',
-          type: 'result',
-          content: event.replace ? event.content : `${existing?.type === 'result' ? existing.content : ''}${event.content}`,
-          subtype: 'thinking',
-          timestamp: existing?.timestamp ?? Date.now(),
-          isStreaming: true
-        }
-        const now = Date.now()
-        if (!activeRecord) {
-          this.upsertMessage(sessionId, message)
-        } else if (now - activeRecord.lastPersistedAt >= STREAMING_MESSAGE_PERSIST_INTERVAL_MS) {
-          this.upsertMessage(sessionId, message)
-        } else {
-          activeStreamingMessages.set(key, { id: sessionId, message, lastPersistedAt: activeRecord.lastPersistedAt })
-          sendMessageUpdated(sessionId, message)
-        }
-      } else if (event.type === 'assistant.thinking.completed') {
-        const activeMessage = activeStreamingRecord(sessionId, event.streamId)?.message
-        const existing = activeMessage?.type === 'result'
-          ? activeMessage
-          : this.get(sessionId)?.messages.find((message) => message.id === event.streamId && message.type === 'result')
-        if (existing?.type === 'result') {
-          clearActiveStreamingMessage(sessionId, event.streamId)
-          this.upsertMessage(sessionId, {
-            ...existing,
-            content: typeof event.content === 'string' ? event.content : existing.content,
-            isStreaming: false
-          })
-        } else if (typeof event.content === 'string') {
-          clearActiveStreamingMessage(sessionId, event.streamId)
-          this.upsertMessage(sessionId, {
-            id: event.streamId,
-            role: 'system',
-            type: 'result',
-            content: event.content,
-            subtype: 'thinking',
             timestamp: Date.now(),
             isStreaming: false
           })

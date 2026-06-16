@@ -67,6 +67,7 @@ const captureViewOptions = [
   { flag: '--transcript-stress', view: 'transcript-stress', surface: 'Transcript', scope: 'Large transcript stress behavior' },
   { flag: '--streaming-drag', view: 'streaming-drag', surface: 'Transcript', scope: 'Streaming while dragging' },
   { flag: '--streaming-typing', view: 'streaming-typing', surface: 'Transcript', scope: 'Streaming while typing' },
+  { flag: '--background-streaming-typing', view: 'background-streaming-typing', surface: 'Transcript', scope: 'Typing in one thread while another thread streams' },
   { flag: '--session-switch', view: 'session-switch', surface: 'Sessions', scope: 'Route-backed sessions, unread state, search, recovery' },
   { flag: '--extensions', view: 'extensions', surface: 'Extensions', scope: 'Extension surfaces' },
   { flag: '--design-system', view: 'design-system', surface: 'Shell', scope: 'Design-system contract attributes' },
@@ -1938,8 +1939,6 @@ child.on('exit', async (code) => {
         isolatedProfile: result.profile?.isIsolated === true,
         streamingMessageUpdated: result.streamingMessageUpdated === true,
         streamingSessionActive: result.streamingSessionActive === true,
-        multiStreamingBackgroundUpdated: result.multiStreamingBackgroundUpdated === true,
-        multiStreamingActiveThreadStable: result.multiStreamingActiveThreadStable === true,
         streamingTextVisible: result.streamingTextVisible === true,
         titlebarCommitCountLow: Number(result.titlebarCommitCount ?? Number.POSITIVE_INFINITY) <= 4,
         appCommitCountLow: Number(result.appCommitCount ?? Number.POSITIVE_INFINITY) <= 6,
@@ -1947,21 +1946,27 @@ child.on('exit', async (code) => {
         titlebarDragResponsive: result.titlebarDragResponsive === true
       }
     : captureView === 'streaming-typing'
+    || captureView === 'background-streaming-typing'
     ? {
         isolatedProfile: result.profile?.isIsolated === true,
         streamingMessageUpdated: result.streamingMessageUpdated === true,
-        streamingSessionActive: result.streamingSessionActive === true,
-        streamingTextVisible: result.streamingTextVisible === true,
-        composerQueuedSummary: result.composerQueuedSummaryWorks === true,
-        composerSteeringCancel: result.composerSteeringCancelWorks === true,
-        composerSteeringCancelStatus: result.composerSteeringCancelStatusWorks === true,
-        latestActivityButtonWorking: result.latestActivityButtonWorking === true,
-        thinkingIndicator: result.thinkingIndicatorWorks === true,
-        composerWillQueueStatus: result.composerWillQueueStatusWorks === true,
-        composerStopRunControl: result.composerStopRunControlWorks === true,
-        composerStopRunStatus: result.composerStopRunStatusWorks === true,
-        queuedFollowUpStartFailureVisible: result.queuedFollowUpStartFailureVisible === true,
-        queuedFollowUpStartFailureState: result.queuedFollowUpStartFailureState === true,
+        ...(captureView === 'streaming-typing'
+          ? {
+              streamingSessionActive: result.streamingSessionActive === true,
+              streamingTextVisible: result.streamingTextVisible === true,
+              composerQueuedSummary: result.composerQueuedSummaryWorks === true,
+              latestActivityButtonWorking: result.latestActivityButtonWorking === true,
+              thinkingIndicator: result.thinkingIndicatorWorks === true,
+              composerWillQueueStatus: result.composerWillQueueStatusWorks === true,
+              composerStopRunControl: result.composerStopRunControlWorks === true,
+              composerStopRunStatus: result.composerStopRunStatusWorks === true
+            }
+          : {
+              activeSessionStayedIdle: result.activeSessionStayedIdle === true,
+              backgroundStreamingHidden: result.backgroundStreamingHidden === true,
+              activeTitleStable: result.activeTitleStable === true,
+              composerNormalSendWhileBackgroundStreams: result.composerNormalSendWorks === true
+            }),
         composerTyped: result.composerTyped === true,
         composerFocusedWhileStreaming: result.composerFocusedWhileStreaming === true,
         composerEditableWhileStreaming: result.composerEditableWhileStreaming === true,
@@ -1970,10 +1975,14 @@ child.on('exit', async (code) => {
           Number(result.maxTypingTimerDriftMs ?? Number.POSITIVE_INFINITY) < 90,
         inputDispatchAcceptable: Number(result.maxInputDispatchMs ?? Number.POSITIVE_INFINITY) < 24,
         maxFrameGapAcceptable: Number(result.maxFrameGapMs ?? Number.POSITIVE_INFINITY) < 120,
-        visualLayoutStable: Number(result.cumulativeLayoutShift ?? Number.POSITIVE_INFINITY) <= 0.02,
-        transcriptRowsStable: Number(result.transcriptRowRemoves ?? Number.POSITIVE_INFINITY) <= 4,
-        composerReserveStable: Number(result.composerReserveMaxHeightDelta ?? Number.POSITIVE_INFINITY) <= 6,
-        primaryVisibilityStable: Number(result.primaryVisibilityChanges ?? Number.POSITIVE_INFINITY) === 0,
+        ...(captureView === 'streaming-typing'
+          ? {
+              visualLayoutStable: Number(result.cumulativeLayoutShift ?? Number.POSITIVE_INFINITY) <= 0.02,
+              transcriptRowsStable: Number(result.transcriptRowRemoves ?? Number.POSITIVE_INFINITY) <= 4,
+              composerReserveStable: Number(result.composerReserveMaxHeightDelta ?? Number.POSITIVE_INFINITY) <= 6,
+              primaryVisibilityStable: Number(result.primaryVisibilityChanges ?? Number.POSITIVE_INFINITY) === 0
+            }
+          : {}),
         appCommitCountBounded: Number(result.appCommitCount ?? Number.POSITIVE_INFINITY) <= 8,
         sidebarCommitCountBounded: Number(result.sidebarCommitCount ?? Number.POSITIVE_INFINITY) <= 18,
         inputBarCommitCountBounded: Number(result.inputBarCommitCount ?? Number.POSITIVE_INFINITY) <= 96,

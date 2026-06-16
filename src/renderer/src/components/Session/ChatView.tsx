@@ -70,6 +70,8 @@ const TOOL_SUMMARY_MAX_HEIGHT = 220
 const FOLLOW_BOTTOM_THRESHOLD = 80
 const USER_MESSAGE_COLLAPSE_LENGTH = 1400
 const USER_MESSAGE_COLLAPSE_MIN_BREAK = 980
+const DEFER_COMPLETED_ASSISTANT_MARKDOWN_CHARS = 2_500
+const DEFER_COMPLETED_ASSISTANT_MARKDOWN_MS = 2_400
 const TRANSCRIPT_PAGE_CHUNK = 120
 const TRANSCRIPT_LAZY_LOAD_TOP_THRESHOLD = 360
 const TRANSCRIPT_USER_SCROLL_LOCKOUT_MS = 1400
@@ -1548,6 +1550,7 @@ function findTranscriptElementForMessage(messageId: string): Element | null {
 function transcriptMessagesForDisplay(provider: string, messages: ChatMessage[]): ChatMessage[] {
   return messages.filter((message) => (
     !isQueuedShelfMessage(message) &&
+    !isThinkingTraceMessage(message) &&
     (provider !== 'copilot' || !isCopilotReasoningStatusLeak(message))
   ))
 }
@@ -1556,6 +1559,12 @@ function isQueuedShelfMessage(message: ChatMessage): boolean {
   return message.type === 'text' &&
     message.role === 'user' &&
     (message.queueState === 'queued' || message.queueState === 'steer_next')
+}
+
+function isThinkingTraceMessage(message: ChatMessage): boolean {
+  return message.type === 'result' &&
+    message.role === 'system' &&
+    message.subtype === 'thinking'
 }
 
 function applyStreamingMessageOverlays(
@@ -2252,9 +2261,59 @@ function MessageRow({
 	  onCancelQueuedMessage: (messageId: string, queueState: 'queued' | 'steer_next') => Promise<void>
 	  onEditUserMessageFromHere: (messageId: string, content: string, attachments?: Attachment[]) => Promise<void>
 	  onForkFromMessage: (messageId: string, mode?: SessionForkMode) => Promise<void>
-	}): JSX.Element | null {
+}): JSX.Element | null {
   const [isUserMessageExpanded, setIsUserMessageExpanded] = useState(false)
+  const [markdownDeferred, setMarkdownDeferred] = useState(false)
+  const wasStreamingAssistantRef = useRef(false)
   const openRightPanelFileTab = useSessionStore((state) => state.openRightPanelFileTab)
+  const isAssistantTextMessage = msg.type === 'text' && msg.role === 'assistant'
+  const textMessageContent = msg.type === 'text' ? msg.content : ''
+  const justCompletedLargeAssistantMessage =
+    isAssistantTextMessage &&
+    msg.isStreaming !== true &&
+    wasStreamingAssistantRef.current &&
+    textMessageContent.length >= DEFER_COMPLETED_ASSISTANT_MARKDOWN_CHARS
+  const shouldDeferAssistantMarkdown = justCompletedLargeAssistantMessage || (markdownDeferred && isAssistantTextMessage && msg.isStreaming !== true)
+  const fileReferences = useMemo(
+    () => isAssistantTextMessage && msg.isStreaming !== true && !shouldDeferAssistantMarkdown
+      ? extractFileReferences(textMessageContent, session.workDir).slice(0, 8)
+      : [],
+    [isAssistantTextMessage, msg.isStreaming, session.workDir, shouldDeferAssistantMarkdown, textMessageContent]
+  )
+
+  useEffect(() => {
+    const isStreamingAssistant = isAssistantTextMessage && msg.isStreaming === true
+    const shouldDefer =
+      wasStreamingAssistantRef.current &&
+      isAssistantTextMessage &&
+      msg.isStreaming !== true &&
+      textMessageContent.length >= DEFER_COMPLETED_ASSISTANT_MARKDOWN_CHARS
+
+    let timeoutId: number | null = null
+    let idleId: number | null = null
+    if (shouldDefer) {
+      setMarkdownDeferred(true)
+      const finish = (): void => setMarkdownDeferred(false)
+      timeoutId = window.setTimeout(() => {
+        const requestIdle = window.requestIdleCallback
+        if (typeof requestIdle === 'function') {
+          idleId = requestIdle(finish, { timeout: 1_500 })
+        } else {
+          finish()
+        }
+      }, DEFER_COMPLETED_ASSISTANT_MARKDOWN_MS)
+    } else if (isStreamingAssistant) {
+      setMarkdownDeferred(false)
+    }
+
+    wasStreamingAssistantRef.current = isStreamingAssistant
+
+    return () => {
+      if (timeoutId !== null) window.clearTimeout(timeoutId)
+      if (idleId !== null && typeof window.cancelIdleCallback === 'function') window.cancelIdleCallback(idleId)
+    }
+  }, [isAssistantTextMessage, msg.id, msg.isStreaming, textMessageContent.length])
+
   const wrapResultCard = (card: JSX.Element): JSX.Element => (
     <div
       data-message-id={msg.id}
@@ -2292,9 +2351,6 @@ function MessageRow({
 	    const hasUserMessageActions = isUser && (canEditAsDraft || canRetryUnansweredUserMessage || canForkFromMessage)
 	    const hasAssistantMessageActions = !isUser && (canCopy || canContinue || canRegenerate || canForkFromMessage)
     const retryProviderLabel = providerRetryLabel(session)
-	    const fileReferences = !isUser && !isSystem
-	      ? extractFileReferences(content, session.workDir).slice(0, 8)
-      : []
     return (
       <div
         data-message-id={msg.id}
@@ -2327,7 +2383,7 @@ function MessageRow({
             <MarkdownSurface user={isUser}>
               {shouldCollapseUserMessage && !isUserMessageExpanded ? (
                 <div style={{ whiteSpace: 'pre-wrap' }}>{displayContent}</div>
-              ) : msg.isStreaming ? (
+              ) : msg.isStreaming || shouldDeferAssistantMarkdown ? (
                 <div style={{ whiteSpace: 'pre-wrap' }}>{displayContent}</div>
               ) : (
                 <ReactMarkdown
@@ -2497,9 +2553,6 @@ function MessageRow({
     if (msg.permissionDenials && msg.permissionDenials.length > 0) {
       return wrapResultCard(<PermissionCard msg={msg} sessionId={session.id} sessionStatus={session.status} />)
     }
-    if (msg.subtype === 'thinking') {
-      return wrapResultCard(<ThinkingTraceCard msg={msg} />)
-    }
     if (msg.subtype === 'status') {
       return wrapResultCard(<StatusCard content={msg.content} session={session} />)
     }
@@ -2630,56 +2683,6 @@ type StatusMeta = {
   label: string
   tone: string
   icon: JSX.Element
-}
-
-function ThinkingTraceCard({ msg }: { msg: ResultMessage }): JSX.Element | null {
-  const content = msg.content.trim()
-  if (!content && !msg.isStreaming) return null
-  const maxVisibleChars = msg.isStreaming ? 1800 : 2800
-  const displayedContent = content.length > maxVisibleChars
-    ? `...${content.slice(-maxVisibleChars)}`
-    : content
-  const truncated = displayedContent !== content
-  return (
-    <div className="flex justify-start min-w-0 w-full">
-      <SurfaceRow
-        className="transcript-thinking-trace-card flex min-w-0 flex-col gap-2 rounded-md px-3 py-2 text-xs"
-        dataTestId="claude-thinking-trace-card"
-        ariaLabel="Claude thinking trace"
-        style={{
-          maxWidth: 'min(680px, 100%)',
-          background: 'color-mix(in srgb, var(--color-surface2) 92%, var(--accent) 8%)',
-          border: '1px solid color-mix(in srgb, var(--accent) 28%, var(--color-border))',
-          color: 'var(--color-text-muted)'
-        }}
-      >
-        <div className="flex min-w-0 items-center gap-2">
-          <span
-            className="grid h-5 w-5 shrink-0 place-items-center rounded"
-            style={{ color: 'var(--accent)', background: 'var(--color-surface)' }}
-            aria-hidden="true"
-          >
-            <ThinkingDots />
-          </span>
-          <div className="min-w-0 flex-1">
-            <div className="text-[11px] font-semibold tracking-normal" style={{ color: 'var(--accent)' }}>
-              Claude thinking trace
-            </div>
-            <div className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
-              Experimental raw thinking delta{msg.isStreaming ? ' · streaming' : ''}{truncated ? ' · latest excerpt' : ''}
-            </div>
-          </div>
-        </div>
-        <pre
-          className="transcript-thinking-trace-content"
-          data-testid="claude-thinking-trace-content"
-          data-thinking-trace-streaming={msg.isStreaming ? 'true' : 'false'}
-        >
-          {displayedContent || 'Waiting for thinking delta...'}
-        </pre>
-      </SurfaceRow>
-    </div>
-  )
 }
 
 function StatusCard({ content, session }: { content: string; session: Session }): JSX.Element {

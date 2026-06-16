@@ -655,10 +655,7 @@ function claudePartialEventFromStreamEvent(
   if (streamType === 'content_block_delta') {
     const delta = asRecord(streamEvent.delta)
     if (delta?.type === 'thinking_delta' && typeof delta.thinking === 'string') {
-      const streamId = streamIdForBlock(streamKey, index)
-      return parentToolUseId
-        ? []
-        : [{ type: 'assistant.thinking.delta', streamId, content: delta.thinking }]
+      return []
     }
     if (delta?.type !== 'text_delta' || typeof delta.text !== 'string' || !delta.text) return []
 
@@ -675,9 +672,8 @@ function claudePartialEventFromStreamEvent(
     const blockKey = streamBlockKey(streamKey, index)
     const blockType = anthropicStreamBlockTypes.get(blockKey)
     if (blockType === 'thinking') {
-      const streamId = streamIdForBlock(streamKey, index)
       anthropicStreamBlockTypes.delete(blockKey)
-      return parentToolUseId ? [] : [{ type: 'assistant.thinking.completed', streamId }]
+      return []
     }
     if (blockType !== 'text') return []
 
@@ -4086,6 +4082,11 @@ const codexProvider: ProviderAdapter = {
 
     if (type === 'thread.started' && typeof obj.thread_id === 'string') {
       events.push({ type: 'session.started', providerSessionId: obj.thread_id })
+      const nameEvent = providerSessionNameEvent(
+        stringValue(obj.thread_name, obj.threadName, obj.title),
+        obj.thread_id
+      )
+      if (nameEvent) events.push(nameEvent)
     }
 
     if (type === 'agent_message') {

@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useSessionStore } from '../../store/sessions'
 import { parseFileChangesFromUnifiedDiff, summarizeFileChanges } from '../../types'
@@ -14,6 +14,7 @@ const LIVE_STATUSES = new Set(['queued', 'running', 'waiting', 'blocked'])
 const EMPTY_EVENTS: [] = []
 
 export default function ComposerContextShelf({ sessionId }: Props): JSX.Element | null {
+  const [actionStatus, setActionStatus] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
   const {
     session,
     events,
@@ -41,9 +42,15 @@ export default function ComposerContextShelf({ sessionId }: Props): JSX.Element 
 
   const queuedMessages = useMemo(() => {
     if (!session) return []
-    return session.messages.filter((message): message is TextMessage =>
-      message.type === 'text' && message.role === 'user' && Boolean(message.queueState)
-    )
+    return session.messages
+      .filter((message): message is TextMessage =>
+        message.type === 'text' && message.role === 'user' && Boolean(message.queueState)
+      )
+      .sort((a, b) => {
+        if (a.queueState === 'steer_next' && b.queueState !== 'steer_next') return -1
+        if (a.queueState !== 'steer_next' && b.queueState === 'steer_next') return 1
+        return a.timestamp - b.timestamp
+      })
   }, [session])
 
   const agents = useMemo(
@@ -63,13 +70,27 @@ export default function ComposerContextShelf({ sessionId }: Props): JSX.Element 
 
   const steerQueuedMessage = useCallback(async (messageId: string): Promise<void> => {
     if (!session) return
-    await window.api.sessions.steerQueuedMessage(session.id, messageId)
+    try {
+      await window.api.sessions.steerQueuedMessage(session.id, messageId)
+      setActionStatus({ text: 'Queued message will steer the next turn', tone: 'info' })
+    } catch (error) {
+      setActionStatus({ text: error instanceof Error ? error.message : 'Failed to steer queued message', tone: 'danger' })
+    }
   }, [session])
 
   const cancelQueuedMessage = useCallback(async (messageId: string): Promise<void> => {
     if (!session) return
-    await window.api.sessions.cancelQueuedMessage(session.id, messageId)
-    removeMessage(session.id, messageId)
+    const message = session.messages.find((candidate) => candidate.id === messageId)
+    try {
+      await window.api.sessions.cancelQueuedMessage(session.id, messageId)
+      removeMessage(session.id, messageId)
+      setActionStatus({
+        text: message?.type === 'text' && message.queueState === 'steer_next' ? 'Steering message canceled' : 'Queued message canceled',
+        tone: 'info'
+      })
+    } catch (error) {
+      setActionStatus({ text: error instanceof Error ? error.message : 'Failed to cancel queued message', tone: 'danger' })
+    }
   }, [removeMessage, session])
 
   if (!session || (changes.length === 0 && queuedMessages.length === 0 && agents.length === 0)) return null
@@ -112,14 +133,28 @@ export default function ComposerContextShelf({ sessionId }: Props): JSX.Element 
           </div>
         )}
         {queuedMessages.length > 0 && (
-          <QueuedMessageRow
-            message={queuedMessages[0]}
-            queuedCount={queuedCount}
-            steeringCount={steeringCount}
-            hasMore={queuedMessages.length > 1}
-            onSteer={() => { void steerQueuedMessage(queuedMessages[0].id) }}
-            onCancel={() => { void cancelQueuedMessage(queuedMessages[0].id) }}
-          />
+          <>
+            <QueuedMessageRow
+              message={queuedMessages[0]}
+              queuedCount={queuedCount}
+              steeringCount={steeringCount}
+              hasMore={queuedMessages.length > 1}
+              onSteer={() => { void steerQueuedMessage(queuedMessages[0].id) }}
+              onCancel={() => { void cancelQueuedMessage(queuedMessages[0].id) }}
+            />
+            {actionStatus && (
+              <div
+                data-testid="composer-context-action-status"
+                data-transcript-action-status-tone={actionStatus.tone}
+                role="status"
+                aria-live="polite"
+                aria-atomic="true"
+                className="sr-only"
+              >
+                {actionStatus.text}
+              </div>
+            )}
+          </>
         )}
         {agents.length > 0 && (
           <div
@@ -181,6 +216,8 @@ function QueuedMessageRow({
     <div
       className="composer-context-row composer-context-row-queue"
       data-testid="composer-queued-summary"
+      data-message-id={message.id}
+      data-queued-message-state={message.queueState}
       data-queued-follow-up-count={queuedCount}
       data-steering-follow-up-count={steeringCount}
     >
@@ -191,14 +228,24 @@ function QueuedMessageRow({
         <span className="composer-context-queue-label">{label}</span>
         <span className="composer-context-queue-preview">{message.content.trim()}</span>
       </div>
-      <div className="composer-context-actions">
+      <div
+        className="composer-context-actions"
+        data-testid="queued-message-actions"
+        data-queued-message-state={message.queueState}
+      >
         {!isSteering && (
           <button type="button" className="composer-context-action-button" onClick={onSteer}>
             <Icon name="arrowRight" size={14} />
             <span>Steer</span>
           </button>
         )}
-        <button type="button" className="composer-context-icon-button" aria-label="Cancel queued message" onClick={onCancel}>
+        <button
+          type="button"
+          className="composer-context-icon-button"
+          data-testid="queued-message-cancel"
+          aria-label={isSteering ? 'Cancel steering message' : 'Cancel queued message'}
+          onClick={onCancel}
+        >
           <Icon name="trash" size={14} />
         </button>
         {hasMore && (

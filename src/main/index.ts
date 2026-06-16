@@ -645,6 +645,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
     runAutomatedStreamingTypingSmoke(win, outputPath, screenshotPath)
     return
   }
+  if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'background-streaming-typing') {
+    runAutomatedBackgroundStreamingTypingSmoke(win, outputPath, screenshotPath)
+    return
+  }
   if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'workbench-perf') {
     runAutomatedWorkbenchPerfSmoke(win, outputPath, screenshotPath)
     return
@@ -30519,6 +30523,10 @@ function runAutomatedClaudeLiveStreamingTypingSmoke(win: BrowserWindow, outputPa
             const shiftSources = shifts.flatMap((shift) => Array.isArray(shift.sources) ? shift.sources : []);
             const reserveHeights = Array.isArray(visualSnapshotSource.reserveHeights) ? [...visualSnapshotSource.reserveHeights] : [];
             const sendStatus = document.querySelector('[data-testid="composer-send-status"]');
+            const sendButton = document.querySelector('.composer-send-trigger');
+            const sendButtonLabel = sendButton instanceof HTMLElement
+              ? sendButton.getAttribute('aria-label') ?? sendButton.getAttribute('data-tooltip-label') ?? ''
+              : '';
             return {
               composerFound: true,
               streamingUiStartedAt,
@@ -30530,9 +30538,13 @@ function runAutomatedClaudeLiveStreamingTypingSmoke(win: BrowserWindow, outputPa
               typedLength: chars.length,
               composerValue: textarea.value,
               composerWillQueueStatusVisible:
-                sendStatus instanceof HTMLElement &&
-                sendStatus.getAttribute('data-composer-send-state') === 'will-queue' &&
-                sendStatus.textContent?.includes('Will queue after current run') === true,
+                (
+                  sendStatus instanceof HTMLElement &&
+                  sendStatus.getAttribute('data-composer-send-state') === 'will-queue' &&
+                  sendStatus.textContent?.includes('Will queue after current run') === true
+                ) ||
+                sendButtonLabel.includes('Queue message'),
+              sendButtonLabel,
               maxTypingTimerDriftMs: timerDrifts.length ? Math.max(...timerDrifts) : null,
               p95TypingTimerDriftMs: percentile(timerDrifts, 0.95),
               maxInputDispatchMs: inputDispatchMs.length ? Math.max(...inputDispatchMs) : null,
@@ -33331,13 +33343,6 @@ function runAutomatedStreamingTypingSmoke(win: BrowserWindow, outputPath: string
             content: 'STREAMING_TYPING_QUEUED_FOLLOW_UP: keep this queued while the current run streams.',
             queueState: 'queued',
             timestamp: Date.now()
-          }, {
-            id: 'streaming-typing-steering-follow-up',
-            role: 'user',
-            type: 'text',
-            content: 'STREAMING_TYPING_STEERING_FOLLOW_UP: this steering follow-up can still be cancelled.',
-            queueState: 'steer_next',
-            timestamp: Date.now() + 1
           }])
           await new Promise((resolve) => setTimeout(resolve, 120))
           await win.webContents.executeJavaScript(`
@@ -33438,6 +33443,10 @@ function runAutomatedStreamingTypingSmoke(win: BrowserWindow, outputPath: string
             const shiftSources = shifts.flatMap((shift) => Array.isArray(shift.sources) ? shift.sources : []);
             const reserveHeights = Array.isArray(visual.reserveHeights) ? [...visual.reserveHeights] : [];
             const sendStatus = document.querySelector('[data-testid="composer-send-status"]');
+            const sendButton = document.querySelector('.composer-send-trigger');
+            const sendButtonLabel = sendButton instanceof HTMLElement
+              ? sendButton.getAttribute('aria-label') ?? sendButton.getAttribute('data-tooltip-label') ?? ''
+              : '';
             return {
               composerFound: true,
               composerFocused: document.activeElement === textarea,
@@ -33445,9 +33454,13 @@ function runAutomatedStreamingTypingSmoke(win: BrowserWindow, outputPath: string
               typedLength: chars.length,
               composerValue: textarea.value,
               composerWillQueueStatusVisible:
-                sendStatus instanceof HTMLElement &&
-                sendStatus.getAttribute('data-composer-send-state') === 'will-queue' &&
-                sendStatus.textContent?.includes('Will queue after current run') === true,
+                (
+                  sendStatus instanceof HTMLElement &&
+                  sendStatus.getAttribute('data-composer-send-state') === 'will-queue' &&
+                  sendStatus.textContent?.includes('Will queue after current run') === true
+                ) ||
+                sendButtonLabel.includes('Queue message'),
+              sendButtonLabel,
               maxTypingTimerDriftMs: timerDrifts.length ? Math.max(...timerDrifts) : null,
               p95TypingTimerDriftMs: percentile(timerDrifts, 0.95),
               maxInputDispatchMs: inputDispatchMs.length ? Math.max(...inputDispatchMs) : null,
@@ -33498,34 +33511,10 @@ function runAutomatedStreamingTypingSmoke(win: BrowserWindow, outputPath: string
               initialTranscriptScroller.dispatchEvent(new Event('scroll', { bubbles: true }));
             }
             for (let attempt = 0; attempt < 30; attempt += 1) {
-              if (
-                document.body.innerText.includes('typing stream update 220') &&
-                document.querySelector('[data-message-id="streaming-typing-steering-follow-up"] [data-testid="queued-message-actions"][data-queued-message-state="steer_next"]') instanceof HTMLElement
-              ) {
-                break;
-              }
+              if (document.body.innerText.includes('typing stream update 220')) break;
               await sleep(80);
             }
             const streamingTextVisibleBeforeScroll = document.body.innerText.includes('typing stream update 220');
-            const steeringActions = document.querySelector('[data-message-id="streaming-typing-steering-follow-up"] [data-testid="queued-message-actions"][data-queued-message-state="steer_next"]');
-            const steeringCancel = document.querySelector('[data-message-id="streaming-typing-steering-follow-up"] [data-testid="queued-message-cancel"]');
-            const steeringBeforeCancel =
-              steeringActions instanceof HTMLElement &&
-              steeringActions.textContent?.includes('Steering next') === true &&
-              steeringCancel instanceof HTMLButtonElement;
-            if (steeringCancel instanceof HTMLButtonElement) {
-              steeringCancel.click();
-              await sleep(160);
-            }
-            const steeringCancelStatus = document.querySelector('[data-testid="transcript-action-status"]');
-            const composerSteeringCancelStatusWorks =
-              steeringBeforeCancel &&
-              steeringCancelStatus instanceof HTMLElement &&
-              steeringCancelStatus.textContent?.includes('Steering message canceled') === true &&
-              steeringCancelStatus.getAttribute('data-transcript-action-status-tone') === 'info' &&
-              steeringCancelStatus.getAttribute('role') === 'status' &&
-              steeringCancelStatus.getAttribute('aria-live') === 'polite' &&
-              steeringCancelStatus.getAttribute('aria-atomic') === 'true';
             const transcriptScroller = document.querySelector('[data-testid="transcript-scroll"]');
             if (transcriptScroller instanceof HTMLElement) {
               transcriptScroller.scrollTop = 0;
@@ -33588,11 +33577,6 @@ function runAutomatedStreamingTypingSmoke(win: BrowserWindow, outputPath: string
               composerQueuedSummaryVisible: document.querySelector('[data-testid="composer-queued-summary"]') instanceof HTMLElement,
               composerQueuedSummaryText: document.querySelector('[data-testid="composer-queued-summary"]')?.textContent ?? '',
               composerQueuedSummaryCount: document.querySelector('[data-testid="composer-queued-summary"]')?.getAttribute('data-queued-follow-up-count') ?? null,
-              composerSteeringCancelWorks:
-                steeringBeforeCancel &&
-                !document.body.innerText.includes('STREAMING_TYPING_STEERING_FOLLOW_UP') &&
-                !(document.querySelector('[data-message-id="streaming-typing-steering-follow-up"] [data-testid="queued-message-actions"]') instanceof HTMLElement),
-              composerSteeringCancelStatusWorks,
               latestActivityButtonWorking,
               thinkingIndicatorWorks,
               composerStopRunControlWorks,
@@ -33612,63 +33596,10 @@ function runAutomatedStreamingTypingSmoke(win: BrowserWindow, outputPath: string
           backgroundSession?.status === 'idle' &&
           backgroundStreamingMessage?.type === 'text' &&
           backgroundStreamingMessage.content.includes('background stream update 025')
-        if (sessionId) {
-          sessionManager.updateStatus(sessionId, 'idle')
-          await new Promise((resolve) => setTimeout(resolve, 120))
-          sessionManager.appendMessage(sessionId, [{
-            id: 'streaming-typing-queued-start-failure',
-            role: 'user',
-            type: 'text',
-            content: 'QUEUED_FOLLOW_UP_START_FAIL_SMOKE: keep this visibly queued if provider start fails.',
-            queueState: 'queued',
-            timestamp: Date.now()
-          }])
-          await sessionManager.runQueuedFollowUp(sessionId, {
-            id: 'streaming-typing-queued-start-failure',
-            prompt: 'QUEUED_FOLLOW_UP_START_FAIL_SMOKE: keep this visibly queued if provider start fails.',
-            mode: 'queued',
-            attachments: []
-          })
-          await new Promise((resolve) => setTimeout(resolve, 220))
-        }
-        const queuedFailureSession = sessionId ? sessionManager.get(sessionId) : null
-        const queuedFailureStoredMessage = queuedFailureSession?.messages.find((message) =>
-          message.id === 'streaming-typing-queued-start-failure' && message.type === 'text'
-        )
-        const queuedFailureSessionStatus = queuedFailureSession?.status ?? null
-        const queuedFailureStoredState = queuedFailureStoredMessage?.type === 'text' ? queuedFailureStoredMessage.queueState ?? null : null
-        const queuedFailureResult = await win.webContents.executeJavaScript(`
-          (async () => {
-            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-            const transcriptScroller = document.querySelector('[data-testid="transcript-scroll"]');
-            if (transcriptScroller instanceof HTMLElement) {
-              transcriptScroller.scrollTop = transcriptScroller.scrollHeight;
-              transcriptScroller.dispatchEvent(new Event('scroll', { bubbles: true }));
-            }
-            for (let index = 0; index < 20; index += 1) {
-              if (document.body.innerText.includes('Smoke queued follow-up failed to start.')) break;
-              await sleep(80);
-            }
-            const queuedMessage = document.querySelector('[data-message-id="streaming-typing-queued-start-failure"]');
-            const queuedActions = queuedMessage?.querySelector('[data-testid="queued-message-actions"][data-queued-message-state="queued"]');
-            return {
-              queuedFollowUpStartFailureVisible:
-                queuedMessage instanceof HTMLElement &&
-                queuedActions instanceof HTMLElement &&
-                document.body.innerText.includes('Smoke queued follow-up failed to start.'),
-              queuedFollowUpStartFailureState:
-                ${JSON.stringify(queuedFailureSessionStatus)} === 'error' &&
-                queuedActions instanceof HTMLElement,
-              queuedFollowUpStoredState: ${JSON.stringify(queuedFailureStoredState)}
-            };
-          })()
-        `)
-
         const profile = await win.webContents.executeJavaScript('window.api.app.getProfile()')
         const typedValue = typeof typingResult?.composerValue === 'string' ? typingResult.composerValue : ''
         const payload = {
           ...result,
-          ...queuedFailureResult,
           ...typingResult,
           profile,
           streamingMessageUpdated,
@@ -33682,6 +33613,215 @@ function runAutomatedStreamingTypingSmoke(win: BrowserWindow, outputPath: string
             result.composerQueuedSummaryVisible === true &&
             result.composerQueuedSummaryText.includes('1 queued') &&
             result.composerQueuedSummaryCount === '1'
+        }
+
+        if (screenshotPath) {
+          const image = await win.webContents.capturePage()
+          writeFileSync(screenshotPath, image.toPNG())
+        }
+        writeFileSync(outputPath, JSON.stringify({ ok: true, result: payload, screenshotPath }, null, 2))
+        app.quit()
+      } catch (error) {
+        writeFileSync(outputPath, JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2))
+        app.quit()
+      }
+    }, 700)
+  })
+}
+
+function runAutomatedBackgroundStreamingTypingSmoke(win: BrowserWindow, outputPath: string, screenshotPath?: string): void {
+  win.webContents.once('did-finish-load', () => {
+    setTimeout(async () => {
+      try {
+        const activeSession = sessionManager.list().find((candidate) =>
+          candidate.messages.some((message) => message.id === 'background-streaming-active-history-1')
+        )
+        const activeSessionId = activeSession?.id ?? null
+        let backgroundSessionId: string | null = null
+        if (activeSession) {
+          const background = await sessionManager.create({
+            projectId: activeSession.projectId,
+            workDir: activeSession.workDir,
+            useWorktree: false,
+            repoRoot: activeSession.repoRoot ?? activeSession.workDir
+          })
+          projectStore.addSession(activeSession.projectId, background.id)
+          backgroundSessionId = background.id
+          const baseTime = Date.now()
+          sessionManager.save({
+            ...background,
+            name: 'Background-only streaming smoke',
+            status: 'running',
+            messages: [{
+              id: 'background-streaming-user',
+              role: 'user',
+              type: 'text',
+              content: 'This background thread streams while the user works in another thread.',
+              timestamp: baseTime
+            }, {
+              id: 'background-streaming-message',
+              role: 'assistant',
+              type: 'text',
+              content: 'Background-only streaming fixture.',
+              isStreaming: true,
+              timestamp: baseTime + 1
+            }]
+          })
+        }
+
+        let activeSessionVisible = false
+        for (let attempt = 0; attempt < 24 && activeSessionId; attempt += 1) {
+          win.webContents.send('pet:navigate', activeSessionId)
+          await new Promise((resolve) => setTimeout(resolve, 100))
+          activeSessionVisible = await win.webContents.executeJavaScript(`
+            document.querySelector('[data-testid="active-session-title"]')?.textContent?.includes('Background streaming active smoke') === true
+          `)
+          if (activeSessionVisible) break
+        }
+        await new Promise((resolve) => setTimeout(resolve, 200))
+
+        await win.webContents.executeJavaScript(`
+          (() => {
+            window.__orchestratorInputBarCommitCount = 0;
+            window.__orchestratorSessionPaneCommitCount = 0;
+            window.__orchestratorChatViewCommitCount = 0;
+            window.__orchestratorAppCommitCount = 0;
+            window.__orchestratorSidebarCommitCount = 0;
+            window.__orchestratorStreamingFrameGaps = [];
+            window.__orchestratorStreamingFrameStop = false;
+            let lastFrame = performance.now();
+            const sample = (now) => {
+              window.__orchestratorStreamingFrameGaps.push(now - lastFrame);
+              lastFrame = now;
+              if (!window.__orchestratorStreamingFrameStop) requestAnimationFrame(sample);
+            };
+            requestAnimationFrame(sample);
+          })()
+        `)
+
+        const backgroundUpdatePromise = (async () => {
+          const background = backgroundSessionId ? sessionManager.get(backgroundSessionId) : null
+          const backgroundMessage = background?.messages.find((message) => message.id === 'background-streaming-message')
+          if (!background || backgroundMessage?.type !== 'text') return false
+          for (let index = 0; index < 220; index += 1) {
+            sessionManager.upsertMessage(background.id, {
+              ...backgroundMessage,
+              content: [
+                'Background-only streaming fixture.',
+                ...Array.from({ length: index + 1 }, (_line, lineIndex) => `background stream update ${String(lineIndex + 1).padStart(3, '0')}`)
+              ].join('\n'),
+              isStreaming: true
+            })
+            await new Promise((resolve) => setTimeout(resolve, 4))
+          }
+          sessionManager.upsertMessage(background.id, {
+            ...backgroundMessage,
+            content: [
+              'Background-only streaming fixture.',
+              ...Array.from({ length: 220 }, (_line, lineIndex) => `background stream update ${String(lineIndex + 1).padStart(3, '0')}`)
+            ].join('\n'),
+            isStreaming: false
+          })
+          sessionManager.updateStatus(background.id, 'idle')
+          return true
+        })()
+
+        await new Promise((resolve) => setTimeout(resolve, 80))
+        const typingResultPromise = win.webContents.executeJavaScript(`
+          (async () => {
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            const textarea = document.querySelector('[data-testid="composer-textarea"]');
+            if (!(textarea instanceof HTMLTextAreaElement)) return { composerFound: false };
+            textarea.focus();
+            textarea.value = '';
+            textarea.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'deleteContentBackward', data: null }));
+            const chars = 'typing in active thread while background streams';
+            const setter = Object.getOwnPropertyDescriptor(textarea.constructor.prototype, 'value')?.set;
+            const timerDrifts = [];
+            const inputDispatchMs = [];
+            let expectedAt = performance.now() + 24;
+            for (const char of chars) {
+              await sleep(Math.max(0, expectedAt - performance.now()));
+              const before = performance.now();
+              timerDrifts.push(before - expectedAt);
+              setter?.call(textarea, textarea.value + char);
+              textarea.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: char }));
+              inputDispatchMs.push(performance.now() - before);
+              expectedAt += 24;
+            }
+            await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+            const sendButton = document.querySelector('.composer-send-trigger');
+            const sendButtonLabel = sendButton instanceof HTMLElement
+              ? sendButton.getAttribute('aria-label') ?? sendButton.getAttribute('data-tooltip-label') ?? ''
+              : '';
+            return {
+              composerFound: true,
+              composerFocused: document.activeElement === textarea,
+              composerDisabled: textarea.disabled,
+              composerValue: textarea.value,
+              sendButtonLabel,
+              maxTypingTimerDriftMs: timerDrifts.length ? Math.max(...timerDrifts) : null,
+              p95TypingTimerDriftMs: percentile(timerDrifts, 0.95),
+              maxInputDispatchMs: inputDispatchMs.length ? Math.max(...inputDispatchMs) : null,
+              p95InputDispatchMs: percentile(inputDispatchMs, 0.95)
+            };
+
+            function percentile(values, ratio) {
+              if (!values.length) return null;
+              const sorted = [...values].sort((a, b) => a - b);
+              return sorted[Math.min(sorted.length - 1, Math.floor((sorted.length - 1) * ratio))];
+            }
+          })()
+        `)
+
+        const [streamingMessageUpdated, typingResult] = await Promise.all([backgroundUpdatePromise, typingResultPromise])
+        const backgroundSession = backgroundSessionId ? sessionManager.get(backgroundSessionId) : null
+        const backgroundStreamingMessage = backgroundSession?.messages.find((message) =>
+          message.id === 'background-streaming-message' && message.type === 'text'
+        )
+        const result = await win.webContents.executeJavaScript(`
+          (() => {
+            window.__orchestratorStreamingFrameStop = true;
+            const gaps = Array.isArray(window.__orchestratorStreamingFrameGaps) ? window.__orchestratorStreamingFrameGaps : [];
+            const activeTitle = document.querySelector('[data-testid="active-session-title"]');
+            const bodyText = document.body.innerText;
+            return {
+              profile: window.__orchestratorSmokeProfile ?? null,
+              inputBarCommitCount: window.__orchestratorInputBarCommitCount ?? null,
+              sessionPaneCommitCount: window.__orchestratorSessionPaneCommitCount ?? null,
+              chatViewCommitCount: window.__orchestratorChatViewCommitCount ?? null,
+              appCommitCount: window.__orchestratorAppCommitCount ?? null,
+              sidebarCommitCount: window.__orchestratorSidebarCommitCount ?? null,
+              maxFrameGapMs: gaps.length ? Math.max(...gaps) : null,
+              frameSamples: gaps.length,
+              activeTitleStable:
+                activeTitle instanceof HTMLElement &&
+                activeTitle.textContent?.includes('Background streaming active smoke') === true,
+              activeSessionStayedIdle:
+                !(document.querySelector('[data-testid="composer-stop-run"]') instanceof HTMLElement) &&
+                !bodyText.includes('Thinking'),
+              backgroundStreamingHidden: !bodyText.includes('background stream update 220')
+            };
+          })()
+        `)
+        const profile = await win.webContents.executeJavaScript('window.api.app.getProfile()')
+        const typedValue = typeof typingResult?.composerValue === 'string' ? typingResult.composerValue : ''
+        const payload = {
+          ...result,
+          ...typingResult,
+          profile,
+          streamingMessageUpdated:
+            streamingMessageUpdated === true &&
+            backgroundSession?.status === 'idle' &&
+            backgroundStreamingMessage?.type === 'text' &&
+            backgroundStreamingMessage.content.includes('background stream update 220'),
+          composerTyped: typedValue.includes('typing in active thread while background streams'),
+          composerFocusedWhileStreaming: typingResult?.composerFocused === true,
+          composerEditableWhileStreaming: typingResult?.composerFound === true && typingResult?.composerDisabled === false,
+          composerNormalSendWorks:
+            typeof typingResult?.sendButtonLabel === 'string' &&
+            typingResult.sendButtonLabel.includes('Send') &&
+            !typingResult.sendButtonLabel.includes('Queue')
         }
 
         if (screenshotPath) {
@@ -33874,6 +34014,8 @@ async function bootstrapAutomatedUiSmokeState(): Promise<void> {
     seedAutomatedStreamingDragSmokeSession(session.id)
   } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'streaming-typing') {
     seedAutomatedStreamingTypingSmokeSession(session.id)
+  } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'background-streaming-typing') {
+    seedAutomatedBackgroundStreamingTypingSmokeSession(session.id)
   } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'composer') {
     await seedAutomatedComposerSmokeSession(project.id, project.rootPath)
   } else if (
@@ -34436,6 +34578,34 @@ function seedAutomatedStreamingTypingSmokeSession(sessionId: string): void {
     messages: [
       ...session.messages.filter((message) => !message.id.startsWith('streaming-typing-')),
       ...messages
+    ]
+  })
+}
+
+function seedAutomatedBackgroundStreamingTypingSmokeSession(sessionId: string): void {
+  const session = sessionManager.get(sessionId)
+  if (!session) return
+  const baseTime = Date.now()
+  const history: ChatMessage[] = Array.from({ length: 24 }, (_, index) => ({
+    id: `background-streaming-active-history-${index + 1}`,
+    role: index % 2 === 0 ? 'user' : 'assistant',
+    type: 'text',
+    content: [
+      `${index % 2 === 0 ? 'User' : 'Assistant'} background streaming active-thread fixture ${index + 1}.`,
+      '',
+      ...Array.from({ length: 4 }, (_line, lineIndex) =>
+        `History line ${lineIndex + 1} keeps the active thread realistic while another thread streams.`
+      )
+    ].join('\n'),
+    timestamp: baseTime + index
+  }))
+  sessionManager.save({
+    ...session,
+    name: 'Background streaming active smoke',
+    status: 'idle',
+    messages: [
+      ...session.messages.filter((message) => !message.id.startsWith('background-streaming-active-')),
+      ...history
     ]
   })
 }

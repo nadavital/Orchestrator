@@ -192,7 +192,10 @@ export default function App(): JSX.Element {
   const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState(() => (
     window.localStorage.getItem(LEFT_SIDEBAR_COLLAPSED_KEY) === 'true'
   ))
+  const activeSessionIdRef = useRef<string | null>(activeSessionId)
   const pendingStreamingMessageUpsertsRef = useRef(new Map<string, { sessionId: string; message: ChatMessage }>())
+  const inactiveStreamingMessageUpsertsRef = useRef(new Map<string, { sessionId: string; message: ChatMessage }>())
+  const inactiveEventBuffersRef = useRef(new Map<string, SessionRunEventRecord[]>())
   const streamingMessageTimerRef = useRef<number | null>(null)
 
   const flushStreamingMessageUpserts = useCallback((): void => {
@@ -206,9 +209,46 @@ export default function App(): JSX.Element {
     })
   }, [upsertStreamingMessage])
 
+  const flushInactiveSessionBuffers = useCallback((sessionId: string | null): void => {
+    if (!sessionId) return
+    const streamingUpdates = [...inactiveStreamingMessageUpsertsRef.current.values()]
+      .filter((item) => item.sessionId === sessionId)
+    if (streamingUpdates.length > 0) {
+      startTransition(() => {
+        for (const item of streamingUpdates) upsertStreamingMessage(item.sessionId, item.message)
+      })
+      for (const item of streamingUpdates) {
+        inactiveStreamingMessageUpsertsRef.current.delete(`${item.sessionId}:${item.message.id}`)
+      }
+    }
+
+    const events = inactiveEventBuffersRef.current.get(sessionId)
+    if (events && events.length > 0) {
+      inactiveEventBuffersRef.current.delete(sessionId)
+      startTransition(() => {
+        appendEvents(sessionId, events)
+        applyBrowserManagerRunEvents(sessionId, events)
+      })
+    }
+  }, [appendEvents, upsertStreamingMessage])
+
   const scheduleMessageUpsert = useCallback((sessionId: string, message: ChatMessage): void => {
     const pendingKey = `${sessionId}:${message.id}`
-    if (message.type === 'text' && message.role === 'assistant' && message.isStreaming === true) {
+    const isStreamingTranscriptMessage = message.type === 'text' && message.role === 'assistant' && message.isStreaming === true
+    if (isStreamingTranscriptMessage) {
+      if (sessionId !== activeSessionIdRef.current) {
+        pendingStreamingMessageUpsertsRef.current.delete(pendingKey)
+        inactiveStreamingMessageUpsertsRef.current.set(pendingKey, { sessionId, message })
+        return
+      }
+      const state = useSessionStore.getState()
+      const session = state.sessions.find((candidate) => candidate.id === sessionId)
+      const hasBaseMessage = session?.messages.some((candidate) => candidate.id === message.id) === true
+      const hasStreamingMessage = state.streamingMessages[sessionId]?.[message.id] !== undefined
+      if (!hasBaseMessage && !hasStreamingMessage) {
+        upsertMessage(sessionId, message)
+        return
+      }
       pendingStreamingMessageUpsertsRef.current.set(pendingKey, { sessionId, message })
       if (streamingMessageTimerRef.current === null) {
         streamingMessageTimerRef.current = window.setTimeout(flushStreamingMessageUpserts, STREAMING_MESSAGE_RENDER_INTERVAL_MS)
@@ -216,8 +256,25 @@ export default function App(): JSX.Element {
       return
     }
     pendingStreamingMessageUpsertsRef.current.delete(pendingKey)
+    inactiveStreamingMessageUpsertsRef.current.delete(pendingKey)
     upsertMessage(sessionId, message)
   }, [flushStreamingMessageUpserts, upsertMessage])
+
+  const scheduleSessionEvents = useCallback((sessionId: string, events: SessionRunEventRecord[]): void => {
+    if (events.length === 0) return
+    if (sessionId !== activeSessionIdRef.current) {
+      const current = inactiveEventBuffersRef.current.get(sessionId) ?? []
+      inactiveEventBuffersRef.current.set(sessionId, [...current, ...events].slice(-500))
+      return
+    }
+    appendEvents(sessionId, events)
+    applyBrowserManagerRunEvents(sessionId, events)
+  }, [appendEvents])
+
+  useEffect(() => {
+    activeSessionIdRef.current = activeSessionId
+    flushInactiveSessionBuffers(activeSessionId)
+  }, [activeSessionId, flushInactiveSessionBuffers])
 
   useEffect(() => {
     return () => {
@@ -226,6 +283,8 @@ export default function App(): JSX.Element {
         streamingMessageTimerRef.current = null
       }
       pendingStreamingMessageUpsertsRef.current.clear()
+      inactiveStreamingMessageUpsertsRef.current.clear()
+      inactiveEventBuffersRef.current.clear()
     }
   }, [])
   const [threadFindDomain, setThreadFindDomain] = useState<ThreadFindDomain>('conversation')
@@ -1546,8 +1605,7 @@ export default function App(): JSX.Element {
       } else if (event.type === 'messageRemoved') {
         removeMessage(event.id, event.messageId)
       } else if (event.type === 'events') {
-        appendEvents(event.id, event.events)
-        applyBrowserManagerRunEvents(event.id, event.events)
+        scheduleSessionEvents(event.id, event.events)
       } else if (event.type === 'raw') {
         appendRaw(event.id, event.data)
       } else if (event.type === 'renamed') {
