@@ -29,6 +29,7 @@ import { InactiveSessionStreamBuffer } from '../../types/streamBackpressure'
 type ShellFocusArea = PanelCloseFocusArea
 type ThreadFindDomain = 'conversation' | 'diff'
 const STREAMING_MESSAGE_RENDER_INTERVAL_MS = 80
+const INACTIVE_RAW_BUFFER_LIMIT_CHARS = 20_000
 const EMPTY_SESSION_LIST: SessionListItem[] = []
 type ThreadFindStatus = {
   totalMatches: number
@@ -196,6 +197,7 @@ export default function App(): JSX.Element {
   const activeSessionIdRef = useRef<string | null>(activeSessionId)
   const pendingStreamingMessageUpsertsRef = useRef(new Map<string, { sessionId: string; message: ChatMessage }>())
   const inactiveSessionStreamBufferRef = useRef(new InactiveSessionStreamBuffer<ChatMessage, SessionRunEventRecord>())
+  const inactiveRawBuffersRef = useRef(new Map<string, string>())
   const streamingMessageTimerRef = useRef<number | null>(null)
 
   const flushStreamingMessageUpserts = useCallback((): void => {
@@ -226,7 +228,15 @@ export default function App(): JSX.Element {
         applyBrowserManagerRunEvents(sessionId, events)
       })
     }
-  }, [appendEvents, upsertStreamingMessage])
+
+    const raw = inactiveRawBuffersRef.current.get(sessionId)
+    if (raw && raw.length > 0) {
+      inactiveRawBuffersRef.current.delete(sessionId)
+      startTransition(() => {
+        appendRaw(sessionId, raw)
+      })
+    }
+  }, [appendEvents, appendRaw, upsertStreamingMessage])
 
   const scheduleMessageUpsert = useCallback((sessionId: string, message: ChatMessage): void => {
     const pendingKey = `${sessionId}:${message.id}`
@@ -266,6 +276,16 @@ export default function App(): JSX.Element {
     applyBrowserManagerRunEvents(sessionId, events)
   }, [appendEvents])
 
+  const scheduleSessionRaw = useCallback((sessionId: string, data: string): void => {
+    if (!data) return
+    if (sessionId !== activeSessionIdRef.current) {
+      const next = `${inactiveRawBuffersRef.current.get(sessionId) ?? ''}${data}`.slice(-INACTIVE_RAW_BUFFER_LIMIT_CHARS)
+      inactiveRawBuffersRef.current.set(sessionId, next)
+      return
+    }
+    appendRaw(sessionId, data)
+  }, [appendRaw])
+
   useEffect(() => {
     activeSessionIdRef.current = activeSessionId
     flushInactiveSessionBuffers(activeSessionId)
@@ -279,6 +299,7 @@ export default function App(): JSX.Element {
       }
       pendingStreamingMessageUpsertsRef.current.clear()
       inactiveSessionStreamBufferRef.current.clear()
+      inactiveRawBuffersRef.current.clear()
     }
   }, [])
   const [threadFindDomain, setThreadFindDomain] = useState<ThreadFindDomain>('conversation')
@@ -1601,7 +1622,7 @@ export default function App(): JSX.Element {
       } else if (event.type === 'events') {
         scheduleSessionEvents(event.id, event.events)
       } else if (event.type === 'raw') {
-        appendRaw(event.id, event.data)
+        scheduleSessionRaw(event.id, event.data)
       } else if (event.type === 'renamed') {
         updateName(event.id, event.name, event.nameSource)
       } else if (event.type === 'pinned') {

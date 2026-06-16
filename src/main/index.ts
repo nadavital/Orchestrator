@@ -33704,24 +33704,25 @@ function runAutomatedBackgroundStreamingTypingSmoke(win: BrowserWindow, outputPa
           const backgroundMessage = background?.messages.find((message) => message.id === 'background-streaming-message')
           if (!background || backgroundMessage?.type !== 'text') return false
           for (let index = 0; index < 220; index += 1) {
-            sessionManager.upsertMessage(background.id, {
-              ...backgroundMessage,
+            sessionManager.applyRunEvents(background.id, [{
+              type: 'assistant.text.delta',
+              streamId: 'background-streaming-message',
+              replace: true,
               content: [
                 'Background-only streaming fixture.',
                 ...Array.from({ length: index + 1 }, (_line, lineIndex) => `background stream update ${String(lineIndex + 1).padStart(3, '0')}`)
-              ].join('\n'),
-              isStreaming: true
-            })
+              ].join('\n')
+            }])
             await new Promise((resolve) => setTimeout(resolve, 4))
           }
-          sessionManager.upsertMessage(background.id, {
-            ...backgroundMessage,
+          sessionManager.applyRunEvents(background.id, [{
+            type: 'assistant.text.completed',
+            streamId: 'background-streaming-message',
             content: [
               'Background-only streaming fixture.',
               ...Array.from({ length: 220 }, (_line, lineIndex) => `background stream update ${String(lineIndex + 1).padStart(3, '0')}`)
-            ].join('\n'),
-            isStreaming: false
-          })
+            ].join('\n')
+          }])
           sessionManager.updateStatus(background.id, 'idle')
           return true
         })()

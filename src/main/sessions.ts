@@ -5,7 +5,7 @@ import { execFile } from 'child_process'
 import { readFileSync } from 'fs'
 import { performance } from 'perf_hooks'
 import { promisify } from 'util'
-import type { AgentThreadOpenRequest, AgentThreadOpenResult, Attachment, AutomationPermissionSnapshot, CodexReviewStartRequest, Session, SessionForkMode, SessionForkOptions, SessionListItem, ChatMessage, TextMessage, ProviderModelDef, ProviderRuntimeKind, ProviderSidebarSyncResult, ReviewMetadata, RunEvent, RunRequest, SessionNameSource, SessionStatus, SideQuestionMessage, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary, UserInputAnswerPayload, WorktreeInventoryItem } from '../types'
+import type { AgentThreadOpenRequest, AgentThreadOpenResult, Attachment, AutomationPermissionSnapshot, CodexReviewStartRequest, Session, SessionForkMode, SessionForkOptions, SessionListItem, ChatMessage, TextMessage, ProviderModelDef, ProviderRuntimeKind, ProviderSidebarSyncResult, ReviewMetadata, RunEvent, RunRequest, SessionNameSource, SessionRunEventRecord, SessionStatus, SideQuestionMessage, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary, UserInputAnswerPayload, WorktreeInventoryItem } from '../types'
 import { PROVIDER_DEFS, applyAutomationPermissionSnapshot, canSwitchSessionProvider, finalizeInterruptedMessages, getConfigurableModels, getDefaultPermissionMode, mergeProviderModelCatalog, normalizeProviderModelOrder, resolveProviderRunModelSelection } from '../types'
 import { gitManager } from './git'
 import { buildProviderCommandForRuntime, getProvider, PROVIDERS, providerSpawnEnv, resolveProviderBinary, resolveProviderCommand, runCodexAppServerCommandSurfaceRaw } from './providers'
@@ -40,6 +40,10 @@ const CODEX_SIDEBAR_REFRESH_AFTER_RUN_DELAY_MS = 750
 const CODEX_SIDEBAR_RECURRING_REFRESH_INTERVAL_MS = 10 * 60 * 1000
 const STREAMING_MESSAGE_UPDATE_SEND_INTERVAL_MS = 80
 const STREAMING_MESSAGE_PERSIST_INTERVAL_MS = 2_000
+const RUN_EVENT_SEND_INTERVAL_MS = 120
+const RUN_RAW_SEND_INTERVAL_MS = 250
+const RUN_EVENT_BUFFER_LIMIT_PER_SESSION = 500
+const RUN_RAW_BUFFER_LIMIT_PER_SESSION_CHARS = 100_000
 
 let codexSidebarRefreshAfterRunTimer: ReturnType<typeof setTimeout> | null = null
 let codexSidebarRecurringRefreshTimer: ReturnType<typeof setInterval> | null = null
@@ -49,6 +53,10 @@ const smokeSideQuestionFailures = new Set<string>()
 const pendingStreamingMessageUpdates = new Map<string, { id: string; message: ChatMessage }>()
 let pendingStreamingMessageUpdateTimer: ReturnType<typeof setTimeout> | null = null
 const activeStreamingMessages = new Map<string, { id: string; message: ChatMessage; lastPersistedAt: number }>()
+const pendingRunEvents = new Map<string, SessionRunEventRecord[]>()
+let pendingRunEventTimer: ReturnType<typeof setTimeout> | null = null
+const pendingRunRaw = new Map<string, string>()
+let pendingRunRawTimer: ReturnType<typeof setTimeout> | null = null
 
 function normalizeUserInputAnswer(answer: string | UserInputAnswerPayload): UserInputAnswerPayload {
   if (typeof answer === 'string') return { content: answer.trim() }
@@ -284,6 +292,59 @@ function sessionListItem(session: Session): SessionListItem {
 function send(channel: string, ...args: unknown[]): void {
   for (const win of BrowserWindow.getAllWindows()) {
     safeWindowSend(win, channel, ...args)
+  }
+}
+
+function flushRunEvents(sessionId?: string): void {
+  if (!sessionId) {
+    pendingRunEventTimer = null
+  }
+  const entries = [...pendingRunEvents.entries()].filter(([id]) => !sessionId || id === sessionId)
+  for (const [id, events] of entries) {
+    pendingRunEvents.delete(id)
+    if (events.length > 0) send('session:events', { id, events })
+  }
+  if (!sessionId || pendingRunEvents.size === 0) {
+    if (pendingRunEventTimer) clearTimeout(pendingRunEventTimer)
+    pendingRunEventTimer = null
+  }
+}
+
+function sendRunEvents(sessionId: string, events: RunEvent[]): void {
+  if (events.length === 0) return
+  const records = events.map((event) => ({
+    id: uuidv4(),
+    timestamp: Date.now(),
+    event
+  }))
+  const current = pendingRunEvents.get(sessionId) ?? []
+  pendingRunEvents.set(sessionId, [...current, ...records].slice(-RUN_EVENT_BUFFER_LIMIT_PER_SESSION))
+  if (!pendingRunEventTimer) {
+    pendingRunEventTimer = setTimeout(flushRunEvents, RUN_EVENT_SEND_INTERVAL_MS)
+  }
+}
+
+function flushRunRaw(sessionId?: string): void {
+  if (!sessionId) {
+    pendingRunRawTimer = null
+  }
+  const entries = [...pendingRunRaw.entries()].filter(([id]) => !sessionId || id === sessionId)
+  for (const [id, data] of entries) {
+    pendingRunRaw.delete(id)
+    if (data.length > 0) send('session:raw', { id, data })
+  }
+  if (!sessionId || pendingRunRaw.size === 0) {
+    if (pendingRunRawTimer) clearTimeout(pendingRunRawTimer)
+    pendingRunRawTimer = null
+  }
+}
+
+function sendRunRaw(sessionId: string, data: string): void {
+  if (!data) return
+  const next = `${pendingRunRaw.get(sessionId) ?? ''}${data}`.slice(-RUN_RAW_BUFFER_LIMIT_PER_SESSION_CHARS)
+  pendingRunRaw.set(sessionId, next)
+  if (!pendingRunRawTimer) {
+    pendingRunRawTimer = setTimeout(flushRunRaw, RUN_RAW_SEND_INTERVAL_MS)
   }
 }
 
@@ -1703,7 +1764,7 @@ export const sessionManager = {
       request: preparedRequest,
       mode,
       onRawData: (data) => {
-        send('session:raw', { id: sessionId, data })
+        sendRunRaw(sessionId, data)
       },
       onParsedEvents: (events) => {
         this.applyRunEvents(sessionId, events)
@@ -1715,6 +1776,8 @@ export const sessionManager = {
         }
       },
       onExit: () => {
+        flushRunRaw(sessionId)
+        flushRunEvents(sessionId)
         flushActiveStreamingMessagesToStore(sessionId)
         activeToolUseIds.delete(sessionId)
         const followUp = shiftPendingFollowUp(sessionId)
@@ -2118,14 +2181,7 @@ export const sessionManager = {
     const applyStartedAt = performance.now()
     const streamingDeltaCount = events.filter((event) => event.type === 'assistant.text.delta').length
 
-    send('session:events', {
-      id: sessionId,
-      events: events.map((event) => ({
-        id: uuidv4(),
-        timestamp: Date.now(),
-        event
-      }))
-    })
+    sendRunEvents(sessionId, events)
 
     const currentSession = this.get(sessionId)
     const suppressInterruptFailure = hasSteerableFollowUp(sessionId)
