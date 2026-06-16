@@ -654,6 +654,12 @@ function claudePartialEventFromStreamEvent(
 
   if (streamType === 'content_block_delta') {
     const delta = asRecord(streamEvent.delta)
+    if (delta?.type === 'thinking_delta' && typeof delta.thinking === 'string') {
+      const streamId = streamIdForBlock(streamKey, index)
+      return parentToolUseId
+        ? []
+        : [{ type: 'assistant.thinking.delta', streamId, content: delta.thinking }]
+    }
     if (delta?.type !== 'text_delta' || typeof delta.text !== 'string' || !delta.text) return []
 
     const streamId = streamIdForBlock(streamKey, index)
@@ -667,7 +673,13 @@ function claudePartialEventFromStreamEvent(
 
   if (streamType === 'content_block_stop') {
     const blockKey = streamBlockKey(streamKey, index)
-    if (anthropicStreamBlockTypes.get(blockKey) !== 'text') return []
+    const blockType = anthropicStreamBlockTypes.get(blockKey)
+    if (blockType === 'thinking') {
+      const streamId = streamIdForBlock(streamKey, index)
+      anthropicStreamBlockTypes.delete(blockKey)
+      return parentToolUseId ? [] : [{ type: 'assistant.thinking.completed', streamId }]
+    }
+    if (blockType !== 'text') return []
 
     const streamId = streamIdForBlock(streamKey, index)
     anthropicStreamBlockTypes.delete(blockKey)

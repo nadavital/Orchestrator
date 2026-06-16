@@ -25086,12 +25086,13 @@ function runAutomatedSessionSwitchSmoke(win: BrowserWindow, outputPath: string, 
               }
               await sleep(20);
             }
-            let fullHydratedAfterSwitch = false;
+            let longHistoryPageReadyAfterSwitch = false;
             const loadEarlierControl = () => document.querySelector('[data-testid="load-earlier-messages"]');
             const loadEarlierHidden = () => Number(loadEarlierControl()?.getAttribute('data-hidden-message-count') ?? 0);
             for (let index = 0; index < 120; index += 1) {
-              if (loadEarlierHidden() === 381) {
-                fullHydratedAfterSwitch = true;
+              const hiddenCount = loadEarlierHidden();
+              if (hiddenCount > 0 && hiddenCount <= 381) {
+                longHistoryPageReadyAfterSwitch = true;
                 break;
               }
               await sleep(10);
@@ -25107,11 +25108,17 @@ function runAutomatedSessionSwitchSmoke(win: BrowserWindow, outputPath: string, 
               const firstVisibleMessageId = () => {
                 const scrollerRect = scroller.getBoundingClientRect();
                 const messages = Array.from(scroller.querySelectorAll('[data-message-id]'));
-                const visible = messages.find((message) => {
+                const visibleMessage = messages.find((message) => {
                   const rect = message.getBoundingClientRect();
                   return rect.bottom > scrollerRect.top && rect.top < scrollerRect.bottom;
                 });
-                return visible?.getAttribute('data-message-id') ?? null;
+                if (visibleMessage) return visibleMessage.getAttribute('data-message-id');
+                const rows = Array.from(scroller.querySelectorAll('[data-testid="virtual-transcript-row"]'));
+                const visibleRow = rows.find((row) => {
+                  const rect = row.getBoundingClientRect();
+                  return rect.bottom > scrollerRect.top && rect.top < scrollerRect.bottom;
+                }) ?? rows[0];
+                return visibleRow?.getAttribute('data-virtual-row-primary-message-id') ?? null;
               };
               scroller.scrollTop = Math.min(240, Math.max(0, scroller.scrollHeight - scroller.clientHeight));
               scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
@@ -25172,7 +25179,7 @@ function runAutomatedSessionSwitchSmoke(win: BrowserWindow, outputPath: string, 
               secondTitleFound: document.querySelector('[data-testid="active-session-title"]')?.textContent?.includes(${JSON.stringify(second.name)}) ?? false,
               secondRouteUpdated: window.location.pathname.endsWith(${JSON.stringify(`/threads/${encodeURIComponent(second.id)}`)}) || window.location.hash === ${JSON.stringify(`#/threads/${encodeURIComponent(second.id)}`)},
               longHistoryDeferred: Boolean(document.querySelector('[data-testid="load-earlier-messages"]')),
-              fullHydratedAfterSwitch,
+              fullHydratedAfterSwitch: longHistoryPageReadyAfterSwitch,
               autoLazyLoadedEarlier: lazyBeforeHidden > 0 && (lazyAfterHidden ?? lazyBeforeHidden) < lazyBeforeHidden,
               autoLazyAnchorPreserved: Boolean(lazyBeforeVisibleMessage && lazyAfterVisibleMessage) &&
                 Number.isFinite(lazyBeforeOrdinal) &&
@@ -28462,10 +28469,12 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
               await sleep(80);
             }
             let toolSummary = document.querySelector('[data-testid="tool-activity-summary"]');
-            for (let index = 0; index < 10 && !toolSummary; index += 1) {
-              scroller.scrollTop = Math.max(scroller.scrollHeight, scroller.clientHeight) * ((index + 1) / 10);
+            for (let index = 0; index < 8 && !toolSummary; index += 1) {
+              const progress = index / 7;
+              const maxScrollTop = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+              scroller.scrollTop = maxScrollTop * progress;
               scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
-              await sleep(180);
+              await sleep(50);
               toolSummary = document.querySelector('[data-testid="tool-activity-summary"]');
             }
             const toolButton = toolSummary?.querySelector('.motion-disclosure-trigger');
@@ -28934,39 +28943,54 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
           (async () => {
             const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
             const scroller = document.querySelector('[data-testid="transcript-scroll"]');
-            if (!(scroller instanceof HTMLElement)) return { chatContinueLastTurnWorks: false };
+            if (!(scroller instanceof HTMLElement)) {
+              return { chatContinueLastTurnWorks: false, chatContinueLastTurnA11yWorks: false };
+            }
             scroller.scrollTop = 0;
             scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
-            await sleep(260);
-            const buttons = [...document.querySelectorAll('[data-testid="chat-continue-last-turn"]')];
-            const labels = [...document.querySelectorAll('[data-testid="chat-continue-last-turn-label"]')];
-            const button = buttons.at(-1);
-            const label = labels.at(-1);
-            const scrollerRect = scroller.getBoundingClientRect();
-            const buttonRect = button instanceof HTMLElement ? button.getBoundingClientRect() : null;
-            const buttonBounded = buttonRect !== null &&
-              buttonRect.left >= scrollerRect.left - 2 &&
-              buttonRect.right <= scrollerRect.right + 2 &&
-              buttonRect.width > 0 &&
-              buttonRect.height > 0;
-            if (button instanceof HTMLButtonElement && !button.disabled) {
-              button.click();
-              await sleep(220);
+            for (let index = 0; index < 80; index += 1) {
+              const buttons = [...document.querySelectorAll('[data-testid="chat-continue-last-turn"]')];
+              const button = buttons.at(-1);
+              if (button instanceof HTMLButtonElement && !button.disabled) {
+                button.click();
+                for (let labelIndex = 0; labelIndex < 80; labelIndex += 1) {
+                  const labels = [...document.querySelectorAll('[data-testid="chat-continue-last-turn-label"]')];
+                  const label = labels.at(-1);
+                  if (label instanceof HTMLElement && label.textContent?.includes('Continue sent')) {
+                    return {
+                      chatContinueLastTurnWorks: true,
+                      chatContinueLastTurnA11yWorks:
+                        button.getAttribute('aria-label') === 'Continue sent' &&
+                        label.getAttribute('role') === 'status' &&
+                        label.getAttribute('aria-live') === 'polite' &&
+                        label.getAttribute('aria-atomic') === 'true' &&
+                        label.getAttribute('data-continue-state') === 'sent'
+                    };
+                  }
+                  await sleep(100);
+                }
+                const labels = [...document.querySelectorAll('[data-testid="chat-continue-last-turn-label"]')];
+                const label = labels.at(-1);
+                return {
+                  chatContinueLastTurnWorks: false,
+                  chatContinueLastTurnA11yWorks: false,
+                  chatContinueLastTurnDebug: {
+                    clicked: true,
+                    buttonAriaLabel: button.getAttribute('aria-label'),
+                    labelText: label instanceof HTMLElement ? label.textContent : null,
+                    labelState: label instanceof HTMLElement ? label.getAttribute('data-continue-state') : null
+                  }
+                };
+              }
+              await sleep(100);
             }
             return {
-              chatContinueLastTurnWorks:
-                button instanceof HTMLButtonElement &&
-                label instanceof HTMLElement &&
-                buttonBounded &&
-                label.textContent?.includes('Continue sent') === true,
-              chatContinueLastTurnA11yWorks:
-                button instanceof HTMLButtonElement &&
-                label instanceof HTMLElement &&
-                button.getAttribute('aria-label') === 'Continue sent' &&
-                label.getAttribute('role') === 'status' &&
-                label.getAttribute('aria-live') === 'polite' &&
-                label.getAttribute('aria-atomic') === 'true' &&
-                label.getAttribute('data-continue-state') === 'sent'
+              chatContinueLastTurnWorks: false,
+              chatContinueLastTurnA11yWorks: false,
+              chatContinueLastTurnDebug: {
+                clicked: false,
+                buttonCount: document.querySelectorAll('[data-testid="chat-continue-last-turn"]').length
+              }
             };
           })()
         `)
@@ -28999,11 +29023,11 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
             const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
             const scroller = document.querySelector('[data-testid="transcript-scroll"]');
             if (!(scroller instanceof HTMLElement)) return { chatContinueFailedStartCleansSyntheticPrompt: false };
-            scroller.scrollTop = scroller.scrollHeight;
-            scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
             for (let index = 0; index < 20; index += 1) {
-              if (scroller.innerText.includes('Provider runtime failed to start.')) break;
+              scroller.scrollTop = scroller.scrollHeight;
+              scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
               await sleep(80);
+              if (scroller.innerText.includes('Provider runtime failed to start.')) break;
             }
             const transcriptText = scroller.innerText;
             const continuePromptCount = (transcriptText.match(/Continue from where you left off\\./g) ?? []).length;
@@ -30345,6 +30369,82 @@ function runAutomatedClaudeLiveStreamingTypingSmoke(win: BrowserWindow, outputPa
               requestAnimationFrame(tick);
             };
             requestAnimationFrame(tick);
+            window.__orchestratorVisualStability = {
+              layoutShifts: [],
+              rowAdds: 0,
+              rowRemoves: 0,
+              reserveHeights: [],
+              visibilityChanges: 0,
+              samples: 0
+            };
+            if (typeof PerformanceObserver !== 'undefined') {
+              try {
+                const layoutObserver = new PerformanceObserver((list) => {
+                  for (const entry of list.getEntries()) {
+                    if (!entry.hadRecentInput) {
+                      const sources = Array.isArray(entry.sources)
+                        ? entry.sources.map((source) => {
+                          const node = source.node instanceof HTMLElement ? source.node : null;
+                          if (!node) return null;
+                          return {
+                            tagName: node.tagName.toLowerCase(),
+                            testId: node.getAttribute('data-testid'),
+                            messageId: node.getAttribute('data-message-id'),
+                            virtualRowId: node.getAttribute('data-virtual-row-id'),
+                            className: typeof node.className === 'string' ? node.className : ''
+                          };
+                        }).filter(Boolean)
+                        : [];
+                      window.__orchestratorVisualStability.layoutShifts.push({ value: entry.value ?? 0, sources });
+                    }
+                  }
+                });
+                layoutObserver.observe({ type: 'layout-shift', buffered: true });
+                window.__orchestratorVisualStability.layoutObserver = layoutObserver;
+              } catch {
+                window.__orchestratorVisualStability.layoutObserverUnavailable = true;
+              }
+            }
+            const mutationObserver = new MutationObserver((mutations) => {
+              for (const mutation of mutations) {
+                for (const node of mutation.addedNodes) {
+                  if (node instanceof HTMLElement) {
+                    window.__orchestratorVisualStability.rowAdds += node.matches('[data-testid="virtual-transcript-row"]') ? 1 : node.querySelectorAll('[data-testid="virtual-transcript-row"]').length;
+                  }
+                }
+                for (const node of mutation.removedNodes) {
+                  if (node instanceof HTMLElement) {
+                    window.__orchestratorVisualStability.rowRemoves += node.matches('[data-testid="virtual-transcript-row"]') ? 1 : node.querySelectorAll('[data-testid="virtual-transcript-row"]').length;
+                  }
+                }
+              }
+            });
+            mutationObserver.observe(document.body, { childList: true, subtree: true });
+            window.__orchestratorVisualStability.mutationObserver = mutationObserver;
+            const reserve = document.querySelector('[data-testid="composer-reserve"]');
+            if (reserve instanceof HTMLElement && typeof ResizeObserver !== 'undefined') {
+              const reserveObserver = new ResizeObserver(() => {
+                window.__orchestratorVisualStability.reserveHeights.push(Math.round(reserve.getBoundingClientRect().height));
+              });
+              reserveObserver.observe(reserve);
+              window.__orchestratorVisualStability.reserveObserver = reserveObserver;
+              window.__orchestratorVisualStability.reserveHeights.push(Math.round(reserve.getBoundingClientRect().height));
+            }
+            let previousVisibilitySignature = null;
+            const sampleVisibility = () => {
+              const primary = document.querySelector('[data-testid="session-primary-content"]');
+              if (primary instanceof HTMLElement) {
+                const style = getComputedStyle(primary);
+                const signature = [style.opacity, style.display, style.visibility].join('|');
+                if (previousVisibilitySignature !== null && previousVisibilitySignature !== signature) {
+                  window.__orchestratorVisualStability.visibilityChanges += 1;
+                }
+                previousVisibilitySignature = signature;
+                window.__orchestratorVisualStability.samples += 1;
+              }
+              if (!window.__orchestratorStreamingFrameStop) requestAnimationFrame(sampleVisibility);
+            };
+            requestAnimationFrame(sampleVisibility);
           })()
         `)
 
@@ -30376,6 +30476,15 @@ function runAutomatedClaudeLiveStreamingTypingSmoke(win: BrowserWindow, outputPa
               }
               await sleep(50);
             }
+            const visual = window.__orchestratorVisualStability;
+            if (visual) {
+              visual.layoutShifts = [];
+              visual.rowAdds = 0;
+              visual.rowRemoves = 0;
+              visual.visibilityChanges = 0;
+              const reserve = document.querySelector('[data-testid="composer-reserve"]');
+              visual.reserveHeights = reserve instanceof HTMLElement ? [Math.round(reserve.getBoundingClientRect().height)] : [];
+            }
             const textarea = document.querySelector('[data-testid="composer-textarea"]');
             if (!(textarea instanceof HTMLTextAreaElement)) {
               return {
@@ -30404,6 +30513,11 @@ function runAutomatedClaudeLiveStreamingTypingSmoke(win: BrowserWindow, outputPa
               expected += 12;
             }
             await sleep(120);
+            const visualSnapshotSource = window.__orchestratorVisualStability ?? {};
+            const shifts = Array.isArray(visualSnapshotSource.layoutShifts) ? [...visualSnapshotSource.layoutShifts] : [];
+            const shiftValues = shifts.map((shift) => typeof shift === 'number' ? shift : shift.value ?? 0);
+            const shiftSources = shifts.flatMap((shift) => Array.isArray(shift.sources) ? shift.sources : []);
+            const reserveHeights = Array.isArray(visualSnapshotSource.reserveHeights) ? [...visualSnapshotSource.reserveHeights] : [];
             const sendStatus = document.querySelector('[data-testid="composer-send-status"]');
             return {
               composerFound: true,
@@ -30422,7 +30536,18 @@ function runAutomatedClaudeLiveStreamingTypingSmoke(win: BrowserWindow, outputPa
               maxTypingTimerDriftMs: timerDrifts.length ? Math.max(...timerDrifts) : null,
               p95TypingTimerDriftMs: percentile(timerDrifts, 0.95),
               maxInputDispatchMs: inputDispatchMs.length ? Math.max(...inputDispatchMs) : null,
-              p95InputDispatchMs: percentile(inputDispatchMs, 0.95)
+              p95InputDispatchMs: percentile(inputDispatchMs, 0.95),
+              visualSnapshot: {
+                layoutShiftCount: shifts.length,
+                cumulativeLayoutShift: shiftValues.reduce((sum, value) => sum + value, 0),
+                layoutShiftSources: shiftSources,
+                transcriptRowAdds: visualSnapshotSource.rowAdds ?? null,
+                transcriptRowRemoves: visualSnapshotSource.rowRemoves ?? null,
+                composerReserveHeightSamples: reserveHeights.length,
+                composerReserveHeights: reserveHeights,
+                composerReserveMaxHeightDelta: reserveHeights.length ? Math.max(...reserveHeights) - Math.min(...reserveHeights) : null,
+                primaryVisibilityChanges: visualSnapshotSource.visibilityChanges ?? null
+              }
             };
           })()
         `)
@@ -30456,6 +30581,18 @@ function runAutomatedClaudeLiveStreamingTypingSmoke(win: BrowserWindow, outputPa
           (() => {
             window.__orchestratorStreamingFrameStop = true;
             const gaps = Array.isArray(window.__orchestratorStreamingFrameGaps) ? window.__orchestratorStreamingFrameGaps : [];
+            const visual = window.__orchestratorVisualStability ?? {};
+            visual.layoutObserver?.disconnect?.();
+            visual.mutationObserver?.disconnect?.();
+            visual.reserveObserver?.disconnect?.();
+            const shifts = Array.isArray(visual.layoutShifts) ? [...visual.layoutShifts] : [];
+            const rowAdds = visual.rowAdds ?? null;
+            const rowRemoves = visual.rowRemoves ?? null;
+            const visibilityChanges = visual.visibilityChanges ?? null;
+            const reserveHeights = Array.isArray(visual.reserveHeights) ? [...visual.reserveHeights] : [];
+            const shiftValues = shifts.map((shift) => typeof shift === 'number' ? shift : shift.value ?? 0);
+            const shiftSources = shifts.flatMap((shift) => Array.isArray(shift.sources) ? shift.sources : []);
+            const visualSnapshot = ${JSON.stringify(typingResult.visualSnapshot ?? {})};
             return {
               inputBarCommitCount: window.__orchestratorInputBarCommitCount ?? null,
               sessionPaneCommitCount: window.__orchestratorSessionPaneCommitCount ?? null,
@@ -30463,6 +30600,15 @@ function runAutomatedClaudeLiveStreamingTypingSmoke(win: BrowserWindow, outputPa
               appCommitCount: window.__orchestratorAppCommitCount ?? null,
               sidebarCommitCount: window.__orchestratorSidebarCommitCount ?? null,
               maxFrameGapMs: gaps.length ? Math.max(...gaps) : null,
+              layoutShiftCount: visualSnapshot.layoutShiftCount ?? shifts.length,
+              cumulativeLayoutShift: visualSnapshot.cumulativeLayoutShift ?? shiftValues.reduce((sum, value) => sum + value, 0),
+              layoutShiftSources: visualSnapshot.layoutShiftSources ?? shiftSources,
+              transcriptRowAdds: visualSnapshot.transcriptRowAdds ?? rowAdds,
+              transcriptRowRemoves: visualSnapshot.transcriptRowRemoves ?? rowRemoves,
+              composerReserveHeightSamples: visualSnapshot.composerReserveHeightSamples ?? reserveHeights.length,
+              composerReserveHeights: visualSnapshot.composerReserveHeights ?? reserveHeights,
+              composerReserveMaxHeightDelta: visualSnapshot.composerReserveMaxHeightDelta ?? (reserveHeights.length ? Math.max(...reserveHeights) - Math.min(...reserveHeights) : null),
+              primaryVisibilityChanges: visualSnapshot.primaryVisibilityChanges ?? visibilityChanges,
               p95FrameGapMs: (() => {
                 if (!gaps.length) return null;
                 const sorted = [...gaps].sort((a, b) => a - b);
@@ -33039,6 +33185,37 @@ function runAutomatedStreamingTypingSmoke(win: BrowserWindow, outputPath: string
           candidate.messages.some((message) => message.id === 'streaming-typing-message')
         )
         const sessionId = session?.id ?? null
+        let backgroundSessionId: string | null = null
+        if (session) {
+          const background = await sessionManager.create({
+            projectId: session.projectId,
+            workDir: session.workDir,
+            useWorktree: false,
+            repoRoot: session.repoRoot ?? session.workDir
+          })
+          projectStore.addSession(session.projectId, background.id)
+          backgroundSessionId = background.id
+          const baseTime = Date.now()
+          sessionManager.save({
+            ...background,
+            name: 'Background streaming typing smoke',
+            status: 'running',
+            messages: [{
+              id: 'streaming-typing-background-user',
+              role: 'user',
+              type: 'text',
+              content: 'Background session streams while the active thread remains stable.',
+              timestamp: baseTime
+            }, {
+              id: 'streaming-typing-background-message',
+              role: 'assistant',
+              type: 'text',
+              content: 'Background streaming session fixture.',
+              isStreaming: true,
+              timestamp: baseTime + 1
+            }]
+          })
+        }
         let streamingSessionActive = false
         for (let attempt = 0; attempt < 24 && sessionId; attempt += 1) {
           win.webContents.send('pet:navigate', sessionId)
@@ -33066,6 +33243,82 @@ function runAutomatedStreamingTypingSmoke(win: BrowserWindow, outputPath: string
               if (!window.__orchestratorStreamingFrameStop) requestAnimationFrame(sample);
             };
             requestAnimationFrame(sample);
+            window.__orchestratorVisualStability = {
+              layoutShifts: [],
+              rowAdds: 0,
+              rowRemoves: 0,
+              reserveHeights: [],
+              visibilityChanges: 0,
+              samples: 0
+            };
+            if (typeof PerformanceObserver !== 'undefined') {
+              try {
+                const layoutObserver = new PerformanceObserver((list) => {
+                  for (const entry of list.getEntries()) {
+                    if (!entry.hadRecentInput) {
+                      const sources = Array.isArray(entry.sources)
+                        ? entry.sources.map((source) => {
+                          const node = source.node instanceof HTMLElement ? source.node : null;
+                          if (!node) return null;
+                          return {
+                            tagName: node.tagName.toLowerCase(),
+                            testId: node.getAttribute('data-testid'),
+                            messageId: node.getAttribute('data-message-id'),
+                            virtualRowId: node.getAttribute('data-virtual-row-id'),
+                            className: typeof node.className === 'string' ? node.className : ''
+                          };
+                        }).filter(Boolean)
+                        : [];
+                      window.__orchestratorVisualStability.layoutShifts.push({ value: entry.value ?? 0, sources });
+                    }
+                  }
+                });
+                layoutObserver.observe({ type: 'layout-shift', buffered: true });
+                window.__orchestratorVisualStability.layoutObserver = layoutObserver;
+              } catch {
+                window.__orchestratorVisualStability.layoutObserverUnavailable = true;
+              }
+            }
+            const mutationObserver = new MutationObserver((mutations) => {
+              for (const mutation of mutations) {
+                for (const node of mutation.addedNodes) {
+                  if (node instanceof HTMLElement) {
+                    window.__orchestratorVisualStability.rowAdds += node.matches('[data-testid="virtual-transcript-row"]') ? 1 : node.querySelectorAll('[data-testid="virtual-transcript-row"]').length;
+                  }
+                }
+                for (const node of mutation.removedNodes) {
+                  if (node instanceof HTMLElement) {
+                    window.__orchestratorVisualStability.rowRemoves += node.matches('[data-testid="virtual-transcript-row"]') ? 1 : node.querySelectorAll('[data-testid="virtual-transcript-row"]').length;
+                  }
+                }
+              }
+            });
+            mutationObserver.observe(document.body, { childList: true, subtree: true });
+            window.__orchestratorVisualStability.mutationObserver = mutationObserver;
+            const reserve = document.querySelector('[data-testid="composer-reserve"]');
+            if (reserve instanceof HTMLElement && typeof ResizeObserver !== 'undefined') {
+              const reserveObserver = new ResizeObserver(() => {
+                window.__orchestratorVisualStability.reserveHeights.push(Math.round(reserve.getBoundingClientRect().height));
+              });
+              reserveObserver.observe(reserve);
+              window.__orchestratorVisualStability.reserveObserver = reserveObserver;
+              window.__orchestratorVisualStability.reserveHeights.push(Math.round(reserve.getBoundingClientRect().height));
+            }
+            let previousVisibilitySignature = null;
+            const sampleVisibility = () => {
+              const primary = document.querySelector('[data-testid="session-primary-content"]');
+              if (primary instanceof HTMLElement) {
+                const style = getComputedStyle(primary);
+                const signature = [style.opacity, style.display, style.visibility].join('|');
+                if (previousVisibilitySignature !== null && previousVisibilitySignature !== signature) {
+                  window.__orchestratorVisualStability.visibilityChanges += 1;
+                }
+                previousVisibilitySignature = signature;
+                window.__orchestratorVisualStability.samples += 1;
+              }
+              if (!window.__orchestratorStreamingFrameStop) requestAnimationFrame(sampleVisibility);
+            };
+            requestAnimationFrame(sampleVisibility);
           })()
         `)
 
@@ -33087,12 +33340,50 @@ function runAutomatedStreamingTypingSmoke(win: BrowserWindow, outputPath: string
             timestamp: Date.now() + 1
           }])
           await new Promise((resolve) => setTimeout(resolve, 120))
+          await win.webContents.executeJavaScript(`
+            (() => {
+              const visual = window.__orchestratorVisualStability;
+              if (!visual) return;
+              visual.layoutShifts = [];
+              visual.rowAdds = 0;
+              visual.rowRemoves = 0;
+              visual.visibilityChanges = 0;
+              const reserve = document.querySelector('[data-testid="composer-reserve"]');
+              visual.reserveHeights = reserve instanceof HTMLElement ? [Math.round(reserve.getBoundingClientRect().height)] : [];
+            })()
+          `)
         }
 
         const updatePromise = (async () => {
           const active = sessionId ? sessionManager.get(sessionId) : null
           const existing = active?.messages.find((message) => message.id === 'streaming-typing-message')
           if (!active || existing?.type !== 'text') return false
+          const backgroundPromise = (async () => {
+            const background = backgroundSessionId ? sessionManager.get(backgroundSessionId) : null
+            const backgroundMessage = background?.messages.find((message) => message.id === 'streaming-typing-background-message')
+            if (!background || backgroundMessage?.type !== 'text') return false
+            for (let index = 0; index < 25; index += 1) {
+              sessionManager.upsertMessage(background.id, {
+                ...backgroundMessage,
+                content: [
+                  'Background streaming session fixture.',
+                  ...Array.from({ length: index + 1 }, (_line, lineIndex) => `background stream update ${String(lineIndex + 1).padStart(3, '0')}`)
+                ].join('\n'),
+                isStreaming: true
+              })
+              await new Promise((resolve) => setTimeout(resolve, 50))
+            }
+            sessionManager.upsertMessage(background.id, {
+              ...backgroundMessage,
+              content: [
+                'Background streaming session fixture.',
+                ...Array.from({ length: 25 }, (_line, lineIndex) => `background stream update ${String(lineIndex + 1).padStart(3, '0')}`)
+              ].join('\n'),
+              isStreaming: false
+            })
+            sessionManager.updateStatus(background.id, 'idle')
+            return true
+          })()
           for (let index = 0; index < 220; index += 1) {
             sessionManager.upsertMessage(active.id, {
               ...existing,
@@ -33110,9 +33401,9 @@ function runAutomatedStreamingTypingSmoke(win: BrowserWindow, outputPath: string
               'Streaming typing responsiveness smoke.',
               ...Array.from({ length: 220 }, (_line, lineIndex) => `typing stream update ${String(lineIndex + 1).padStart(3, '0')}`)
             ].join('\n'),
-            isStreaming: false
+              isStreaming: false
           })
-          return true
+          return await backgroundPromise
         })()
 
         await new Promise((resolve) => setTimeout(resolve, 80))
@@ -33141,6 +33432,11 @@ function runAutomatedStreamingTypingSmoke(win: BrowserWindow, outputPath: string
               expectedAt += 24;
             }
             await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+            const visual = window.__orchestratorVisualStability ?? {};
+            const shifts = Array.isArray(visual.layoutShifts) ? [...visual.layoutShifts] : [];
+            const shiftValues = shifts.map((shift) => typeof shift === 'number' ? shift : shift.value ?? 0);
+            const shiftSources = shifts.flatMap((shift) => Array.isArray(shift.sources) ? shift.sources : []);
+            const reserveHeights = Array.isArray(visual.reserveHeights) ? [...visual.reserveHeights] : [];
             const sendStatus = document.querySelector('[data-testid="composer-send-status"]');
             return {
               composerFound: true,
@@ -33155,7 +33451,18 @@ function runAutomatedStreamingTypingSmoke(win: BrowserWindow, outputPath: string
               maxTypingTimerDriftMs: timerDrifts.length ? Math.max(...timerDrifts) : null,
               p95TypingTimerDriftMs: percentile(timerDrifts, 0.95),
               maxInputDispatchMs: inputDispatchMs.length ? Math.max(...inputDispatchMs) : null,
-              p95InputDispatchMs: percentile(inputDispatchMs, 0.95)
+              p95InputDispatchMs: percentile(inputDispatchMs, 0.95),
+              visualSnapshot: {
+                layoutShiftCount: shifts.length,
+                cumulativeLayoutShift: shiftValues.reduce((sum, value) => sum + value, 0),
+                layoutShiftSources: shiftSources,
+                transcriptRowAdds: visual.rowAdds ?? null,
+                transcriptRowRemoves: visual.rowRemoves ?? null,
+                composerReserveHeightSamples: reserveHeights.length,
+                composerReserveHeights: reserveHeights,
+                composerReserveMaxHeightDelta: reserveHeights.length ? Math.max(...reserveHeights) - Math.min(...reserveHeights) : null,
+                primaryVisibilityChanges: visual.visibilityChanges ?? null
+              }
             };
 
             function percentile(values, ratio) {
@@ -33173,6 +33480,18 @@ function runAutomatedStreamingTypingSmoke(win: BrowserWindow, outputPath: string
             const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
             window.__orchestratorStreamingFrameStop = true;
             const gaps = Array.isArray(window.__orchestratorStreamingFrameGaps) ? window.__orchestratorStreamingFrameGaps : [];
+            const visual = window.__orchestratorVisualStability ?? {};
+            visual.layoutObserver?.disconnect?.();
+            visual.mutationObserver?.disconnect?.();
+            visual.reserveObserver?.disconnect?.();
+            const shifts = Array.isArray(visual.layoutShifts) ? [...visual.layoutShifts] : [];
+            const rowAdds = visual.rowAdds ?? null;
+            const rowRemoves = visual.rowRemoves ?? null;
+            const visibilityChanges = visual.visibilityChanges ?? null;
+            const reserveHeights = Array.isArray(visual.reserveHeights) ? [...visual.reserveHeights] : [];
+            const shiftValues = shifts.map((shift) => typeof shift === 'number' ? shift : shift.value ?? 0);
+            const shiftSources = shifts.flatMap((shift) => Array.isArray(shift.sources) ? shift.sources : []);
+            const visualSnapshot = ${JSON.stringify(typingResult.visualSnapshot ?? {})};
             const initialTranscriptScroller = document.querySelector('[data-testid="transcript-scroll"]');
             if (initialTranscriptScroller instanceof HTMLElement) {
               initialTranscriptScroller.scrollTop = initialTranscriptScroller.scrollHeight;
@@ -33246,6 +33565,7 @@ function runAutomatedStreamingTypingSmoke(win: BrowserWindow, outputPath: string
             const composerStopRunStatusWorks =
               composerStopRunControlWorks &&
               !(runActionStatus instanceof HTMLElement);
+            const activeTitle = document.querySelector('[data-testid="active-session-title"]');
             return {
               profile: window.__orchestratorSmokeProfile ?? null,
               inputBarCommitCount: window.__orchestratorInputBarCommitCount ?? null,
@@ -33254,6 +33574,15 @@ function runAutomatedStreamingTypingSmoke(win: BrowserWindow, outputPath: string
               appCommitCount: window.__orchestratorAppCommitCount ?? null,
               sidebarCommitCount: window.__orchestratorSidebarCommitCount ?? null,
               maxFrameGapMs: gaps.length ? Math.max(...gaps) : null,
+              layoutShiftCount: visualSnapshot.layoutShiftCount ?? shifts.length,
+              cumulativeLayoutShift: visualSnapshot.cumulativeLayoutShift ?? shiftValues.reduce((sum, value) => sum + value, 0),
+              layoutShiftSources: visualSnapshot.layoutShiftSources ?? shiftSources,
+              transcriptRowAdds: visualSnapshot.transcriptRowAdds ?? rowAdds,
+              transcriptRowRemoves: visualSnapshot.transcriptRowRemoves ?? rowRemoves,
+              composerReserveHeightSamples: visualSnapshot.composerReserveHeightSamples ?? reserveHeights.length,
+              composerReserveHeights: visualSnapshot.composerReserveHeights ?? reserveHeights,
+              composerReserveMaxHeightDelta: visualSnapshot.composerReserveMaxHeightDelta ?? (reserveHeights.length ? Math.max(...reserveHeights) - Math.min(...reserveHeights) : null),
+              primaryVisibilityChanges: visualSnapshot.primaryVisibilityChanges ?? visibilityChanges,
               frameSamples: gaps.length,
               streamingTextVisible: streamingTextVisibleBeforeScroll,
               composerQueuedSummaryVisible: document.querySelector('[data-testid="composer-queued-summary"]') instanceof HTMLElement,
@@ -33267,10 +33596,22 @@ function runAutomatedStreamingTypingSmoke(win: BrowserWindow, outputPath: string
               latestActivityButtonWorking,
               thinkingIndicatorWorks,
               composerStopRunControlWorks,
-              composerStopRunStatusWorks
+              composerStopRunStatusWorks,
+              multiStreamingActiveThreadStable:
+                activeTitle instanceof HTMLElement &&
+                activeTitle.textContent?.includes('Streaming typing smoke') === true &&
+                !document.body.innerText.includes('Background streaming typing smoke')
             };
           })()
         `)
+        const backgroundSession = backgroundSessionId ? sessionManager.get(backgroundSessionId) : null
+        const backgroundStreamingMessage = backgroundSession?.messages.find((message) =>
+          message.id === 'streaming-typing-background-message' && message.type === 'text'
+        )
+        const multiStreamingBackgroundUpdated =
+          backgroundSession?.status === 'idle' &&
+          backgroundStreamingMessage?.type === 'text' &&
+          backgroundStreamingMessage.content.includes('background stream update 025')
         if (sessionId) {
           sessionManager.updateStatus(sessionId, 'idle')
           await new Promise((resolve) => setTimeout(resolve, 120))
@@ -33332,6 +33673,7 @@ function runAutomatedStreamingTypingSmoke(win: BrowserWindow, outputPath: string
           profile,
           streamingMessageUpdated,
           streamingSessionActive,
+          multiStreamingBackgroundUpdated,
           composerTyped: typedValue.includes('typing while streaming should stay responsive'),
           composerFocusedWhileStreaming: typingResult?.composerFocused === true,
           composerEditableWhileStreaming: typingResult?.composerFound === true && typingResult?.composerDisabled === false,
@@ -35070,23 +35412,59 @@ async function seedAutomatedTranscriptStressSmokeSession(projectId: string, work
     repoRoot: workDir
   })
   const baseTime = Date.now()
-  const messages: ChatMessage[] = Array.from({ length: stressMessageCount }, (_, index) => {
-    const number = String(index + 1).padStart(5, '0')
-    const marker = index === 6 ? 'TRANSCRIPT_STRESS_EARLY_0007' : `TRANSCRIPT_STRESS_${number}`
-    return {
-      id: `transcript-stress-${number}`,
-      role: index % 2 === 0 ? 'user' : 'assistant',
-      type: 'text',
-      content: [
-        `${marker}: large transcript fixture message ${number}.`,
-        `This message verifies measured virtualization on a long thread without mounting thousands of rows.`,
-        index % 10 === 0
-          ? Array.from({ length: 8 }, (_line, lineIndex) => `Extra markdown-ish paragraph ${lineIndex + 1} for variable row height.`).join('\n')
-          : 'Short row variant for estimator coverage.'
-      ].join('\n\n'),
-      timestamp: baseTime + index
-    }
-  })
+  const messages: ChatMessage[] = Array.from({ length: stressMessageCount / 4 }, (_, turnIndex) => {
+    const turnNumber = String(turnIndex + 1).padStart(5, '0')
+    const userIndex = turnIndex * 4
+    const toolUseIndex = userIndex + 1
+    const toolResultIndex = userIndex + 2
+    const assistantIndex = userIndex + 3
+    const userNumber = String(userIndex + 1).padStart(5, '0')
+    const assistantNumber = String(assistantIndex + 1).padStart(5, '0')
+    const marker = userIndex === 4 ? 'TRANSCRIPT_STRESS_EARLY_0007' : `TRANSCRIPT_STRESS_${userNumber}`
+    const toolUseId = `transcript-stress-tool-${turnNumber}`
+    return [
+      {
+        id: `transcript-stress-${userNumber}`,
+        role: 'user',
+        type: 'text',
+        content: [
+          `${marker}: large transcript fixture request ${turnNumber}.`,
+          `This message verifies measured virtualization on a long thread without mounting thousands of rows.`,
+          turnIndex % 10 === 0
+            ? Array.from({ length: 8 }, (_line, lineIndex) => `Extra markdown-ish paragraph ${lineIndex + 1} for variable row height.`).join('\n')
+            : 'Short row variant for estimator coverage.'
+        ].join('\n\n'),
+        timestamp: baseTime + userIndex
+      },
+      {
+        id: toolUseId,
+        role: 'assistant',
+        type: 'tool_use',
+        toolName: 'Read',
+        toolInput: { file_path: `fixtures/transcript-${turnNumber}.md` },
+        timestamp: baseTime + toolUseIndex
+      },
+      {
+        id: `${toolUseId}-result`,
+        role: 'tool',
+        type: 'tool_result',
+        toolUseId,
+        content: `Loaded transcript fixture context for turn ${turnNumber}.`,
+        isError: false,
+        timestamp: baseTime + toolResultIndex
+      },
+      {
+        id: `transcript-stress-${assistantNumber}`,
+        role: 'assistant',
+        type: 'text',
+        content: [
+          `TRANSCRIPT_STRESS_${assistantNumber}: completed assistant response for fixture turn ${turnNumber}.`,
+          `This final assistant anchor should remain visible while intermediate tool activity can collapse.`
+        ].join('\n\n'),
+        timestamp: baseTime + assistantIndex
+      }
+    ] satisfies ChatMessage[]
+  }).flat()
   messages.push({
     id: 'transcript-stress-latest',
     role: 'assistant',

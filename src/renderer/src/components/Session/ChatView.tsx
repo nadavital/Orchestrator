@@ -1,5 +1,5 @@
 import { isValidElement, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useCallback } from 'react'
-import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent, ReactNode, RefObject, WheelEvent } from 'react'
+import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent, ReactNode, RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -40,6 +40,17 @@ import { buildTranscriptTurnGroups, transcriptTurnIdForMessage, type TranscriptT
 import { useSessionStore } from '../../store/sessions'
 import { useProjectStore } from '../../store/projects'
 import { markRendererStart, recordRendererMetric } from '../../performance'
+import {
+  buildVirtualTranscriptWindow,
+  estimateTranscriptMessagesHeight,
+  groupTranscriptMessages,
+  groupTranscriptTurnGroups,
+  transcriptItemMessageIds,
+  transcriptItemOffset,
+  TRANSCRIPT_VIRTUAL_ROW_GAP,
+  type TranscriptItem
+} from './transcriptVirtualLayout'
+import { useTranscriptScrollController } from './useTranscriptScrollController'
 
 type PreferredEditor = 'system' | 'vscode' | 'vscode-insiders' | 'cursor' | 'zed'
 interface TranscriptPrependAnchor {
@@ -56,16 +67,12 @@ interface Props {
 
 const TOOL_SUMMARY_SCROLL_THRESHOLD = 8
 const TOOL_SUMMARY_MAX_HEIGHT = 220
-const TOOL_SUMMARY_COLLAPSED_ESTIMATE = 42
-const TURN_SUMMARY_COLLAPSED_ESTIMATE = 74
 const FOLLOW_BOTTOM_THRESHOLD = 80
 const USER_MESSAGE_COLLAPSE_LENGTH = 1400
 const USER_MESSAGE_COLLAPSE_MIN_BREAK = 980
 const TRANSCRIPT_PAGE_CHUNK = 120
 const TRANSCRIPT_LAZY_LOAD_TOP_THRESHOLD = 360
-const TRANSCRIPT_VIRTUAL_OVERSCAN = 900
 const TRANSCRIPT_USER_SCROLL_LOCKOUT_MS = 1400
-const TRANSCRIPT_STREAMING_ROW_MEASURE_MS = 120
 const TRANSCRIPT_COMPOSER_CLEARANCE_PX = 24
 const TRANSCRIPT_NAV_RAIL_MIN_TURNS = 6
 const TRANSCRIPT_MAX_PERSISTED_EXPANDED_TURNS = 80
@@ -87,7 +94,7 @@ const EMPTY_STATE_SUGGESTIONS = [
 
 type DiffUpdatedRunEvent = Extract<SessionRunEventRecord['event'], { type: 'diff.updated' }>
 type ProviderCheckpointUndoStatus = 'not-applicable' | 'missing-checkpoint' | 'unsupported'
-const TRANSCRIPT_VIRTUAL_ROW_GAP = 14
+type ContinueActionState = 'idle' | 'sending' | 'sent' | 'error'
 
 export default function ChatView({ sessionId }: Props): JSX.Element {
   const session = useSessionStore((state) => state.sessions.find((candidate) => candidate.id === sessionId))
@@ -106,14 +113,9 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
   const transcriptUI = useSessionStore((state) => state.uiState[session.id]?.transcript)
   const updateTranscriptUI = useSessionStore((state) => state.updateTranscriptUI)
   const addSessionToProject = useProjectStore((state) => state.addSessionToProject)
-  const scrollContainerRef = useRef<HTMLDivElement>(null)
-  const bottomRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
-  const shouldFollowBottomRef = useRef(true)
-  const userScrollLockoutUntilRef = useRef(0)
-  const pendingScrollFrameRef = useRef<number | null>(null)
-  const pendingMetricsFrameRef = useRef<number | null>(null)
   const loadingEarlierRef = useRef(false)
+  const pendingAutoLoadEarlierFrameRef = useRef<number | null>(null)
   const transcriptListRef = useRef<HTMLDivElement>(null)
   const measuredRowHeightsRef = useRef<Record<string, number>>({})
   const prependAnchorRef = useRef<TranscriptPrependAnchor | null>(null)
@@ -121,8 +123,8 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
   const expandedTurnIdsRef = useRef<Set<string>>(new Set())
   const lastScrollStatePersistedAtRef = useRef(0)
   const restoredSessionIdRef = useRef<string | null>(null)
+  const previousComposerReserveHeightRef = useRef(0)
   const [readSyncedSessionId, setReadSyncedSessionId] = useState<string | null>(null)
-  const [showJumpToLatest, setShowJumpToLatest] = useState(false)
   const [preferredEditor, setPreferredEditor] = useState<PreferredEditor>('system')
   const [loadingEarlier, setLoadingEarlier] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
@@ -131,11 +133,32 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
   const [searching, setSearching] = useState(false)
   const [sharedFindActive, setSharedFindActive] = useState(false)
   const [sharedSearchActiveResultIndex, setSharedSearchActiveResultIndex] = useState(0)
-  const [scrollMetrics, setScrollMetrics] = useState({ top: 0, height: 0, listOffsetTop: 0 })
   const [rowMeasurementVersion, setRowMeasurementVersion] = useState(0)
   const [composerReserveHeight, setComposerReserveHeight] = useState(0)
   const [transcriptActionStatus, setTranscriptActionStatus] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
   const [focusedMessageId, setFocusedMessageId] = useState<string | null>(null)
+  const [activeRailMessageId, setActiveRailMessageId] = useState<string | null>(null)
+  const [continueActionStates, setContinueActionStates] = useState<Record<string, ContinueActionState>>({})
+  const {
+    bottomRef,
+    clearUserScrollLockout,
+    handleTouchStart,
+    handleWheel,
+    scheduleScrollMetricsUpdate,
+    scrollContainerRef,
+    scrollMetrics,
+    scrollToBottom,
+    setFollowingBottom,
+    shouldFollowBottomRef,
+    showJumpToLatest,
+    stopFollowingBottom,
+    updateScrollMetrics,
+    userScrollLockoutUntilRef
+  } = useTranscriptScrollController({
+    transcriptListRef,
+    followBottomThreshold: FOLLOW_BOTTOM_THRESHOLD,
+    userScrollLockoutMs: TRANSCRIPT_USER_SCROLL_LOCKOUT_MS
+  })
   const streamingMessages = useSessionStore((state) => state.streamingMessages[session.id])
   const expandedTurnIds = useMemo(() => new Set(transcriptUI?.expandedTurnIds ?? []), [transcriptUI?.expandedTurnIds])
 
@@ -154,11 +177,24 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
     () => transcriptMessagesForDisplay(session.provider, effectiveMessages),
     [session.provider, effectiveMessages]
   )
+  const hasStreamingAssistantMessage = useMemo(() => (
+    displayedMessages.some((message) => (
+      message.type === 'text' &&
+      message.role === 'assistant' &&
+      message.isStreaming === true
+    ))
+  ), [displayedMessages])
+  const isLiveBottomFollowing = !showJumpToLatest && (
+    session.status === 'running' ||
+    session.status === 'reconnecting' ||
+    hasStreamingAssistantMessage
+  )
+  const virtualizedDisplayedMessages = displayedMessages
   const totalMessageCount = session.messageCount ?? session.messages.length
   const unloadedBeforeCount = Math.max(0, totalMessageCount - session.messages.length)
   const transcriptTurnGroups = useMemo(
-    () => buildTranscriptTurnGroups(displayedMessages),
-    [displayedMessages]
+    () => buildTranscriptTurnGroups(virtualizedDisplayedMessages),
+    [virtualizedDisplayedMessages]
   )
   const transcriptItems = useMemo(
     () => groupTranscriptTurnGroups(transcriptTurnGroups, expandedTurnIds),
@@ -180,14 +216,11 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
       .filter((entry): entry is TranscriptUserTurnEntry => entry !== null),
     [transcriptTurnGroups]
   )
+  const transcriptUserMessageIds = useMemo(
+    () => transcriptUserTurnEntries.map((entry) => entry.messageId),
+    [transcriptUserTurnEntries]
+  )
   const fileReferenceRoots = useMemo(() => sessionFileReferenceRoots(session), [session])
-  const hasStreamingAssistantMessage = useMemo(() => (
-    displayedMessages.some((message) => (
-      message.type === 'text' &&
-      message.role === 'assistant' &&
-      message.isStreaming === true
-    ))
-  ), [displayedMessages])
   const showThinkingIndicator = isActiveSessionStatus(session.status) || hasStreamingAssistantMessage
   const lastMessage = effectiveMessages[effectiveMessages.length - 1]
   const lastTextLength = lastMessage?.type === 'text' ? lastMessage.content.length : 0
@@ -213,8 +246,9 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
     transcriptItems,
     measuredRowHeightsRef.current,
     Math.max(0, scrollMetrics.top - scrollMetrics.listOffsetTop),
-    scrollMetrics.height || 800
-  ), [rowMeasurementVersion, scrollMetrics.height, scrollMetrics.listOffsetTop, scrollMetrics.top, transcriptItems])
+    scrollMetrics.height || 800,
+    isLiveBottomFollowing
+  ), [isLiveBottomFollowing, rowMeasurementVersion, scrollMetrics.height, scrollMetrics.listOffsetTop, scrollMetrics.top, transcriptItems])
 
   useEffect(() => {
     loadingEarlierRef.current = loadingEarlier
@@ -243,9 +277,20 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
     })
   }, [updateExpandedTranscriptTurnIds])
 
+  const collapseTranscriptTurn = useCallback((turnId: string): void => {
+    updateExpandedTranscriptTurnIds((current) => {
+      if (!current.has(turnId)) return current
+      const next = new Set(current)
+      next.delete(turnId)
+      return next
+    })
+  }, [updateExpandedTranscriptTurnIds])
+
   useEffect(() => {
     setTranscriptActionStatus(null)
     setFocusedMessageId(null)
+    setActiveRailMessageId(null)
+    setContinueActionStates({})
   }, [session.id])
 
   const steerQueuedMessage = useCallback(async (messageId: string): Promise<void> => {
@@ -269,6 +314,16 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
       setTranscriptActionStatus({ text: `Cancel failed: ${errorText(error)}`, tone: 'danger' })
     }
   }, [removeMessage, session.id])
+
+  const continueLastTurnFromMessage = useCallback(async (messageId: string): Promise<void> => {
+    setContinueActionStates((current) => ({ ...current, [messageId]: 'sending' }))
+    try {
+      const ok = await window.api.sessions.continueLastTurn(session.id)
+      setContinueActionStates((current) => ({ ...current, [messageId]: ok ? 'sent' : 'error' }))
+    } catch {
+      setContinueActionStates((current) => ({ ...current, [messageId]: 'error' }))
+    }
+  }, [session.id])
 
   const activateForkedSession = useCallback((forked: Session, sourceMessageId: string, mode: SessionForkMode): void => {
     const testWindow = window as typeof window & { __orchestratorLastMessageForkedSession?: { id: string; mode: SessionForkMode; sourceSessionId: string; sourceMessageId: string; messageCount: number; useWorktree: boolean; worktreeState?: Session['worktreeState'] } }
@@ -303,7 +358,7 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
   const editUserMessageFromHere = useCallback(async (messageId: string, content: string, attachments: Attachment[] = []): Promise<void> => {
     const text = content.trim()
     if (!text && attachments.length === 0) return
-    setTranscriptActionStatus({ text: 'Editing this message from the composer', tone: 'info' })
+    setTranscriptActionStatus({ text: 'Copied message and attachments into composer draft', tone: 'info' })
     window.dispatchEvent(new CustomEvent('orchestrator:set-composer-text', {
       detail: {
         sessionId: session.id,
@@ -321,36 +376,6 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
       composer?.focus()
     }, 0)
   }, [session.id])
-
-  const updateScrollMetrics = useCallback(() => {
-    const scroller = scrollContainerRef.current
-    if (!scroller) return
-    const primaryContent = scroller.closest<HTMLElement>('[data-testid="session-primary-content"]')
-    primaryContent?.style.setProperty(
-      '--transcript-scrollbar-width',
-      `${Math.max(0, scroller.offsetWidth - scroller.clientWidth)}px`
-    )
-    const nextMetrics = {
-      top: scroller.scrollTop,
-      height: scroller.clientHeight,
-      listOffsetTop: transcriptListRef.current?.offsetTop ?? 0
-    }
-    setScrollMetrics((current) => (
-      Math.abs(current.top - nextMetrics.top) < 1 &&
-      Math.abs(current.height - nextMetrics.height) < 1 &&
-      Math.abs(current.listOffsetTop - nextMetrics.listOffsetTop) < 1
-        ? current
-        : nextMetrics
-    ))
-  }, [])
-
-  const scheduleScrollMetricsUpdate = useCallback(() => {
-    if (pendingMetricsFrameRef.current !== null) return
-    pendingMetricsFrameRef.current = window.requestAnimationFrame(() => {
-      pendingMetricsFrameRef.current = null
-      updateScrollMetrics()
-    })
-  }, [updateScrollMetrics])
 
   const focusTranscriptMessage = useCallback((messageId: string, statusText: string): void => {
     const turnId = transcriptTurnIdForMessage(displayedMessages, messageId)
@@ -400,33 +425,6 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
     return () => { cancelled = true }
   }, [])
 
-  const setFollowingBottom = useCallback((isFollowing: boolean) => {
-    const shouldShowJumpButton = !isFollowing
-    shouldFollowBottomRef.current = isFollowing
-    setShowJumpToLatest((current) => current === shouldShowJumpButton ? current : shouldShowJumpButton)
-  }, [])
-
-  const clearUserScrollLockout = useCallback(() => {
-    userScrollLockoutUntilRef.current = 0
-  }, [])
-
-  const stopFollowingBottom = useCallback((lockout = false) => {
-    if (pendingScrollFrameRef.current !== null) {
-      window.cancelAnimationFrame(pendingScrollFrameRef.current)
-      pendingScrollFrameRef.current = null
-    }
-    if (lockout) userScrollLockoutUntilRef.current = performance.now() + TRANSCRIPT_USER_SCROLL_LOCKOUT_MS
-    setFollowingBottom(false)
-  }, [setFollowingBottom])
-
-  const handleWheel = useCallback((event: WheelEvent<HTMLDivElement>) => {
-    if (event.deltaY !== 0 || event.deltaX !== 0) stopFollowingBottom(true)
-  }, [stopFollowingBottom])
-
-  const handleTouchStart = useCallback(() => {
-    stopFollowingBottom(true)
-  }, [stopFollowingBottom])
-
   const handlePointerDown = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
     const rect = event.currentTarget.getBoundingClientRect()
     const scrollbarHitArea = rect.right - 18
@@ -445,15 +443,29 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
     const scrollerRect = scroller.getBoundingClientRect()
     const scrollerTop = scrollerRect.top
     const messages = Array.from(scroller.querySelectorAll<HTMLElement>('[data-message-id]'))
-    const firstMessage = messages.find((message) => {
+    const visibleMessage = messages.find((message) => {
       const rect = message.getBoundingClientRect()
       return rect.bottom > scrollerRect.top && rect.top < scrollerRect.bottom
-    }) ?? messages[0]
+    })
+    if (visibleMessage) {
+      return {
+        scrollHeight: scroller.scrollHeight,
+        scrollTop: scroller.scrollTop,
+        messageId: visibleMessage.dataset.messageId,
+        messageTop: visibleMessage.getBoundingClientRect().top - scrollerTop
+      }
+    }
+    const rows = Array.from(scroller.querySelectorAll<HTMLElement>('[data-testid="virtual-transcript-row"]'))
+    const visibleRow = rows.find((row) => {
+      const rect = row.getBoundingClientRect()
+      return rect.bottom > scrollerRect.top && rect.top < scrollerRect.bottom
+    }) ?? rows[0]
+    const rowMessageId = visibleRow?.dataset.virtualRowPrimaryMessageId
     return {
       scrollHeight: scroller.scrollHeight,
       scrollTop: scroller.scrollTop,
-      messageId: firstMessage?.dataset.messageId,
-      messageTop: firstMessage ? firstMessage.getBoundingClientRect().top - scrollerTop : undefined
+      messageId: rowMessageId,
+      messageTop: visibleRow ? visibleRow.getBoundingClientRect().top - scrollerTop : undefined
     }
   }, [])
 
@@ -518,32 +530,6 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
     return () => window.cancelAnimationFrame(frame)
   }, [session.messages.length, transcriptItems, updateScrollMetrics])
 
-  const scrollToBottom = useCallback((force = false) => {
-    if (force) {
-      clearUserScrollLockout()
-      const scroller = scrollContainerRef.current
-      if (scroller) scroller.scrollTop = scroller.scrollHeight
-      setFollowingBottom(true)
-      updateScrollMetrics()
-      return
-    }
-    if (pendingScrollFrameRef.current !== null) {
-      window.cancelAnimationFrame(pendingScrollFrameRef.current)
-    }
-    pendingScrollFrameRef.current = window.requestAnimationFrame(() => {
-      pendingScrollFrameRef.current = null
-      if (!force && !shouldFollowBottomRef.current) return
-      if (!force && performance.now() < userScrollLockoutUntilRef.current) return
-      const scroller = scrollContainerRef.current
-      if (scroller) {
-        scroller.scrollTop = scroller.scrollHeight
-        updateScrollMetrics()
-      } else {
-        bottomRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' })
-      }
-    })
-  }, [clearUserScrollLockout, setFollowingBottom, updateScrollMetrics])
-
   useEffect(() => {
     const onComposerReserveChanged = (event: Event): void => {
       const detail = (event as CustomEvent<{ sessionId?: string; height?: number }>).detail
@@ -551,30 +537,33 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
       const nextHeight = Number.isFinite(detail.height) ? Math.max(0, Math.ceil(detail.height ?? 0)) : 0
       setComposerReserveHeight((current) => current === nextHeight ? current : nextHeight)
       scheduleScrollMetricsUpdate()
-      if (shouldFollowBottomRef.current) scrollToBottom()
     }
     window.addEventListener('orchestrator:composer-reserve-changed', onComposerReserveChanged)
     return () => window.removeEventListener('orchestrator:composer-reserve-changed', onComposerReserveChanged)
-  }, [scheduleScrollMetricsUpdate, scrollToBottom, session.id])
+  }, [scheduleScrollMetricsUpdate, session.id])
+
+  useLayoutEffect(() => {
+    const previousHeight = previousComposerReserveHeightRef.current
+    previousComposerReserveHeightRef.current = composerReserveHeight
+    const delta = composerReserveHeight - previousHeight
+    if (Math.abs(delta) < 1) return
+
+    const scroller = scrollContainerRef.current
+    if (!scroller) return
+
+    if (shouldFollowBottomRef.current) {
+      scroller.scrollTop = scroller.scrollHeight
+      updateScrollMetrics()
+    }
+  }, [composerReserveHeight, updateScrollMetrics])
 
   const handleVirtualRowHeight = useCallback((id: string, height: number) => {
+    if (isLiveBottomFollowing) return
     const previous = measuredRowHeightsRef.current[id]
     if (previous && Math.abs(previous - height) < 1) return
     measuredRowHeightsRef.current[id] = height
     setRowMeasurementVersion((version) => version + 1)
-  }, [])
-
-  const schedulePrependScrollCompensation = useCallback((anchor: TranscriptPrependAnchor | null, estimatedHeight: number) => {
-    if (!anchor || estimatedHeight <= 0) return
-    window.requestAnimationFrame(() => {
-      window.requestAnimationFrame(() => {
-        const scroller = scrollContainerRef.current
-        if (!scroller) return
-        scroller.scrollTop = anchor.scrollTop + estimatedHeight
-        updateScrollMetrics()
-      })
-    })
-  }, [updateScrollMetrics])
+  }, [isLiveBottomFollowing])
 
   const handleLoadEarlier = useCallback(async (
     source: 'manual' | 'auto' = 'manual',
@@ -593,13 +582,11 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
     try {
       const page = await window.api.sessions.getTranscriptPage(session.id, { beforeMessageId, limit: TRANSCRIPT_PAGE_CHUNK })
       if (page) {
-        const anchorToRestore = prependAnchorRef.current
         const estimatedPrependedHeight = estimateTranscriptMessagesHeight(page.messages)
         if (prependAnchorRef.current) {
           prependAnchorRef.current.estimatedPrependedHeight = estimatedPrependedHeight
         }
         useSessionStore.getState().mergeTranscriptPage(session.id, page, 'prepend')
-        schedulePrependScrollCompensation(anchorToRestore, estimatedPrependedHeight)
         recordRendererMetric('transcript.page.prepend-ready', startedAt, {
           sessionId: session.id,
           source,
@@ -629,9 +616,14 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
     if (isAtBottom) clearUserScrollLockout()
     setFollowingBottom(isAtBottom && performance.now() >= userScrollLockoutUntilRef.current)
     persistTranscriptScrollState()
-    if (unloadedBeforeCount > 0 && scroller.scrollTop <= TRANSCRIPT_LAZY_LOAD_TOP_THRESHOLD) {
-      const anchor = readVisiblePrependAnchor()
-      void handleLoadEarlier('auto', anchor)
+    if (unloadedBeforeCount > 0 && scroller.scrollTop <= TRANSCRIPT_LAZY_LOAD_TOP_THRESHOLD && pendingAutoLoadEarlierFrameRef.current === null) {
+      pendingAutoLoadEarlierFrameRef.current = window.requestAnimationFrame(() => {
+        pendingAutoLoadEarlierFrameRef.current = null
+        const currentScroller = scrollContainerRef.current
+        if (!currentScroller || currentScroller.scrollTop > TRANSCRIPT_LAZY_LOAD_TOP_THRESHOLD) return
+        const anchor = readVisiblePrependAnchor()
+        void handleLoadEarlier('auto', anchor)
+      })
     }
   }, [clearUserScrollLockout, handleLoadEarlier, persistTranscriptScrollState, readVisiblePrependAnchor, scheduleScrollMetricsUpdate, setFollowingBottom, unloadedBeforeCount])
 
@@ -641,7 +633,18 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
     setRowMeasurementVersion((version) => version + 1)
     lastScrollStatePersistedAtRef.current = 0
     restoredSessionIdRef.current = null
+    if (pendingAutoLoadEarlierFrameRef.current !== null) {
+      window.cancelAnimationFrame(pendingAutoLoadEarlierFrameRef.current)
+      pendingAutoLoadEarlierFrameRef.current = null
+    }
   }, [session.id, setFollowingBottom])
+
+  useEffect(() => () => {
+    if (pendingAutoLoadEarlierFrameRef.current !== null) {
+      window.cancelAnimationFrame(pendingAutoLoadEarlierFrameRef.current)
+      pendingAutoLoadEarlierFrameRef.current = null
+    }
+  }, [])
 
   useLayoutEffect(() => {
     if (restoredSessionIdRef.current === session.id) return
@@ -675,10 +678,44 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
     return () => window.cancelAnimationFrame(frame)
   }, [displayedMessages.length, scrollToBottom, session.id, setFollowingBottom, totalMessageCount, transcriptItems, transcriptUI?.scrollRestore, updateScrollMetrics])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!shouldFollowBottomRef.current) return
-    scrollToBottom()
-  }, [session.messages.length, lastTextLength, scrollToBottom])
+    if (performance.now() < userScrollLockoutUntilRef.current) return
+    const scroller = scrollContainerRef.current
+    if (!scroller) return
+    scroller.scrollTop = scroller.scrollHeight
+    updateScrollMetrics()
+  }, [session.messages.length, lastTextLength, updateScrollMetrics, virtualWindow.totalHeight])
+
+  useEffect(() => {
+    const scroller = scrollContainerRef.current
+    if (!scroller || transcriptUserMessageIds.length === 0 || typeof IntersectionObserver === 'undefined') return
+    const visible = new Set<string>()
+    const observedIds = new Set(transcriptUserMessageIds)
+    const updateActive = (): void => {
+      const next = transcriptUserMessageIds.find((id) => visible.has(id)) ?? transcriptUserMessageIds.at(-1) ?? null
+      setActiveRailMessageId((current) => current === next ? current : next)
+    }
+    const observer = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        const element = entry.target instanceof HTMLElement ? entry.target : null
+        const messageId = element?.dataset.messageId
+        if (!messageId || !observedIds.has(messageId)) continue
+        if (entry.isIntersecting) {
+          visible.add(messageId)
+        } else {
+          visible.delete(messageId)
+        }
+      }
+      updateActive()
+    }, { root: scroller, threshold: 0.01 })
+    for (const id of transcriptUserMessageIds) {
+      const element = document.querySelector(`[data-message-id="${CSS.escape(id)}"]`)
+      if (element instanceof HTMLElement) observer.observe(element)
+    }
+    updateActive()
+    return () => observer.disconnect()
+  }, [transcriptItems, transcriptUserMessageIds])
 
   useLayoutEffect(() => {
     const perfWindow = window as typeof window & {
@@ -818,17 +855,6 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
     })
     return () => { cancelled = true }
   }, [session.id, session.messageCount, session.messages.length, session.messagesLoaded, totalMessageCount])
-
-  useEffect(() => {
-    return () => {
-      if (pendingScrollFrameRef.current !== null) {
-        window.cancelAnimationFrame(pendingScrollFrameRef.current)
-      }
-      if (pendingMetricsFrameRef.current !== null) {
-        window.cancelAnimationFrame(pendingMetricsFrameRef.current)
-      }
-    }
-  }, [])
 
   const handleJumpToSearchResult = useCallback(async (result: TranscriptSearchResult) => {
     const startedAt = markRendererStart()
@@ -1031,6 +1057,7 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
         data-active-transcript-read-synced={readSyncedSessionId === session.id ? 'true' : 'false'}
         style={{
           userSelect: 'text',
+          overflowAnchor: 'none',
           paddingBottom: TRANSCRIPT_COMPOSER_CLEARANCE_PX,
           scrollPaddingBlockEnd: composerReserveHeight + TRANSCRIPT_COMPOSER_CLEARANCE_PX
         }}
@@ -1099,11 +1126,19 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
                   streaming={item.type === 'message' && item.message.type === 'text' && item.message.isStreaming === true}
                   onHeight={handleVirtualRowHeight}
                 >
-                  {item.type === 'collapsed_turn'
+                  {item.type === 'collapsed_activity'
                     ? (
-                      <CollapsedTurnRow
+                      <CollapsedTurnActivityRow
                         turn={item.turn}
-                        onExpand={() => expandTranscriptTurn(item.turn.id)}
+                        hiddenMessages={item.messages}
+                        expanded={item.expanded}
+                        onToggle={() => {
+                          if (item.expanded) {
+                            collapseTranscriptTurn(item.turn.id)
+                          } else {
+                            expandTranscriptTurn(item.turn.id)
+                          }
+                        }}
                       />
                     )
                     : item.type === 'tool_group'
@@ -1116,9 +1151,16 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
                           fileReferenceRoots={fileReferenceRoots}
                           preferredEditor={preferredEditor}
                           canCopy={item.message.id === lastAssistantTextId}
-                          canContinue={item.message.id === lastAssistantTextId && !isActiveSessionStatus(session.status) && lastAssistantText?.interrupted === true}
+                          canContinue={
+                            item.message.id === lastAssistantTextId &&
+                            session.status !== 'running' &&
+                            session.status !== 'reconnecting' &&
+                            lastAssistantText?.interrupted === true
+                          }
+                          continueState={continueActionStates[item.message.id] ?? 'idle'}
                           canRegenerate={item.message.id === lastAssistantTextId && canRegenerateLastAssistant}
                           canRetryUnansweredUserMessage={item.message.id === lastUnansweredUserTextId}
+                          onContinueFromMessage={continueLastTurnFromMessage}
                           onSteerQueuedMessage={steerQueuedMessage}
                           onCancelQueuedMessage={cancelQueuedMessage}
                           onEditUserMessageFromHere={editUserMessageFromHere}
@@ -1142,8 +1184,11 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
       {transcriptUserTurnEntries.length >= TRANSCRIPT_NAV_RAIL_MIN_TURNS && (
         <TranscriptUserNavigationRail
           turns={transcriptUserTurnEntries}
-          focusedMessageId={focusedMessageId}
-          onJump={(entry) => focusTranscriptMessage(entry.messageId, `Jumped to turn ${entry.index + 1}`)}
+          activeMessageId={focusedMessageId ?? activeRailMessageId}
+          onJump={(entry) => {
+            stopFollowingBottom(true)
+            focusTranscriptMessage(entry.messageId, `Jumped to turn ${entry.index + 1}`)
+          }}
         />
       )}
       {showJumpToLatest && (
@@ -1231,68 +1276,70 @@ function TranscriptActionStatus({
   )
 }
 
-function CollapsedTurnRow({
+function CollapsedTurnActivityRow({
   turn,
-  onExpand
+  hiddenMessages,
+  expanded,
+  onToggle
 }: {
   turn: TranscriptTurnGroup
-  onExpand: () => void
+  hiddenMessages: ChatMessage[]
+  expanded: boolean
+  onToggle: () => void
 }): JSX.Element {
   const { summary } = turn
+  const hiddenToolCount = hiddenMessages.filter((message) => message.type === 'tool_use' || message.type === 'tool_result').length
+  const hiddenTextCount = hiddenMessages.filter((message) => message.type === 'text').length
   const detailParts = [
-    `${summary.messageCount.toLocaleString()} messages`,
-    summary.toolCount > 0 ? `${summary.toolCount.toLocaleString()} tool ${summary.toolCount === 1 ? 'event' : 'events'}` : null,
-    summary.noticeCount > 0 ? `${summary.noticeCount.toLocaleString()} ${summary.noticeCount === 1 ? 'notice' : 'notices'}` : null
+    hiddenMessages.length === 1 ? '1 hidden message' : `${hiddenMessages.length.toLocaleString()} hidden messages`,
+    hiddenToolCount > 0 ? `${hiddenToolCount.toLocaleString()} tool ${hiddenToolCount === 1 ? 'event' : 'events'}` : null,
+    hiddenTextCount > 0 ? `${hiddenTextCount.toLocaleString()} text ${hiddenTextCount === 1 ? 'update' : 'updates'}` : null
   ].filter(Boolean)
-  const primary = summary.userPreview || 'Earlier turn'
-  const secondary = summary.assistantPreview || detailParts.join(' · ')
+  const label = detailParts.join(' · ')
+  const primary = summary.userPreview || 'previous user message'
   return (
     <div
-      className="flex justify-center"
+      className="flex justify-start"
       data-testid="collapsed-transcript-turn"
       data-transcript-turn-id={turn.id}
-      data-transcript-turn-message-count={summary.messageCount}
+      data-transcript-turn-message-count={hiddenMessages.length}
     >
-      <SurfaceRow
-        className="min-w-0 max-w-full items-center gap-3 rounded-lg px-3 py-2 text-xs"
-        dataTestId="collapsed-transcript-turn-row"
-        ariaLabel={`Collapsed transcript turn. ${primary}. ${detailParts.join('. ')}.`}
-        style={{
-          width: 'min(100%, 680px)',
-          background: 'var(--surface-bg)',
-          border: '1px solid var(--border-subtle)',
-          color: 'var(--text-secondary)'
-        }}
+      <button
+        type="button"
+        className="inline-flex min-w-0 items-center gap-1 rounded-md border border-transparent px-1.5 py-0.5 text-xs transition"
+        data-testid="collapsed-transcript-turn-expand"
+        aria-expanded={expanded}
+        aria-label={`${expanded ? 'Hide' : 'Show'} hidden work for ${primary}. ${label}.`}
+        title={`${expanded ? 'Hide' : 'Show'} hidden work: ${primary}`}
+        onClick={onToggle}
+        style={{ color: 'var(--text-secondary)' }}
       >
-        <div className="min-w-0 flex-1">
-          <div className="truncate font-medium" style={{ color: 'var(--text-primary)' }}>{primary}</div>
-          <div className="truncate">{secondary}</div>
-        </div>
-        <Button
-          variant="ghost"
-          className="shrink-0 px-2 py-0.5"
-          onClick={onExpand}
-          dataTestId="collapsed-transcript-turn-expand"
-          ariaLabel={`Show collapsed transcript turn: ${primary}`}
-          title={`Show turn: ${primary}`}
+        <span>{label}</span>
+        <span
+          aria-hidden="true"
+          style={{
+            color: 'color-mix(in srgb, var(--text-secondary) 65%, transparent)',
+            transform: expanded ? 'rotate(90deg)' : 'rotate(0deg)',
+            transition: 'transform 160ms ease'
+          }}
         >
-          Show
-        </Button>
-      </SurfaceRow>
+          ›
+        </span>
+      </button>
     </div>
   )
 }
 
 function TranscriptUserNavigationRail({
   turns,
-  focusedMessageId,
+  activeMessageId,
   onJump
 }: {
   turns: TranscriptUserTurnEntry[]
-  focusedMessageId: string | null
+  activeMessageId: string | null
   onJump: (entry: TranscriptUserTurnEntry) => void
 }): JSX.Element {
-  const sampledTurns = sampleTranscriptRailTurns(turns, 32)
+  const sampledTurns = turns
   return (
     <nav
       aria-label="User messages"
@@ -1309,7 +1356,7 @@ function TranscriptUserNavigationRail({
         }}
       >
         {sampledTurns.map((entry) => {
-          const active = entry.messageId === focusedMessageId
+          const active = entry.messageId === activeMessageId
           const title = `Jump to user message ${entry.index + 1}: ${entry.label}`
           return (
             <button
@@ -1328,14 +1375,15 @@ function TranscriptUserNavigationRail({
             >
               <span
                 aria-hidden="true"
-                className="block h-1.5 rounded-full transition-all group-hover/navigation-row:w-8"
+                className="block h-0.5 rounded-full transition-all group-hover/navigation-row:w-6"
                 style={{
-                  width: active ? 32 : entry.isLatest ? 18 : 12,
+                  width: active ? 24 : entry.isLatest ? 18 : 16,
                   background: active
-                    ? 'var(--color-accent)'
+                    ? 'var(--text-primary)'
                     : entry.isLatest
-                      ? 'color-mix(in srgb, var(--text-secondary) 70%, transparent)'
-                      : 'color-mix(in srgb, var(--text-secondary) 28%, transparent)'
+                      ? 'color-mix(in srgb, var(--text-secondary) 54%, transparent)'
+                      : 'color-mix(in srgb, var(--text-secondary) 24%, transparent)',
+                  opacity: active ? 1 : undefined
                 }}
               />
             </button>
@@ -1344,18 +1392,6 @@ function TranscriptUserNavigationRail({
       </div>
     </nav>
   )
-}
-
-function sampleTranscriptRailTurns(turns: TranscriptUserTurnEntry[], maxItems: number): TranscriptUserTurnEntry[] {
-  if (turns.length <= maxItems) return turns
-  const sampled: TranscriptUserTurnEntry[] = []
-  const lastIndex = turns.length - 1
-  for (let index = 0; index < maxItems; index += 1) {
-    const sourceIndex = Math.round((index / (maxItems - 1)) * lastIndex)
-    const entry = turns[sourceIndex]
-    if (entry && sampled.at(-1)?.id !== entry.id) sampled.push(entry)
-  }
-  return sampled
 }
 
 function LoadEarlierMessages({
@@ -1489,90 +1525,12 @@ function TranscriptSearch({
   )
 }
 
-type TranscriptItem =
-  | { type: 'message'; message: ChatMessage }
-  | { type: 'tool_group'; id: string; messages: Array<ToolUseMessage | ToolResultMessage> }
-  | { type: 'collapsed_turn'; turn: TranscriptTurnGroup }
-
 interface TranscriptUserTurnEntry {
   id: string
   messageId: string
   label: string
   index: number
   isLatest: boolean
-}
-
-interface VirtualTranscriptWindow {
-  totalHeight: number
-  offsetTop: number
-  items: Array<{ id: string; item: TranscriptItem }>
-}
-
-function buildVirtualTranscriptWindow(
-  items: TranscriptItem[],
-  measuredHeights: Record<string, number>,
-  scrollTop: number,
-  viewportHeight: number
-): VirtualTranscriptWindow {
-  if (items.length === 0) return { totalHeight: 0, offsetTop: 0, items: [] }
-
-  const viewportStart = Math.max(0, scrollTop - TRANSCRIPT_VIRTUAL_OVERSCAN)
-  const viewportEnd = scrollTop + viewportHeight + TRANSCRIPT_VIRTUAL_OVERSCAN
-  const visibleItems: Array<{ id: string; item: TranscriptItem }> = []
-  let offset = 0
-  let offsetTop = 0
-  let totalHeight = 0
-
-  for (const item of items) {
-    const id = transcriptItemId(item)
-    const height = measuredHeights[id] ?? estimateTranscriptItemHeight(item)
-    const itemStart = offset
-    const itemEnd = itemStart + height
-    if (itemEnd >= viewportStart && itemStart <= viewportEnd) {
-      if (visibleItems.length === 0) offsetTop = itemStart
-      visibleItems.push({ id, item })
-    }
-    offset = itemEnd
-    totalHeight = itemEnd
-  }
-
-  if (visibleItems.length === 0) {
-    const item = items[items.length - 1]
-    const id = transcriptItemId(item)
-    return {
-      totalHeight,
-      offsetTop: Math.max(0, totalHeight - (measuredHeights[id] ?? estimateTranscriptItemHeight(item))),
-      items: [{ id, item }]
-    }
-  }
-
-  return { totalHeight, offsetTop, items: visibleItems }
-}
-
-function transcriptItemId(item: TranscriptItem): string {
-  if (item.type === 'tool_group') return item.id
-  if (item.type === 'collapsed_turn') return item.turn.id
-  return item.message.id
-}
-
-function transcriptItemMessageIds(item: TranscriptItem): string[] {
-  if (item.type === 'tool_group') return item.messages.map((message) => message.id)
-  if (item.type === 'collapsed_turn') return item.turn.messages.map((message) => message.id)
-  return [item.message.id]
-}
-
-function transcriptItemOffset(
-  messageId: string,
-  items: TranscriptItem[],
-  measuredHeights: Record<string, number>
-): number | null {
-  let offset = 0
-  for (const item of items) {
-    const id = transcriptItemId(item)
-    if (transcriptItemMessageIds(item).includes(messageId)) return offset
-    offset += measuredHeights[id] ?? estimateTranscriptItemHeight(item)
-  }
-  return null
 }
 
 function findTranscriptElementForMessage(messageId: string): Element | null {
@@ -1587,13 +1545,17 @@ function findTranscriptElementForMessage(messageId: string): Element | null {
   return null
 }
 
-function estimateTranscriptMessagesHeight(messages: ChatMessage[]): number {
-  return groupTranscriptMessages(messages).reduce((total, item) => total + estimateTranscriptItemHeight(item), 0)
+function transcriptMessagesForDisplay(provider: string, messages: ChatMessage[]): ChatMessage[] {
+  return messages.filter((message) => (
+    !isQueuedShelfMessage(message) &&
+    (provider !== 'copilot' || !isCopilotReasoningStatusLeak(message))
+  ))
 }
 
-function transcriptMessagesForDisplay(provider: string, messages: ChatMessage[]): ChatMessage[] {
-  if (provider !== 'copilot') return messages
-  return messages.filter((message) => !isCopilotReasoningStatusLeak(message))
+function isQueuedShelfMessage(message: ChatMessage): boolean {
+  return message.type === 'text' &&
+    message.role === 'user' &&
+    (message.queueState === 'queued' || message.queueState === 'steer_next')
 }
 
 function applyStreamingMessageOverlays(
@@ -1628,24 +1590,6 @@ function isCopilotReasoningStatusContent(content: string): boolean {
     normalized.startsWith("Sure! I'll ")
 }
 
-function estimateTranscriptItemHeight(item: TranscriptItem): number {
-  if (item.type === 'tool_group') {
-    return TOOL_SUMMARY_COLLAPSED_ESTIMATE + TRANSCRIPT_VIRTUAL_ROW_GAP
-  }
-  if (item.type === 'collapsed_turn') {
-    return TURN_SUMMARY_COLLAPSED_ESTIMATE + TRANSCRIPT_VIRTUAL_ROW_GAP
-  }
-  const message = item.message
-  if (message.type === 'text') {
-    const lines = message.content.split('\n').length
-    const wrappedLines = Math.ceil(message.content.length / (message.role === 'user' ? 70 : 92))
-    const bodyHeight = Math.min(720, Math.max(lines, wrappedLines) * 18)
-    return (message.role === 'user' ? 52 : 44) + bodyHeight + TRANSCRIPT_VIRTUAL_ROW_GAP
-  }
-  if (message.type === 'tool_use' || message.type === 'tool_result') return 96 + TRANSCRIPT_VIRTUAL_ROW_GAP
-  return 72 + TRANSCRIPT_VIRTUAL_ROW_GAP
-}
-
 function MeasuredTranscriptRow({
   id,
   messageIds,
@@ -1660,46 +1604,20 @@ function MeasuredTranscriptRow({
   children: ReactNode
 }): JSX.Element {
   const rowRef = useRef<HTMLDivElement>(null)
-  const lastMeasuredAtRef = useRef(0)
-  const pendingMeasureRef = useRef<number | null>(null)
 
   useLayoutEffect(() => {
     const row = rowRef.current
     if (!row) return
     const commitMeasure = (): void => {
-      pendingMeasureRef.current = null
-      lastMeasuredAtRef.current = performance.now()
       const height = row.getBoundingClientRect().height
       if (height > 0) onHeight(id, height)
     }
-    const measure = (): void => {
-      if (!streaming) {
-        commitMeasure()
-        return
-      }
-      const elapsed = performance.now() - lastMeasuredAtRef.current
-      if (elapsed >= TRANSCRIPT_STREAMING_ROW_MEASURE_MS) {
-        if (pendingMeasureRef.current !== null) {
-          window.clearTimeout(pendingMeasureRef.current)
-          pendingMeasureRef.current = null
-        }
-        commitMeasure()
-        return
-      }
-      if (pendingMeasureRef.current === null) {
-        pendingMeasureRef.current = window.setTimeout(commitMeasure, TRANSCRIPT_STREAMING_ROW_MEASURE_MS - elapsed)
-      }
-    }
-    measure()
+    commitMeasure()
+    if (streaming) return
+    const measure = (): void => commitMeasure()
     const observer = new ResizeObserver(measure)
     observer.observe(row)
-    return () => {
-      observer.disconnect()
-      if (pendingMeasureRef.current !== null) {
-        window.clearTimeout(pendingMeasureRef.current)
-        pendingMeasureRef.current = null
-      }
-    }
+    return () => observer.disconnect()
   }, [id, onHeight, streaming])
 
   return (
@@ -1715,49 +1633,6 @@ function MeasuredTranscriptRow({
       {children}
     </div>
   )
-}
-
-function groupTranscriptMessages(messages: ChatMessage[], expandedTurnIds: Set<string> = new Set()): TranscriptItem[] {
-  return groupTranscriptTurnGroups(buildTranscriptTurnGroups(messages), expandedTurnIds)
-}
-
-function groupTranscriptTurnGroups(turns: TranscriptTurnGroup[], expandedTurnIds: Set<string> = new Set()): TranscriptItem[] {
-  const items: TranscriptItem[] = []
-  for (const turn of turns) {
-    if (turn.isCollapsible && !expandedTurnIds.has(turn.id)) {
-      items.push({ type: 'collapsed_turn', turn })
-      continue
-    }
-    items.push(...groupTurnMessages(turn.messages))
-  }
-  return items
-}
-
-function groupTurnMessages(messages: ChatMessage[]): TranscriptItem[] {
-  const items: TranscriptItem[] = []
-  let pendingTools: Array<ToolUseMessage | ToolResultMessage> = []
-
-  const flushTools = (): void => {
-    if (pendingTools.length === 0) return
-    items.push({
-      type: 'tool_group',
-      id: `tools-${pendingTools[0].id}`,
-      messages: pendingTools
-    })
-    pendingTools = []
-  }
-
-  for (const message of messages) {
-    if (message.type === 'tool_use' || message.type === 'tool_result') {
-      pendingTools.push(message)
-      continue
-    }
-    flushTools()
-    items.push({ type: 'message', message })
-  }
-  flushTools()
-
-  return items
 }
 
 function CopyButton({ getText }: { getText: () => string }): JSX.Element {
@@ -1824,22 +1699,23 @@ function CopyButton({ getText }: { getText: () => string }): JSX.Element {
   )
 }
 
-function ContinueButton({ sessionId }: { sessionId: string }): JSX.Element {
-  const [state, setState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
+function ContinueButton({
+  messageId,
+  state,
+  onContinue
+}: {
+  messageId: string
+  state: ContinueActionState
+  onContinue: (messageId: string) => Promise<void>
+}): JSX.Element {
   const label = state === 'sending' ? 'Continuing' : state === 'sent' ? 'Continue sent' : state === 'error' ? 'Continue failed' : 'Continue'
 
   const handleContinue = useCallback(async (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
     if (state === 'sending') return
-    setState('sending')
-    try {
-      const ok = await window.api.sessions.continueLastTurn(sessionId)
-      setState(ok ? 'sent' : 'error')
-    } catch {
-      setState('error')
-    }
-  }, [sessionId, state])
+    await onContinue(messageId)
+  }, [messageId, onContinue, state])
 
   return (
 	    <Button
@@ -2352,8 +2228,10 @@ function MessageRow({
   preferredEditor,
 	  canCopy,
 	  canContinue,
+  continueState,
 	  canRegenerate,
 	  canRetryUnansweredUserMessage,
+  onContinueFromMessage,
 	  onSteerQueuedMessage,
 	  onCancelQueuedMessage,
 	  onEditUserMessageFromHere,
@@ -2366,8 +2244,10 @@ function MessageRow({
   preferredEditor: PreferredEditor
 	  canCopy: boolean
 	  canContinue: boolean
+  continueState: ContinueActionState
 	  canRegenerate: boolean
 	  canRetryUnansweredUserMessage: boolean
+  onContinueFromMessage: (messageId: string) => Promise<void>
 	  onSteerQueuedMessage: (messageId: string) => Promise<void>
 	  onCancelQueuedMessage: (messageId: string, queueState: 'queued' | 'steer_next') => Promise<void>
 	  onEditUserMessageFromHere: (messageId: string, content: string, attachments?: Attachment[]) => Promise<void>
@@ -2557,7 +2437,13 @@ function MessageRow({
 	                color: 'var(--text-secondary)'
 	              }}
 	            >
-              {canContinue && <ContinueButton sessionId={session.id} />}
+              {canContinue && (
+                <ContinueButton
+                  messageId={msg.id}
+                  state={continueState}
+                  onContinue={onContinueFromMessage}
+                />
+              )}
               {canRegenerate && <RetryMenuButton sessionId={session.id} providerLabel={retryProviderLabel} kind="regenerate" />}
               {canForkFromMessage && (
                 <ForkFromMessageButton
@@ -2610,6 +2496,9 @@ function MessageRow({
     }
     if (msg.permissionDenials && msg.permissionDenials.length > 0) {
       return wrapResultCard(<PermissionCard msg={msg} sessionId={session.id} sessionStatus={session.status} />)
+    }
+    if (msg.subtype === 'thinking') {
+      return wrapResultCard(<ThinkingTraceCard msg={msg} />)
     }
     if (msg.subtype === 'status') {
       return wrapResultCard(<StatusCard content={msg.content} session={session} />)
@@ -2741,6 +2630,56 @@ type StatusMeta = {
   label: string
   tone: string
   icon: JSX.Element
+}
+
+function ThinkingTraceCard({ msg }: { msg: ResultMessage }): JSX.Element | null {
+  const content = msg.content.trim()
+  if (!content && !msg.isStreaming) return null
+  const maxVisibleChars = msg.isStreaming ? 1800 : 2800
+  const displayedContent = content.length > maxVisibleChars
+    ? `...${content.slice(-maxVisibleChars)}`
+    : content
+  const truncated = displayedContent !== content
+  return (
+    <div className="flex justify-start min-w-0 w-full">
+      <SurfaceRow
+        className="transcript-thinking-trace-card flex min-w-0 flex-col gap-2 rounded-md px-3 py-2 text-xs"
+        dataTestId="claude-thinking-trace-card"
+        ariaLabel="Claude thinking trace"
+        style={{
+          maxWidth: 'min(680px, 100%)',
+          background: 'color-mix(in srgb, var(--color-surface2) 92%, var(--accent) 8%)',
+          border: '1px solid color-mix(in srgb, var(--accent) 28%, var(--color-border))',
+          color: 'var(--color-text-muted)'
+        }}
+      >
+        <div className="flex min-w-0 items-center gap-2">
+          <span
+            className="grid h-5 w-5 shrink-0 place-items-center rounded"
+            style={{ color: 'var(--accent)', background: 'var(--color-surface)' }}
+            aria-hidden="true"
+          >
+            <ThinkingDots />
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="text-[11px] font-semibold tracking-normal" style={{ color: 'var(--accent)' }}>
+              Claude thinking trace
+            </div>
+            <div className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
+              Experimental raw thinking delta{msg.isStreaming ? ' · streaming' : ''}{truncated ? ' · latest excerpt' : ''}
+            </div>
+          </div>
+        </div>
+        <pre
+          className="transcript-thinking-trace-content"
+          data-testid="claude-thinking-trace-content"
+          data-thinking-trace-streaming={msg.isStreaming ? 'true' : 'false'}
+        >
+          {displayedContent || 'Waiting for thinking delta...'}
+        </pre>
+      </SurfaceRow>
+    </div>
+  )
 }
 
 function StatusCard({ content, session }: { content: string; session: Session }): JSX.Element {

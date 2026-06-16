@@ -13,8 +13,9 @@ The goal is transcript behavior parity, not private-source equivalence. The Code
 - Codex separates transcript history from rendering performance. It uses a dedicated `thread-virtualizer` asset that computes turn-keyed layouts from measured heights, top/bottom offsets, visible ranges, anchors, and scroll-to-key behavior.
 - Codex persists scroll restore state around `distanceFromBottomPx` and `virtualizedTurnList`, so switching threads does not depend on re-rendering a fixed message slice.
 - Codex is turn-centric. The local conversation page derives `visibleTurnEntries`, renders a virtualized turn list, and routes search/navigation through turn keys.
-- Codex collapses older completed turns as new latest turns appear. The minified local conversation thread keeps the current/latest turn expanded, keeps pending or special resource turns visible, and stores collapsed state by turn id.
-- Codex provides a user-message navigation rail for long conversations instead of surfacing "hidden messages" as a primary transcript state.
+- Codex collapses the completed turn's agent body, not the whole turn. The user message and final assistant answer remain visible anchors; intermediate agent/tool activity is hidden behind an inline toggle.
+- Codex allows collapse only after final assistant output has started, when the turn is not cancelled, has renderable agent activity, and is not blocked by pending or special visible state. The latest/current turn remains expanded by default, and the previous latest turn auto-collapses as newer turns appear.
+- Codex provides a user-message navigation rail for long conversations instead of surfacing "hidden messages" as a primary transcript state. The rail tracks the currently visible user message, renders subtle horizontal tick marks on the left side of the thread, and exposes a richer hover/focus list for labels.
 
 ## Orchestrator Before
 
@@ -28,7 +29,8 @@ The goal is transcript behavior parity, not private-source equivalence. The Code
 - Keep paging only for unloaded history.
 - Render all currently loaded messages through virtualization.
 - Derive provider-agnostic turns from `ChatMessage[]` by starting a new turn at each user text message.
-- Collapse older completed turns by default while keeping the latest, streaming, and pending-interaction turns expanded.
+- Collapse older completed turn bodies by default while keeping each user message and final assistant answer visible.
+- Keep the latest, streaming, cancelled/error, and pending-interaction turns expanded.
 - Expand a collapsed turn before search/focus scrolls to a message inside it.
 
 ## Verification Targets

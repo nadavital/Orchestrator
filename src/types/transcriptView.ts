@@ -7,6 +7,8 @@ export interface TranscriptTurnGroup {
   isLatest: boolean
   hasStreaming: boolean
   hasPendingInteraction: boolean
+  hasFinalAssistant: boolean
+  collapsibleMessageCount: number
   isCollapsible: boolean
   summary: TranscriptTurnSummary
 }
@@ -41,6 +43,8 @@ export function buildTranscriptTurnGroups(messages: ChatMessage[]): TranscriptTu
     const hasPendingInteraction = group.some(isPendingInteractionMessage)
     const hasSpecialVisibleState = group.some(hasSpecialVisibleMessageState)
     const summary = summarizeTurn(group)
+    const hasFinalAssistant = group.some((message) => isTextMessage(message) && message.role === 'assistant' && !message.isStreaming && message.content.trim().length > 0)
+    const collapsibleMessageCount = collapsibleTurnMessageCount(group)
     return {
       id: turnGroupId(group, index),
       index,
@@ -48,13 +52,16 @@ export function buildTranscriptTurnGroups(messages: ChatMessage[]): TranscriptTu
       isLatest,
       hasStreaming,
       hasPendingInteraction,
+      hasFinalAssistant,
+      collapsibleMessageCount,
       isCollapsible:
         summary.userPreview.length > 0 &&
+        hasFinalAssistant &&
+        collapsibleMessageCount > 0 &&
         !isLatest &&
         !hasStreaming &&
         !hasPendingInteraction &&
-        !hasSpecialVisibleState &&
-        summary.messageCount > 1,
+        !hasSpecialVisibleState,
       summary
     }
   })
@@ -104,6 +111,26 @@ function hasPendingPermission(message: ResultMessage): boolean {
 
 function hasSpecialVisibleMessageState(message: ChatMessage): boolean {
   return message.type === 'result' && message.subtype !== 'success'
+}
+
+function collapsibleTurnMessageCount(messages: ChatMessage[]): number {
+  const visible = visibleCollapsedTurnMessageIds(messages)
+  return messages.filter((message) => !visible.has(message.id)).length
+}
+
+function visibleCollapsedTurnMessageIds(messages: ChatMessage[]): Set<string> {
+  const visible = new Set<string>()
+  for (const message of messages) {
+    if (isTextMessage(message) && message.role === 'user') visible.add(message.id)
+  }
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index]
+    if (message && isTextMessage(message) && message.role === 'assistant' && message.content.trim().length > 0) {
+      visible.add(message.id)
+      break
+    }
+  }
+  return visible
 }
 
 function summarizeTurn(messages: ChatMessage[]): TranscriptTurnSummary {

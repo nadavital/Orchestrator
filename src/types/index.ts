@@ -1371,6 +1371,8 @@ export type RunEvent =
   | { type: 'assistant.status'; content: string }
   | { type: 'assistant.text.delta'; streamId: string; content: string; replace?: boolean }
   | { type: 'assistant.text.completed'; streamId: string; content?: string }
+  | { type: 'assistant.thinking.delta'; streamId: string; content: string; replace?: boolean }
+  | { type: 'assistant.thinking.completed'; streamId: string; content?: string }
   | {
     type: 'diff.updated'
     content: string
@@ -2444,6 +2446,7 @@ export interface ResultMessage extends BaseMessage {
   type: 'result'
   content: string
   subtype: 'success' | 'error_during_execution' | string
+  isStreaming?: boolean
   permissionDenials?: PermissionDenial[]
   permissionDecision?: 'allowed_once' | 'allowed_session' | 'denied' | 'kept_planning'
   userInputQuestions?: UserInputQuestion[]

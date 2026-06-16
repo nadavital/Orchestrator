@@ -26,10 +26,25 @@ test('transcript turn groups collapse older completed turns but keep latest expa
 
   assert.equal(groups.length, 2)
   assert.equal(groups[0].isCollapsible, true)
+  assert.equal(groups[0].hasFinalAssistant, true)
+  assert.equal(groups[0].collapsibleMessageCount, 1)
   assert.equal(groups[0].summary.userPreview, 'first request')
   assert.equal(groups[0].summary.toolCount, 1)
   assert.equal(groups[1].isLatest, true)
   assert.equal(groups[1].isCollapsible, false)
+})
+
+test('transcript turn groups do not collapse simple user and final assistant anchors', () => {
+  const groups = buildTranscriptTurnGroups([
+    user('u1', 'first request'),
+    assistant('a1', 'first answer'),
+    user('u2', 'second request'),
+    assistant('a2', 'second answer')
+  ])
+
+  assert.equal(groups[0].hasFinalAssistant, true)
+  assert.equal(groups[0].collapsibleMessageCount, 0)
+  assert.equal(groups[0].isCollapsible, false)
 })
 
 test('transcript turn groups keep streaming and pending interaction turns expanded', () => {

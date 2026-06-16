@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import type { RunEvent, RunRequest } from '../../types'
 import { AGENT_THREAD_ADAPTER_CONTRACTS, PROVIDER_DEFS, deriveAgentNodes, deriveAgentThreadGraph, derivePlanStatesFromMessages, fastBaseModelIdForProviderModel, fastVariantModelIdForProviderModel, getDefaultPermissionMode, getPrimaryPermissionModes, getProviderPermissionPresets, getVisibleModels, mergeProviderModelCatalog, normalizeProviderModelOrder, parseClaudeAgentsOutput, permissionRequestDetail, resolveProviderRunModelSelection, supportsFastModeForProviderModel } from '../../types'
-import { buildProviderCommandForRuntime, claudeMcpServerNames, codexRuntimePolicyConfig, getProviderDiagnostics, getProviderDiagnosticsAsync, getProviderRuntimeInfo, providerAuthFailureMessage, PROVIDERS, providerSdkSpawnEnv, providerSpawnEnv, resolveProviderBinary, resolveProviderPermissionRuntimeContext, runProviderCommandSurface, runProviderCommandSurfaceAsync } from '../providers'
+import { buildProviderCommandForRuntime, claudeMcpServerNames, codexRuntimePolicyConfig, getProviderDiagnostics, getProviderDiagnosticsAsync, getProviderRuntimeInfo, normalizeClaudeMessageObject, providerAuthFailureMessage, PROVIDERS, providerSdkSpawnEnv, providerSpawnEnv, resolveProviderBinary, resolveProviderPermissionRuntimeContext, runProviderCommandSurface, runProviderCommandSurfaceAsync } from '../providers'
 import { eventsToMessages } from '../runEvents'
 
 const ABSTRACT_CAPABILITY_KEYS = [
@@ -853,6 +853,62 @@ test('claude partial text streams normalize without duplicating finalized assist
   assert.equal(completed.streamId, 'msg-partial-1:0')
   assert.equal(events.some((event) => event.type === 'assistant.text'), false)
   assert.ok(events.some((event) => event.type === 'run.completed'))
+})
+
+test('claude thinking deltas normalize into a separate trace stream', () => {
+  const rawEvents = [
+    {
+      type: 'stream_event',
+      event: {
+        type: 'message_start',
+        message: { id: 'msg-thinking-1', type: 'message', role: 'assistant', content: [] }
+      },
+      session_id: 'claude-thinking-session'
+    },
+    {
+      type: 'stream_event',
+      event: {
+        type: 'content_block_start',
+        index: 0,
+        content_block: { type: 'thinking', thinking: '', signature: '' }
+      },
+      session_id: 'claude-thinking-session'
+    },
+    {
+      type: 'stream_event',
+      event: {
+        type: 'content_block_delta',
+        index: 0,
+        delta: { type: 'thinking_delta', thinking: 'Checking' }
+      },
+      session_id: 'claude-thinking-session'
+    },
+    {
+      type: 'stream_event',
+      event: {
+        type: 'content_block_delta',
+        index: 0,
+        delta: { type: 'thinking_delta', thinking: ' options' }
+      },
+      session_id: 'claude-thinking-session'
+    },
+    {
+      type: 'stream_event',
+      event: {
+        type: 'content_block_stop',
+        index: 0
+      },
+      session_id: 'claude-thinking-session'
+    }
+  ]
+  const events = rawEvents.flatMap((event) => normalizeClaudeMessageObject(event))
+  const deltas = events.filter((event): event is Extract<RunEvent, { type: 'assistant.thinking.delta' }> => event.type === 'assistant.thinking.delta')
+  const completed = firstEvent(events, 'assistant.thinking.completed')
+
+  assert.deepEqual(deltas.map((event) => event.content), ['Checking', ' options'])
+  assert.equal(deltas[0].streamId, 'msg-thinking-1:0')
+  assert.equal(completed.streamId, 'msg-thinking-1:0')
+  assert.equal(events.some((event) => event.type === 'assistant.text.delta' || event.type === 'assistant.text'), false)
 })
 
 test('claude nested agent text streams into agent transcript state', () => {

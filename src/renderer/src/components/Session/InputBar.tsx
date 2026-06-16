@@ -128,7 +128,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
 
   const resizeTextarea = (textarea: HTMLTextAreaElement): void => {
     textarea.style.height = 'auto'
-    textarea.style.height = Math.min(textarea.scrollHeight, 200) + 'px'
+    textarea.style.height = Math.min(textarea.scrollHeight, session.status === 'running' ? 24 : 200) + 'px'
   }
 
   const moveTextareaCursorToEnd = (textarea: HTMLTextAreaElement): void => {
@@ -645,16 +645,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
           title: 'Saving attachments',
           detail: 'The message will be ready after attached files finish saving.'
         }
-      : sendState.willQueue
-        ? {
-            state: 'will-queue' as const,
-            tone: 'accent' as const,
-            title: 'Will queue after current run',
-            detail: composerEnterBehavior === 'newline'
-              ? 'Press Command-Enter or Control-Enter to send this as a queued follow-up.'
-              : 'Press Enter to send this as a queued follow-up.'
-          }
-        : null
+      : null
 
   const send = async (): Promise<void> => {
     if (!canSend) return
@@ -1528,9 +1519,9 @@ function InputBar({ session, isNew }: Props): JSX.Element {
               color: 'var(--text-secondary)'
             }}
           >
-            <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>Editing message</span>
+            <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>Editing a copy</span>
             <span className="min-w-0 flex-1 truncate">
-              Sending replaces this message and the replies after it{draftSource.attachmentCount > 0 ? `, including ${draftSource.attachmentCount} ${draftSource.attachmentCount === 1 ? 'attachment' : 'attachments'}` : ''}{draftSource.previousDraft ? '; previous draft saved.' : '.'}
+              Original message stays in the transcript{draftSource.attachmentCount > 0 ? `, including ${draftSource.attachmentCount} ${draftSource.attachmentCount === 1 ? 'attachment' : 'attachments'}` : ''}{draftSource.previousDraft ? '; previous draft saved.' : '.'}
             </span>
             {draftSource.previousDraft && (
               <button

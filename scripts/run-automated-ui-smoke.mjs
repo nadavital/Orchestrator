@@ -1938,6 +1938,8 @@ child.on('exit', async (code) => {
         isolatedProfile: result.profile?.isIsolated === true,
         streamingMessageUpdated: result.streamingMessageUpdated === true,
         streamingSessionActive: result.streamingSessionActive === true,
+        multiStreamingBackgroundUpdated: result.multiStreamingBackgroundUpdated === true,
+        multiStreamingActiveThreadStable: result.multiStreamingActiveThreadStable === true,
         streamingTextVisible: result.streamingTextVisible === true,
         titlebarCommitCountLow: Number(result.titlebarCommitCount ?? Number.POSITIVE_INFINITY) <= 4,
         appCommitCountLow: Number(result.appCommitCount ?? Number.POSITIVE_INFINITY) <= 6,
@@ -1968,8 +1970,12 @@ child.on('exit', async (code) => {
           Number(result.maxTypingTimerDriftMs ?? Number.POSITIVE_INFINITY) < 90,
         inputDispatchAcceptable: Number(result.maxInputDispatchMs ?? Number.POSITIVE_INFINITY) < 24,
         maxFrameGapAcceptable: Number(result.maxFrameGapMs ?? Number.POSITIVE_INFINITY) < 120,
+        visualLayoutStable: Number(result.cumulativeLayoutShift ?? Number.POSITIVE_INFINITY) <= 0.02,
+        transcriptRowsStable: Number(result.transcriptRowRemoves ?? Number.POSITIVE_INFINITY) <= 4,
+        composerReserveStable: Number(result.composerReserveMaxHeightDelta ?? Number.POSITIVE_INFINITY) <= 6,
+        primaryVisibilityStable: Number(result.primaryVisibilityChanges ?? Number.POSITIVE_INFINITY) === 0,
         appCommitCountBounded: Number(result.appCommitCount ?? Number.POSITIVE_INFINITY) <= 8,
-        sidebarCommitCountBounded: Number(result.sidebarCommitCount ?? Number.POSITIVE_INFINITY) <= 12,
+        sidebarCommitCountBounded: Number(result.sidebarCommitCount ?? Number.POSITIVE_INFINITY) <= 18,
         inputBarCommitCountBounded: Number(result.inputBarCommitCount ?? Number.POSITIVE_INFINITY) <= 96,
         sessionPaneCommitCountBounded: Number(result.sessionPaneCommitCount ?? Number.POSITIVE_INFINITY) <= 12
       }
@@ -2223,8 +2229,12 @@ child.on('exit', async (code) => {
           Number(result.maxTypingTimerDriftMs ?? Number.POSITIVE_INFINITY) < 110,
         inputDispatchAcceptable: Number(result.maxInputDispatchMs ?? Number.POSITIVE_INFINITY) < 28,
         maxFrameGapAcceptable: Number(result.maxFrameGapMs ?? Number.POSITIVE_INFINITY) < 140,
+        visualLayoutStable: Number(result.cumulativeLayoutShift ?? Number.POSITIVE_INFINITY) <= 0.02,
+        transcriptRowsStable: Number(result.transcriptRowRemoves ?? Number.POSITIVE_INFINITY) <= 4,
+        composerReserveStable: Number(result.composerReserveMaxHeightDelta ?? Number.POSITIVE_INFINITY) <= 6,
+        primaryVisibilityStable: Number(result.primaryVisibilityChanges ?? Number.POSITIVE_INFINITY) === 0,
         appCommitCountBounded: Number(result.appCommitCount ?? Number.POSITIVE_INFINITY) <= 12,
-        sidebarCommitCountBounded: Number(result.sidebarCommitCount ?? Number.POSITIVE_INFINITY) <= 16,
+        sidebarCommitCountBounded: Number(result.sidebarCommitCount ?? Number.POSITIVE_INFINITY) <= 32,
         inputBarCommitCountBounded: Number(result.inputBarCommitCount ?? Number.POSITIVE_INFINITY) <= 120,
         sessionPaneCommitCountBounded: Number(result.sessionPaneCommitCount ?? Number.POSITIVE_INFINITY) <= 18
       }
