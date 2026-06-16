@@ -1,7 +1,8 @@
 import { create } from 'zustand'
-import type { Attachment, Session, SessionListItem, ChatMessage, ProviderModelDef, SessionEffort, SessionPermissionMode, SessionRunEventRecord, SideQuestionMessage, TranscriptPage } from '../types'
+import type { Attachment, Session, SessionListItem, ChatMessage, ProviderModelDef, SessionEffort, SessionPermissionMode, SideQuestionMessage, TranscriptPage } from '../types'
 import { closePanelTab, DEFAULT_BROWSER_USE_POLICY, filePanelTabId, movePanelTabByDirection, nextPinOrder, parseFilePanelTabId, reorderPinnedSessions, resetPanelTabSet, resolvePanelTabTransferAvailability, transferPanelTab, upsertPanelTab } from '../types'
 import type { SettingsSectionId } from '../../../types'
+import { clearSessionStreamBuffers } from './streamBuffers'
 
 export type SettingsSection = SettingsSectionId
 export type RightPanelTabKind = 'new-tab' | 'environment' | 'plan' | 'diff' | 'agents' | 'extensions' | 'side' | 'files' | 'browser' | 'file' | 'sidechat' | 'terminal'
@@ -250,8 +251,6 @@ interface SessionState {
   sessions: SessionListItem[]
   streamingMessages: Record<string, Record<string, ChatMessage>>
   activeSessionId: string | null
-  rawBuffers: Record<string, string>
-  eventBuffers: Record<string, SessionRunEventRecord[]>
   uiState: Record<string, SessionUIState>
   providerAvailability: Record<string, boolean>
   providerModels: Record<string, string[]>
@@ -345,8 +344,6 @@ interface SessionState {
   upsertMessage: (id: string, message: ChatMessage) => void
   upsertStreamingMessage: (id: string, message: ChatMessage) => void
   removeMessage: (id: string, messageId: string) => void
-  appendEvents: (id: string, events: SessionRunEventRecord[]) => void
-  appendRaw: (id: string, data: string) => void
 }
 
 const SESSION_STORE_TAIL_MESSAGES = 64
@@ -447,8 +444,6 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   sessions: [],
   streamingMessages: {},
   activeSessionId: null,
-  rawBuffers: {},
-  eventBuffers: {},
   uiState: {},
   providerAvailability: {},
   providerModels: {},
@@ -495,16 +490,13 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   removeSession: (id) =>
     set((s) => {
-      const { [id]: _raw, ...rawBuffers } = s.rawBuffers
-      const { [id]: _events, ...eventBuffers } = s.eventBuffers
       const { [id]: _ui, ...uiState } = s.uiState
       const streamingMessages = omitRecordKey(s.streamingMessages, id)
+      clearSessionStreamBuffers(id)
       return {
         sessions: s.sessions.filter((x) => x.id !== id),
         streamingMessages,
         activeSessionId: s.activeSessionId === id ? null : s.activeSessionId,
-        rawBuffers,
-        eventBuffers,
         uiState
       }
     }),
@@ -1688,17 +1680,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           }
         })
       }
-    }),
-
-  appendEvents: (id, events) =>
-    set((s) => ({
-      eventBuffers: { ...s.eventBuffers, [id]: [...(s.eventBuffers[id] ?? []), ...events].slice(-500) }
-    })),
-
-  appendRaw: (id, data) =>
-    set((s) => ({
-      rawBuffers: { ...s.rawBuffers, [id]: `${s.rawBuffers[id] ?? ''}${data}`.slice(-20000) }
-    }))
+    })
 }))
 
 const RIGHT_PANEL_TAB_TITLES: Record<RightPanelTabKind, string> = {

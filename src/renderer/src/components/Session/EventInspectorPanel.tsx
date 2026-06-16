@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useSessionStore } from '../../store/sessions'
+import { useSessionStreamSnapshot } from '../../store/streamBuffers'
 import type { AgentNode, AgentStatus, AgentThread, Session, SessionRunEventRecord } from '../../types'
 import { Badge, InspectorCard, InspectorRow, InspectorSection, MetricPill, PanelHeader, ToolbarButton, WorkbenchSearchField } from '../shared/designSystem'
 import { deriveSessionAgentThreads } from './agentNodes'
@@ -36,10 +37,9 @@ async function writeClipboardText(text: string): Promise<void> {
 }
 
 export default function EventInspectorPanel({ session, embedded = false, activeAgentId = null }: Props): JSX.Element {
-  const { eventBuffers, rawBuffers, uiState, setActiveAgent, closeAgentTab } = useSessionStore()
+  const { uiState, setActiveAgent, closeAgentTab } = useSessionStore()
+  const { events, raw: rawLog } = useSessionStreamSnapshot(session.id)
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null)
-  const events = eventBuffers[session.id] ?? []
-  const rawLog = rawBuffers[session.id] ?? ''
   const agentThreads = useMemo(() => deriveSessionAgentThreads(session, events), [events, session])
   const agents = useMemo(() => agentThreads.map((thread) => thread.agent), [agentThreads])
   const openAgentIds = uiState[session.id]?.agentTabIds ?? (activeAgentId ? [activeAgentId] : [])

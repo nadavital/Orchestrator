@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { filePathFromTabId, sideChatContextSnapshot, sideChatIdFromTabId, terminalTabIdFromTabId, useSessionStore } from '../../store/sessions'
 import type { GitFocusTarget, RightPanelTabId, RightPanelTabKind } from '../../store/sessions'
+import { useSessionEvents } from '../../store/streamBuffers'
 import { bottomPanelTransferPolicyLabel, derivePlanStates, derivePlanStatesFromMessages, resolvePanelTabTransferAvailability } from '../../types'
 import type { AgentNode, Session, SessionRunEventRecord } from '../../types'
 import BrowserPanel from './BrowserPanel'
@@ -64,7 +65,6 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
     globals.__orchestratorWorkbenchCommitCount += 1
   }
   const {
-    eventBuffers,
     uiState,
     setShowDiff,
     setShowEvents,
@@ -90,6 +90,7 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
     transferSessionPanelTab,
     closeRightPanel
   } = useSessionStore()
+  const events = useSessionEvents(session.id)
   const [tabMenu, setTabMenu] = useState<{ tabId: ContextTab; x: number; y: number } | null>(null)
   const [terminalOutputs, setTerminalOutputs] = useState<Record<string, string>>({})
   const [terminalSelections, setTerminalSelections] = useState<Record<string, string>>({})
@@ -126,7 +127,6 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
   const panelWidth = panelLayout.storedSize
   const shouldOverlayPanel = panelLayout.isOverlay
   const panelSize = panelLayout.size
-  const events = eventBuffers[session.id] ?? []
   const plans = [
     ...derivePlanStatesFromMessages(session, session.messages),
     ...derivePlanStates(session, events)

@@ -7,6 +7,7 @@ import type { CodexReviewStartRequest, FileChange, GitLineBlameResult, GitRefOpt
 import type { FilePreviewResult } from '../../env'
 import type { GitFocusTarget } from '../../store/sessions'
 import { useSessionStore } from '../../store/sessions'
+import { useSessionEvents } from '../../store/streamBuffers'
 import { Badge, Button, IconButton, MenuItem, MenuMessage, MenuRow, MenuSection, MenuSectionLabel, MenuSurface, PanelHeader, PanelNotice, PanelResizeHandle, PanelToolbar, WorkbenchSearchField, useAppShellResizeController } from '../shared/designSystem'
 import Icon, { type IconName } from '../shared/Icon'
 import { FilePreview } from './FilesPanel'
@@ -132,7 +133,8 @@ export default function DiffPanel({ sessionId, workDir, embedded = false, focusP
   const setActiveTerminalTab = useSessionStore((state) => state.setActiveTerminalTab)
   const reviewSession = useSessionStore((state) => state.sessions.find((candidate) => candidate.id === sessionId))
   const storeReviewMetadata = useSessionStore((state) => state.sessions.find((candidate) => candidate.id === sessionId)?.reviewMetadata)
-  const lastTurnDiff = useSessionStore((state) => latestDiffUpdatedContent(state.eventBuffers[sessionId] ?? []))
+  const events = useSessionEvents(sessionId)
+  const lastTurnDiff = useMemo(() => latestDiffUpdatedContent(events), [events])
   const reviewMetadata = loadedReviewMetadata ?? storeReviewMetadata
   const lastTurnReviewFiles = useMemo(() => parseFileChangesFromUnifiedDiff(lastTurnDiff), [lastTurnDiff])
   const reviewSourceSupport = useMemo<ReviewSourceSupport>(() => {

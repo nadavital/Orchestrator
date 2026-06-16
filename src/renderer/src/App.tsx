@@ -5,6 +5,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { useProjectStore } from './store/projects'
 import { hasComposerDraft, sideChatIdFromTabId, terminalTabIdFromTabId, useSessionStore } from './store/sessions'
 import type { SettingsSection } from './store/sessions'
+import { appendSessionEvents, appendSessionRaw } from './store/streamBuffers'
 import type { ProviderModelDef } from './types'
 import Sidebar from './components/Sidebar/Sidebar'
 import SessionPane from './components/Session/SessionPane'
@@ -166,8 +167,6 @@ export default function App(): JSX.Element {
   const upsertMessage = useSessionStore((state) => state.upsertMessage)
   const upsertStreamingMessage = useSessionStore((state) => state.upsertStreamingMessage)
   const removeMessage = useSessionStore((state) => state.removeMessage)
-  const appendEvents = useSessionStore((state) => state.appendEvents)
-  const appendRaw = useSessionStore((state) => state.appendRaw)
   const setShowTerminal = useSessionStore((state) => state.setShowTerminal)
   const setActiveSession = useSessionStore((state) => state.setActiveSession)
   const setHasUnread = useSessionStore((state) => state.setHasUnread)
@@ -224,7 +223,7 @@ export default function App(): JSX.Element {
     const events = flushed.events
     if (events.length > 0) {
       startTransition(() => {
-        appendEvents(sessionId, events)
+        appendSessionEvents(sessionId, events)
         applyBrowserManagerRunEvents(sessionId, events)
       })
     }
@@ -233,10 +232,10 @@ export default function App(): JSX.Element {
     if (raw && raw.length > 0) {
       inactiveRawBuffersRef.current.delete(sessionId)
       startTransition(() => {
-        appendRaw(sessionId, raw)
+        appendSessionRaw(sessionId, raw)
       })
     }
-  }, [appendEvents, appendRaw, upsertStreamingMessage])
+  }, [upsertStreamingMessage])
 
   const scheduleMessageUpsert = useCallback((sessionId: string, message: ChatMessage): void => {
     const pendingKey = `${sessionId}:${message.id}`
@@ -272,9 +271,9 @@ export default function App(): JSX.Element {
       inactiveSessionStreamBufferRef.current.bufferEvents(sessionId, events)
       return
     }
-    appendEvents(sessionId, events)
+    appendSessionEvents(sessionId, events)
     applyBrowserManagerRunEvents(sessionId, events)
-  }, [appendEvents])
+  }, [])
 
   const scheduleSessionRaw = useCallback((sessionId: string, data: string): void => {
     if (!data) return
@@ -283,8 +282,8 @@ export default function App(): JSX.Element {
       inactiveRawBuffersRef.current.set(sessionId, next)
       return
     }
-    appendRaw(sessionId, data)
-  }, [appendRaw])
+    appendSessionRaw(sessionId, data)
+  }, [])
 
   useEffect(() => {
     activeSessionIdRef.current = activeSessionId
@@ -466,12 +465,12 @@ export default function App(): JSX.Element {
       __orchestratorSetSessionUnreadForSmoke?: (sessionId: string, unread: boolean) => boolean
     }
     globals.__orchestratorAppendSessionEventsForSmoke = (sessionId, events) => {
-      appendEvents(sessionId, events)
+      appendSessionEvents(sessionId, events)
       applyBrowserManagerRunEvents(sessionId, events)
       return true
     }
     globals.__orchestratorAppendSessionRawForSmoke = (sessionId, data) => {
-      appendRaw(sessionId, data)
+      appendSessionRaw(sessionId, data)
       return true
     }
     globals.__orchestratorAppendSessionMessagesForSmoke = (sessionId, messages) => {
@@ -507,7 +506,7 @@ export default function App(): JSX.Element {
       delete globals.__orchestratorSetActiveSessionForSmoke
       delete globals.__orchestratorSetSessionUnreadForSmoke
     }
-  }, [appendEvents, appendMessages, appendRaw, updateSession])
+  }, [appendMessages, updateSession])
 
   const createNewChat = useCallback(async (): Promise<void> => {
     const sessionState = useSessionStore.getState()

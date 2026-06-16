@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useSessionStore } from '../../store/sessions'
+import { useSessionEvents } from '../../store/streamBuffers'
 import { parseFileChangesFromUnifiedDiff, summarizeFileChanges } from '../../types'
 import type { AgentNode, TextMessage, SessionRunEventRecord } from '../../types'
 import Icon from '../shared/Icon'
@@ -11,13 +12,12 @@ interface Props {
 }
 
 const LIVE_STATUSES = new Set(['queued', 'running', 'waiting', 'blocked'])
-const EMPTY_EVENTS: [] = []
 
 export default function ComposerContextShelf({ sessionId }: Props): JSX.Element | null {
   const [actionStatus, setActionStatus] = useState<{ text: string; tone: 'info' | 'danger' } | null>(null)
+  const events = useSessionEvents(sessionId)
   const {
     session,
-    events,
     activeAgentId,
     setActiveAgent,
     setShowDiff,
@@ -27,7 +27,6 @@ export default function ComposerContextShelf({ sessionId }: Props): JSX.Element 
     const current = state.sessions.find((candidate) => candidate.id === sessionId) ?? null
     return {
       session: current,
-      events: state.eventBuffers[sessionId] ?? EMPTY_EVENTS,
       activeAgentId: state.uiState[sessionId]?.activeAgentId ?? null,
       setActiveAgent: state.setActiveAgent,
       setShowDiff: state.setShowDiff,

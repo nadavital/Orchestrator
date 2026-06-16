@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { useSessionStore } from '../../store/sessions'
+import { useSessionEvents } from '../../store/streamBuffers'
 import { derivePlanStates, derivePlanStatesFromMessages } from '../../types'
 import type { PlanItemStatus, PlanState, RunEvent, Session, SessionRunEventRecord } from '../../types'
 import { Badge, Button, IconButton, MetricPill, PanelHeader } from '../shared/designSystem'
@@ -17,9 +18,9 @@ interface Props {
 }
 
 export default function PlanPanel({ session, embedded = false }: Props): JSX.Element {
-  const { eventBuffers, setShowDiff } = useSessionStore()
+  const setShowDiff = useSessionStore((state) => state.setShowDiff)
   const [contextStatus, setContextStatus] = useState<string | null>(null)
-  const events = eventBuffers[session.id] ?? []
+  const events = useSessionEvents(session.id)
   const plans = useMemo(() => [
     ...derivePlanStatesFromMessages(session, session.messages),
     ...derivePlanStates(session, events)

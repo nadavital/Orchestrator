@@ -38,6 +38,7 @@ import type { Attachment } from '../../types'
 import type { TranscriptSearchResult } from '../../types'
 import { buildTranscriptTurnGroups, transcriptTurnIdForMessage, type TranscriptTurnGroup } from '../../../../types/transcriptView'
 import { useSessionStore } from '../../store/sessions'
+import { useSessionEvents } from '../../store/streamBuffers'
 import { useProjectStore } from '../../store/projects'
 import { markRendererStart, recordRendererMetric } from '../../performance'
 import {
@@ -2724,7 +2725,8 @@ function StatusCard({ content, session }: { content: string; session: Session })
 function ChangesReviewCard({ content, session, hideWhenEmpty = false }: { content: string; session: Session; hideWhenEmpty?: boolean }): JSX.Element {
   const openRightPanelTab = useSessionStore((state) => state.openRightPanelTab)
   const setShowDiff = useSessionStore((state) => state.setShowDiff)
-  const lastTurnDiffEvent = useSessionStore((state) => latestDiffUpdatedEvent(state.eventBuffers[session.id] ?? []))
+  const events = useSessionEvents(session.id)
+  const lastTurnDiffEvent = useMemo(() => latestDiffUpdatedEvent(events), [events])
   const lastTurnDiff = lastTurnDiffEvent?.content ?? ''
   const [files, setFiles] = useState<FileChange[]>([])
   const [diffsByPath, setDiffsByPath] = useState<Record<string, { loading: boolean; diff: string }>>({})
