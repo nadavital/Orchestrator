@@ -4,6 +4,7 @@ import { dirname, join, resolve, sep } from 'path'
 import { existsSync, mkdirSync, writeFileSync } from 'fs'
 import { execFileSync } from 'child_process'
 import { pathToFileURL } from 'url'
+import { monitorEventLoopDelay, performance } from 'perf_hooks'
 import { electronApp, is } from '@electron-toolkit/utils'
 import { configureAppProfile, getAppProfile } from './appProfile'
 import { browserSecurityPolicyAllows } from './browserSecurityPolicy'
@@ -647,6 +648,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
   }
   if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'background-streaming-typing') {
     runAutomatedBackgroundStreamingTypingSmoke(win, outputPath, screenshotPath)
+    return
+  }
+  if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'background-streaming-scroll') {
+    runAutomatedBackgroundStreamingScrollSmoke(win, outputPath, screenshotPath)
     return
   }
   if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'workbench-perf') {
@@ -33629,6 +33634,24 @@ function runAutomatedStreamingTypingSmoke(win: BrowserWindow, outputPath: string
   })
 }
 
+function createMainEventLoopLagSampler(): { stop: () => Record<string, number> } {
+  const histogram = monitorEventLoopDelay({ resolution: 10 })
+  const utilizationStart = performance.eventLoopUtilization()
+  histogram.enable()
+  return {
+    stop: () => {
+      const utilization = performance.eventLoopUtilization(utilizationStart)
+      histogram.disable()
+      return {
+        mainEventLoopLagMeanMs: Number.isFinite(histogram.mean) ? histogram.mean / 1_000_000 : 0,
+        mainEventLoopLagP95Ms: histogram.percentile(95) / 1_000_000,
+        mainEventLoopLagMaxMs: histogram.max / 1_000_000,
+        mainEventLoopUtilization: utilization.utilization
+      }
+    }
+  }
+}
+
 function runAutomatedBackgroundStreamingTypingSmoke(win: BrowserWindow, outputPath: string, screenshotPath?: string): void {
   win.webContents.once('did-finish-load', () => {
     setTimeout(async () => {
@@ -33839,6 +33862,224 @@ function runAutomatedBackgroundStreamingTypingSmoke(win: BrowserWindow, outputPa
   })
 }
 
+function runAutomatedBackgroundStreamingScrollSmoke(win: BrowserWindow, outputPath: string, screenshotPath?: string): void {
+  win.webContents.once('did-finish-load', () => {
+    setTimeout(async () => {
+      try {
+        const activeSession = sessionManager.list().find((candidate) =>
+          candidate.messages.some((message) => message.id === 'background-streaming-active-history-1')
+        )
+        const activeSessionId = activeSession?.id ?? null
+        let backgroundSessionId: string | null = null
+        if (activeSession) {
+          const background = await sessionManager.create({
+            projectId: activeSession.projectId,
+            workDir: activeSession.workDir,
+            useWorktree: false,
+            repoRoot: activeSession.repoRoot ?? activeSession.workDir
+          })
+          projectStore.addSession(activeSession.projectId, background.id)
+          backgroundSessionId = background.id
+          const baseTime = Date.now()
+          sessionManager.save({
+            ...background,
+            name: 'Background-only scroll smoke',
+            status: 'running',
+            messages: [{
+              id: 'background-streaming-scroll-user',
+              role: 'user',
+              type: 'text',
+              content: 'This background thread streams while the user scrolls another thread.',
+              timestamp: baseTime
+            }, {
+              id: 'background-streaming-scroll-message',
+              role: 'assistant',
+              type: 'text',
+              content: 'Background-only scroll streaming fixture.',
+              isStreaming: true,
+              timestamp: baseTime + 1
+            }]
+          })
+        }
+
+        let activeSessionVisible = false
+        for (let attempt = 0; attempt < 24 && activeSessionId; attempt += 1) {
+          win.webContents.send('pet:navigate', activeSessionId)
+          await new Promise((resolve) => setTimeout(resolve, 100))
+          activeSessionVisible = await win.webContents.executeJavaScript(`
+            document.querySelector('[data-testid="active-session-title"]')?.textContent?.includes('Background streaming active smoke') === true
+          `)
+          if (activeSessionVisible) break
+        }
+        await new Promise((resolve) => setTimeout(resolve, 200))
+
+        await win.webContents.executeJavaScript(`
+          (() => {
+            window.__orchestratorInputBarCommitCount = 0;
+            window.__orchestratorSessionPaneCommitCount = 0;
+            window.__orchestratorChatViewCommitCount = 0;
+            window.__orchestratorAppCommitCount = 0;
+            window.__orchestratorSidebarCommitCount = 0;
+            window.__orchestratorStreamingFrameGaps = [];
+            window.__orchestratorStreamingFrameStop = false;
+            let lastFrame = performance.now();
+            const sample = (now) => {
+              window.__orchestratorStreamingFrameGaps.push(now - lastFrame);
+              lastFrame = now;
+              if (!window.__orchestratorStreamingFrameStop) requestAnimationFrame(sample);
+            };
+            requestAnimationFrame(sample);
+          })()
+        `)
+
+        const eventLoopLagSampler = createMainEventLoopLagSampler()
+        const backgroundUpdatePromise = (async () => {
+          const background = backgroundSessionId ? sessionManager.get(backgroundSessionId) : null
+          const backgroundMessage = background?.messages.find((message) => message.id === 'background-streaming-scroll-message')
+          if (!background || backgroundMessage?.type !== 'text') return false
+          for (let index = 0; index < 220; index += 1) {
+            sessionManager.applyRunEvents(background.id, [{
+              type: 'assistant.text.delta',
+              streamId: 'background-streaming-scroll-message',
+              replace: true,
+              content: [
+                'Background-only scroll streaming fixture.',
+                ...Array.from({ length: index + 1 }, (_line, lineIndex) => `background scroll stream update ${String(lineIndex + 1).padStart(3, '0')}`)
+              ].join('\n')
+            }])
+            await new Promise((resolve) => setTimeout(resolve, 4))
+          }
+          sessionManager.applyRunEvents(background.id, [{
+            type: 'assistant.text.completed',
+            streamId: 'background-streaming-scroll-message',
+            content: [
+              'Background-only scroll streaming fixture.',
+              ...Array.from({ length: 220 }, (_line, lineIndex) => `background scroll stream update ${String(lineIndex + 1).padStart(3, '0')}`)
+            ].join('\n')
+          }])
+          sessionManager.updateStatus(background.id, 'idle')
+          return true
+        })()
+
+        await new Promise((resolve) => setTimeout(resolve, 80))
+        const scrollResultPromise = win.webContents.executeJavaScript(`
+          (async () => {
+            const nextFrame = () => new Promise((resolve) => requestAnimationFrame(resolve));
+            const scroller = document.querySelector('[data-testid="transcript-scroll"]');
+            if (!(scroller instanceof HTMLElement)) return { activeScrollContainerFound: false };
+            scroller.scrollTop = Math.max(0, Math.floor((scroller.scrollHeight - scroller.clientHeight) * 0.35));
+            await nextFrame();
+            const startTop = scroller.scrollTop;
+            const maxTop = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+            const scrollFrameDeltas = [];
+            const scrollDispatchMs = [];
+            const scrollPositions = [];
+            let lastFrameAt = performance.now();
+            for (let index = 0; index < 48; index += 1) {
+              await nextFrame();
+              const before = performance.now();
+              scrollFrameDeltas.push(before - lastFrameAt);
+              lastFrameAt = before;
+              const direction = index % 16 < 8 ? 1 : -1;
+              const nextTop = Math.max(0, Math.min(maxTop, scroller.scrollTop + direction * 120));
+              scroller.scrollTop = nextTop;
+              scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
+              scrollDispatchMs.push(performance.now() - before);
+              scrollPositions.push(scroller.scrollTop);
+            }
+            await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+            const minTop = scrollPositions.length ? Math.min(...scrollPositions) : startTop;
+            const maxObservedTop = scrollPositions.length ? Math.max(...scrollPositions) : startTop;
+            return {
+              activeScrollContainerFound: true,
+              scrollHeight: scroller.scrollHeight,
+              clientHeight: scroller.clientHeight,
+              startTop,
+              finalTop: scroller.scrollTop,
+              scrollDistanceObserved: maxObservedTop - minTop,
+              activeScrolledWhileBackgroundStreams: maxObservedTop - minTop >= 240,
+              maxScrollFrameDeltaMs: scrollFrameDeltas.length ? Math.max(...scrollFrameDeltas) : null,
+              p95ScrollFrameDeltaMs: percentile(scrollFrameDeltas, 0.95),
+              maxScrollDispatchMs: scrollDispatchMs.length ? Math.max(...scrollDispatchMs) : null,
+              p95ScrollDispatchMs: percentile(scrollDispatchMs, 0.95)
+            };
+
+            function percentile(values, ratio) {
+              if (!values.length) return null;
+              const sorted = [...values].sort((a, b) => a - b);
+              return sorted[Math.min(sorted.length - 1, Math.floor((sorted.length - 1) * ratio))];
+            }
+          })()
+        `)
+
+        const [streamingMessageUpdated, scrollResult] = await Promise.all([backgroundUpdatePromise, scrollResultPromise])
+        const mainLag = eventLoopLagSampler.stop()
+        const backgroundSession = backgroundSessionId ? sessionManager.get(backgroundSessionId) : null
+        const backgroundStreamingMessage = backgroundSession?.messages.find((message) =>
+          message.id === 'background-streaming-scroll-message' && message.type === 'text'
+        )
+        const result = await win.webContents.executeJavaScript(`
+          (async () => {
+            window.__orchestratorStreamingFrameStop = true;
+            const gaps = Array.isArray(window.__orchestratorStreamingFrameGaps) ? window.__orchestratorStreamingFrameGaps : [];
+            const activeTitle = document.querySelector('[data-testid="active-session-title"]');
+            const bodyText = document.body.innerText;
+            const telemetry = await window.api.performance.snapshot();
+            const sessionIpc = Array.isArray(telemetry?.metrics)
+              ? telemetry.metrics.filter((metric) => metric.name === 'session.ipc.send')
+              : [];
+            const countByChannel = (channel) => sessionIpc.filter((metric) => metric.metadata?.channel === channel).length;
+            return {
+              profile: window.__orchestratorSmokeProfile ?? null,
+              inputBarCommitCount: window.__orchestratorInputBarCommitCount ?? null,
+              sessionPaneCommitCount: window.__orchestratorSessionPaneCommitCount ?? null,
+              chatViewCommitCount: window.__orchestratorChatViewCommitCount ?? null,
+              appCommitCount: window.__orchestratorAppCommitCount ?? null,
+              sidebarCommitCount: window.__orchestratorSidebarCommitCount ?? null,
+              maxFrameGapMs: gaps.length ? Math.max(...gaps) : null,
+              frameSamples: gaps.length,
+              activeTitleStable:
+                activeTitle instanceof HTMLElement &&
+                activeTitle.textContent?.includes('Background streaming active smoke') === true,
+              activeSessionStayedIdle:
+                !(document.querySelector('[data-testid="composer-stop-run"]') instanceof HTMLElement) &&
+                !bodyText.includes('Thinking'),
+              backgroundStreamingHidden: !bodyText.includes('background scroll stream update 220'),
+              sessionIpcCount: sessionIpc.length,
+              sessionMessageUpdatedIpcCount: countByChannel('session:messageUpdated'),
+              sessionEventsIpcCount: countByChannel('session:events'),
+              sessionRawIpcCount: countByChannel('session:raw')
+            };
+          })()
+        `)
+        const profile = await win.webContents.executeJavaScript('window.api.app.getProfile()')
+        const payload = {
+          ...result,
+          ...scrollResult,
+          ...mainLag,
+          profile,
+          activeSessionVisible,
+          streamingMessageUpdated:
+            streamingMessageUpdated === true &&
+            backgroundSession?.status === 'idle' &&
+            backgroundStreamingMessage?.type === 'text' &&
+            backgroundStreamingMessage.content.includes('background scroll stream update 220')
+        }
+
+        if (screenshotPath) {
+          const image = await win.webContents.capturePage()
+          writeFileSync(screenshotPath, image.toPNG())
+        }
+        writeFileSync(outputPath, JSON.stringify({ ok: true, result: payload, screenshotPath }, null, 2))
+        app.quit()
+      } catch (error) {
+        writeFileSync(outputPath, JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2))
+        app.quit()
+      }
+    }, 700)
+  })
+}
+
 async function dispatchTitlebarDrag(win: BrowserWindow): Promise<{
   idleDragSupported: boolean
   idleMovedDistance: number
@@ -34015,7 +34256,10 @@ async function bootstrapAutomatedUiSmokeState(): Promise<void> {
     seedAutomatedStreamingDragSmokeSession(session.id)
   } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'streaming-typing') {
     seedAutomatedStreamingTypingSmokeSession(session.id)
-  } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'background-streaming-typing') {
+  } else if (
+    process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'background-streaming-typing' ||
+    process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'background-streaming-scroll'
+  ) {
     seedAutomatedBackgroundStreamingTypingSmokeSession(session.id)
   } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'composer') {
     await seedAutomatedComposerSmokeSession(project.id, project.rootPath)

@@ -68,6 +68,7 @@ const captureViewOptions = [
   { flag: '--streaming-drag', view: 'streaming-drag', surface: 'Transcript', scope: 'Streaming while dragging' },
   { flag: '--streaming-typing', view: 'streaming-typing', surface: 'Transcript', scope: 'Streaming while typing' },
   { flag: '--background-streaming-typing', view: 'background-streaming-typing', surface: 'Transcript', scope: 'Typing in one thread while another thread streams' },
+  { flag: '--background-streaming-scroll', view: 'background-streaming-scroll', surface: 'Transcript', scope: 'Scrolling one thread while another thread streams' },
   { flag: '--session-switch', view: 'session-switch', surface: 'Sessions', scope: 'Route-backed sessions, unread state, search, recovery' },
   { flag: '--extensions', view: 'extensions', surface: 'Extensions', scope: 'Extension surfaces' },
   { flag: '--design-system', view: 'design-system', surface: 'Shell', scope: 'Design-system contract attributes' },
@@ -1987,6 +1988,31 @@ child.on('exit', async (code) => {
         sidebarCommitCountBounded: Number(result.sidebarCommitCount ?? Number.POSITIVE_INFINITY) <= 18,
         inputBarCommitCountBounded: Number(result.inputBarCommitCount ?? Number.POSITIVE_INFINITY) <= 96,
         sessionPaneCommitCountBounded: Number(result.sessionPaneCommitCount ?? Number.POSITIVE_INFINITY) <= 12
+      }
+    : captureView === 'background-streaming-scroll'
+    ? {
+        isolatedProfile: result.profile?.isIsolated === true,
+        streamingMessageUpdated: result.streamingMessageUpdated === true,
+        activeSessionStayedIdle: result.activeSessionStayedIdle === true,
+        backgroundStreamingHidden: result.backgroundStreamingHidden === true,
+        activeTitleStable: result.activeTitleStable === true,
+        activeScrollContainerFound: result.activeScrollContainerFound === true,
+        activeScrolledWhileBackgroundStreams: result.activeScrolledWhileBackgroundStreams === true,
+        scrollDispatchAcceptable:
+          Number(result.p95ScrollDispatchMs ?? Number.POSITIVE_INFINITY) < 24 &&
+          Number(result.maxScrollDispatchMs ?? Number.POSITIVE_INFINITY) < 60,
+        scrollFrameCadenceAcceptable:
+          Number(result.p95ScrollFrameDeltaMs ?? Number.POSITIVE_INFINITY) < 40 &&
+          Number(result.maxScrollFrameDeltaMs ?? Number.POSITIVE_INFINITY) < 90,
+        maxFrameGapAcceptable: Number(result.maxFrameGapMs ?? Number.POSITIVE_INFINITY) < 120,
+        mainEventLoopLagAcceptable:
+          Number(result.mainEventLoopLagP95Ms ?? Number.POSITIVE_INFINITY) < 50 &&
+          Number(result.mainEventLoopLagMaxMs ?? Number.POSITIVE_INFINITY) < 120,
+        sessionIpcBatched: Number(result.sessionMessageUpdatedIpcCount ?? Number.POSITIVE_INFINITY) <= 24,
+        sidebarCommitCountBounded: Number(result.sidebarCommitCount ?? Number.POSITIVE_INFINITY) <= 18,
+        sessionPaneCommitCountBounded: Number(result.sessionPaneCommitCount ?? Number.POSITIVE_INFINITY) <= 12,
+        chatViewCommitCountBounded: Number(result.chatViewCommitCount ?? Number.POSITIVE_INFINITY) <= 80,
+        appCommitCountBounded: Number(result.appCommitCount ?? Number.POSITIVE_INFINITY) <= 8
       }
     : captureView === 'motion-reduced'
     ? {

@@ -30,6 +30,8 @@ interface TranscriptScrollController {
   updateScrollMetrics: () => void
 }
 
+const SCROLL_METRICS_UPDATE_INTERVAL_MS = 32
+
 export function useTranscriptScrollController({
   transcriptListRef,
   followBottomThreshold,
@@ -41,6 +43,8 @@ export function useTranscriptScrollController({
   const userScrollLockoutUntilRef = useRef(0)
   const pendingScrollFrameRef = useRef<number | null>(null)
   const pendingMetricsFrameRef = useRef<number | null>(null)
+  const pendingMetricsTimeoutRef = useRef<number | null>(null)
+  const lastMetricsUpdatedAtRef = useRef(0)
   const [showJumpToLatest, setShowJumpToLatest] = useState(false)
   const [scrollMetrics, setScrollMetrics] = useState<TranscriptScrollMetrics>({ top: 0, height: 0, listOffsetTop: 0 })
 
@@ -57,6 +61,7 @@ export function useTranscriptScrollController({
       height: scroller.clientHeight,
       listOffsetTop: transcriptListRef.current?.offsetTop ?? 0
     }
+    lastMetricsUpdatedAtRef.current = performance.now()
     setScrollMetrics((current) => (
       Math.abs(current.top - nextMetrics.top) < 1 &&
       Math.abs(current.height - nextMetrics.height) < 1 &&
@@ -67,11 +72,22 @@ export function useTranscriptScrollController({
   }, [transcriptListRef])
 
   const scheduleScrollMetricsUpdate = useCallback(() => {
-    if (pendingMetricsFrameRef.current !== null) return
-    pendingMetricsFrameRef.current = window.requestAnimationFrame(() => {
-      pendingMetricsFrameRef.current = null
-      updateScrollMetrics()
-    })
+    if (pendingMetricsFrameRef.current !== null || pendingMetricsTimeoutRef.current !== null) return
+    const elapsed = performance.now() - lastMetricsUpdatedAtRef.current
+    const scheduleFrame = (): void => {
+      pendingMetricsFrameRef.current = window.requestAnimationFrame(() => {
+        pendingMetricsFrameRef.current = null
+        updateScrollMetrics()
+      })
+    }
+    if (elapsed >= SCROLL_METRICS_UPDATE_INTERVAL_MS) {
+      scheduleFrame()
+      return
+    }
+    pendingMetricsTimeoutRef.current = window.setTimeout(() => {
+      pendingMetricsTimeoutRef.current = null
+      scheduleFrame()
+    }, SCROLL_METRICS_UPDATE_INTERVAL_MS - elapsed)
   }, [updateScrollMetrics])
 
   const setFollowingBottom = useCallback((isFollowing: boolean) => {
@@ -130,6 +146,7 @@ export function useTranscriptScrollController({
   useEffect(() => () => {
     if (pendingScrollFrameRef.current !== null) window.cancelAnimationFrame(pendingScrollFrameRef.current)
     if (pendingMetricsFrameRef.current !== null) window.cancelAnimationFrame(pendingMetricsFrameRef.current)
+    if (pendingMetricsTimeoutRef.current !== null) window.clearTimeout(pendingMetricsTimeoutRef.current)
   }, [])
 
   return {

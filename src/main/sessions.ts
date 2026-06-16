@@ -57,6 +57,11 @@ const pendingRunEvents = new Map<string, SessionRunEventRecord[]>()
 let pendingRunEventTimer: ReturnType<typeof setTimeout> | null = null
 const pendingRunRaw = new Map<string, string>()
 let pendingRunRawTimer: ReturnType<typeof setTimeout> | null = null
+const sessionsWithThinkingTraceMessages = new Set(
+  store.get('sessions', [])
+    .filter((session) => session.messages.some((message) => isThinkingTraceMessage(message)))
+    .map((session) => session.id)
+)
 
 function normalizeUserInputAnswer(answer: string | UserInputAnswerPayload): UserInputAnswerPayload {
   if (typeof answer === 'string') return { content: answer.trim() }
@@ -123,6 +128,10 @@ function activeStoredSessions(): Session[] {
 
 function sessionStoreMessageCount(sessions: Session[]): number {
   return sessions.reduce((sum, session) => sum + session.messages.length, 0)
+}
+
+function isThinkingTraceMessage(message: ChatMessage): boolean {
+  return message.type === 'result' && message.subtype === 'thinking'
 }
 
 function setSessionsStore(
@@ -290,7 +299,29 @@ function sessionListItem(session: Session): SessionListItem {
 }
 
 function send(channel: string, ...args: unknown[]): void {
-  for (const win of BrowserWindow.getAllWindows()) {
+  const windows = BrowserWindow.getAllWindows()
+  if (
+    process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT &&
+    (channel === 'session:messageUpdated' || channel === 'session:events' || channel === 'session:raw')
+  ) {
+    const firstArg = args[0]
+    const sessionId =
+      firstArg && typeof firstArg === 'object' && 'id' in firstArg && typeof firstArg.id === 'string'
+        ? firstArg.id
+        : null
+    recordPerformanceMetric({
+      name: 'session.ipc.send',
+      surface: 'main',
+      startedAt: Date.now(),
+      durationMs: 0,
+      metadata: {
+        channel,
+        windows: windows.length,
+        sessionId
+      }
+    })
+  }
+  for (const win of windows) {
     safeWindowSend(win, channel, ...args)
   }
 }
@@ -393,28 +424,42 @@ function clearActiveStreamingMessages(sessionId: string): void {
 }
 
 function clearThinkingTraceMessages(sessionId: string): boolean {
+  if (!sessionsWithThinkingTraceMessages.has(sessionId)) return false
+
   let removed = false
   for (const [key, record] of activeStreamingMessages.entries()) {
     if (record.id !== sessionId) continue
-    if (record.message.type !== 'result' || record.message.subtype !== 'thinking') continue
+    if (!isThinkingTraceMessage(record.message)) continue
     activeStreamingMessages.delete(key)
     pendingStreamingMessageUpdates.delete(key)
+    removed = true
   }
 
   const sessions = store.get('sessions', [])
   const s = sessions.find((session) => session.id === sessionId)
-  if (!s) return removed
+  if (!s) {
+    sessionsWithThinkingTraceMessages.delete(sessionId)
+    return removed
+  }
 
   const nextMessages = s.messages.filter((message) => {
-    const keep = message.type !== 'result' || message.subtype !== 'thinking'
+    const keep = !isThinkingTraceMessage(message)
     if (!keep) {
       removed = true
       send('session:messageRemoved', { id: sessionId, messageId: message.id })
     }
     return keep
   })
-  if (!removed) return false
+  if (!removed) {
+    if (!s.messages.some((message) => isThinkingTraceMessage(message))) {
+      sessionsWithThinkingTraceMessages.delete(sessionId)
+    }
+    return false
+  }
   s.messages = nextMessages
+  if (!nextMessages.some((message) => isThinkingTraceMessage(message))) {
+    sessionsWithThinkingTraceMessages.delete(sessionId)
+  }
   setSessionsStore(sessions, 'clear-thinking-traces', { sessionId })
   return true
 }
@@ -1060,6 +1105,9 @@ export const sessionManager = {
     const sessions = store.get('sessions', [])
     const s = sessions.find((s) => s.id === id)
     if (s) {
+      if (messages.some((message) => isThinkingTraceMessage(message))) {
+        sessionsWithThinkingTraceMessages.add(id)
+      }
       s.messages.push(...messages)
       setSessionsStore(sessions, 'append-message', { sessionId: id, messages: messages.length })
       send('session:messages', { id, messages })
@@ -1083,6 +1131,7 @@ export const sessionManager = {
     } else {
       clearActiveStreamingMessage(id, message.id)
     }
+    if (isThinkingTraceMessage(message)) sessionsWithThinkingTraceMessages.add(id)
 
     const sessions = store.get('sessions', [])
     const s = sessions.find((s) => s.id === id)
