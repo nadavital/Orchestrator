@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import type { Attachment, Session, SessionListItem, ChatMessage, ProviderModelDef, SessionEffort, SessionPermissionMode, SideQuestionMessage, TranscriptPage } from '../types'
 import { closePanelTab, DEFAULT_BROWSER_USE_POLICY, filePanelTabId, movePanelTabByDirection, nextPinOrder, parseFilePanelTabId, reorderPinnedSessions, resetPanelTabSet, resolvePanelTabTransferAvailability, transferPanelTab, upsertPanelTab } from '../types'
 import type { SettingsSectionId } from '../../../types'
-import { clearSessionStreamBuffers } from './streamBuffers'
+import { clearSessionStreamBuffers, deleteSessionStreamingMessage } from './streamBuffers'
 
 export type SettingsSection = SettingsSectionId
 export type RightPanelTabKind = 'new-tab' | 'environment' | 'plan' | 'diff' | 'agents' | 'extensions' | 'side' | 'files' | 'browser' | 'file' | 'sidechat' | 'terminal'
@@ -249,7 +249,6 @@ export interface TranscriptScrollRestoreState {
 
 interface SessionState {
   sessions: SessionListItem[]
-  streamingMessages: Record<string, Record<string, ChatMessage>>
   activeSessionId: string | null
   uiState: Record<string, SessionUIState>
   providerAvailability: Record<string, boolean>
@@ -342,7 +341,6 @@ interface SessionState {
   setSelectedSettingsProviderId: (providerId: string) => void
   appendMessages: (id: string, messages: ChatMessage[]) => void
   upsertMessage: (id: string, message: ChatMessage) => void
-  upsertStreamingMessage: (id: string, message: ChatMessage) => void
   removeMessage: (id: string, messageId: string) => void
 }
 
@@ -442,7 +440,6 @@ export function hasComposerDraft(ui?: Pick<SessionUIState, 'composerDraft' | 'co
 
 export const useSessionStore = create<SessionState>((set, get) => ({
   sessions: [],
-  streamingMessages: {},
   activeSessionId: null,
   uiState: {},
   providerAvailability: {},
@@ -491,11 +488,9 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   removeSession: (id) =>
     set((s) => {
       const { [id]: _ui, ...uiState } = s.uiState
-      const streamingMessages = omitRecordKey(s.streamingMessages, id)
       clearSessionStreamBuffers(id)
       return {
         sessions: s.sessions.filter((x) => x.id !== id),
-        streamingMessages,
         activeSessionId: s.activeSessionId === id ? null : s.activeSessionId,
         uiState
       }
@@ -1609,17 +1604,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   upsertMessage: (id, message) =>
     set((s) => {
-      const currentStreaming = s.streamingMessages[id]
-      const nextStreamingForSession = currentStreaming && currentStreaming[message.id]
-        ? omitRecordKey(currentStreaming, message.id)
-        : currentStreaming
-      const nextStreamingMessages = nextStreamingForSession !== currentStreaming
-        ? Object.keys(nextStreamingForSession).length > 0
-          ? { ...s.streamingMessages, [id]: nextStreamingForSession }
-          : omitRecordKey(s.streamingMessages, id)
-        : s.streamingMessages
+      deleteSessionStreamingMessage(id, message.id)
       return {
-        streamingMessages: nextStreamingMessages,
         sessions: s.sessions.map((x) => {
           if (x.id !== id) return x
           const index = x.messages.findIndex((existing) => existing.id === message.id)
@@ -1639,34 +1625,10 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       }
     }),
 
-  upsertStreamingMessage: (id, message) =>
-    set((s) => {
-      const currentSessionMessages = s.streamingMessages[id] ?? {}
-      if (currentSessionMessages[message.id] === message) return s
-      return {
-        streamingMessages: {
-          ...s.streamingMessages,
-          [id]: {
-            ...currentSessionMessages,
-            [message.id]: message
-          }
-        }
-      }
-    }),
-
   removeMessage: (id, messageId) =>
     set((s) => {
-      const currentStreaming = s.streamingMessages[id]
-      const nextStreamingForSession = currentStreaming && currentStreaming[messageId]
-        ? omitRecordKey(currentStreaming, messageId)
-        : currentStreaming
-      const nextStreamingMessages = nextStreamingForSession !== currentStreaming
-        ? Object.keys(nextStreamingForSession).length > 0
-          ? { ...s.streamingMessages, [id]: nextStreamingForSession }
-          : omitRecordKey(s.streamingMessages, id)
-        : s.streamingMessages
+      deleteSessionStreamingMessage(id, messageId)
       return {
-        streamingMessages: nextStreamingMessages,
         sessions: s.sessions.map((x) => {
           if (x.id !== id) return x
           const messages = x.messages.filter((message) => message.id !== messageId)

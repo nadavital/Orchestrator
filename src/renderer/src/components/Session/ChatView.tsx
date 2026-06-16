@@ -38,7 +38,7 @@ import type { Attachment } from '../../types'
 import type { TranscriptSearchResult } from '../../types'
 import { buildTranscriptTurnGroups, transcriptTurnIdForMessage, type TranscriptTurnGroup } from '../../../../types/transcriptView'
 import { useSessionStore } from '../../store/sessions'
-import { useSessionEvents } from '../../store/streamBuffers'
+import { useSessionEvents, useSessionStreamingMessages } from '../../store/streamBuffers'
 import { useProjectStore } from '../../store/projects'
 import { markRendererStart, recordRendererMetric } from '../../performance'
 import {
@@ -162,7 +162,7 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
     followBottomThreshold: FOLLOW_BOTTOM_THRESHOLD,
     userScrollLockoutMs: TRANSCRIPT_USER_SCROLL_LOCKOUT_MS
   })
-  const streamingMessages = useSessionStore((state) => state.streamingMessages[session.id])
+  const streamingMessages = useSessionStreamingMessages(session.id)
   const expandedTurnIds = useMemo(() => new Set(transcriptUI?.expandedTurnIds ?? []), [transcriptUI?.expandedTurnIds])
 
   useEffect(() => {

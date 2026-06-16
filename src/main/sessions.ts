@@ -12,6 +12,7 @@ import { buildProviderCommandForRuntime, getProvider, PROVIDERS, providerSpawnEn
 import type { ProviderAdapter } from './providers'
 import { providerRuntime } from './providerRuntime'
 import { eventsToMessages } from './runEvents'
+import { coalesceRunEvents } from './runEventCoalescer'
 import { decideRunLifecycle, eventsForLifecycleDecision, isPausedOrFailed } from './runLifecycle'
 import { settingsStore } from './settings'
 import { migrateLegacyUserData } from './userDataMigration'
@@ -42,6 +43,7 @@ const STREAMING_MESSAGE_UPDATE_SEND_INTERVAL_MS = 80
 const STREAMING_MESSAGE_PERSIST_INTERVAL_MS = 2_000
 const RUN_EVENT_SEND_INTERVAL_MS = 120
 const RUN_RAW_SEND_INTERVAL_MS = 250
+const PROVIDER_RUN_EVENT_COALESCE_INTERVAL_MS = 80
 const RUN_EVENT_BUFFER_LIMIT_PER_SESSION = 500
 const RUN_RAW_BUFFER_LIMIT_PER_SESSION_CHARS = 100_000
 
@@ -118,7 +120,7 @@ const activeToolUseIds = new Map<string, Set<string>>()
 function ensurePinnedOrders(sessions: Session[]): Session[] {
   const hadMissingOrder = sessions.some((session) => session.pinned && typeof session.pinOrder !== 'number')
   const ordered = ensurePinnedSessionOrders(sessions)
-  if (hadMissingOrder) store.set('sessions', ordered)
+  if (hadMissingOrder) setSessionsStore(ordered, 'pin-order-migration', { sessions: ordered.length })
   return ordered
 }
 
@@ -772,7 +774,7 @@ function markLatestPermissionDecision(
     if (message.type === 'result' && message.permissionDenials?.length) {
       const next = { ...message, permissionDecision: decision }
       session.messages[index] = next
-      store.set('sessions', sessions)
+      setSessionsStore(sessions, 'permission-decision', { sessionId })
       sendMessageUpdated(sessionId, next)
       return
     }
@@ -996,7 +998,7 @@ export const sessionManager = {
     } catch {
       /* ignore cleanup errors for missing or already-removed worktrees */
     }
-    store.set('sessions', sessions)
+    setSessionsStore(sessions, 'remove-worktree-sessions', { workDir, sessions: sessions.length })
     return worktreeInventoryFromSessions(sessions.filter((session) => !session.archivedAt).map(normalizeSession))
   },
 
@@ -1007,7 +1009,7 @@ export const sessionManager = {
 
     session.archivedAt = undefined
     session.status = 'idle'
-    store.set('sessions', sessions)
+    setSessionsStore(sessions, 'restore-archived', { sessionId })
     const restored = normalizeSession(session)
     send('session:created', restored)
     return restored
@@ -1058,7 +1060,7 @@ export const sessionManager = {
     const idx = sessions.findIndex((s) => s.id === session.id)
     if (idx >= 0) sessions[idx] = session
     else sessions.push(session)
-    store.set('sessions', sessions)
+    setSessionsStore(sessions, 'save', { sessionId: session.id })
   },
 
   updateStatus(id: string, status: SessionStatus): void {
@@ -1417,7 +1419,7 @@ export const sessionManager = {
       session.repoRoot = repoRoot
       session.worktreeState = 'ready'
       session.status = 'idle'
-      store.set('sessions', sessions)
+      setSessionsStore(sessions, 'worktree-ready', { sessionId })
       send('session:updated', {
         id: sessionId,
         workDir,
@@ -1432,7 +1434,7 @@ export const sessionManager = {
       if (!session || session.archivedAt) return
       session.worktreeState = 'failed'
       session.status = 'error'
-      store.set('sessions', sessions)
+      setSessionsStore(sessions, 'worktree-failed', { sessionId })
       send('session:updated', {
         id: sessionId,
         workDir: session.workDir,
@@ -1466,7 +1468,7 @@ export const sessionManager = {
     session.workDir = gitManager.worktreePathForSession(repoRoot, sessionId)
     session.worktreeState = 'pending'
     session.status = 'reconnecting'
-    store.set('sessions', sessions)
+    setSessionsStore(sessions, 'worktree-retry-pending', { sessionId })
     send('session:updated', {
       id: sessionId,
       workDir: session.workDir,
@@ -1621,7 +1623,7 @@ export const sessionManager = {
       const changed = s.name !== nextName || s.nameSource !== source
       s.name = nextName
       s.nameSource = source
-      store.set('sessions', sessions)
+      setSessionsStore(sessions, 'session-name', { sessionId: id, source })
       if (changed) {
         send('session:renamed', { id, name: nextName, nameSource: source })
       }
@@ -1651,7 +1653,7 @@ export const sessionManager = {
         s.providerPinOrder = undefined
         s.providerPinnedThreadKey = undefined
       }
-      store.set('sessions', sessions)
+      setSessionsStore(sessions, 'pin', { sessionId: id, pinned })
       send('session:pinned', { id, pinned, pinOrder: s.pinOrder })
     }
   },
@@ -1667,7 +1669,7 @@ export const sessionManager = {
       nextSession.providerPinnedThreadKey !== sessions[index]?.providerPinnedThreadKey
     ))
     if (changed.length === 0) return
-    store.set('sessions', nextSessions)
+    setSessionsStore(nextSessions, 'reorder-pinned', { changed: changed.length })
     for (const session of changed) {
       const previous = sessions.find((candidate) => candidate.id === session.id)
       if (!previous) continue
@@ -1695,7 +1697,7 @@ export const sessionManager = {
     const changed = nextSessions.filter((nextSession, index) => nextSession !== sessions[index])
     if (changed.length === 0) return
 
-    store.set('sessions', nextSessions)
+    setSessionsStore(nextSessions, 'provider-pinned-threads', { providerId, changed: changed.length })
     for (const session of changed) {
       send('session:updated', {
         id: session.id,
@@ -1712,7 +1714,7 @@ export const sessionManager = {
     const changed = nextSessions.filter((nextSession, index) => nextSession !== sessions[index])
     if (changed.length === 0) return 0
 
-    store.set('sessions', nextSessions)
+    setSessionsStore(nextSessions, 'codex-thread-list-metadata', { changed: changed.length })
     for (const session of changed) {
       send('session:updated', {
         id: session.id,
@@ -1797,11 +1799,41 @@ export const sessionManager = {
     onProviderRunComplete?: (result: { ok: boolean; error?: string | null }) => void
   ): Promise<boolean> {
     const startedAt = performance.now()
+    let pendingProviderDeltaEvents: RunEvent[] = []
+    let pendingProviderDeltaTimer: ReturnType<typeof setTimeout> | null = null
+    const flushProviderDeltaEvents = (): void => {
+      if (pendingProviderDeltaTimer) {
+        clearTimeout(pendingProviderDeltaTimer)
+        pendingProviderDeltaTimer = null
+      }
+      if (pendingProviderDeltaEvents.length === 0) return
+      const events = pendingProviderDeltaEvents
+      pendingProviderDeltaEvents = []
+      this.applyRunEvents(sessionId, events)
+    }
+    const enqueueProviderEvents = (events: RunEvent[]): void => {
+      if (events.length === 0) return
+      for (const event of events) {
+        if (event.type === 'assistant.text.delta') {
+          pendingProviderDeltaEvents.push(event)
+          if (!pendingProviderDeltaTimer) {
+            pendingProviderDeltaTimer = setTimeout(flushProviderDeltaEvents, PROVIDER_RUN_EVENT_COALESCE_INTERVAL_MS)
+          }
+          continue
+        }
+        flushProviderDeltaEvents()
+        this.applyRunEvents(sessionId, [event])
+      }
+    }
     const preparedRequest = await providerRuntime.prepareRunRequest(
       sessionId,
       provider,
       request,
       (targetSessionId, events) => {
+        if (targetSessionId === sessionId) {
+          enqueueProviderEvents(events)
+          return
+        }
         this.applyRunEvents(targetSessionId, events)
       }
     )
@@ -1816,7 +1848,7 @@ export const sessionManager = {
         sendRunRaw(sessionId, data)
       },
       onParsedEvents: (events) => {
-        this.applyRunEvents(sessionId, events)
+        enqueueProviderEvents(events)
       },
       onData: (data) => {
         if (/\[y\/n\]/i.test(data) || /\[yes\/no\]/i.test(data)) {
@@ -1825,6 +1857,7 @@ export const sessionManager = {
         }
       },
       onExit: () => {
+        flushProviderDeltaEvents()
         flushRunRaw(sessionId)
         flushRunEvents(sessionId)
         flushActiveStreamingMessagesToStore(sessionId)
@@ -2225,9 +2258,11 @@ export const sessionManager = {
     }
   },
 
-  applyRunEvents(sessionId: string, events: RunEvent[]): void {
-    if (events.length === 0) return
+  applyRunEvents(sessionId: string, incomingEvents: RunEvent[]): void {
+    if (incomingEvents.length === 0) return
     const applyStartedAt = performance.now()
+    const coalescedBatch = coalesceRunEvents(incomingEvents)
+    const events = coalescedBatch.events
     const streamingDeltaCount = events.filter((event) => event.type === 'assistant.text.delta').length
 
     sendRunEvents(sessionId, events)
@@ -2346,7 +2381,7 @@ export const sessionManager = {
     }
 
     const durationMs = performance.now() - applyStartedAt
-    if (durationMs >= 4 || events.length > 1 || streamingDeltaCount > 1) {
+    if (durationMs >= 4 || events.length > 1 || streamingDeltaCount > 1 || coalescedBatch.coalescedDeltas > 0) {
       recordPerformanceMetric({
         name: 'session.applyRunEvents',
         surface: 'main',
@@ -2355,6 +2390,8 @@ export const sessionManager = {
         metadata: {
           sessionId,
           events: events.length,
+          incomingEvents: incomingEvents.length,
+          coalescedDeltas: coalescedBatch.coalescedDeltas,
           streamingDeltas: streamingDeltaCount,
           activeStreamingMessages: activeStreamingMessages.size
         }
@@ -2395,7 +2432,7 @@ export const sessionManager = {
         normalizedPatch.runtime = sessionRuntimeForProvider(normalizedPatch.provider ?? s.provider ?? 'claude', normalizedPatch.runtime)
       }
       Object.assign(s, normalizedPatch)
-      store.set('sessions', sessions)
+      setSessionsStore(sessions, 'settings', { sessionId: id })
       send('session:settingsUpdated', { id, ...normalizedPatch })
     }
   },
@@ -2514,7 +2551,7 @@ export const sessionManager = {
       const s = sessions.find((candidate) => candidate.id === sessionId)
       if (s && persistGrant) {
         s.allowedTools = mergeToolNames(s.allowedTools, toolNames)
-        store.set('sessions', sessions)
+        setSessionsStore(sessions, 'permission-grant-tools', { sessionId, tools: toolNames.length })
       }
       if (persistGrant) approvalBroker.grantTools(sessionId, toolNames)
       if (persistGrant) {
@@ -2533,7 +2570,7 @@ export const sessionManager = {
         const s = sessions.find((candidate) => candidate.id === sessionId)
         if (s) {
           s.allowedTools = mergeToolNames(s.allowedTools, toolNames)
-          store.set('sessions', sessions)
+          setSessionsStore(sessions, 'permission-grant-tools', { sessionId, tools: toolNames.length })
         }
       }
       markLatestPermissionDecision(sessionId, persistGrant ? 'allowed_session' : 'allowed_once')
@@ -2550,7 +2587,7 @@ export const sessionManager = {
     const s = sessions.find((s) => s.id === sessionId)
     if (s && persistGrant) {
       s.allowedTools = mergeToolNames(s.allowedTools, toolNames)
-      store.set('sessions', sessions)
+      setSessionsStore(sessions, 'permission-grant-tools', { sessionId, tools: toolNames.length })
     }
 
     this.updateStatus(sessionId, 'running')
@@ -2931,7 +2968,7 @@ export const sessionManager = {
       }
     }
     const sessions = store.get('sessions', []).filter((s) => s.id !== sessionId)
-    store.set('sessions', sessions)
+    setSessionsStore(sessions, 'remove-session', { sessionId })
   },
 
   async getDiff(sessionId: string): Promise<string> {
@@ -2950,7 +2987,7 @@ export const sessionManager = {
     const stored = sessions.find((candidate) => candidate.id === sessionId)
     if (stored) {
       stored.reviewMetadata = metadata
-      store.set('sessions', sessions)
+      setSessionsStore(sessions, 'review-metadata', { sessionId })
       send('session:updated', { id: sessionId, reviewMetadata: metadata })
     }
     return metadata

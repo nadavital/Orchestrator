@@ -30,7 +30,7 @@ interface TranscriptScrollController {
   updateScrollMetrics: () => void
 }
 
-const SCROLL_METRICS_UPDATE_INTERVAL_MS = 32
+const SCROLL_METRICS_UPDATE_INTERVAL_MS = 48
 
 export function useTranscriptScrollController({
   transcriptListRef,

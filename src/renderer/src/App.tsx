@@ -5,7 +5,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { useProjectStore } from './store/projects'
 import { hasComposerDraft, sideChatIdFromTabId, terminalTabIdFromTabId, useSessionStore } from './store/sessions'
 import type { SettingsSection } from './store/sessions'
-import { appendSessionEvents, appendSessionRaw } from './store/streamBuffers'
+import { appendSessionEvents, appendSessionRaw, deleteSessionStreamingMessage, hasSessionStreamingMessage, upsertSessionStreamingMessage } from './store/streamBuffers'
 import type { ProviderModelDef } from './types'
 import Sidebar from './components/Sidebar/Sidebar'
 import SessionPane from './components/Session/SessionPane'
@@ -136,6 +136,10 @@ export default function App(): JSX.Element {
   const removeSessionFromProject = useProjectStore((state) => state.removeSessionFromProject)
   const sessionCount = useSessionStore((state) => state.sessions.length)
   const activeSessionId = useSessionStore((state) => state.activeSessionId)
+  const activeEventsPanelOpen = useSessionStore((state) => {
+    const id = state.activeSessionId
+    return id ? state.uiState[id]?.showEvents === true : false
+  })
   const activeMenuUi = useSessionStore(useShallow((state) => {
     const id = state.activeSessionId
     const ui = id ? state.uiState[id] : undefined
@@ -165,7 +169,6 @@ export default function App(): JSX.Element {
   const updateSettings = useSessionStore((state) => state.updateSettings)
   const appendMessages = useSessionStore((state) => state.appendMessages)
   const upsertMessage = useSessionStore((state) => state.upsertMessage)
-  const upsertStreamingMessage = useSessionStore((state) => state.upsertStreamingMessage)
   const removeMessage = useSessionStore((state) => state.removeMessage)
   const setShowTerminal = useSessionStore((state) => state.setShowTerminal)
   const setActiveSession = useSessionStore((state) => state.setActiveSession)
@@ -205,10 +208,10 @@ export default function App(): JSX.Element {
     pendingStreamingMessageUpsertsRef.current.clear()
     startTransition(() => {
       for (const item of pending) {
-        upsertStreamingMessage(item.sessionId, item.message)
+        upsertSessionStreamingMessage(item.sessionId, item.message)
       }
     })
-  }, [upsertStreamingMessage])
+  }, [])
 
   const flushInactiveSessionBuffers = useCallback((sessionId: string | null): void => {
     if (!sessionId) return
@@ -216,7 +219,7 @@ export default function App(): JSX.Element {
     const streamingUpdates = flushed.streamingUpserts
     if (streamingUpdates.length > 0) {
       startTransition(() => {
-        for (const item of streamingUpdates) upsertStreamingMessage(item.sessionId, item.message)
+        for (const item of streamingUpdates) upsertSessionStreamingMessage(item.sessionId, item.message)
       })
     }
 
@@ -235,7 +238,7 @@ export default function App(): JSX.Element {
         appendSessionRaw(sessionId, raw)
       })
     }
-  }, [upsertStreamingMessage])
+  }, [])
 
   const scheduleMessageUpsert = useCallback((sessionId: string, message: ChatMessage): void => {
     const pendingKey = `${sessionId}:${message.id}`
@@ -249,7 +252,7 @@ export default function App(): JSX.Element {
       const state = useSessionStore.getState()
       const session = state.sessions.find((candidate) => candidate.id === sessionId)
       const hasBaseMessage = session?.messages.some((candidate) => candidate.id === message.id) === true
-      const hasStreamingMessage = state.streamingMessages[sessionId]?.[message.id] !== undefined
+      const hasStreamingMessage = hasSessionStreamingMessage(sessionId, message.id)
       if (!hasBaseMessage && !hasStreamingMessage) {
         upsertMessage(sessionId, message)
         return
@@ -262,6 +265,7 @@ export default function App(): JSX.Element {
     }
     pendingStreamingMessageUpsertsRef.current.delete(pendingKey)
     inactiveSessionStreamBufferRef.current.deleteStreamingUpsert(sessionId, message.id)
+    deleteSessionStreamingMessage(sessionId, message.id)
     upsertMessage(sessionId, message)
   }, [flushStreamingMessageUpserts, upsertMessage])
 
@@ -277,18 +281,32 @@ export default function App(): JSX.Element {
 
   const scheduleSessionRaw = useCallback((sessionId: string, data: string): void => {
     if (!data) return
-    if (sessionId !== activeSessionIdRef.current) {
+    if (sessionId !== activeSessionIdRef.current || !activeEventsPanelOpen) {
       const next = `${inactiveRawBuffersRef.current.get(sessionId) ?? ''}${data}`.slice(-INACTIVE_RAW_BUFFER_LIMIT_CHARS)
       inactiveRawBuffersRef.current.set(sessionId, next)
       return
     }
     appendSessionRaw(sessionId, data)
-  }, [])
+  }, [activeEventsPanelOpen])
 
   useEffect(() => {
     activeSessionIdRef.current = activeSessionId
-    flushInactiveSessionBuffers(activeSessionId)
-  }, [activeSessionId, flushInactiveSessionBuffers])
+    if (activeEventsPanelOpen) flushInactiveSessionBuffers(activeSessionId)
+    else if (activeSessionId) {
+      const flushed = inactiveSessionStreamBufferRef.current.flush(activeSessionId)
+      if (flushed.streamingUpserts.length > 0) {
+        startTransition(() => {
+          for (const item of flushed.streamingUpserts) upsertSessionStreamingMessage(item.sessionId, item.message)
+        })
+      }
+      if (flushed.events.length > 0) {
+        startTransition(() => {
+          appendSessionEvents(activeSessionId, flushed.events)
+          applyBrowserManagerRunEvents(activeSessionId, flushed.events)
+        })
+      }
+    }
+  }, [activeEventsPanelOpen, activeSessionId, flushInactiveSessionBuffers])
 
   useEffect(() => {
     return () => {

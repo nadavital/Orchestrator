@@ -1,10 +1,11 @@
 import { useSyncExternalStore } from 'react'
-import type { SessionRunEventRecord } from '../../types'
+import type { ChatMessage, SessionRunEventRecord } from '../../types'
 
 const MAX_EVENTS_PER_SESSION = 500
 const MAX_RAW_CHARS_PER_SESSION = 20_000
 const EMPTY_EVENTS: readonly SessionRunEventRecord[] = Object.freeze([])
 const EMPTY_SNAPSHOT: SessionStreamSnapshot = Object.freeze({ events: EMPTY_EVENTS, raw: '' })
+const EMPTY_STREAMING_MESSAGES: Readonly<Record<string, ChatMessage>> = Object.freeze({})
 
 export interface SessionStreamSnapshot {
   events: readonly SessionRunEventRecord[]
@@ -13,8 +14,10 @@ export interface SessionStreamSnapshot {
 
 const eventsBySession = new Map<string, readonly SessionRunEventRecord[]>()
 const rawBySession = new Map<string, string>()
+const streamingMessagesBySession = new Map<string, Readonly<Record<string, ChatMessage>>>()
 const snapshotsBySession = new Map<string, SessionStreamSnapshot>()
 const listenersBySession = new Map<string, Set<() => void>>()
+const streamingMessageListenersBySession = new Map<string, Set<() => void>>()
 
 function snapshotForSession(sessionId: string): SessionStreamSnapshot {
   return snapshotsBySession.get(sessionId) ?? EMPTY_SNAPSHOT
@@ -28,6 +31,12 @@ function rebuildSnapshot(sessionId: string): void {
 
 function notify(sessionId: string): void {
   const listeners = listenersBySession.get(sessionId)
+  if (!listeners) return
+  for (const listener of listeners) listener()
+}
+
+function notifyStreamingMessages(sessionId: string): void {
+  const listeners = streamingMessageListenersBySession.get(sessionId)
   if (!listeners) return
   for (const listener of listeners) listener()
 }
@@ -51,6 +60,30 @@ export function appendSessionRaw(sessionId: string, data: string): void {
 export function clearSessionStreamBuffers(sessionId: string): void {
   const hadData = eventsBySession.delete(sessionId) || rawBySession.delete(sessionId) || snapshotsBySession.delete(sessionId)
   if (hadData) notify(sessionId)
+  if (streamingMessagesBySession.delete(sessionId)) notifyStreamingMessages(sessionId)
+}
+
+export function upsertSessionStreamingMessage(sessionId: string, message: ChatMessage): void {
+  const current = streamingMessagesBySession.get(sessionId) ?? EMPTY_STREAMING_MESSAGES
+  if (current[message.id] === message) return
+  streamingMessagesBySession.set(sessionId, { ...current, [message.id]: message })
+  notifyStreamingMessages(sessionId)
+}
+
+export function deleteSessionStreamingMessage(sessionId: string, messageId: string): void {
+  const current = streamingMessagesBySession.get(sessionId)
+  if (!current || current[messageId] === undefined) return
+  const { [messageId]: _removed, ...next } = current
+  if (Object.keys(next).length > 0) {
+    streamingMessagesBySession.set(sessionId, next)
+  } else {
+    streamingMessagesBySession.delete(sessionId)
+  }
+  notifyStreamingMessages(sessionId)
+}
+
+export function hasSessionStreamingMessage(sessionId: string, messageId: string): boolean {
+  return streamingMessagesBySession.get(sessionId)?.[messageId] !== undefined
 }
 
 export function getSessionEvents(sessionId: string): readonly SessionRunEventRecord[] {
@@ -77,6 +110,14 @@ export function useSessionStreamSnapshot(sessionId: string): SessionStreamSnapsh
   )
 }
 
+export function useSessionStreamingMessages(sessionId: string): Readonly<Record<string, ChatMessage>> {
+  return useSyncExternalStore(
+    (listener) => subscribeSessionStreamingMessages(sessionId, listener),
+    () => streamingMessagesBySession.get(sessionId) ?? EMPTY_STREAMING_MESSAGES,
+    () => EMPTY_STREAMING_MESSAGES
+  )
+}
+
 function subscribeSessionStream(sessionId: string, listener: () => void): () => void {
   let listeners = listenersBySession.get(sessionId)
   if (!listeners) {
@@ -89,5 +130,20 @@ function subscribeSessionStream(sessionId: string, listener: () => void): () => 
     if (!current) return
     current.delete(listener)
     if (current.size === 0) listenersBySession.delete(sessionId)
+  }
+}
+
+function subscribeSessionStreamingMessages(sessionId: string, listener: () => void): () => void {
+  let listeners = streamingMessageListenersBySession.get(sessionId)
+  if (!listeners) {
+    listeners = new Set()
+    streamingMessageListenersBySession.set(sessionId, listeners)
+  }
+  listeners.add(listener)
+  return () => {
+    const current = streamingMessageListenersBySession.get(sessionId)
+    if (!current) return
+    current.delete(listener)
+    if (current.size === 0) streamingMessageListenersBySession.delete(sessionId)
   }
 }
